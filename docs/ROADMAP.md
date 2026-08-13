@@ -1,5 +1,10 @@
 # llmx — Roadmap
 
+> **Dev status:** `docs/STATUS.md` tracks what's done / in flight / planned per
+> feature. This roadmap is the stable long-term plan; STATUS is the living
+> scratchpad. When a feature ships, its STATUS block collapses to a `Done` row
+> here — this file never carries dev noise.
+
 Ordered roughly by dependency and value. Items marked **[design]** are
 specified in `docs/ARCHITECTURE.md` but not yet implemented.
 

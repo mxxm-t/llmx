@@ -27,6 +27,18 @@ The build dir's `generated/config.hpp` is produced from
 `cmake/llmx-config.hpp.in`; the checked-in `src/config.hpp` is the fallback used
 by the plain `build.bat` path. Keep the two in sync when you add build knobs.
 
+## Principles
+
+- **Performance first.** llmx is a *runtime*: a slow-but-correct implementation
+  is not enough. Every change to a hot path (quantized matmul, RMSNorm, RoPE,
+  attention, KV cache) should state the perf impact and be benchmarked, not just
+  verified for correctness. When correctness and speed trade off, prefer the
+  fast path and prove it is lossless (see `docs/ROADMAP.md` correctness gate).
+- **Dependency-free.** No external libs. The whole point is to control the full
+  stack; reaching for a library erodes that.
+- **Lean, not clever.** Add a seam only when a second implementation is on the
+  roadmap. No speculative abstraction, no empty stubs.
+
 ## Verify
 
 Round-trip test (generates fixtures, quantizes, dequantizes, compares):
@@ -39,6 +51,26 @@ python -c "import struct;a=open('test_orig.bin','rb').read();b=open('test_out.bi
 Note: `verify_gguf.py` is an independent spec parser that aligns between tensor
 infos; our writer packs them contiguously. That script's alignment is stricter
 than the spec requires, so use `llmx.exe info` as the authoritative check.
+
+## Tests
+
+Run the full suite (all generate their own fixtures, no real models needed):
+```
+python tests/run_tests.py
+```
+
+- **Round-trip** (`tests/roundtrip.py`): build a random Q8_0 model, quantize,
+  dequantize, assert max error below a Q8_0-appropriate bound. Regression gate
+  for `quant/` + `format/`.
+- **Perf** (`tests/perf.py`): time matmul / RMSNorm / RoPE hot paths and print
+  throughput, so perf-first changes can be checked for regressions. Assert a
+  generous floor so catastrophic slowdowns fail loudly without being flaky.
+- **Tokenizer** (`tests/tokenizer.py`): encode/decode round-trips incl. unicode
+  and special tokens.
+
+When you change a hot path, run `tests/perf.py` and note the before/after in the
+commit message. The lossless correctness gate (path-controlled perplexity on a
+real model) is tracked in `docs/ROADMAP.md`.
 
 ## Architecture
 
@@ -56,6 +88,30 @@ matters: **each layer depends only on the layers below it** —
 | `backends/`  | Backend interface + cpu/ (AVX2) impl           |
 | `inference/` | sampler, generate, chat template renderer      |
 | `cli/`       | thin argument parsing + dispatch               |
+
+## Starting a feature
+
+A fresh agent (or human) can jump straight into a feature by reading, in order:
+1. `AGENTS.md` — this file: what the project is, how to build and verify.
+2. `docs/ARCHITECTURE.md` — the layers and the dependency rule.
+3. `docs/ROADMAP.md` — the stable plan; pick or confirm the feature there.
+4. `docs/STATUS.md` — what is already in flight and where each feature stands.
+
+When you start (or pick up) a feature:
+- Open a new per-feature block in `docs/STATUS.md` (or update the existing one)
+  **before** writing code: **Goal / Done / Left / Gotchas**. That block is what
+  lets the next agent pick the feature back up with a "continue feature X"
+  prompt, so keep it current.
+- Don't invent new directions — follow the roadmap. When the feature ships,
+  delete its block and mark the row `Done` in the STATUS table.
+
+## Checkpoints
+
+Update `docs/STATUS.md` and commit at each meaningful checkpoint — at minimum
+when a feature, a milestone, or a discrete chunk of work is complete. Each
+commit should leave `docs/STATUS.md` accurate: `Done`/`Left` reflect reality,
+the build passes, and tests are green. A fresh agent should be able to read
+STATUS.md and resume exactly where the last commit left off.
 
 ## Build-time vs runtime
 

@@ -9,6 +9,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <algorithm>
+#include <chrono>
 
 #include "config.hpp"
 #include "core/fp16.hpp"
@@ -16,6 +17,7 @@
 #include "format/gguf.hpp"
 #include "format/format.hpp"
 #include "quant/quant.hpp"
+#include "backends/cpu/cpu_backend.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/sampler.hpp"
 #include "inference/generate.hpp"
@@ -371,6 +373,45 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     return 0;
 }
 
+// Micro-benchmark of the backend hot paths (matmul, RMSNorm, RoPE). Used by
+// tests/perf.py as the perf-regression gate for hot-path changes.
+int cmd_bench(int size, int iters, int threads) {
+    auto b = backend::make_cpu_backend();
+    b->set_threads(threads);
+
+    // Square matmul: mat is [nin, nout] = [size, size]. x is the input
+    // (length nin), out the result (length nout). nout rows, each nin/32 blocks.
+    const size_t nblocks = (size_t)size / gguf::Q8_0_BLOCK;
+    std::vector<float> x(size, 0.5f);
+    std::vector<uint8_t> mat((size_t)size * nblocks * gguf::Q8_0_TYPESIZE);
+    std::vector<float> src(size), w(size), dst(size);
+    for (int i = 0; i < size; i++) { src[i] = std::sin((float)i * 0.01f); w[i] = 0.1f; }
+    std::vector<float> cos(size / 2), sin(size / 2);
+    for (int i = 0; i < size / 2; i++) { cos[i] = std::cos(0.1f); sin[i] = std::sin(0.1f); }
+
+    using clock = std::chrono::steady_clock;
+    auto t0 = clock::now();
+    for (int it = 0; it < iters; it++)
+        b->matvec_q8_0(mat.data(), x.data(), dst.data(), nblocks, (size_t)size);
+    double mm_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
+
+    t0 = clock::now();
+    for (int it = 0; it < iters; it++)
+        b->rms_norm(dst.data(), src.data(), w.data(), (size_t)size, 1e-6f);
+    double rn_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
+
+    t0 = clock::now();
+    for (int it = 0; it < iters; it++)
+        b->rope(dst.data(), cos.data(), sin.data(), size / 2);
+    double rp_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
+
+    double mm_gflops = 2.0 * (double)size * (double)size / (mm_ms * 1e6);
+    printf("bench: matmul %dx%d  %8.3f ms  %8.2f GFLOPS\n", size, size, mm_ms, mm_gflops);
+    printf("bench: rms_norm n=%d  %8.3f ms\n", size, rn_ms);
+    printf("bench: rope     n=%d  %8.3f ms\n", size, rp_ms);
+    return 0;
+}
+
 void print_usage() {
     std::cout
         << "llmx " << LLMX_VERSION_STRING << " - ground-up GGUF Q8_0 CLI (no external libs)\n"
@@ -384,6 +425,7 @@ void print_usage() {
         << "  llmx perplexity <in.gguf> \"<text>\" [flags...]\n"
         << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
+        << "  llmx bench      [--size N] [--iters N] [--threads N]\n"
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
         << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
         << "\n"
@@ -471,6 +513,18 @@ int main(int argc, char** argv) {
         if (cmd == "info") {
             if (argc != 3) { std::cerr << "usage: llmx info <in.gguf>\n"; return 2; }
             return cmd_info(argv[2]);
+        }
+        if (cmd == "bench") {
+            int size = 1024, iters = 5, threads = 0;
+            for (int i = 2; i < argc; i++) {
+                std::string a = argv[i];
+                if (a == "--size") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;
+                else if (a == "--iters") iters = (i + 1 < argc) ? std::atoi(argv[++i]) : iters;
+                else if (a == "--threads") threads = (i + 1 < argc) ? std::atoi(argv[++i]) : threads;
+                else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
+            }
+            if (size <= 0 || size % 32 != 0) { std::cerr << "bench: --size must be positive and a multiple of 32\n"; return 2; }
+            return cmd_bench(size, iters, threads);
         }
         print_usage();
         return 1;

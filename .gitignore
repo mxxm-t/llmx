@@ -1,0 +1,13 @@
+# Build artifacts
+*.exe
+*.obj
+
+# Test outputs
+test_out.*
+test_model.*
+*.bin
+*.gguf
+
+# Editor
+.vs/
+.vscode/

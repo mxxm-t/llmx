@@ -8,13 +8,15 @@
 #include <thread>
 #include <stdexcept>
 
-#include <intrin.h>
-#include <immintrin.h>
+#include "format/gguf.hpp"
+#include "core/fp16.hpp"
+#include "quant/quant.hpp"
+#include "backends/backend.hpp"
+#include "backends/cpu/cpu_backend.hpp"
 
-#include "gguf.hpp"
-#include "fp16.hpp"
-
-// Qwen3-style transformer forward pass, from scratch. CPU, single-threaded.
+// Qwen3-style transformer forward pass, from scratch. The compute primitives
+// (quantized matmul, RMSNorm, RoPE) are delegated to a backend::Backend, so the
+// same model code runs on CPU now and other backends later.
 // Supports dense Q8_0 / F32 tensors only:
 //   token_embd.weight        Q8_0 [n_embd, n_vocab]
 //   output.weight            Q8_0 [n_embd, n_vocab]
@@ -89,7 +91,12 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
 
 class Model {
 public:
-    explicit Model(const gguf::GGUFModel& m) : m_(&m) {
+    // Construct the model over a GGUF model, using the given backend (defaults
+    // to the CPU backend). The model owns a reference to the model data, which
+    // must outlive the Model.
+    explicit Model(const gguf::GGUFModel& m,
+                   backend::BackendPtr backend = backend::make_cpu_backend())
+        : m_(&m), b_(std::move(backend)) {
         cfg = load_config(m);
         if (cfg.n_layer <= 0 || cfg.n_embd <= 0) throw std::runtime_error("inference: incomplete Qwen3 config in metadata");
         if (cfg.n_head_kv <= 0) cfg.n_head_kv = cfg.n_head;
@@ -121,13 +128,9 @@ public:
                 rope_sin_[(size_t)pos * half + i] = std::sin((float)pos * fre);
             }
         }
-
-        unsigned hw = std::thread::hardware_concurrency();
-        threads_ = (hw > 0) ? (int)hw : 4;
-        if (threads_ > 64) threads_ = 64;
     }
 
-    void set_threads(int n) { threads_ = (n > 0) ? n : 1; }
+    void set_threads(int n) { b_->set_threads(n); }
 
     int n_tokens() const { return n_tokens_; }
     int head_dim() const { return cfg.head_dim; }
@@ -144,7 +147,9 @@ public:
             const std::string pre = "blk." + std::to_string(l) + ".";
 
             // attn norm
-            rms_norm_into(h_.data(), x_.data(), (const float*)tensor_data(pre + "attn_norm.weight"), cfg.n_embd);
+            b_->rms_norm(h_.data(), x_.data(),
+                         (const float*)tensor_data(pre + "attn_norm.weight"),
+                         cfg.n_embd, cfg.rms_eps);
 
             // q,k,v projections
             matvec(tensor(pre + "attn_q.weight"), h_.data(), q_.data(), cfg.n_embd, cfg.n_embd);
@@ -155,15 +160,22 @@ public:
             const float* qnorm = (const float*)tensor_data(pre + "attn_q_norm.weight");
             const float* knorm = (const float*)tensor_data(pre + "attn_k_norm.weight");
             for (int h = 0; h < cfg.n_head; h++)
-                rms_norm_into(q_.data() + h * cfg.head_dim, q_.data() + h * cfg.head_dim, qnorm, cfg.head_dim);
+                b_->rms_norm(q_.data() + h * cfg.head_dim, q_.data() + h * cfg.head_dim, qnorm, cfg.head_dim, cfg.rms_eps);
             for (int h = 0; h < cfg.n_head_kv; h++)
-                rms_norm_into(kv_.data() + h * cfg.head_dim, kv_.data() + h * cfg.head_dim, knorm, cfg.head_dim);
+                b_->rms_norm(kv_.data() + h * cfg.head_dim, kv_.data() + h * cfg.head_dim, knorm, cfg.head_dim, cfg.rms_eps);
 
             // rope
-            for (int h = 0; h < cfg.n_head; h++)
-                rope(q_.data() + h * cfg.head_dim, pos);
-            for (int h = 0; h < cfg.n_head_kv; h++)
-                rope(kv_.data() + h * cfg.head_dim, pos);
+            {
+                int half = cfg.head_dim / 2;
+                for (int h = 0; h < cfg.n_head; h++)
+                    b_->rope(q_.data() + h * cfg.head_dim,
+                             rope_cos_.data() + (size_t)pos * half,
+                             rope_sin_.data() + (size_t)pos * half, half);
+                for (int h = 0; h < cfg.n_head_kv; h++)
+                    b_->rope(kv_.data() + h * cfg.head_dim,
+                             rope_cos_.data() + (size_t)pos * half,
+                             rope_sin_.data() + (size_t)pos * half, half);
+            }
 
             // store k,v in cache
             k_cache_[l].insert(k_cache_[l].end(), kv_.begin(), kv_.end());
@@ -173,27 +185,7 @@ public:
             // can be processed in parallel.
             const float* kcache = k_cache_[l].data();
             const float* vcache = v_cache_[l].data();
-            int nh = cfg.n_head;
-            int nt = threads_;
-            if (nt > nh) nt = nh;
-            if (nt <= 1) {
-                for (int hq = 0; hq < nh; hq++)
-                    attend_head(hq, kcache, vcache);
-            } else {
-                std::vector<std::thread> workers;
-                workers.reserve((size_t)nt);
-                int chunk = (nh + nt - 1) / nt;
-                for (int w = 0; w < nt; w++) {
-                    int start = w * chunk;
-                    int end = std::min(nh, start + chunk);
-                    if (start >= end) break;
-                    workers.emplace_back([&, start, end, kcache, vcache]() {
-                        for (int hq = start; hq < end; hq++)
-                            attend_head(hq, kcache, vcache);
-                    });
-                }
-                for (auto& th : workers) th.join();
-            }
+            attend_heads(kcache, vcache);
 
             // attn_output projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
@@ -201,7 +193,9 @@ public:
             for (int i = 0; i < cfg.n_embd; i++) x_[i] += h_[i];
 
             // ffn norm
-            rms_norm_into(h_.data(), x_.data(), (const float*)tensor_data(pre + "ffn_norm.weight"), cfg.n_embd);
+            b_->rms_norm(h_.data(), x_.data(),
+                         (const float*)tensor_data(pre + "ffn_norm.weight"),
+                         cfg.n_embd, cfg.rms_eps);
 
             // gate/up (SwiGLU)
             std::vector<float> gate(cfg.n_ff), up(cfg.n_ff), ffn(cfg.n_ff);
@@ -218,7 +212,9 @@ public:
         }
 
         // final norm + output projection
-        rms_norm_into(h_.data(), x_.data(), (const float*)tensor_data("output_norm.weight"), cfg.n_embd);
+        b_->rms_norm(h_.data(), x_.data(),
+                     (const float*)tensor_data("output_norm.weight"),
+                     cfg.n_embd, cfg.rms_eps);
         size_t n_vocab = tensor("output.weight").ne[1];
         std::vector<float> logits(n_vocab);
         matvec(tensor("output.weight"), h_.data(), logits.data(), cfg.n_embd, n_vocab);
@@ -236,6 +232,7 @@ public:
 
 private:
     const gguf::GGUFModel* m_;
+    backend::BackendPtr b_;
     QwenConfig cfg;
     int ratio_ = 1;
     std::unordered_map<std::string, size_t> tindex_;
@@ -244,7 +241,6 @@ private:
     std::vector<std::vector<float>> k_cache_, v_cache_;
     std::vector<float> rope_cos_, rope_sin_;
     int n_tokens_ = 0;
-    int threads_ = 1;
 
     const gguf::TensorInfo& tensor(const std::string& name) const {
         auto it = tindex_.find(name);
@@ -253,6 +249,32 @@ private:
     }
     const uint8_t* tensor_data(const std::string& name) const {
         return m_->data[tindex_.at(name)].data();
+    }
+
+    // Attention across all q-heads, parallelized over heads. Each head reads
+    // its group's k/v cache and writes only its own attn_ slice (no sharing).
+    void attend_heads(const float* kcache, const float* vcache) {
+        int nh = cfg.n_head;
+        int nt = (int)b_->threads_available();
+        if (nt > nh) nt = nh;
+        if (nt <= 1) {
+            for (int hq = 0; hq < nh; hq++)
+                attend_head(hq, kcache, vcache);
+        } else {
+            std::vector<std::thread> workers;
+            workers.reserve((size_t)nt);
+            int chunk = (nh + nt - 1) / nt;
+            for (int w = 0; w < nt; w++) {
+                int start = w * chunk;
+                int end = std::min(nh, start + chunk);
+                if (start >= end) break;
+                workers.emplace_back([&, start, end, kcache, vcache]() {
+                    for (int hq = start; hq < end; hq++)
+                        attend_head(hq, kcache, vcache);
+                });
+            }
+            for (auto& th : workers) th.join();
+        }
     }
 
     // Attention for one q-head. Reads q_ (head hq), the KV cache for its group,
@@ -282,126 +304,18 @@ private:
         }
     }
 
-    static bool has_avx2() {
-#if defined(_MSC_VER)
-        int info[4];
-        __cpuid(info, 0);
-        int maxid = info[0];
-        if (maxid < 7) return false;
-        __cpuid(info, 7);
-        return (info[1] & (1 << 5)) != 0; // EBX bit 5 = AVX2
-#else
-        return __builtin_cpu_supports("avx2");
-#endif
-    }
-
-    // Dot product of one Q8_0 row (nblocks blocks, nin = nblocks*32) with x.
-    // Uses an AVX2 fused dequant+FMA path when available, else scalar.
-    float dot_row(const uint8_t* row, const float* x, size_t nblocks) {
-        if (has_avx2()) {
-            __m256 acc = _mm256_setzero_ps();
-            for (size_t b = 0; b < nblocks; b++) {
-                const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
-                float d = f16_to_f32((uint16_t)(y[0] | ((uint16_t)y[1] << 8)));
-                __m256 dv = _mm256_set1_ps(d);
-                const __m128i* p = (const __m128i*)(y + 2);
-                __m128i a = _mm_loadu_si128(p);
-                __m128i c = _mm_loadu_si128(p + 1);
-                // sign-extend the 32 int8 to 4 groups of 8 int32 -> float
-                __m256 f0 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(a));
-                __m256 f1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(a, 8)));
-                __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(c));
-                __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(c, 8)));
-                const float* xp = x + b * gguf::Q8_0_BLOCK;
-                acc = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), acc);
-                acc = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), acc);
-                acc = _mm256_fmadd_ps(_mm256_mul_ps(f2, dv), _mm256_loadu_ps(xp + 16), acc);
-                acc = _mm256_fmadd_ps(_mm256_mul_ps(f3, dv), _mm256_loadu_ps(xp + 24), acc);
-            }
-            __m128 lo = _mm256_castps256_ps128(acc);
-            __m128 hi = _mm256_extractf128_ps(acc, 1);
-            __m128 s = _mm_add_ps(lo, hi);
-            s = _mm_hadd_ps(s, s);
-            s = _mm_hadd_ps(s, s);
-            return _mm_cvtss_f32(s);
-        }
-        float acc = 0.0f;
-        for (size_t b = 0; b < nblocks; b++) {
-            const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
-            uint16_t d16 = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
-            float d = f16_to_f32(d16);
-            for (int j = 0; j < gguf::Q8_0_BLOCK; j++)
-                acc += (float)(int8_t)y[2 + j] * d * x[b * gguf::Q8_0_BLOCK + j];
-        }
-        return acc;
-    }
-
     // Dequantize row `r` of a Q8_0 matrix (nin fastest) into `out`.
     void dequant_row(const gguf::TensorInfo& t, size_t r, float* out) const {
         size_t nin = (size_t)t.ne[0];
         const uint8_t* base = m_->data[tindex_.at(t.name)].data() + r * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE;
-        for (size_t b = 0; b < nin / gguf::Q8_0_BLOCK; b++) {
-            const uint8_t* y = base + b * gguf::Q8_0_TYPESIZE;
-            uint16_t d16 = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
-            float d = f16_to_f32(d16);
-            for (int j = 0; j < gguf::Q8_0_BLOCK; j++)
-                out[b * gguf::Q8_0_BLOCK + j] = (float)(int8_t)y[2 + j] * d;
-        }
+        quant::dequantize_row_q8_0(base, out, nin / gguf::Q8_0_BLOCK);
     }
 
     // W: Q8_0 [nin, nout] (row o at o*nin/32*34). out = W^T x.
-    // Each output row is independent, so rows are split across threads. Every
-    // worker computes its rows with dot_row() and writes only to its own out[]
-    // slots (no sharing, so no locking needed).
     void matvec(const gguf::TensorInfo& t, const float* x, float* out, size_t nin, size_t nout) {
         size_t nblocks = nin / gguf::Q8_0_BLOCK;
         const uint8_t* data = m_->data[tindex_.at(t.name)].data();
-
-        int nt = threads_;
-        // Small problems aren't worth thread overhead.
-        if (nt <= 1 || nout < (size_t)nt * 8) {
-            for (size_t o = 0; o < nout; o++) {
-                const uint8_t* row = data + o * nblocks * gguf::Q8_0_TYPESIZE;
-                out[o] = dot_row(row, x, nblocks);
-            }
-            return;
-        }
-        if (nt > (int)nout) nt = (int)nout;
-
-        std::vector<std::thread> workers;
-        workers.reserve((size_t)nt);
-        size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
-        for (int w = 0; w < nt; w++) {
-            size_t start = (size_t)w * chunk;
-            size_t end = std::min(nout, start + chunk);
-            if (start >= end) break;
-            workers.emplace_back([&, start, end]() {
-                for (size_t o = start; o < end; o++) {
-                    const uint8_t* row = data + o * nblocks * gguf::Q8_0_TYPESIZE;
-                    out[o] = dot_row(row, x, nblocks);
-                }
-            });
-        }
-        for (auto& th : workers) th.join();
-    }
-
-    void rms_norm_into(float* dst, const float* src, const float* w, size_t n) {
-        float s = 0.0f;
-        for (size_t i = 0; i < n; i++) s += src[i] * src[i];
-        float r = 1.0f / std::sqrt(s / (float)n + cfg.rms_eps);
-        for (size_t i = 0; i < n; i++) dst[i] = src[i] * r * w[i];
-    }
-
-    void rope(float* x, int pos) {
-        int half = cfg.head_dim / 2;
-        const float* c = rope_cos_.data() + (size_t)pos * half;
-        const float* s = rope_sin_.data() + (size_t)pos * half;
-        for (int i = 0; i < half; i++) {
-            int a = i, b = i + half;
-            float xa = x[a], xb = x[b];
-            x[a] = xa * c[i] - xb * s[i];
-            x[b] = xa * s[i] + xb * c[i];
-        }
+        b_->matvec_q8_0(data, x, out, nblocks, nout);
     }
 };
 

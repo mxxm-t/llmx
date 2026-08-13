@@ -8,6 +8,8 @@
 #include <fstream>
 #include <stdexcept>
 
+#include "format/format.hpp"
+
 // GGUF file format reader/writer, implemented from scratch.
 // Implements GGUF v3 + GGML_TYPE_Q8_0 and GGML_TYPE_F32 tensors.
 // Spec reference (llama.cpp gguf.h):
@@ -248,4 +250,57 @@ inline GGUFModel read_gguf(const std::string& path) {
     return m;
 }
 
+// GGUF is the reference implementation of the format::ModelFormat interface.
+// It wraps a GGUFModel (already read into memory) and exposes its tensors and
+// metadata through the format-agnostic view.
+class GGUFFormat final : public format::ModelFormat {
+public:
+    explicit GGUFFormat(gguf::GGUFModel m) : m_(std::move(m)) {}
+
+    std::vector<format::Tensor> tensors() const override {
+        std::vector<format::Tensor> out;
+        out.reserve(m_.tensors.size());
+        for (const auto& t : m_.tensors) out.push_back({ t.name, t.ne, t.type });
+        return out;
+    }
+
+    std::string metadata_string(const std::string& key) const override {
+        for (const auto& kv : m_.kv)
+            if (kv.first == key && kv.second.vtype == gguf::V_STRING) return kv.second.s;
+        return "";
+    }
+
+    uint64_t metadata_u64(const std::string& key) const override {
+        for (const auto& kv : m_.kv) {
+            if (kv.first != key) continue;
+            switch (kv.second.vtype) {
+                case gguf::V_UINT8:  return kv.second.u;
+                case gguf::V_UINT16: return kv.second.u;
+                case gguf::V_UINT32: return kv.second.u;
+                case gguf::V_UINT64: return kv.second.u;
+                case gguf::V_INT8:   return (uint64_t)kv.second.i;
+                case gguf::V_INT16:  return (uint64_t)kv.second.i;
+                case gguf::V_INT32:  return (uint64_t)kv.second.i;
+                case gguf::V_INT64:  return (uint64_t)kv.second.i;
+                default: return 0;
+            }
+        }
+        return 0;
+    }
+
+private:
+    gguf::GGUFModel m_;
+};
+
 } // namespace gguf
+
+// Auto-detect the format from the file header and open it. Currently only GGUF
+// is implemented; the magic check is the extension point for future formats.
+inline format::ModelFormatPtr format::open(const std::string& path) {
+    std::ifstream is(path, std::ios::binary);
+    if (!is) throw std::runtime_error("cannot open file: " + path);
+    uint32_t magic;
+    is.read((char*)&magic, 4);
+    if (magic == gguf::MAGIC) return std::make_shared<gguf::GGUFFormat>(gguf::read_gguf(path));
+    return nullptr;
+}

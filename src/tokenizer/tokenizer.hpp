@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <stdexcept>
 
-#include "gguf.hpp"
+#include "format/gguf.hpp"
 
 // GPT-2 style byte-level BPE tokenizer, implemented from scratch.
 // Reads tokenizer metadata from a GGUF model:

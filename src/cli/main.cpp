@@ -9,57 +9,26 @@
 #include <sstream>
 #include <stdexcept>
 #include <algorithm>
-#include <unordered_set>
 
-#include "fp16.hpp"
-#include "json.hpp"
-#include "gguf.hpp"
-#include "tokenizer.hpp"
-#include "inference.hpp"
-#include "chat.hpp"
+#include "config.hpp"
+#include "core/fp16.hpp"
+#include "core/json.hpp"
+#include "format/gguf.hpp"
+#include "format/format.hpp"
+#include "quant/quant.hpp"
+#include "tokenizer/tokenizer.hpp"
+#include "inference/sampler.hpp"
+#include "inference/generate.hpp"
+#include "inference/chat.hpp"
 
-// ---------------------------------------------------------------------------
-// Q8_0 quantization kernels (block of 32 floats -> 1 f16 scale + 32 int8)
-// ---------------------------------------------------------------------------
+// llmx CLI. This file is intentionally a thin dispatcher: format logic lives in
+// format/, quantization in quant/, inference in inference/, and the model in
+// model/. The only code that belongs here is argument parsing and glue.
 
-static void quantize_row_q8_0(const float* src, uint8_t* dst, size_t nblocks) {
-    for (size_t b = 0; b < nblocks; b++) {
-        const float* x = src + b * gguf::Q8_0_BLOCK;
-        uint8_t*      y = dst + b * gguf::Q8_0_TYPESIZE;
-
-        float amax = 0.0f;
-        for (size_t j = 0; j < gguf::Q8_0_BLOCK; j++)
-            amax = std::max(amax, std::fabs(x[j]));
-
-        const float d = amax / 127.0f;
-        const uint16_t d16 = f32_to_f16(d);
-        y[0] = (uint8_t)(d16 & 0xff);
-        y[1] = (uint8_t)(d16 >> 8);
-
-        for (size_t j = 0; j < gguf::Q8_0_BLOCK; j++) {
-            float q = (d > 0.0f) ? std::round(x[j] / d) : 0.0f;
-            int v = (int)q;
-            if (v > 127)  v = 127;
-            if (v < -127) v = -127;
-            y[2 + j] = (uint8_t)(int8_t)v;
-        }
-    }
-}
-
-static void dequantize_row_q8_0(const uint8_t* src, float* dst, size_t nblocks) {
-    for (size_t b = 0; b < nblocks; b++) {
-        const uint8_t* y = src + b * gguf::Q8_0_TYPESIZE;
-        float*         x = dst + b * gguf::Q8_0_BLOCK;
-
-        uint16_t d16 = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
-        const float d = f16_to_f32(d16);
-        for (size_t j = 0; j < gguf::Q8_0_BLOCK; j++)
-            x[j] = (float)(int8_t)y[2 + j] * d;
-    }
-}
+namespace {
 
 // ---------------------------------------------------------------------------
-// model.json / model.bin helper structures
+// model.json / model.bin helper structures (quantize input)
 // ---------------------------------------------------------------------------
 
 struct JsonTensor {
@@ -67,35 +36,7 @@ struct JsonTensor {
     std::vector<uint64_t> shape; // shape[0] -> ne[0] (fastest dim)
 };
 
-static void print_usage() {
-    std::cout
-        << "gguf8 - ground-up GGUF Q8_0 CLI (no external libs)\n"
-        << "\n"
-        << "Usage:\n"
-        << "  gguf8 quantize   <model.json> <model.bin> <out.gguf>\n"
-        << "  gguf8 dequantize <in.gguf> <out.json> <out.bin>\n"
-        << "  gguf8 info       <in.gguf>\n"
-        << "  gguf8 tokenize   <in.gguf> \"<text>\"\n"
-        << "  gguf8 detokenize <in.gguf> <id1,id2,...>\n"
-        << "  gguf8 perplexity <in.gguf> \"<text>\" [flags...]\n"
-        << "  gguf8 generate   <in.gguf> \"<prompt>\" [flags...]\n"
-        << "  gguf8 chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
-        << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
-        << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
-        << "\n"
-        << "model.json describes tensors:\n"
-        << "  {\n"
-        << "    \"name\": \"MyModel\",\n"
-        << "    \"tensors\": [\n"
-        << "      {\"name\": \"tok_embeddings.weight\", \"shape\": [512, 256]},\n"
-        << "      {\"name\": \"norm.weight\",           \"shape\": [256]}\n"
-        << "    ]\n"
-        << "  }\n"
-        << "model.bin holds each tensor's float32 data concatenated in that order.\n"
-        << "Every tensor must have a number of elements divisible by 32 (Q8_0 block).\n";
-}
-
-static std::vector<JsonTensor> parse_model_json(const jmini::Value& root) {
+std::vector<JsonTensor> parse_model_json(const jmini::Value& root) {
     std::vector<JsonTensor> out;
     const jmini::Value* tensors = root.get("tensors");
     if (!tensors || !tensors->isArray())
@@ -121,18 +62,18 @@ static std::vector<JsonTensor> parse_model_json(const jmini::Value& root) {
     return out;
 }
 
-static uint64_t num_elements(const JsonTensor& t) {
+uint64_t num_elements(const JsonTensor& t) {
     uint64_t n = 1;
     for (auto d : t.shape) n *= d;
     return n;
 }
 
 // ---------------------------------------------------------------------------
-// quantize command
+// commands
 // ---------------------------------------------------------------------------
 
-static int cmd_quantize(const std::string& json_path, const std::string& bin_path,
-                        const std::string& out_path) {
+int cmd_quantize(const std::string& json_path, const std::string& bin_path,
+                 const std::string& out_path) {
     std::ifstream jf(json_path);
     if (!jf) throw std::runtime_error("cannot open " + json_path);
     std::stringstream jss;
@@ -140,7 +81,6 @@ static int cmd_quantize(const std::string& json_path, const std::string& bin_pat
     jmini::Value root = jmini::parse(jss.str());
     std::vector<JsonTensor> tensors = parse_model_json(root);
 
-    // read all float32 data
     std::ifstream bf(bin_path, std::ios::binary);
     if (!bf) throw std::runtime_error("cannot open " + bin_path);
     bf.seekg(0, std::ios::end);
@@ -181,7 +121,7 @@ static int cmd_quantize(const std::string& json_path, const std::string& bin_pat
 
         size_t nblocks = (size_t)(num_elements(t) / gguf::Q8_0_BLOCK);
         std::vector<uint8_t> q(nblocks * gguf::Q8_0_TYPESIZE);
-        quantize_row_q8_0(fptr, q.data(), nblocks);
+        quant::quantize_row_q8_0(fptr, q.data(), nblocks);
         fptr += num_elements(t);
 
         m.tensors.push_back(std::move(ti));
@@ -193,15 +133,10 @@ static int cmd_quantize(const std::string& json_path, const std::string& bin_pat
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// dequantize command
-// ---------------------------------------------------------------------------
-
-static int cmd_dequantize(const std::string& in_path, const std::string& out_json,
-                          const std::string& out_bin) {
+int cmd_dequantize(const std::string& in_path, const std::string& out_json,
+                   const std::string& out_bin) {
     gguf::GGUFModel m = gguf::read_gguf(in_path);
 
-    // build output json
     std::stringstream js;
     js << "{\n";
     js << "  \"name\": \"" << in_path << "\",\n";
@@ -219,7 +154,6 @@ static int cmd_dequantize(const std::string& in_path, const std::string& out_jso
     }
     js << "  ]\n}\n";
 
-    // concatenated float32 data
     std::vector<uint8_t> out;
     for (size_t i = 0; i < m.tensors.size(); i++) {
         const auto& t = m.tensors[i];
@@ -227,7 +161,7 @@ static int cmd_dequantize(const std::string& in_path, const std::string& out_jso
         size_t n = (size_t)t.n_elements();
         std::vector<float> f(n);
         if (t.type == gguf::GGML_TYPE_Q8_0) {
-            dequantize_row_q8_0(raw.data(), f.data(), n / gguf::Q8_0_BLOCK);
+            quant::dequantize_row_q8_0(raw.data(), f.data(), n / gguf::Q8_0_BLOCK);
         } else if (t.type == gguf::GGML_TYPE_F32) {
             std::memcpy(f.data(), raw.data(), n * 4);
         } else {
@@ -249,11 +183,7 @@ static int cmd_dequantize(const std::string& in_path, const std::string& out_jso
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// info command
-// ---------------------------------------------------------------------------
-
-static const char* type_name(uint32_t t) {
+const char* type_name(uint32_t t) {
     switch (t) {
         case gguf::GGML_TYPE_F32:  return "F32";
         case gguf::GGML_TYPE_Q8_0: return "Q8_0";
@@ -261,7 +191,7 @@ static const char* type_name(uint32_t t) {
     }
 }
 
-static void dump_value(const gguf::MetaValue& v) {
+void dump_value(const gguf::MetaValue& v) {
     switch (v.vtype) {
         case gguf::V_UINT8:  std::cout << v.u; break;
         case gguf::V_INT8:   std::cout << v.i; break;
@@ -287,7 +217,7 @@ static void dump_value(const gguf::MetaValue& v) {
     }
 }
 
-static int cmd_info(const std::string& in_path) {
+int cmd_info(const std::string& in_path) {
     gguf::GGUFModel m = gguf::read_gguf(in_path);
     std::cout << "File: " << in_path << "\n";
     std::cout << "Tensors: " << m.tensors.size() << "\n";
@@ -310,11 +240,7 @@ static int cmd_info(const std::string& in_path) {
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// tokenize / detokenize commands
-// ---------------------------------------------------------------------------
-
-static std::vector<uint32_t> parse_token_ids(const std::string& s) {
+std::vector<uint32_t> parse_token_ids(const std::string& s) {
     std::vector<uint32_t> ids;
     std::string cur;
     for (char c : s) {
@@ -326,7 +252,7 @@ static std::vector<uint32_t> parse_token_ids(const std::string& s) {
     return ids;
 }
 
-static int cmd_tokenize(const std::string& model_path, const std::string& text) {
+int cmd_tokenize(const std::string& model_path, const std::string& text) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer t(m);
     std::vector<uint32_t> ids = t.encode(text);
@@ -338,7 +264,7 @@ static int cmd_tokenize(const std::string& model_path, const std::string& text) 
     return 0;
 }
 
-static int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
+int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer t(m);
     std::vector<uint32_t> ids = parse_token_ids(ids_arg);
@@ -346,201 +272,26 @@ static int cmd_detokenize(const std::string& model_path, const std::string& ids_
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// sampling + generation
-// ---------------------------------------------------------------------------
-
-// Minimal xorshift64 PRNG (no <random> dependency).
-struct RNG {
-    uint64_t s = 0x9E3779B97F4A7C15ull;
-    void seed(uint64_t x) { if (x) s = x; }
-    uint64_t next() {
-        uint64_t x = s;
-        x ^= x << 13; x ^= x >> 7; x ^= x << 17;
-        s = x;
-        return x;
-    }
-    // uniform float in [0,1)
-    float unit() { return (float)((next() >> 40) * (1.0 / 16777216.0)); }
-};
-
-// Temperature + top-k + top-p nucleus sampling with repetition penalty.
-// `penalty` >= 1: divide the score of each already-generated token by penalty
-// to discourage repeats. Returns the chosen token id.
-static uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
-                       float top_p, float penalty, const std::vector<uint32_t>& gen,
-                       RNG& rng) {
-    size_t n = logits.size();
-
-    std::vector<std::pair<float, uint32_t>> ranked;
-    ranked.reserve(n);
-    for (size_t i = 0; i < n; i++) ranked.push_back({ logits[i], (uint32_t)i });
-
-    // repetition penalty
-    if (penalty > 0.0f && penalty != 1.0f && !gen.empty()) {
-        std::unordered_set<uint32_t> seen;
-        for (uint32_t id : gen) seen.insert(id);
-        for (auto& pr : ranked) {
-            if (seen.count(pr.second)) {
-                pr.first = (pr.first > 0.0f) ? (pr.first / penalty) : (pr.first * penalty);
-            }
-        }
-    }
-
-    std::sort(ranked.begin(), ranked.end(),
-              [](const auto& a, const auto& b) { return a.first > b.first; });
-
-    // top-k truncation
-    size_t keep = (top_k > 0 && (size_t)top_k < n) ? (size_t)top_k : n;
-
-    // temperature
-    if (temp > 0.0f) {
-        float inv = 1.0f / temp;
-        for (size_t i = 0; i < keep; i++) ranked[i].first /= inv; // *temp
-    } else {
-        return ranked[0].second; // argmax (no randomness)
-    }
-
-    // softmax over the kept window
-    float maxv = ranked[0].first;
-    std::vector<float> p(keep);
-    double sum = 0.0;
-    for (size_t i = 0; i < keep; i++) {
-        float v = std::exp((ranked[i].first - maxv) / temp);
-        p[i] = v;
-        sum += v;
-    }
-    for (size_t i = 0; i < keep; i++) p[i] = (float)(p[i] / sum);
-
-    // top-p nucleus truncation
-    size_t nuc = keep;
-    if (top_p < 1.0f) {
-        float acc = 0.0f;
-        nuc = 0;
-        while (nuc < keep && acc < top_p) { acc += p[nuc]; nuc++; }
-        if (nuc < 1) nuc = 1;
-        // renormalize over the nucleus
-        float nsum = 0.0f;
-        for (size_t i = 0; i < nuc; i++) nsum += p[i];
-        for (size_t i = 0; i < nuc; i++) p[i] /= nsum;
-    }
-
-    float r = rng.unit();
-    float acc = 0.0f;
-    for (size_t i = 0; i < nuc; i++) {
-        acc += p[i];
-        if (r < acc) return ranked[i].second;
-    }
-    return ranked[nuc - 1].second;
-}
-
-struct GenParams {
-    int max_tokens = 64;
-    float temp = 0.8f;
-    int top_k = 40;
-    float top_p = 0.95f;
-    int threads = 0; // 0 = auto
-    float penalty = 1.0f;   // repetition penalty (>= 1)
-    uint64_t seed = 0;      // 0 = non-deterministic
-    std::string stop;       // stop generating when decoded output contains this
-    bool show_prompt_tokens = false;
-    bool show_thinking = false; // show Qwen3 <thinking> block
-};
-
-// Feed every id in `ids` through the model (prefill / continue), updating the
-// KV cache. Returns the logits predicted by the last token (i.e. the
-// distribution over the next token).
-static std::vector<float> prefill(infer::Model& model,
-                                  const std::vector<uint32_t>& ids) {
-    std::vector<float> logits;
-    for (uint32_t id : ids) logits = model.step((int)id);
-    return logits;
-}
-
-// Find a vocab token whose string contains `sub`, or -1.
-static int find_token_by_substr(const bpe::Tokenizer& tok, const std::string& sub) {
-    for (size_t i = 0; i < tok.vocab.size(); i++)
-        if (tok.vocab[i].find(sub) != std::string::npos) return (int)i;
-    return -1;
-}
-
-// Generate tokens starting from `logits` (the prediction after the last fed
-// token), stopping at eos. Returns generated ids (excluding the eos token).
-// By default the Qwen3 <thinking_start>...<thinking_end> reasoning block is
-// hidden; only the final answer is printed. Pass gp.show_thinking to keep it.
-static std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
-                                      const GenParams& gp, RNG& rng,
-                                      std::vector<float> logits) {
-    uint32_t eos = (uint32_t)((tok.eos_id >= 0) ? tok.eos_id : 0);
-    std::vector<uint32_t> gen;
-    std::string decoded;
-    for (int t = 0; t < gp.max_tokens; t++) {
-        uint32_t id = sample(logits, gp.temp, gp.top_k, gp.top_p, gp.penalty, gen, rng);
-        if (id == eos) break;
-        gen.push_back(id);
-        decoded += tok.decode({ id });
-        if (!gp.stop.empty() && decoded.find(gp.stop) != std::string::npos) break;
-        logits = model.step((int)id); // predict token after `id`
-    }
-
-    size_t begin = 0;
-    size_t end = gen.size();
-    if (!gp.show_thinking) {
-        int tstart = find_token_by_substr(tok, "thinking_start");
-        int tend   = find_token_by_substr(tok, "thinking_end");
-        int astart = find_token_by_substr(tok, "answer_start");
-        int aend   = find_token_by_substr(tok, "answer_end");
-        if (tstart >= 0) {
-            auto ts = std::find(gen.begin(), gen.end(), (uint32_t)tstart);
-            if (ts != gen.end()) {
-                auto te = std::find(gen.begin(), gen.end(), (uint32_t)tend);
-                begin = (te != gen.end()) ? (size_t)(te - gen.begin() + 1) : gen.size();
-            }
-        }
-        if (astart >= 0) {
-            auto as = std::find(gen.begin(), gen.end(), (uint32_t)astart);
-            if (as != gen.end()) begin = (size_t)(as - gen.begin() + 1);
-        }
-        if (aend >= 0) {
-            auto ae = std::find(gen.begin(), gen.end(), (uint32_t)aend);
-            if (ae != gen.end()) end = (size_t)(ae - gen.begin());
-        }
-    }
-
-    for (size_t i = begin; i < end; i++)
-        std::cout << tok.decode({ gen[i] }) << std::flush;
-    std::cout << "\n";
-    return gen;
-}
-
-static int cmd_generate(const std::string& model_path, const std::string& prompt,
-                        const GenParams& gp) {
+int cmd_generate(const std::string& model_path, const std::string& prompt,
+                 const infer::GenParams& gp) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
     infer::Model model(m);
     if (gp.threads > 0) model.set_threads(gp.threads);
-    RNG rng;
+    infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
     std::vector<uint32_t> ids = tok.encode(prompt);
     if (ids.empty()) throw std::runtime_error("generate: empty prompt");
 
-    std::vector<float> logits = prefill(model, ids);
+    std::vector<float> logits = infer::prefill(model, ids);
     if (gp.show_prompt_tokens) std::cout << "prompt tokens: " << ids.size() << "\n";
-    generate(model, tok, gp, rng, logits);
+    infer::generate(model, tok, gp, rng, logits);
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// perplexity (correctness gate)
-// ---------------------------------------------------------------------------
-// Walks the text token by token, reusing the KV cache. For each token i>0 it
-// measures the log-probability the model assigns to token i given tokens
-// [0..i-1], then reports mean per-token negative log-likelihood (natural log)
-// and exp of it = perplexity. A low ppl on real text is a sanity check that
-// the Q8_0 forward pass is numerically sound.
-static int cmd_perplexity(const std::string& model_path, const std::string& text,
-                          const GenParams& gp) {
+int cmd_perplexity(const std::string& model_path, const std::string& text,
+                   const infer::GenParams& gp) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
     infer::Model model(m);
@@ -570,21 +321,15 @@ static int cmd_perplexity(const std::string& model_path, const std::string& text
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// chat REPL
-// ---------------------------------------------------------------------------
-
-static int cmd_chat(const std::string& model_path, const std::string& system,
-                    const GenParams& gp) {
+int cmd_chat(const std::string& model_path, const std::string& system,
+             const infer::GenParams& gp) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
     infer::Model model(m);
     if (gp.threads > 0) model.set_threads(gp.threads);
-    RNG rng;
+    infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
-    // Read the chat template from GGUF metadata; fall back to a simple
-    // role/content template if the model doesn't ship one.
     std::string tpl = chat::get_chat_template(m);
     if (tpl.empty()) {
         tpl = "{% for message in messages %}<|im_start|>{{ message['role'] }}\n"
@@ -604,28 +349,21 @@ static int cmd_chat(const std::string& model_path, const std::string& system,
     while (std::getline(std::cin, line)) {
         messages.push_back({ "user", line });
 
-        // Prefill only the delta: everything already in the KV cache up to the
-        // last position, then the newly appended user turn.
         std::string full = chat::render(tpl, messages, false, bos, eos);
         std::vector<uint32_t> full_ids = tok.encode(full);
         int cur = model.n_tokens();
         if ((int)full_ids.size() > cur)
-            prefill(model, std::vector<uint32_t>(full_ids.begin() + cur, full_ids.end()));
+            infer::prefill(model, std::vector<uint32_t>(full_ids.begin() + cur, full_ids.end()));
 
-        // Append the assistant generation prompt; its last token predicts the
-        // first assistant reply token.
         std::string gen = chat::render(tpl, messages, true, bos, eos);
         std::vector<uint32_t> gen_ids = tok.encode(gen);
         int cur2 = model.n_tokens();
         std::vector<float> logits;
         if ((int)gen_ids.size() > cur2)
-            logits = prefill(model, std::vector<uint32_t>(gen_ids.begin() + cur2, gen_ids.end()));
+            logits = infer::prefill(model, std::vector<uint32_t>(gen_ids.begin() + cur2, gen_ids.end()));
 
-        std::vector<uint32_t> reply = generate(model, tok, gp, rng, logits);
+        std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits);
 
-        // Close the assistant turn in the KV cache. generate() stops at eos
-        // without feeding it, so without this the model never "sees" the end of
-        // its own reply before the next user message.
         if (tok.eos_id >= 0) model.step(tok.eos_id);
 
         messages.push_back({ "assistant", tok.decode(reply) });
@@ -633,9 +371,35 @@ static int cmd_chat(const std::string& model_path, const std::string& system,
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// main
-// ---------------------------------------------------------------------------
+void print_usage() {
+    std::cout
+        << "llmx " << LLMX_VERSION_STRING << " - ground-up GGUF Q8_0 CLI (no external libs)\n"
+        << "\n"
+        << "Usage:\n"
+        << "  llmx quantize   <model.json> <model.bin> <out.gguf>\n"
+        << "  llmx dequantize <in.gguf> <out.json> <out.bin>\n"
+        << "  llmx info       <in.gguf>\n"
+        << "  llmx tokenize   <in.gguf> \"<text>\"\n"
+        << "  llmx detokenize <in.gguf> <id1,id2,...>\n"
+        << "  llmx perplexity <in.gguf> \"<text>\" [flags...]\n"
+        << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
+        << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
+        << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
+        << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
+        << "\n"
+        << "model.json describes tensors:\n"
+        << "  {\n"
+        << "    \"name\": \"MyModel\",\n"
+        << "    \"tensors\": [\n"
+        << "      {\"name\": \"tok_embeddings.weight\", \"shape\": [512, 256]},\n"
+        << "      {\"name\": \"norm.weight\",           \"shape\": [256]}\n"
+        << "    ]\n"
+        << "  }\n"
+        << "model.bin holds each tensor's float32 data concatenated in that order.\n"
+        << "Every tensor must have a number of elements divisible by 32 (Q8_0 block).\n";
+}
+
+} // namespace
 
 int main(int argc, char** argv) {
     try {
@@ -643,12 +407,12 @@ int main(int argc, char** argv) {
         std::string cmd = argv[1];
 
         if (cmd == "generate" || cmd == "chat") {
-            if (argc < 4) {
-                std::cerr << "usage: gguf8 " << cmd << " <model.gguf> [--system \"<text>\"] [flags...]\n";
-                std::cerr << "       gguf8 generate <model.gguf> \"<prompt>\" [flags...]\n";
+            if (argc < 3) {
+                std::cerr << "usage: llmx " << cmd << " <model.gguf> [--system \"<text>\"] [flags...]\n";
+                std::cerr << "       llmx generate <model.gguf> \"<prompt>\" [flags...]\n";
                 return 2;
             }
-            GenParams gp;
+            infer::GenParams gp;
             std::string system = "You are a helpful assistant.";
             std::string prompt;
             bool have_prompt = false;
@@ -677,8 +441,8 @@ int main(int argc, char** argv) {
         }
 
         if (cmd == "perplexity") {
-            if (argc < 4) { std::cerr << "usage: gguf8 perplexity <model.gguf> \"<text>\" [flags...]\n"; return 2; }
-            GenParams gp;
+            if (argc < 4) { std::cerr << "usage: llmx perplexity <model.gguf> \"<text>\" [flags...]\n"; return 2; }
+            infer::GenParams gp;
             for (int i = 4; i < argc; i++) {
                 std::string a = argv[i];
                 if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
@@ -688,24 +452,24 @@ int main(int argc, char** argv) {
         }
 
         if (cmd == "tokenize") {
-            if (argc != 4) { std::cerr << "usage: gguf8 tokenize <model.gguf> \"<text>\"\n"; return 2; }
+            if (argc != 4) { std::cerr << "usage: llmx tokenize <model.gguf> \"<text>\"\n"; return 2; }
             return cmd_tokenize(argv[2], argv[3]);
         }
         if (cmd == "detokenize") {
-            if (argc != 4) { std::cerr << "usage: gguf8 detokenize <model.gguf> <id1,id2,...>\n"; return 2; }
+            if (argc != 4) { std::cerr << "usage: llmx detokenize <model.gguf> <id1,id2,...>\n"; return 2; }
             return cmd_detokenize(argv[2], argv[3]);
         }
 
         if (cmd == "quantize") {
-            if (argc != 5) { std::cerr << "usage: gguf8 quantize <model.json> <model.bin> <out.gguf>\n"; return 2; }
+            if (argc != 5) { std::cerr << "usage: llmx quantize <model.json> <model.bin> <out.gguf>\n"; return 2; }
             return cmd_quantize(argv[2], argv[3], argv[4]);
         }
         if (cmd == "dequantize") {
-            if (argc != 5) { std::cerr << "usage: gguf8 dequantize <in.gguf> <out.json> <out.bin>\n"; return 2; }
+            if (argc != 5) { std::cerr << "usage: llmx dequantize <in.gguf> <out.json> <out.bin>\n"; return 2; }
             return cmd_dequantize(argv[2], argv[3], argv[4]);
         }
         if (cmd == "info") {
-            if (argc != 3) { std::cerr << "usage: gguf8 info <in.gguf>\n"; return 2; }
+            if (argc != 3) { std::cerr << "usage: llmx info <in.gguf>\n"; return 2; }
             return cmd_info(argv[2]);
         }
         print_usage();

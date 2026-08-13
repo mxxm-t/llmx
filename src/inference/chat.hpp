@@ -7,7 +7,7 @@
 #include <cctype>
 #include <cstdlib>
 
-#include "gguf.hpp"
+#include "format/gguf.hpp"
 
 // Minimal Jinja2-subset renderer for GGUF `tokenizer.chat_template` strings.
 // Supports the control-flow and expressions used by common chat templates

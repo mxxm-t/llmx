@@ -28,6 +28,7 @@ public:
         unsigned hw = std::thread::hardware_concurrency();
         threads_ = (hw > 0) ? (int)hw : 4;
         if (threads_ > 64) threads_ = 64;
+        avx2_ = has_avx2();   // detect once, not per row dot
     }
 
     void set_threads(int n) override { threads_ = (n > 0) ? n : 1; }
@@ -68,6 +69,30 @@ public:
     }
 
     void rms_norm(float* dst, const float* src, const float* w, size_t n, float eps) override {
+        if (avx2_) {
+            // Sum of squares (vectorized), then a vectorized weighted scale.
+            __m256 acc = _mm256_setzero_ps();
+            size_t i = 0;
+            for (; i + 8 <= n; i += 8) {
+                __m256 x = _mm256_loadu_ps(src + i);
+                acc = _mm256_fmadd_ps(x, x, acc);
+            }
+            __m256 h = _mm256_hadd_ps(acc, acc);
+            h = _mm256_hadd_ps(h, h);
+            float s = _mm256_cvtss_f32(h);
+            s += _mm_cvtss_f32(_mm256_extractf128_ps(h, 1));
+            for (; i < n; i++) s += src[i] * src[i];
+            float r = 1.0f / std::sqrt(s / (float)n + eps);
+            __m256 rv = _mm256_set1_ps(r);
+            i = 0;
+            for (; i + 8 <= n; i += 8) {
+                __m256 x = _mm256_loadu_ps(src + i);
+                __m256 wv = _mm256_loadu_ps(w + i);
+                _mm256_storeu_ps(dst + i, _mm256_mul_ps(x, _mm256_mul_ps(rv, wv)));
+            }
+            for (; i < n; i++) dst[i] = src[i] * r * w[i];
+            return;
+        }
         float s = 0.0f;
         for (size_t i = 0; i < n; i++) s += src[i] * src[i];
         float r = 1.0f / std::sqrt(s / (float)n + eps);
@@ -75,6 +100,26 @@ public:
     }
 
     void rope(float* x, const float* cos, const float* sin, int half) override {
+        if (avx2_) {
+            int i = 0;
+            for (; i + 8 <= half; i += 8) {
+                __m256 xa = _mm256_loadu_ps(x + i);
+                __m256 xb = _mm256_loadu_ps(x + i + half);
+                __m256 c = _mm256_loadu_ps(cos + i);
+                __m256 s = _mm256_loadu_ps(sin + i);
+                __m256 na = _mm256_fnmadd_ps(xb, s, _mm256_mul_ps(xa, c));
+                __m256 nb = _mm256_fmadd_ps(xa, s, _mm256_mul_ps(xb, c));
+                _mm256_storeu_ps(x + i, na);
+                _mm256_storeu_ps(x + i + half, nb);
+            }
+            for (; i < half; i++) {
+                int a = i, b = i + half;
+                float xa = x[a], xb = x[b];
+                x[a] = xa * cos[i] - xb * sin[i];
+                x[b] = xa * sin[i] + xb * cos[i];
+            }
+            return;
+        }
         for (int i = 0; i < half; i++) {
             int a = i, b = i + half;
             float xa = x[a], xb = x[b];
@@ -85,6 +130,7 @@ public:
 
 private:
     int threads_ = 1;
+    bool avx2_ = false;
 
     static bool has_avx2() {
 #if defined(_MSC_VER)
@@ -108,7 +154,7 @@ private:
     // Dot product of one Q8_0 row (nblocks blocks, nin = nblocks*32) with x.
     // Uses an AVX2 fused dequant+FMA path when available, else scalar.
     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {
-        if (has_avx2()) {
+        if (avx2_) {
             __m256 acc = _mm256_setzero_ps();
             for (size_t b = 0; b < nblocks; b++) {
                 const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;

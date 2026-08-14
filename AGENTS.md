@@ -79,6 +79,9 @@ When you change a hot path, run `tests/perf.py` and note the before/after in the
 commit message. The lossless correctness gate (path-controlled perplexity on a
 real model) is tracked in `docs/ROADMAP.md`.
 
+Real models and corpora for manual verification (the Qwen3-8B Q8_0 model, the
+wikitext test set) are documented in `docs/ASSETS.md`.
+
 ## Architecture
 
 See `docs/ARCHITECTURE.md` for the layer diagram and rules. The rule that

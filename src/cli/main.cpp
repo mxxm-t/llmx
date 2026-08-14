@@ -288,9 +288,18 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     std::vector<uint32_t> ids = tok.encode(prompt);
     if (ids.empty()) throw std::runtime_error("generate: empty prompt");
 
+    auto t0 = std::chrono::steady_clock::now();
     std::vector<float> logits = infer::prefill(model, ids);
+    double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (gp.show_prompt_tokens) std::cout << "prompt tokens: " << ids.size() << "\n";
-    infer::generate(model, tok, gp, rng, logits);
+    std::cout << "pp: " << ids.size() << " tok, " << (long)pp_ms << " ms, "
+              << (long)((double)ids.size() / (pp_ms / 1e3)) << " tok/s\n";
+
+    t0 = std::chrono::steady_clock::now();
+    std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits);
+    double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    std::cout << "tg: " << gen.size() << " tok, " << (long)tg_ms << " ms, "
+              << (long)((double)gen.size() / (tg_ms / 1e3)) << " tok/s\n";
     return 0;
 }
 
@@ -447,7 +456,7 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
 // Micro-benchmark of the backend hot paths (matmul, RMSNorm, RoPE) plus
 // end-to-end prefill/decode TPS on a synthetic Qwen3 model. Used by
 // tests/perf.py as the perf-regression gate for hot-path changes.
-int cmd_bench(int size, int iters, int threads) {
+int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
     auto b = backend::make_cpu_backend();
     b->set_threads(threads);
 
@@ -489,7 +498,7 @@ int cmd_bench(int size, int iters, int threads) {
         infer::Model model(sm, b);
         model.set_threads(threads);
 
-        const int P = 64, G = 64;
+        const int P = prefill, G = decode;
         model.reset();
         t0 = clock::now();
         for (int i = 0; i < P; i++) model.step(i % nv);
@@ -610,16 +619,18 @@ int main(int argc, char** argv) {
             return cmd_info(argv[2]);
         }
         if (cmd == "bench") {
-            int size = 1024, iters = 5, threads = 0;
+            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64;
             for (int i = 2; i < argc; i++) {
                 std::string a = argv[i];
                 if (a == "--size") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;
                 else if (a == "--iters") iters = (i + 1 < argc) ? std::atoi(argv[++i]) : iters;
                 else if (a == "--threads") threads = (i + 1 < argc) ? std::atoi(argv[++i]) : threads;
+                else if (a == "--p") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;
+                else if (a == "--n") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             if (size <= 0 || size % 32 != 0) { std::cerr << "bench: --size must be positive and a multiple of 32\n"; return 2; }
-            return cmd_bench(size, iters, threads);
+            return cmd_bench(size, iters, threads, prefill, decode);
         }
         print_usage();
         return 1;

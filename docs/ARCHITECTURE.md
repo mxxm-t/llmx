@@ -43,13 +43,18 @@ what a file is. That is what makes each dimension independently replaceable.
 | Directory       | Contents                                                              |
 |-----------------|-----------------------------------------------------------------------|
 | `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser)    |
-| `quant/`        | `quant.hpp` (type registry), `q8_0.hpp` kernels (moved from main)     |
-| `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3 + adapter)  |
+| `quant/`        | `quant.hpp` (type registry), Q8_0 kernels                             |
+| `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3)            |
 | `tokenizer/`    | `tokenizer.hpp` (GPT-2 BPE)                                           |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass, KV cache)               |
 | `backends/`     | `backend.hpp` (interface), `cpu/cpu_backend.hpp` (AVX2 impl)          |
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `chat.hpp` (Jinja2-subset renderer)    |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
+
+Per-file documentation lives in `docs/src/` — one page per source file, covering
+what each header does, its public surface, and its place in the layering. See
+`docs/src/cli-main.md` for the CLI entry points and `docs/USAGE.md` for the
+command reference.
 
 ## Build-time vs runtime
 

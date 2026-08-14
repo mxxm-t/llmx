@@ -38,6 +38,13 @@ by the plain `build.bat` path. Keep the two in sync when you add build knobs.
   stack; reaching for a library erodes that.
 - **Lean, not clever.** Add a seam only when a second implementation is on the
   roadmap. No speculative abstraction, no empty stubs.
+- **Not overengineer, not underdo, no bloat.** This is a ground-up runtime with a
+  deliberately small surface, so the default is to build *only* what the current
+  feature needs and no more. But "lean" is not an excuse to ship a half-built
+  feature: if a piece is claimed or a path is promised, it must actually work and
+  be covered. Prefer the simplest thing that fully solves the stated problem;
+  leave generic seams, flags, and scaffolding out until a concrete second use
+  exists. When in doubt, ask whether the extra code pays for itself today.
 
 ## Verify
 

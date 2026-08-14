@@ -44,9 +44,12 @@ feature ships, delete its block and mark the row `Done` above.
   - Correctness: vectorized rms_norm/rope verified vs scalar references across
     n/half in {1,2,7,8,15,16,31,32,33,64,100,1000}; max err ~1e-7 (float rounding only).
   - Full suite green: roundtrip / perf / tokenizer all PASS.
+  - `bench` now reports end-to-end prefill/decode TPS on a tiny synthetic Qwen3
+    model (2 layers, 256 embd, Q8_0 matmuls + F32 norms), and `tests/perf.py`
+    gates on those floors (1000 / 800 tok/s). Decode < prefill as expected
+    (longer KV cache). This is the automated regression signal — real-model TPS
+    is a manual measurement via `perplexity`/`generate`, not part of the suite.
 - **Left:**
-  - Bump `tests/perf.py` floor (currently 0.5 GFLOPS, now 18+ default) if you want
-    it to catch real regressions rather than only catastrophic ones.
   - Re-read docs (ARCHITECTURE/AGENTS mention) for stale claims.
 - **Gotchas:**
   - **AVX-512 is deferred.** Dev CPU (Ryzen 7 5800X, Zen 3) has no AVX-512, so

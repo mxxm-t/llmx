@@ -9,19 +9,35 @@ from common import run as cli
 # This is a smoke gate, not a benchmark harness — the printed numbers are what
 # you compare across commits when changing a hot path.
 
-FLOOR_GFLOPS = 0.5   # matmul matvec on 2048x2048 must beat this (very generous)
+# matmul matvec on 2048x2048 must beat this. Dev machine (Ryzen 7 5800X, 8
+# cores, AVX2) hits ~18 GFLOPS; 8.0 catches catastrophic regressions (e.g. the
+# ~3.6 GFLOPS per-row-cpuid slowdown) with ~2x margin while staying non-flaky.
+FLOOR_GFLOPS = 8.0
+
+# End-to-end TPS on the synthetic Qwen3 model (2 layers, 256 embd). Dev machine
+# hits ~4200 (prefill) / ~3700 (decode) tok/s; floors are ~4x below so only
+# catastrophic model/runtime regressions fail while staying non-flaky.
+FLOOR_PREFILL_TPS = 1000.0
+FLOOR_DECODE_TPS = 800.0
 
 
 def parse(lines):
     out = {}
     for ln in lines:
+        p = ln.split()
         if "matmul" in ln:
-            out["matmul_ms"] = float(ln.split()[3])
-            out["matmul_gflops"] = float(ln.split()[5])
+            out["matmul_ms"] = float(p[3])
+            out["matmul_gflops"] = float(p[5])
+        elif "prefill" in ln:
+            out["prefill_ms"] = float(p[4])
+            out["prefill_tps"] = float(p[6])
+        elif "decode" in ln:
+            out["decode_ms"] = float(p[4])
+            out["decode_tps"] = float(p[6])
         elif "rms_norm" in ln:
-            out["rms_norm_ms"] = float(ln.split()[3])
+            out["rms_norm_ms"] = float(p[3])
         elif "rope" in ln:
-            out["rope_ms"] = float(ln.split()[3])
+            out["rope_ms"] = float(p[3])
     return out
 
 
@@ -30,10 +46,18 @@ def run():
     assert rc == 0, "bench command failed"
     res = parse(out.splitlines())
     assert "matmul_gflops" in res, "bench output missing matmul line:\n" + out
+    assert "prefill_tps" in res and "decode_tps" in res, \
+        "bench output missing prefill/decode lines:\n" + out
     assert res["matmul_gflops"] >= FLOOR_GFLOPS, (
         "matmul %.2f GFLOPS below floor %.2f" % (res["matmul_gflops"], FLOOR_GFLOPS))
-    print("perf: matmul %.2f GFLOPS (%.3f ms), rms_norm %.3f ms, rope %.3f ms  [ok]"
-          % (res["matmul_gflops"], res["matmul_ms"], res["rms_norm_ms"], res["rope_ms"]))
+    assert res["prefill_tps"] >= FLOOR_PREFILL_TPS, (
+        "prefill %.1f tok/s below floor %.1f" % (res["prefill_tps"], FLOOR_PREFILL_TPS))
+    assert res["decode_tps"] >= FLOOR_DECODE_TPS, (
+        "decode %.1f tok/s below floor %.1f" % (res["decode_tps"], FLOOR_DECODE_TPS))
+    print("perf: matmul %.2f GFLOPS (%.3f ms), prefill %.0f tok/s, decode %.0f tok/s, "
+          "rms_norm %.3f ms, rope %.3f ms  [ok]"
+          % (res["matmul_gflops"], res["matmul_ms"], res["prefill_tps"], res["decode_tps"],
+             res["rms_norm_ms"], res["rope_ms"]))
     return True
 
 

@@ -51,6 +51,51 @@ inline void dequantize_row_q8_0(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+// Q4_0 block quantization. A block holds 32 floats compressed into a 2-byte f16
+// scale + 16 bytes of nibbles (gguf::Q4_0_TYPESIZE = 18 bytes per block). The
+// scale is d = amax/7 so the quantized range [-8, 7] maps to [-amax, amax]. Each
+// byte holds two values: the low nibble is element j, the high nibble element
+// j+16; the stored nibble is unsigned 0..15 where the true value = nibble - 8.
+inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; b++) {
+        const float* x = src + b * gguf::Q4_0_BLOCK;
+        uint8_t*      y = dst + b * gguf::Q4_0_TYPESIZE;
+
+        float amax = 0.0f;
+        for (size_t j = 0; j < gguf::Q4_0_BLOCK; j++)
+            amax = std::max(amax, std::fabs(x[j]));
+
+        const float d = amax / 7.0f;
+        const uint16_t d16 = f32_to_f16(d);
+        y[0] = (uint8_t)(d16 & 0xff);
+        y[1] = (uint8_t)(d16 >> 8);
+        const float id = (d > 0.0f) ? (1.0f / d) : 0.0f;
+
+        for (size_t j = 0; j < gguf::Q4_0_BLOCK / 2; j++) {
+            int lo = (int)std::round(x[j] * id) + 8;
+            int hi = (int)std::round(x[j + gguf::Q4_0_BLOCK / 2] * id) + 8;
+            if (lo > 15) lo = 15; if (lo < 0) lo = 0;
+            if (hi > 15) hi = 15; if (hi < 0) hi = 0;
+            y[2 + j] = (uint8_t)(lo | (hi << 4));
+        }
+    }
+}
+
+inline void dequantize_row_q4_0(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; b++) {
+        const uint8_t* y = src + b * gguf::Q4_0_TYPESIZE;
+        float*         x = dst + b * gguf::Q4_0_BLOCK;
+
+        uint16_t d16 = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
+        const float d = f16_to_f32(d16);
+        for (size_t j = 0; j < gguf::Q4_0_BLOCK / 2; j++) {
+            uint8_t byte = y[2 + j];
+            x[j] = (float)(int)(byte & 0x0F) * d - 8.0f * d;
+            x[j + gguf::Q4_0_BLOCK / 2] = (float)(int)(byte >> 4) * d - 8.0f * d;
+        }
+    }
+}
+
 // Description of a quantized storage type: fixed block size, bytes per block,
 // and block-wise (de)quantize routines. Register each type with the
 // quant::Registry so consumers can look a type up by its GGML id.
@@ -89,6 +134,9 @@ inline void register_builtins() {
     r.add(gguf::GGML_TYPE_Q8_0,
           { "Q8_0", gguf::Q8_0_BLOCK, gguf::Q8_0_TYPESIZE,
             quantize_row_q8_0, dequantize_row_q8_0 });
+    r.add(gguf::GGML_TYPE_Q4_0,
+          { "Q4_0", gguf::Q4_0_BLOCK, gguf::Q4_0_TYPESIZE,
+            quantize_row_q4_0, dequantize_row_q4_0 });
     r.add(gguf::GGML_TYPE_F32,
           { "F32", 0, 4, nullptr, nullptr });
 }

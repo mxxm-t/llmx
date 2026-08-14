@@ -15,7 +15,7 @@ feature currently stands right now.
 | Test suite (roundtrip / perf / tokenizer)| Done     |
 | Perf `bench` command                     | Done     |
 | CPU backend optimization                 | In Progress |
-| More quant formats (Q4_0, Q4_1, ...)     | Planned  |
+| More quant formats (Q4_0, Q4_1, ...)     | In Progress |
 | More model architectures (Llama, ...)    | Planned  |
 | More formats (safetensors, ...)          | Planned  |
 | GPU backends (ROCm / CUDA / Vulkan)      | Planned  |
@@ -62,5 +62,49 @@ feature ships, delete its block and mark the row `Done` above.
   - Don't let the pool add more overhead than it saves for small matvecs;
     keep the single-threaded fast path.
 
-Nothing is in flight right now. When you start a feature, open a block above
+### More quant formats — Q4_0
+
+- **Goal:** add the first non-Q8_0 block quant, Q4_0, end-to-end: kernels +
+  registry entry, GGUF format support (`data_size`, dequantize path), a CLI way
+  to produce/read Q4_0 files, and a round-trip test. This is roadmap item #1 and
+  validates the "one file + one registry entry" drop-in claim.
+- **Done:**
+  - `format/gguf.hpp`: `GGML_TYPE_Q4_0`, `Q4_0_BLOCK=32`, `Q4_0_TYPESIZE=18`,
+    handled in `TensorInfo::data_size()`.
+  - `quant/quant.hpp`: `quantize_row_q4_0` / `dequantize_row_q4_0`; registered in
+    `register_builtins()`.
+  - `cli/main.cpp`: `quantize <...> [q8_0|q4_0]` optional type arg; Q4_0 handled
+    in `dequantize` and `type_name`; fixed `general.file_type` (Q8_0 → 7,
+    Q4_0 → 2).
+  - `model/arch_qwen.hpp`: `matvec`/`dequant_row` dispatch by tensor type via the
+    registry. Q8_0 keeps the fused AVX2 path; Q4_0 uses a correct generic
+    dequant-then-F32-dot path. `Model` ctor now calls `quant::register_builtins()`
+    (idempotent) — the registry was previously never populated.
+  - `tests/roundtrip.py`: Q4_0 round-trip leg (bound 1.0; measured 0.328).
+  - `docs/USAGE.md` + `docs/src/quant-quant.md` + `docs/src/format-gguf.md`
+    updated for Q4_0.
+- **Left:**
+  - Q4_0 full-model inference is implemented but not yet exercised on a real
+    Q4_0 Qwen3 model (none on disk; `quantize` doesn't emit the `qwen3.*`
+    metadata a runnable model needs). Kernels are validated by the round-trip
+    test and the registry path by the Q8_0 bench; the Q4_0 generic matvec /
+    `dequant_row` paths are code-reviewed but not end-to-end run.
+  - Fused AVX2 dequant+FMA Q4_0 matvec kernel (see Gotchas).
+- **Gotchas:**
+  - Q4_0 block = 2-byte f16 scale + 32 nibbles (18 bytes): `qs[j]` holds value
+    `j` in the low nibble and value `j+16` in the high nibble, each stored as
+    unsigned 0..15 where the true value is `nibble - 8` (so -8..7); scale
+    `d = amax/7`. Dequantize must mirror that layout.
+  - **Q4_0 matmul is generic (correct-but-slow), not a fused AVX2 kernel.** It
+    dequantizes each row to f32 then does an f32 dot. A fused AVX2 dequant+FMA
+    Q4_0 kernel is the follow-up (same deferral pattern as AVX-512 in the CPU
+    backend block). Until then Q4_0 inference is slower than Q8_0 despite the
+    smaller size.
+  - The quant `Registry` is a lazy singleton — inference code that uses it must
+    call `quant::register_builtins()` (the `Model` ctor does) or `get()` returns
+    null and throws.
+  - `quantize` input tensors must have element counts divisible by 32 (both Q8_0
+    and Q4_0 block size).
+
+Nothing else is in flight. When you start a feature, open a block above
 before writing code — see `AGENTS.md` → "Starting a feature".

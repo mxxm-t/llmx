@@ -12,16 +12,21 @@ short usage summary.
 - Token ids in `detokenize` are comma- or space-separated integers.
 - `--threads 0` means auto (default: the CPU's hardware concurrency).
 
-## `llmx quantize <model.json> <model.bin> <out.gguf>`
+## `llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]`
 
-Convert a raw float32 model into a Q8_0 GGUF file.
+Convert a raw float32 model into a quantized GGUF file.
 
 - `model.json` describes the tensor names and shapes; `model.bin` holds each
   tensor's float32 data concatenated in the same order (row-major, with the
   fastest-varying dimension first).
-- Every tensor must have a number of elements divisible by 32 (the Q8_0 block
-  size).
-- The output is a GGUF v3 file with all tensors quantized to Q8_0.
+- The optional last argument selects the output quant type: `q8_0` (default) or
+  `q4_0`.
+- Every tensor must have a number of elements divisible by 32 (the block size
+  for both Q8_0 and Q4_0).
+- The output is a GGUF v3 file with all tensors quantized to the chosen type.
+
+> Note: Q4_0 inference is currently correct-but-slow (a generic dequant-to-f32
+> matmul path, not a fused kernel) — see `docs/src/quant-quant.md`.
 
 `model.json` schema:
 

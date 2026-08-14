@@ -8,8 +8,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, write_bin, read_bin_floats, max_err
 
 # Regression gate for quant/ + format/: build a random F32 model, quantize it to
-# Q8_0 via the CLI, dequantize it back, and check the max error is within the
-# Q8_0 quantization bound.
+# Q8_0 (and Q4_0) via the CLI, dequantize it back, and check the max error is
+# within each type's quantization bound.
 
 rng = random.Random(42)
 
@@ -47,19 +47,23 @@ def run():
         mj, mb, mg = (os.path.join(d, n) for n in ("model.json", "model.bin", "model.gguf"))
         oo, oj, ob = (os.path.join(d, n) for n in ("out.json", "out.bin", "out.gguf"))
 
-        rc, _ = cli(["quantize", mj, mb, mg])
-        assert rc == 0, "quantize failed"
-        rc, _ = cli(["dequantize", mg, oj, ob])
-        assert rc == 0, "dequantize failed"
+        for qtype, bound in (("q8_0", 0.05), ("q4_0", 1.0)):
+            rc, _ = cli(["quantize", mj, mb, mg, qtype])
+            assert rc == 0, "quantize (%s) failed" % qtype
+            rc, _ = cli(["dequantize", mg, oj, ob])
+            assert rc == 0, "dequantize (%s) failed" % qtype
 
-        got = read_bin_floats(ob)
-        assert len(got) == len(original), "element count mismatch"
+            got = read_bin_floats(ob)
+            assert len(got) == len(original), "element count mismatch"
 
-        err = max_err(original, got)
-        # Q8_0 scale is f16 + 7-bit mantissa: a generous bound of ~0.05 holds for
-        # unit-variance gaussian data while still catching real corruption.
-        assert err < 0.05, "Q8_0 round-trip error %.6f exceeds bound" % err
-        print("roundtrip: %d elements, max abs err = %.6f  [ok]" % (len(got), err))
+            err = max_err(original, got)
+            # Q8_0: f16 + 7-bit mantissa scale -> ~0.05 for unit-variance gaussian.
+            # Q4_0: 4-bit signed range scaled by amax/7 -> ~0.3 typical; 1.0 is a
+            # generous bound that still catches real corruption.
+            assert err < bound, "%s round-trip error %.6f exceeds bound %.3f" % (
+                qtype, err, bound)
+            print("roundtrip: %s, %d elements, max abs err = %.6f  [ok]" % (
+                qtype, len(got), err))
         return True
     finally:
         import shutil

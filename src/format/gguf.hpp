@@ -29,7 +29,10 @@ constexpr uint32_t VERSION   = 3;
 constexpr size_t   ALIGNMENT = 32;
 
 constexpr uint32_t GGML_TYPE_F32  = 0;
+constexpr uint32_t GGML_TYPE_Q4_0 = 2;
 constexpr uint32_t GGML_TYPE_Q8_0 = 8;
+constexpr size_t   Q4_0_BLOCK    = 32;   // values per block
+constexpr size_t   Q4_0_TYPESIZE = 18;   // 2-byte f16 scale + 32 nibbles
 constexpr size_t   Q8_0_BLOCK    = 32;   // values per block
 constexpr size_t   Q8_0_TYPESIZE = 34;   // 2-byte f16 scale + 32 int8
 
@@ -64,6 +67,7 @@ struct TensorInfo {
     }
     uint64_t data_size() const {
         if (type == GGML_TYPE_Q8_0) return (n_elements() / Q8_0_BLOCK) * Q8_0_TYPESIZE;
+        if (type == GGML_TYPE_Q4_0) return (n_elements() / Q4_0_BLOCK) * Q4_0_TYPESIZE;
         if (type == GGML_TYPE_F32)  return n_elements() * 4;
         throw std::runtime_error("unsupported tensor type in data_size");
     }

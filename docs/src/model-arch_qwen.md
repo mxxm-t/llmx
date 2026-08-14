@@ -15,7 +15,12 @@ compute primitives (quantized matmul, RMSNorm, RoPE) are delegated to a
     cache.
   - `reset()`: clear KV cache / internal state.
   - `attend_heads` / `attend_head`: (parallel) attention over the KV cache.
-  - `matvec` / `dequant_row`: per-tensor matmul helpers.
+  - `matvec` / `dequant_row`: per-tensor matmul helpers that dispatch on the
+    tensor's type via `quant::Registry`. Q8_0 uses the backend's fused AVX2
+    matvec; other types use a correct generic dequant-row-to-f32 + dot path.
+  - The constructor calls `quant::register_builtins()` (idempotent) so the
+    quant registry is populated before any tensor is processed.
 
-Supports dense Q8_0 / F32 tensors only (see the tensor layout comment in the
-header).
+Supports dense Q8_0 / F32 and Q4_0 tensors (see the tensor layout comment in the
+header). Q4_0 uses the generic (correct-but-slower) matmul path until a fused
+kernel lands.

@@ -97,6 +97,7 @@ public:
     explicit Model(const gguf::GGUFModel& m,
                    backend::BackendPtr backend = backend::make_cpu_backend())
         : m_(&m), b_(std::move(backend)) {
+        quant::register_builtins(); // populate the quant registry (idempotent)
         cfg = load_config(m);
         if (cfg.n_layer <= 0 || cfg.n_embd <= 0) throw std::runtime_error("inference: incomplete Qwen3 config in metadata");
         if (cfg.n_head_kv <= 0) cfg.n_head_kv = cfg.n_head;
@@ -304,18 +305,38 @@ private:
         }
     }
 
-    // Dequantize row `r` of a Q8_0 matrix (nin fastest) into `out`.
+    // Dequantize row `r` of a quantized matrix (nin fastest) into `out`,
+    // dispatching on the tensor's type via the quant registry.
     void dequant_row(const gguf::TensorInfo& t, size_t r, float* out) const {
         size_t nin = (size_t)t.ne[0];
-        const uint8_t* base = m_->data[tindex_.at(t.name)].data() + r * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE;
-        quant::dequantize_row_q8_0(base, out, nin / gguf::Q8_0_BLOCK);
+        const quant::QuantType* qt = quant::Registry::instance().get(t.type);
+        if (!qt || !qt->dequantize) throw std::runtime_error("unsupported tensor type in dequant_row");
+        const uint8_t* base = m_->data[tindex_.at(t.name)].data() +
+            r * (nin / qt->block_size) * qt->type_size;
+        qt->dequantize(base, out, nin / qt->block_size);
     }
 
-    // W: Q8_0 [nin, nout] (row o at o*nin/32*34). out = W^T x.
+    // out = W^T x for quantized W [nin, nout] (row o at o*nin/blk*tsz).
+    // Q8_0 uses the backend's fused AVX2 matvec; other types use a correct
+    // generic path: dequantize each row to f32 then f32 dot. The generic path
+    // is slow-but-correct; a fused kernel per type is a follow-up.
     void matvec(const gguf::TensorInfo& t, const float* x, float* out, size_t nin, size_t nout) {
-        size_t nblocks = nin / gguf::Q8_0_BLOCK;
         const uint8_t* data = m_->data[tindex_.at(t.name)].data();
-        b_->matvec_q8_0(data, x, out, nblocks, nout);
+        if (t.type == gguf::GGML_TYPE_Q8_0) {
+            size_t nblocks = nin / gguf::Q8_0_BLOCK;
+            b_->matvec_q8_0(data, x, out, nblocks, nout);
+            return;
+        }
+        const quant::QuantType* qt = quant::Registry::instance().get(t.type);
+        if (!qt || !qt->dequantize) throw std::runtime_error("unsupported tensor type in matvec");
+        std::vector<float> row(nin);
+        for (size_t o = 0; o < nout; o++) {
+            qt->dequantize(data + o * (nin / qt->block_size) * qt->type_size,
+                           row.data(), nin / qt->block_size);
+            float acc = 0.0f;
+            for (size_t i = 0; i < nin; i++) acc += row[i] * x[i];
+            out[o] = acc;
+        }
     }
 };
 

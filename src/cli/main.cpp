@@ -77,7 +77,17 @@ uint64_t num_elements(const JsonTensor& t) {
 // ---------------------------------------------------------------------------
 
 int cmd_quantize(const std::string& json_path, const std::string& bin_path,
-                 const std::string& out_path) {
+                 const std::string& out_path, const std::string& type_arg) {
+    uint32_t type;
+    size_t block, typesize;
+    void (*quantize)(const float*, uint8_t*, size_t);
+    if (type_arg == "q4_0") {
+        type = gguf::GGML_TYPE_Q4_0; block = gguf::Q4_0_BLOCK;
+        typesize = gguf::Q4_0_TYPESIZE; quantize = quant::quantize_row_q4_0;
+    } else { // default q8_0
+        type = gguf::GGML_TYPE_Q8_0; block = gguf::Q8_0_BLOCK;
+        typesize = gguf::Q8_0_TYPESIZE; quantize = quant::quantize_row_q8_0;
+    }
     std::ifstream jf(json_path);
     if (!jf) throw std::runtime_error("cannot open " + json_path);
     std::stringstream jss;
@@ -95,8 +105,9 @@ int cmd_quantize(const std::string& json_path, const std::string& bin_path,
 
     uint64_t need = 0;
     for (auto& t : tensors) {
-        if (num_elements(t) % gguf::Q8_0_BLOCK != 0)
-            throw std::runtime_error("tensor has elements not divisible by 32 (Q8_0 block): " + t.name);
+        if (num_elements(t) % block != 0)
+            throw std::runtime_error("tensor has elements not divisible by " +
+                std::to_string(block) + " (" + type_arg + " block): " + t.name);
         need += num_elements(t) * 4;
     }
     if ((uint64_t)bytes.size() != need)
@@ -111,7 +122,8 @@ int cmd_quantize(const std::string& json_path, const std::string& bin_path,
     gguf::MetaValue mv_name; mv_name.vtype = gguf::V_STRING; mv_name.s = model_name;
     gguf::MetaValue mv_arch; mv_arch.vtype = gguf::V_STRING; mv_arch.s = "custom";
     gguf::MetaValue mv_qver; mv_qver.vtype = gguf::V_UINT32; mv_qver.u = 2;   // quantization_version
-    gguf::MetaValue mv_ft;   mv_ft.vtype   = gguf::V_UINT32; mv_ft.u   = 2;   // file_type = mostly Q8_0
+    gguf::MetaValue mv_ft;   mv_ft.vtype   = gguf::V_UINT32;
+    mv_ft.u = (type == gguf::GGML_TYPE_Q8_0) ? 7 : 2;   // 7 = MOSTLY_Q8_0, 2 = MOSTLY_Q4_0
     m.kv.emplace_back("general.name", mv_name);
     m.kv.emplace_back("general.architecture", mv_arch);
     m.kv.emplace_back("general.quantization_version", mv_qver);
@@ -121,11 +133,11 @@ int cmd_quantize(const std::string& json_path, const std::string& bin_path,
         gguf::TensorInfo ti;
         ti.name = t.name;
         ti.ne = t.shape;
-        ti.type = gguf::GGML_TYPE_Q8_0;
+        ti.type = type;
 
-        size_t nblocks = (size_t)(num_elements(t) / gguf::Q8_0_BLOCK);
-        std::vector<uint8_t> q(nblocks * gguf::Q8_0_TYPESIZE);
-        quant::quantize_row_q8_0(fptr, q.data(), nblocks);
+        size_t nblocks = (size_t)(num_elements(t) / block);
+        std::vector<uint8_t> q(nblocks * typesize);
+        quantize(fptr, q.data(), nblocks);
         fptr += num_elements(t);
 
         m.tensors.push_back(std::move(ti));
@@ -133,7 +145,8 @@ int cmd_quantize(const std::string& json_path, const std::string& bin_path,
     }
 
     gguf::write_gguf(m, out_path);
-    std::cout << "wrote " << out_path << " (" << m.tensors.size() << " tensors, Q8_0)\n";
+    std::cout << "wrote " << out_path << " (" << m.tensors.size() << " tensors, "
+              << type_arg << ")\n";
     return 0;
 }
 
@@ -166,6 +179,8 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
         std::vector<float> f(n);
         if (t.type == gguf::GGML_TYPE_Q8_0) {
             quant::dequantize_row_q8_0(raw.data(), f.data(), n / gguf::Q8_0_BLOCK);
+        } else if (t.type == gguf::GGML_TYPE_Q4_0) {
+            quant::dequantize_row_q4_0(raw.data(), f.data(), n / gguf::Q4_0_BLOCK);
         } else if (t.type == gguf::GGML_TYPE_F32) {
             std::memcpy(f.data(), raw.data(), n * 4);
         } else {
@@ -190,6 +205,7 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
 const char* type_name(uint32_t t) {
     switch (t) {
         case gguf::GGML_TYPE_F32:  return "F32";
+        case gguf::GGML_TYPE_Q4_0: return "Q4_0";
         case gguf::GGML_TYPE_Q8_0: return "Q8_0";
         default: return "?";
     }
@@ -521,7 +537,7 @@ void print_usage() {
         << "llmx " << LLMX_VERSION_STRING << " - ground-up GGUF Q8_0 CLI (no external libs)\n"
         << "\n"
         << "Usage:\n"
-        << "  llmx quantize   <model.json> <model.bin> <out.gguf>\n"
+        << "  llmx quantize   <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n"
         << "  llmx dequantize <in.gguf> <out.json> <out.bin>\n"
         << "  llmx info       <in.gguf>\n"
         << "  llmx tokenize   <in.gguf> \"<text>\"\n"
@@ -529,20 +545,9 @@ void print_usage() {
         << "  llmx perplexity <in.gguf> \"<text>\" [flags...]\n"
         << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
-        << "  llmx bench      [--size N] [--iters N] [--threads N]\n"
+        << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N]\n"
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
-        << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
-        << "\n"
-        << "model.json describes tensors:\n"
-        << "  {\n"
-        << "    \"name\": \"MyModel\",\n"
-        << "    \"tensors\": [\n"
-        << "      {\"name\": \"tok_embeddings.weight\", \"shape\": [512, 256]},\n"
-        << "      {\"name\": \"norm.weight\",           \"shape\": [256]}\n"
-        << "    ]\n"
-        << "  }\n"
-        << "model.bin holds each tensor's float32 data concatenated in that order.\n"
-        << "Every tensor must have a number of elements divisible by 32 (Q8_0 block).\n";
+        << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n";
 }
 
 } // namespace
@@ -607,8 +612,10 @@ int main(int argc, char** argv) {
         }
 
         if (cmd == "quantize") {
-            if (argc != 5) { std::cerr << "usage: llmx quantize <model.json> <model.bin> <out.gguf>\n"; return 2; }
-            return cmd_quantize(argv[2], argv[3], argv[4]);
+            if (argc < 5 || argc > 6) { std::cerr << "usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n"; return 2; }
+            std::string type = (argc == 6) ? argv[5] : "q8_0";
+            if (type != "q8_0" && type != "q4_0") { std::cerr << "unknown quant type: " << type << " (expected q8_0 or q4_0)\n"; return 2; }
+            return cmd_quantize(argv[2], argv[3], argv[4], type);
         }
         if (cmd == "dequantize") {
             if (argc != 5) { std::cerr << "usage: llmx dequantize <in.gguf> <out.json> <out.bin>\n"; return 2; }

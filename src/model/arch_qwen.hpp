@@ -102,16 +102,27 @@ public:
         if (cfg.n_layer <= 0 || cfg.n_embd <= 0) throw std::runtime_error("inference: incomplete Qwen3 config in metadata");
         if (cfg.n_head_kv <= 0) cfg.n_head_kv = cfg.n_head;
         ratio_ = cfg.n_head / cfg.n_head_kv;
+        // The attention projection width is n_head*head_dim, which only equals
+        // n_embd by coincidence on some models (Qwen3-8B: 32*128 == 4096).
+        // Qwen3-0.6B/1.7B/4B have head_dim 128 with a smaller n_embd.
+        q_dim_ = cfg.n_head * cfg.head_dim;
 
         for (size_t i = 0; i < m.tensors.size(); i++) tindex_[m.tensors[i].name] = i;
+
+        // Tied embeddings: models without a separate output.weight reuse
+        // token_embd.weight as the output projection (same [n_embd, n_vocab]
+        // layout), so the head is just a matvec against the embedding matrix.
+        out_name_ = tindex_.count("output.weight") ? "output.weight" : "token_embd.weight";
+        if (!tindex_.count(out_name_))
+            throw std::runtime_error("inference: missing output projection tensor");
 
         // buffers
         x_.assign(cfg.n_embd, 0.0f);
         h_.assign(cfg.n_embd, 0.0f);
-        q_.assign(cfg.n_embd, 0.0f);
+        q_.assign(q_dim_, 0.0f);
         kv_.assign((size_t)cfg.n_head_kv * cfg.head_dim, 0.0f);
         v_.assign((size_t)cfg.n_head_kv * cfg.head_dim, 0.0f);
-        attn_.assign(cfg.n_embd, 0.0f);
+        attn_.assign(q_dim_, 0.0f);
         row_.assign(std::max(cfg.n_embd, cfg.n_ff), 0.0f);
 
         k_cache_.resize(cfg.n_layer);
@@ -140,6 +151,11 @@ public:
     // over the full vocabulary.
     std::vector<float> step(int token_id) {
         int pos = n_tokens_;
+        // The RoPE table is precomputed for [0, context_length); stepping past
+        // it would read off the end of rope_cos_/rope_sin_.
+        if (pos >= cfg.context_length)
+            throw std::runtime_error("inference: context length exceeded (" +
+                                     std::to_string(cfg.context_length) + " tokens)");
 
         // embedding
         dequant_row(tensor("token_embd.weight"), token_id, x_.data());
@@ -153,7 +169,7 @@ public:
                          cfg.n_embd, cfg.rms_eps);
 
             // q,k,v projections
-            matvec(tensor(pre + "attn_q.weight"), h_.data(), q_.data(), cfg.n_embd, cfg.n_embd);
+            matvec(tensor(pre + "attn_q.weight"), h_.data(), q_.data(), cfg.n_embd, (size_t)q_dim_);
             matvec(tensor(pre + "attn_k.weight"), h_.data(), kv_.data(), cfg.n_embd, (size_t)cfg.n_head_kv * cfg.head_dim);
             matvec(tensor(pre + "attn_v.weight"), h_.data(), v_.data(), cfg.n_embd, (size_t)cfg.n_head_kv * cfg.head_dim);
 
@@ -190,7 +206,7 @@ public:
 
             // attn_output projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
-            matvec(tensor(pre + "attn_output.weight"), attn_.data(), h_.data(), cfg.n_embd, cfg.n_embd);
+            matvec(tensor(pre + "attn_output.weight"), attn_.data(), h_.data(), (size_t)q_dim_, cfg.n_embd);
             for (int i = 0; i < cfg.n_embd; i++) x_[i] += h_[i];
 
             // ffn norm
@@ -216,9 +232,10 @@ public:
         b_->rms_norm(h_.data(), x_.data(),
                      (const float*)tensor_data("output_norm.weight"),
                      cfg.n_embd, cfg.rms_eps);
-        size_t n_vocab = tensor("output.weight").ne[1];
+        const gguf::TensorInfo& out_t = tensor(out_name_);
+        size_t n_vocab = out_t.ne[1];
         std::vector<float> logits(n_vocab);
-        matvec(tensor("output.weight"), h_.data(), logits.data(), cfg.n_embd, n_vocab);
+        matvec(out_t, h_.data(), logits.data(), cfg.n_embd, n_vocab);
 
         n_tokens_++;
         return logits;
@@ -236,6 +253,8 @@ private:
     backend::BackendPtr b_;
     QwenConfig cfg;
     int ratio_ = 1;
+    int q_dim_ = 0;
+    std::string out_name_;
     std::unordered_map<std::string, size_t> tindex_;
 
     std::vector<float> x_, h_, q_, kv_, v_, attn_, row_;
@@ -286,11 +305,15 @@ private:
         int seq = n_tokens_ + 1;
         int stride = cfg.n_head_kv * cfg.head_dim;
         std::vector<float> scores(seq);
+        // softmax(QK^T / sqrt(head_dim)) -- without this the scores are
+        // sqrt(head_dim)x too large and the softmax collapses to near one-hot.
+        const float scale = 1.0f / std::sqrt((float)cfg.head_dim);
         float maxs = -1e30f;
         for (int t = 0; t < seq; t++) {
             const float* kt = kcache + (size_t)t * stride + (size_t)hk * cfg.head_dim;
             float s = 0.0f;
             for (int d = 0; d < cfg.head_dim; d++) s += qh[d] * kt[d];
+            s *= scale;
             scores[t] = s;
             if (s > maxs) maxs = s;
         }

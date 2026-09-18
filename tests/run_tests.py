@@ -9,13 +9,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import roundtrip
 import perf
 import tokenizer
+import baseline
 
 
 def main():
     results = []
     for name, fn in [("roundtrip", roundtrip.run),
                      ("perf", perf.run),
-                     ("tokenizer", tokenizer.run)]:
+                     ("tokenizer", tokenizer.run),
+                     ("baseline", baseline.run)]:
         try:
             ok = fn()
             results.append((name, ok))

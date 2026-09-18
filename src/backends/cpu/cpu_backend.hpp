@@ -90,6 +90,18 @@ public:
         job_ = nullptr;
     }
 
+    void parallel_for(int n, const std::function<void(int)>& fn) override {
+        if (n <= 0) return;
+        const int nt = std::min(threads_, n);
+        if (nt <= 1) { for (int i = 0; i < n; i++) fn(i); return; }
+        const int chunk = (n + nt - 1) / nt;
+        run_parallel([&](int w) {
+            const int start = w * chunk;
+            const int end = std::min(n, start + chunk);
+            for (int i = start; i < end; i++) fn(i);
+        });
+    }
+
     void rms_norm(float* dst, const float* src, const float* w, size_t n, float eps) override {
         if (avx2_) {
             // Sum of squares (vectorized), then a vectorized weighted scale.

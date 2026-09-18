@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <memory>
+#include <functional>
 
 // Compute backend abstraction. The inference graph runs its primitive ops
 // (quantized matmul, RMSNorm, RoPE) through a Backend so the same model code
@@ -37,6 +38,11 @@ public:
     // data + o * nblocks * Q8_0_TYPESIZE.
     virtual void matvec_q8_0(const uint8_t* data, const float* x, float* out,
                              size_t nblocks, size_t nout) = 0;
+
+    // Run fn(i) for i in [0, n) across the backend's workers. The model layer
+    // uses this for work it owns (attention heads) instead of creating threads
+    // of its own, so there is exactly one pool in the process.
+    virtual void parallel_for(int n, const std::function<void(int)>& fn) = 0;
 
     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm).
     virtual void rms_norm(float* dst, const float* src, const float* w,

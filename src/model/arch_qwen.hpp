@@ -271,30 +271,13 @@ private:
         return m_->data[tindex_.at(name)].data();
     }
 
-    // Attention across all q-heads, parallelized over heads. Each head reads
-    // its group's k/v cache and writes only its own attn_ slice (no sharing).
+    // Attention across all q-heads. Each head reads its group's k/v cache and
+    // writes only its own attn_ slice, so heads are independent. Dispatched
+    // through the backend's pool rather than creating threads per token.
     void attend_heads(const float* kcache, const float* vcache) {
-        int nh = cfg.n_head;
-        int nt = (int)b_->threads_available();
-        if (nt > nh) nt = nh;
-        if (nt <= 1) {
-            for (int hq = 0; hq < nh; hq++)
-                attend_head(hq, kcache, vcache);
-        } else {
-            std::vector<std::thread> workers;
-            workers.reserve((size_t)nt);
-            int chunk = (nh + nt - 1) / nt;
-            for (int w = 0; w < nt; w++) {
-                int start = w * chunk;
-                int end = std::min(nh, start + chunk);
-                if (start >= end) break;
-                workers.emplace_back([&, start, end, kcache, vcache]() {
-                    for (int hq = start; hq < end; hq++)
-                        attend_head(hq, kcache, vcache);
-                });
-            }
-            for (auto& th : workers) th.join();
-        }
+        b_->parallel_for(cfg.n_head, [&](int hq) {
+            attend_head(hq, kcache, vcache);
+        });
     }
 
     // Attention for one q-head. Reads q_ (head hq), the KV cache for its group,

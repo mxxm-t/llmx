@@ -123,7 +123,10 @@ public:
         kv_.assign((size_t)cfg.n_head_kv * cfg.head_dim, 0.0f);
         v_.assign((size_t)cfg.n_head_kv * cfg.head_dim, 0.0f);
         attn_.assign(q_dim_, 0.0f);
-        row_.assign(std::max(cfg.n_embd, cfg.n_ff), 0.0f);
+        gate_.assign(cfg.n_ff, 0.0f);
+        up_.assign(cfg.n_ff, 0.0f);
+        ffn_.assign(cfg.n_ff, 0.0f);
+        scores_.assign((size_t)cfg.n_head * (size_t)cfg.context_length, 0.0f);
 
         k_cache_.resize(cfg.n_layer);
         v_cache_.resize(cfg.n_layer);
@@ -214,17 +217,18 @@ public:
                          (const float*)tensor_data(pre + "ffn_norm.weight"),
                          cfg.n_embd, cfg.rms_eps);
 
-            // gate/up (SwiGLU)
-            std::vector<float> gate(cfg.n_ff), up(cfg.n_ff), ffn(cfg.n_ff);
-            matvec(tensor(pre + "ffn_gate.weight"), h_.data(), gate.data(), cfg.n_embd, cfg.n_ff);
-            matvec(tensor(pre + "ffn_up.weight"),   h_.data(), up.data(),   cfg.n_embd, cfg.n_ff);
+            // gate/up (SwiGLU). Buffers are members: allocating these per layer
+            // per token cost 108 heap allocations of n_ff floats on a 36-layer
+            // model, every token.
+            matvec(tensor(pre + "ffn_gate.weight"), h_.data(), gate_.data(), cfg.n_embd, cfg.n_ff);
+            matvec(tensor(pre + "ffn_up.weight"),   h_.data(), up_.data(),   cfg.n_embd, cfg.n_ff);
             for (int i = 0; i < cfg.n_ff; i++) {
-                float g = gate[i] / (1.0f + std::exp(-gate[i])); // SiLU
-                ffn[i] = g * up[i];
+                float g = gate_[i] / (1.0f + std::exp(-gate_[i])); // SiLU
+                ffn_[i] = g * up_[i];
             }
             // down projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
-            matvec(tensor(pre + "ffn_down.weight"), ffn.data(), h_.data(), cfg.n_ff, cfg.n_embd);
+            matvec(tensor(pre + "ffn_down.weight"), ffn_.data(), h_.data(), cfg.n_ff, cfg.n_embd);
             for (int i = 0; i < cfg.n_embd; i++) x_[i] += h_[i];
         }
 
@@ -257,7 +261,8 @@ private:
     std::string out_name_;
     std::unordered_map<std::string, size_t> tindex_;
 
-    std::vector<float> x_, h_, q_, kv_, v_, attn_, row_;
+    std::vector<float> x_, h_, q_, kv_, v_, attn_;
+    std::vector<float> gate_, up_, ffn_, scores_;
     std::vector<std::vector<float>> k_cache_, v_cache_;
     std::vector<float> rope_cos_, rope_sin_;
     int n_tokens_ = 0;
@@ -287,7 +292,9 @@ private:
         const float* qh = q_.data() + hq * cfg.head_dim;
         int seq = n_tokens_ + 1;
         int stride = cfg.n_head_kv * cfg.head_dim;
-        std::vector<float> scores(seq);
+        // Per-head scratch, preallocated to the context length. Heads run
+        // concurrently, so each owns its own row and nothing is shared.
+        float* scores = scores_.data() + (size_t)hq * (size_t)cfg.context_length;
         // softmax(QK^T / sqrt(head_dim)) -- without this the scores are
         // sqrt(head_dim)x too large and the softmax collapses to near one-hot.
         const float scale = 1.0f / std::sqrt((float)cfg.head_dim);

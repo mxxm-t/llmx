@@ -24,7 +24,7 @@ feature currently stands right now.
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Planned  |
 | Correctness baseline vs HF reference     | In Progress |
-| Performance floor vs mx-llama.cpp        | Planned  |
+| Performance floor vs mx-llama.cpp        | In Progress |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
@@ -150,20 +150,35 @@ feature ships, delete its block and mark the row `Done` above.
 ### Performance floor vs mx-llama.cpp
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
-  quant, prompt and hardware (`docs/ROADMAP.md` #8). Measured as pp and tg
-  tok/s, both arms reported.
-- **Done:** nothing yet - this block was opened before the work.
+  quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
+- **Done:**
+  - Removed both per-call thread-spawn sites. `matvec_q8_0` now uses a
+    persistent pool, and `attend_heads` goes through `Backend::parallel_for`
+    instead of owning threads in the model layer.
+  - Qwen3-8B Q8_0, this workstation, 24 tokens greedy, default threads,
+    interleaved A/B/A/B each time:
+      - spawn-per-call baseline:  8277 ms decode
+      - pooled matvec:            6913 ms  (-16.5%)
+      - pooled attention too:     6372 ms  (-23% cumulative, 2.90 -> 3.77 tok/s)
+  - Greedy output byte-identical across every arm on both 8B and 0.6B.
+  - `generate` now prints tok/s with two decimals; the integer print was
+    rounding a 20% change away.
 - **Left:**
-  - A/B harness that runs both binaries on the same model and prompt and prints
-    the two arms side by side.
-  - First measurement on Qwen3-8B Q8_0, CPU, this workstation. Current llmx is
-    about 2-3 tok/s there, which is almost certainly under the floor.
-  - Then close the gap. Known costs already visible: `matvec_q8_0` spawns and
-    joins `std::thread`s per call; `Model::step` heap-allocates gate/up/ffn
-    every layer every token; whole-file load with no mmap.
+  - **The A/B against mx-llama.cpp has NOT been run.** It must be same-CPU to
+    mean anything, and llmx is CPU-only, so it belongs on this workstation and
+    needs a local CPU build of llama.cpp. The rig is the wrong venue: its CPU is
+    a different machine, and it is busy serving production on all 10 GPUs.
+  - Remaining known costs, in likely order: `Model::step` heap-allocates
+    gate/up/ffn every layer every token and `attend_head` allocates a scores
+    vector per head; `read_gguf` loads the whole file with no mmap, so every
+    invocation pays a full 8 GB read and double resident memory; prefill feeds
+    one token at a time so there is no matrix-matrix work.
 - **Gotchas:**
-  - Compare like with like: same quant, same thread count, same prompt length,
-    and state them. A single number with no configuration is not a measurement.
+  - The synthetic `bench` model (2 layers, 256 embd) does NOT show these wins:
+    its matvecs are small enough to take the single-threaded fast path. Real
+    gains only appear on a real model, so measure there and say so.
+  - Compare like with like and state it: same quant, thread count, prompt
+    length. A single number with no configuration is not a measurement.
 
 Nothing else is in flight. When you start a feature, open a block above
 before writing code — see `AGENTS.md` → "Starting a feature".

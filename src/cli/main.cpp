@@ -12,6 +12,14 @@
 #include <chrono>
 #include <random>
 
+#if defined(_WIN32)
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <shellapi.h>
+#pragma comment(lib, "shell32.lib")
+#endif
+
 #include "config.hpp"
 #include "core/fp16.hpp"
 #include "core/json.hpp"
@@ -552,7 +560,40 @@ void print_usage() {
 
 } // namespace
 
+#if defined(_WIN32)
+// On Windows argv arrives in the system ANSI codepage, which cannot represent
+// most non-ASCII text -- a Japanese or Cyrillic prompt is mangled before it
+// reaches us. Re-read the command line as UTF-16 and convert to UTF-8 so text
+// arguments survive. Storage is owned by the caller and must outlive argv.
+static bool utf8_argv(int& argc, char**& argv,
+                      std::vector<std::string>& store, std::vector<char*>& ptrs) {
+    int wargc = 0;
+    LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+    if (!wargv) return false;
+    store.reserve((size_t)wargc);
+    for (int i = 0; i < wargc; i++) {
+        int n = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, nullptr, 0, nullptr, nullptr);
+        std::string s(n > 0 ? (size_t)(n - 1) : 0, '\0');
+        if (n > 1) WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, &s[0], n, nullptr, nullptr);
+        store.push_back(std::move(s));
+    }
+    LocalFree(wargv);
+    ptrs.reserve(store.size() + 1);
+    for (auto& s : store) ptrs.push_back(&s[0]);
+    ptrs.push_back(nullptr);
+    argc = wargc;
+    argv = ptrs.data();
+    return true;
+}
+#endif
+
 int main(int argc, char** argv) {
+#if defined(_WIN32)
+    std::vector<std::string> argv_store;
+    std::vector<char*> argv_ptrs;
+    utf8_argv(argc, argv, argv_store, argv_ptrs);
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     try {
         if (argc < 2) { print_usage(); return 1; }
         std::string cmd = argv[1];

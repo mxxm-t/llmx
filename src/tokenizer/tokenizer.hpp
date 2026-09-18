@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
+#include <cctype>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -126,11 +127,23 @@ public:
         return (it == token_to_id.end()) ? -1 : (int32_t)it->second;
     }
 
-    // --- pre-tokenization (GPT-2 regex on the raw UTF-8 input) ---
+    // --- pre-tokenization (Qwen2/Qwen3 Split regex from tokenizer.json) ---
+    //   (?i:'s|'t|'re|'ve|'m|'ll|'d)
+    //   | [^\r\n\p{L}\p{N}]?\p{L}+
+    //   | \p{N}
+    //   |  ?[^\s\p{L}\p{N}]+[\r\n]*
+    //   | \s*[\r\n]+
+    //   | \s+(?!\S)
+    //   | \s+
+    // This is NOT the GPT-2 regex. Three differences matter: a leading
+    // punctuation or underscore binds to the following word ("_snake", "(x"),
+    // digits are emitted one at a time, and a whitespace run ending in newlines
+    // stays a single piece. Alternatives are ordered, first match wins.
     static bool is_space(unsigned char c) { return c==' '||c=='\t'||c=='\n'||c=='\r'||c=='\f'||c=='\v'; }
     static bool is_ascii_letter(unsigned char c) { return (c>='a'&&c<='z')||(c>='A'&&c<='Z'); }
     static bool is_digit(unsigned char c) { return c>='0'&&c<='9'; }
     static bool is_letter(unsigned char c) { return is_ascii_letter(c) || c >= 0x80; }
+    static bool is_nl(unsigned char c) { return c=='\r' || c=='\n'; }
 
     static std::vector<std::string> pretokenize(const std::string& text) {
         std::vector<std::string> out;
@@ -138,41 +151,61 @@ public:
         size_t i = 0;
         const size_t n = text.size();
         auto emit = [&](size_t b, size_t e) { out.push_back(text.substr(b, e - b)); };
+        auto ieq = [](char a, char b) {
+            return std::tolower((unsigned char)a) == std::tolower((unsigned char)b);
+        };
         while (i < n) {
-            unsigned char c = (unsigned char)text[i];
-            // 1. contractions
-            if (c == '\'') {
+            // 1. contractions, case-insensitive per the (?i:) group
+            if (text[i] == '\'') {
                 bool matched = false;
-                for (const char* p : contractions) {
-                    size_t len = std::strlen(p);
-                    if (text.compare(i, len, p) == 0) { emit(i, i + len); i += len; matched = true; break; }
+                for (const char* q : contractions) {
+                    size_t len = std::strlen(q);
+                    if (i + len > n) continue;
+                    bool eq = true;
+                    for (size_t k = 0; k < len; k++)
+                        if (!ieq(text[i + k], q[k])) { eq = false; break; }
+                    if (eq) { emit(i, i + len); i += len; matched = true; break; }
                 }
                 if (matched) continue;
             }
-            // 2. optional space + letters
-            { size_t j = i; if (j < n && is_space((unsigned char)text[j])) j++; size_t k = j;
-              while (k < n && is_letter((unsigned char)text[k])) k++; if (k > j) { emit(i, k); i = k; continue; } }
-            // 3. optional space + digits
-            { size_t j = i; if (j < n && is_space((unsigned char)text[j])) j++; size_t k = j;
-              while (k < n && is_digit((unsigned char)text[k])) k++; if (k > j) { emit(i, k); i = k; continue; } }
-            // 4. optional space + non-space non-alnum
-            { size_t j = i; if (j < n && is_space((unsigned char)text[j])) j++; size_t k = j;
-              while (k < n && !is_space((unsigned char)text[k]) && !is_letter((unsigned char)text[k]) && !is_digit((unsigned char)text[k])) k++;
+            // 2. optional non-newline non-alnum char, then one or more letters
+            { size_t j = i;
+              unsigned char c0 = (unsigned char)text[j];
+              if (!is_nl(c0) && !is_letter(c0) && !is_digit(c0)) j++;
+              size_t k = j;
+              while (k < n && is_letter((unsigned char)text[k])) k++;
               if (k > j) { emit(i, k); i = k; continue; } }
-            // 5. GPT-2 `\s+(?!\S)`: a whitespace run, minus its last space when
-            //    the run is followed by a non-space char -- that space belongs to
-            //    the next token, which rules 2-4 pick up as their optional leading
-            //    space. (The old guard could never fire: after the loop text[k] is
-            //    never a space, so runs of 2+ spaces were emitted whole and
-            //    diverged from the reference tokenizer.)
-            { size_t k = i; while (k < n && is_space((unsigned char)text[k])) k++;
+            // 3. exactly one digit
+            if (is_digit((unsigned char)text[i])) { emit(i, i + 1); i += 1; continue; }
+            // 4. optional space, a run of non-space non-alnum, trailing newlines
+            { size_t j = i;
+              if (text[j] == ' ') j++;
+              size_t k = j;
+              while (k < n) { unsigned char c = (unsigned char)text[k];
+                              if (is_space(c) || is_letter(c) || is_digit(c)) break;
+                              k++; }
+              if (k > j) { while (k < n && is_nl((unsigned char)text[k])) k++;
+                           emit(i, k); i = k; continue; } }
+            // 5. whitespace run truncated at its LAST newline, which is what
+            //    keeps a blank line a single piece rather than two.
+            { size_t k = i;
+              while (k < n && is_space((unsigned char)text[k])) k++;
+              size_t last_nl = std::string::npos;
+              for (size_t q = i; q < k; q++) if (is_nl((unsigned char)text[q])) last_nl = q;
+              if (last_nl != std::string::npos) { emit(i, last_nl + 1); i = last_nl + 1; continue; } }
+            // 6. whitespace run minus its last char when a non-space follows;
+            //    that last space belongs to the next token via rules 2 and 4.
+            { size_t k = i;
+              while (k < n && is_space((unsigned char)text[k])) k++;
               if (k > i) { size_t e = (k < n) ? k - 1 : k;
                            if (e > i) { emit(i, e); i = e; continue; } } }
-            // 6. whitespace run (safety net)
-            { size_t k = i; while (k < n && is_space((unsigned char)text[k])) k++;
+            // 7. any remaining whitespace run
+            { size_t k = i;
+              while (k < n && is_space((unsigned char)text[k])) k++;
               if (k > i) { emit(i, k); i = k; continue; } }
-            // safety
-            emit(i, i + utf8_char_len((unsigned char)text[i])); i += utf8_char_len((unsigned char)text[i]);
+            // safety net: consume one code point
+            emit(i, i + utf8_char_len((unsigned char)text[i]));
+            i += utf8_char_len((unsigned char)text[i]);
         }
         return out;
     }

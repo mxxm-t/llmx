@@ -67,15 +67,11 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
     // top-k truncation
     size_t keep = (top_k > 0 && (size_t)top_k < n) ? (size_t)top_k : n;
 
-    // temperature
-    if (temp > 0.0f) {
-        float inv = 1.0f / temp;
-        for (size_t i = 0; i < keep; i++) ranked[i].first /= inv; // *temp
-    } else {
-        return ranked[0].second; // argmax (no randomness)
-    }
+    if (temp <= 0.0f) return ranked[0].second; // argmax (no randomness)
 
-    // softmax over the kept window
+    // softmax over the kept window. Temperature is applied exactly once, here:
+    // pre-scaling the scores by temp as well would cancel this division and
+    // make --temp a no-op at every value > 0.
     float maxv = ranked[0].first;
     std::vector<float> p(keep);
     double sum = 0.0;

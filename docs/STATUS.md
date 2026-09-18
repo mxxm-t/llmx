@@ -163,11 +163,31 @@ feature ships, delete its block and mark the row `Done` above.
   - Greedy output byte-identical across every arm on both 8B and 0.6B.
   - `generate` now prints tok/s with two decimals; the integer print was
     rounding a 20% change away.
+- **Floor measured 2026-09-19.** Reference is the CPU AVX2 llama.cpp that ships
+  with LM Studio (`llama.cpp-win-x86_64-avx2-2.28.2`), stock `llama-server` on
+  this same workstation and CPU, so no build was needed and no rig time was
+  used. The mx fork's changes are gfx906/GPU-specific, so its CPU path is
+  upstream; this is a fair stand-in and is labelled as one.
+  Qwen3-8B Q8_0, prompt "The capital of France is", 24 tokens greedy, `-t 16`
+  on both, `cache_prompt` off, two runs each:
+    - tg  llmx 3.81 / 3.96   llama.cpp 4.61 / 4.60   -> llmx 15.7% SLOWER
+    - pp  llmx 3.68 / 4.10   llama.cpp 12.20 / 11.84 -> llmx 3.1x SLOWER
+  llmx is under the floor on both arms.
+- **Output divergence to settle.** At temp 0 on the same weights both emit
+  " Paris. The capital of Italy is Rome. The capital of" and then split: llmx
+  continues "Spain is", llama.cpp "Germany is". That is an argmax flip around
+  token 11. It may be ordinary FP accumulation order, or it may be residual
+  llmx inaccuracy - the logits golden is what settles it, so this is tracked
+  under the correctness baseline, not assumed benign.
 - **Left:**
-  - **The A/B against mx-llama.cpp has NOT been run.** It must be same-CPU to
-    mean anything, and llmx is CPU-only, so it belongs on this workstation and
-    needs a local CPU build of llama.cpp. The rig is the wrong venue: its CPU is
-    a different machine, and it is busy serving production on all 10 GPUs.
+  - **Close the pp gap first, it is the 3.1x one.** `infer::prefill` feeds one
+    token at a time, so every prompt matvec is matrix-VECTOR where llama.cpp
+    runs matrix-matrix over the whole prompt. Batched prefill is also ROADMAP
+    #4a's item, so it serves the GPU work too.
+  - **Close the tg gap (16%).** Decode is memory-bound, and the likely cause is
+    the dot kernel: `dot_row_impl` widens int8 to int32 to float and then FMAs,
+    while llama.cpp quantizes the ACTIVATION to Q8_0 as well and does an
+    int8 x int8 dot. Quantizing x per matvec is the change to try.
   - Remaining known costs, in likely order: `Model::step` heap-allocates
     gate/up/ffn every layer every token and `attend_head` allocates a scores
     vector per head; `read_gguf` loads the whole file with no mmap, so every

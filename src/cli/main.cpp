@@ -149,7 +149,7 @@ int cmd_quantize(const std::string& json_path, const std::string& bin_path,
         fptr += num_elements(t);
 
         m.tensors.push_back(std::move(ti));
-        m.data.push_back(std::move(q));
+        m.add_tensor_data(q);
     }
 
     gguf::write_gguf(m, out_path);
@@ -182,15 +182,15 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
     std::vector<uint8_t> out;
     for (size_t i = 0; i < m.tensors.size(); i++) {
         const auto& t = m.tensors[i];
-        const auto& raw = m.data[i];
+        const uint8_t* raw = m.tensor_data(i);
         size_t n = (size_t)t.n_elements();
         std::vector<float> f(n);
         if (t.type == gguf::GGML_TYPE_Q8_0) {
-            quant::dequantize_row_q8_0(raw.data(), f.data(), n / gguf::Q8_0_BLOCK);
+            quant::dequantize_row_q8_0(raw, f.data(), n / gguf::Q8_0_BLOCK);
         } else if (t.type == gguf::GGML_TYPE_Q4_0) {
-            quant::dequantize_row_q4_0(raw.data(), f.data(), n / gguf::Q4_0_BLOCK);
+            quant::dequantize_row_q4_0(raw, f.data(), n / gguf::Q4_0_BLOCK);
         } else if (t.type == gguf::GGML_TYPE_F32) {
-            std::memcpy(f.data(), raw.data(), n * 4);
+            std::memcpy(f.data(), raw, n * 4);
         } else {
             throw std::runtime_error("unsupported tensor type in dequantize: " + t.name);
         }
@@ -443,7 +443,7 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
             for (size_t o = 0; o < nout; o++)
                 for (size_t i = 0; i < nin; i++) *p++ = dist(rng);
             m.tensors.push_back(std::move(t));
-            m.data.push_back(std::move(buf));
+            m.add_tensor_data(buf);
         } else {
             size_t nblocks = nin / gguf::Q8_0_BLOCK;
             std::vector<uint8_t> buf(nout * nblocks * gguf::Q8_0_TYPESIZE);
@@ -453,7 +453,7 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
                 quant::quantize_row_q8_0(row.data(), buf.data() + o * nblocks * gguf::Q8_0_TYPESIZE, nblocks);
             }
             m.tensors.push_back(std::move(t));
-            m.data.push_back(std::move(buf));
+            m.add_tensor_data(buf);
         }
     };
 

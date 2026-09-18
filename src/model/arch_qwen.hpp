@@ -273,7 +273,7 @@ private:
         return m_->tensors[it->second];
     }
     const uint8_t* tensor_data(const std::string& name) const {
-        return m_->data[tindex_.at(name)].data();
+        return m_->tensor_data(tindex_.at(name));
     }
 
     // Attention across all q-heads. Each head reads its group's k/v cache and
@@ -324,7 +324,7 @@ private:
         size_t nin = (size_t)t.ne[0];
         const quant::QuantType* qt = quant::Registry::instance().get(t.type);
         if (!qt || !qt->dequantize) throw std::runtime_error("unsupported tensor type in dequant_row");
-        const uint8_t* base = m_->data[tindex_.at(t.name)].data() +
+        const uint8_t* base = m_->tensor_data(tindex_.at(t.name)) +
             r * (nin / qt->block_size) * qt->type_size;
         qt->dequantize(base, out, nin / qt->block_size);
     }
@@ -334,7 +334,7 @@ private:
     // generic path: dequantize each row to f32 then f32 dot. The generic path
     // is slow-but-correct; a fused kernel per type is a follow-up.
     void matvec(const gguf::TensorInfo& t, const float* x, float* out, size_t nin, size_t nout) {
-        const uint8_t* data = m_->data[tindex_.at(t.name)].data();
+        const uint8_t* data = m_->tensor_data(tindex_.at(t.name));
         if (t.type == gguf::GGML_TYPE_Q8_0) {
             size_t nblocks = nin / gguf::Q8_0_BLOCK;
             b_->matvec_q8_0(data, x, out, nblocks, nout);

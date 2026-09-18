@@ -76,7 +76,22 @@ struct TensorInfo {
 struct GGUFModel {
     std::vector<std::pair<std::string, MetaValue>> kv;
     std::vector<TensorInfo> tensors;
-    std::vector<std::vector<uint8_t>> data; // raw bytes per tensor
+    // All tensor data in ONE contiguous allocation. This used to be a separate
+    // heap block per tensor (399 of them on Qwen3-8B), which fragments the very
+    // weight stream that decode is bandwidth bound on.
+    std::vector<uint8_t> blob;
+    std::vector<size_t> offsets;
+
+    const uint8_t* tensor_data(size_t i) const { return blob.data() + offsets[i]; }
+    uint8_t* tensor_data(size_t i) { return blob.data() + offsets[i]; }
+    size_t tensor_bytes(size_t i) const { return (size_t)tensors[i].data_size(); }
+
+    // Append one tensor's bytes. Callers that know the total should reserve
+    // blob first; read_gguf sizes it exactly and reads in place instead.
+    void add_tensor_data(const std::vector<uint8_t>& bytes) {
+        offsets.push_back(blob.size());
+        blob.insert(blob.end(), bytes.begin(), bytes.end());
+    }
 };
 
 inline std::string read_string(std::istream& is) {
@@ -204,8 +219,8 @@ inline void write_gguf(const GGUFModel& m, const std::string& path) {
     }
     pad_to(os, ALIGNMENT);
 
-    for (const auto& bytes : m.data) {
-        os.write((const char*)bytes.data(), (std::streamsize)bytes.size());
+    for (size_t i = 0; i < m.tensors.size(); i++) {
+        os.write((const char*)m.tensor_data(i), (std::streamsize)m.tensor_bytes(i));
         pad_to(os, ALIGNMENT);
     }
 }
@@ -245,11 +260,15 @@ inline GGUFModel read_gguf(const std::string& path) {
     { size_t pos = (size_t)is.tellg(); size_t pad = (ALIGNMENT - (pos % ALIGNMENT)) % ALIGNMENT; is.seekg(pos + pad); }
     size_t data_start = (size_t)is.tellg();
 
-    for (const auto& t : m.tensors) {
-        is.seekg(data_start + t.offset);
-        std::vector<uint8_t> buf(t.data_size());
-        is.read((char*)buf.data(), (std::streamsize)buf.size());
-        m.data.push_back(std::move(buf));
+    // Size the blob exactly, then read each tensor straight into place: no
+    // per-tensor temporary and no reallocation of an 8 GB buffer.
+    size_t total = 0;
+    m.offsets.reserve(m.tensors.size());
+    for (const auto& t : m.tensors) { m.offsets.push_back(total); total += (size_t)t.data_size(); }
+    m.blob.resize(total);
+    for (size_t i = 0; i < m.tensors.size(); i++) {
+        is.seekg(data_start + m.tensors[i].offset);
+        is.read((char*)m.tensor_data(i), (std::streamsize)m.tensor_bytes(i));
     }
     return m;
 }

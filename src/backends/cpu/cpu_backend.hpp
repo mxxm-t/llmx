@@ -2,6 +2,9 @@
 #include <algorithm>
 #include <cmath>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
 #include <vector>
 
 #include "backends/backend.hpp"
@@ -29,9 +32,19 @@ public:
         threads_ = (hw > 0) ? (int)hw : 4;
         if (threads_ > 64) threads_ = 64;
         avx2_ = has_avx2();   // detect once, not per row dot
+        start_pool();
     }
 
-    void set_threads(int n) override { threads_ = (n > 0) ? n : 1; }
+    ~CpuBackend() override { stop_pool(); }
+
+    void set_threads(int n) override {
+        int t = (n > 0) ? n : 1;
+        if (t == threads_) return;
+        stop_pool();
+        threads_ = t;
+        start_pool();
+    }
+
     int threads_available() const override { return threads_; }
 
     float dot_q8_0(const uint8_t* row, const float* x, size_t nblocks) override {
@@ -40,32 +53,41 @@ public:
 
     void matvec_q8_0(const uint8_t* data, const float* x, float* out,
                      size_t nblocks, size_t nout) override {
-        int nt = threads_;
-        // Small problems aren't worth thread overhead.
+        const int nt = threads_;
+        // Small problems are not worth waking the pool.
         if (nt <= 1 || nout < (size_t)nt * 8) {
-            for (size_t o = 0; o < nout; o++) {
-                const uint8_t* row = data + o * nblocks * gguf::Q8_0_TYPESIZE;
-                out[o] = dot_q8_0(row, x, nblocks);
-            }
+            for (size_t o = 0; o < nout; o++)
+                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);
             return;
         }
-        if (nt > (int)nout) nt = (int)nout;
-
-        std::vector<std::thread> workers;
-        workers.reserve((size_t)nt);
-        size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
-        for (int w = 0; w < nt; w++) {
+        const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
+        run_parallel([&](int w) {
             size_t start = (size_t)w * chunk;
             size_t end = std::min(nout, start + chunk);
-            if (start >= end) break;
-            workers.emplace_back([&, start, end]() {
-                for (size_t o = start; o < end; o++) {
-                    const uint8_t* row = data + o * nblocks * gguf::Q8_0_TYPESIZE;
-                    out[o] = dot_q8_0(row, x, nblocks);
-                }
-            });
+            for (size_t o = start; o < end; o++)
+                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);
+        });
+    }
+
+    // Run fn(0..threads_-1) across the pool: worker 0 is the calling thread, so
+    // a single-threaded backend never touches the pool at all. Blocks until
+    // every participant has returned, which is what lets the job be referenced
+    // rather than copied.
+    template <class F>
+    void run_parallel(F&& fn) {
+        if (threads_ <= 1) { fn(0); return; }
+        std::function<void(int)> job(std::ref(fn));   // ref -> no heap alloc
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            job_ = &job;
+            pending_ = threads_ - 1;
+            epoch_++;
         }
-        for (auto& th : workers) th.join();
+        cv_work_.notify_all();
+        fn(0);
+        std::unique_lock<std::mutex> lk(m_);
+        cv_done_.wait(lk, [&] { return pending_ == 0; });
+        job_ = nullptr;
     }
 
     void rms_norm(float* dst, const float* src, const float* w, size_t n, float eps) override {
@@ -131,6 +153,55 @@ public:
 private:
     int threads_ = 1;
     bool avx2_ = false;
+
+    // Persistent worker pool. The previous code created and joined
+    // std::threads on every matvec call, which is once per matmul per layer per
+    // token; at 36 layers that is thousands of thread creations per token.
+    std::vector<std::thread> pool_;
+    std::mutex m_;
+    std::condition_variable cv_work_, cv_done_;
+    const std::function<void(int)>* job_ = nullptr;
+    unsigned epoch_ = 0;
+    int pending_ = 0;
+    bool stop_ = false;
+
+    void start_pool() {
+        stop_ = false;
+        epoch_ = 0;
+        pending_ = 0;
+        for (int i = 1; i < threads_; i++)
+            pool_.emplace_back([this, i] { worker(i); });
+    }
+
+    void stop_pool() {
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            stop_ = true;
+            epoch_++;
+        }
+        cv_work_.notify_all();
+        for (auto& t : pool_) if (t.joinable()) t.join();
+        pool_.clear();
+    }
+
+    void worker(int idx) {
+        unsigned seen = 0;
+        for (;;) {
+            const std::function<void(int)>* job = nullptr;
+            {
+                std::unique_lock<std::mutex> lk(m_);
+                cv_work_.wait(lk, [&] { return stop_ || epoch_ != seen; });
+                if (stop_) return;
+                seen = epoch_;
+                job = job_;
+            }
+            if (job) (*job)(idx);
+            {
+                std::lock_guard<std::mutex> lk(m_);
+                if (--pending_ == 0) cv_done_.notify_one();
+            }
+        }
+    }
 
     static bool has_avx2() {
 #if defined(_MSC_VER)

@@ -159,10 +159,16 @@ public:
             { size_t j = i; if (j < n && is_space((unsigned char)text[j])) j++; size_t k = j;
               while (k < n && !is_space((unsigned char)text[k]) && !is_letter((unsigned char)text[k]) && !is_digit((unsigned char)text[k])) k++;
               if (k > j) { emit(i, k); i = k; continue; } }
-            // 5. whitespace run not followed by non-space
+            // 5. GPT-2 `\s+(?!\S)`: a whitespace run, minus its last space when
+            //    the run is followed by a non-space char -- that space belongs to
+            //    the next token, which rules 2-4 pick up as their optional leading
+            //    space. (The old guard could never fire: after the loop text[k] is
+            //    never a space, so runs of 2+ spaces were emitted whole and
+            //    diverged from the reference tokenizer.)
             { size_t k = i; while (k < n && is_space((unsigned char)text[k])) k++;
-              if (k > i && (k >= n || is_space((unsigned char)text[k]))) { emit(i, k); i = k; continue; } }
-            // 6. whitespace run
+              if (k > i) { size_t e = (k < n) ? k - 1 : k;
+                           if (e > i) { emit(i, e); i = e; continue; } } }
+            // 6. whitespace run (safety net)
             { size_t k = i; while (k < n && is_space((unsigned char)text[k])) k++;
               if (k > i) { emit(i, k); i = k; continue; } }
             // safety

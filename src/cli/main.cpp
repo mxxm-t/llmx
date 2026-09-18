@@ -316,14 +316,15 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     std::vector<float> logits = infer::prefill(model, ids);
     double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (gp.show_prompt_tokens) std::cout << "prompt tokens: " << ids.size() << "\n";
-    std::cout << "pp: " << ids.size() << " tok, " << (long)pp_ms << " ms, "
-              << (long)((double)ids.size() / (pp_ms / 1e3)) << " tok/s\n";
+    // Two decimals: at a few tok/s an integer print rounds a 20% change away.
+    printf("pp: %zu tok, %.0f ms, %.2f tok/s\n", ids.size(), pp_ms,
+           (double)ids.size() / (pp_ms / 1e3));
 
     t0 = std::chrono::steady_clock::now();
     std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits);
     double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-    std::cout << "tg: " << gen.size() << " tok, " << (long)tg_ms << " ms, "
-              << (long)((double)gen.size() / (tg_ms / 1e3)) << " tok/s\n";
+    printf("tg: %zu tok, %.0f ms, %.2f tok/s\n", gen.size(), tg_ms,
+           (double)gen.size() / (tg_ms / 1e3));
     return 0;
 }
 

@@ -18,10 +18,14 @@ feature currently stands right now.
 | More quant formats (Q4_0, Q4_1, ...)     | In Progress |
 | More model architectures (Llama, ...)    | Planned  |
 | More formats (safetensors, ...)          | Planned  |
-| GPU backends (ROCm / CUDA / Vulkan)      | Planned  |
+| Device execution model (GPU prerequisite) | Planned |
+| GPU backends (ROCm first, Vulkan portability) | Planned |
 | Multi-device split                       | Planned  |
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Planned  |
+| Correctness baseline vs HF reference     | In Progress |
+| HF integration (pull + Hub formats)      | Planned  |
+| HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
 
@@ -105,6 +109,41 @@ feature ships, delete its block and mark the row `Done` above.
     null and throws.
   - `quantize` input tensors must have element counts divisible by 32 (both Q8_0
     and Q4_0 block size).
+
+### Correctness baseline vs HF reference
+
+- **Goal:** give the suite an external ground truth. Nothing in it compares llmx
+  against a reference today, which is how six correctness bugs survived a fully
+  green suite. Golden fixtures are generated once with HF tooling and committed;
+  the suite compares against them with no torch at test time.
+- **Done:**
+  - Six bugs found and fixed while probing for this: attention missing
+    1/sqrt(head_dim); temperature cancelled algebraically in the sampler; RoPE
+    table read past context_length; the GPT-2 `\s+(?!\S)` pretokenizer guard
+    that could never fire; attention width hardcoded to n_embd; tied embeddings
+    unsupported.
+  - Tokenizer parity checked by hand against `Qwen/Qwen3-8B` tokenizer.json --
+    3/3 probe strings match after the fix (they did not before).
+  - Qwen3-0.6B Q8_0 chosen as the gate model: it fits in RAM alongside a
+    reference, and the identical GGUF loads into transformers via `gguf_file=`,
+    so any divergence is llmx's math rather than quantization noise.
+- **Left:**
+  - `tools/gen_baseline.py`: emit golden fixtures (tokenizer ids, first-token
+    logits top-k, per-layer activations, corpus PPL).
+  - `tests/baseline.py`: compare llmx against the committed goldens.
+  - Wire it into `tests/run_tests.py`.
+  - Tolerance bands: F32 vs reference tight, Q8_0 vs reference needs a
+    quantization-appropriate bound.
+- **Gotchas:**
+  - A green suite proves nothing here: roundtrip tests the quant kernels against
+    themselves, perf tests speed, and the tokenizer test is a self-consistency
+    round-trip that a consistently-wrong encoder passes happily.
+  - The 8B hides bugs the 0.6B exposes. `n_head * head_dim == n_embd` holds for
+    Qwen3-8B (32*128 == 4096) and fails for 0.6B/1.7B/4B.
+  - torch is a fixture-generation dependency only. It must never be required to
+    run the suite, and never at runtime.
+  - `llmx tokenize` loads all tensor data just to reach tokenizer metadata, so
+    per-string CLI comparison is slow on the 8B -- prefer the 0.6B.
 
 Nothing else is in flight. When you start a feature, open a block above
 before writing code — see `AGENTS.md` → "Starting a feature".

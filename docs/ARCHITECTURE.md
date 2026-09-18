@@ -68,8 +68,13 @@ command reference.
 
 ## Multi-device / multi-node design notes
 
-The `backend::Backend` interface is deliberately device-agnostic. A model can
-later be split across several Backends — one per device, or per cluster node —
-using strategies at the model layer (per-layer, per-tensor, per-row). None of
-that is implemented yet; the interface simply does not preclude it. See
-`ROADMAP.md` for the plan.
+The `backend::Backend` interface is device-agnostic in *shape* — nothing in it
+names a vendor — but it is host-pointer based today: every call takes raw host
+pointers and returns synchronously, so a backend cannot own device memory or
+keep activations resident. That is a prerequisite, not a detail. See
+`ROADMAP.md` #4a (device execution model), which has to land before any GPU
+backend is worth writing.
+
+Once it has, a model can be split across several Backends — one per device, or
+per cluster node — using strategies at the model layer (per-layer, per-tensor,
+per-row). None of that is implemented yet. See `ROADMAP.md` for the plan.

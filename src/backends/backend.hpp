@@ -5,13 +5,16 @@
 
 // Compute backend abstraction. The inference graph runs its primitive ops
 // (quantized matmul, RMSNorm, RoPE) through a Backend so the same model code
-// can target CPU now and ROCm / CUDA / Vulkan / oneAPI later without changes.
-// A backend owns device memory and the kernels that operate on it.
+// can target CPU now and ROCm / Vulkan later.
 //
-// Multi-device / multi-node: keep this interface device-agnostic so a model can
-// later be split across several Backends (one per device / per cluster node).
-// The split strategies (per-layer, per-tensor, per-row) live at the model layer
-// and are documented in docs/ROADMAP.md; they are NOT implemented yet.
+// This interface is device-agnostic in shape, but host-pointer based: every
+// call takes raw host pointers and returns synchronously, so a backend cannot
+// own device memory, keep activations resident, or run async. Adding that is
+// the prerequisite for any GPU backend -- see docs/ROADMAP.md #4a.
+//
+// Multi-device / multi-node: the split strategies (per-layer, per-tensor,
+// per-row) live at the model layer and are documented in docs/ROADMAP.md; they
+// are NOT implemented yet.
 
 namespace backend {
 

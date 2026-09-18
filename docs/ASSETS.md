@@ -5,6 +5,10 @@ environment-specific paths (this dev machine); the automated suite
 (`tests/run_tests.py`) generates its own synthetic fixtures and needs none of
 them.
 
+> Superseded once `llmx pull` lands (`docs/ROADMAP.md` #9a): the hardcoded paths
+> below become a cache the tool manages. Until then, this file is the record of
+> what is on this machine.
+
 ## Model locations
 
 Models are kept in the LM Studio model directory:

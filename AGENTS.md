@@ -146,5 +146,13 @@ STATUS.md and resume exactly where the last commit left off.
 ## Roadmap
 
 `docs/ROADMAP.md` lists: more quant formats, more architectures, more formats,
-backends (ROCm/CUDA/Vulkan), multi-device split, multi-node cluster, and a
-multi-user server. Follow the roadmap before inventing new directions.
+backends (ROCm first-class, Vulkan for portability), multi-device split,
+multi-node cluster, a multi-user server, and Hugging Face integration (`llmx
+pull` plus reading what the Hub actually hosts). Follow the roadmap before
+inventing new directions.
+
+GPU backends are **not** drop-in the way a quant type is. They require the
+device execution model refactor in `docs/ROADMAP.md` #4a — device buffers,
+resident activations, attention moved into the backend, async submit/sync —
+before any vendor backend is worth writing. Don't pick up "add the ROCm
+backend" expecting the "one file + one registry entry" experience Q4_0 had.

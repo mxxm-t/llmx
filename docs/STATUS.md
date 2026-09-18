@@ -180,14 +180,28 @@ feature ships, delete its block and mark the row `Done` above.
   llmx inaccuracy - the logits golden is what settles it, so this is tracked
   under the correctness baseline, not assumed benign.
 - **Left:**
+  - **Decode is memory-bandwidth bound, measured, not assumed.** Qwen3-8B Q8_0
+    thread scaling is flat: 4 threads 3.83 tok/s, 8 threads 4.13, 16 threads
+    3.90. At 8.1 GB of weights streamed per token that is about 31.6 GB/s,
+    close to practical DDR4 dual-channel on this 5800X.
+    Consequences, which redirect the remaining work:
+      - An int8 x int8 dot kernel (quantizing the activation, as llama.cpp
+        does) would NOT help tg. Saving ALU work does nothing while stalled on
+        RAM, and it would cost numerics for no gain. NOT worth doing here.
+      - tg headroom is bounded: llama.cpp reaches about 37 GB/s, so the ceiling
+        on the whole 16% gap is bandwidth EFFICIENCY. The suspect is layout,
+        llmx holds tensor data in 399 separate heap allocations while llama.cpp
+        mmaps one contiguous file-backed region.
+      - pp is where the real headroom is. Prefill is compute-bound because each
+        weight byte is reused across the batch, so batching is worth up to the
+        full 3.1x and thread scaling there should be real.
   - **Close the pp gap first, it is the 3.1x one.** `infer::prefill` feeds one
     token at a time, so every prompt matvec is matrix-VECTOR where llama.cpp
     runs matrix-matrix over the whole prompt. Batched prefill is also ROADMAP
     #4a's item, so it serves the GPU work too.
-  - **Close the tg gap (16%).** Decode is memory-bound, and the likely cause is
-    the dot kernel: `dot_row_impl` widens int8 to int32 to float and then FMAs,
-    while llama.cpp quantizes the ACTIVATION to Q8_0 as well and does an
-    int8 x int8 dot. Quantizing x per matvec is the change to try.
+  - **Close the tg gap (16%) by layout, not by kernel.** Load tensor data as one
+    contiguous region (or mmap it) instead of 399 separate heap allocations, so
+    the weight stream is sequential and prefetchable. This is lossless.
   - Remaining known costs, in likely order: `Model::step` heap-allocates
     gate/up/ffn every layer every token and `attend_head` allocates a scores
     vector per head; `read_gguf` loads the whole file with no mmap, so every

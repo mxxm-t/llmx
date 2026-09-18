@@ -93,6 +93,17 @@ Split a single model across several backends on one machine.
 - `server/` directory is the planned home (not yet created — avoid empty stubs)
 
 ## 8. Correctness & perf gates
+Two standards, both EXTERNAL. Neither may be replaced by a self-consistency
+check: llmx passed a fully green suite while six correctness bugs were live,
+because every test compared llmx against itself.
+- **Correctness is the HF reference.** Golden fixtures are generated once with
+  HF tooling (`tools/gen_baseline.py`) and committed; `tests/baseline.py`
+  compares llmx against them with no torch at test time. A round-trip that a
+  consistently wrong encoder also passes is not a correctness test.
+- **Performance floor is mx-llama.cpp.** llmx must be at least as fast as the
+  gfx906 fork on the same model, quant, prompt and hardware, measured as pp and
+  tg tok/s. A ground-up runtime slower than the thing it replaces has no claim
+  to being a runtime. Report both arms; never a single number.
 - Path-controlled perplexity on real text as the lossless gate (see
   `gfx906-correctness-gate` skill)
 - Large-context output hashing to prove KV cache + RoPE correctness at depth

@@ -24,6 +24,7 @@ feature currently stands right now.
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Planned  |
 | Correctness baseline vs HF reference     | In Progress |
+| Performance floor vs mx-llama.cpp        | Planned  |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
@@ -112,38 +113,57 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### Correctness baseline vs HF reference
 
-- **Goal:** give the suite an external ground truth. Nothing in it compares llmx
-  against a reference today, which is how six correctness bugs survived a fully
-  green suite. Golden fixtures are generated once with HF tooling and committed;
-  the suite compares against them with no torch at test time.
+- **Goal:** give the suite an external ground truth. Correctness is measured
+  against the HF reference, never against llmx itself (`docs/ROADMAP.md` #8).
 - **Done:**
-  - Six bugs found and fixed while probing for this: attention missing
-    1/sqrt(head_dim); temperature cancelled algebraically in the sampler; RoPE
-    table read past context_length; the GPT-2 `\s+(?!\S)` pretokenizer guard
-    that could never fire; attention width hardcoded to n_embd; tied embeddings
-    unsupported.
-  - Tokenizer parity checked by hand against `Qwen/Qwen3-8B` tokenizer.json --
-    3/3 probe strings match after the fix (they did not before).
-  - Qwen3-0.6B Q8_0 chosen as the gate model: it fits in RAM alongside a
-    reference, and the identical GGUF loads into transformers via `gguf_file=`,
-    so any divergence is llmx's math rather than quantization noise.
+  - `tools/gen_baseline.py` emits golden fixtures using `tokenizers` +
+    `huggingface_hub` only (no torch, no transformers); output committed to
+    `tests/data/baseline_tokenizer.json`.
+  - `tests/baseline.py` compares llmx against the committed goldens and is
+    wired into `tests/run_tests.py`. It SKIPS when no fixture model is on disk,
+    so the rest of the suite still runs anywhere.
+  - Tokenizer parity: **16/16 cases match Qwen/Qwen3-0.6B.**
+  - Eight bugs found and fixed via this path, all of which survived a green
+    suite: attention missing 1/sqrt(head_dim); temperature cancelling in the
+    sampler; RoPE read past context_length; the GPT-2 whitespace guard that
+    could never fire; attention width hardcoded to n_embd; tied embeddings
+    unsupported; Windows argv delivered in the ANSI codepage so any non-ASCII
+    prompt was mangled before llmx saw it; and the pretokenizer implementing
+    the GPT-2 regex instead of the Qwen2/Qwen3 one.
 - **Left:**
-  - `tools/gen_baseline.py`: emit golden fixtures (tokenizer ids, first-token
-    logits top-k, per-layer activations, corpus PPL).
-  - `tests/baseline.py`: compare llmx against the committed goldens.
-  - Wire it into `tests/run_tests.py`.
+  - Logits, per-layer activation and corpus-PPL goldens. BLOCKED locally: any
+    `from transformers import Auto*` segfaults on this workstation (plain
+    `import transformers` and torch alone are both fine), so reference-model
+    fixtures must be generated on the rig.
   - Tolerance bands: F32 vs reference tight, Q8_0 vs reference needs a
     quantization-appropriate bound.
 - **Gotchas:**
-  - A green suite proves nothing here: roundtrip tests the quant kernels against
-    themselves, perf tests speed, and the tokenizer test is a self-consistency
-    round-trip that a consistently-wrong encoder passes happily.
-  - The 8B hides bugs the 0.6B exposes. `n_head * head_dim == n_embd` holds for
+  - A green suite proves nothing on its own - every pre-existing test compares
+    llmx against llmx.
+  - The 8B hides bugs the 0.6B exposes: `n_head * head_dim == n_embd` holds for
     Qwen3-8B (32*128 == 4096) and fails for 0.6B/1.7B/4B.
-  - torch is a fixture-generation dependency only. It must never be required to
-    run the suite, and never at runtime.
-  - `llmx tokenize` loads all tensor data just to reach tokenizer metadata, so
-    per-string CLI comparison is slow on the 8B -- prefer the 0.6B.
+  - torch is a fixture-GENERATION dependency only, never needed to run the
+    suite and never at runtime.
+  - Qwen3 does NOT use the GPT-2 pretokenizer regex. Read the Split pattern out
+    of `tokenizer.json` before touching `pretokenize`.
+
+### Performance floor vs mx-llama.cpp
+
+- **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
+  quant, prompt and hardware (`docs/ROADMAP.md` #8). Measured as pp and tg
+  tok/s, both arms reported.
+- **Done:** nothing yet - this block was opened before the work.
+- **Left:**
+  - A/B harness that runs both binaries on the same model and prompt and prints
+    the two arms side by side.
+  - First measurement on Qwen3-8B Q8_0, CPU, this workstation. Current llmx is
+    about 2-3 tok/s there, which is almost certainly under the floor.
+  - Then close the gap. Known costs already visible: `matvec_q8_0` spawns and
+    joins `std::thread`s per call; `Model::step` heap-allocates gate/up/ffn
+    every layer every token; whole-file load with no mmap.
+- **Gotchas:**
+  - Compare like with like: same quant, same thread count, same prompt length,
+    and state them. A single number with no configuration is not a measurement.
 
 Nothing else is in flight. When you start a feature, open a block above
 before writing code — see `AGENTS.md` → "Starting a feature".

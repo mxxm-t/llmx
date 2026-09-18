@@ -74,6 +74,18 @@ python tests/run_tests.py
   generous floor so catastrophic slowdowns fail loudly without being flaky.
 - **Tokenizer** (`tests/tokenizer.py`): encode/decode round-trips incl. unicode
   and special tokens.
+- **Baseline** (`tests/baseline.py`): the only test with an EXTERNAL ground
+  truth. Compares llmx against golden fixtures generated once from the HF
+  reference by `tools/gen_baseline.py` and committed to `tests/data/`. Needs a
+  real model, so it SKIPS when none is on disk; point it at one with
+  `LLMX_BASELINE_GGUF`. Regenerating fixtures needs `tokenizers` and
+  `huggingface_hub`; RUNNING the suite needs neither, and never needs torch.
+
+The two project gates are external and are defined in `docs/ROADMAP.md` #8:
+**correctness is the HF reference**, and **performance must be at least
+mx-llama.cpp** on the same model, quant, prompt and hardware. Do not substitute
+a self-consistency check for either. llmx passed a fully green suite while eight
+correctness bugs were live, because every test compared llmx against llmx.
 
 When you change a hot path, run `tests/perf.py` and note the before/after in the
 commit message. The lossless correctness gate (path-controlled perplexity on a

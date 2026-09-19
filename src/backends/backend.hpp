@@ -39,6 +39,14 @@ public:
     virtual void matvec_q8_0(const uint8_t* data, const float* x, float* out,
                              size_t nblocks, size_t nout) = 0;
 
+    // Y[b*nout + o] = dot(row_o, X + b*nin), for all b in [0,nbatch) and o in
+    // [0,nout). X and Y are row-major with nbatch rows.
+    // Rows are iterated outer and the batch inner, so each weight row is read
+    // once and reused across the whole batch. That is what makes prefill
+    // compute bound instead of paying the full weight stream per token.
+    virtual void matmul_q8_0(const uint8_t* data, const float* X, float* Y,
+                             size_t nblocks, size_t nout, size_t nbatch) = 0;
+
     // Run fn(i) for i in [0, n) across the backend's workers. The model layer
     // uses this for work it owns (attention heads) instead of creating threads
     // of its own, so there is exactly one pool in the process.

@@ -21,9 +21,7 @@ namespace infer {
 // distribution over the next token).
 inline std::vector<float> prefill(infer::Model& model,
                                   const std::vector<uint32_t>& ids) {
-    std::vector<float> logits;
-    for (uint32_t id : ids) logits = model.step((int)id);
-    return logits;
+    return model.prefill(ids);
 }
 
 // Find a vocab token whose string contains `sub`, or -1.

@@ -90,6 +90,27 @@ public:
         job_ = nullptr;
     }
 
+    void matmul_q8_0(const uint8_t* data, const float* X, float* Y,
+                     size_t nblocks, size_t nout, size_t nbatch) override {
+        if (nbatch == 1) { matvec_q8_0(data, X, Y, nblocks, nout); return; }
+        const size_t nin = nblocks * gguf::Q8_0_BLOCK;
+        auto do_rows = [&](size_t o0, size_t o1) {
+            for (size_t o = o0; o < o1; o++) {
+                const uint8_t* row = data + o * nblocks * gguf::Q8_0_TYPESIZE;
+                for (size_t b = 0; b < nbatch; b++)
+                    Y[b * nout + o] = dot_row_impl(row, X + b * nin, nblocks);
+            }
+        };
+        const int nt = threads_;
+        if (nt <= 1 || nout < (size_t)nt * 4) { do_rows(0, nout); return; }
+        const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
+        run_parallel([&](int w) {
+            const size_t s = (size_t)w * chunk;
+            const size_t e = std::min(nout, s + chunk);
+            if (s < e) do_rows(s, e);
+        });
+    }
+
     void parallel_for(int n, const std::function<void(int)>& fn) override {
         if (n <= 0) return;
         const int nt = std::min(threads_, n);

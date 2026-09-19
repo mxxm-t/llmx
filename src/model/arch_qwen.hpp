@@ -160,9 +160,10 @@ public:
                          cfg.n_embd, cfg.rms_eps);
 
             // q,k,v projections
-            matvec(tensor(pre + "attn_q.weight"), h_.data(), q_.data(), cfg.n_embd, (size_t)q_dim_);
-            matvec(tensor(pre + "attn_k.weight"), h_.data(), kv_.data(), cfg.n_embd, (size_t)cfg.n_head_kv * cfg.head_dim);
-            matvec(tensor(pre + "attn_v.weight"), h_.data(), v_.data(), cfg.n_embd, (size_t)cfg.n_head_kv * cfg.head_dim);
+            b_->matmul_group({projection(pre + "attn_q.weight", q_.data(), size_t(q_dim_)),
+                              projection(pre + "attn_k.weight", kv_.data(), size_t(cfg.n_head_kv * cfg.head_dim)),
+                              projection(pre + "attn_v.weight", v_.data(), size_t(cfg.n_head_kv * cfg.head_dim))},
+                             h_.data(), cfg.n_embd, 1);
 
             // per-head q/k norms
             const float* qnorm = (const float*)tensor_data(pre + "attn_q_norm.weight");
@@ -209,8 +210,9 @@ public:
             // gate/up (SwiGLU). Buffers are members: allocating these per layer
             // per token cost 108 heap allocations of n_ff floats on a 36-layer
             // model, every token.
-            matvec(tensor(pre + "ffn_gate.weight"), h_.data(), gate_.data(), cfg.n_embd, cfg.n_ff);
-            matvec(tensor(pre + "ffn_up.weight"),   h_.data(), up_.data(),   cfg.n_embd, cfg.n_ff);
+            b_->matmul_group({projection(pre + "ffn_gate.weight", gate_.data(), cfg.n_ff),
+                              projection(pre + "ffn_up.weight", up_.data(), cfg.n_ff)},
+                             h_.data(), cfg.n_embd, 1);
             for (int i = 0; i < cfg.n_ff; i++) {
                 float g = gate_[i] / (1.0f + std::exp(-gate_[i])); // SiLU
                 ffn_[i] = g * up_[i];
@@ -341,9 +343,9 @@ private:
                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, anorm, E, cfg.rms_eps);
             });
 
-            matmul(tensor(pre + "attn_q.weight"), hb_.data(), qb_.data(), E, (size_t)q_dim_, B);
-            matmul(tensor(pre + "attn_k.weight"), hb_.data(), kb_.data(), E, KV, B);
-            matmul(tensor(pre + "attn_v.weight"), hb_.data(), vb_.data(), E, KV, B);
+            b_->matmul_group({projection(pre + "attn_q.weight", qb_.data(), size_t(q_dim_)),
+                              projection(pre + "attn_k.weight", kb_.data(), KV),
+                              projection(pre + "attn_v.weight", vb_.data(), KV)}, hb_.data(), E, B);
 
             const float* qn = (const float*)tensor_data(pre + "attn_q_norm.weight");
             const float* kn = (const float*)tensor_data(pre + "attn_k_norm.weight");
@@ -376,8 +378,8 @@ private:
                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, fnorm, E, cfg.rms_eps);
             });
 
-            matmul(tensor(pre + "ffn_gate.weight"), hb_.data(), gateb_.data(), E, cfg.n_ff, B);
-            matmul(tensor(pre + "ffn_up.weight"),   hb_.data(), upb_.data(),   E, cfg.n_ff, B);
+            b_->matmul_group({projection(pre + "ffn_gate.weight", gateb_.data(), cfg.n_ff),
+                              projection(pre + "ffn_up.weight", upb_.data(), cfg.n_ff)}, hb_.data(), E, B);
             for_rows([&](int b) {
                 const size_t end = (size_t)(b + 1) * cfg.n_ff;
                 for (size_t j = (size_t)b * cfg.n_ff; j < end; j++) {
@@ -399,6 +401,11 @@ private:
             out_logits->assign(n_vocab, 0.0f);
             matvec(ot, h_.data(), out_logits->data(), (size_t)E, n_vocab);
         }
+    }
+
+    backend::Projection projection(const std::string& name, float* out, size_t rows) const {
+        const auto& t = tensor(name);
+        return {t.type, m_->tensor_data(tindex_.at(t.name)), out, rows};
     }
 
     // Batched matmul. The backend dispatches on the quant type, so every

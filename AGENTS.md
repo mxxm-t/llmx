@@ -86,6 +86,15 @@ than the spec requires, so use `llmx.exe info` as the authoritative check.
 
 ## Tests
 
+Run the backend scheduling checks after a CMake build:
+```
+ctest --test-dir build -C Release --output-on-failure
+```
+
+`backend-group` checks mixed types, uneven rows, batches, thread counts,
+output boundaries and fallback behavior against separate calls and double dots.
+The independent HF fixtures below remain the external correctness gate.
+
 Run the full suite (all generate their own fixtures, no real models needed):
 ```
 python tests/run_tests.py

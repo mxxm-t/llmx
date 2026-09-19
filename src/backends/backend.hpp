@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <memory>
 #include <functional>
+#include <initializer_list>
 
 // Compute backend abstraction. The inference graph runs its primitive ops
 // (matmul, attention, RMSNorm, RoPE) through a Backend so the same model code
@@ -18,6 +19,13 @@
 // are NOT implemented yet.
 
 namespace backend {
+
+struct Projection {
+    uint32_t type;
+    const uint8_t* data;
+    float* out;
+    size_t rows;
+};
 
 class Backend {
 public:
@@ -46,6 +54,14 @@ public:
     // outer and the batch inner so each weight row is read once per block.
     virtual void matmul(uint32_t ggml_type, const uint8_t* data, const float* X,
                         float* Y, size_t nin, size_t nout, size_t nbatch) = 0;
+
+    // Independent projections of the same X; outputs must not overlap each
+    // other, X, or any weights. All outputs are complete on return.
+    virtual void matmul_group(std::initializer_list<Projection> projections,
+                              const float* X, size_t nin, size_t nbatch) {
+        for (const auto& p : projections)
+            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);
+    }
 
     // Causal GQA: Q/out are [nbatch, n_head, head_dim], K/V are
     // [n_past + nbatch, n_head_kv, head_dim]. Query b attends through n_past+b.

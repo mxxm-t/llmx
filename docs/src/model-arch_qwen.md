@@ -23,6 +23,9 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   - `reset()`: clear KV cache / internal state.
   - Both forward paths call `Backend::attention` over the KV cache; score
     scratch, causal masking and head scheduling belong to the backend.
+  - Q/K/V and FFN gate/up share activations and use `matmul_group` in both
+    forward paths. CPU groups eligible decode projections; batched prefill
+    retains sequential matrix calls through the backend fallback.
   - Batched norms, per-head norm/RoPE, and SiLU use the backend worker pool
     across independent token rows. Each row keeps the same arithmetic; the
     operations finish before dependent matrix operations or KV writes begin.

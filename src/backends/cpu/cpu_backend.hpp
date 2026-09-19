@@ -198,6 +198,39 @@ public:
         });
     }
 
+    void matmul_group(std::initializer_list<Projection> projections,
+                      const float* X, size_t nin, size_t nbatch) override {
+        bool grouped = threads_ > 1 && nbatch == 1 && projections.size() > 1;
+        for (const auto& p : projections)
+            grouped = grouped && p.rows >= size_t(threads_) * 8 &&
+                (p.type == gguf::GGML_TYPE_F32 || p.type == gguf::GGML_TYPE_Q8_0 ||
+                 p.type == gguf::GGML_TYPE_Q4_K);
+        if (!grouped) { Backend::matmul_group(projections, X, nin, nbatch); return; }
+        run_parallel([&](int w) {
+            for (const auto& p : projections) {
+                size_t chunk = (p.rows + size_t(threads_) - 1) / size_t(threads_);
+                // Keep the same per-matrix partition as individual matmul calls.
+                if (p.type == gguf::GGML_TYPE_F32)
+                    chunk = (chunk + DOT_ROWS - 1) / DOT_ROWS * DOT_ROWS;
+                const size_t first = size_t(w) * chunk;
+                const size_t last = std::min(p.rows, first + chunk);
+                if (p.type == gguf::GGML_TYPE_F32) {
+                    const float* data = reinterpret_cast<const float*>(p.data);
+                    for (size_t o = first; o < last; ++o)
+                        p.out[o] = dot_f32(data + o * nin, X, nin);
+                } else if (p.type == gguf::GGML_TYPE_Q8_0) {
+                    const size_t blocks = nin / gguf::Q8_0_BLOCK;
+                    for (size_t o = first; o < last; ++o)
+                        p.out[o] = dot_row_impl(p.data + o * blocks * gguf::Q8_0_TYPESIZE, X, blocks);
+                } else {
+                    const size_t blocks = nin / gguf::Q4_K_BLOCK;
+                    for (size_t o = first; o < last; ++o)
+                        p.out[o] = dot_row_q4_K(p.data + o * blocks * gguf::Q4_K_TYPESIZE, X, blocks);
+                }
+            }
+        });
+    }
+
     // Rows fused per activation load: the width dot_f32_x4 handles.
     static const int DOT_ROWS = 4;
 

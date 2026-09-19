@@ -644,6 +644,66 @@ Scratch artifacts are under `%TEMP%/llmx-q8-integer`. Runtime remains the
 validated `5a9518c` code; the next investigation targets projection dispatch
 while preserving its float arithmetic.
 
+## Grouped CPU projections checkpoint (2026-09-19)
+
+The selected implementation groups independent Q/K/V and FFN gate/up decode
+projections into one pool dispatch. Existing native F32/Q8_0/Q4_K row kernels
+and per-matrix partitions are preserved; other types, batches and small jobs
+use sequential matmul. The scratch both-phase experiment offered no advantage.
+No integer activation quantization or TLS dispatcher is included.
+
+Final matched Qwen3-0.6B comparison, Ryzen 7 5800X / MSVC AVX2, six threads,
+ubatch 128, F32 KV, the same 215 HF prompt IDs and 32 forced continuation IDs.
+Each process warms up; an outer warmup round is also discarded, followed by
+eight interleaved rounds. Loading, tokenization and sampling are excluded.
+All samples, including outliers, are retained.
+
+| Model / phase, tok/s | Previous mean | Grouped mean | mx mean | Previous median | Grouped median | mx median |
+|---|---:|---:|---:|---:|---:|---:|
+| Q8_0 prefill | 418.59 | 419.06 | 267.76 | 419.13 | 422.01 | 266.69 |
+| Q8_0 decode | 43.92 | 45.18 | 48.34 | 44.02 | 45.43 | 48.88 |
+| F32 prefill | 397.41 | 394.25 | 390.07 | 399.12 | 396.92 | 390.94 |
+| F32 decode | 14.47 | 14.64 | 14.86 | 14.59 | 14.70 | 14.89 |
+
+The Q8 decode mean improves, but remains below mx; the F32 decode floor is
+also unmet. F32 control/candidate ranges overlap. This checkpoint is unmerged.
+The larger-model grouped comparison is pending; earlier 8B results do not
+validate this candidate.
+
+| Validation | F32 | Q8_0 |
+|---|---:|---:|
+| Exact excerpt/window NLL cases vs previous runtime | 4/4 | 4/4 |
+| Long-prompt full logits byte-identical vs previous | 5,013,888 | 5,013,888 |
+| Maximum added logit difference | 0 | 0 |
+
+Long checks use the previously pinned 1,943-token prompt and 32 continuation
+steps. F32 greedy output matches HF; Q8 uses forced HF continuation for matched
+inputs. F32 maximum error vs HF remains 0.00012636 under 0.001. These are scoped
+checks, not full-corpus or maximum-context proof. Independent HF tests remain
+mandatory; equality against llmx alone would not establish correctness.
+
+Windows/Linux full suites pass with required real Q8/Q4 HF fixtures, and the
+real F32 HF gate passes. UBSan synthetic suite and backend CTest pass; UBSan
+intentionally skips real-model fixtures. Backend CTest checks 540 cases and
+141,750 outputs on each platform, including mixed formats, uneven rows,
+batches, single/empty groups, output boundaries and invalid types. A missing-row
+mutant fails. Instrumented Q8 model execution observes 3,584 groups and 5,376
+avoided dispatches across warmup plus measurement; its timings are not used.
+
+Synthetic matmul median is 129.78 -> 129.51 GFLOPS with overlapping ranges;
+step-based synthetic prefill/decode means improve 4998/4928 -> 6861/6921 tok/s.
+The separate batched guard has overlapping ranges except its faster
+six-thread single-token case (0.232 -> 0.173 ms). No test tolerance changed.
+
+Evidence, raw samples, prototype patches, source/binary hashes, controls and
+reproduction harnesses are in
+[`benchmarks/grouped-projections-cpu-20260919.json`](benchmarks/grouped-projections-cpu-20260919.json).
+Scratch artifacts: `%TEMP%/llmx-grouped-projections/validation`. Comparator source
+is `tools/compare_cpu.cpp`; reference remains public mx commit `5542318e74`.
+Run `ctest --test-dir build -C Release --output-on-failure` after a CMake build
+for the new backend tests. CI runs them on each configured CPU job; hosted CI
+for this unmerged checkpoint has not run.
+
 ## Wiki text location
 
 The wikitext corpus used for corpus-level perplexity is committed to the test

@@ -28,6 +28,9 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
 - `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
   budget was measured instead and was worse at every size (see
   `docs/STATUS.md`).
+- `matmul_group`: one pool dispatch for multiple native F32/Q8_0/Q4_K decode
+  projections, preserving each matrix's row partition and dot kernel. Other
+  formats, batches, single projections and small jobs use sequential matmul.
 - `dot_row_impl`: AVX2 fused dequant (f16 scale broadcast) + FMA accumulation
   over int8 blocks, with a scalar fallback.
 - `rms_norm`, `rope`: AVX2 vectorized with scalar tails for non-multiples of 8.

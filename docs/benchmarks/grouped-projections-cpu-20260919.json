@@ -1,0 +1,2855 @@
+{
+  "task": "CPU grouped projections",
+  "base_runtime": "5a9518c",
+  "parent": "ac1c5fc158913eb9fd7671ae5dff29b8d26d5689",
+  "mx_commit": "5542318e748c154b634211def405ae95da3dfaa9",
+  "hardware": "Ryzen 7 5800X, Windows MSVC 19.50, AVX2/FMA/F16C",
+  "settings": {
+    "threads": 6,
+    "ubatch": 128,
+    "kv": "F32",
+    "prefill_tokens": 215,
+    "forced_decode_tokens": 32,
+    "loading_tokenization_sampling_timed": false,
+    "process_warmup": true,
+    "final_rounds": 8,
+    "discarded_outer_rounds": 1
+  },
+  "source_sha256": {
+    "src/backends/backend.hpp": "04bf0529f9e6756b22e541c5374bf44a72a9f68e7264f3f52325aed97ffb3600",
+    "src/backends/cpu/cpu_backend.hpp": "d3d391c261b17180e090b16562c2351e2190d5a4d7efd23a6e88bf2758715006",
+    "src/model/arch_qwen.hpp": "f606f6e2d630037812b03185ca284cdb7c96bf671a95ad4db0c0d4ee1a3651bc",
+    "tests/backend_group.cpp": "a4e1e13d89e55958fd630941b1e1ffabc34af22010e8e12f84877033657a4baf",
+    "CMakeLists.txt": "e64f4cb0fa85256a5a2c2b88786342ea885aca05587cee6495ba836b702485dd",
+    ".github/workflows/ci.yml": "be84643076b2073fd52bebb10c09d353b2566bbafde1c063da2f4204a53ea7dd"
+  },
+  "selected": "Direct decode grouping through existing F32/Q8_0/Q4_K row kernels; sequential fallback for all other cases.",
+  "validation": {
+    "builds": {
+      "windows_build_bat": 0,
+      "windows_cmake_build": 0,
+      "linux_cmake_build": 0,
+      "windows_ctest": 0,
+      "linux_ctest": 0,
+      "actionlint": 0,
+      "notes": "Observed terminal exit statuses; existing compiler warnings only."
+    },
+    "proof": {
+      "mutant": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": "grouped output differs from separate calls or overwrote a sentinel\r\n"
+      },
+      "witness": {
+        "groups": 3584,
+        "avoided_dispatches": 5376,
+        "actual_dispatches": 10370
+      },
+      "scope": "Qwen3-0.6B Q8, 28 layers, 32 decode steps twice (warmup + measured); counters include both. Instrumented timings are not benchmark evidence.",
+      "hashes": {
+        "witness.exe": "4e55be3696fcb3f14b0aed4e20d2133a405004731b939cdaeb38e4a438c495a0",
+        "mutant.exe": "96eb90475697393c1da87d9399408976afa8e8e90ce1cd92587f2b191861d688"
+      }
+    },
+    "cli_code": {
+      "root_cli": "4e61fd0c9ae03f453bc7e885eeaeb5b4cd7bf5a837e098ab0fc09d0f0c2980eb",
+      "candidate_cli": "4e61fd0c9ae03f453bc7e885eeaeb5b4cd7bf5a837e098ab0fc09d0f0c2980eb"
+    },
+    "exact": {
+      "binary_sha256": {
+        "base_ppl": "97a59554a95765dd79cb91e2456a30acdd0a27364a94d3e85e98eff684059631",
+        "candidate_ppl": "1f2692ff200df71ab53241979fea37db8bfdd70dc013c0b30b28113d99f66575",
+        "candidate_forced": "67d80ccfc66ae7c9040903f33169bfb8fbe8e58934c35562a0c1279485c4b4e2",
+        "candidate_long": "2b2a21e75d142b09c7714e99b042b13d7d95f5d50cb19c15a8d7b4d2f6f653f0"
+      },
+      "f32_ppl": {
+        "base": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.3602856587153136,
+            "ppl": 28.79741593724798
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.030360358565375,
+            "ppl": 56.28118900180338
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.710157522040546,
+            "ppl": 40.860242408841785
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6307937854390597,
+            "ppl": 37.74276438635746
+          }
+        ],
+        "group": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.3602856587153136,
+            "ppl": 28.79741593724798
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.030360358565375,
+            "ppl": 56.28118900180338
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.710157522040546,
+            "ppl": 40.860242408841785
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6307937854390597,
+            "ppl": 37.74276438635746
+          }
+        ]
+      },
+      "q8_ppl": {
+        "base": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.361663767717966,
+            "ppl": 28.83712927377228
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.037034074325617,
+            "ppl": 56.658049792014495
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.7125502817810534,
+            "ppl": 40.95812821376951
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6432017866796906,
+            "ppl": 38.21399411742927
+          }
+        ],
+        "group": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.361663767717966,
+            "ppl": 28.83712927377228
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.037034074325617,
+            "ppl": 56.658049792014495
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.7125502817810534,
+            "ppl": 40.95812821376951
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6432017866796906,
+            "ppl": 38.21399411742927
+          }
+        ]
+      },
+      "q8_long": {
+        "values": 5013888,
+        "byte_identical": true,
+        "sha256": {
+          "-logits.f32": "792cc5b1dc8f74d87a1b290b7bfcb04668e4a6777d16af43ec3a1a9a81b77fdb",
+          "-step-00.f32": "0232c0fac77cf7eb9dc12fd4ca9a5fd372c48d6bace0fcad039966635588e836",
+          "-step-01.f32": "036f4c00306ee9d8cb992902adff4eb67bdf47c2e5f81e4986e41e321e916b22",
+          "-step-02.f32": "c7814c234abcece2d4185744cb4de81f2bcb2231e24b9d165c73bc0d2384c797",
+          "-step-03.f32": "3ebb1a826c8e24506be6ffc03ea118eeb7641b4ccb3925fd4029a2145a7df891",
+          "-step-04.f32": "aebc35a303a9e382502f357ba9e5d05feedbd53072ef04563c6bee4da066ac91",
+          "-step-05.f32": "b965b024d47812628bae78b9cf1642dbd4efcdff920a24b6eeeeea04119fa839",
+          "-step-06.f32": "3cca7c2160c8260d9efd2bee62819a35b17b7ac94b74982e2a13e12860e353ba",
+          "-step-07.f32": "9b7f78c8223f179a2b7e5180130e8e5323064c7f80d06a9fa4f2f364c99b4eec",
+          "-step-08.f32": "ffd9c3f1f1fade3b208e3865c6441c0ba0108dd13e24d3129a8ac9e917ffb455",
+          "-step-09.f32": "84494cd3e2193c47131da35e019e782d43e3d06d2ae1a5b9415acdaa291b0952",
+          "-step-10.f32": "5560601e5a4248f38838265f5156fa309b22c1f88d2bf3ab5a859c70de8db6ab",
+          "-step-11.f32": "f22e982421e849f4becf292b986871c2d008bf98791da759849dadd718ddcdc8",
+          "-step-12.f32": "8dd0e9b7284034a6962b7596221310072d06297aeea582f595c7bca8426cf7b7",
+          "-step-13.f32": "4b5d9093fae0e79ac21e1d62f8d3dd3194c0f82345a9d1a55c05d552efa426f9",
+          "-step-14.f32": "5c501dcab4925fd5edf85efdd7ab90acd685d5cc72bab6c707b5c171fd2742d5",
+          "-step-15.f32": "7462b12dd799fe190de10f0cb06274ecb01ad2662f178c0f095e477a0d3141f0",
+          "-step-16.f32": "e21c0199c0c4b2d67c66958ab5d17905d5e165b0c1a5ea9354ec90e0a10ecf50",
+          "-step-17.f32": "240f5b76a33758a05dcf752ba9d5168dc9825b15362f3986f2c4fe2c9f23ac2d",
+          "-step-18.f32": "57e8139e1047a26e7df89520592c8ced974a2b69b01d4a1babf16653cdd1caea",
+          "-step-19.f32": "514dac18f1f4ee3d7761697bf57179aa1208a1720c230422d7e10c35149b2e26",
+          "-step-20.f32": "26f2303b932a0ef76b74aab79b63fb285f981e190b2d2e410be6cfe0c0bd9cc6",
+          "-step-21.f32": "b2536cdb45519d9573fdc0021737c1fb798d9a1aa1a44b447e9e2276291075a0",
+          "-step-22.f32": "9e1a25d19f17a5a7a94893a427f34bd376b98659d555f44d1aed6df522bdea33",
+          "-step-23.f32": "714783139533ed43a01a3796c84881d341bdf16d2251dfe77af4ca3912ee13bf",
+          "-step-24.f32": "0be0f8baa65f182406d58ed206a927a07a3d0d041feeeee4bd5c113c103dfd5e",
+          "-step-25.f32": "8204b37925065c05e72030883fb785dc1b494d700b2d7e9f17fa3e0cae5312ec",
+          "-step-26.f32": "fa33d0e6a23a0c42e16c784db54821499e97e1589bce349cdcded5732df17109",
+          "-step-27.f32": "57c22aa76c9ffe1b25316de61c11fd2207ba330a9fd9806d39cba1a6221518a8",
+          "-step-28.f32": "12b7b72c5fe74df977e5bc9da0687636cbd0c3558402bb9315ee2fe28e528525",
+          "-step-29.f32": "470f203a46b4c221f04caa2f79aea20e3739511a3a188358f0f0f473809fe230",
+          "-step-30.f32": "87ff4441f5d177185186f6195d370b8148faf24c5bf40d534d42b99bba9a0171",
+          "-step-31.f32": "6ba1d89a9380d205a40903b8b245e2289bf72fa7c7e7d2cc4864c6626e542b2a"
+        }
+      },
+      "f32_long": {
+        "values": 5013888,
+        "byte_identical": true,
+        "sha256": {
+          "-logits.f32": "5a25da0ce497f0b399adfd15d0b63476a940f8571271c75acfc6bd75c178c99d",
+          "-step-00.f32": "03a8225c5bd2f895cb4b04cba6ebff6b5f6ba84a2de0baffc18cabb7cf34a3c7",
+          "-step-01.f32": "69aff52b7c8068f8c936c61daa070bd95e04a4b1ac99bd2b09a3aa9774e2972c",
+          "-step-02.f32": "90f3d7e6ee9667678ae33a1c1d3d610b580434f1e3ac764772b7123dda4b223c",
+          "-step-03.f32": "ec886b175da8da7bb3f42bf8ef90d64aede14f2194f6a34d8b67cdc15784efa0",
+          "-step-04.f32": "630f4c5c459b633a05ab43ddd29375a5998b541886fe0f5af8344a54197a3636",
+          "-step-05.f32": "d5883650201c2f3e0ec54e3262da5eb2ab08b1d494fe20bee14ff156eb1acc01",
+          "-step-06.f32": "061b5720a02a4538f64b628c1e3b8c5fd9410a04efad4a6379ee8f33e97700a1",
+          "-step-07.f32": "adb16ce8be43aa3e8d05469dbcabcd09de8a838d672856a9ebf0712c24c59d64",
+          "-step-08.f32": "1cc19a0309b38954a20c3b078a88b9383d68302494b2e54d2e91b0dceb2b38e7",
+          "-step-09.f32": "de320f85f0341561aa766cb2b6e1ae7cce91e9e641347e9b9734ee437964d347",
+          "-step-10.f32": "10a7bc8e552129aeeb5523fa3bff3d00d2667de8688f8c43a31f56acfa4d1830",
+          "-step-11.f32": "1aa0247c3d21c2ca561b892aa69ff3471a511158196eeae7cd7926c1830095eb",
+          "-step-12.f32": "2d2c1da15d8268af2517741781b8e05efdd026d4e658a9000ab929b6266ce191",
+          "-step-13.f32": "e0ae0c853697ce9804842d11e5a78e07aa3e500d45311da7f6be9166c094cf81",
+          "-step-14.f32": "ff9a56d43043b26589f6dc7a394fc05a4b35f52326fd5c4ea71fbdedf31040b3",
+          "-step-15.f32": "c17033431d218e432bbdc7a3537a42eb69cbf859d2efbda94db5d61af44e5864",
+          "-step-16.f32": "cb472916c97221248b42c0e677f209182e45a656ebaff60fb0e198809b0493c6",
+          "-step-17.f32": "f5945f0c7ab3d311699d7e7f883c92ee1b4cd3a784e69c0369a841924ecc4a06",
+          "-step-18.f32": "0d89c646449a9504b11062bc60c4ef57ca31360bf51c63d93619ebe59862435f",
+          "-step-19.f32": "797d1cdee7a8804af0d6d72bfd73fa8d5a1979310d4d0ae017e362614f584ff7",
+          "-step-20.f32": "a50738f70f389646fa87aaec56308712b2b78cf9c4cf060014dc8803c2792688",
+          "-step-21.f32": "4d42e084cba229cf0b70db96703a197b43bcf24c9e2346c82f50fc177083a035",
+          "-step-22.f32": "640c1d5a085b2100be49b3ce3f497ad8eb8bfc740a3ca0b547a467e03d683d83",
+          "-step-23.f32": "59575b93271bac64b7ac58c91e9fc6fff3cd3bad030723d273cd80d4a6803293",
+          "-step-24.f32": "5449b8f4eb7bac94bae3c74fdc53b73e10e78335538dd4ce27547de2da79ba38",
+          "-step-25.f32": "522a1f138ab3934872d6dfff6a6d6b12d82d5f2724799a13d19beeccbd923f87",
+          "-step-26.f32": "0ac8c18751a00f2a9955759cb21269b644b1d535eebbf3801e73aa8da1440bb3",
+          "-step-27.f32": "d94e1e141e475b9c4e0ccffb186d5e47f2a326173b00f8d29a80b668758bef64",
+          "-step-28.f32": "eaeab344dc3eb66c86a846539c501ad3e50fc41a2871e458d7b06d2de9b169f8",
+          "-step-29.f32": "a756a1762bb1d283abf355ac433d212cb4401b7d2624248cb685fca08b6c8f33",
+          "-step-30.f32": "963a512859532bd254cf7b40075da3a7af3dec9a76799b3bd2dd60d1bfce1dd2",
+          "-step-31.f32": "050e0710d8e2ccddc09cbc7be8982d20555d59055e1c7ae0e1afc75cf7963907"
+        }
+      },
+      "scope": "Four excerpt/window NLL cases; long vectors over 1943 prompt tokens and 32 continuation steps, not full corpus or maximum context."
+    },
+    "hf_long": {
+      "prompt_tokens": 1943,
+      "generated_tokens": 32,
+      "greedy_match": true,
+      "logits_compared": 5013888,
+      "max_abs_error": 0.00012636184692382812,
+      "rms_error": 1.6163279547159805e-05,
+      "bound": 0.001
+    },
+    "windows-suite": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 25.62 GFLOPS (0.327 ms), prefill 5825 tok/s, decode 5749 tok/s, rms_norm 0.001 ms, rope 0.001 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  baseline   PASS\n",
+    "f32-hf": "baseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-F32.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=0 chunks=1]: PPL 28.7974 vs HF 28.7974, NLL delta 0.000004 <= 0.000  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=64 chunks=4]: PPL 56.2812 vs HF 56.2812, NLL delta 0.000000 <= 0.000  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=64 chunks=2]: PPL 40.8602 vs HF 40.8602, NLL delta 0.000003 <= 0.000  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=123 chunks=2]: PPL 37.7428 vs HF 37.7428, NLL delta 0.000004 <= 0.000  [ok]\n",
+    "long-hf": "{\"prompt_tokens\": 1943, \"generated_tokens\": 32, \"greedy_match\": true, \"logits_compared\": 5013888, \"max_abs_error\": 0.00012636184692382812, \"rms_error\": 1.6163279547159805e-05, \"bound\": 0.001}\n",
+    "linux-suite": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 30.96 GFLOPS (0.271 ms), prefill 6360 tok/s, decode 6116 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6581 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  baseline   PASS\n",
+    "ubsan-backend": "Internal ctest changing into directory: /root/.cache/llmx-f32-ubsan\nTest project /root/.cache/llmx-f32-ubsan\n    Start 1: backend-group\n1/1 Test #1: backend-group ....................   Passed    0.24 sec\n\n100% tests passed, 0 tests failed out of 1\n\nTotal Test time (real) =   0.25 sec\n",
+    "ubsan-suite": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 20.33 GFLOPS (0.413 ms), prefill 3998 tok/s, decode 3812 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\nperf: hardware-specific floors disabled; timings are diagnostic only\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nbaseline: SKIP - no fixture model on disk (Qwen3-0.6B-Q8_0.gguf). Set LLMX_BASELINE_GGUF or `python tools/gen_baseline.py` deps.\nbaseline-logits: SKIP - no fixture model on disk\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf]: SKIP - fixture model not on disk\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf]: SKIP - fixture model not on disk\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  baseline   PASS\n",
+    "windows-backend": "Start testing: Sep 19 18:15 FLE Daylight Time\n----------------------------------------------------------\n1/1 Testing: backend-group\n1/1 Test: backend-group\nCommand: \"C:/Users/Marko/AppData/Local/Temp/llmx-grouped-projections/cmake/Release/llmx-backend-group-test.exe\"\nDirectory: C:/Users/Marko/AppData/Local/Temp/llmx-grouped-projections/cmake\n\"backend-group\" start time: Sep 19 18:15 FLE Daylight Time\nOutput:\n----------------------------------------------------------\ngrouped projections: 540 cases, 141750 outputs checked against separate calls and double dots\n<end of output>\nTest time =   0.12 sec\n----------------------------------------------------------\nTest Passed.\n\"backend-group\" end time: Sep 19 18:15 FLE Daylight Time\n\"backend-group\" time elapsed: 00:00:00\n----------------------------------------------------------\n\nEnd testing: Sep 19 18:15 FLE Daylight Time\n",
+    "linux-backend": "Start testing: Sep 19 18:15 EEST\n----------------------------------------------------------\n1/1 Testing: backend-group\n1/1 Test: backend-group\nCommand: \"/root/.cache/llmx-xdev-ci-20260919/llmx-backend-group-test\"\nDirectory: /root/.cache/llmx-xdev-ci-20260919\n\"backend-group\" start time: Sep 19 18:15 EEST\nOutput:\n----------------------------------------------------------\ngrouped projections: 540 cases, 141750 outputs checked against separate calls and double dots\n<end of output>\nTest time =   0.18 sec\n----------------------------------------------------------\nTest Passed.\n\"backend-group\" end time: Sep 19 18:15 EEST\n\"backend-group\" time elapsed: 00:00:00\n----------------------------------------------------------\n\nEnd testing: Sep 19 18:15 EEST\n"
+  },
+  "diagnostics": {
+    "q8-diagnostic": {
+      "hashes": {
+        "base": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+        "decode": "4f60de0e1bbd41c1090fd6abdf56f1fc96ccc68989ee88f752077b59a8d2a166",
+        "all": "92b4891e9002929043cb85f38555bb7cf557c927e78c335707a70a750199f614",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "model": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "pair": 0,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 524.9175,
+          "tg_ms": 726.4634,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "decode",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 524.3267,
+          "tg_ms": 690.9583,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "all",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 538.5577,
+          "tg_ms": 691.5091,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 776.5946,
+          "tg_ms": 653.9036,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 500.5842,
+          "tg_ms": 743.5488,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 792.9389,
+          "tg_ms": 661.0938,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "all",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 513.8069,
+          "tg_ms": 699.3652,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 1,
+          "arm": "decode",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 520.5045,
+          "tg_ms": 701.8149,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "all",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 532.8626,
+          "tg_ms": 699.4464,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 808.8937,
+          "tg_ms": 689.4246,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 2,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 515.7886,
+          "tg_ms": 720.3684,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "decode",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 520.2757,
+          "tg_ms": 694.7981,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        }
+      ],
+      "summary": {
+        "base": {
+          "pp": {
+            "mean": 418.6412628260655,
+            "median": 416.8374407654609,
+            "minimum": 409.5881733796263,
+            "maximum": 429.4981743331092
+          },
+          "tg": {
+            "mean": 43.83586221319733,
+            "median": 44.04901884940109,
+            "minimum": 43.03685245675872,
+            "maximum": 44.421715333432175
+          }
+        },
+        "decode": {
+          "pp": {
+            "mean": 412.117639681664,
+            "median": 413.06079006041256,
+            "minimum": 410.0496884862053,
+            "maximum": 413.2424404983742
+          },
+          "tg": {
+            "mean": 45.988368041382174,
+            "median": 46.056545059636754,
+            "minimum": 45.596068137054374,
+            "maximum": 46.31249092745539
+          }
+        },
+        "all": {
+          "pp": {
+            "mean": 407.0468941410284,
+            "median": 403.48112252576925,
+            "minimum": 399.2144202933131,
+            "maximum": 418.445139604003
+          },
+          "tg": {
+            "mean": 45.92728320869913,
+            "median": 45.75577966990637,
+            "minimum": 45.750467798533236,
+            "maximum": 46.275602157657794
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 271.26268573404957,
+            "median": 271.1432116648584,
+            "minimum": 265.79512239989015,
+            "maximum": 276.84972313740013
+          },
+          "tg": {
+            "mean": 47.91900794932063,
+            "median": 48.40462881364188,
+            "minimum": 46.41551810016642,
+            "maximum": 48.936876934153595
+          }
+        }
+      }
+    },
+    "f32-diagnostic": {
+      "hashes": {
+        "base": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+        "decode": "4f60de0e1bbd41c1090fd6abdf56f1fc96ccc68989ee88f752077b59a8d2a166",
+        "all": "92b4891e9002929043cb85f38555bb7cf557c927e78c335707a70a750199f614",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "pair": 0,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 522.8699,
+          "tg_ms": 2193.9905,
+          "top1": 4013,
+          "logit_sum": -501040.0615
+        },
+        {
+          "pair": 0,
+          "arm": "decode",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 542.0303,
+          "tg_ms": 2190.6712,
+          "top1": 4013,
+          "logit_sum": -501040.0615
+        },
+        {
+          "pair": 0,
+          "arm": "all",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 549.438,
+          "tg_ms": 2169.822,
+          "top1": 4013,
+          "logit_sum": -501040.0615
+        },
+        {
+          "pair": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 558.0918,
+          "tg_ms": 2210.5628,
+          "top1": 4013,
+          "logit_sum": -501040.3761
+        },
+        {
+          "pair": 1,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 544.5641,
+          "tg_ms": 2185.8014,
+          "top1": 4013,
+          "logit_sum": -501040.0615
+        },
+        {
+          "pair": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 554.5801,
+          "tg_ms": 2162.8593,
+          "top1": 4013,
+          "logit_sum": -501040.3761
+        },
+        {
+          "pair": 1,
+          "arm": "all",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 547.0338,
+          "tg_ms": 2200.398,
+          "top1": 4013,
+          "logit_sum": -501040.0615
+        },
+        {
+          "pair": 1,
+          "arm": "decode",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 554.6935,
+          "tg_ms": 2162.0885,
+          "top1": 4013,
+          "logit_sum": -501040.0615
+        },
+        {
+          "pair": 2,
+          "arm": "all",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 550.1854,
+          "tg_ms": 2194.3179,
+          "top1": 4013,
+          "logit_sum": -501040.0615
+        },
+        {
+          "pair": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 533.0893,
+          "tg_ms": 2217.0933,
+          "top1": 4013,
+          "logit_sum": -501040.3761
+        },
+        {
+          "pair": 2,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 553.6979,
+          "tg_ms": 2208.0146,
+          "top1": 4013,
+          "logit_sum": -501040.0615
+        },
+        {
+          "pair": 2,
+          "arm": "decode",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 556.5238,
+          "tg_ms": 2185.3923,
+          "top1": 4013,
+          "logit_sum": -501040.0615
+        }
+      ],
+      "summary": {
+        "base": {
+          "pp": {
+            "mean": 398.10057562599883,
+            "median": 394.81118935309905,
+            "minimum": 388.2983843716944,
+            "maximum": 411.1921531532031
+          },
+          "tg": {
+            "mean": 14.572630927594814,
+            "median": 14.585295606339226,
+            "minimum": 14.49265779311423,
+            "maximum": 14.639939383330985
+          }
+        },
+        "decode": {
+          "pp": {
+            "mean": 390.19497586838247,
+            "median": 387.6014411562422,
+            "minimum": 386.3266943839598,
+            "maximum": 396.6567920649454
+          },
+          "tg": {
+            "mean": 14.683526463722254,
+            "median": 14.642679943550638,
+            "minimum": 14.607395212937476,
+            "maximum": 14.800504234678646
+          }
+        },
+        "all": {
+          "pp": {
+            "mean": 391.70501049718274,
+            "median": 391.30893749613244,
+            "minimum": 390.7773634124061,
+            "maximum": 393.02873058300963
+          },
+          "tg": {
+            "mean": 14.624565515803047,
+            "median": 14.583119428593276,
+            "minimum": 14.542823616454841,
+            "maximum": 14.747753502361022
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 392.07717264576934,
+            "median": 387.6806975223236,
+            "minimum": 385.24128109389886,
+            "maximum": 403.3095393210856
+          },
+          "tg": {
+            "mean": 14.568164494980145,
+            "median": 14.475951554056731,
+            "minimum": 14.433312301291064,
+            "maximum": 14.79522962959264
+          }
+        }
+      }
+    },
+    "direct-q8-diagnostic": {
+      "hashes": {
+        "base": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+        "decode": "4f60de0e1bbd41c1090fd6abdf56f1fc96ccc68989ee88f752077b59a8d2a166",
+        "direct": "9cb0ef8738c945f55e121a64b9123764c920e952190b730681726f038eecdb24",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "model": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "pair": 0,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 546.7766,
+          "tg_ms": 752.6487,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "decode",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 529.6891,
+          "tg_ms": 694.633,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "direct",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 506.5562,
+          "tg_ms": 700.7439,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 762.261,
+          "tg_ms": 661.8933,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 513.4855,
+          "tg_ms": 728.3402,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 823.8185,
+          "tg_ms": 690.0892,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "direct",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 509.8636,
+          "tg_ms": 695.3963,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 1,
+          "arm": "decode",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 520.1746,
+          "tg_ms": 709.7747,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "direct",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 515.6977,
+          "tg_ms": 715.3824,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 791.3181,
+          "tg_ms": 677.8454,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 2,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 551.9881,
+          "tg_ms": 736.0834,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "decode",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 523.3534,
+          "tg_ms": 704.5642,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        }
+      ],
+      "summary": {
+        "base": {
+          "pp": {
+            "mean": 400.47393706825346,
+            "median": 393.2136086291915,
+            "minimum": 389.5011504777005,
+            "maximum": 418.70705209786837
+          },
+          "tg": {
+            "mean": 43.308454191115274,
+            "median": 43.47333467919532,
+            "minimum": 42.51651534108808,
+            "maximum": 43.93551255306243
+          }
+        },
+        "decode": {
+          "pp": {
+            "mean": 410.0111698826626,
+            "median": 410.81227331283225,
+            "minimum": 405.8984789379279,
+            "maximum": 413.32275739722775
+          },
+          "tg": {
+            "mean": 45.52345572561651,
+            "median": 45.418146422994525,
+            "minimum": 45.084728999216225,
+            "maximum": 46.06749175463878
+          }
+        },
+        "direct": {
+          "pp": {
+            "mean": 421.00898826622955,
+            "median": 421.6814065565771,
+            "minimum": 416.91091505740667,
+            "maximum": 424.4346431847049
+          },
+          "tg": {
+            "mean": 45.47133442320304,
+            "median": 45.66575606294967,
+            "minimum": 44.73132131850043,
+            "maximum": 46.01692588815902
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 271.5780038416647,
+            "median": 271.6985748209222,
+            "minimum": 260.9798153355381,
+            "maximum": 282.0556213685339
+          },
+          "tg": {
+            "mean": 47.30846088931286,
+            "median": 47.20840474833937,
+            "minimum": 46.37081699003549,
+            "maximum": 48.34616092956372
+          }
+        }
+      }
+    }
+  },
+  "eight-rounds": {
+    "hashes": {
+      "base": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+      "group": "86b307f0f3a2a9314e46cfb38c65622e6641fd0de756bc98b1f0804f2d51a266",
+      "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+      "q8": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "f32": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+      "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+    },
+    "results": [
+      {
+        "model": "q8",
+        "round": 0,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 506.7692,
+        "tg_ms": 726.8194,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 0,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 511.484,
+        "tg_ms": 749.9453,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 0,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 803.8042,
+        "tg_ms": 651.4736,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "q8",
+        "round": 1,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 523.7371,
+        "tg_ms": 733.4762,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 1,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 813.1818,
+        "tg_ms": 660.0533,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "q8",
+        "round": 1,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 509.1994,
+        "tg_ms": 699.7787,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 2,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 808.5515,
+        "tg_ms": 651.1805,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "q8",
+        "round": 2,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 527.4995,
+        "tg_ms": 724.4066,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 2,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 526.4298,
+        "tg_ms": 695.9596,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 3,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 778.5872,
+        "tg_ms": 655.1933,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "q8",
+        "round": 3,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 500.6424,
+        "tg_ms": 702.1327,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 3,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 510.3691,
+        "tg_ms": 726.3645,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 4,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 509.7294,
+        "tg_ms": 712.6888,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 4,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 821.2844,
+        "tg_ms": 653.0488,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "q8",
+        "round": 4,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 515.6017,
+        "tg_ms": 738.1044,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 5,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 534.3184,
+        "tg_ms": 691.921,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 5,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 527.0226,
+        "tg_ms": 718.8451,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 5,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 816.6006,
+        "tg_ms": 684.1022,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "q8",
+        "round": 6,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 499.0517,
+        "tg_ms": 726.9289,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 6,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 508.8564,
+        "tg_ms": 710.4435,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 6,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 800.3874,
+        "tg_ms": 688.6196,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "q8",
+        "round": 7,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 500.7296,
+        "tg_ms": 733.8936,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "q8",
+        "round": 7,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 783.3323,
+        "tg_ms": 654.1734,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "q8",
+        "round": 7,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 505.4719,
+        "tg_ms": 706.7374,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "f32",
+        "round": 0,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 540.9633,
+        "tg_ms": 2187.2337,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 0,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 581.7497,
+        "tg_ms": 2158.253,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 0,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 575.6429,
+        "tg_ms": 2126.0929,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "f32",
+        "round": 1,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 557.5921,
+        "tg_ms": 2318.0484,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 1,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 567.4081,
+        "tg_ms": 2165.7872,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "f32",
+        "round": 1,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 535.5412,
+        "tg_ms": 2166.9689,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 2,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 534.5523,
+        "tg_ms": 2191.0135,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "f32",
+        "round": 2,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 558.9586,
+        "tg_ms": 2198.3594,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 2,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 544.4659,
+        "tg_ms": 2187.7256,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 3,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 552.833,
+        "tg_ms": 2102.7832,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "f32",
+        "round": 3,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 532.616,
+        "tg_ms": 2238.4233,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 3,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 530.6697,
+        "tg_ms": 2187.1288,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 4,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 539.4675,
+        "tg_ms": 2152.8264,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 4,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 536.8731,
+        "tg_ms": 2148.0861,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "f32",
+        "round": 4,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 541.8295,
+        "tg_ms": 2224.6597,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 5,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 535.5339,
+        "tg_ms": 2156.6854,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 5,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 536.3309,
+        "tg_ms": 2181.9466,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 5,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 578.6044,
+        "tg_ms": 2150.7708,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "f32",
+        "round": 6,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 526.9422,
+        "tg_ms": 2217.4562,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 6,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 543.8815,
+        "tg_ms": 2186.562,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 6,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 547.12,
+        "tg_ms": 2242.8068,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "f32",
+        "round": 7,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 536.4199,
+        "tg_ms": 2185.0505,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "f32",
+        "round": 7,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 521.8371,
+        "tg_ms": 2109.6518,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "f32",
+        "round": 7,
+        "arm": "group",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 552.5542,
+        "tg_ms": 2247.6084,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      }
+    ],
+    "summary": {
+      "q8": {
+        "base": {
+          "pp": {
+            "mean": 418.5932320975334,
+            "median": 419.12614396782317,
+            "minimum": 407.58332472353055,
+            "maximum": 430.81708768851007,
+            "n": 8
+          },
+          "tg": {
+            "mean": 43.922302839210445,
+            "median": 44.02412739750268,
+            "minimum": 43.35430055694018,
+            "maximum": 44.51584910295695,
+            "n": 8
+          }
+        },
+        "group": {
+          "pp": {
+            "mean": 419.05901492759887,
+            "median": 422.01193679181347,
+            "minimum": 402.38180081389675,
+            "maximum": 429.448244894959,
+            "n": 8
+          },
+          "tg": {
+            "mean": 45.17785537575364,
+            "median": 45.42695857355233,
+            "minimum": 42.669778715861014,
+            "maximum": 46.24805432990182,
+            "n": 8
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 267.76005704191766,
+            "median": 266.69284434256735,
+            "minimum": 261.78507713040693,
+            "maximum": 276.14119523156813,
+            "n": 8
+          },
+          "tg": {
+            "mean": 48.34330685630182,
+            "median": 48.87862111544995,
+            "minimum": 46.46977808938346,
+            "maximum": 49.14152066900037,
+            "n": 8
+          }
+        }
+      },
+      "f32": {
+        "base": {
+          "pp": {
+            "mean": 397.41418928678115,
+            "median": 399.1222873318237,
+            "minimum": 384.6438716570422,
+            "maximum": 408.01438943398347,
+            "n": 8
+          },
+          "tg": {
+            "mean": 14.46854736188789,
+            "median": 14.593331034191266,
+            "minimum": 13.804716070639422,
+            "maximum": 14.665803461917902,
+            "n": 8
+          }
+        },
+        "group": {
+          "pp": {
+            "mean": 394.25082415612354,
+            "median": 396.9239261252616,
+            "minimum": 369.5747501030082,
+            "maximum": 403.6679333703832,
+            "n": 8
+          },
+          "tg": {
+            "mean": 14.636347974315452,
+            "median": 14.701008856695086,
+            "minimum": 14.2373555820489,
+            "maximum": 14.864180409530467,
+            "n": 8
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 390.068331243131,
+            "median": 390.93634006488173,
+            "minimum": 371.58376258459145,
+            "maximum": 412.0059689125208,
+            "n": 8
+          },
+          "tg": {
+            "mean": 14.857616913909986,
+            "median": 14.887684435649236,
+            "minimum": 14.267836177418404,
+            "maximum": 15.217926412955935,
+            "n": 8
+          }
+        }
+      }
+    }
+  },
+  "quant-guard": {
+    "hashes": {
+      "before": "5066cc5b94d524d3d02b4c33294c792bd7554224428d34399c82924498408664",
+      "after": "bd2de29a66fbad45c0d3cc244ac50ef85e1745367e6a8bce225119c9b75dc75f"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "before",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.27,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 13.839,
+        "prefill_tps": 4624.6,
+        "decode_ms": 12.808,
+        "decode_tps": 4996.9
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 128.58,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.538,
+        "prefill_tps": 6710.1,
+        "decode_ms": 9.813,
+        "decode_tps": 6521.8
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.58,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.783,
+        "prefill_tps": 6542.0,
+        "decode_ms": 8.78,
+        "decode_tps": 7288.9
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.87,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.728,
+        "prefill_tps": 5028.1,
+        "decode_ms": 12.777,
+        "decode_tps": 5009.0
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "matmul_ms": 0.064,
+        "matmul_gflops": 130.74,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.075,
+        "prefill_tps": 5300.4,
+        "decode_ms": 13.057,
+        "decode_tps": 4901.5
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.67,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.54,
+        "prefill_tps": 6708.9,
+        "decode_ms": 9.255,
+        "decode_tps": 6915.6
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "matmul_ms": 0.064,
+        "matmul_gflops": 130.35,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 8.771,
+        "prefill_tps": 7297.1,
+        "decode_ms": 9.536,
+        "decode_tps": 6711.1
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.4,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.724,
+        "prefill_tps": 5029.7,
+        "decode_ms": 12.604,
+        "decode_tps": 5077.8
+      },
+      {
+        "pair": 4,
+        "arm": "before",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 130.04,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 13.934,
+        "prefill_tps": 4593.2,
+        "decode_ms": 14.284,
+        "decode_tps": 4480.4
+      },
+      {
+        "pair": 4,
+        "arm": "after",
+        "matmul_ms": 0.073,
+        "matmul_gflops": 115.58,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.568,
+        "prefill_tps": 6689.1,
+        "decode_ms": 9.396,
+        "decode_tps": 6811.0
+      },
+      {
+        "pair": 5,
+        "arm": "after",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.54,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.321,
+        "prefill_tps": 6866.5,
+        "decode_ms": 8.449,
+        "decode_tps": 7574.8
+      },
+      {
+        "pair": 5,
+        "arm": "before",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.68,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.387,
+        "prefill_tps": 5166.7,
+        "decode_ms": 13.188,
+        "decode_tps": 4852.9
+      },
+      {
+        "pair": 6,
+        "arm": "before",
+        "matmul_ms": 0.066,
+        "matmul_gflops": 126.99,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.356,
+        "prefill_tps": 5179.6,
+        "decode_ms": 12.148,
+        "decode_tps": 5268.5
+      },
+      {
+        "pair": 6,
+        "arm": "after",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 128.3,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.185,
+        "prefill_tps": 6967.9,
+        "decode_ms": 9.558,
+        "decode_tps": 6695.9
+      },
+      {
+        "pair": 7,
+        "arm": "after",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.48,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.007,
+        "prefill_tps": 7106.0,
+        "decode_ms": 9.339,
+        "decode_tps": 6852.7
+      },
+      {
+        "pair": 7,
+        "arm": "before",
+        "matmul_ms": 0.064,
+        "matmul_gflops": 130.54,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.648,
+        "prefill_tps": 5060.0,
+        "decode_ms": 13.231,
+        "decode_tps": 4837.0
+      }
+    ],
+    "summary": {
+      "before": {
+        "matmul_gflops": {
+          "mean": 129.56625,
+          "median": 129.775,
+          "minimum": 126.99,
+          "maximum": 130.74
+        },
+        "prefill_tps": {
+          "mean": 4997.7875,
+          "median": 5044.85,
+          "minimum": 4593.2,
+          "maximum": 5300.4
+        },
+        "decode_tps": {
+          "mean": 4928.0,
+          "median": 4949.2,
+          "minimum": 4480.4,
+          "maximum": 5268.5
+        }
+      },
+      "after": {
+        "matmul_gflops": {
+          "mean": 127.635,
+          "median": 129.51,
+          "minimum": 115.58,
+          "maximum": 130.35
+        },
+        "prefill_tps": {
+          "mean": 6860.95,
+          "median": 6788.3,
+          "minimum": 6542.0,
+          "maximum": 7297.1
+        },
+        "decode_tps": {
+          "mean": 6921.475,
+          "median": 6831.85,
+          "minimum": 6521.8,
+          "maximum": 7574.8
+        }
+      }
+    }
+  },
+  "small-guard": {
+    "hashes": {
+      "before": "fd16f406f67537f34937853d4e3d1aca85f10ef60e986c7952ec5585631e5b73",
+      "after": "d600f68c014789408e349c6987d0fba28529ba99a9e3d39dae009dffe2cb3eb7"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.16797,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.23064,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.348836,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.501865,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.898302,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.227921,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.227954,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.278532,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.291391,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.344693,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.474515,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.110656,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.174255,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.232722,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.343942,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.498398,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.89464,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.235692,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.172865,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.269096,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.270126,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.333484,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.474771,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.043692,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.172004,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.23282,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.343493,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.49877,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.902613,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.217539,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.160675,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.270091,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.274078,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.325608,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.457084,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.04344,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.16625,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.237224,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.351702,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.498083,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.9114,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.236354,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.246484,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.282911,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.291742,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.340487,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.46605,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.047239,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.16791,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.235816,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.345326,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.502542,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.902772,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.244716,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.21899,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.285753,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.300145,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.376743,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.474064,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.078706,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.173372,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.242486,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.341967,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.499009,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.89037,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.23979,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.179038,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.295482,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.31143,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.332644,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.467441,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.038401,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.168188,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.232076,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.345709,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.49681,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.912235,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.196575,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.17754,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.283787,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.296465,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.347376,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.520196,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.048953,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.169046,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.230596,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.347568,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.504565,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.901188,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.274347,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.234555,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.28833,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.288067,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.333591,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.474405,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.059449,
+        "sum": 2.18122082949
+      }
+    ],
+    "summary": [
+      {
+        "threads": 1,
+        "batch": 1,
+        "before": {
+          "mean_ms": 0.167794,
+          "median_ms": 0.16794,
+          "min_ms": 0.16625,
+          "max_ms": 0.169046
+        },
+        "after": {
+          "mean_ms": 0.17195475,
+          "median_ms": 0.172688,
+          "min_ms": 0.168188,
+          "max_ms": 0.174255
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 2,
+        "before": {
+          "mean_ms": 0.233569,
+          "median_ms": 0.233228,
+          "min_ms": 0.230596,
+          "max_ms": 0.237224
+        },
+        "after": {
+          "mean_ms": 0.235026,
+          "median_ms": 0.232771,
+          "min_ms": 0.232076,
+          "max_ms": 0.242486
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 4,
+        "before": {
+          "mean_ms": 0.348358,
+          "median_ms": 0.348202,
+          "min_ms": 0.345326,
+          "max_ms": 0.351702
+        },
+        "after": {
+          "mean_ms": 0.34377775,
+          "median_ms": 0.3437175,
+          "min_ms": 0.341967,
+          "max_ms": 0.345709
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 8,
+        "before": {
+          "mean_ms": 0.5017637500000001,
+          "median_ms": 0.5022035,
+          "min_ms": 0.498083,
+          "max_ms": 0.504565
+        },
+        "after": {
+          "mean_ms": 0.49824674999999996,
+          "median_ms": 0.498584,
+          "min_ms": 0.49681,
+          "max_ms": 0.499009
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 16,
+        "before": {
+          "mean_ms": 0.9034155,
+          "median_ms": 0.90198,
+          "min_ms": 0.898302,
+          "max_ms": 0.9114
+        },
+        "after": {
+          "mean_ms": 0.8999645000000001,
+          "median_ms": 0.8986265,
+          "min_ms": 0.89037,
+          "max_ms": 0.912235
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 64,
+        "before": {
+          "mean_ms": 3.2458345,
+          "median_ms": 3.240535,
+          "min_ms": 3.227921,
+          "max_ms": 3.274347
+        },
+        "after": {
+          "mean_ms": 3.2223990000000002,
+          "median_ms": 3.2266155,
+          "min_ms": 3.196575,
+          "max_ms": 3.23979
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 1,
+        "before": {
+          "mean_ms": 0.23199575,
+          "median_ms": 0.2312545,
+          "min_ms": 0.21899,
+          "max_ms": 0.246484
+        },
+        "after": {
+          "mean_ms": 0.1725295,
+          "median_ms": 0.17520249999999998,
+          "min_ms": 0.160675,
+          "max_ms": 0.179038
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 2,
+        "before": {
+          "mean_ms": 0.2838815,
+          "median_ms": 0.28433200000000003,
+          "min_ms": 0.278532,
+          "max_ms": 0.28833
+        },
+        "after": {
+          "mean_ms": 0.27961400000000003,
+          "median_ms": 0.27693900000000005,
+          "min_ms": 0.269096,
+          "max_ms": 0.295482
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 4,
+        "before": {
+          "mean_ms": 0.29283625,
+          "median_ms": 0.2915665,
+          "min_ms": 0.288067,
+          "max_ms": 0.300145
+        },
+        "after": {
+          "mean_ms": 0.28802475,
+          "median_ms": 0.2852715,
+          "min_ms": 0.270126,
+          "max_ms": 0.31143
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 8,
+        "before": {
+          "mean_ms": 0.3488785,
+          "median_ms": 0.34259,
+          "min_ms": 0.333591,
+          "max_ms": 0.376743
+        },
+        "after": {
+          "mean_ms": 0.334778,
+          "median_ms": 0.333064,
+          "min_ms": 0.325608,
+          "max_ms": 0.347376
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 16,
+        "before": {
+          "mean_ms": 0.4722585,
+          "median_ms": 0.4742345,
+          "min_ms": 0.46605,
+          "max_ms": 0.474515
+        },
+        "after": {
+          "mean_ms": 0.479873,
+          "median_ms": 0.471106,
+          "min_ms": 0.457084,
+          "max_ms": 0.520196
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 64,
+        "before": {
+          "mean_ms": 1.0740125,
+          "median_ms": 1.0690775000000001,
+          "min_ms": 1.047239,
+          "max_ms": 1.110656
+        },
+        "after": {
+          "mean_ms": 1.0436215,
+          "median_ms": 1.043566,
+          "min_ms": 1.038401,
+          "max_ms": 1.048953
+        }
+      }
+    ]
+  },
+  "reproduction": {
+    "build-candidate.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate.exe /Fo:candidate.exe.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate-compare.exe /Fo:candidate-compare.exe.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate-long.exe /Fo:candidate-long.exe.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-attention-long.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate-ppl.exe /Fo:candidate-ppl.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\ppl-control.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate-forced.exe /Fo:candidate-forced.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\forced-long.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:small-after.exe /Fo:small-after.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-grouped-projections\\validation\\small.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "validate.py": "import os, subprocess, sys\nfrom pathlib import Path\nroot=Path(__file__).parent\nrepo=Path.home()/'Desktop/Projects/llmx'\ncommands=[\n(\"windows-suite\",[sys.executable,\"-X\",\"utf8\",\"-u\",\"tests/run_tests.py\",\"--exe\",str(root/\"candidate.exe\"),\"--require-baseline\"],repo),\n(\"f32-hf\",[sys.executable,\"-X\",\"utf8\",\"-u\",str(root/\"f32-gate.py\")],repo),\n(\"long-hf\",[sys.executable,\"-X\",\"utf8\",\"-u\",str(root/\"long-gate.py\")],repo),\n(\"linux-suite\",[\"wsl\",\"-d\",\"Ubuntu\",\"--\",\"python3\",\"-u\",\"/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py\",\"--exe\",\"/root/.cache/llmx-xdev-ci-20260919/llmx\",\"--require-baseline\"],repo),\n(\"build-ubsan\",[\"wsl\",\"-d\",\"Ubuntu\",\"--\",\"cmake\",\"--build\",\"/root/.cache/llmx-f32-ubsan\",\"--parallel\",\"2\"],repo),\n(\"ubsan-backend\",[\"wsl\",\"-d\",\"Ubuntu\",\"--\",\"ctest\",\"--test-dir\",\"/root/.cache/llmx-f32-ubsan\",\"--output-on-failure\"],repo),\n(\"ubsan-suite\",[\"wsl\",\"-d\",\"Ubuntu\",\"--\",\"env\",\"LLMX_BASELINE_GGUF=/root/.cache/llmx-f32-missing/Qwen3-0.6B-Q8_0.gguf\",\"python3\",\"-u\",\"/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py\",\"--exe\",\"/root/.cache/llmx-f32-ubsan/llmx\",\"--no-perf-floor\"],repo)]\nfor name,cmd,cwd in commands:\n    print('START '+name,flush=True)\n    with (root/(name+'.log')).open('w',encoding='utf-8') as log:\n        p=subprocess.Popen(cmd,cwd=cwd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace')\n        for line in p.stdout:\n            log.write(line); log.flush(); print(line,end='',flush=True)\n        rc=p.wait()\n    print('END '+name+' '+str(rc),flush=True)\n    if rc: sys.exit(rc)\n(root/'validation-passed.txt').write_text('All commands completed with exit 0.\\n')\n",
+    "proof.py": "from pathlib import Path\nimport subprocess,json,re,hashlib\nr=Path(__file__).parent\ntemp=r.parent.parent\np=subprocess.run([\"cmd\",\"/c\",str(r/\"build-witness.bat\")],cwd=r,capture_output=True)\n(r/\"build-witness.log\").write_bytes(p.stdout+p.stderr);p.check_returncode()\nresults={}\np=subprocess.run([str(r/\"mutant.exe\")],capture_output=True,timeout=60)\nassert p.returncode==1 and b\"grouped output differs\" in p.stderr\nresults[\"mutant\"]=dict(exit=p.returncode,stdout=p.stdout.decode(),stderr=p.stderr.decode())\nprint(\"Missing-row mutant rejected:\",p.stderr.decode().strip(),flush=True)\nmodel=Path.home()/\".cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf\"\np=subprocess.run([str(r/\"witness.exe\"),str(model),str(temp/\"llmx-external-perf/eight-pairs/tokens.txt\")],capture_output=True,timeout=120);p.check_returncode()\n(r/\"witness.stdout\").write_bytes(p.stdout);(r/\"witness.stderr\").write_bytes(p.stderr)\nm=re.search(rb\"GROUP_WITNESS groups=(\\d+) avoided=(\\d+) jobs=(\\d+)\",p.stderr);assert m,p.stderr\nresults[\"witness\"]=dict(zip((\"groups\",\"avoided_dispatches\",\"actual_dispatches\"),map(int,m.groups())))\nassert results[\"witness\"][\"groups\"]==3584 and results[\"witness\"][\"avoided_dispatches\"]==5376\nresults[\"scope\"]=\"Qwen3-0.6B Q8, 28 layers, 32 decode steps twice (warmup + measured); counters include both. Instrumented timings are not benchmark evidence.\"\nresults[\"hashes\"]={name:hashlib.file_digest((r/name).open(\"rb\"),\"sha256\").hexdigest() for name in (\"witness.exe\",\"mutant.exe\")}\n(r/\"proof.json\").write_text(json.dumps(results,indent=2));print(results,flush=True)\n",
+    "exact-gate.py": "from pathlib import Path\nimport hashlib,json,subprocess,math,struct\nr=Path(__file__).parent\ntemp=r.parent.parent\nout=r/\"exact\";out.mkdir(exist_ok=False)\nq8=Path.home()/\".cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf\"\nmodels={\"f32\":temp/\"Qwen3-0.6B-F32.gguf\",\"q8\":q8}\nresults={\"binary_sha256\":{name:hashlib.file_digest(path.open(\"rb\"),\"sha256\").hexdigest()\nfor name,path in {\"base_ppl\":temp/\"llmx-q8-integer/base-ppl.exe\",\"candidate_ppl\":r/\"candidate-ppl.exe\",\"candidate_forced\":r/\"candidate-forced.exe\",\"candidate_long\":r/\"candidate-long.exe\"}.items()}}\nfor name,model in models.items():\n    rows={}\n    for arm,exe in {\"base\":temp/\"llmx-q8-integer/base-ppl.exe\",\"group\":r/\"candidate-ppl.exe\"}.items():\n        print(\"START PPL\",name,arm,flush=True)\n        p=subprocess.run([str(exe),str(model),str(temp/\"llmx-external-perf/eight-pairs/tokens.txt\")],capture_output=True,timeout=240)\n        (out/f\"{name}-{arm}.stdout\").write_bytes(p.stdout);(out/f\"{name}-{arm}.stderr\").write_bytes(p.stderr);p.check_returncode()\n        rows[arm]=[json.loads(x) for x in p.stdout.splitlines()]\n        assert len(rows[arm])==4 and all(math.isfinite(v[\"mean_nll\"]) for v in rows[arm])\n    assert rows[\"base\"]==rows[\"group\"], rows\n    results[name+\"_ppl\"]=rows\n    print(\"EXACT PPL\",name,flush=True)\nprint(\"START Q8 forced HF continuation\",flush=True)\np=subprocess.run([str(r/\"candidate-forced.exe\"),str(q8),str(temp/\"llmx-f32-controls/prompt.txt\"),str(out/\"q8\"),str(temp/\"llmx-q8-integer/hf-continuation.txt\")],capture_output=True,timeout=240)\n(out/\"q8-long.stdout\").write_bytes(p.stdout);(out/\"q8-long.stderr\").write_bytes(p.stderr);p.check_returncode()\nsuffixes=[\"-logits.f32\"]+[f\"-step-{i:02d}.f32\" for i in range(32)]\nfor name,current,base in [(\"q8\",out/\"q8\",temp/\"llmx-q8-integer/forced-long/base\"),(\"f32\",r/\"long/llmx\",temp/\"llmx-attention-values/validation/long/llmx\")]:\n    hashes={};count=0\n    for suffix in suffixes:\n        a=Path(str(current)+suffix).read_bytes();b=Path(str(base)+suffix).read_bytes()\n        assert a==b and len(a)==151936*4,(name,suffix)\n        assert all(math.isfinite(x) for x, in struct.iter_unpack(\"<f\",a))\n        hashes[suffix]=hashlib.sha256(a).hexdigest();count+=len(a)//4\n    results[name+\"_long\"]=dict(values=count,byte_identical=True,sha256=hashes)\n    print(\"EXACT LONG\",name,count,flush=True)\nresults[\"scope\"]=\"Four excerpt/window NLL cases; long vectors over 1943 prompt tokens and 32 continuation steps, not full corpus or maximum context.\"\n(out/\"comparison.json\").write_text(json.dumps(results,indent=2))\n",
+    "eight-rounds.py": "import hashlib,json,math,statistics,subprocess\nfrom pathlib import Path\nr=Path(__file__).parent\ntemp=r.parent.parent\nout=r/\"eight-rounds\";out.mkdir(exist_ok=False)\narms={\"base\":temp/\"llmx-attention-values/validation/candidate-compare.exe\",\"group\":r/\"candidate-compare.exe\",\"mx\":Path.home()/\"Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe\"}\nmodels={\"q8\":Path.home()/\".cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf\",\"f32\":temp/\"Qwen3-0.6B-F32.gguf\"}\nids=temp/\"llmx-external-perf/eight-pairs/tokens.txt\"\nhashes={name:hashlib.file_digest(p.open(\"rb\"),\"sha256\").hexdigest() for name,p in dict(arms,**models,tokens=ids).items()}\n(out/\"hashes.json\").write_text(json.dumps(hashes,indent=2))\nrows=[]\nfor model,path in models.items():\n    for round in range(-1,8):\n        order=list(arms);order=order[round%3:]+order[:round%3]\n        if round%2:order.reverse()\n        for arm in order:\n            p=subprocess.run([str(arms[arm]),str(path),str(ids)],capture_output=True,timeout=180)\n            (out/f\"{model}-{round}-{arm}.stdout\").write_bytes(p.stdout);(out/f\"{model}-{round}-{arm}.stderr\").write_bytes(p.stderr);p.check_returncode()\n            samples=[json.loads(v) for v in p.stdout.splitlines()];assert len(samples)==2\n            row=dict(model=model,round=round,arm=arm,**samples[1])\n            assert row[\"pp_tokens\"]==215 and row[\"tg_tokens\"]==32 and row[\"run\"]==1\n            assert all(math.isfinite(row[k]) and row[k]>0 for k in (\"pp_ms\",\"tg_ms\"))\n            assert arm==\"mx\" or row[\"logit_sum\"]=={\"q8\":-492001.8287,\"f32\":-501040.0615}[model]\n            if round>=0:rows.append(row)\n            (out/\"results.json\").write_text(json.dumps(rows,indent=2))\n            print(row,flush=True)\nsummary={}\nfor model in models:\n    summary[model]={}\n    for arm in arms:\n        summary[model][arm]={}\n        for phase in (\"pp\",\"tg\"):\n            v=[x[phase+\"_tokens\"]*1000/x[phase+\"_ms\"] for x in rows if x[\"model\"]==model and x[\"arm\"]==arm]\n            summary[model][arm][phase]=dict(mean=statistics.mean(v),median=statistics.median(v),minimum=min(v),maximum=max(v),n=len(v))\n(out/\"summary.json\").write_text(json.dumps(summary,indent=2));print(summary,flush=True)\n",
+    "quant-guard.py": "import hashlib,json,pathlib,statistics,subprocess,sys\nroot=pathlib.Path.home()/'AppData/Local/Temp'\nrepo=pathlib.Path.home()/'Desktop/Projects/llmx'\nsys.path.insert(0,str(repo/'tests'))\nimport perf\narms={'before':root/'llmx-attention-values/validation/candidate.exe','after':root/'llmx-grouped-projections/validation/candidate.exe'}\nout=root/'llmx-grouped-projections/validation/quant-guard'\nout.mkdir(exist_ok=False)\nrows=[]\nfor pair in range(-1,8):\n    for arm in (('before','after') if pair%2==0 else ('after','before')):\n        p=subprocess.run([str(arms[arm]),'bench','--size','2048','--iters','2000','--threads','6'],capture_output=True,text=True,timeout=60)\n        p.check_returncode()\n        (out/f'{pair}-{arm}.stdout').write_text(p.stdout)\n        values=perf.parse(p.stdout.splitlines())\n        assert values['matmul_gflops']>=8 and values['prefill_tps']>=1000 and values['decode_tps']>=800\n        if pair<0: continue\n        row=dict(pair=pair,arm=arm,**values)\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for metric in ('matmul_gflops','prefill_tps','decode_tps'):\n        values=[r[metric] for r in rows if r['arm']==arm]\n        summary[arm][metric]=dict(mean=statistics.mean(values),median=statistics.median(values),minimum=min(values),maximum=max(values))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\n(out/'hashes.json').write_text(json.dumps({arm:hashlib.file_digest(p.open('rb'),'sha256').hexdigest() for arm,p in arms.items()},indent=2))\nprint(summary,flush=True)\n",
+    "small-guard.py": "import hashlib,json,statistics,subprocess\nfrom pathlib import Path\nroot=Path(__file__).parent\nout=root/'small-guard'\nout.mkdir(exist_ok=False)\nrows=[]\nfor pair in range(4):\n    for arm in (('before','after') if pair%2==0 else ('after','before')):\n        p=subprocess.run([str(root/f'small-{arm}.exe')],capture_output=True,timeout=120)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        values=[json.loads(line) for line in p.stdout.splitlines()]\n        assert len(values)==12\n        rows.extend(dict(pair=pair,arm=arm,**v) for v in values)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(pair,arm,flush=True)\nsummary=[]\nfor nt in (1,6):\n    for b in (1,2,4,8,16,64):\n        selected=[v for v in rows if v['threads']==nt and v['batch']==b]\n        assert len(set(v['sum'] for v in selected))==1\n        item=dict(threads=nt,batch=b)\n        for arm in ('before','after'):\n            values=[v['ms'] for v in selected if v['arm']==arm]\n            item[arm]=dict(mean_ms=statistics.mean(values),median_ms=statistics.median(values),min_ms=min(values),max_ms=max(values))\n        summary.append(item)\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\n(out/'hashes.json').write_text(json.dumps({a:hashlib.file_digest((root/f'small-{a}.exe').open('rb'),'sha256').hexdigest() for a in ('before','after')},indent=2))\nprint(json.dumps(summary,indent=2),flush=True)\n",
+    "small.cpp": "#define main llmx_cli_main\n#include \"C:/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp\"\n#undef main\nint main() {\n    auto weights=build_synthetic_model(2,256,1024,8,2,32,512,12345u);\n    infer::Model model(weights);\n    for(int nt: {1,6}) {\n        model.set_threads(nt);\n        for(int count: {1,2,4,8,16,64}) {\n            std::vector<uint32_t> ids(count);\n            for(int i=0;i<count;++i) ids[i]=i;\n            std::vector<float> logits;\n            for(int i=0;i<10;++i) {model.reset(); logits=model.prefill(ids);}\n            auto start=std::chrono::steady_clock::now();\n            for(int i=0;i<100;++i) {model.reset(); logits=model.prefill(ids);}\n            double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count()/100;\n            double sum=0;for(float x:logits) {if(!std::isfinite(x)) return 2;sum+=x;}\n            std::cout << std::setprecision(12) << \"{\\\"threads\\\":\"<<nt<<\",\\\"batch\\\":\"<<count<<\",\\\"ms\\\":\"<<ms<<\",\\\"sum\\\":\"<<sum<<\"}\\n\";\n        }\n    }\n}\n",
+    "long-gate.py": "import json, math, struct, subprocess\nfrom pathlib import Path\nroot=Path(__file__).parent\nold=root.parent.parent/'llmx-attention-long'\nout=root/'long'\nout.mkdir(exist_ok=False)\np=subprocess.run([str(root/'candidate-long.exe'),str(root.parent.parent/'Qwen3-0.6B-F32.gguf'),str(root.parent.parent/'llmx-f32-controls/prompt.txt'),str(out/'llmx')],capture_output=True,timeout=180)\n(out/'generated.txt').write_bytes(p.stdout)\n(out/'stderr.txt').write_bytes(p.stderr)\np.check_returncode()\nids=list(map(int,p.stdout.split()))\nassert ids==json.loads((old/'hf-generated.json').read_text()), 'greedy mismatch'\ncount=0\nmaximum=0.0\nsquared=0.0\nfor suffix in ['-logits.f32']+[f'-step-{i:02d}.f32' for i in range(32)]:\n    a=(out/('llmx'+suffix)).read_bytes(); b=(old/('hf'+suffix)).read_bytes()\n    assert len(a)==len(b)==151936*4\n    for (x,), (y,) in zip(struct.iter_unpack('<f',a),struct.iter_unpack('<f',b)):\n        assert math.isfinite(x) and math.isfinite(y)\n        delta=abs(x-y)\n        maximum=max(maximum,delta); squared+=delta*delta; count+=1\nassert maximum<=0.001, maximum\nresult=dict(prompt_tokens=1943,generated_tokens=len(ids),greedy_match=True,logits_compared=count,max_abs_error=maximum,rms_error=math.sqrt(squared/count),bound=0.001)\n(out/'comparison.json').write_text(json.dumps(result,indent=2))\nprint(json.dumps(result),flush=True)\n",
+    "f32-gate.py": "import os\nfrom pathlib import Path\nimport sys\nsys.path.insert(0,str(Path.home()/'Desktop/Projects/llmx/tests'))\nimport baseline, common\ncommon.EXE=str(Path.home()/\"AppData/Local/Temp/llmx-grouped-projections/validation/candidate.exe\")\nbaseline.BASELINE_MODELS=[dict(repo='Qwen/Qwen3-0.6B',file='Qwen3-0.6B-F32.gguf',min_overlap=5,max_nll_delta=1e-4,max_chunk_nll_delta=1e-4,revision='c1899de289a04d12100db370d81485cdf75e47ca')]\nos.environ['LLMX_BASELINE_GGUF']=str(Path.home()/'AppData/Local/Temp/Qwen3-0.6B-F32.gguf')\nassert baseline.run()\n",
+    "forced-long.cpp": "#include <algorithm>\n#include <fstream>\n#include <iostream>\n#include <string>\n#include \"model/arch_qwen.hpp\"\n#include \"tokenizer/tokenizer.hpp\"\nint main(int argc,char**argv) {\n    if(argc!=5) return 2;\n    std::ifstream continuation(argv[4]);\n    std::vector<int> forced; int id; while(continuation >> id) forced.push_back(id);\n    if(forced.size()!=32) return 4;\n    auto weights=gguf::read_gguf(argv[1]);\n    infer::Model model(weights);\n    model.set_threads(6);model.set_ubatch(128);\n    bpe::Tokenizer tok(weights);\n    std::ifstream input(argv[2],std::ios::binary);\n    std::string text((std::istreambuf_iterator<char>(input)),{});\n    auto ids=tok.encode(text);\n    if(ids.size()!=1943) return 3;\n    auto logits=model.prefill(ids);\n    auto save=[&](const std::string& suffix) {\n        std::ofstream output(std::string(argv[3])+suffix,std::ios::binary);\n        output.write((const char*)logits.data(),logits.size()*sizeof(float));\n        if(!output) throw std::runtime_error(\"write failed\");\n    };\n    save(\"-logits.f32\");\n    for(int i=0;i<32;++i) {\n        int token=(int)(std::max_element(logits.begin(),logits.end())-logits.begin());\n        std::cout << token << \" \";\n        logits=model.step(forced[size_t(i)]);\n        save(\"-step-\"+std::string(i<10?\"0\":\"\")+std::to_string(i)+\".f32\");\n    }\n    std::cout << \"\\n\";\n}\n",
+    "ppl-control.cpp": "#include <fstream>\n#include <iostream>\n#include <iomanip>\n#include \"inference/perplexity.hpp\"\nint main(int argc,char** argv) {\n    if(argc!=3)return 2;\n    auto weights=gguf::read_gguf(argv[1]);infer::Model model(weights);model.set_threads(6);\n    std::ifstream in(argv[2]);std::vector<uint32_t> ids;uint32_t id;while(in>>id)ids.push_back(id);\n    if(ids.size()!=247)return 3;\n    for(auto flags: {std::pair<int,int>{0,0},{64,0},{64,2},{123,0}}) {\n        auto v=infer::perplexity(model,ids,flags.first,flags.second);\n        std::cout<<std::setprecision(17)<<\"{\\\"ctx\\\":\"<<flags.first<<\",\\\"max_chunks\\\":\"<<flags.second\n            <<\",\\\"used\\\":\"<<v.used_tokens<<\",\\\"scored\\\":\"<<v.scored_tokens<<\",\\\"chunks\\\":\"<<v.chunks\n            <<\",\\\"mean_nll\\\":\"<<v.mean_nll()<<\",\\\"ppl\\\":\"<<std::exp(v.mean_nll())<<\"}\\n\"<<std::flush;\n    }\n}\n"
+  },
+  "prototype_patches": {
+    "decode": "--- a/src/backends/backend.hpp\n+++ b/src/backends/backend.hpp\n@@ -3,6 +3,7 @@\n #include <cstddef>\n #include <memory>\n #include <functional>\n+#include <initializer_list>\n \n // Compute backend abstraction. The inference graph runs its primitive ops\n // (matmul, attention, RMSNorm, RoPE) through a Backend so the same model code\n@@ -18,6 +19,13 @@\n // are NOT implemented yet.\n \n namespace backend {\n+\n+struct Projection {\n+    uint32_t type;\n+    const uint8_t* data;\n+    float* out;\n+    size_t rows;\n+};\n \n class Backend {\n public:\n@@ -47,6 +55,12 @@\n     virtual void matmul(uint32_t ggml_type, const uint8_t* data, const float* X,\n                         float* Y, size_t nin, size_t nout, size_t nbatch) = 0;\n \n+    virtual void matmul_group(std::initializer_list<Projection> projections,\n+                              const float* X, size_t nin, size_t nbatch) {\n+        for (const auto& p : projections)\n+            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);\n+    }\n+\n     // Causal GQA: Q/out are [nbatch, n_head, head_dim], K/V are\n     // [n_past + nbatch, n_head_kv, head_dim]. Query b attends through n_past+b.\n     virtual void attention(const float* Q, const float* K, const float* V, float* out,\n--- a/src/backends/cpu/cpu_backend.hpp\n+++ b/src/backends/cpu/cpu_backend.hpp\n@@ -79,6 +79,7 @@\n     // rather than copied.\n     template <class F>\n     void run_parallel(F&& fn) {\n+        if (group_owner_ == this) { fn(group_worker_); return; }\n         if (threads_ <= 1) { fn(0); return; }\n         std::function<void(int)> job(std::ref(fn));   // ref -> no heap alloc\n         {\n@@ -195,6 +196,27 @@\n             const size_t s = (size_t)w * chunk;\n             const size_t e = std::min(nout, s + chunk);\n             if (s < e) do_rows(w, s, e);\n+        });\n+    }\n+\n+    void matmul_group(std::initializer_list<Projection> projections,\n+                      const float* X, size_t nin, size_t nbatch) override {\n+        bool grouped = threads_ > 1;\n+        for (const auto& p : projections) {\n+            grouped = grouped && p.rows >= size_t(threads_) * 8;\n+            const auto* qt = quant::Registry::instance().get(p.type);\n+            if (p.type != gguf::GGML_TYPE_F32 && (!qt || !qt->dequantize || qt->block_size == 0))\n+                throw std::runtime_error(\"backend: no dequantizer for tensor type\");\n+        }\n+        grouped = grouped && nbatch == 1;\n+        if (!grouped) { Backend::matmul_group(projections, X, nin, nbatch); return; }\n+        run_parallel([&](int w) {\n+            auto* previous_owner = group_owner_;\n+            const int previous_worker = group_worker_;\n+            group_owner_ = this; group_worker_ = w;\n+            for (const auto& p : projections)\n+                matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);\n+            group_owner_ = previous_owner; group_worker_ = previous_worker;\n         });\n     }\n \n@@ -501,6 +523,8 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    inline static thread_local CpuBackend* group_owner_ = nullptr;\n+    inline static thread_local int group_worker_ = 0;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n--- a/src/model/arch_qwen.hpp\n+++ b/src/model/arch_qwen.hpp\n@@ -160,9 +160,10 @@\n                          cfg.n_embd, cfg.rms_eps);\n \n             // q,k,v projections\n-            matvec(tensor(pre + \"attn_q.weight\"), h_.data(), q_.data(), cfg.n_embd, (size_t)q_dim_);\n-            matvec(tensor(pre + \"attn_k.weight\"), h_.data(), kv_.data(), cfg.n_embd, (size_t)cfg.n_head_kv * cfg.head_dim);\n-            matvec(tensor(pre + \"attn_v.weight\"), h_.data(), v_.data(), cfg.n_embd, (size_t)cfg.n_head_kv * cfg.head_dim);\n+            b_->matmul_group({projection(pre + \"attn_q.weight\", q_.data(), size_t(q_dim_)),\n+                              projection(pre + \"attn_k.weight\", kv_.data(), size_t(cfg.n_head_kv * cfg.head_dim)),\n+                              projection(pre + \"attn_v.weight\", v_.data(), size_t(cfg.n_head_kv * cfg.head_dim))},\n+                             h_.data(), cfg.n_embd, 1);\n \n             // per-head q/k norms\n             const float* qnorm = (const float*)tensor_data(pre + \"attn_q_norm.weight\");\n@@ -209,8 +210,9 @@\n             // gate/up (SwiGLU). Buffers are members: allocating these per layer\n             // per token cost 108 heap allocations of n_ff floats on a 36-layer\n             // model, every token.\n-            matvec(tensor(pre + \"ffn_gate.weight\"), h_.data(), gate_.data(), cfg.n_embd, cfg.n_ff);\n-            matvec(tensor(pre + \"ffn_up.weight\"),   h_.data(), up_.data(),   cfg.n_embd, cfg.n_ff);\n+            b_->matmul_group({projection(pre + \"ffn_gate.weight\", gate_.data(), cfg.n_ff),\n+                              projection(pre + \"ffn_up.weight\", up_.data(), cfg.n_ff)},\n+                             h_.data(), cfg.n_embd, 1);\n             for (int i = 0; i < cfg.n_ff; i++) {\n                 float g = gate_[i] / (1.0f + std::exp(-gate_[i])); // SiLU\n                 ffn_[i] = g * up_[i];\n@@ -341,9 +343,9 @@\n                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, anorm, E, cfg.rms_eps);\n             });\n \n-            matmul(tensor(pre + \"attn_q.weight\"), hb_.data(), qb_.data(), E, (size_t)q_dim_, B);\n-            matmul(tensor(pre + \"attn_k.weight\"), hb_.data(), kb_.data(), E, KV, B);\n-            matmul(tensor(pre + \"attn_v.weight\"), hb_.data(), vb_.data(), E, KV, B);\n+            b_->matmul_group({projection(pre + \"attn_q.weight\", qb_.data(), size_t(q_dim_)),\n+                              projection(pre + \"attn_k.weight\", kb_.data(), KV),\n+                              projection(pre + \"attn_v.weight\", vb_.data(), KV)}, hb_.data(), E, B);\n \n             const float* qn = (const float*)tensor_data(pre + \"attn_q_norm.weight\");\n             const float* kn = (const float*)tensor_data(pre + \"attn_k_norm.weight\");\n@@ -376,8 +378,8 @@\n                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, fnorm, E, cfg.rms_eps);\n             });\n \n-            matmul(tensor(pre + \"ffn_gate.weight\"), hb_.data(), gateb_.data(), E, cfg.n_ff, B);\n-            matmul(tensor(pre + \"ffn_up.weight\"),   hb_.data(), upb_.data(),   E, cfg.n_ff, B);\n+            b_->matmul_group({projection(pre + \"ffn_gate.weight\", gateb_.data(), cfg.n_ff),\n+                              projection(pre + \"ffn_up.weight\", upb_.data(), cfg.n_ff)}, hb_.data(), E, B);\n             for_rows([&](int b) {\n                 const size_t end = (size_t)(b + 1) * cfg.n_ff;\n                 for (size_t j = (size_t)b * cfg.n_ff; j < end; j++) {\n@@ -401,6 +403,11 @@\n         }\n     }\n \n+    backend::Projection projection(const std::string& name, float* out, size_t rows) const {\n+        const auto& t = tensor(name);\n+        return {t.type, m_->tensor_data(tindex_.at(t.name)), out, rows};\n+    }\n+\n     // Batched matmul. The backend dispatches on the quant type, so every\n     // block format takes the same path; there is no per-type branch here.\n     void matmul(const gguf::TensorInfo& t, const float* X, float* Y,\n",
+    "all": "--- a/src/backends/backend.hpp\n+++ b/src/backends/backend.hpp\n@@ -3,6 +3,7 @@\n #include <cstddef>\n #include <memory>\n #include <functional>\n+#include <initializer_list>\n \n // Compute backend abstraction. The inference graph runs its primitive ops\n // (matmul, attention, RMSNorm, RoPE) through a Backend so the same model code\n@@ -18,6 +19,13 @@\n // are NOT implemented yet.\n \n namespace backend {\n+\n+struct Projection {\n+    uint32_t type;\n+    const uint8_t* data;\n+    float* out;\n+    size_t rows;\n+};\n \n class Backend {\n public:\n@@ -47,6 +55,12 @@\n     virtual void matmul(uint32_t ggml_type, const uint8_t* data, const float* X,\n                         float* Y, size_t nin, size_t nout, size_t nbatch) = 0;\n \n+    virtual void matmul_group(std::initializer_list<Projection> projections,\n+                              const float* X, size_t nin, size_t nbatch) {\n+        for (const auto& p : projections)\n+            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);\n+    }\n+\n     // Causal GQA: Q/out are [nbatch, n_head, head_dim], K/V are\n     // [n_past + nbatch, n_head_kv, head_dim]. Query b attends through n_past+b.\n     virtual void attention(const float* Q, const float* K, const float* V, float* out,\n--- a/src/backends/cpu/cpu_backend.hpp\n+++ b/src/backends/cpu/cpu_backend.hpp\n@@ -79,6 +79,7 @@\n     // rather than copied.\n     template <class F>\n     void run_parallel(F&& fn) {\n+        if (group_owner_ == this) { fn(group_worker_); return; }\n         if (threads_ <= 1) { fn(0); return; }\n         std::function<void(int)> job(std::ref(fn));   // ref -> no heap alloc\n         {\n@@ -195,6 +196,27 @@\n             const size_t s = (size_t)w * chunk;\n             const size_t e = std::min(nout, s + chunk);\n             if (s < e) do_rows(w, s, e);\n+        });\n+    }\n+\n+    void matmul_group(std::initializer_list<Projection> projections,\n+                      const float* X, size_t nin, size_t nbatch) override {\n+        bool grouped = threads_ > 1;\n+        for (const auto& p : projections) {\n+            grouped = grouped && p.rows >= size_t(threads_) * 8;\n+            const auto* qt = quant::Registry::instance().get(p.type);\n+            if (p.type != gguf::GGML_TYPE_F32 && (!qt || !qt->dequantize || qt->block_size == 0))\n+                throw std::runtime_error(\"backend: no dequantizer for tensor type\");\n+        }\n+        \n+        if (!grouped) { Backend::matmul_group(projections, X, nin, nbatch); return; }\n+        run_parallel([&](int w) {\n+            auto* previous_owner = group_owner_;\n+            const int previous_worker = group_worker_;\n+            group_owner_ = this; group_worker_ = w;\n+            for (const auto& p : projections)\n+                matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);\n+            group_owner_ = previous_owner; group_worker_ = previous_worker;\n         });\n     }\n \n@@ -501,6 +523,8 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    inline static thread_local CpuBackend* group_owner_ = nullptr;\n+    inline static thread_local int group_worker_ = 0;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n--- a/src/model/arch_qwen.hpp\n+++ b/src/model/arch_qwen.hpp\n@@ -160,9 +160,10 @@\n                          cfg.n_embd, cfg.rms_eps);\n \n             // q,k,v projections\n-            matvec(tensor(pre + \"attn_q.weight\"), h_.data(), q_.data(), cfg.n_embd, (size_t)q_dim_);\n-            matvec(tensor(pre + \"attn_k.weight\"), h_.data(), kv_.data(), cfg.n_embd, (size_t)cfg.n_head_kv * cfg.head_dim);\n-            matvec(tensor(pre + \"attn_v.weight\"), h_.data(), v_.data(), cfg.n_embd, (size_t)cfg.n_head_kv * cfg.head_dim);\n+            b_->matmul_group({projection(pre + \"attn_q.weight\", q_.data(), size_t(q_dim_)),\n+                              projection(pre + \"attn_k.weight\", kv_.data(), size_t(cfg.n_head_kv * cfg.head_dim)),\n+                              projection(pre + \"attn_v.weight\", v_.data(), size_t(cfg.n_head_kv * cfg.head_dim))},\n+                             h_.data(), cfg.n_embd, 1);\n \n             // per-head q/k norms\n             const float* qnorm = (const float*)tensor_data(pre + \"attn_q_norm.weight\");\n@@ -209,8 +210,9 @@\n             // gate/up (SwiGLU). Buffers are members: allocating these per layer\n             // per token cost 108 heap allocations of n_ff floats on a 36-layer\n             // model, every token.\n-            matvec(tensor(pre + \"ffn_gate.weight\"), h_.data(), gate_.data(), cfg.n_embd, cfg.n_ff);\n-            matvec(tensor(pre + \"ffn_up.weight\"),   h_.data(), up_.data(),   cfg.n_embd, cfg.n_ff);\n+            b_->matmul_group({projection(pre + \"ffn_gate.weight\", gate_.data(), cfg.n_ff),\n+                              projection(pre + \"ffn_up.weight\", up_.data(), cfg.n_ff)},\n+                             h_.data(), cfg.n_embd, 1);\n             for (int i = 0; i < cfg.n_ff; i++) {\n                 float g = gate_[i] / (1.0f + std::exp(-gate_[i])); // SiLU\n                 ffn_[i] = g * up_[i];\n@@ -341,9 +343,9 @@\n                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, anorm, E, cfg.rms_eps);\n             });\n \n-            matmul(tensor(pre + \"attn_q.weight\"), hb_.data(), qb_.data(), E, (size_t)q_dim_, B);\n-            matmul(tensor(pre + \"attn_k.weight\"), hb_.data(), kb_.data(), E, KV, B);\n-            matmul(tensor(pre + \"attn_v.weight\"), hb_.data(), vb_.data(), E, KV, B);\n+            b_->matmul_group({projection(pre + \"attn_q.weight\", qb_.data(), size_t(q_dim_)),\n+                              projection(pre + \"attn_k.weight\", kb_.data(), KV),\n+                              projection(pre + \"attn_v.weight\", vb_.data(), KV)}, hb_.data(), E, B);\n \n             const float* qn = (const float*)tensor_data(pre + \"attn_q_norm.weight\");\n             const float* kn = (const float*)tensor_data(pre + \"attn_k_norm.weight\");\n@@ -376,8 +378,8 @@\n                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, fnorm, E, cfg.rms_eps);\n             });\n \n-            matmul(tensor(pre + \"ffn_gate.weight\"), hb_.data(), gateb_.data(), E, cfg.n_ff, B);\n-            matmul(tensor(pre + \"ffn_up.weight\"),   hb_.data(), upb_.data(),   E, cfg.n_ff, B);\n+            b_->matmul_group({projection(pre + \"ffn_gate.weight\", gateb_.data(), cfg.n_ff),\n+                              projection(pre + \"ffn_up.weight\", upb_.data(), cfg.n_ff)}, hb_.data(), E, B);\n             for_rows([&](int b) {\n                 const size_t end = (size_t)(b + 1) * cfg.n_ff;\n                 for (size_t j = (size_t)b * cfg.n_ff; j < end; j++) {\n@@ -401,6 +403,11 @@\n         }\n     }\n \n+    backend::Projection projection(const std::string& name, float* out, size_t rows) const {\n+        const auto& t = tensor(name);\n+        return {t.type, m_->tensor_data(tindex_.at(t.name)), out, rows};\n+    }\n+\n     // Batched matmul. The backend dispatches on the quant type, so every\n     // block format takes the same path; there is no per-type branch here.\n     void matmul(const gguf::TensorInfo& t, const float* X, float* Y,\n"
+  },
+  "witness_patch": "--- a/cpu_backend.hpp\n+++ b/cpu_backend.hpp\n@@ -1,3 +1,4 @@\n+#include <iostream>\n #pragma once\n #include <algorithm>\n #include <cmath>\n@@ -39,7 +40,7 @@\n         start_pool();\n     }\n \n-    ~CpuBackend() override { stop_pool(); }\n+    ~CpuBackend() override { stop_pool(); std::cerr << \"GROUP_WITNESS groups=\" << group_count_ << \" avoided=\" << avoided_ << \" jobs=\" << jobs_ << \"\\n\"; }\n \n     void set_threads(int n) override {\n         int t = (n > 0) ? n : 1;\n@@ -80,6 +81,7 @@\n     template <class F>\n     void run_parallel(F&& fn) {\n         if (threads_ <= 1) { fn(0); return; }\n+        ++jobs_;\n         std::function<void(int)> job(std::ref(fn));   // ref -> no heap alloc\n         {\n             std::lock_guard<std::mutex> lk(m_);\n@@ -206,6 +208,7 @@\n                 (p.type == gguf::GGML_TYPE_F32 || p.type == gguf::GGML_TYPE_Q8_0 ||\n                  p.type == gguf::GGML_TYPE_Q4_K);\n         if (!grouped) { Backend::matmul_group(projections, X, nin, nbatch); return; }\n+        ++group_count_; avoided_ += projections.size() - 1;\n         run_parallel([&](int w) {\n             for (const auto& p : projections) {\n                 size_t chunk = (p.rows + size_t(threads_) - 1) / size_t(threads_);\n@@ -525,6 +528,7 @@\n     }\n \n private:\n+    size_t group_count_ = 0, avoided_ = 0, jobs_ = 0;\n     int threads_ = 1;\n     bool avx2_ = false;\n     bool f16c_ = false;\n",
+  "limitations": [
+    "Interactive workstation; no outliers discarded.",
+    "Exact equality is scoped to tested inputs/platform; not a universal or maximum-context proof.",
+    "UBSan suite intentionally omits real-model fixtures; normal Windows/Linux suites require them.",
+    "HF remains independent ground truth; current-vs-candidate checks alone do not establish correctness.",
+    "No external performance parity or merge claim; read final matrix and ranges."
+  ]
+}

@@ -32,6 +32,7 @@ feature currently stands right now.
 | CPU attention in backend (ROADMAP #4a)  | In Progress |
 | CPU row streaming / parallel prefill   | In Progress |
 | CPU attention value accumulation      | In Progress |
+| CPU grouped projections              | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
@@ -57,11 +58,11 @@ feature ships, delete its block and mark the row `Done` above.
   `5542318e74`, then merge and observe the expanded five-job hosted CI.
   Eight alternating pairs on Ryzen 7 5800X, six threads, ubatch 128, F32 KV,
   identical 215 HF prompt tokens and 32 forced continuation tokens:
-  with register attention values, mean prefill 397.63 vs 397.94 tok/s;
-  decode 14.57 vs 14.89 tok/s. External parity remains unproven.
+  with grouped projections, mean prefill 394.25 vs 390.07 tok/s;
+  decode 14.64 vs 14.86 tok/s. External decode parity remains unproven.
   Model loading is excluded and each process warms up before measurement.
   No external performance parity is claimed; raw timing samples and hashes
-  are in `docs/benchmarks/attention-values-cpu-20260919.json`.
+  are in `docs/benchmarks/grouped-projections-cpu-20260919.json`.
 - **Findings:** activation tiling and a fully spinning worker pool did not
   establish a win. Profiling instead identifies scalar attention as roughly
   170-180 ms of prefill. Backend attention now improves prefill by 24.8%
@@ -92,8 +93,8 @@ feature ships, delete its block and mark the row `Done` above.
   Q8 synthetic guardrails pass; matmul 123.07 -> 121.80 GFLOPS, prefill
   4828 -> 4800 and decode 4522 -> 4875 tok/s, with overlapping ranges.
 - **Left:** close the remaining external CPU floor gap, then merge and run
-  hosted CI. The latest value-kernel comparison below gives 397.63 / 14.57
-  vs mx 397.94 / 14.89 tok/s (prefill / decode).
+  hosted CI. See grouped projections below for the latest measurements;
+  its F32 decode still trails mx.
   Profiling after vectorization finds prefill attention around 60-67 ms and
   decode attention around 97-100 ms; matrix operations now dominate decode.
   Sequential F32 row streaming and parallel batched elementwise work are
@@ -166,6 +167,46 @@ feature ships, delete its block and mark the row `Done` above.
   identity is established for the recorded Windows long-prompt case, not all
   inputs or compilers. Forced scalar values do not prove no-AVX ISA support.
 
+### CPU grouped projections
+
+- **Goal:** reduce worker-pool dispatches for Q/K/V and FFN gate/up projections
+  sharing activations, preserving float arithmetic (ROADMAP #4a/#8).
+- **Done:** direct grouped decode through existing F32/Q8_0/Q4_K row kernels.
+  Other types, batches and small jobs use the sequential fallback. No TLS,
+  nested dispatch or activation conversion. Added CTest coverage to CI.
+  Windows/Linux full suites pass with required real Q8/Q4 HF fixtures;
+  real F32 HF and UBSan synthetic/backend checks pass. Backend tests cover
+  540 cases and 141,750 outputs per platform; a missing-row mutant fails.
+  Instrumented Q8 run observes 3,584 groups avoiding 5,376 dispatches across
+  warmup plus measured sequences. Four excerpt/window NLL cases per model
+  match the previous runtime exactly. All 5,013,888 long-prompt logits per
+  model (F32 and Q8) are byte-identical to the previous runtime. F32 remains
+  within the independent HF bound, with identical greedy continuation.
+  Final eight interleaved rounds after a discarded warmup round:
+
+  | Mean tok/s | Previous 5a9518c | Grouped | mx | Gap vs mx |
+  |---|---:|---:|---:|---:|
+  | Q8_0 prefill | 418.59 | 419.06 | 267.76 | +56.51% |
+  | Q8_0 decode | 43.92 | 45.18 | 48.34 | -6.55% |
+  | F32 prefill | 397.41 | 394.25 | 390.07 | +1.07% |
+  | F32 decode | 14.47 | 14.64 | 14.86 | -1.49% |
+
+  Q8 decode mean/median improve 2.86%/3.19%; ranges overlap due to one slower
+  candidate sample, retained in the result. F32 prefill/decode changes are
+  within overlapping ranges. Synthetic matmul mean 129.57 -> 127.64 GFLOPS
+  (median 129.78 -> 129.51, ranges overlap); step-based prefill/decode improve
+  4998/4928 -> 6861/6921 tok/s. Batched guards retain overlapping ranges except
+  the faster six-thread single-token case. Raw samples, hashes, exact-output
+  gates and reproduction sources are in ASSETS and
+  `benchmarks/grouped-projections-cpu-20260919.json`.
+- **Left:** measure the grouped path on the real 8B model and close the external
+  decode floors before merge and hosted CI. The ready follow-up diagnostic is
+  `%TEMP%/llmx-grouped-projections/validation/eight-b-diagnostic.py`.
+- **Gotchas:** exact equality is scoped to tested inputs/platform, not a
+  full-corpus or maximum-context proof. The legacy bench prefill uses step();
+  batched prefill has a separate guard. All outliers retained; do not pool
+  absolute rates from separate sessions. Candidate is validated but unmerged.
+
 ### Correctness baseline vs HF reference
 
 - **Goal:** give the suite an external ground truth. Correctness is measured
@@ -228,7 +269,11 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Latest investigation:** AVX2 integer dots with vectorized activation packing
+- **Latest checkpoint:** grouped decode preserves all tested output bits and
+  improves Q8 decode in the final matched comparison, but both real-model
+  decode floors remain open. See the grouped-projection block and its evidence
+  JSON above for current measurements; the larger-model check is next.
+- **Previous investigation:** AVX2 integer dots with vectorized activation packing
   were tested at 8-bit and 16-bit precision. Q16 improves matched mean decode
   by 2.79% on 0.6B and 4.06% on 8B, but still trails mx by 5.12% / 1.21%.
   Both variants pass existing Windows HF fixture bounds; Q16 stays much closer
@@ -245,11 +290,11 @@ feature ships, delete its block and mark the row `Done` above.
 - **Earlier investigations:** paired F32 decode rows did not improve throughput;
   packed F32 prefill variants regressed. None was adopted. Exact patches,
   samples and diagnostics are in ASSETS and the paired-decode/packed-prefill
-  benchmark JSON files. Runtime remains the validated `5a9518c` implementation.
+  benchmark JSON files. These experiments used the `5a9518c` runtime.
   Profiling scalar exponentials finds only 7.45 ms SiLU wall time and 9.42 ms
   summed softmax worker time during 2,237.50 ms decode; these are not the main
   remaining cost. The summed worker measurement is not wall time.
-  A new matched Q8 comparison now covers both the HF fixture and real 8B
+  The preceding matched Q8 comparison covers both the HF fixture and real 8B
   model against pinned public mx `5542318e74`: three alternating pairs,
   215+32 pinned tokens, six threads, ubatch 128 and F32 KV.
 
@@ -299,12 +344,14 @@ feature ships, delete its block and mark the row `Done` above.
   - The integer-activation study above found a modest decode gain despite the
     earlier bandwidth prediction, but did not meet the external floor and
     introduces a precision change. Keep its measured cost visible if revisited.
-  - Investigate grouping projections that share activations: Q/K/V and FFN
-    gate/up currently wake the worker pool separately. Preserve existing row
-    arithmetic while measuring whether fewer dispatches close the gap.
+  - Extend grouped-projection measurements to the real 8B model, then
+    investigate the remaining matrix-operation cost. Keep float arithmetic
+    unchanged where possible and apply independent HF gates to any change.
 - **Gotchas:**
-  - The synthetic `bench` model (2 layers, 256 embd) shows NONE of these wins:
-    its matvecs take the single-threaded fast path. Measure on a real model.
+  - Synthetic `bench` throughput does not establish real-model speed. Small
+    projections may stay serial depending on thread count. Grouping improves
+    the six-thread synthetic case, but the real-model external floor still
+    fails; use the matched model measurements.
   - Do not tune the row block as a byte budget. Measured worse at every size
     (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 against 24.04 for a flat
     4); the knee follows the fused kernel width, so it is `DOT_ROWS`.

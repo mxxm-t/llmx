@@ -28,21 +28,33 @@ configure_file(
     @ONLY
 )
 
-# The current x86 build requires AVX2/FMA/F16C; per-kernel runtime checks do not make the binary portable to older CPUs.
-if(MSVC)
-    target_compile_options(llmx PRIVATE /std:c++17 /O2 /arch:AVX2)
-else()
-    target_compile_options(llmx PRIVATE -std=c++17 -O3)
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-        target_compile_options(llmx PRIVATE -mavx2 -mfma -mf16c)
-    endif()
-endif()
-
-if(MSVC)
-    target_compile_options(llmx PRIVATE /W4)
-else()
-    target_compile_options(llmx PRIVATE -Wall -Wextra)
+include(CTest)
+set(LLMX_TARGETS llmx)
+if(BUILD_TESTING)
+    add_executable(llmx-backend-group-test tests/backend_group.cpp)
+    target_include_directories(llmx-backend-group-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-backend-group-test)
+    add_test(NAME backend-group COMMAND llmx-backend-group-test)
+    set_tests_properties(backend-group PROPERTIES TIMEOUT 60)
 endif()
 
 find_package(Threads REQUIRED)
-target_link_libraries(llmx PRIVATE Threads::Threads)
+foreach(target IN LISTS LLMX_TARGETS)
+    # The current x86 build requires AVX2/FMA/F16C; per-kernel runtime checks do not make the binary portable to older CPUs.
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /std:c++17 /O2 /arch:AVX2)
+    else()
+        target_compile_options(${target} PRIVATE -std=c++17 -O3)
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+            target_compile_options(${target} PRIVATE -mavx2 -mfma -mf16c)
+        endif()
+    endif()
+
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra)
+    endif()
+
+    target_link_libraries(${target} PRIVATE Threads::Threads)
+endforeach()

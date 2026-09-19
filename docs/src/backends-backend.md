@@ -13,6 +13,10 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
   gets the batched path and a new type needs no backend change. `nbatch == 1`
   is the single-column case that `Model::matvec` uses, so there is one dispatch
   path rather than two.
+- `matmul_group(projections, X, nin, nbatch)`: independent projections sharing
+  activations. Each descriptor gives type, weights, output and row count.
+  Outputs must be disjoint from one another, inputs and weights. The default
+  calls `matmul` sequentially; all outputs are ready when the call returns.
 - `attention(Q, K, V, out, n_head, n_head_kv, head_dim, n_past, nbatch)`:
   causal GQA, shared by decode and prefill. Queries/output have shape
   `[nbatch, n_head, head_dim]`; K/V contain the prefix and current batch,

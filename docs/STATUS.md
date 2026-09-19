@@ -21,10 +21,12 @@ requirements pass. GitHub stays main-only; feature branches go to Gitea.
 
 **Documentation review (2026-09-19):** rechecked all 25 tracked Markdown files
 against current source, CLI, CMake/CI and recorded evidence. This checkpoint
-corrects current root-binary deployment, historical/latest implementation
-wording and the reference's OpenMP worker-path interpretation. Original
-measurement samples are preserved. Streaming documentation remains current;
-external performance and broader HF coverage requirements remain open.
+archives the completed worker-span probe, its instrumentation controls and
+remaining attribution limits. Historical measurements and the corrected OpenMP
+interpretation are preserved. Streaming documentation remains current; external
+performance and broader HF coverage requirements remain open. The numerical
+fixture-generation dependency clarification is tracked with the separate HF
+tooling work.
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
@@ -80,9 +82,17 @@ external performance and broader HF coverage requirements remain open.
   Release definitions, DLL imports and the archived DLL hash establish OpenMP
   workers/barriers in the mx reference. Historical measurements are retained;
   ASSETS and the original artifact now carry a dated interpretation correction.
-- **Left:** separate worker entry delay, callback computation and completion
-  wait within the grouped projections. That scratch probe is now in progress.
-  No production runtime change is selected. Keep the external performance gate.
+  The separate per-participant probe is complete: 24 serial Q8/F32 processes,
+  six participants, three alternating pairs of plain/instrumented builds for
+  both snapshots. Final full vectors match byte-for-byte across every arm and
+  mode; all traces have 673 prefill and 4512 decode dispatches with ordered
+  timestamps. The instrumented current failure/drain/reuse check passes.
+  Evidence: `benchmarks/cpu-worker-spans-20260919.json`.
+- **Left:** attribution within individual grouped operations remains unresolved:
+  the span probe has phase labels but no operation labels, and instrumentation
+  changes the comparison materially. No production runtime change is selected.
+  Keep the existing worker implementation and the external performance gate;
+  do not repeat rejected dispatch variants on this evidence.
 - **Gotchas:** instrumentation changes timing. The three-process comparison
   locates costs but does not clear a small regression or prove causality.
   Keep profiles isolated from builds/tests and user inference. Reference source
@@ -99,7 +109,21 @@ Q/K/V and gate/up account for 10.57 ms of the 10.95 ms mean Q8 prefill differenc
 and 7.94 ms of the 8.36 ms F32 difference. These include dispatch/wait time.
 Q8 prefill medians reverse the small mean ordering (569.89 vs 565.93 ms), so
 this diagnostic does not establish a stable regression magnitude. The next
-probe must distinguish scheduling from computation before choosing code.
+table is the separate completed span probe; do not pool the two sessions.
+
+| Span-probe phase mean ms | Before plain | Retained plain | Before instrumented | Retained instrumented |
+|---|---:|---:|---:|---:|
+| Q8 prefill | 632.945 | 567.707 | 591.131 | 574.741 |
+| Q8 decode, 32 steps | 803.943 | 762.698 | 779.716 | 783.178 |
+| F32 prefill | 638.665 | 627.730 | 645.636 | 635.732 |
+| F32 decode, 32 steps | 2463.925 | 2479.028 | 2458.478 | 2562.645 |
+
+Q8 decode's control/current ordering reverses with instrumentation. F32 decode
+differs by +0.61% in plain builds but +4.24% in instrumented builds. The exact
+last-finisher decomposition separates entry, callback and final completion;
+it does not turn overlapping participant spans into additive phase costs.
+These results do not identify a stable worker regression or prove its absence.
+No mx benchmark or new independent HF gate was run by this scratch probe.
 
 ### Live generation and loading progress
 
@@ -156,9 +180,9 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
   README now separates implemented CPU capabilities from future execution,
   serving and HF goals. All source/comments/docs and new messages use ASCII;
   Unicode fixture data is preserved. The requirement is recorded in AGENTS.
-- **Left:** merge with the validated stack after its external gates pass. Next
-  live generation/progress checkpoint is 9cfe43f; current work is CPU cost
-  profiling. Full evidence for build identification is in
+- **Left:** merge with the validated stack after its external gates pass.
+  Live generation/progress reached checkpoint 9cfe43f; subsequent CPU cost
+  profiles are recorded above. Full evidence for build identification is in
   `benchmarks/build-version-20260919.json`; all 25 Markdown files were reviewed
   for current capabilities, future goals, build behavior and ASCII compliance.
 - **Gotchas:** untracked files do not mark a build dirty. Source archives report

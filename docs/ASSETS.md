@@ -1466,3 +1466,71 @@ first-text delay report. The old executable is backed up in
 %TEMP%/llmx-live-generation/root-before-streaming.exe; the root replacement's
 hash and version verification are recorded in the profile artifact. No main
 merge or GitHub publication occurred.
+
+## CPU worker participant spans (2026-09-19)
+
+The follow-up scratch probe independently instruments the worker pools from
+3a82284 and 9cfe43f. It records publication, entry/exit for the caller and five
+background workers, and an internal return boundary. Pinned Qwen3-0.6B Q8_0/F32,
+the same 215 prompt plus 32 forced HF IDs, six participants, ubatch 128 and F32
+KV are used throughout. Three alternating pairs interleave plain/instrumented
+builds for each source arm: 24 processes, each with one warmup and one measured
+sequence. No loading, tokenization, sampling or output writing is timed.
+
+| Mean phase ms | Before plain | Retained plain | Before instrumented | Retained instrumented |
+|---|---:|---:|---:|---:|
+| Q8 prefill | 632.945 | 567.707 | 591.131 | 574.741 |
+| Q8 decode | 803.943 | 762.698 | 779.716 | 783.178 |
+| F32 prefill | 638.665 | 627.730 | 645.636 | 635.732 |
+| F32 decode | 2463.925 | 2479.028 | 2458.478 | 2562.645 |
+
+Instrumentation changes the comparison materially. Q8 decode reverses arm
+ordering; F32 decode differs by +0.61% in plain builds and +4.24% instrumented.
+Observed plain/instrumented differences include noise, ordering and code/cache
+layout effects; they cannot be subtracted as a calibrated clock overhead.
+No mx run or external-floor claim belongs to this probe.
+
+For each dispatch, the exact decomposition selects the participant whose
+callback exits last. Its entry delay, callback span and remaining completion
+interval add to publication-to-return without overlapping. Mean phase sums, ms:
+
+| Phase / arm | Last finisher entry | Last finisher callback | Final completion |
+|---|---:|---:|---:|
+| Q8 prefill / before | 6.002 | 572.383 | 2.836 |
+| Q8 prefill / retained | 5.985 | 555.590 | 2.940 |
+| Q8 decode / before | 46.909 | 689.583 | 19.104 |
+| Q8 decode / retained | 47.775 | 689.672 | 19.879 |
+| F32 prefill / before | 8.809 | 623.372 | 3.315 |
+| F32 prefill / retained | 6.209 | 615.108 | 3.374 |
+| F32 decode / before | 61.491 | 2346.495 | 21.489 |
+| F32 decode / retained | 116.025 | 2385.459 | 27.653 |
+
+Publication is sampled inside the existing mutex before unlock/notify. Entry
+therefore includes wakeup and locking; callback elapsed time includes stalls.
+Exit precedes worker completion bookkeeping. The return scope guard runs after
+existing caller cleanup, before the function epilogue. Last-background-worker
+exit to return can include remaining caller computation; the archive reports
+that interval separately from last-participant completion. Summing callbacks
+across participants would double-count concurrent work. Preallocated records
+and distinct padded participant fields use the existing synchronous completion
+ordering; no additional worker barrier or logging is introduced.
+
+All 24 processes pass. Each model's 151,936 finite final logits are byte-identical
+across all 12 processes, with matching warmup hashes. Every instrumented trace
+has 673 prefill and 4512 decode dispatches, ordered timestamps, no overflow and
+sequential dispatch totals fitting its phase time. A focused instrumented-current
+check preserves caller error priority, completion and reuse after task failures.
+These are instrumentation controls; independent HF, maximum-context and corpus
+gates were not rerun. No competing agent build/test/timing ran, and every
+before/after user llmx.exe check was empty; OS background work is not excluded.
+
+The probe does not classify individual operations, so the earlier grouped-cost
+attribution remains unresolved. Retain the current implementation; this evidence
+does not justify another rejected dispatch variant or establish a stable worker
+regression. Complete process distributions, per-participant timing summaries,
+decompositions, source patches, scripts, build logs, tokens, artifact hashes and
+limitations are in
+[`benchmarks/cpu-worker-spans-20260919.json`](benchmarks/cpu-worker-spans-20260919.json).
+Full dispatch arrays and final vectors remain under `%TEMP%/llmx-worker-spans`
+with hashes in the archive. Model digests reuse the pinned asset records; no
+large model was rehashed. No production source or executable changed.

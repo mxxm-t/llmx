@@ -30,7 +30,8 @@ struct GenParams {
     float temp = 0.8f;
     int top_k = 40;
     float top_p = 0.95f;
-    int threads = 0;        // 0 = auto
+    int threads = 0;        // 0 = auto; used for generation (decode)
+    int threads_batch = 0;  // 0 = same as threads; used for prefill
     int ubatch = 0;         // physical batch for prefill (0 = default 512)
     float penalty = 1.0f;   // repetition penalty (>= 1)
     uint64_t seed = 0;      // 0 = non-deterministic

@@ -82,6 +82,22 @@ Flags:
 | `--threads N`   | worker thread count (0 = auto)                 |
 | `--ubatch N`    | prefill physical batch (default 512)           |
 
+## Threads: generation vs prefill
+
+`--threads` is the thread count for **generation** (decode) and
+`--threads-batch` / `-tb` is the count for **prefill**, defaulting to
+`--threads`. These are llama.cpp's `-t` and `-tb`.
+
+They are separate because the two phases have different bottlenecks. Prefill is
+compute bound and scales nearly linearly: on a Ryzen 7 5800X, 4/8/16 threads
+gave 5.07/8.55/13.24 tok/s. Decode is memory-bandwidth bound and peaks BELOW
+the logical core count, because SMT adds contention rather than bandwidth: the
+same machine measured 3.11/4.39/4.42/4.23/4.12 tok/s at 2/4/6/8/16 threads.
+
+The defaults leave both at hardware concurrency. If you are tuning, raise
+`-tb` to every logical core and lower `--threads` towards the physical core
+count, then measure - the knee is machine-specific.
+
 ## Physical batch (`--ubatch`)
 
 `--ubatch` is how many prompt tokens go through **one forward pass** of the
@@ -115,6 +131,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--penalty F`           | repetition penalty (>= 1)                            | 1.0     |
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
 | `--ubatch N`            | prefill physical batch (llama.cpp `n_ubatch` / `-ub`) | 512     |
+| `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
 | `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--think`               | show the Qwen3 `<thinking>` block                    | off     |

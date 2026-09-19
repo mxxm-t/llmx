@@ -311,8 +311,14 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     std::vector<uint32_t> ids = tok.encode(prompt);
     if (ids.empty()) throw std::runtime_error("generate: empty prompt");
 
+    // Prefill is compute bound and wants every thread; decode is memory
+    // bandwidth bound and usually peaks well below the logical core count,
+    // so the two phases get their own thread counts (llama.cpp's -t / -tb).
+    const int tb = (gp.threads_batch > 0) ? gp.threads_batch : gp.threads;
+    if (tb > 0) model.set_threads(tb);
     auto t0 = std::chrono::steady_clock::now();
     std::vector<float> logits = infer::prefill(model, ids);
+    if (gp.threads > 0) model.set_threads(gp.threads);
     double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (gp.show_prompt_tokens) std::cout << "prompt tokens: " << ids.size() << "\n";
     // Two decimals: at a few tok/s an integer print rounds a 20% change away.
@@ -558,6 +564,7 @@ void print_usage() {
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N]\n"
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
         << "           --ubatch N  prefill physical batch (default 512)\n"
+        << "           -tb/--threads-batch N  threads for prefill (default: --threads)\n"
         << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n";
 }
 
@@ -626,6 +633,7 @@ int main(int argc, char** argv) {
                 else if (a == "--stop") gp.stop = (i + 1 < argc) ? argv[++i] : gp.stop;
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
+                else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else if (a == "--system") system = (i + 1 < argc) ? argv[++i] : system;
                 else if (a == "--verbose") gp.show_prompt_tokens = true;
                 else if (a == "--think") gp.show_thinking = true;
@@ -647,6 +655,7 @@ int main(int argc, char** argv) {
                 std::string a = argv[i];
                 if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
+                else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             return cmd_perplexity(argv[2], argv[3], gp);

@@ -96,13 +96,37 @@ another real-model repository is selected. Tokenizer mode does not accept
 Generation needs the optional HF tooling described in the script; running the
 ordinary suite still needs only Python's standard library and the built runtime.
 
-The local 8B GGUF is not an independent HF reference. Its cached HF snapshot
-contains only `tokenizer.json`; original weights/config and confirmed GGUF
-provenance remain needed. FP32 8B weights alone need roughly 32 GB before
-activation and loading overhead, so generation needs a host with sufficient
-memory. Separate 8B output does not extend the current suite: a dedicated
-consumer and predeclared model-specific bounds are still required. Tooling
-support does not establish 8B correctness or broaden CI downloads.
+The local 8B GGUF is not an independent HF reference. On 2026-09-20, original
+`Qwen/Qwen3-8B` weights/config at revision
+`b968826d9c46dd6066d109eabc6255188de91218` were verified and used on the rig
+to generate separate CPU FP32 eager references. The official GGUF repository
+declares that base model and its Q8 LFS digest matches the local file, but its
+exact original conversion revision remains undocumented. A dedicated llmx
+consumer and predeclared model-specific bounds are still required; generation
+alone does not establish 8B llmx correctness or broaden CI downloads.
+
+The owned CPU-only `llmx-hf-reference` container uses six CPUs and a 40 GiB
+memory cap with no extra swap. FP32 parameters occupy 30.513 GiB. Measured
+cgroup accounting reached 40 GiB, including retained file cache, with 3,098
+limit/reclaim events and zero OOM or OOM-kill events. All three modes exited
+successfully; the container is now idle. The earlier loading estimate did not
+bound retained cache accounting. Minimum sampled host available memory was
+7.94 GiB. Future runs should use these measured figures.
+
+| Independent 8B HF case | Targets | Mean NLL | Perplexity |
+|---|---:|---:|---:|
+| Continuous 247 tokens | 246 | 2.401654413 | 11.041428357 |
+| Context 64, all windows | 243 | 3.090417353 | 21.986252097 |
+| Context 64, two windows | 126 | 2.829422962 | 16.935685467 |
+| Context 123, all windows | 244 | 2.670115355 | 14.441635018 |
+
+Twenty tokenizer cases and six top-10 logit cases were also generated. This
+is one generation, not a repeatability result. All three complete goldens,
+commands, settings, provenance limits, hashes and memory evidence are in
+[`benchmarks/hf-8b-reference-20260920.json`](benchmarks/hf-8b-reference-20260920.json).
+Original weights and raw logs remain under `/zpool1/llmx-hf-reference`; outputs
+are in its `goldens/qwen3-8b-b968-20260920` directory. Existing small-model
+fixtures and default CI downloads are unchanged.
 
 Validation on 2026-09-19 used cached original 0.6B weights with network access
 disabled in the HF tooling. Two complete generations reproduced all numerical
@@ -1597,3 +1621,73 @@ limitations are in
 Full dispatch arrays and final vectors remain under `%TEMP%/llmx-worker-spans`
 with hashes in the archive. Model digests reuse the pinned asset records; no
 large model was rehashed. No production source or executable changed.
+
+## Ordered prefill accumulator reductions (2026-09-20)
+
+The four-row/three-column float prefill kernel now reduces its accumulators
+explicitly in the original lane order. Both versions keep the FMA loop in
+registers. MSVC control assembly stores all 12 accumulators afterward and
+builds a pointer table; the candidate leaves one post-loop spill/reload.
+The tradeoff is a larger function: 1,119 -> 2,931 bytes. This changes neither
+the per-lane FMA sequence nor the scalar tails. Decode kernels are unchanged.
+
+Fixed nine-round comparisons use control `ea1e727`, candidate from
+`feat/prefill-ordered-reduction`, and the pinned mx reference above. Each
+process warms up; an additional outer warmup round is discarded. Both models
+use the same 215 prompt plus 32 forced HF token IDs, six threads, ubatch 128
+and F32 KV. Local timing runs had no overlapping builds/tests/user inference.
+All llmx warmup/final full-vector hashes agree across arms and rounds.
+
+| Initial session, mean tok/s | Control | Candidate | mx | Change vs control |
+|---|---:|---:|---:|---:|
+| Q8 prefill | 394.772 | 412.872 | 260.000 | +4.59% |
+| Q8 decode | 44.054 | 43.256 | 43.612 | -1.81% |
+| F32 prefill | 357.852 | 382.921 | 364.721 | +7.01% |
+| F32 decode | 13.747 | 13.735 | 13.524 | -0.09% |
+
+Prefill wins 8/9 Q8 and 9/9 F32 pairs. The Q8 decode dip prompted a separate
+fixed nine-round Q8 follow-up with identical binaries and workload:
+
+| Follow-up session, mean tok/s | Control | Candidate | mx | Change vs control |
+|---|---:|---:|---:|---:|
+| Q8 prefill | 368.050 | 391.063 | 261.877 | +6.25% |
+| Q8 decode | 41.840 | 42.137 | 40.513 | +0.71% |
+
+Prefill wins 9/9 follow-up pairs; decode wins 6/9. The initial decode decrease
+does not repeat, so these samples do not establish a stable decode regression.
+Both sessions remain separate. The first still misses the Q8 decode mx floor;
+these results do not clear the broader external gate or historical 8B gap.
+The consistent prefill improvement supports retaining this feature checkpoint.
+
+| Numerical check | Result | Acceptance |
+|---|---:|---:|
+| Ordered scalar-FMA oracle | 1,824 exact outputs per arm | Byte equality |
+| F32 long full logits vs control | 5,013,888 exact values | Byte equality |
+| Q8 long full logits vs control | 5,013,888 exact values | Byte equality |
+| F32 maximum full-logit error vs HF | 0.000126362 | <= 0.001 |
+| F32 prefixed continuation NLL delta vs HF | 0.000000645 | <= 0.0001 |
+| Q8 prefixed continuation NLL delta vs HF | 0.007011817 | <= 0.01 |
+| Swapped final lane additions mutant | Rejected | Required rejection |
+
+The long case prefills 1,943 tokens and compares 32 continuation steps. Its
+F32 greedy IDs match all 32 HF IDs. Four fresh serial-step continuous/windowed
+NLL cases also equal control and pass the existing independent HF bounds;
+those serial cases alone do not exercise the changed prefill kernel. This is
+not full-corpus, maximum-context or independent 8B llmx coverage.
+
+Windows native tests pass 7/7 and the required-HF Python suite passes 10/10.
+Linux candidate/control native tests pass 7/7; the candidate required-HF suite
+passes 10/10 with both real quantized fixtures. Linux synthetic timings are
+diagnostic only (`--no-perf-floor`). The Windows perf smoke changes from
+34.04 to 41.61 GFLOPS, 7,180 to 7,713 prefill tok/s and 6,960 to 7,393 decode
+tok/s; these single samples do not establish causal speedups.
+
+Both GCC arms also match the new scalar-FMA oracle. Separate Linux real-F32
+checks pass 20 tokenizer cases, six logit rankings and all four NLL cases;
+maximum NLL error at CLI precision is 0.000004420 <= 0.0001. Linux did not run
+the long full-vector comparison, which remains the Windows result above.
+
+Raw timing samples from both sessions, summaries, commands, harness sources,
+assembly evidence, numerical results, logs and hashes are archived in
+[`benchmarks/prefill-ordered-reduction-20260920.json`](benchmarks/prefill-ordered-reduction-20260920.json).
+No API, model format, worker behavior or default CI fixture changes.

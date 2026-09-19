@@ -95,8 +95,9 @@ ctest --test-dir build -C Release --output-on-failure
 `backend-group` checks mixed types, uneven rows, batches, thread counts,
 output boundaries and fallback behavior against separate calls and double dots.
 It also checks every finite f16 scale against signed Q8 weight extremes using
-one-hot inputs with exact expected products. The independent HF fixtures below
-remain the external correctness gate.
+one-hot inputs with exact expected products, and the three-column prefill
+reduction against ordered scalar FMA across dimension tails and unaligned
+inputs. The independent HF fixtures below remain the external correctness gate.
 
 `backend-errors` injects task and startup-allocation failures, checks completion
 before error propagation, and exercises pool reuse and thread reconfiguration.

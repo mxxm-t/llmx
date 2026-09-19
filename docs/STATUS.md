@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`feat/hf-reference-tools`, based on completed worker-span checkpoint `e98c786`.
+`feat/prefill-ordered-reduction`, based on pinned HF tooling checkpoint `ea1e727`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
 restarted with its saved cursor. Root `llmx.exe` was updated to validated streaming
@@ -21,14 +21,14 @@ again; feature checkpoints may be backed up there, with performance gates still
 required before merging to main. GitHub publication is authorized after the
 requirements pass. GitHub stays main-only; feature branches go to Gitea.
 
-**Documentation review (2026-09-19):** rechecked all 25 tracked Markdown files
-against current source, CLI, CMake/CI and recorded evidence. This checkpoint
-documents pinned reference selection, alternate-model output, generator tests
-and numerical-fixture dependencies. A separate agent reviewed all unchanged
-runtime documentation and then the tooling diff; no correctness blocker was
-found. The completed worker-span checkpoint and historical measurements are
-preserved. Streaming documentation remains current; external performance and
-broader HF coverage requirements remain open.
+**Documentation review (2026-09-20):** rechecked all 25 tracked Markdown files
+against current source, CLI, CMake/CI and recorded evidence. Independent source
+and documentation review found no correctness blocker. This checkpoint records
+ordered prefill reductions, both separate timing sessions, exact controls and
+HF/platform validation. The parallel 8B HF reference generation is archived
+with measured memory and provenance limits; its llmx comparison remains open.
+Historical measurements and the root streaming executable remain unchanged.
+External performance requirements still block main/GitHub publication.
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
@@ -62,6 +62,7 @@ broader HF coverage requirements remain open.
 | Head-major CPU KV storage             | In Progress |
 | CPU worker exception safety           | In Progress |
 | CPU worker cost profile                 | In Progress |
+| CPU ordered prefill reductions          | In Progress |
 | CLI thread settings                    | In Progress |
 | Automatic build identification          | In Progress |
 | Live generation and loading progress     | In Progress |
@@ -70,6 +71,34 @@ broader HF coverage requirements remain open.
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### CPU ordered prefill reductions
+
+- **Goal:** determine whether the four-row/three-column prefill kernel's
+  addressable accumulator array adds avoidable stack traffic or reduction
+  overhead, without changing per-lane FMA or final addition order.
+- **Done:** explicit ordered reductions match 1,824 scalar-FMA outputs across
+  dimension tails and unaligned inputs. MSVC assembly removes most epilogue
+  accumulator stack traffic; the FMA loops do not spill in either arm. The
+  function grows from 1,119 to 2,931 bytes. Nine alternating rounds improve
+  mean Q8/F32 prefill by 4.59%/7.01%, winning 8/9 and 9/9 pairs. A separate
+  nine-round Q8 follow-up repeats the prefill gain (+6.25%, 9/9 pairs).
+  Q8 decode changes from -1.81% to +0.71% versus control between sessions;
+  no stable decode regression or universal external parity is established.
+  All control/candidate final-vector hashes match. Windows/Linux native checks
+  pass 7/7 and required-HF suites pass 10/10. Linux real-F32 tokenizer/logit/NLL
+  checks also pass. Both platforms check each arm against the same scalar-FMA
+  oracle; an MSVC mutant swapping final additions is rejected. Fresh long
+  comparisons have 5,013,888 byte-identical logits per F32/Q8 model. F32 maximum
+  HF error is 0.000126362 <= 0.001; prefilled continuation NLL deltas are
+  0.000000645 <= 0.0001 (F32) and 0.007011817 <= 0.01 (Q8). Four separate serial
+  NLL cases equal control and pass existing HF bounds. All 25 Markdown files
+  reviewed; evidence: `benchmarks/prefill-ordered-reduction-20260920.json`.
+- **Left:** retain this validated feature checkpoint on Gitea; merge with the
+  runtime stack only when broader external performance requirements pass.
+- **Gotchas:** no reassociation or new activation quantization. A synthetic
+  gain alone does not establish the external floor. Keep worker implementation
+  unchanged and isolate timing from other builds/tests and user inference.
 
 ### Pinned HF reference generation
 
@@ -86,14 +115,20 @@ broader HF coverage requirements remain open.
   Rounded top-10 logit values differ by at most 0.0001. Existing fixtures,
   acceptance bounds and default CI model downloads are unchanged. Evidence:
   `benchmarks/hf-reference-tools-20260919.json`.
+  Parallel rig work generated actual 8B tokenizer/logit/PPL references from
+  verified original `Qwen/Qwen3-8B` at pinned `b968826d9c46dd6066d109eabc6255188de91218`.
+  All three modes pass with CPU FP32 eager execution. Measured memory reaches
+  the owned container's 40 GiB cap including file cache (3,098 limit events,
+  zero OOM/kill). Evidence: `benchmarks/hf-8b-reference-20260920.json`.
 - **Left:** merge the tooling with the runtime stack after its external gates
-  pass. Actual 8B goldens need original weights/config, confirmed GGUF
-  provenance and sufficient-memory host, then a separate consumer with
-  predeclared model-specific acceptance bounds.
+  pass. Add a separate 8B consumer with predeclared model-specific bounds;
+  generated goldens alone do not validate llmx. Official GGUF metadata links
+  the base model and matches the local Q8 digest, but exact original conversion
+  revision is undocumented. Default CI downloads remain unchanged.
 - **Gotchas:** do not overwrite small-model goldens with another model or expand
   default CI downloads. Tooling support alone is not an 8B correctness result.
-  HF generation and tests ran after worker timing finished. No hot path changed
-  and no new mx-llama.cpp performance gate was run.
+  The tooling-only checkpoint changed no hot path and ran after worker timing.
+  The parallel 8B HF work ran on the separate rig; it is not a performance gate.
 
 ### CPU worker cost profile
 

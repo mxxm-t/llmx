@@ -1,0 +1,1627 @@
+{
+  "schema_version": 1,
+  "title": "Independent pinned Qwen3-8B HF reference generation",
+  "checkpoint_local_date": "2026-09-20",
+  "timezone": "Europe/Tallinn",
+  "scope": {
+    "completed": "One sequential tokenizer, logits and perplexity run, each in a separate process, using the original pinned HF safetensors and unmodified committed llmx reference generator.",
+    "llmx_or_gguf_comparison_performed": false,
+    "project_correctness_gate_pass_claimed": false,
+    "performance_gate_pass_claimed": false,
+    "repeatability_run_performed": false,
+    "fixture_installation": "Evidence archive only; these 8B goldens are not installed as the default tests/data fixtures.",
+    "timing_scope": "Recorded process timestamps include loading and orchestration; they are not performance benchmarks."
+  },
+  "provenance": {
+    "repo": "Qwen/Qwen3-8B",
+    "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+    "generator": {
+      "commit": "ea1e727ef2f2868921ada02397546562f0a24c60",
+      "files": {
+        "tools/gen_baseline.py": "d9f65628d1b753e313531aeee0e634a58743746409b3f6f0f6761e02fa54dc80",
+        "tests/data/wiki.test.raw": "bbf94c53a05abe9ee670d3b6343608095822c85e26de37c70b24fc571964574a"
+      }
+    },
+    "official_metadata": [
+      {
+        "url": "https://huggingface.co/api/models/Qwen/Qwen3-8B/revision/b968826d9c46dd6066d109eabc6255188de91218?blobs=true",
+        "file": "original-api.json",
+        "bytes": 11262,
+        "sha256": "c36fcd6d3303207e8993f3dc6862678ef4f512e9a7439e92cef73d83de338562"
+      },
+      {
+        "url": "https://huggingface.co/Qwen/Qwen3-8B/raw/b968826d9c46dd6066d109eabc6255188de91218/config.json",
+        "file": "config.json",
+        "bytes": 728,
+        "sha256": "f7c4eadfbbf522470667b797a3c89be2524832d2d599797248dc304fff447c30"
+      },
+      {
+        "url": "https://huggingface.co/Qwen/Qwen3-8B/raw/b968826d9c46dd6066d109eabc6255188de91218/model.safetensors.index.json",
+        "file": "model.safetensors.index.json",
+        "bytes": 32878,
+        "sha256": "f9fdbcb91c23971c13ec5d5f2573d2349e8f61f2f049371ec699281748fdb1bc"
+      },
+      {
+        "url": "https://huggingface.co/Qwen/Qwen3-8B/raw/b968826d9c46dd6066d109eabc6255188de91218/README.md",
+        "file": "original-README.md",
+        "bytes": 16660,
+        "sha256": "0f36caaff9c2516411a7738db384606263ba653c1e63e61d72f511606164d5a6"
+      },
+      {
+        "url": "https://huggingface.co/api/models/Qwen/Qwen3-8B-GGUF?blobs=true",
+        "file": "gguf-api.json",
+        "bytes": 7442,
+        "sha256": "3869ab8c0bcae3b54317db0c653528553a285cb16cdbc86cd27139bc7d9ec362"
+      },
+      {
+        "url": "https://huggingface.co/Qwen/Qwen3-8B-GGUF/raw/7c41481f57cb95916b40956ab2f0b139b296d974/README.md",
+        "file": "gguf-README.md",
+        "bytes": 7577,
+        "sha256": "913fd918b4afb4511accca0874f701248b024013e804fa7a463639ead74e4dcb"
+      }
+    ],
+    "model_config": {
+      "architectures": [
+        "Qwen3ForCausalLM"
+      ],
+      "attention_bias": false,
+      "attention_dropout": 0.0,
+      "bos_token_id": 151643,
+      "eos_token_id": 151645,
+      "head_dim": 128,
+      "hidden_act": "silu",
+      "hidden_size": 4096,
+      "initializer_range": 0.02,
+      "intermediate_size": 12288,
+      "max_position_embeddings": 40960,
+      "max_window_layers": 36,
+      "model_type": "qwen3",
+      "num_attention_heads": 32,
+      "num_hidden_layers": 36,
+      "num_key_value_heads": 8,
+      "rms_norm_eps": 1e-06,
+      "rope_scaling": null,
+      "rope_theta": 1000000,
+      "sliding_window": null,
+      "tie_word_embeddings": false,
+      "torch_dtype": "bfloat16",
+      "transformers_version": "4.51.0",
+      "use_cache": true,
+      "use_sliding_window": false,
+      "vocab_size": 151936
+    },
+    "gguf_repository": "Qwen/Qwen3-8B-GGUF",
+    "gguf_metadata_revision": "7c41481f57cb95916b40956ab2f0b139b296d974",
+    "gguf_official_file": {
+      "rfilename": "Qwen3-8B-Q8_0.gguf",
+      "blobId": "954c5db9f4cce8f400022addeb8d7baa1f5e30f6",
+      "size": 8709518112,
+      "lfs": {
+        "sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+        "size": 8709518112,
+        "pointerSize": 135
+      }
+    },
+    "known_limit": "The official GGUF repository identifies Qwen/Qwen3-8B as its base model, but the inspected metadata and README do not pin the original safetensor revision used for conversion. This reference revision is reproducible; equivalence to the exact GGUF conversion input revision is not established.",
+    "training_lineage": "The original Qwen3-8B README identifies Qwen3-8B-Base as training lineage. This run loads Qwen/Qwen3-8B, not the Base repository.",
+    "original_hash_verification": "All downloaded file sizes were checked. Advertised LFS SHA256 values and non-LFS Git blob hashes were verified during preparation. Subsequent model review read only safetensor headers; it did not repeat full weight hashing."
+  },
+  "preparation": {
+    "checked_utc": "2026-09-19T21:02:26.578837+00:00",
+    "container": {
+      "container_id": "8971a318cf219e1d40e20ac1651a8b2f7716d11fc4ea553b2223fa76e8e92086",
+      "container_name": "/llmx-hf-reference",
+      "command": [
+        "docker",
+        "run",
+        "-d",
+        "--pull=never",
+        "--name",
+        "llmx-hf-reference",
+        "--init",
+        "--cpus",
+        "6",
+        "--memory",
+        "48g",
+        "--memory-swap",
+        "48g",
+        "--label",
+        "llmx.owner=codex-llmx-hf-reference-20260919",
+        "--mount",
+        "type=bind,src=/zpool1/llmx-hf-reference,dst=/work",
+        "--env",
+        "HF_HOME=/work/cache",
+        "--env",
+        "HF_HUB_DISABLE_XET=1",
+        "--env",
+        "HF_HUB_DISABLE_PROGRESS_BARS=1",
+        "--env",
+        "PIP_CACHE_DIR=/work/cache/pip",
+        "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+        "sleep",
+        "infinity"
+      ],
+      "image_id": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "limits": {
+        "memory_bytes": 51539607552,
+        "memory_swap_bytes": 51539607552,
+        "nano_cpus": 6000000000
+      },
+      "mounts": [
+        {
+          "Type": "bind",
+          "Source": "/zpool1/llmx-hf-reference",
+          "Destination": "/work",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+        }
+      ],
+      "created_utc": "2026-09-19T20:55:51.951659+00:00"
+    },
+    "environment": {
+      "python": "3.12.13 (main, Jul 14 2026, 02:09:00) [GCC 14.2.0]",
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6",
+      "tokenizers": "0.21.4",
+      "huggingface_hub": "0.36.2",
+      "safetensors": "0.8.0",
+      "cuda": null,
+      "hip": null,
+      "model_class_import": "Qwen3ForCausalLM",
+      "model_loaded": false
+    },
+    "snapshot": {
+      "repo": "Qwen/Qwen3-8B",
+      "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+      "files": {
+        "generation_config.json": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/generation_config.json",
+          "size": 239,
+          "sha256": "2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2",
+          "advertised_lfs_sha256": null,
+          "advertised_git_blob": "20a8a9156fc8c3f25295ca067f61fdf120d517c5",
+          "verified": true
+        },
+        "config.json": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/config.json",
+          "size": 728,
+          "sha256": "f7c4eadfbbf522470667b797a3c89be2524832d2d599797248dc304fff447c30",
+          "advertised_lfs_sha256": null,
+          "advertised_git_blob": "d46195ac87f837ad233d02b2f80f148bf7c005e0",
+          "verified": true
+        },
+        "tokenizer_config.json": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/tokenizer_config.json",
+          "size": 9732,
+          "sha256": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+          "advertised_lfs_sha256": null,
+          "advertised_git_blob": "417d038a63fa3de29cfde265caedae14d1a58d92",
+          "verified": true
+        },
+        "vocab.json": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/vocab.json",
+          "size": 2776833,
+          "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+          "advertised_lfs_sha256": null,
+          "advertised_git_blob": "4783fe10ac3adce15ac8f358ef5462739852c569",
+          "verified": true
+        },
+        "merges.txt": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/merges.txt",
+          "size": 1671853,
+          "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+          "advertised_lfs_sha256": null,
+          "advertised_git_blob": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7",
+          "verified": true
+        },
+        "model.safetensors.index.json": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/model.safetensors.index.json",
+          "size": 32878,
+          "sha256": "f9fdbcb91c23971c13ec5d5f2573d2349e8f61f2f049371ec699281748fdb1bc",
+          "advertised_lfs_sha256": null,
+          "advertised_git_blob": "2b85c00f1b118961cd7a477e2bba0fe197a4ce1a",
+          "verified": true
+        },
+        "tokenizer.json": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/tokenizer.json",
+          "size": 11422654,
+          "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+          "advertised_lfs_sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+          "advertised_git_blob": "cd71f61a15a522601badb3dc960d800d9cb3766c",
+          "verified": true
+        },
+        "model-00001-of-00005.safetensors": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/model-00001-of-00005.safetensors",
+          "size": 3996250744,
+          "sha256": "31d6a825ae35f11fb85b195b4c42c146c051e446433125a215336abdf95cbf5f",
+          "advertised_lfs_sha256": "31d6a825ae35f11fb85b195b4c42c146c051e446433125a215336abdf95cbf5f",
+          "advertised_git_blob": "8d46cf470aff053c27fd6d956d4d69af9460bd2a",
+          "verified": true
+        },
+        "model-00002-of-00005.safetensors": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/model-00002-of-00005.safetensors",
+          "size": 3993160032,
+          "sha256": "5991236cea6fe21f3d43cab0f0e84448734fbbe0789816202989f2ddc9d18282",
+          "advertised_lfs_sha256": "5991236cea6fe21f3d43cab0f0e84448734fbbe0789816202989f2ddc9d18282",
+          "advertised_git_blob": "e726a2bcb3b100cba7ae899689cc029d8a08b20c",
+          "verified": true
+        },
+        "model-00003-of-00005.safetensors": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/model-00003-of-00005.safetensors",
+          "size": 3959604768,
+          "sha256": "c5185c4794be2d8a9784d5753c9922db38df478ce11f9ed0b415b7304d896836",
+          "advertised_lfs_sha256": "c5185c4794be2d8a9784d5753c9922db38df478ce11f9ed0b415b7304d896836",
+          "advertised_git_blob": "c94db38adbcb837246c797986365b8e4603ef3ac",
+          "verified": true
+        },
+        "model-00005-of-00005.safetensors": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/model-00005-of-00005.safetensors",
+          "size": 1244659840,
+          "sha256": "20c2d6366ab85c90786ccdd829cd2b9e7d30ef3b2ebbb998280e7e4014b542ff",
+          "advertised_lfs_sha256": "20c2d6366ab85c90786ccdd829cd2b9e7d30ef3b2ebbb998280e7e4014b542ff",
+          "advertised_git_blob": "7bbb0cbc623d70925a3a82b301a99cb52ac9ed5b",
+          "verified": true
+        },
+        "model-00004-of-00005.safetensors": {
+          "path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218/model-00004-of-00005.safetensors",
+          "size": 3187841392,
+          "sha256": "b5ee7de71fbf17db3d5704e0c8f2bc7d005ca9e1d7ca2aeb19827b0cfcaa917a",
+          "advertised_lfs_sha256": "b5ee7de71fbf17db3d5704e0c8f2bc7d005ca9e1d7ca2aeb19827b0cfcaa917a",
+          "advertised_git_blob": "a6c92dd09e29e1f72271e087f89ee033b321101c",
+          "verified": true
+        }
+      },
+      "expected_total_bytes": 16397431693,
+      "started_utc": "2026-09-19T20:56:42.604485+00:00",
+      "model_inference": false,
+      "snapshot_path": "/work/cache/hub/models--Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218",
+      "completed_utc": "2026-09-19T21:02:05.399341+00:00",
+      "complete": true
+    },
+    "safetensor_headers": {
+      "model-00001-of-00005.safetensors": {
+        "header_bytes": 9328,
+        "tensor_count": 81,
+        "logical_tensor_bytes": 3996241408,
+        "dtypes": [
+          "BF16"
+        ]
+      },
+      "model-00002-of-00005.safetensors": {
+        "header_bytes": 13144,
+        "tensor_count": 114,
+        "logical_tensor_bytes": 3993146880,
+        "dtypes": [
+          "BF16"
+        ]
+      },
+      "model-00003-of-00005.safetensors": {
+        "header_bytes": 12824,
+        "tensor_count": 111,
+        "logical_tensor_bytes": 3959591936,
+        "dtypes": [
+          "BF16"
+        ]
+      },
+      "model-00005-of-00005.safetensors": {
+        "header_bytes": 120,
+        "tensor_count": 1,
+        "logical_tensor_bytes": 1244659712,
+        "dtypes": [
+          "BF16"
+        ]
+      },
+      "model-00004-of-00005.safetensors": {
+        "header_bytes": 10600,
+        "tensor_count": 92,
+        "logical_tensor_bytes": 3187830784,
+        "dtypes": [
+          "BF16"
+        ]
+      }
+    },
+    "total_tensors": 399,
+    "all_original_tensors_dtype": "BF16",
+    "float32_weight_bytes": 32762941440,
+    "official_metadata_files_sha256_verified": true,
+    "ram_bytes": {
+      "MemTotal": 67284332544,
+      "MemAvailable": 39714009088
+    },
+    "disk_free_bytes": 229752438784,
+    "inference_run": false,
+    "no_existing_environment_modified": true,
+    "revalidation_scope": "Uses original download-time SHA256 results; reads only safetensor headers after preparation, not full weights again"
+  },
+  "preparation_scope_note": "The preparation record is a historical pre-inference snapshot, including its original 48 GiB container cap and false model-loaded/inference flags. The execution below subsequently used a 40 GiB cap and performed inference.",
+  "package_freeze": [
+    "certifi==2026.7.22",
+    "charset-normalizer==3.5.1",
+    "filelock==3.32.3",
+    "fsspec==2026.7.0",
+    "hf-xet==1.6.0",
+    "huggingface_hub==0.36.2",
+    "idna==3.20",
+    "Jinja2==3.1.6",
+    "MarkupSafe==3.0.3",
+    "mpmath==1.3.0",
+    "networkx==3.6.1",
+    "numpy==2.2.6",
+    "packaging==26.3",
+    "pip==25.0.1",
+    "PyYAML==6.0.3",
+    "regex==2026.9.10",
+    "requests==2.34.2",
+    "safetensors==0.8.0",
+    "setuptools==78.1.0",
+    "sympy==1.13.1",
+    "tokenizers==0.21.4",
+    "torch==2.5.1+cpu",
+    "tqdm==4.70.1",
+    "transformers==4.55.2",
+    "typing_extensions==4.16.0",
+    "urllib3==2.8.0"
+  ],
+  "execution": {
+    "memory_cap_update_command": [
+      "docker",
+      "update",
+      "--memory",
+      "40g",
+      "--memory-swap",
+      "40g",
+      "llmx-hf-reference"
+    ],
+    "run_summary": {
+      "started": "2026-09-19T21:12:21.183393+00:00",
+      "host_runner_pid": 389696,
+      "container": "llmx-hf-reference",
+      "container_id": "8971a318cf219e1d40e20ac1651a8b2f7716d11fc4ea553b2223fa76e8e92086",
+      "source": {
+        "commit": "ea1e727ef2f2868921ada02397546562f0a24c60",
+        "files": {
+          "tools/gen_baseline.py": "d9f65628d1b753e313531aeee0e634a58743746409b3f6f0f6761e02fa54dc80",
+          "tests/data/wiki.test.raw": "bbf94c53a05abe9ee670d3b6343608095822c85e26de37c70b24fc571964574a"
+        }
+      },
+      "modes": [
+        {
+          "mode": "tokenizer",
+          "started": "2026-09-19T21:12:21.183993+00:00",
+          "initial": {
+            "utc": "2026-09-19T21:12:21.183859+00:00",
+            "mode": "tokenizer",
+            "host_available": 39705182208,
+            "host_free": 39733186560,
+            "cgroup_current": 95006720,
+            "cgroup_peak": 311668736,
+            "cgroup_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+            "host_psi": "some avg10=0.00 avg60=0.00 avg300=0.00 total=1\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=1\n"
+          },
+          "command": [
+            "docker",
+            "exec",
+            "-e",
+            "HF_HOME=/work/cache",
+            "-e",
+            "HF_HUB_CACHE=/work/cache/hub",
+            "-e",
+            "HF_HUB_OFFLINE=1",
+            "-e",
+            "TRANSFORMERS_OFFLINE=1",
+            "-e",
+            "HF_ENABLE_PARALLEL_LOADING=0",
+            "-e",
+            "PYTHONUNBUFFERED=1",
+            "llmx-hf-reference",
+            "timeout",
+            "--signal=TERM",
+            "--kill-after=30s",
+            "1800s",
+            "python",
+            "-B",
+            "/work/generator/checked_reference.py",
+            "tokenizer",
+            "--repo",
+            "Qwen/Qwen3-8B",
+            "--revision",
+            "b968826d9c46dd6066d109eabc6255188de91218",
+            "--gguf-repo",
+            "Qwen/Qwen3-8B-GGUF",
+            "--gguf-file",
+            "Qwen3-8B-Q8_0.gguf",
+            "--output-dir",
+            "/work/goldens/qwen3-8b-b968-20260920"
+          ],
+          "host_docker_exec_pid": 389713,
+          "exit": 0,
+          "completed": "2026-09-19T21:12:25.185585+00:00",
+          "final": {
+            "utc": "2026-09-19T21:12:25.185869+00:00",
+            "mode": "tokenizer",
+            "host_available": 39592861696,
+            "host_free": 39619227648,
+            "cgroup_current": 97452032,
+            "cgroup_peak": 367570944,
+            "cgroup_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+            "host_psi": "some avg10=0.00 avg60=0.00 avg300=0.00 total=1\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=1\n"
+          }
+        },
+        {
+          "mode": "logits",
+          "started": "2026-09-19T21:12:25.186851+00:00",
+          "initial": {
+            "utc": "2026-09-19T21:12:25.186722+00:00",
+            "mode": "logits",
+            "host_available": 39592861696,
+            "host_free": 39619227648,
+            "cgroup_current": 97452032,
+            "cgroup_peak": 367570944,
+            "cgroup_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+            "host_psi": "some avg10=0.00 avg60=0.00 avg300=0.00 total=1\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=1\n"
+          },
+          "command": [
+            "docker",
+            "exec",
+            "-e",
+            "HF_HOME=/work/cache",
+            "-e",
+            "HF_HUB_CACHE=/work/cache/hub",
+            "-e",
+            "HF_HUB_OFFLINE=1",
+            "-e",
+            "TRANSFORMERS_OFFLINE=1",
+            "-e",
+            "HF_ENABLE_PARALLEL_LOADING=0",
+            "-e",
+            "PYTHONUNBUFFERED=1",
+            "llmx-hf-reference",
+            "timeout",
+            "--signal=TERM",
+            "--kill-after=30s",
+            "1800s",
+            "python",
+            "-B",
+            "/work/generator/checked_reference.py",
+            "logits",
+            "--repo",
+            "Qwen/Qwen3-8B",
+            "--revision",
+            "b968826d9c46dd6066d109eabc6255188de91218",
+            "--gguf-repo",
+            "Qwen/Qwen3-8B-GGUF",
+            "--gguf-file",
+            "Qwen3-8B-Q8_0.gguf",
+            "--output-dir",
+            "/work/goldens/qwen3-8b-b968-20260920",
+            "--threads",
+            "6"
+          ],
+          "host_docker_exec_pid": 389853,
+          "exit": 0,
+          "completed": "2026-09-19T21:13:09.210177+00:00",
+          "final": {
+            "utc": "2026-09-19T21:13:09.210383+00:00",
+            "mode": "logits",
+            "host_available": 41667862528,
+            "host_free": 33830535168,
+            "cgroup_current": 8195096576,
+            "cgroup_peak": 41626902528,
+            "cgroup_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+            "host_psi": "some avg10=0.06 avg60=0.10 avg300=0.02 total=139802\nfull avg10=0.06 avg60=0.10 avg300=0.02 total=139316\n"
+          }
+        },
+        {
+          "mode": "perplexity",
+          "started": "2026-09-19T21:13:09.212474+00:00",
+          "initial": {
+            "utc": "2026-09-19T21:13:09.212320+00:00",
+            "mode": "perplexity",
+            "host_available": 41667862528,
+            "host_free": 33830535168,
+            "cgroup_current": 8195096576,
+            "cgroup_peak": 41626902528,
+            "cgroup_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+            "host_psi": "some avg10=0.06 avg60=0.10 avg300=0.02 total=139802\nfull avg10=0.06 avg60=0.10 avg300=0.02 total=139316\n"
+          },
+          "command": [
+            "docker",
+            "exec",
+            "-e",
+            "HF_HOME=/work/cache",
+            "-e",
+            "HF_HUB_CACHE=/work/cache/hub",
+            "-e",
+            "HF_HUB_OFFLINE=1",
+            "-e",
+            "TRANSFORMERS_OFFLINE=1",
+            "-e",
+            "HF_ENABLE_PARALLEL_LOADING=0",
+            "-e",
+            "PYTHONUNBUFFERED=1",
+            "llmx-hf-reference",
+            "timeout",
+            "--signal=TERM",
+            "--kill-after=30s",
+            "1800s",
+            "python",
+            "-B",
+            "/work/generator/checked_reference.py",
+            "perplexity",
+            "--repo",
+            "Qwen/Qwen3-8B",
+            "--revision",
+            "b968826d9c46dd6066d109eabc6255188de91218",
+            "--gguf-repo",
+            "Qwen/Qwen3-8B-GGUF",
+            "--gguf-file",
+            "Qwen3-8B-Q8_0.gguf",
+            "--output-dir",
+            "/work/goldens/qwen3-8b-b968-20260920",
+            "--threads",
+            "6"
+          ],
+          "host_docker_exec_pid": 390165,
+          "exit": 0,
+          "completed": "2026-09-19T21:14:33.243671+00:00",
+          "final": {
+            "utc": "2026-09-19T21:14:33.243948+00:00",
+            "mode": "perplexity",
+            "host_available": 48581730304,
+            "host_free": 39857053696,
+            "cgroup_current": 9178599424,
+            "cgroup_peak": 42949672960,
+            "cgroup_events": "low 0\nhigh 0\nmax 3098\noom 0\noom_kill 0\noom_group_kill 0\n",
+            "host_psi": "some avg10=0.01 avg60=0.78 avg300=0.39 total=1575424\nfull avg10=0.01 avg60=0.78 avg300=0.39 total=1574477\n"
+          }
+        }
+      ],
+      "limits": {
+        "memory_bytes": 42949672960,
+        "cpus": 6,
+        "swap_bytes": 0
+      },
+      "initial": {
+        "utc": "2026-09-19T21:12:21.183519+00:00",
+        "mode": "initial",
+        "host_available": 39705182208,
+        "host_free": 39733186560,
+        "cgroup_current": 95006720,
+        "cgroup_peak": 311668736,
+        "cgroup_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+        "host_psi": "some avg10=0.00 avg60=0.00 avg300=0.00 total=1\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=1\n"
+      },
+      "completed": "2026-09-19T21:14:33.244767+00:00",
+      "final": {
+        "utc": "2026-09-19T21:14:33.244843+00:00",
+        "mode": "final",
+        "host_available": 48581730304,
+        "host_free": 39857053696,
+        "cgroup_current": 9178599424,
+        "cgroup_peak": 42949672960,
+        "cgroup_events": "low 0\nhigh 0\nmax 3098\noom 0\noom_kill 0\noom_group_kill 0\n",
+        "host_psi": "some avg10=0.01 avg60=0.78 avg300=0.39 total=1575424\nfull avg10=0.01 avg60=0.78 avg300=0.39 total=1574477\n"
+      },
+      "outputs": {
+        "baseline_tokenizer.json": {
+          "bytes": 2500,
+          "sha256": "9f8cdedcd91e89e388ac6081c6e496ea7e2f95d2565664cc5117144e29b1fe2a"
+        },
+        "baseline_logits.json": {
+          "bytes": 3241,
+          "sha256": "e3eb726e06ff3bd9d5ecd69712c324a9842ccd58ec33fda4bb19dc4476f9680e"
+        },
+        "baseline_perplexity.json": {
+          "bytes": 4484,
+          "sha256": "c6e84d0d0661e07b285c7882ac0dd9d128dd45ad7215c2d83a345f3e84f71178"
+        }
+      },
+      "success": true
+    },
+    "loaded_model_assertions": {
+      "logits": {
+        "mode": "logits",
+        "pid": 115,
+        "dtype": "float32",
+        "device": "cpu",
+        "attention": "eager",
+        "threads": 6,
+        "matmul_precision": "highest",
+        "parameter_elements": 8190735360,
+        "parameter_bytes": 32762941440
+      },
+      "perplexity": {
+        "mode": "perplexity",
+        "pid": 168,
+        "dtype": "float32",
+        "device": "cpu",
+        "attention": "eager",
+        "threads": 6,
+        "matmul_precision": "highest",
+        "parameter_elements": 8190735360,
+        "parameter_bytes": 32762941440
+      }
+    },
+    "wrapper_behavior": "The wrapper imports the unmodified generator, sets/asserts highest FP32 matmul precision, checks CPU FP32 parameters/eager attention/eval mode/six threads after load, and adds a pre-forward assertion that use_cache is false and inference_mode is enabled. It does not change model tensor operations.",
+    "wrapper_source": "import importlib.util\nimport json\nimport os\nimport resource\nfrom pathlib import Path\nimport sys\nimport torch\n\nresource.setrlimit(resource.RLIMIT_CORE,(0,0))\nmode=sys.argv[1]\nlog=Path('/work/logs/reference-20260920')\n(log/(mode+'.pid')).write_text(str(os.getpid())+'\\n')\nassert torch.__version__=='2.5.1+cpu'\nassert torch.version.cuda is None and torch.version.hip is None\ntorch.set_float32_matmul_precision('highest')\nassert torch.get_float32_matmul_precision()=='highest'\nassert torch.get_default_dtype()==torch.float32\nassert os.environ['HF_HUB_OFFLINE']=='1' and os.environ['TRANSFORMERS_OFFLINE']=='1'\nspec=importlib.util.spec_from_file_location('pinned_reference','/work/generator/tools/gen_baseline.py')\nmodule=importlib.util.module_from_spec(spec)\nspec.loader.exec_module(module)\noriginal=module.load_reference\ndef checked_load(args):\n    result=original(args)\n    model=result[3]\n    assert all(p.device.type=='cpu' and p.dtype==torch.float32 for p in model.parameters())\n    assert model.config._attn_implementation=='eager'\n    assert not model.training and torch.get_num_threads()==6\n    details={'mode':mode,'pid':os.getpid(),'dtype':'float32','device':'cpu','attention':'eager','threads':torch.get_num_threads(),'matmul_precision':torch.get_float32_matmul_precision(),'parameter_elements':sum(p.numel() for p in model.parameters()),'parameter_bytes':sum(p.numel()*p.element_size() for p in model.parameters())}\n    (log/(mode+'.loaded.json')).write_text(json.dumps(details,indent=2)+'\\n')\n    print('VERIFIED_MODEL',json.dumps(details),flush=True)\n    def check_forward(_model,args,kwargs):\n        assert kwargs.get('use_cache') is False\n        assert torch.is_inference_mode_enabled()\n    model.register_forward_pre_hook(check_forward,with_kwargs=True)\n    return result\nmodule.load_reference=checked_load\nprint('REFERENCE_START',mode,'PID',os.getpid(),flush=True)\nmodule.main()\nprint('REFERENCE_COMPLETE',mode,flush=True)\n",
+    "offline_policy": "HF_HOME=/work/cache, HF_HUB_CACHE=/work/cache/hub, HF_HUB_OFFLINE=1, TRANSFORMERS_OFFLINE=1; exact pinned revision; HF_ENABLE_PARALLEL_LOADING=0.",
+    "monitor_policy": "Host runner sampled memory every two seconds. Two consecutive samples with host MemAvailable below 2 GiB would terminate only the recorded owned child after verifying its command, with escalation after 30 seconds. Each mode also had an 1800-second timeout. No pressure termination occurred.",
+    "final_audit": {
+      "utc": "2026-09-19T21:15:31.304924+00:00",
+      "container_processes": "PID                 PPID                STAT                COMMAND\n378057              378031              Ss                  /sbin/docker-init -- sleep infinity\n378108              378057              S                   sleep infinity\n",
+      "source_and_harness_hashes": {
+        "generator/tools/gen_baseline.py": "d9f65628d1b753e313531aeee0e634a58743746409b3f6f0f6761e02fa54dc80",
+        "generator/tests/data/wiki.test.raw": "bbf94c53a05abe9ee670d3b6343608095822c85e26de37c70b24fc571964574a",
+        "generator/checked_reference.py": "3ca3d2f00b87d36945c91715342240cc696800a3ac5bb3bb81fa44eca77dedd7",
+        "generator/source-manifest.json": "cbb172aa507c593da9cf98693b37f9b9ebccf753a84c48736ab3128ff647fb17",
+        "scripts/run_reference.py": "433c5204a056297b96afb93f50bd71049460debcfa21f48d29cdabbe68167884",
+        "scripts/launch.sh": "17c1a35c7cc150ae216f762dc04613afa92a2c2d326d386f91528ce750c897e4",
+        "scripts/reference-preflight.sh": "35419c913c1df7c2aed78fa7e95b11c17a609bf9814b0ffd02ed6bddec8931bb",
+        "scripts/memory_detail.py": "07cb79f379628b82da260213ee8788d30fa4ffe3d96be2c3f920961fb9f4bf46",
+        "scripts/final_audit.py": "ecc0ee4878f20b70468be3c9b94042905d91c9d5d0de7805e09844bfff15d13d"
+      },
+      "mode_memory": {
+        "tokenizer": {
+          "sampled_minimum_host_available": 39396216832,
+          "sampled_maximum_cgroup_current": 333619200,
+          "cgroup_cumulative_peak": 367570944,
+          "final_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n"
+        },
+        "logits": {
+          "sampled_minimum_host_available": 8525778944,
+          "sampled_maximum_cgroup_current": 41456508928,
+          "cgroup_cumulative_peak": 41626902528,
+          "final_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n"
+        },
+        "perplexity": {
+          "sampled_minimum_host_available": 14675603456,
+          "sampled_maximum_cgroup_current": 42947842048,
+          "cgroup_cumulative_peak": 42949672960,
+          "final_events": "low 0\nhigh 0\nmax 3098\noom 0\noom_kill 0\noom_group_kill 0\n"
+        }
+      },
+      "output_hashes": {
+        "baseline_tokenizer.json": {
+          "bytes": 2500,
+          "sha256": "9f8cdedcd91e89e388ac6081c6e496ea7e2f95d2565664cc5117144e29b1fe2a"
+        },
+        "baseline_logits.json": {
+          "bytes": 3241,
+          "sha256": "e3eb726e06ff3bd9d5ecd69712c324a9842ccd58ec33fda4bb19dc4476f9680e"
+        },
+        "baseline_perplexity.json": {
+          "bytes": 4484,
+          "sha256": "c6e84d0d0661e07b285c7882ac0dd9d128dd45ad7215c2d83a345f3e84f71178"
+        }
+      },
+      "host_pressure_termination": false,
+      "disk": "Filesystem         1B-blocks          Used    Available Use% Mounted on\nzpool1         4003075194880 3773322756096 229752438784  95% /zpool1\n"
+    }
+  },
+  "memory_interpretation": {
+    "units": "Bytes unless explicitly labelled GiB; 1 GiB = 1073741824 bytes.",
+    "exact_fp32_parameter_bytes": 32762941440,
+    "initial_estimate_gib": {
+      "loading": [
+        35,
+        37.5
+      ],
+      "forward_and_scoring": [
+        32,
+        34
+      ]
+    },
+    "correction": "The initial planning estimate was not a bound on total cgroup accounting. Retained file-cache pages from multiple checkpoint shards increased total accounting beyond that estimate. The actual run reached the 40 GiB cap and triggered reclaim-related limit events, without OOM. Do not describe this run as having unused cgroup headroom or zero limit events.",
+    "measured_cgroup_peak": 42949672960,
+    "measured_memory_max_events": 3098,
+    "measured_oom_events": 0,
+    "measured_oom_kill_events": 0,
+    "sampled_minimum_host_available": 8525778944,
+    "host_available_after_run": 48581730304,
+    "sampling_limit": "Host minima and per-mode current maxima are two-second samples, not continuous extrema. memory.peak is the kernel cumulative cgroup peak and was not reset between modes.",
+    "post_run_cache": "The final memory-detail snapshot shows idle anon of 163840 bytes and file cache of 9117949952 bytes. The model processes had exited; cache accounting is not a retained FP32 model.",
+    "host_control": "No host cache drop, swap addition or host settings change. The owned container remained six CPUs, CPU-only, and 40 GiB memory with zero swap allowance.",
+    "loader_source_review": "Installed transformers 4.55.2 initializes meta parameters (modeling_utils.py:4376), loads safetensor shards serially by default (:5522-5532), casts individual tensors (:790-845), and assigns with assign=True (:740). low_cpu_mem_usage is discarded (:4654), so adding it would not reduce this loader footprint."
+  },
+  "goldens": {
+    "baseline_tokenizer.json": {
+      "original_file": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\qwen3-8b-b968-20260920\\baseline_tokenizer.json",
+        "rig_path": "/zpool1/llmx-hf-reference/goldens/qwen3-8b-b968-20260920/baseline_tokenizer.json",
+        "bytes": 2500,
+        "sha256": "9f8cdedcd91e89e388ac6081c6e496ea7e2f95d2565664cc5117144e29b1fe2a"
+      },
+      "contents": {
+        "_comment": "Generated by tools/gen_baseline.py. Do not hand-edit.",
+        "tokenizer_repo": "Qwen/Qwen3-8B",
+        "tokenizer_revision": "b968826d9c46dd6066d109eabc6255188de91218",
+        "gguf_repo": "Qwen/Qwen3-8B-GGUF",
+        "gguf_file": "Qwen3-8B-Q8_0.gguf",
+        "cases": [
+          {
+            "text": "hello world",
+            "ids": [
+              14990,
+              1879
+            ]
+          },
+          {
+            "text": "The capital of France is Paris.",
+            "ids": [
+              785,
+              6722,
+              315,
+              9625,
+              374,
+              12095,
+              13
+            ]
+          },
+          {
+            "text": "  hello",
+            "ids": [
+              220,
+              23811
+            ]
+          },
+          {
+            "text": "   spaced   out   ",
+            "ids": [
+              256,
+              63828,
+              256,
+              700,
+              262
+            ]
+          },
+          {
+            "text": "\ttabbed",
+            "ids": [
+              58149,
+              2721
+            ]
+          },
+          {
+            "text": "trailing   ",
+            "ids": [
+              376,
+              14277,
+              262
+            ]
+          },
+          {
+            "text": "a\n\nb",
+            "ids": [
+              64,
+              271,
+              65
+            ]
+          },
+          {
+            "text": "don't can't won't",
+            "ids": [
+              15007,
+              944,
+              646,
+              944,
+              2765,
+              944
+            ]
+          },
+          {
+            "text": "Hello, World! 123 456",
+            "ids": [
+              9707,
+              11,
+              4337,
+              0,
+              220,
+              16,
+              17,
+              18,
+              220,
+              19,
+              20,
+              21
+            ]
+          },
+          {
+            "text": "3.14159 and 1e-9",
+            "ids": [
+              18,
+              13,
+              16,
+              19,
+              16,
+              20,
+              24,
+              323,
+              220,
+              16,
+              68,
+              12,
+              24
+            ]
+          },
+          {
+            "text": "cafe naive jalapeno",
+            "ids": [
+              924,
+              1859,
+              49665,
+              75974,
+              391,
+              11790
+            ]
+          },
+          {
+            "text": "\u00e9\u00e8\u00ea \u65e5\u672c\u8a9e \u0440\u0443\u0441\u0441\u043a\u0438\u0439",
+            "ids": [
+              963,
+              4458,
+              5498,
+              75402,
+              21894,
+              102819,
+              18108,
+              43055,
+              126302
+            ]
+          },
+          {
+            "text": "\ud83d\ude00 emoji \ud83d\ude80",
+            "ids": [
+              141334,
+              42365,
+              11162,
+              248,
+              222
+            ]
+          },
+          {
+            "text": "def f(x):\n    if x > 0:\n        return x\n    return -x",
+            "ids": [
+              750,
+              282,
+              2075,
+              982,
+              262,
+              421,
+              856,
+              861,
+              220,
+              15,
+              510,
+              286,
+              470,
+              856,
+              198,
+              262,
+              470,
+              481,
+              87
+            ]
+          },
+          {
+            "text": "<|im_start|>user\nhi<|im_end|>",
+            "ids": [
+              151644,
+              872,
+              198,
+              6023,
+              151645
+            ]
+          },
+          {
+            "text": "MixedCASE_snake_case-kebab.dot",
+            "ids": [
+              86433,
+              40371,
+              28022,
+              726,
+              19096,
+              12,
+              440,
+              47722,
+              22790
+            ]
+          },
+          {
+            "text": "\u00ad",
+            "ids": [
+              5760
+            ]
+          },
+          {
+            "text": "co\u00adoperate",
+            "ids": [
+              1015,
+              5760,
+              85199
+            ]
+          },
+          {
+            "text": "\u4e2d\u6587",
+            "ids": [
+              104811
+            ]
+          },
+          {
+            "text": "\u036d",
+            "ids": [
+              137,
+              255
+            ]
+          }
+        ]
+      }
+    },
+    "baseline_logits.json": {
+      "original_file": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\qwen3-8b-b968-20260920\\baseline_logits.json",
+        "rig_path": "/zpool1/llmx-hf-reference/goldens/qwen3-8b-b968-20260920/baseline_logits.json",
+        "bytes": 3241,
+        "sha256": "e3eb726e06ff3bd9d5ecd69712c324a9842ccd58ec33fda4bb19dc4476f9680e"
+      },
+      "contents": {
+        "_comment": "Generated by tools/gen_baseline.py from the FULL-PRECISION reference. Quantized GGUF logits can differ; establish model-specific rank and numerical bounds independently.",
+        "reference_repo": "Qwen/Qwen3-8B",
+        "reference_revision": "b968826d9c46dd6066d109eabc6255188de91218",
+        "reference_dtype": "float32",
+        "attention": "eager",
+        "device": "cpu",
+        "threads": 6,
+        "torch_version": "2.5.1+cpu",
+        "transformers_version": "4.55.2",
+        "gguf_repo": "Qwen/Qwen3-8B-GGUF",
+        "gguf_file": "Qwen3-8B-Q8_0.gguf",
+        "topn": 10,
+        "cases": [
+          {
+            "text": "The capital of France is",
+            "token_ids": [
+              785,
+              6722,
+              315,
+              9625,
+              374
+            ],
+            "n_tokens": 5,
+            "top_ids": [
+              12095,
+              264,
+              304,
+              7407,
+              1304,
+              32671,
+              220,
+              279,
+              1112,
+              30743
+            ],
+            "top_logits": [
+              21.9998,
+              20.4731,
+              19.3925,
+              19.1668,
+              18.7979,
+              18.6729,
+              18.4396,
+              18.4049,
+              18.0956,
+              17.9313
+            ]
+          },
+          {
+            "text": "Machine learning is",
+            "token_ids": [
+              21605,
+              6832,
+              374
+            ],
+            "n_tokens": 3,
+            "top_ids": [
+              264,
+              279,
+              458,
+              13791,
+              1483,
+              1660,
+              45790,
+              10018,
+              10454,
+              14756
+            ],
+            "top_logits": [
+              25.2301,
+              23.3899,
+              22.6236,
+              22.2,
+              21.6758,
+              21.6524,
+              21.5228,
+              21.4829,
+              21.4109,
+              21.3148
+            ]
+          },
+          {
+            "text": "def add(a, b):",
+            "token_ids": [
+              750,
+              912,
+              2877,
+              11,
+              293,
+              1648
+            ],
+            "n_tokens": 6,
+            "top_ids": [
+              198,
+              671,
+              220,
+              715,
+              470,
+              2303,
+              201,
+              256,
+              2,
+              262
+            ],
+            "top_logits": [
+              33.1086,
+              28.9294,
+              28.2083,
+              28.139,
+              26.8581,
+              26.5399,
+              26.3565,
+              26.0423,
+              25.7578,
+              25.1025
+            ]
+          },
+          {
+            "text": "The three primary colors are red,",
+            "token_ids": [
+              785,
+              2326,
+              6028,
+              7987,
+              525,
+              2518,
+              11
+            ],
+            "n_tokens": 7,
+            "top_ids": [
+              13753,
+              6303,
+              6176,
+              320,
+              1304,
+              1154,
+              323,
+              481,
+              220,
+              18575
+            ],
+            "top_logits": [
+              27.5976,
+              26.8219,
+              25.5031,
+              21.1755,
+              21.0207,
+              20.7501,
+              19.2695,
+              19.2209,
+              19.059,
+              18.9015
+            ]
+          },
+          {
+            "text": "In 1969, humans first walked on the",
+            "token_ids": [
+              641,
+              220,
+              16,
+              24,
+              21,
+              24,
+              11,
+              12677,
+              1156,
+              14858,
+              389,
+              279
+            ],
+            "n_tokens": 12,
+            "top_ids": [
+              17330,
+              17788,
+              7329,
+              56711,
+              9237,
+              17171,
+              1304,
+              80160,
+              32671,
+              76019
+            ],
+            "top_logits": [
+              26.5167,
+              25.9961,
+              23.894,
+              21.2312,
+              18.8408,
+              17.4458,
+              17.0745,
+              16.9312,
+              16.7054,
+              16.2694
+            ]
+          },
+          {
+            "text": "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+            "token_ids": [
+              785,
+              6722,
+              315,
+              9625,
+              374,
+              12095,
+              13,
+              576,
+              6722,
+              315,
+              15344,
+              374,
+              21718,
+              13,
+              576,
+              6722,
+              315
+            ],
+            "n_tokens": 17,
+            "top_ids": [
+              17689,
+              9856,
+              279,
+              9448,
+              32961,
+              15948,
+              33311,
+              6323,
+              5616,
+              24427
+            ],
+            "top_logits": [
+              24.3644,
+              24.2896,
+              20.9353,
+              20.5139,
+              20.4678,
+              20.0587,
+              20.0331,
+              19.9504,
+              19.9255,
+              19.643
+            ]
+          }
+        ]
+      }
+    },
+    "baseline_perplexity.json": {
+      "original_file": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\qwen3-8b-b968-20260920\\baseline_perplexity.json",
+        "rig_path": "/zpool1/llmx-hf-reference/goldens/qwen3-8b-b968-20260920/baseline_perplexity.json",
+        "bytes": 4484,
+        "sha256": "c6e84d0d0661e07b285c7882ac0dd9d128dd45ad7215c2d83a345f3e84f71178"
+      },
+      "contents": {
+        "_comment": "Generated by tools/gen_baseline.py perplexity. Do not hand-edit.",
+        "reference_repo": "Qwen/Qwen3-8B",
+        "reference_revision": "b968826d9c46dd6066d109eabc6255188de91218",
+        "reference_dtype": "float32",
+        "attention": "eager",
+        "device": "cpu",
+        "threads": 6,
+        "torch_version": "2.5.1+cpu",
+        "transformers_version": "4.55.2",
+        "source": "wiki.test.raw, first 1024 Unicode characters after CRLF/CR normalization to LF",
+        "scoring": "One continuous sequence, no BOS/EOS added; score tokens 1..N-1 from preceding tokens; float64 log-softmax/reduction of fp32 logits.",
+        "text": " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television",
+        "text_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+        "token_ids": [
+          284,
+          8397,
+          425,
+          10965,
+          465,
+          284,
+          715,
+          8397,
+          425,
+          10965,
+          465,
+          374,
+          458,
+          6364,
+          4531,
+          1154,
+          12425,
+          323,
+          33496,
+          12089,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          569,
+          12,
+          31,
+          39400,
+          3476,
+          389,
+          279,
+          12425,
+          4013,
+          576,
+          8596,
+          304,
+          220,
+          17,
+          15,
+          15,
+          15,
+          659,
+          1096,
+          572,
+          8110,
+          553,
+          264,
+          39400,
+          3476,
+          304,
+          279,
+          1486,
+          6252,
+          2382,
+          5326,
+          553,
+          21315,
+          75923,
+          1154,
+          892,
+          572,
+          10660,
+          304,
+          220,
+          17,
+          15,
+          15,
+          16,
+          518,
+          279,
+          16194,
+          7154,
+          26221,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          3476,
+          304,
+          279,
+          12425,
+          4013,
+          20207,
+          3757,
+          1581,
+          291,
+          304,
+          220,
+          17,
+          15,
+          15,
+          17,
+          659,
+          758,
+          220,
+          17,
+          15,
+          15,
+          19,
+          425,
+          10965,
+          465,
+          26120,
+          264,
+          3476,
+          438,
+          330,
+          28417,
+          330,
+          304,
+          279,
+          9234,
+          330,
+          70066,
+          364,
+          82,
+          15106,
+          330,
+          315,
+          279,
+          12425,
+          4013,
+          576,
+          5724,
+          37625,
+          2587,
+          566,
+          58235,
+          16263,
+          19571,
+          4389,
+          26099,
+          323,
+          42323,
+          15035,
+          18337,
+          659,
+          1260,
+          572,
+          6311,
+          304,
+          279,
+          220,
+          17,
+          15,
+          15,
+          20,
+          33496,
+          53148,
+          315,
+          279,
+          25179,
+          92301,
+          1486,
+          43562,
+          49840,
+          1154,
+          892,
+          572,
+          10660,
+          518,
+          279,
+          45406,
+          26221,
+          304,
+          70998,
+          323,
+          279,
+          11012,
+          1268,
+          38420,
+          16937,
+          304,
+          7148,
+          659,
+          1260,
+          572,
+          15540,
+          553,
+          3757,
+          67473,
+          323,
+          58235,
+          16263,
+          7355,
+          1232,
+          812,
+          672,
+          1154,
+          49975,
+          1863,
+          12707,
+          1154,
+          13928,
+          17734,
+          1154,
+          55130,
+          23905,
+          416,
+          1154,
+          59310,
+          80664,
+          323,
+          67034,
+          10926,
+          659,
+          715,
+          758,
+          220,
+          17,
+          15,
+          15,
+          21,
+          1154,
+          425,
+          10965,
+          465,
+          58235,
+          16263,
+          1232,
+          812,
+          672,
+          304,
+          279,
+          1486,
+          93736,
+          5326,
+          553,
+          4389,
+          45107,
+          27507,
+          659,
+          1260,
+          9723,
+          389,
+          264,
+          220,
+          17,
+          15,
+          15,
+          21,
+          9234,
+          315,
+          279,
+          12425
+        ],
+        "n_tokens": 247,
+        "n_scored": 246,
+        "mean_nll": 2.4016544126818724,
+        "perplexity": 11.041428357428089,
+        "chunk_scoring": "Tokenize once; disjoint windows with reset positions/KV; score tokens 1..L-1 per window; include partial windows of >=2 tokens; omit singleton tail; aggregate total NLL / total targets.",
+        "chunk_cases": [
+          {
+            "context_size": 64,
+            "max_chunks": 0,
+            "used_tokens": 247,
+            "n_scored": 243,
+            "chunks": 4,
+            "mean_nll": 3.0904173533589634,
+            "perplexity": 21.986252097368876
+          },
+          {
+            "context_size": 64,
+            "max_chunks": 2,
+            "used_tokens": 128,
+            "n_scored": 126,
+            "chunks": 2,
+            "mean_nll": 2.829422961792663,
+            "perplexity": 16.935685466853005
+          },
+          {
+            "context_size": 123,
+            "max_chunks": 0,
+            "used_tokens": 246,
+            "n_scored": 244,
+            "chunks": 2,
+            "mean_nll": 2.6701153554742474,
+            "perplexity": 14.441635018376438
+          }
+        ]
+      }
+    }
+  },
+  "raw_evidence": {
+    "logs": {
+      "run-summary.json": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\run-summary.json",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/run-summary.json",
+        "bytes": 8012,
+        "sha256": "a548ceab4793f3c6b9426f020a757b6b7209508fb5f0d8a681fdb2e841bb97cf"
+      },
+      "final-audit.json": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\final-audit.json",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/final-audit.json",
+        "bytes": 2734,
+        "sha256": "841aaa76460f54705e1eb689adbd0cd206671348990770aa4f1bf0794d246bcb"
+      },
+      "memory.jsonl": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\memory.jsonl",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/memory.jsonl",
+        "bytes": 25222,
+        "sha256": "721e2ce16f54bfce6b7454e378ae9777bcca7f84d44d4faac515cecf5509dd39"
+      },
+      "memory-detail.jsonl": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\memory-detail.jsonl",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/memory-detail.jsonl",
+        "bytes": 9676,
+        "sha256": "61ab3ab5b43b6acf7417855a228e600805ecdf2dae3f1fc58bc68fab7905666e"
+      },
+      "tokenizer.log": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\tokenizer.log",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/tokenizer.log",
+        "bytes": 140,
+        "sha256": "66a147c19e45a652f2dc4e92d6a478c192a4ef89269e389e6dae47c541a509e7"
+      },
+      "logits.log": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\logits.log",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/logits.log",
+        "bytes": 771,
+        "sha256": "c4263912971256e19a626b28e1cd70ca437d74ba3f7bf709be8d33869d8460b0"
+      },
+      "perplexity.log": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\perplexity.log",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/perplexity.log",
+        "bytes": 406,
+        "sha256": "d72b4d1098a9f3d4c60516a0e91a7be9697030e6bd3dec50bc607dcf8f0cfa29"
+      },
+      "tokenizer.exit": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\tokenizer.exit",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/tokenizer.exit",
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "logits.exit": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\logits.exit",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/logits.exit",
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "perplexity.exit": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\perplexity.exit",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/perplexity.exit",
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "run.exit": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-run\\reference-20260920\\run.exit",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/reference-20260920/run.exit",
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      }
+    },
+    "preparation_logs": {
+      "preparation-summary.json": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-metadata\\preparation-summary.json",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/preparation-summary.json",
+        "bytes": 9165,
+        "sha256": "f1e7d23c0254bccd80ac82a7be3bf7afd20641551ca0944345a84ef8d9c7ab6a"
+      },
+      "preparation.log": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-metadata\\preparation.log",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/preparation.log",
+        "bytes": 9508,
+        "sha256": "0c47f64a681874a685ce6565d18f1e8ab69299acf5123e21ae3bd4c5a3407005"
+      },
+      "preparation.exit": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-metadata\\preparation.exit",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/preparation.exit",
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "environment.json": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-metadata\\environment.json",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/environment.json",
+        "bytes": 324,
+        "sha256": "26f7d592a920a1473108de389550dec09895b4fa7f85394d3568f34bc94bc42e"
+      },
+      "pip-freeze.txt": {
+        "local_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-metadata\\pip-freeze.txt",
+        "rig_path": "/zpool1/llmx-hf-reference/logs/pip-freeze.txt",
+        "bytes": 442,
+        "sha256": "232f46cc66772bddf1dd16e826f5fcd1001eb7f5aaf71ae4ef25c15f21782d5b"
+      }
+    },
+    "metadata_local_root": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-8b-hf-metadata",
+    "metadata_rig_root": "/zpool1/llmx-hf-reference/metadata",
+    "hash_note": "Golden SHA256 values identify original UTF-8 JSON file bytes. Embedded contents are JSON-equivalent, escaped to ASCII for this repository artifact; reserializing the embedded values need not reproduce original byte hashes."
+  }
+}

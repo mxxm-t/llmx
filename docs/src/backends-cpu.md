@@ -26,7 +26,10 @@ the compiled binary portable to older CPUs.
   independent accumulators; with one, every FMA depends on the previous and the
   loop runs at FMA latency rather than throughput.
 - `dot_f32_x4x3` reuses four weight rows across three activation columns in
-  batched prefill; remaining columns/rows use the smaller kernels.
+  batched prefill; remaining columns/rows use the smaller kernels. Explicit
+  ordered lane reductions avoid making all 12 accumulators addressable after
+  the FMA loop. Per-lane accumulation, final addition order and tails remain
+  unchanged; the larger epilogue trades code size for less stack traffic.
 - F32 matrices use those same float dot kernels directly on resident host
   weights, without a dequantization buffer or row copy. Quantized inputs retain
   the existing row staging and fused decode paths.

@@ -275,18 +275,33 @@ public:
             w = _mm256_loadu_ps(r3 + i);
             a3 = _mm256_fmadd_ps(w, xv, a3); b3 = _mm256_fmadd_ps(w, yv, b3); c3 = _mm256_fmadd_ps(w, zv, c3);
         }
-        alignas(32) float t[8];
-        const __m256* accs[12] = { &a0, &a1, &a2, &a3, &b0, &b1, &b2, &b3, &c0, &c1, &c2, &c3 };
-        const float* xs[3] = { xa, xb, xc };
-        float* outs[3] = { outa, outb, outc };
-        for (int k = 0; k < 12; k++) {
-            _mm256_store_ps(t, *accs[k]);
-            float v = t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + t[6] + t[7];
-            const size_t row = (size_t)(k & 3);
-            const int col = k / 4;
-            for (size_t j = i; j < n; j++) v += r[row * stride + j] * xs[col][j];
-            outs[col][row] = v;
-        }
+        // Keep lane order without making every accumulator addressable on the stack.
+        const auto finish = [&](const __m256 acc, const float* row, const float* x) {
+            const __m128 lo = _mm256_castps256_ps128(acc);
+            const __m128 hi = _mm256_extractf128_ps(acc, 1);
+            float v = _mm_cvtss_f32(lo);
+            v += _mm_cvtss_f32(_mm_shuffle_ps(lo, lo, _MM_SHUFFLE(1, 1, 1, 1)));
+            v += _mm_cvtss_f32(_mm_shuffle_ps(lo, lo, _MM_SHUFFLE(2, 2, 2, 2)));
+            v += _mm_cvtss_f32(_mm_shuffle_ps(lo, lo, _MM_SHUFFLE(3, 3, 3, 3)));
+            v += _mm_cvtss_f32(hi);
+            v += _mm_cvtss_f32(_mm_shuffle_ps(hi, hi, _MM_SHUFFLE(1, 1, 1, 1)));
+            v += _mm_cvtss_f32(_mm_shuffle_ps(hi, hi, _MM_SHUFFLE(2, 2, 2, 2)));
+            v += _mm_cvtss_f32(_mm_shuffle_ps(hi, hi, _MM_SHUFFLE(3, 3, 3, 3)));
+            for (size_t j = i; j < n; ++j) v += row[j] * x[j];
+            return v;
+        };
+        outa[0] = finish(a0, r0, xa);
+        outa[1] = finish(a1, r1, xa);
+        outa[2] = finish(a2, r2, xa);
+        outa[3] = finish(a3, r3, xa);
+        outb[0] = finish(b0, r0, xb);
+        outb[1] = finish(b1, r1, xb);
+        outb[2] = finish(b2, r2, xb);
+        outb[3] = finish(b3, r3, xb);
+        outc[0] = finish(c0, r0, xc);
+        outc[1] = finish(c1, r1, xc);
+        outc[2] = finish(c2, r2, xc);
+        outc[3] = finish(c3, r3, xc);
     }
 
     // Four rows against TWO activation columns in one pass.

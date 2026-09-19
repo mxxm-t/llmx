@@ -8,6 +8,38 @@ static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 
+static size_t check_prefill_reduction() {
+    size_t count = 0;
+    for (size_t n : std::array<size_t, 19>{0,1,2,7,8,9,15,16,17,31,32,33,127,128,129,1023,1024,1025,2048}) {
+        for (size_t offset = 0; offset < 8; ++offset) {
+            const size_t stride = n + 13;
+            std::vector<float> rows(4 * stride + 8), inputs(3 * stride + 8);
+            for (size_t i = 0; i < rows.size(); ++i)
+                rows[i] = float(int((i * 1471 + 7) % 65521) - 32760) / 317.0f;
+            for (size_t i = 0; i < inputs.size(); ++i)
+                inputs[i] = float(int((i * 769 + 23) % 32749) - 16374) / 523.0f;
+            const float* r = rows.data() + offset;
+            const float* x = inputs.data() + offset;
+            float actual[12];
+            backend::CpuBackend::dot_f32_x4x3(r, stride, x, x + stride, x + 2 * stride, n, actual, actual + 4, actual + 8);
+            for (size_t c = 0; c < 3; ++c) for (size_t k = 0; k < 4; ++k) {
+                float lanes[8] = {};
+                size_t j = 0;
+                for (; j + 8 <= n; j += 8)
+                    for (size_t lane = 0; lane < 8; ++lane)
+                        lanes[lane] = std::fma(r[k * stride + j + lane], x[c * stride + j + lane], lanes[lane]);
+                float v = lanes[0];
+                for (size_t lane = 1; lane < 8; ++lane) v += lanes[lane];
+                for (; j < n; ++j) v += r[k * stride + j] * x[c * stride + j];
+                require(std::memcmp(&v, &actual[c * 4 + k], sizeof(float)) == 0,
+                        "prefill reduction differs from ordered scalar FMA oracle");
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+
 static size_t check_q8_scales(backend::CpuBackend& cpu) {
     size_t count = 0;
     std::array<uint8_t, 34> row{};
@@ -126,6 +158,7 @@ int main() {
         backend::CpuBackend cpu;
         cpu.set_threads(1);
         const size_t scales = check_q8_scales(cpu);
+        const size_t reductions = check_prefill_reduction();
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
@@ -154,7 +187,8 @@ int main() {
         require(rejected, "invalid quant type was not rejected on caller");
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
-                  << scales << " exact finite Q8 scale/weight cases\n";
+                  << scales << " exact finite Q8 scale/weight cases; "
+                  << reductions << " ordered prefill reductions\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

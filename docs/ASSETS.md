@@ -1771,3 +1771,46 @@ Raw timing samples from both sessions, summaries, commands, harness sources,
 assembly evidence, numerical results, logs and hashes are archived in
 [`benchmarks/prefill-ordered-reduction-20260920.json`](benchmarks/prefill-ordered-reduction-20260920.json).
 No API, model format, worker behavior or default CI fixture changes.
+
+## Current Q8 external floor follow-up (2026-09-20)
+
+A fresh comparison measures the unchanged validated `bf122fd` runtime against
+mx-llama.cpp `5542318e748c154b634211def405ae95da3dfaa9` on the same Windows CPU.
+Each Qwen3 Q8_0 model has nine measured alternating pairs after one discarded
+warmup pair. All 40 processes completed successfully. Both arms use six workers,
+ubatch 128, F32 KV, 215 prompt tokens and 32 forced continuation tokens. Model
+loading is excluded; each process also warms up. No builds, tests, transfers
+or other inference overlap the timing. These samples are not pooled with any
+historical session.
+
+| Model / phase | Current mean tok/s | mx mean tok/s | Current median tok/s | mx median tok/s | Mean vs mx | Paired wins |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.6B prefill | 440.479 | 274.766 | 448.159 | 277.473 | +60.31% | 9/9 |
+| 0.6B decode | 47.280 | 47.589 | 47.362 | 48.315 | -0.65% | 3/9 |
+| 8B prefill | 30.170 | 22.124 | 30.481 | 21.994 | +36.37% | 9/9 |
+| 8B decode | 4.403 | 4.440 | 4.465 | 4.501 | -0.82% | 2/9 |
+
+Decode means and medians remain below mx for both models; the median deficits
+are 1.97% for 0.6B and 0.80% for 8B. The external performance gate remains open.
+The smaller gaps do not establish parity or justify selecting favorable rounds.
+Full-vector warmup/final hashes are stable within each model/arm across rounds;
+this supports repeatability, not independent HF correctness or cross-arm equality.
+The separate HF results above retain their stated scope. Raw samples, ranges,
+paired ratios, commands, source/binary identity and process exits are archived in
+[`benchmarks/q8-current-floor-20260920.json`](benchmarks/q8-current-floor-20260920.json).
+
+The separate grouped Q16 scratch candidate has preliminary synthetic validation:
+MSVC and GCC ordinary/witness builds each pass 611,192 scalar/control output
+comparisons, with shared-pack, separate-pack, failure and reuse witness checks.
+The refined oracle checks dispatch without pre-seeding packing state and sweeps
+all 63,488 finite half patterns with signed weight extremes and unaligned input.
+Grouped and standalone stale-packing mutants compile and fail the expected
+unseeded numerical comparisons.
+Windows real-model activation witnesses also pass on both 0.6B and 8B: a
+16-token prefill uses one standalone final-vocabulary pack, while decode,
+one-token prefill and a 129-token prefill at ubatch 128 exercise both grouped
+and standalone paths. All tested phases produce finite logits with zero float
+fallback rows. These checks do not establish HF numerical cost, losslessness
+or performance, and no Q16 code is adopted.
+Evidence is tracked in
+[`benchmarks/q16-group-validation-20260920.json`](benchmarks/q16-group-validation-20260920.json).

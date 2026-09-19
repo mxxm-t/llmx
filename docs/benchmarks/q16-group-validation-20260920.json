@@ -1,0 +1,530 @@
+{
+  "date": "2026-09-20",
+  "status": "preliminary synthetic and activation checks pass; model numerical cost/performance not evaluated; candidate not adopted",
+  "runtime_base": "bf122fd00440366a704b81c36d4d7c8884384e2b",
+  "candidate_cpu_sha256": "2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234",
+  "candidate_source_artifact": "q16-group-preparation-20260920.json",
+  "refinement_source_artifact": "q8-current-floor-20260920.json",
+  "windows": {
+    "compiler_file_version": "19.50.35728.0",
+    "compiler_product_version": "14.50.35728.0",
+    "build": {
+      "command": [
+        "cmd.exe",
+        "/d",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\build-validation.bat"
+      ],
+      "returncode": 0,
+      "completed_utc": "2026-09-19T22:32:18.383378+00:00",
+      "initial_shell_attempt": "PowerShell outer command reported exit1 with a vcvars vswhere stderr warning; all three exe files were produced. Original log retained. Re-executed via direct subprocess capture to get unambiguous native exit status.",
+      "artifacts": {
+        "model-witness.exe": {
+          "sha256": "1b1a8c9cc405239d07a89825a4f4fb189a75ac43a780f99410d2007759223a92",
+          "bytes": 450560
+        },
+        "q16-oracle.exe": {
+          "sha256": "f3591e4aa8592ae3ec7bb51c654303a1eb3271106585b9bade140084f0e779be",
+          "bytes": 375296
+        },
+        "q16-witness.exe": {
+          "sha256": "972d7eedb60925a5c64dac1a6da88d8e996e855015f2575be0f64df435b0a434",
+          "bytes": 379904
+        }
+      }
+    },
+    "synthetic": {
+      "status": "pass",
+      "commands": [
+        {
+          "command": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\q16-oracle.exe"
+          ],
+          "returncode": 0,
+          "completed": "2026-09-19T22:32:32.274464+00:00"
+        },
+        {
+          "command": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\q16-witness.exe"
+          ],
+          "returncode": 0,
+          "completed": "2026-09-19T22:32:32.418012+00:00"
+        }
+      ]
+    },
+    "model_witness": {
+      "status": "pass",
+      "scope": "Activation witness only, not HF correctness or performance. Model hashes verified by preceding timing preparation; same paths and sizes; no intervening model writes.",
+      "commands": [
+        {
+          "name": "0.6b",
+          "command": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\model-witness.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\tokens-247.txt"
+          ],
+          "started": "2026-09-19T22:33:56.846728+00:00",
+          "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+          "model_mtime_ns": 1789767817508114600,
+          "returncode": 0,
+          "completed": "2026-09-19T22:33:57.881830+00:00"
+        },
+        {
+          "name": "8b",
+          "command": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\model-witness.exe",
+            "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\tokens-247.txt"
+          ],
+          "started": "2026-09-19T22:33:58.039971+00:00",
+          "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+          "model_mtime_ns": 1774949069817008600,
+          "returncode": 0,
+          "completed": "2026-09-19T22:34:11.567927+00:00"
+        }
+      ]
+    },
+    "prelaunch_error": {
+      "status": "prelaunch-failed",
+      "scope": "Activation witness only, not HF correctness or performance. Models hash-verified immediately before completed timing; paths/sizes/mtime also recorded here.",
+      "commands": [],
+      "error": "PowerShell Get-Process llmx returned exit1 for no matching process; no model invocation began. Changed preflight to enumerate processes and filter names. Fresh attempt uses windows-model-witness-run."
+    }
+  },
+  "linux": {
+    "status": "pass",
+    "scope": "GCC ordinary and Q16_WITNESS synthetic oracle only; no model or timing",
+    "root": "/root/.cache/llmx-q16-group-validation-20260920",
+    "source_root": "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-q16-group-study",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "commands": [
+      {
+        "label": "compiler-version",
+        "command": [
+          "g++",
+          "--version"
+        ],
+        "cwd": "/root/.cache/llmx-q16-group-validation-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:32:32Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:32:32Z"
+      },
+      {
+        "label": "build-oracle",
+        "command": [
+          "g++",
+          "-std=c++17",
+          "-O2",
+          "-Wall",
+          "-Wextra",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-pthread",
+          "-I",
+          "candidate/src",
+          "validation/q16_oracle.cpp",
+          "-o",
+          "validation/bin/q16-oracle"
+        ],
+        "cwd": "/root/.cache/llmx-q16-group-validation-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:32:32Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:32:35Z"
+      },
+      {
+        "label": "run-oracle",
+        "command": [
+          "./validation/bin/q16-oracle"
+        ],
+        "cwd": "/root/.cache/llmx-q16-group-validation-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:32:35Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:32:36Z"
+      },
+      {
+        "label": "build-witness",
+        "command": [
+          "g++",
+          "-std=c++17",
+          "-O2",
+          "-Wall",
+          "-Wextra",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-pthread",
+          "-DQ16_WITNESS",
+          "-I",
+          "witness/src",
+          "validation/q16_oracle.cpp",
+          "-o",
+          "validation/bin/q16-witness"
+        ],
+        "cwd": "/root/.cache/llmx-q16-group-validation-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:32:36Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:32:38Z"
+      },
+      {
+        "label": "run-witness",
+        "command": [
+          "./validation/bin/q16-witness"
+        ],
+        "cwd": "/root/.cache/llmx-q16-group-validation-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:32:38Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:32:39Z"
+      }
+    ],
+    "manifest_verified_entries": 31,
+    "refinement_report_sha256": "17f15725833fe920367caf80cd656c2282a3096b0baeb735b60834e0931613c5",
+    "source_hashes": {
+      "candidate-manifest.json": "361f690c3c48bd4e0dbec42f9bf8d4e20698ef6afc537be3bd375dcd769e9d32",
+      "control-manifest.json": "286743ae23a13a4ea3635e15305edcb21af3891f3ae98afe02ef9a4f355a41a7",
+      "NOTES.md": "3127ee84b68b3623353c00c79b70b0609724d78d0e1e5367ca2006250bdd881c",
+      "validation-manifest.json": "e9a9f3d78322ed5e0efd4364cdd8c16bc527a38c23292d5a15b431009d0e0340",
+      "review-refinement-20260920/q16_oracle.cpp.before": "ef3caad3d1db72c453cd69b0bd997aaff41fad2634562a213bd650101f9ecc75",
+      "review-refinement-20260920/NOTES.md.before": "259ed0a4c8a8529007e10563a151635169c11b59b4f033dede9a2422726a2736",
+      "review-refinement-20260920/validation-manifest.json.before": "a71f7d89ffeb2ef9dc9414547b9340b0ef29ce84deed60508c4a7c009872e861",
+      "review-refinement-20260920/changes.patch": "1225b1ea813977bcbc5d6aee16f58aa5e62c526e9419942f5ba1c72bdeef7b91",
+      "validation/model_witness.cpp": "ff3856cf652fc1ee09436032b1a224322aecc5e170060759553acdf24b245e46",
+      "validation/control_backend.hpp": "447f6c07ba46becdd9fedf7ba9bd92716c924830cdf4e803871cf7c7b7698ad2",
+      "validation/witness.patch": "26b5c528b9b3806d59fddb93b6b1133d905cec976ea56c4a45926e25eebeb201",
+      "validation/COMMANDS.md": "c01ed413f4cf845dcb6dd11f8107b8e9abf848613339210d30d9e04e27b8a6bc",
+      "validation/candidate_access.hpp": "00dc811bb8757d31f3d1fc4c5c549be5260aa7f1c38875246402574f95bb51b2",
+      "validation/witness_access.hpp": "674f99e8807e5ad7c4b6cb83485571ca0af5a1685fb029464e1a87c2b4f30541",
+      "validation/tokens-247.txt": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+      "validation/q16_oracle.cpp": "d318d4e55a9ffa7399a2652146759f6128b7b64f9c8ce3993326ffb2e01feacb",
+      "witness/src/config.hpp": "a9c8a421b6d10b3289ff9b0314415a2120c3b71e91fd6243ea437a3791f89c1c",
+      "witness/src/quant/quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+      "witness/src/quant/k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+      "witness/src/backends/backend.hpp": "7c41adeacd8314cf2cb1aca8f100a738375ff1b29fe3a96b4b9315df513fd0e6",
+      "witness/src/model/arch_qwen.hpp": "83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1",
+      "witness/src/model/host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+      "witness/src/core/fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+      "witness/src/core/json.hpp": "cc722edcd5e1369edaa903c8597fddbd6ff2b2e97e59705d8f1fde83cc95dd76",
+      "witness/src/inference/generate.hpp": "bc09e574d0e9c5db561c4c589595ad1330674f9e66c582c59b86a696b2eb6f15",
+      "witness/src/inference/chat.hpp": "0cc035ae26396ee36489724940517b6905e55b7b1e29c6ea6fc2e4f13fb63cc2",
+      "witness/src/inference/sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+      "witness/src/inference/perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+      "witness/src/tokenizer/tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+      "witness/src/format/format.hpp": "35810614c9500734202ccf588551f9934cecd8c5a0c0f04cb71709ceeef279c1",
+      "witness/src/format/gguf.hpp": "eec138f1768f42c921ed7baecd6d3294562c63a581b6c3b1536673c7c3e4710d",
+      "witness/src/cli/main.cpp": "2aafe96c4b243e73847a9c98878c5b0577a7176a816b63d879e5ee270a04e35e",
+      "witness/src/backends/cpu/cpu_backend.hpp": "8bf09747da2aa020c2a2da67859f2797cec5d1ade0988c988400a4c57550c92e",
+      "candidate/src/config.hpp": "a9c8a421b6d10b3289ff9b0314415a2120c3b71e91fd6243ea437a3791f89c1c",
+      "candidate/src/quant/quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+      "candidate/src/quant/k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+      "candidate/src/backends/backend.hpp": "7c41adeacd8314cf2cb1aca8f100a738375ff1b29fe3a96b4b9315df513fd0e6",
+      "candidate/src/model/arch_qwen.hpp": "83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1",
+      "candidate/src/model/host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+      "candidate/src/core/fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+      "candidate/src/core/json.hpp": "cc722edcd5e1369edaa903c8597fddbd6ff2b2e97e59705d8f1fde83cc95dd76",
+      "candidate/src/inference/generate.hpp": "bc09e574d0e9c5db561c4c589595ad1330674f9e66c582c59b86a696b2eb6f15",
+      "candidate/src/inference/chat.hpp": "0cc035ae26396ee36489724940517b6905e55b7b1e29c6ea6fc2e4f13fb63cc2",
+      "candidate/src/inference/sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+      "candidate/src/inference/perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+      "candidate/src/tokenizer/tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+      "candidate/src/format/format.hpp": "35810614c9500734202ccf588551f9934cecd8c5a0c0f04cb71709ceeef279c1",
+      "candidate/src/format/gguf.hpp": "eec138f1768f42c921ed7baecd6d3294562c63a581b6c3b1536673c7c3e4710d",
+      "candidate/src/cli/main.cpp": "2aafe96c4b243e73847a9c98878c5b0577a7176a816b63d879e5ee270a04e35e",
+      "candidate/src/backends/cpu/cpu_backend.hpp": "2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234"
+    },
+    "compiler": {
+      "path": "/usr/bin/x86_64-linux-gnu-g++-13",
+      "sha256": "1353e9bdd29a7295c7226bf6c63abccce056d8cac31f112e5cdbecc3f28c2769"
+    },
+    "binary_hashes": {
+      "validation/bin/q16-oracle": "041cff49e90bf1bb9b3c2d60a0648e5257ab2403511867dca0e1ccea6e642c06",
+      "validation/bin/q16-witness": "c6b334c7daa57b06eb47b95d2d9fb688db53d910f105b34ed677413b02b882af"
+    }
+  },
+  "mutation": {
+    "status": "pass",
+    "scope": "Two isolated MSVC synthetic numerical mutation checks; no model reads or performance tests.",
+    "initial_attempt": {
+      "report": "report.json",
+      "sha256": "34f7de4aa6e9c6197eab6ff5667f5c1e80e5c5547c0e24ba120b531e3a39e951",
+      "result": "Bare build.bat name was not resolved by cmd; compiler did not run. Original sources, logs and commands retained."
+    },
+    "completed_attempt": {
+      "report": "retry/report.json",
+      "sha256": "9ab5e90ce4e366b606acbaa2a2126c204ca40e2a3b5aa3348bb0349653175380",
+      "result": "Both compile exits 0; each executable exits 1 at the expected unseeded scalar/control output mismatch."
+    },
+    "mutants": {
+      "grouped": {
+        "compile_exit": 0,
+        "run_exit": 1,
+        "diagnostic": "unseeded grouped=1 stage=1 row=0\r\nunseeded reuse oracle/control mismatch\r\n",
+        "binary_sha256": "8d869900f88ebd14918c8b494f49e68fa3f5ee65eeb00834fcff3d56ec0fe24e"
+      },
+      "standalone": {
+        "compile_exit": 0,
+        "run_exit": 1,
+        "diagnostic": "unseeded grouped=0 stage=0 row=0\r\nunseeded reuse oracle/control mismatch\r\n",
+        "binary_sha256": "b03beefa639b4ac76ea19649cc5e2187d79ac7ad96fd5e9fadcbe7399d784d4f"
+      }
+    },
+    "protected_unchanged": true,
+    "candidate_cpu_sha256": "2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234",
+    "validation_manifest_sha256": "e9a9f3d78322ed5e0efd4364cdd8c16bc527a38c23292d5a15b431009d0e0340",
+    "limits": [
+      "Two deliberate dispatch mutations; not exhaustive fault coverage.",
+      "No allocation-failure injection, model inference, HF gate or performance claim.",
+      "The original ordinary and witness oracle passes are parent evidence, not rerun here."
+    ]
+  },
+  "raw": {
+    "build-validation.bat": {
+      "sha256": "5a0265e153a8adedcb5ddad6a5b74e874bd134f29fb2574817378620cbb2c6c7",
+      "bytes": 1410,
+      "text": "@echo off\r\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\r\nif errorlevel 1 exit /b 1\r\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2  /I\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\candidate\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\q16-oracle.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\q16-oracle.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\q16_oracle.cpp\"\r\nif errorlevel 1 exit /b 1\r\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /DQ16_WITNESS /I\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\witness\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\q16-witness.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\q16-witness.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\q16_oracle.cpp\"\r\nif errorlevel 1 exit /b 1\r\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2  /I\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\witness\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\model-witness.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\bin\\model-witness.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\model_witness.cpp\"\r\nif errorlevel 1 exit /b 1\r\nexit /b 0\r\n"
+    },
+    "windows-build.log": {
+      "sha256": "28963eada2050ec1cc83669c4b8107405a8b45a3bc37d2a1d615f7ff425d4d82",
+      "bytes": 4368,
+      "text": "cmd : 'vswhere.exe' is not recognized as an internal or external command,\r\nAt line:19 char:1\r\n+ cmd /c \"$env:TEMP/llmx-q16-group-study/build-validation.bat\" > \"$env: ...\r\n+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: ('vswhere.exe' i...ternal command,:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\noperable program or batch file.\r\nq16_oracle.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data\r\n        with\r\n        [\r\n            _Ty=int\r\n        ]\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): note: the template instantiation context (the oldest one first) is\r\nC:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\q16_oracle.cpp(149): note: see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled\r\n        with\r\n        [\r\n            _Ty=float,\r\n            _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>\r\n        ]\r\nq16_oracle.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data\r\n        with\r\n        [\r\n            _Ty=int\r\n        ]\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): note: the template instantiation context (the oldest one first) is\r\nC:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\q16_oracle.cpp(149): note: see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled\r\n        with\r\n        [\r\n            _Ty=float,\r\n            _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>\r\n        ]\r\nmodel_witness.cpp\r\n"
+    },
+    "windows-build-captured.stdout": {
+      "sha256": "96f457e05215444a4e857df5920c6ec4ce2a309a3f94709b0bb48d752ed61552",
+      "bytes": 1745,
+      "text": "q16_oracle.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data\r\n        with\r\n        [\r\n            _Ty=int\r\n        ]\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): note: the template instantiation context (the oldest one first) is\r\nC:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\q16_oracle.cpp(149): note: see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled\r\n        with\r\n        [\r\n            _Ty=float,\r\n            _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>\r\n        ]\r\nq16_oracle.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data\r\n        with\r\n        [\r\n            _Ty=int\r\n        ]\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): note: the template instantiation context (the oldest one first) is\r\nC:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\validation\\q16_oracle.cpp(149): note: see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled\r\n        with\r\n        [\r\n            _Ty=float,\r\n            _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>\r\n        ]\r\nmodel_witness.cpp\r\n"
+    },
+    "windows-build-captured.stderr": {
+      "sha256": "8b47d27705d946dd30bf197051decc8c2daf0d80abca6f8b781d9c8509d5ef46",
+      "bytes": 102,
+      "text": "'vswhere.exe' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+    },
+    "run-model-witness.py": {
+      "sha256": "ab7f181f699efca75e00e5152626de942ece152c753544c8fce725ddc1b3ef05",
+      "bytes": 1814,
+      "text": "from pathlib import Path\nimport os,json,subprocess,datetime\nr=Path(__file__).resolve().parent;out=r/'windows-model-witness-run';out.mkdir(exist_ok=False)\nprior=json.loads((r.parent/'llmx-q8-floor-current-20260920/results.json').read_text());assert prior['status']=='pass'\nreport={'status':'running','scope':'Activation witness only, not HF correctness or performance. Model hashes verified by preceding timing preparation; same paths and sizes; no intervening model writes.','commands':[]}\ndef save():(out/'report.json').write_text(json.dumps(report,indent=2)+'\\n')\nsave()\ntry:\n for name in ['0.6b','8b']:\n  model=Path(prior['models'][name]['path']);assert model.stat().st_size==prior['models'][name]['bytes']\n  active=subprocess.check_output(['powershell','-NoProfile','-Command',\"Get-Process | Where-Object { $_.ProcessName -eq 'llmx' } | Select-Object -ExpandProperty Id\"],text=True)\n  assert not active.strip(),'user inference active'\n  command=[str(r/'validation/bin/model-witness.exe'),str(model),str(r/'validation/tokens-247.txt')]\n  row={'name':name,'command':command,'started':datetime.datetime.now(datetime.timezone.utc).isoformat(),'model_sha256':prior['models'][name]['sha256'],'model_mtime_ns':model.stat().st_mtime_ns}\n  report['commands'].append(row);save();print('START',name,flush=True)\n  p=subprocess.run(command,capture_output=True,timeout=300)\n  (out/(name+'.stdout')).write_bytes(p.stdout);(out/(name+'.stderr')).write_bytes(p.stderr)\n  row.update(returncode=p.returncode,completed=datetime.datetime.now(datetime.timezone.utc).isoformat());save()\n  print(name,p.returncode,p.stdout.decode(errors='replace'),p.stderr.decode(errors='replace'),flush=True)\n  p.check_returncode()\n report['status']='pass';save()\nexcept BaseException as e:report.update(status='failed',error=repr(e));save();raise\r\n"
+    },
+    "windows-validation/q16-oracle.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "windows-validation/q16-oracle.stdout": {
+      "sha256": "4938ed1566700dffd418f7ec1a5431b8c0c7784ddea104497652606e456c9483",
+      "bytes": 58,
+      "text": "outputs_checked=611192 scalar/control comparisons passed\r\n"
+    },
+    "windows-validation/q16-witness.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "windows-validation/q16-witness.stdout": {
+      "sha256": "3f463f8ea6eab863c7ef272640ed1f98d1871ceb012ea10bf49f68d9f6173d47",
+      "bytes": 116,
+      "text": "shared-pack/separate-pack/failure/reuse witnesses passed\r\noutputs_checked=611192 scalar/control comparisons passed\r\n"
+    },
+    "windows-validation/report.json": {
+      "sha256": "3ac1bbc71dd59e7c09c95cf4bc3f65091eb1618080d7c1a0de74b7d86e441a6f",
+      "bytes": 507,
+      "text": "{\r\n  \"status\": \"pass\",\r\n  \"commands\": [\r\n    {\r\n      \"command\": [\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\validation\\\\bin\\\\q16-oracle.exe\"\r\n      ],\r\n      \"returncode\": 0,\r\n      \"completed\": \"2026-09-19T22:32:32.274464+00:00\"\r\n    },\r\n    {\r\n      \"command\": [\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\validation\\\\bin\\\\q16-witness.exe\"\r\n      ],\r\n      \"returncode\": 0,\r\n      \"completed\": \"2026-09-19T22:32:32.418012+00:00\"\r\n    }\r\n  ]\r\n}\r\n"
+    },
+    "windows-model-witness-run/0.6b.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "windows-model-witness-run/0.6b.stdout": {
+      "sha256": "df11fbe85cc701af253278e75a801cadaddc714fef5e1c1a139773b2d5534201",
+      "bytes": 281,
+      "text": "phase standalone_packs group_packs standalone_integer_rows group_integer_rows standalone_float_rows group_float_rows\r\nmulti-token-final-vocabulary 1 0 151936 0 0 0\r\ndecode 57 56 209280 286720 0 0\r\none-token-prefill 57 56 209280 286720 0 0\r\nubatch-tail-one 57 56 209280 286720 0 0\r\n"
+    },
+    "windows-model-witness-run/8b.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "windows-model-witness-run/8b.stdout": {
+      "sha256": "67b7fb8833c8b5ba8662298672cf04fd1750beed6329dce8aa64ef60803bd212",
+      "bytes": 284,
+      "text": "phase standalone_packs group_packs standalone_integer_rows group_integer_rows standalone_float_rows group_float_rows\r\nmulti-token-final-vocabulary 1 0 151936 0 0 0\r\ndecode 73 72 446848 1105920 0 0\r\none-token-prefill 73 72 446848 1105920 0 0\r\nubatch-tail-one 73 72 446848 1105920 0 0\r\n"
+    },
+    "windows-model-witness-run/report.json": {
+      "sha256": "7c4bc9a0c931eecbaf976381b3b658e1ffd7701da42863a244482491a81190fd",
+      "bytes": 1571,
+      "text": "{\r\n  \"status\": \"pass\",\r\n  \"scope\": \"Activation witness only, not HF correctness or performance. Model hashes verified by preceding timing preparation; same paths and sizes; no intervening model writes.\",\r\n  \"commands\": [\r\n    {\r\n      \"name\": \"0.6b\",\r\n      \"command\": [\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\validation\\\\bin\\\\model-witness.exe\",\r\n        \"C:\\\\Users\\\\Marko\\\\.cache\\\\huggingface\\\\hub\\\\models--Qwen--Qwen3-0.6B-GGUF\\\\snapshots\\\\23749fefcc72300e3a2ad315e1317431b06b590a\\\\Qwen3-0.6B-Q8_0.gguf\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\validation\\\\tokens-247.txt\"\r\n      ],\r\n      \"started\": \"2026-09-19T22:33:56.846728+00:00\",\r\n      \"model_sha256\": \"9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031\",\r\n      \"model_mtime_ns\": 1789767817508114600,\r\n      \"returncode\": 0,\r\n      \"completed\": \"2026-09-19T22:33:57.881830+00:00\"\r\n    },\r\n    {\r\n      \"name\": \"8b\",\r\n      \"command\": [\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\validation\\\\bin\\\\model-witness.exe\",\r\n        \"C:\\\\Users\\\\Marko\\\\.lmstudio\\\\models\\\\Qwen\\\\Qwen3-8B-GGUF\\\\Qwen3-8B-Q8_0.gguf\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\validation\\\\tokens-247.txt\"\r\n      ],\r\n      \"started\": \"2026-09-19T22:33:58.039971+00:00\",\r\n      \"model_sha256\": \"408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6\",\r\n      \"model_mtime_ns\": 1774949069817008600,\r\n      \"returncode\": 0,\r\n      \"completed\": \"2026-09-19T22:34:11.567927+00:00\"\r\n    }\r\n  ]\r\n}\r\n"
+    },
+    "linux-validation/logs/build-oracle.stderr": {
+      "sha256": "cb1093fca6d2d0baa7e3e37d359cb81aaada04c39cf544a7ed30cc1d5a6ef917",
+      "bytes": 3072,
+      "text": "In file included from validation/candidate_access.hpp:16,\n                 from validation/q16_oracle.cpp:4:\ncandidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\ncandidate/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\ncandidate/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\ncandidate/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\ncandidate/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\ncandidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\ncandidate/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\ncandidate/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\ncandidate/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\ncandidate/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nvalidation/candidate_access.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\nvalidation/candidate_access.hpp:870:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  870 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from validation/q16_oracle.cpp:6:\nvalidation/control_backend.hpp: In member function \u2018float control_backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\nvalidation/control_backend.hpp:800:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  800 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n"
+    },
+    "linux-validation/logs/build-oracle.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "linux-validation/logs/build-witness.stderr": {
+      "sha256": "f0d03decf2c12f9a6a33bf07cea5b8ca1a59628250340a9bf3758a586464cefc",
+      "bytes": 3046,
+      "text": "In file included from validation/witness_access.hpp:17,\n                 from validation/q16_oracle.cpp:2:\nwitness/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\nwitness/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\nwitness/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\nwitness/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\nwitness/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nwitness/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\nwitness/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\nwitness/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\nwitness/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\nwitness/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nvalidation/witness_access.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\nvalidation/witness_access.hpp:896:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  896 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from validation/q16_oracle.cpp:6:\nvalidation/control_backend.hpp: In member function \u2018float control_backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\nvalidation/control_backend.hpp:800:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  800 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n"
+    },
+    "linux-validation/logs/build-witness.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "linux-validation/logs/compiler-version.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "linux-validation/logs/compiler-version.stdout": {
+      "sha256": "59d1cbef41d4ae78d5063d525b7aa13d18dc0493ea00537efc19b2ee398cb5a8",
+      "bytes": 246,
+      "text": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
+    },
+    "linux-validation/logs/run-oracle.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "linux-validation/logs/run-oracle.stdout": {
+      "sha256": "c2e618507aa40cfb05307bc9271245f9c0afedac6de1e8c58bada0499538a98c",
+      "bytes": 57,
+      "text": "outputs_checked=611192 scalar/control comparisons passed\n"
+    },
+    "linux-validation/logs/run-witness.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "linux-validation/logs/run-witness.stdout": {
+      "sha256": "f1283d9eff8ec827e0ab3443323e77f762cc94f6e211ea1d8406193d707299f4",
+      "bytes": 114,
+      "text": "shared-pack/separate-pack/failure/reuse witnesses passed\noutputs_checked=611192 scalar/control comparisons passed\n"
+    },
+    "mutations-repacking-20260920/mutation-report.json": {
+      "sha256": "585e0166cb946f41822843b113bc03698242ec90562ffdf640cc33dcccb60676",
+      "bytes": 1740,
+      "text": "{\r\n  \"status\": \"pass\",\r\n  \"scope\": \"Two isolated MSVC synthetic numerical mutation checks; no model reads or performance tests.\",\r\n  \"initial_attempt\": {\r\n    \"report\": \"report.json\",\r\n    \"sha256\": \"34f7de4aa6e9c6197eab6ff5667f5c1e80e5c5547c0e24ba120b531e3a39e951\",\r\n    \"result\": \"Bare build.bat name was not resolved by cmd; compiler did not run. Original sources, logs and commands retained.\"\r\n  },\r\n  \"completed_attempt\": {\r\n    \"report\": \"retry/report.json\",\r\n    \"sha256\": \"9ab5e90ce4e366b606acbaa2a2126c204ca40e2a3b5aa3348bb0349653175380\",\r\n    \"result\": \"Both compile exits 0; each executable exits 1 at the expected unseeded scalar/control output mismatch.\"\r\n  },\r\n  \"mutants\": {\r\n    \"grouped\": {\r\n      \"compile_exit\": 0,\r\n      \"run_exit\": 1,\r\n      \"diagnostic\": \"unseeded grouped=1 stage=1 row=0\\r\\nunseeded reuse oracle/control mismatch\\r\\n\",\r\n      \"binary_sha256\": \"8d869900f88ebd14918c8b494f49e68fa3f5ee65eeb00834fcff3d56ec0fe24e\"\r\n    },\r\n    \"standalone\": {\r\n      \"compile_exit\": 0,\r\n      \"run_exit\": 1,\r\n      \"diagnostic\": \"unseeded grouped=0 stage=0 row=0\\r\\nunseeded reuse oracle/control mismatch\\r\\n\",\r\n      \"binary_sha256\": \"b03beefa639b4ac76ea19649cc5e2187d79ac7ad96fd5e9fadcbe7399d784d4f\"\r\n    }\r\n  },\r\n  \"protected_unchanged\": true,\r\n  \"candidate_cpu_sha256\": \"2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234\",\r\n  \"validation_manifest_sha256\": \"e9a9f3d78322ed5e0efd4364cdd8c16bc527a38c23292d5a15b431009d0e0340\",\r\n  \"limits\": [\r\n    \"Two deliberate dispatch mutations; not exhaustive fault coverage.\",\r\n    \"No allocation-failure injection, model inference, HF gate or performance claim.\",\r\n    \"The original ordinary and witness oracle passes are parent evidence, not rerun here.\"\r\n  ]\r\n}\r\n"
+    },
+    "mutations-repacking-20260920/report.json": {
+      "sha256": "34f7de4aa6e9c6197eab6ff5667f5c1e80e5c5547c0e24ba120b531e3a39e951",
+      "bytes": 7212,
+      "text": "{\r\n  \"purpose\": \"Prove the ordinary scalar oracle rejects stale same-sized activation reuse independently in grouped and standalone dispatch.\",\r\n  \"scope\": \"Synthetic numerical mutation checks only; no models or performance timings.\",\r\n  \"protected_before\": {\r\n    \"candidate\\\\src\\\\config.hpp\": \"a9c8a421b6d10b3289ff9b0314415a2120c3b71e91fd6243ea437a3791f89c1c\",\r\n    \"candidate\\\\src\\\\backends\\\\backend.hpp\": \"7c41adeacd8314cf2cb1aca8f100a738375ff1b29fe3a96b4b9315df513fd0e6\",\r\n    \"candidate\\\\src\\\\cli\\\\main.cpp\": \"2aafe96c4b243e73847a9c98878c5b0577a7176a816b63d879e5ee270a04e35e\",\r\n    \"candidate\\\\src\\\\core\\\\fp16.hpp\": \"bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d\",\r\n    \"candidate\\\\src\\\\core\\\\json.hpp\": \"cc722edcd5e1369edaa903c8597fddbd6ff2b2e97e59705d8f1fde83cc95dd76\",\r\n    \"candidate\\\\src\\\\format\\\\format.hpp\": \"35810614c9500734202ccf588551f9934cecd8c5a0c0f04cb71709ceeef279c1\",\r\n    \"candidate\\\\src\\\\format\\\\gguf.hpp\": \"eec138f1768f42c921ed7baecd6d3294562c63a581b6c3b1536673c7c3e4710d\",\r\n    \"candidate\\\\src\\\\inference\\\\chat.hpp\": \"0cc035ae26396ee36489724940517b6905e55b7b1e29c6ea6fc2e4f13fb63cc2\",\r\n    \"candidate\\\\src\\\\inference\\\\generate.hpp\": \"bc09e574d0e9c5db561c4c589595ad1330674f9e66c582c59b86a696b2eb6f15\",\r\n    \"candidate\\\\src\\\\inference\\\\perplexity.hpp\": \"76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1\",\r\n    \"candidate\\\\src\\\\inference\\\\sampler.hpp\": \"a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859\",\r\n    \"candidate\\\\src\\\\model\\\\arch_qwen.hpp\": \"83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1\",\r\n    \"candidate\\\\src\\\\model\\\\host_kv_cache.hpp\": \"2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64\",\r\n    \"candidate\\\\src\\\\quant\\\\k_quants.hpp\": \"60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92\",\r\n    \"candidate\\\\src\\\\quant\\\\quant.hpp\": \"28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53\",\r\n    \"candidate\\\\src\\\\tokenizer\\\\tokenizer.hpp\": \"181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885\",\r\n    \"candidate\\\\src\\\\backends\\\\cpu\\\\cpu_backend.hpp\": \"2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234\",\r\n    \"validation-manifest.json\": \"e9a9f3d78322ed5e0efd4364cdd8c16bc527a38c23292d5a15b431009d0e0340\",\r\n    \"validation\\\\q16_oracle.cpp\": \"d318d4e55a9ffa7399a2652146759f6128b7b64f9c8ce3993326ffb2e01feacb\",\r\n    \"validation\\\\candidate_access.hpp\": \"00dc811bb8757d31f3d1fc4c5c549be5260aa7f1c38875246402574f95bb51b2\",\r\n    \"validation\\\\control_backend.hpp\": \"447f6c07ba46becdd9fedf7ba9bd92716c924830cdf4e803871cf7c7b7698ad2\"\r\n  },\r\n  \"vcvars_path\": \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\",\r\n  \"mutants\": {\r\n    \"grouped\": {\r\n      \"compile_command\": \"cl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \\\"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\candidate\\\\src\\\" /Fe:mutant.exe /Fo:mutant.obj q16_oracle.cpp\",\r\n      \"build_invocation\": [\r\n        \"cmd.exe\",\r\n        \"/d\",\r\n        \"/c\",\r\n        \"build.bat\"\r\n      ],\r\n      \"cwd\": \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\mutations-repacking-20260920\\\\grouped\",\r\n      \"status\": \"compile-failed\",\r\n      \"compile_exit\": 1,\r\n      \"files\": {\r\n        \"grouped\\\\build.bat\": {\r\n          \"sha256\": \"e1386322c2852eb260b079483d43658d8801c59e59448a2c11bf07307d50ba58\",\r\n          \"bytes\": 340\r\n        },\r\n        \"grouped\\\\build.stderr\": {\r\n          \"sha256\": \"81f71fbaf73c73630d11b8d02292d8fd8107f3899478243e242a186ada8aa429\",\r\n          \"bytes\": 100\r\n        },\r\n        \"grouped\\\\build.stdout\": {\r\n          \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\r\n          \"bytes\": 0\r\n        },\r\n        \"grouped\\\\candidate_access.hpp\": {\r\n          \"sha256\": \"8fd9b40333d74e0cba5f12302cd6b9abfbdd6de7da5ad7f22a997077c28bb51d\",\r\n          \"bytes\": 42898\r\n        },\r\n        \"grouped\\\\control_backend.hpp\": {\r\n          \"sha256\": \"447f6c07ba46becdd9fedf7ba9bd92716c924830cdf4e803871cf7c7b7698ad2\",\r\n          \"bytes\": 38268\r\n        },\r\n        \"grouped\\\\mutation.patch\": {\r\n          \"sha256\": \"efe5425a847e74c334d429fb939a6cda9d377981ae3fd81762672ba9a0c9f391\",\r\n          \"bytes\": 704\r\n        },\r\n        \"grouped\\\\q16_oracle.cpp\": {\r\n          \"sha256\": \"d318d4e55a9ffa7399a2652146759f6128b7b64f9c8ce3993326ffb2e01feacb\",\r\n          \"bytes\": 17472\r\n        }\r\n      }\r\n    }\r\n  },\r\n  \"protected_after\": {\r\n    \"candidate\\\\src\\\\config.hpp\": \"a9c8a421b6d10b3289ff9b0314415a2120c3b71e91fd6243ea437a3791f89c1c\",\r\n    \"candidate\\\\src\\\\backends\\\\backend.hpp\": \"7c41adeacd8314cf2cb1aca8f100a738375ff1b29fe3a96b4b9315df513fd0e6\",\r\n    \"candidate\\\\src\\\\cli\\\\main.cpp\": \"2aafe96c4b243e73847a9c98878c5b0577a7176a816b63d879e5ee270a04e35e\",\r\n    \"candidate\\\\src\\\\core\\\\fp16.hpp\": \"bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d\",\r\n    \"candidate\\\\src\\\\core\\\\json.hpp\": \"cc722edcd5e1369edaa903c8597fddbd6ff2b2e97e59705d8f1fde83cc95dd76\",\r\n    \"candidate\\\\src\\\\format\\\\format.hpp\": \"35810614c9500734202ccf588551f9934cecd8c5a0c0f04cb71709ceeef279c1\",\r\n    \"candidate\\\\src\\\\format\\\\gguf.hpp\": \"eec138f1768f42c921ed7baecd6d3294562c63a581b6c3b1536673c7c3e4710d\",\r\n    \"candidate\\\\src\\\\inference\\\\chat.hpp\": \"0cc035ae26396ee36489724940517b6905e55b7b1e29c6ea6fc2e4f13fb63cc2\",\r\n    \"candidate\\\\src\\\\inference\\\\generate.hpp\": \"bc09e574d0e9c5db561c4c589595ad1330674f9e66c582c59b86a696b2eb6f15\",\r\n    \"candidate\\\\src\\\\inference\\\\perplexity.hpp\": \"76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1\",\r\n    \"candidate\\\\src\\\\inference\\\\sampler.hpp\": \"a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859\",\r\n    \"candidate\\\\src\\\\model\\\\arch_qwen.hpp\": \"83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1\",\r\n    \"candidate\\\\src\\\\model\\\\host_kv_cache.hpp\": \"2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64\",\r\n    \"candidate\\\\src\\\\quant\\\\k_quants.hpp\": \"60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92\",\r\n    \"candidate\\\\src\\\\quant\\\\quant.hpp\": \"28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53\",\r\n    \"candidate\\\\src\\\\tokenizer\\\\tokenizer.hpp\": \"181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885\",\r\n    \"candidate\\\\src\\\\backends\\\\cpu\\\\cpu_backend.hpp\": \"2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234\",\r\n    \"validation-manifest.json\": \"e9a9f3d78322ed5e0efd4364cdd8c16bc527a38c23292d5a15b431009d0e0340\",\r\n    \"validation\\\\q16_oracle.cpp\": \"d318d4e55a9ffa7399a2652146759f6128b7b64f9c8ce3993326ffb2e01feacb\",\r\n    \"validation\\\\candidate_access.hpp\": \"00dc811bb8757d31f3d1fc4c5c549be5260aa7f1c38875246402574f95bb51b2\",\r\n    \"validation\\\\control_backend.hpp\": \"447f6c07ba46becdd9fedf7ba9bd92716c924830cdf4e803871cf7c7b7698ad2\"\r\n  },\r\n  \"protected_unchanged\": true,\r\n  \"script_sha256\": \"72aff3a1b205d7e1c539a5ebc7b05f8af400c0d0017c48828bf2712846fda1e1\",\r\n  \"status\": \"investigate\",\r\n  \"limits\": [\r\n    \"Two deliberate dispatch mutations; not exhaustive fault coverage.\",\r\n    \"No allocation-failure injection, model inference, HF gate or performance claim.\",\r\n    \"The original ordinary and witness oracle passes are parent evidence, not rerun here.\"\r\n  ]\r\n}\r\n"
+    },
+    "mutations-repacking-20260920/run_mutants.py": {
+      "sha256": "72aff3a1b205d7e1c539a5ebc7b05f8af400c0d0017c48828bf2712846fda1e1",
+      "bytes": 5637,
+      "text": "from pathlib import Path\nimport difflib\nimport hashlib\nimport json\nimport shutil\nimport subprocess\n\nowned = Path(__file__).resolve().parent\nstudy = owned.parent\nvcvars = Path(r'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat')\n\n\ndef sha(path):\n    return hashlib.sha256(path.read_bytes()).hexdigest()\n\n\nprotected = list((study / 'candidate/src').rglob('*'))\nprotected = [p for p in protected if p.is_file()]\nprotected += [study / 'validation-manifest.json', study / 'validation/q16_oracle.cpp',\n              study / 'validation/candidate_access.hpp', study / 'validation/control_backend.hpp']\nbefore = {str(p.relative_to(study)): sha(p) for p in protected}\nbase = (study / 'validation/candidate_access.hpp').read_text()\nchanges = {\n    'grouped': (\n        '}) && pack_q16_activation(X, nin / gguf::Q8_0_BLOCK);',\n        '}) && ((q16_values_.size() == nin && q16_scales_.size() == nin / gguf::Q8_0_BLOCK) || pack_q16_activation(X, nin / gguf::Q8_0_BLOCK));'),\n    'standalone': (\n        'const bool packed = avx2_ && nout != 0 && nblocks != 0 && pack_q16_activation(x, nblocks);',\n        'const bool packed = avx2_ && nout != 0 && nblocks != 0 && ((q16_values_.size() == nblocks * gguf::Q8_0_BLOCK && q16_scales_.size() == nblocks) || pack_q16_activation(x, nblocks));'),\n}\nreport = {\n    'purpose': 'Prove the ordinary scalar oracle rejects stale same-sized activation reuse independently in grouped and standalone dispatch.',\n    'scope': 'Synthetic numerical mutation checks only; no models or performance timings.',\n    'protected_before': before,\n    'vcvars_path': str(vcvars),\n    'mutants': {},\n}\n\n\ndef save():\n    (owned / 'report.json').write_text(json.dumps(report, indent=2, ensure_ascii=True) + '\\n', encoding='ascii')\n\n\nsave()\nfor name, (old, new) in changes.items():\n    assert base.count(old) == 1, (name, 'mutation target count')\n    folder = owned / name\n    folder.mkdir()\n    modified = base.replace(old, new)\n    (folder / 'candidate_access.hpp').write_text(modified, encoding='ascii', newline='\\n')\n    shutil.copyfile(study / 'validation/q16_oracle.cpp', folder / 'q16_oracle.cpp')\n    shutil.copyfile(study / 'validation/control_backend.hpp', folder / 'control_backend.hpp')\n    (folder / 'mutation.patch').write_text(''.join(difflib.unified_diff(\n        base.splitlines(True), modified.splitlines(True),\n        fromfile='original/validation/candidate_access.hpp', tofile=name + '/candidate_access.hpp')),\n        encoding='ascii')\n    command = 'cl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"' + str(study / 'candidate/src') + '\" /Fe:mutant.exe /Fo:mutant.obj q16_oracle.cpp'\n    batch = '@echo off\\nsetlocal\\ncall \"' + str(vcvars) + '\" >nul\\nif errorlevel 1 exit /b 1\\n' + command + '\\nexit /b %errorlevel%\\n'\n    (folder / 'build.bat').write_text(batch, encoding='ascii', newline='\\r\\n')\n    item = {'compile_command': command, 'build_invocation': ['cmd.exe', '/d', '/c', 'build.bat'],\n            'cwd': str(folder), 'status': 'building'}\n    report['mutants'][name] = item\n    save()\n    print(name + ': compiling', flush=True)\n    built = subprocess.run(item['build_invocation'], cwd=folder, capture_output=True)\n    (folder / 'build.stdout').write_bytes(built.stdout)\n    (folder / 'build.stderr').write_bytes(built.stderr)\n    item['compile_exit'] = built.returncode\n    item['status'] = 'built' if built.returncode == 0 else 'compile-failed'\n    save()\n    if built.returncode != 0:\n        break\n    item['run_command'] = [str(folder / 'mutant.exe')]\n    item['status'] = 'running'\n    save()\n    ran = subprocess.run(item['run_command'], cwd=folder, capture_output=True)\n    (folder / 'run.stdout').write_bytes(ran.stdout)\n    (folder / 'run.stderr').write_bytes(ran.stderr)\n    item['run_exit'] = ran.returncode\n    item['stdout'] = ran.stdout.decode('utf-8', errors='replace')\n    item['stderr'] = ran.stderr.decode('utf-8', errors='replace')\n    expected = 'unseeded grouped=1 stage=1 row=0' if name == 'grouped' else 'unseeded grouped=0 stage=0 row=0'\n    item['expected_diagnostic'] = expected\n    item['rejected_by_unseeded_numerical_comparison'] = (\n        ran.returncode == 1 and expected in item['stderr'] and\n        'unseeded reuse oracle/control mismatch' in item['stderr'])\n    item['status'] = 'rejected-as-intended' if item['rejected_by_unseeded_numerical_comparison'] else 'unexpected-result'\n    save()\n    print(name + ': ' + item['status'] + ', exit=' + str(ran.returncode), flush=True)\n\nreport['protected_after'] = {str(p.relative_to(study)): sha(p) for p in protected}\nreport['protected_unchanged'] = report['protected_after'] == before\nfor name, item in report['mutants'].items():\n    item['files'] = {str(p.relative_to(owned)): {'sha256': sha(p), 'bytes': p.stat().st_size}\n                     for p in (owned / name).iterdir() if p.is_file()}\nreport['script_sha256'] = sha(Path(__file__))\nreport['status'] = 'pass' if (report['protected_unchanged'] and len(report['mutants']) == 2 and\n    all(m.get('rejected_by_unseeded_numerical_comparison') for m in report['mutants'].values())) else 'investigate'\nreport['limits'] = ['Two deliberate dispatch mutations; not exhaustive fault coverage.',\n                    'No allocation-failure injection, model inference, HF gate or performance claim.',\n                    'The original ordinary and witness oracle passes are parent evidence, not rerun here.']\nsave()\nprint(json.dumps({'status': report['status'], 'report': str(owned / 'report.json'),\n                  'report_sha256': sha(owned / 'report.json'), 'protected_unchanged': report['protected_unchanged']}), flush=True)\n"
+    },
+    "mutations-repacking-20260920/run_mutants_retry.py": {
+      "sha256": "091920d177df6a23ccfbe256f1c01f2ed0d601cb4558801b69685f6d780d3a92",
+      "bytes": 5821,
+      "text": "from pathlib import Path\r\nimport difflib\r\nimport hashlib\r\nimport json\r\nimport shutil\r\nimport subprocess\r\n\r\nowned = Path(__file__).resolve().parent / 'retry'\r\nstudy = Path(__file__).resolve().parent.parent\r\nowned.mkdir()\r\nvcvars = Path(r'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat')\r\n\r\n\r\ndef sha(path):\r\n    return hashlib.sha256(path.read_bytes()).hexdigest()\r\n\r\n\r\nprotected = list((study / 'candidate/src').rglob('*'))\r\nprotected = [p for p in protected if p.is_file()]\r\nprotected += [study / 'validation-manifest.json', study / 'validation/q16_oracle.cpp',\r\n              study / 'validation/candidate_access.hpp', study / 'validation/control_backend.hpp']\r\nbefore = {str(p.relative_to(study)): sha(p) for p in protected}\r\nbase = (study / 'validation/candidate_access.hpp').read_text()\r\nchanges = {\r\n    'grouped': (\r\n        '}) && pack_q16_activation(X, nin / gguf::Q8_0_BLOCK);',\r\n        '}) && ((q16_values_.size() == nin && q16_scales_.size() == nin / gguf::Q8_0_BLOCK) || pack_q16_activation(X, nin / gguf::Q8_0_BLOCK));'),\r\n    'standalone': (\r\n        'const bool packed = avx2_ && nout != 0 && nblocks != 0 && pack_q16_activation(x, nblocks);',\r\n        'const bool packed = avx2_ && nout != 0 && nblocks != 0 && ((q16_values_.size() == nblocks * gguf::Q8_0_BLOCK && q16_scales_.size() == nblocks) || pack_q16_activation(x, nblocks));'),\r\n}\r\nreport = {\r\n    'purpose': 'Prove the ordinary scalar oracle rejects stale same-sized activation reuse independently in grouped and standalone dispatch.',\r\n    'scope': 'Synthetic numerical mutation checks only; no models or performance timings.',\r\n    'protected_before': before,\r\n    'vcvars_path': str(vcvars),\r\n    'mutants': {},\r\n}\r\n\r\n\r\ndef save():\r\n    (owned / 'report.json').write_text(json.dumps(report, indent=2, ensure_ascii=True) + '\\n', encoding='ascii')\r\n\r\n\r\nsave()\r\nfor name, (old, new) in changes.items():\r\n    assert base.count(old) == 1, (name, 'mutation target count')\r\n    folder = owned / name\r\n    folder.mkdir()\r\n    modified = base.replace(old, new)\r\n    (folder / 'candidate_access.hpp').write_text(modified, encoding='ascii', newline='\\n')\r\n    shutil.copyfile(study / 'validation/q16_oracle.cpp', folder / 'q16_oracle.cpp')\r\n    shutil.copyfile(study / 'validation/control_backend.hpp', folder / 'control_backend.hpp')\r\n    (folder / 'mutation.patch').write_text(''.join(difflib.unified_diff(\r\n        base.splitlines(True), modified.splitlines(True),\r\n        fromfile='original/validation/candidate_access.hpp', tofile=name + '/candidate_access.hpp')),\r\n        encoding='ascii')\r\n    command = 'cl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"' + str(study / 'candidate/src') + '\" /Fe:mutant.exe /Fo:mutant.obj q16_oracle.cpp'\r\n    batch = '@echo off\\nsetlocal\\ncd /d \"%~dp0\"\\ncall \"' + str(vcvars) + '\" >nul\\nif errorlevel 1 exit /b 1\\n' + command + '\\nexit /b %errorlevel%\\n'\r\n    (folder / 'build.bat').write_text(batch, encoding='ascii', newline='\\r\\n')\r\n    item = {'compile_command': command, 'build_invocation': ['cmd.exe', '/d', '/c', str(folder / 'build.bat')],\r\n            'cwd': str(folder), 'status': 'building'}\r\n    report['mutants'][name] = item\r\n    save()\r\n    print(name + ': compiling', flush=True)\r\n    built = subprocess.run(item['build_invocation'], cwd=folder, capture_output=True)\r\n    (folder / 'build.stdout').write_bytes(built.stdout)\r\n    (folder / 'build.stderr').write_bytes(built.stderr)\r\n    item['compile_exit'] = built.returncode\r\n    item['status'] = 'built' if built.returncode == 0 else 'compile-failed'\r\n    save()\r\n    if built.returncode != 0:\r\n        break\r\n    item['run_command'] = [str(folder / 'mutant.exe')]\r\n    item['status'] = 'running'\r\n    save()\r\n    ran = subprocess.run(item['run_command'], cwd=folder, capture_output=True)\r\n    (folder / 'run.stdout').write_bytes(ran.stdout)\r\n    (folder / 'run.stderr').write_bytes(ran.stderr)\r\n    item['run_exit'] = ran.returncode\r\n    item['stdout'] = ran.stdout.decode('utf-8', errors='replace')\r\n    item['stderr'] = ran.stderr.decode('utf-8', errors='replace')\r\n    expected = 'unseeded grouped=1 stage=1 row=0' if name == 'grouped' else 'unseeded grouped=0 stage=0 row=0'\r\n    item['expected_diagnostic'] = expected\r\n    item['rejected_by_unseeded_numerical_comparison'] = (\r\n        ran.returncode == 1 and expected in item['stderr'] and\r\n        'unseeded reuse oracle/control mismatch' in item['stderr'])\r\n    item['status'] = 'rejected-as-intended' if item['rejected_by_unseeded_numerical_comparison'] else 'unexpected-result'\r\n    save()\r\n    print(name + ': ' + item['status'] + ', exit=' + str(ran.returncode), flush=True)\r\n\r\nreport['protected_after'] = {str(p.relative_to(study)): sha(p) for p in protected}\r\nreport['protected_unchanged'] = report['protected_after'] == before\r\nfor name, item in report['mutants'].items():\r\n    item['files'] = {str(p.relative_to(owned)): {'sha256': sha(p), 'bytes': p.stat().st_size}\r\n                     for p in (owned / name).iterdir() if p.is_file()}\r\nreport['script_sha256'] = sha(Path(__file__))\r\nreport['status'] = 'pass' if (report['protected_unchanged'] and len(report['mutants']) == 2 and\r\n    all(m.get('rejected_by_unseeded_numerical_comparison') for m in report['mutants'].values())) else 'investigate'\r\nreport['limits'] = ['Two deliberate dispatch mutations; not exhaustive fault coverage.',\r\n                    'No allocation-failure injection, model inference, HF gate or performance claim.',\r\n                    'The original ordinary and witness oracle passes are parent evidence, not rerun here.']\r\nsave()\r\nprint(json.dumps({'status': report['status'], 'report': str(owned / 'report.json'),\r\n                  'report_sha256': sha(owned / 'report.json'), 'protected_unchanged': report['protected_unchanged']}), flush=True)\r\n"
+    },
+    "mutations-repacking-20260920/grouped/build.bat": {
+      "sha256": "e1386322c2852eb260b079483d43658d8801c59e59448a2c11bf07307d50ba58",
+      "bytes": 340,
+      "text": "@echo off\r\nsetlocal\r\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\r\nif errorlevel 1 exit /b 1\r\ncl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\candidate\\src\" /Fe:mutant.exe /Fo:mutant.obj q16_oracle.cpp\r\nexit /b %errorlevel%\r\n"
+    },
+    "mutations-repacking-20260920/grouped/build.stderr": {
+      "sha256": "81f71fbaf73c73630d11b8d02292d8fd8107f3899478243e242a186ada8aa429",
+      "bytes": 100,
+      "text": "'build.bat' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"
+    },
+    "mutations-repacking-20260920/grouped/build.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "mutations-repacking-20260920/grouped/mutation.patch": {
+      "sha256": "efe5425a847e74c334d429fb939a6cda9d377981ae3fd81762672ba9a0c9f391",
+      "bytes": 704,
+      "text": "--- original/validation/candidate_access.hpp\r\n+++ grouped/candidate_access.hpp\r\n@@ -222,7 +222,7 @@\r\n         const bool packed = avx2_ && nin >= gguf::Q8_0_BLOCK &&\r\n             std::any_of(projections.begin(), projections.end(), [](const Projection& p) {\r\n                 return p.type == gguf::GGML_TYPE_Q8_0;\r\n-            }) && pack_q16_activation(X, nin / gguf::Q8_0_BLOCK);\r\n+            }) && ((q16_values_.size() == nin && q16_scales_.size() == nin / gguf::Q8_0_BLOCK) || pack_q16_activation(X, nin / gguf::Q8_0_BLOCK));\r\n         run_parallel([&](int w) {\r\n             for (const auto& p : projections) {\r\n                 size_t chunk = (p.rows + size_t(threads_) - 1) / size_t(threads_);\r\n"
+    },
+    "mutations-repacking-20260920/retry/report.json": {
+      "sha256": "9ab5e90ce4e366b606acbaa2a2126c204ca40e2a3b5aa3348bb0349653175380",
+      "bytes": 11332,
+      "text": "{\r\n  \"purpose\": \"Prove the ordinary scalar oracle rejects stale same-sized activation reuse independently in grouped and standalone dispatch.\",\r\n  \"scope\": \"Synthetic numerical mutation checks only; no models or performance timings.\",\r\n  \"protected_before\": {\r\n    \"candidate\\\\src\\\\config.hpp\": \"a9c8a421b6d10b3289ff9b0314415a2120c3b71e91fd6243ea437a3791f89c1c\",\r\n    \"candidate\\\\src\\\\backends\\\\backend.hpp\": \"7c41adeacd8314cf2cb1aca8f100a738375ff1b29fe3a96b4b9315df513fd0e6\",\r\n    \"candidate\\\\src\\\\cli\\\\main.cpp\": \"2aafe96c4b243e73847a9c98878c5b0577a7176a816b63d879e5ee270a04e35e\",\r\n    \"candidate\\\\src\\\\core\\\\fp16.hpp\": \"bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d\",\r\n    \"candidate\\\\src\\\\core\\\\json.hpp\": \"cc722edcd5e1369edaa903c8597fddbd6ff2b2e97e59705d8f1fde83cc95dd76\",\r\n    \"candidate\\\\src\\\\format\\\\format.hpp\": \"35810614c9500734202ccf588551f9934cecd8c5a0c0f04cb71709ceeef279c1\",\r\n    \"candidate\\\\src\\\\format\\\\gguf.hpp\": \"eec138f1768f42c921ed7baecd6d3294562c63a581b6c3b1536673c7c3e4710d\",\r\n    \"candidate\\\\src\\\\inference\\\\chat.hpp\": \"0cc035ae26396ee36489724940517b6905e55b7b1e29c6ea6fc2e4f13fb63cc2\",\r\n    \"candidate\\\\src\\\\inference\\\\generate.hpp\": \"bc09e574d0e9c5db561c4c589595ad1330674f9e66c582c59b86a696b2eb6f15\",\r\n    \"candidate\\\\src\\\\inference\\\\perplexity.hpp\": \"76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1\",\r\n    \"candidate\\\\src\\\\inference\\\\sampler.hpp\": \"a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859\",\r\n    \"candidate\\\\src\\\\model\\\\arch_qwen.hpp\": \"83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1\",\r\n    \"candidate\\\\src\\\\model\\\\host_kv_cache.hpp\": \"2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64\",\r\n    \"candidate\\\\src\\\\quant\\\\k_quants.hpp\": \"60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92\",\r\n    \"candidate\\\\src\\\\quant\\\\quant.hpp\": \"28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53\",\r\n    \"candidate\\\\src\\\\tokenizer\\\\tokenizer.hpp\": \"181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885\",\r\n    \"candidate\\\\src\\\\backends\\\\cpu\\\\cpu_backend.hpp\": \"2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234\",\r\n    \"validation-manifest.json\": \"e9a9f3d78322ed5e0efd4364cdd8c16bc527a38c23292d5a15b431009d0e0340\",\r\n    \"validation\\\\q16_oracle.cpp\": \"d318d4e55a9ffa7399a2652146759f6128b7b64f9c8ce3993326ffb2e01feacb\",\r\n    \"validation\\\\candidate_access.hpp\": \"00dc811bb8757d31f3d1fc4c5c549be5260aa7f1c38875246402574f95bb51b2\",\r\n    \"validation\\\\control_backend.hpp\": \"447f6c07ba46becdd9fedf7ba9bd92716c924830cdf4e803871cf7c7b7698ad2\"\r\n  },\r\n  \"vcvars_path\": \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\",\r\n  \"mutants\": {\r\n    \"grouped\": {\r\n      \"compile_command\": \"cl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \\\"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\candidate\\\\src\\\" /Fe:mutant.exe /Fo:mutant.obj q16_oracle.cpp\",\r\n      \"build_invocation\": [\r\n        \"cmd.exe\",\r\n        \"/d\",\r\n        \"/c\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\mutations-repacking-20260920\\\\retry\\\\grouped\\\\build.bat\"\r\n      ],\r\n      \"cwd\": \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\mutations-repacking-20260920\\\\retry\\\\grouped\",\r\n      \"status\": \"rejected-as-intended\",\r\n      \"compile_exit\": 0,\r\n      \"run_command\": [\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\mutations-repacking-20260920\\\\retry\\\\grouped\\\\mutant.exe\"\r\n      ],\r\n      \"run_exit\": 1,\r\n      \"stdout\": \"\",\r\n      \"stderr\": \"unseeded grouped=1 stage=1 row=0\\r\\nunseeded reuse oracle/control mismatch\\r\\n\",\r\n      \"expected_diagnostic\": \"unseeded grouped=1 stage=1 row=0\",\r\n      \"rejected_by_unseeded_numerical_comparison\": true,\r\n      \"files\": {\r\n        \"grouped\\\\build.bat\": {\r\n          \"sha256\": \"a7a248d8892f5550f84091c0f7bbf80ddca78a7749b00c300c204c372ad2367a\",\r\n          \"bytes\": 355\r\n        },\r\n        \"grouped\\\\build.stderr\": {\r\n          \"sha256\": \"75d3e58f4c46b05d475f17af73b0f6367b079763dccd729f6dfba5bf46a1f888\",\r\n          \"bytes\": 1202\r\n        },\r\n        \"grouped\\\\build.stdout\": {\r\n          \"sha256\": \"aaf66438389ad2b4d96c7b9408c55b9909d5eead57a544be9bb81cfe4d378ad0\",\r\n          \"bytes\": 797\r\n        },\r\n        \"grouped\\\\candidate_access.hpp\": {\r\n          \"sha256\": \"8fd9b40333d74e0cba5f12302cd6b9abfbdd6de7da5ad7f22a997077c28bb51d\",\r\n          \"bytes\": 42898\r\n        },\r\n        \"grouped\\\\control_backend.hpp\": {\r\n          \"sha256\": \"447f6c07ba46becdd9fedf7ba9bd92716c924830cdf4e803871cf7c7b7698ad2\",\r\n          \"bytes\": 38268\r\n        },\r\n        \"grouped\\\\mutant.exe\": {\r\n          \"sha256\": \"8d869900f88ebd14918c8b494f49e68fa3f5ee65eeb00834fcff3d56ec0fe24e\",\r\n          \"bytes\": 375296\r\n        },\r\n        \"grouped\\\\mutant.obj\": {\r\n          \"sha256\": \"b039931aced059991512911bfc2208bb9b24a4a903d1f45e7d7e6055f32043d4\",\r\n          \"bytes\": 980984\r\n        },\r\n        \"grouped\\\\mutation.patch\": {\r\n          \"sha256\": \"efe5425a847e74c334d429fb939a6cda9d377981ae3fd81762672ba9a0c9f391\",\r\n          \"bytes\": 704\r\n        },\r\n        \"grouped\\\\q16_oracle.cpp\": {\r\n          \"sha256\": \"d318d4e55a9ffa7399a2652146759f6128b7b64f9c8ce3993326ffb2e01feacb\",\r\n          \"bytes\": 17472\r\n        },\r\n        \"grouped\\\\run.stderr\": {\r\n          \"sha256\": \"cae77f548f16d58d01a465e1637e636bc305ab714237f04ab1ef81d3598143ec\",\r\n          \"bytes\": 74\r\n        },\r\n        \"grouped\\\\run.stdout\": {\r\n          \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\r\n          \"bytes\": 0\r\n        }\r\n      }\r\n    },\r\n    \"standalone\": {\r\n      \"compile_command\": \"cl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \\\"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\candidate\\\\src\\\" /Fe:mutant.exe /Fo:mutant.obj q16_oracle.cpp\",\r\n      \"build_invocation\": [\r\n        \"cmd.exe\",\r\n        \"/d\",\r\n        \"/c\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\mutations-repacking-20260920\\\\retry\\\\standalone\\\\build.bat\"\r\n      ],\r\n      \"cwd\": \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\mutations-repacking-20260920\\\\retry\\\\standalone\",\r\n      \"status\": \"rejected-as-intended\",\r\n      \"compile_exit\": 0,\r\n      \"run_command\": [\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-q16-group-study\\\\mutations-repacking-20260920\\\\retry\\\\standalone\\\\mutant.exe\"\r\n      ],\r\n      \"run_exit\": 1,\r\n      \"stdout\": \"\",\r\n      \"stderr\": \"unseeded grouped=0 stage=0 row=0\\r\\nunseeded reuse oracle/control mismatch\\r\\n\",\r\n      \"expected_diagnostic\": \"unseeded grouped=0 stage=0 row=0\",\r\n      \"rejected_by_unseeded_numerical_comparison\": true,\r\n      \"files\": {\r\n        \"standalone\\\\build.bat\": {\r\n          \"sha256\": \"a7a248d8892f5550f84091c0f7bbf80ddca78a7749b00c300c204c372ad2367a\",\r\n          \"bytes\": 355\r\n        },\r\n        \"standalone\\\\build.stderr\": {\r\n          \"sha256\": \"75d3e58f4c46b05d475f17af73b0f6367b079763dccd729f6dfba5bf46a1f888\",\r\n          \"bytes\": 1202\r\n        },\r\n        \"standalone\\\\build.stdout\": {\r\n          \"sha256\": \"aaf66438389ad2b4d96c7b9408c55b9909d5eead57a544be9bb81cfe4d378ad0\",\r\n          \"bytes\": 797\r\n        },\r\n        \"standalone\\\\candidate_access.hpp\": {\r\n          \"sha256\": \"2f2ecfc606d7c194eee5d6272f93e98d504ab8fe7a92bec2fbabe49173652b53\",\r\n          \"bytes\": 42906\r\n        },\r\n        \"standalone\\\\control_backend.hpp\": {\r\n          \"sha256\": \"447f6c07ba46becdd9fedf7ba9bd92716c924830cdf4e803871cf7c7b7698ad2\",\r\n          \"bytes\": 38268\r\n        },\r\n        \"standalone\\\\mutant.exe\": {\r\n          \"sha256\": \"b03beefa639b4ac76ea19649cc5e2187d79ac7ad96fd5e9fadcbe7399d784d4f\",\r\n          \"bytes\": 375296\r\n        },\r\n        \"standalone\\\\mutant.obj\": {\r\n          \"sha256\": \"47b5caf4fc965b2efedc547e0fb5a7369d39affa068d84eddba97108b6baee0b\",\r\n          \"bytes\": 981407\r\n        },\r\n        \"standalone\\\\mutation.patch\": {\r\n          \"sha256\": \"7df3f14324838e6c0aca47279f6caa26fa0c37204786bf39fcba1425305813c0\",\r\n          \"bytes\": 688\r\n        },\r\n        \"standalone\\\\q16_oracle.cpp\": {\r\n          \"sha256\": \"d318d4e55a9ffa7399a2652146759f6128b7b64f9c8ce3993326ffb2e01feacb\",\r\n          \"bytes\": 17472\r\n        },\r\n        \"standalone\\\\run.stderr\": {\r\n          \"sha256\": \"285d6d69e20179375bc887a7920f57b7301b7ca1c2e68b7bad97c0d0f5f7d0d0\",\r\n          \"bytes\": 74\r\n        },\r\n        \"standalone\\\\run.stdout\": {\r\n          \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\r\n          \"bytes\": 0\r\n        }\r\n      }\r\n    }\r\n  },\r\n  \"protected_after\": {\r\n    \"candidate\\\\src\\\\config.hpp\": \"a9c8a421b6d10b3289ff9b0314415a2120c3b71e91fd6243ea437a3791f89c1c\",\r\n    \"candidate\\\\src\\\\backends\\\\backend.hpp\": \"7c41adeacd8314cf2cb1aca8f100a738375ff1b29fe3a96b4b9315df513fd0e6\",\r\n    \"candidate\\\\src\\\\cli\\\\main.cpp\": \"2aafe96c4b243e73847a9c98878c5b0577a7176a816b63d879e5ee270a04e35e\",\r\n    \"candidate\\\\src\\\\core\\\\fp16.hpp\": \"bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d\",\r\n    \"candidate\\\\src\\\\core\\\\json.hpp\": \"cc722edcd5e1369edaa903c8597fddbd6ff2b2e97e59705d8f1fde83cc95dd76\",\r\n    \"candidate\\\\src\\\\format\\\\format.hpp\": \"35810614c9500734202ccf588551f9934cecd8c5a0c0f04cb71709ceeef279c1\",\r\n    \"candidate\\\\src\\\\format\\\\gguf.hpp\": \"eec138f1768f42c921ed7baecd6d3294562c63a581b6c3b1536673c7c3e4710d\",\r\n    \"candidate\\\\src\\\\inference\\\\chat.hpp\": \"0cc035ae26396ee36489724940517b6905e55b7b1e29c6ea6fc2e4f13fb63cc2\",\r\n    \"candidate\\\\src\\\\inference\\\\generate.hpp\": \"bc09e574d0e9c5db561c4c589595ad1330674f9e66c582c59b86a696b2eb6f15\",\r\n    \"candidate\\\\src\\\\inference\\\\perplexity.hpp\": \"76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1\",\r\n    \"candidate\\\\src\\\\inference\\\\sampler.hpp\": \"a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859\",\r\n    \"candidate\\\\src\\\\model\\\\arch_qwen.hpp\": \"83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1\",\r\n    \"candidate\\\\src\\\\model\\\\host_kv_cache.hpp\": \"2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64\",\r\n    \"candidate\\\\src\\\\quant\\\\k_quants.hpp\": \"60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92\",\r\n    \"candidate\\\\src\\\\quant\\\\quant.hpp\": \"28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53\",\r\n    \"candidate\\\\src\\\\tokenizer\\\\tokenizer.hpp\": \"181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885\",\r\n    \"candidate\\\\src\\\\backends\\\\cpu\\\\cpu_backend.hpp\": \"2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234\",\r\n    \"validation-manifest.json\": \"e9a9f3d78322ed5e0efd4364cdd8c16bc527a38c23292d5a15b431009d0e0340\",\r\n    \"validation\\\\q16_oracle.cpp\": \"d318d4e55a9ffa7399a2652146759f6128b7b64f9c8ce3993326ffb2e01feacb\",\r\n    \"validation\\\\candidate_access.hpp\": \"00dc811bb8757d31f3d1fc4c5c549be5260aa7f1c38875246402574f95bb51b2\",\r\n    \"validation\\\\control_backend.hpp\": \"447f6c07ba46becdd9fedf7ba9bd92716c924830cdf4e803871cf7c7b7698ad2\"\r\n  },\r\n  \"protected_unchanged\": true,\r\n  \"script_sha256\": \"091920d177df6a23ccfbe256f1c01f2ed0d601cb4558801b69685f6d780d3a92\",\r\n  \"status\": \"pass\",\r\n  \"limits\": [\r\n    \"Two deliberate dispatch mutations; not exhaustive fault coverage.\",\r\n    \"No allocation-failure injection, model inference, HF gate or performance claim.\",\r\n    \"The original ordinary and witness oracle passes are parent evidence, not rerun here.\"\r\n  ]\r\n}\r\n"
+    },
+    "mutations-repacking-20260920/retry/grouped/build.bat": {
+      "sha256": "a7a248d8892f5550f84091c0f7bbf80ddca78a7749b00c300c204c372ad2367a",
+      "bytes": 355,
+      "text": "@echo off\r\nsetlocal\r\ncd /d \"%~dp0\"\r\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\r\nif errorlevel 1 exit /b 1\r\ncl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\candidate\\src\" /Fe:mutant.exe /Fo:mutant.obj q16_oracle.cpp\r\nexit /b %errorlevel%\r\n"
+    },
+    "mutations-repacking-20260920/retry/grouped/build.stderr": {
+      "sha256": "75d3e58f4c46b05d475f17af73b0f6367b079763dccd729f6dfba5bf46a1f888",
+      "bytes": 1202,
+      "text": "'vswhere.exe' is not recognized as an internal or external command,\r\noperable program or batch file.\r\nCompiler Passes:\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\cl.exe:        Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c1.dll:        Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c1xx.dll:      Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c2.dll:        Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c1xx.dll:      Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe:      Version 14.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\mspdb140.dll:  Version 14.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\1033\\clui.dll: Version 19.50.35728.0\r\n\r\n"
+    },
+    "mutations-repacking-20260920/retry/grouped/build.stdout": {
+      "sha256": "aaf66438389ad2b4d96c7b9408c55b9909d5eead57a544be9bb81cfe4d378ad0",
+      "bytes": 797,
+      "text": "q16_oracle.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data\r\n        with\r\n        [\r\n            _Ty=int\r\n        ]\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): note: the template instantiation context (the oldest one first) is\r\nq16_oracle.cpp(149): note: see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled\r\n        with\r\n        [\r\n            _Ty=float,\r\n            _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>\r\n        ]\r\n"
+    },
+    "mutations-repacking-20260920/retry/grouped/mutation.patch": {
+      "sha256": "efe5425a847e74c334d429fb939a6cda9d377981ae3fd81762672ba9a0c9f391",
+      "bytes": 704,
+      "text": "--- original/validation/candidate_access.hpp\r\n+++ grouped/candidate_access.hpp\r\n@@ -222,7 +222,7 @@\r\n         const bool packed = avx2_ && nin >= gguf::Q8_0_BLOCK &&\r\n             std::any_of(projections.begin(), projections.end(), [](const Projection& p) {\r\n                 return p.type == gguf::GGML_TYPE_Q8_0;\r\n-            }) && pack_q16_activation(X, nin / gguf::Q8_0_BLOCK);\r\n+            }) && ((q16_values_.size() == nin && q16_scales_.size() == nin / gguf::Q8_0_BLOCK) || pack_q16_activation(X, nin / gguf::Q8_0_BLOCK));\r\n         run_parallel([&](int w) {\r\n             for (const auto& p : projections) {\r\n                 size_t chunk = (p.rows + size_t(threads_) - 1) / size_t(threads_);\r\n"
+    },
+    "mutations-repacking-20260920/retry/grouped/run.stderr": {
+      "sha256": "cae77f548f16d58d01a465e1637e636bc305ab714237f04ab1ef81d3598143ec",
+      "bytes": 74,
+      "text": "unseeded grouped=1 stage=1 row=0\r\nunseeded reuse oracle/control mismatch\r\n"
+    },
+    "mutations-repacking-20260920/retry/grouped/run.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "mutations-repacking-20260920/retry/standalone/build.bat": {
+      "sha256": "a7a248d8892f5550f84091c0f7bbf80ddca78a7749b00c300c204c372ad2367a",
+      "bytes": 355,
+      "text": "@echo off\r\nsetlocal\r\ncd /d \"%~dp0\"\r\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\r\nif errorlevel 1 exit /b 1\r\ncl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\candidate\\src\" /Fe:mutant.exe /Fo:mutant.obj q16_oracle.cpp\r\nexit /b %errorlevel%\r\n"
+    },
+    "mutations-repacking-20260920/retry/standalone/build.stderr": {
+      "sha256": "75d3e58f4c46b05d475f17af73b0f6367b079763dccd729f6dfba5bf46a1f888",
+      "bytes": 1202,
+      "text": "'vswhere.exe' is not recognized as an internal or external command,\r\noperable program or batch file.\r\nCompiler Passes:\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\cl.exe:        Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c1.dll:        Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c1xx.dll:      Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c2.dll:        Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c1xx.dll:      Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe:      Version 14.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\mspdb140.dll:  Version 14.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\1033\\clui.dll: Version 19.50.35728.0\r\n\r\n"
+    },
+    "mutations-repacking-20260920/retry/standalone/build.stdout": {
+      "sha256": "aaf66438389ad2b4d96c7b9408c55b9909d5eead57a544be9bb81cfe4d378ad0",
+      "bytes": 797,
+      "text": "q16_oracle.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data\r\n        with\r\n        [\r\n            _Ty=int\r\n        ]\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\include\\xutility(5421): note: the template instantiation context (the oldest one first) is\r\nq16_oracle.cpp(149): note: see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled\r\n        with\r\n        [\r\n            _Ty=float,\r\n            _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>\r\n        ]\r\n"
+    },
+    "mutations-repacking-20260920/retry/standalone/mutation.patch": {
+      "sha256": "7df3f14324838e6c0aca47279f6caa26fa0c37204786bf39fcba1425305813c0",
+      "bytes": 688,
+      "text": "--- original/validation/candidate_access.hpp\r\n+++ standalone/candidate_access.hpp\r\n@@ -58,7 +58,7 @@\r\n \r\n     void matvec_q8_0(const uint8_t* data, const float* x, float* out,\r\n                      size_t nblocks, size_t nout) override {\r\n-        const bool packed = avx2_ && nout != 0 && nblocks != 0 && pack_q16_activation(x, nblocks);\r\n+        const bool packed = avx2_ && nout != 0 && nblocks != 0 && ((q16_values_.size() == nblocks * gguf::Q8_0_BLOCK && q16_scales_.size() == nblocks) || pack_q16_activation(x, nblocks));\r\n         const auto dot = [&](const uint8_t* row) {\r\n             return packed ? dot_q8_q16(row, x, nblocks) : dot_row_impl(row, x, nblocks);\r\n         };\r\n"
+    },
+    "mutations-repacking-20260920/retry/standalone/run.stderr": {
+      "sha256": "285d6d69e20179375bc887a7920f57b7301b7ca1c2e68b7bad97c0d0f5f7d0d0",
+      "bytes": 74,
+      "text": "unseeded grouped=0 stage=0 row=0\r\nunseeded reuse oracle/control mismatch\r\n"
+    },
+    "mutations-repacking-20260920/retry/standalone/run.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    }
+  },
+  "scope": [
+    "MSVC and GCC ordinary/instrumented variants each compare 611192 outputs to scalar/control, including all 63488 finite half scales, unaligned activation reads, mixed projections, batch/row boundaries and invalid-input fallback/reuse.",
+    "Separate Windows model witnesses cover 16-token final vocabulary, decode, one-token prefill and 129-token ubatch-tail-one on 0.6B/8B. Finite logits and expected route counters, zero real-model float fallback. No HF numerical cost claim.",
+    "Grouped and standalone stale-packing mutants compile and fail unseeded numerical comparisons as expected.",
+    "Models hash-verified in preceding current-runtime benchmark preparation; model-witness uses same paths/sizes, no intervening model writes.",
+    "Correctness checks started only after timing session92272 was terminal. Light synthetic checks/builds overlapped model witnesses; no timing claim."
+  ],
+  "limits": [
+    "Candidate changes activation precision and is not lossless or adopted.",
+    "Allocation-failure recovery remains untested.",
+    "Scalar oracle shares the half conversion helper; forced software-half coverage is sampled.",
+    "No full-corpus, maximum-context, model HF numerical-cost, native/ordinary suite or performance gate for this candidate yet.",
+    "Instrumented and access-only headers must never be timed."
+  ]
+}

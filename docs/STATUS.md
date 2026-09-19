@@ -9,7 +9,8 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`feat/hf-8b-validation`, based on validated prefill checkpoint `bf122fd`.
+`feat/q8-floor-followup`, based on HF consumer checkpoint `dacf18c` and
+validated runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
 restarted with its saved cursor. Root `llmx.exe` was updated to validated streaming
@@ -27,8 +28,11 @@ and documentation review found no correctness blocker. The optional 8B consumer
 now records frozen bounds, strict parsing, independent fixtures and rejection
 tests without adding default CI model downloads. Its Windows and Linux real-model gates
 pass 37/37 each, and both full 11-component required-HF suites pass. Linux
-uses diagnostic-only perf timing; no new performance result is claimed. Prior
-prefill checkpoint `bf122fd` and HF generation evidence remain archived.
+uses diagnostic-only perf timing. A separate isolated current-runtime timing
+session confirms both Q8 decode means/medians remain below mx; prefill exceeds
+mx on both models. Q16 scratch scalar/witness checks pass on both compilers,
+with real activation witnesses on Windows; model numerical cost and performance
+remain untested. Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
 
@@ -77,28 +81,32 @@ External performance requirements still block main/GitHub publication.
 
 ### Grouped Q16 activation study
 
-- **Goal:** evaluate shared Q16 activation packing for grouped Q8 decode on the
-  current runtime, following the earlier standalone numerical/perf study.
-- **Done:** source review confirms that the historical standalone prototype
-  predates grouped projections and would leave those calls on float dots.
-  An isolated candidate from exact `bf122fd` is prepared under
-  `%TEMP%/llmx-q16-group-study`, with per-file manifests and a reviewable patch.
-  It packs once per eligible grouped input and covers standalone Q8 calls,
-  retaining float fallback for invalid input/scale/result cases. Source record:
-  `benchmarks/q16-group-preparation-20260920.json`. Independent scalar/group
-  oracle and separate model activation-witness sources are also prepared. No
-  compile, test, timing or production adoption yet. The independent 8B
-  short-reference gate passes on both platforms and is available for candidate
-  checks. All local validation and transfer jobs are terminal.
-- **Left:** compile the scratch oracle and validate integer packing and dot
-  products, then
-  prove both paths activate before isolated matched timing and HF cost gates.
-- **Gotchas:** this introduces a precision change. Preserve float fallback,
-  worker scheduling and batched matrix kernels. Final prefill vocabulary
-  projection and one-token/tail work share the standalone route and can change
-  numerically; test them too, without inventing a phase API. Do not infer parity
-  or losslessness from old results. Scratch preparation may overlap reference
-  tests, but builds and timing wait for the local validation workload to finish.
+- **Goal:** evaluate shared signed-16-bit activation packing for grouped Q8
+  decode. Q8_0 model files and weight storage remain unchanged.
+- **Done:** isolated candidate from exact `bf122fd` is prepared under
+  `%TEMP%/llmx-q16-group-study`. It packs once per eligible grouped input and
+  covers standalone Q8 calls, retaining float fallback for invalid inputs,
+  scales and results. Production source is unchanged. Original preparation:
+  `benchmarks/q16-group-preparation-20260920.json`.
+  Review removed an oracle pre-seeding blind spot and added unseeded changing
+  input/failure/reuse sequences, unaligned activations and all 63,488 finite
+  half scales. MSVC and GCC ordinary/instrumented oracles each pass 611,192
+  scalar/control output comparisons; packing/fallback/reuse counters pass.
+  Two stale-packing mutants compile and fail the unseeded numerical checks.
+  Separate Windows model witnesses pass on 0.6B and 8B: final vocabulary,
+  decode, one-token prefill and one-column microbatch tails activate the
+  expected routes, with finite outputs and no real-model float fallbacks.
+  Evidence: `benchmarks/q16-group-validation-20260920.json`.
+- **Left:** declare numerical cost bounds before evaluating the candidate
+  against HF; run path-controlled PPL, long-vector and ordinary/native gates.
+  Then isolate matched control/candidate/mx timing. No model HF cost or speed
+  result exists for this grouped candidate, and it is not adopted.
+- **Gotchas:** Q16 here describes temporary activations, not a new GGUF type.
+  This changes arithmetic precision. Preserve float fallback, worker scheduling
+  and batched matrix kernels. Final vocabulary uses the standalone route;
+  one-token prefill and one-column tails use both grouped and standalone
+  routes. Allocation-failure recovery is untested; the scalar oracle shares
+  the half conversion helper. Instrumented witnesses are never timed.
 
 
 ### Optional Qwen3-8B HF consumer
@@ -789,15 +797,28 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Retained compute implementation:** `bf122fd` adds validated ordered prefill
-  reductions to the existing KV layout/worker fix (`c072af2`) and CLI controls,
-  build identification and streaming (`9cfe43f`). Its initial nine-round
-  comparison improves Q8/F32 prefill and exceeds mx in F32 prefill/decode;
-  Q8 decode remains slightly below mx. A separate Q8 follow-up exceeds mx in
-  both phases, without reproducing the initial decode dip. These sessions
-  remain separate and do not clear the broader performance gate or historical
-  8B gap. See the ordered-reduction block and ASSETS for current evidence;
-  earlier worker/dispatch measurements below retain their original scope.
+- **Current matched result (2026-09-20):** unchanged validated `bf122fd`
+  runtime versus pinned mx `5542318e74`, nine alternating measured pairs per
+  model after one discarded warmup pair; six workers, ubatch 128, 215 prompt
+  plus 32 forced tokens and F32 KV. Every process exits zero and llmx final
+  output hashes repeat within each model. No timing overlaps other compute.
+
+  | Q8 model / phase | llmx mean tok/s | mx mean tok/s | Mean gap | llmx / mx median | Paired wins |
+  |---|---:|---:|---:|---:|---:|
+  | 0.6B prefill | 440.479 | 274.766 | +60.31% | 448.159 / 277.473 | 9/9 |
+  | 0.6B decode | 47.280 | 47.589 | -0.65% | 47.362 / 48.315 | 3/9 |
+  | 8B prefill | 30.170 | 22.124 | +36.37% | 30.481 / 21.994 | 9/9 |
+  | 8B decode | 4.403 | 4.440 | -0.82% | 4.465 / 4.501 | 2/9 |
+
+  Both decode means and medians remain below mx. The external gate remains
+  open; close results do not meet the required floor. Preserve all measured
+  rounds, including the slower first measured round, and do not pool older
+  sessions. Evidence: `benchmarks/q8-current-floor-20260920.json`.
+  Independent review of all 27 pending commits found no additional concrete
+  publication blocker; the existing Windows/Linux HF/native evidence remains
+  valid for this unchanged runtime. Hosted CI follows eventual publication.
+  Earlier ordered-prefill comparisons also exceed mx in F32 prefill/decode;
+  their initial and Q8 follow-up sessions retain their separate scope.
 - **Earlier instruction study (no runtime change):** paired native Q8 rows regress;
   direct pointer increments and explicit row-kernel inlining do not establish
   a decode gain. Exact row/tail/fallback checks pass. Assembly confirms shared

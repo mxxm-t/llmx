@@ -29,6 +29,7 @@ feature currently stands right now.
 | Perplexity text-file input (-f/--file)    | Done     |
 | Chunked corpus perplexity               | Done     |
 | F32 embedding/matrix inference          | Planned  |
+| GitHub CPU CI                          | In Progress |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
@@ -37,6 +38,21 @@ feature currently stands right now.
 One block per in-flight feature. A block is what lets a fresh agent pick a
 feature back up with a "continue feature X" prompt, so keep it current. When the
 feature ships, delete its block and mark the row `Done` above.
+
+### GitHub CPU CI
+
+- **Goal:** automatically build/test on Windows, Linux and Intel macOS, with
+  a separate pinned real-model HF gate (BOSS request, ROADMAP #8).
+- **Done:** workflow with three OS jobs and a required HF job, pinned actions,
+  explicit test executable selection, optional hardware floors, pinned and
+  SHA-256 verified model downloads. Actionlint passes; Windows CMake build and
+  required HF suite pass; Linux GCC build and required HF suite pass. Negative
+  checks reject corrupt/missing fixtures and invalid benchmark throughput.
+  Added missing GCC/Clang F16C compile flag; runtime kernels are unchanged.
+- **Left:** publish and observe all four hosted jobs. macOS has not yet been
+  run; branch protection is not enabled.
+- **Gotchas:** hosted timings are diagnostics, not the mx-llama.cpp perf gate.
+  ARM/scalar and GPU execution need separate implementation/hardware coverage.
 
 ### Correctness baseline vs HF reference
 

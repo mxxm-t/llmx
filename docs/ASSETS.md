@@ -55,7 +55,10 @@ when an override is set; unsupported filenames are rejected.
 | `Qwen/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q8_0.gguf` | Small enough to gate on, and the tokenizer golden's model |
 | `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q4_0.gguf` | **Load-bearing.** Mixed Q4_0/Q4_1/Q6_K/F32, and its Q6_K `token_embd` has a subnormal super-block scale. The Q8_0 fixture has almost no subnormal scales (0.0061% of blocks against 5.89% in Qwen3-8B), so without this model the logit gate is blind to the f16 subnormal bug class - it passed with that bug deliberately reintroduced until this was added. |
 
-Fetch them with `huggingface_hub`; both are a few hundred MB.
+Fetch and SHA-256 verify the pinned snapshots with
+`python tools/fetch_test_models.py` (Python standard library only, about 1 GB
+combined). Revisions and digests are recorded in `tests/baseline.py`; the
+numerical checks use those exact snapshots unless explicitly overridden.
 
 ### Fixed-excerpt HF perplexity gate
 

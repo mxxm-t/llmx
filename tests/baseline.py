@@ -39,8 +39,12 @@ GOLDEN_PPL = os.path.join(HERE, "data", "baseline_perplexity.json")
 # added.
 BASELINE_MODELS = [
     {"repo": "Qwen/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q8_0.gguf",
+     "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
+     "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
      "min_overlap": 5, "max_nll_delta": 0.01, "max_chunk_nll_delta": 0.02},
     {"repo": "unsloth/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q4_0.gguf",
+     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+     "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
      "min_overlap": 4, "max_nll_delta": 0.16, "max_chunk_nll_delta": 0.20},
 ]
 
@@ -179,7 +183,8 @@ def find_fixture(spec):
             "LLMX_BASELINE_GGUF must retain the fixture filename to select its quantization bounds")
         if name != spec["file"]:
             return None
-    return find_model({"gguf_repo": spec["repo"], "gguf_file": spec["file"]})
+    return find_model({"gguf_repo": spec["repo"], "gguf_file": spec["file"],
+                       "gguf_revision": spec["revision"]})
 
 
 def find_model(doc):
@@ -189,7 +194,7 @@ def find_model(doc):
     repo = doc["gguf_repo"].replace("/", "--")
     pattern = os.path.join(
         os.path.expanduser("~"), ".cache", "huggingface", "hub",
-        "models--" + repo, "snapshots", "*", doc["gguf_file"])
+        "models--" + repo, "snapshots", doc.get("gguf_revision", "*"), doc["gguf_file"])
     hits = sorted(glob.glob(pattern))
     return hits[0] if hits else None
 

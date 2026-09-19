@@ -1,6 +1,7 @@
 # Build artifacts
 *.exe
 *.obj
+/build/
 
 # Test outputs
 test_out.*

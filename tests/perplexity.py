@@ -77,7 +77,7 @@ def run():
             assert int(fields["context size"]) == context
             assert abs(float(fields["mean NLL"]) - expected) < 1e-5
             assert math.isclose(float(fields["perplexity"]), math.exp(expected), rel_tol=1e-5)
-        path = os.path.join(directory, "corpus ü.txt")
+        path = os.path.join(directory, "corpus \u00fc.txt")
         with open(path, "wb") as f:
             f.write(b"ab\r\ncd\nef")
         inline = cli(["perplexity", model, "ab\r\ncd\nef", "--threads", "1"])

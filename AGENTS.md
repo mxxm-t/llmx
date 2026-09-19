@@ -91,6 +91,11 @@ Run the full suite (all generate their own fixtures, no real models needed):
 python tests/run_tests.py
 ```
 
+For a CMake build, pass `--exe <path-to-built-llmx>`. CI uses
+`--no-perf-floor` for shared runners and `--require-baseline` in its real-model
+job so missing fixtures fail. Local performance floors remain enabled by
+default. See `docs/CI.md` for workflow coverage and reproduction commands.
+
 - **Round-trip** (`tests/roundtrip.py`): build a random Q8_0 model, quantize,
   dequantize, assert max error below a Q8_0-appropriate bound. Regression gate
   for `quant/` + `format/`.

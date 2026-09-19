@@ -28,15 +28,13 @@ configure_file(
     @ONLY
 )
 
-# AVX2 is detected at runtime; compile with -march=native-style hints where safe.
+# The current x86 build requires AVX2/FMA/F16C; per-kernel runtime checks do not make the binary portable to older CPUs.
 if(MSVC)
     target_compile_options(llmx PRIVATE /std:c++17 /O2 /arch:AVX2)
 else()
     target_compile_options(llmx PRIVATE -std=c++17 -O3)
-    # On x86 with a known baseline, enable AVX2 (runtime-detected, so it's only
-    # a perf win; correctness falls back to scalar).
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-        target_compile_options(llmx PRIVATE -mavx2 -mfma)
+        target_compile_options(llmx PRIVATE -mavx2 -mfma -mf16c)
     endif()
 endif()
 

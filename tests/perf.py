@@ -1,4 +1,5 @@
 import os
+import math
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -41,23 +42,27 @@ def parse(lines):
     return out
 
 
-def run():
+def run(enforce_floor=True):
     rc, out = cli(["bench", "--size", "2048", "--iters", "5"])
     assert rc == 0, "bench command failed"
     res = parse(out.splitlines())
     assert "matmul_gflops" in res, "bench output missing matmul line:\n" + out
     assert "prefill_tps" in res and "decode_tps" in res, \
         "bench output missing prefill/decode lines:\n" + out
-    assert res["matmul_gflops"] >= FLOOR_GFLOPS, (
+    assert all(math.isfinite(v) and v >= 0 for v in res.values()), "invalid benchmark output: " + out
+    assert all(res[k] > 0 for k in ("matmul_gflops", "prefill_tps", "decode_tps")), "zero throughput: " + out
+    assert not enforce_floor or res["matmul_gflops"] >= FLOOR_GFLOPS, (
         "matmul %.2f GFLOPS below floor %.2f" % (res["matmul_gflops"], FLOOR_GFLOPS))
-    assert res["prefill_tps"] >= FLOOR_PREFILL_TPS, (
+    assert not enforce_floor or res["prefill_tps"] >= FLOOR_PREFILL_TPS, (
         "prefill %.1f tok/s below floor %.1f" % (res["prefill_tps"], FLOOR_PREFILL_TPS))
-    assert res["decode_tps"] >= FLOOR_DECODE_TPS, (
+    assert not enforce_floor or res["decode_tps"] >= FLOOR_DECODE_TPS, (
         "decode %.1f tok/s below floor %.1f" % (res["decode_tps"], FLOOR_DECODE_TPS))
     print("perf: matmul %.2f GFLOPS (%.3f ms), prefill %.0f tok/s, decode %.0f tok/s, "
           "rms_norm %.3f ms, rope %.3f ms  [ok]"
           % (res["matmul_gflops"], res["matmul_ms"], res["prefill_tps"], res["decode_tps"],
              res["rms_norm_ms"], res["rope_ms"]))
+    if not enforce_floor:
+        print("perf: hardware-specific floors disabled; timings are diagnostic only")
     return True
 
 

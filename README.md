@@ -32,6 +32,9 @@ produces `llmx.exe` in the repo root.
 
 Cross-platform (Windows / Linux / macOS), CMake:
 
+The current backend/build targets x86 with AVX2/FMA/F16C; ARM and a portable
+scalar build are not implemented yet.
+
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
@@ -58,6 +61,10 @@ their real fixture models are cached (otherwise those checks skip):
 python tests/run_tests.py
 ```
 
+For CMake builds, pass `--exe build/llmx` (Linux/Intel macOS) or
+`--exe build/Release/llmx.exe` (MSVC). GitHub CI builds on those three OSes
+and runs a separate pinned HF model gate; see [CI details](docs/CI.md).
+
 - **Round-trip**: quantize / dequantize a random Q8_0 model, assert max error
   within a Q8_0-appropriate bound.
 - **Perf**: time the Q8_0 matmul / RMSNorm / RoPE hot paths and end-to-end
@@ -78,6 +85,7 @@ python tests/run_tests.py
 | `docs/ASSETS.md`            | Real models and corpora for manual verification|
 | `docs/ROADMAP.md`           | The stable long-term plan                     |
 | `docs/STATUS.md`            | Living tracker of what's done / in flight     |
+| `docs/CI.md`                | Automated builds, tests and coverage limits   |
 | `docs/src/`                 | Per-file docs, linked from ARCHITECTURE       |
 | `AGENTS.md`                 | Guidance for AI agents working in this repo   |
 

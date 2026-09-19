@@ -27,6 +27,8 @@ feature currently stands right now.
 | HF fixed-excerpt PPL baseline            | Done     |
 | Performance floor vs mx-llama.cpp        | In Progress |
 | Perplexity text-file input (-f/--file)    | Done     |
+| Chunked corpus perplexity               | Done     |
+| F32 embedding/matrix inference          | Planned  |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
@@ -47,7 +49,7 @@ feature ships, delete its block and mark the row `Done` above.
   - `tests/baseline.py` compares llmx against the committed goldens and is
     wired into `tests/run_tests.py`. It SKIPS when no fixture model is on disk,
     so the rest of the suite still runs anywhere.
-  - Tokenizer parity: **16/16 cases match Qwen/Qwen3-0.6B.**
+  - Tokenizer parity: **20/20 cases match pinned Qwen/Qwen3-0.6B.**
   - HF fp32 top-10 logit goldens for six prompts landed in `1c2e102`.
     The baseline checks top-1, top-5 set overlap and a magnitude bound on
     Qwen3-0.6B Q8_0 and mixed Q4_0 fixtures. Both passed all six prompts in
@@ -60,17 +62,22 @@ feature ships, delete its block and mark the row `Done` above.
     32.8463 (delta 0.131554 <= 0.16). Both llmx arms repeated identically at
     printed precision. Generator, provenance and bounds are in `docs/ASSETS.md`.
     Eight injected bad-output cases were rejected; build and full suite pass.
-  - Eight bugs found and fixed via this path, all of which survived a green
+  - Nine bugs found and fixed via this path, all of which survived a green
     suite: attention missing 1/sqrt(head_dim); temperature cancelling in the
     sampler; RoPE read past context_length; the GPT-2 whitespace guard that
     could never fire; attention width hardcoded to n_embd; tied embeddings
     unsupported; Windows argv delivered in the ANSI codepage so any non-ASCII
     prompt was mangled before llmx saw it; and the pretokenizer implementing
-    the GPT-2 regex instead of the Qwen2/Qwen3 one.
+    the GPT-2 regex instead of the Qwen2/Qwen3 one; the byte encoder incorrectly
+    including soft-hyphen byte 0xAD in its printable set. Four new HF cases
+    reject the preserved old encoder. Whole-wikitext file input now tokenizes
+    298,938 tokens and scores the requested window limit successfully.
 - **Left:**
   - Per-layer activation and full-corpus PPL goldens, plus long-context validation.
-    The fixed excerpt is a regression gate, not full-corpus coverage; a defined
-    context-window/chunk scoring policy is still needed for longer corpora.
+    Continuous and chunked excerpt gates are implemented, with an explicit
+    disjoint-window scoring policy (`docs/USAGE.md`). They are not full-corpus
+    coverage. Two-token windows show large quantized/HF deviations even under
+    the unchanged old scorer; diagnostics and bounds are in `docs/ASSETS.md`.
     The existing ranking gate does not bound full-vector numerical error.
   - Tolerance bands: F32 vs reference tight, Q8_0 vs reference needs a
     quantization-appropriate bound.
@@ -81,6 +88,12 @@ feature ships, delete its block and mark the row `Done` above.
     Qwen3-8B (32*128 == 4096) and fails for 0.6B/1.7B/4B.
   - torch is a fixture-GENERATION dependency only, never needed to run the
     suite and never at runtime.
+  - Analytic scoring tests exposed unsupported F32 embeddings/matrices.
+    Norms work, but the registry's F32 entry has no dequantizer and both
+    embedding lookup and backend matmul reject it. Fix and validate this
+    before claiming all-F32 inference or a tight F32 numerical gate.
+  - Generation's legacy reasoning filter searches `thinking_start/end`, not
+    Qwen3's actual `<think>` / `</think>` markers. Its docs now state that limit.
   - Qwen3 does NOT use the GPT-2 pretokenizer regex. Read the Split pattern out
     of `tokenizer.json` before touching `pretokenize`.
 

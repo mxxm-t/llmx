@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <chrono>
 #include <random>
+#include <limits>
 
 #if defined(_WIN32)
 #define NOMINMAX
@@ -31,6 +32,7 @@
 #include "tokenizer/tokenizer.hpp"
 #include "inference/sampler.hpp"
 #include "inference/generate.hpp"
+#include "inference/perplexity.hpp"
 #include "inference/chat.hpp"
 #include "model/arch_qwen.hpp"
 
@@ -376,7 +378,7 @@ std::string read_perplexity_file(const std::string& path) {
 }
 
 int cmd_perplexity(const std::string& model_path, const std::string& text,
-                   const infer::GenParams& gp) {
+                   const infer::GenParams& gp, int context_size, int chunks) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
     infer::Model model(m);
@@ -384,24 +386,14 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     model.set_ubatch(gp.ubatch);
 
     std::vector<uint32_t> ids = tok.encode(text);
-    if (ids.size() < 2) throw std::runtime_error("perplexity: need at least 2 tokens");
-
-    double nll = 0.0;
-    std::vector<float> logits = model.step((int)ids[0]);
-    for (size_t i = 1; i < ids.size(); i++) {
-        uint32_t target = ids[i];
-        float maxv = -1e30f;
-        for (float l : logits) maxv = std::max(maxv, l);
-        double sum = 0.0;
-        for (float l : logits) sum += std::exp((double)l - maxv);
-        double logsumexp = maxv + std::log(sum);
-        double lp = (double)logits[target] - logsumexp;
-        nll -= lp;
-        logits = model.step((int)target);
-    }
-    double mean_nll = nll / (double)(ids.size() - 1);
+    const auto result = infer::perplexity(model, ids, context_size, chunks);
+    double mean_nll = result.mean_nll();
     double ppl = std::exp(mean_nll);
     std::cout << "tokens: " << ids.size() << "\n";
+    std::cout << "used tokens: " << result.used_tokens << "\n";
+    std::cout << "scored tokens: " << result.scored_tokens << "\n";
+    std::cout << "chunks: " << result.chunks << "\n";
+    std::cout << "context size: " << (context_size ? context_size : model.context_length()) << "\n";
     std::cout << "mean NLL: " << mean_nll << "\n";
     std::cout << "perplexity: " << ppl << "\n";
     return 0;
@@ -603,6 +595,8 @@ void print_usage() {
         << "  llmx detokenize <in.gguf> <id1,id2,...>\n"
         << "  llmx perplexity <in.gguf> \"<text>\" [flags...]\n"
         << "  llmx perplexity <in.gguf> -f/--file <path> [flags...]\n"
+        << "    perplexity flags: -c/--ctx-size N  window tokens (default: model context)\n"
+        << "                      --chunks N  maximum windows (default: all)\n"
         << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N]\n"
@@ -695,6 +689,7 @@ int main(int argc, char** argv) {
         if (cmd == "perplexity") {
             if (argc < 4) { std::cerr << "usage: llmx perplexity <model.gguf> (\"<text>\" | --file <path>) [flags...]\n"; return 2; }
             infer::GenParams gp;
+            int context_size = 0, chunks = 0;
             const bool from_file = std::string(argv[3]) == "--file" || std::string(argv[3]) == "-f";
             if (from_file && argc < 5) { std::cerr << "perplexity: --file requires a path\n"; return 2; }
             for (int i = from_file ? 5 : 4; i < argc; i++) {
@@ -703,13 +698,29 @@ int main(int argc, char** argv) {
                     std::cerr << "perplexity: use either inline text or one --file <path> immediately after the model\n";
                     return 2;
                 }
-                if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
+                if (a == "--ctx-size" || a == "-c" || a == "--chunks") {
+                    if (i + 1 >= argc) { std::cerr << a << " requires a positive integer\n"; return 2; }
+                    const std::string value = argv[++i];
+                    unsigned long long n = 0;
+                    for (char c : value) {
+                        if (c < '0' || c > '9' || n > (unsigned long long)std::numeric_limits<int>::max() / 10) {
+                            std::cerr << a << " requires a positive integer\n"; return 2;
+                        }
+                        n = n * 10 + (unsigned)(c - '0');
+                    }
+                    if (n == 0 || n > (unsigned long long)std::numeric_limits<int>::max()) {
+                        std::cerr << a << " requires a positive integer\n"; return 2;
+                    }
+                    if (a == "--chunks") chunks = (int)n;
+                    else context_size = (int)n;
+                }
+                else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];
-            return cmd_perplexity(argv[2], text, gp);
+            return cmd_perplexity(argv[2], text, gp, context_size, chunks);
         }
 
         if (cmd == "logits") {

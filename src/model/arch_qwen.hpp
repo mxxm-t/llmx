@@ -152,6 +152,7 @@ public:
 
     int n_tokens() const { return n_tokens_; }
     int head_dim() const { return cfg.head_dim; }
+    int context_length() const { return cfg.context_length; }
 
     // Run one token through the model (prefill or continue). Returns logits
     // over the full vocabulary.

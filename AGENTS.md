@@ -6,7 +6,7 @@ making changes.
 ## What this is
 
 **llmx** — a ground-up, dependency-free LLM inference runtime. It reads/writes
-GGUF v3, runs Q8_0 / F32 Qwen3-style transformers on CPU (AVX2 where available),
+GGUF v3, runs quantized Qwen3-style transformers with F32 norms on CPU (AVX2 where available),
 and is structured so formats, quantizations, backends, and multi-device / cluster
 serving can be added later without touching the core.
 
@@ -128,12 +128,12 @@ matters: **each layer depends only on the layers below it** —
 | Directory    | Contents                                        |
 |--------------|-------------------------------------------------|
 | `core/`      | fp16 <-> f32, JSON parser, common types         |
-| `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q6_K kernels |
+| `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
 | `format/`    | ModelFormat interface + GGUF v3 impl           |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3 pretokenizer       |
 | `model/`     | Qwen3 config + forward pass, KV cache          |
 | `backends/`  | Backend interface + cpu/ (AVX2) impl; one worker pool |
-| `inference/` | sampler, generate, chat template renderer      |
+| `inference/` | sampler, generate, perplexity, chat template renderer      |
 | `cli/`       | thin argument parsing + dispatch               |
 
 ## Starting a feature

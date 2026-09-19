@@ -6,7 +6,7 @@ short usage summary.
 
 ## Global conventions
 
-- A model file is a GGUF v3 container (see `docs/src/format/gguf.md`).
+- A model file is a GGUF v3 container (see `docs/src/format-gguf.md`).
 - Text arguments containing spaces must be quoted so they arrive as one argv
   element (`"The capital of France is"`).
 - Token ids in `detokenize` are comma- or space-separated integers.
@@ -92,24 +92,40 @@ To read text from disk instead, use `llmx perplexity <in.gguf> --file <path>`
 flags after the input. Choose one source: inline text or one file.
 
 ```
-llmx perplexity model.gguf --file "corpus excerpt.txt" --threads 6
+llmx perplexity model.gguf --file "corpus.txt" --ctx-size 512 --chunks 4 --threads 6
 ```
 
 - Files must contain UTF-8 text without a BOM. Bytes, including CRLF/LF line
   endings, are preserved; no trimming or newline conversion is performed.
-- File input avoids the shell's command-line length limit. It still scores
-  one continuous sequence within the model's context limit; it does not split
-  a corpus into chunks or reset the KV cache automatically.
+- Tokenize the entire input once, without adding BOS/EOS, then split into
+  disjoint windows. Each window resets the KV cache and RoPE positions.
+- Score every token after the first in each window. Include a partial last
+  window if it has at least two tokens; a final singleton has no target.
+- Aggregate the sum of negative log probabilities divided by the total number
+  of scored targets, then exponentiate. Do not average window perplexities.
+- The default window is the model's context length; all windows are evaluated
+  unless `--chunks` limits them. Input shorter than one window keeps its
+  previous continuous-sequence score. The whole text and token list stay in RAM.
 - Requires at least 2 tokens.
-- Prints `tokens`, `mean NLL`, and `perplexity`.
+- Prints input `tokens`, `used tokens` in evaluated windows (including each
+  window's first token), `scored tokens`, `chunks`, `context size`, `mean NLL`
+  and `perplexity`. Unused suffixes and singleton tails appear in input tokens
+  but not used/scored tokens.
 
 Flags:
 
 | Flag            | Meaning                                        |
 |-----------------|------------------------------------------------|
 | `-f`, `--file <path>` | read the input text from a UTF-8 file instead of an argument |
+| `-c`, `--ctx-size N` | tokens per window, from 2 through the model's context length |
+| `--chunks N` | maximum windows to evaluate (positive integer; default all) |
 | `--threads N`   | worker thread count (0 = auto)                 |
-| `--ubatch N`    | prefill physical batch (default 512)           |
+
+Perplexity evaluates one token at a time to obtain every target's logits.
+`--ubatch` and `--threads-batch` / `-tb` remain accepted for compatibility but
+do not affect this command. This all-target window policy differs from
+llama.cpp modes that exclude a warmup half-window; compare scores only with
+identical input bytes, token IDs, window boundaries and target selection.
 
 ## Threads: generation vs prefill
 
@@ -145,8 +161,9 @@ prompt does not allocate a full-width buffer.
 ## `llmx generate <in.gguf> "<prompt>" [flags...]`
 
 Prompt-process `prompt`, then autoregressively generate tokens until eos or
-`--max-tokens`. Prints the generated text (the Qwen3 `<thinking>` reasoning
-block is hidden unless `--think`).
+`--max-tokens`. Prints generated text. The legacy reasoning filter recognizes
+`thinking_start` / `thinking_end` token names; it does not currently recognize
+Qwen3's `<think>` / `</think>` markers. `--think` disables that filtering.
 
 Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 `N tok, <ms>, <tok/s>`.
@@ -163,7 +180,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
 | `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
-| `--think`               | show the Qwen3 `<thinking>` block                    | off     |
+| `--think`               | disable legacy reasoning-token filtering             | off     |
 | `--verbose`             | print prompt-token count                             | off     |
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`

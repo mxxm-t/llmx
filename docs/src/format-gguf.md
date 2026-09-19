@@ -1,14 +1,14 @@
 # `src/format/gguf.hpp` — GGUF v3 reader/writer
 
 From-scratch implementation of the GGUF file format (v3) for `Q8_0`, `Q4_0`,
-`Q4_1`, `Q6_K` and `F32` tensors, in namespace `gguf`. Those are not an
+`Q4_1`, `Q4_K`, `Q5_K`, `Q6_K` and `F32` tensors, in namespace `gguf`. Those are not an
 arbitrary set: a llama.cpp "Q4_0" file is MIXED, so all of them are needed to
 load one at all.
 
 - Constants: `MAGIC` (`'GGUF'`), `VERSION=3`, `ALIGNMENT=32`, GGML type ids
-  (`GGML_TYPE_F32=0`, `Q4_0=2`, `Q4_1=3`, `Q8_0=8`, `Q6_K=14`) and the block
+  (`GGML_TYPE_F32=0`, `Q4_0=2`, `Q4_1=3`, `Q8_0=8`, `Q4_K=12`, `Q5_K=13`, `Q6_K=14`) and the block
   size / bytes-per-block for each: 32/18 (Q4_0), 32/20 (Q4_1), 32/34 (Q8_0),
-  256/210 (Q6_K).
+  256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K).
 - `TensorInfo::data_size()` switches on the type here rather than reading
   `quant::Registry`, because `quant/` includes `format/` and not the reverse.
   A new type therefore needs an entry in BOTH places.
@@ -20,7 +20,8 @@ load one at all.
   address it. `read_gguf` sizes the blob exactly and reads each tensor straight
   into place.
 - `read_gguf(path)` / `write_gguf(m, path)` with the on-disk layout:
-  header, metadata KVs, tensor infos (each padded to `ALIGNMENT`), then tensor
-  data (each padded to `ALIGNMENT`).
+  header, metadata KVs, contiguous tensor infos, then an aligned data section
+  with each tensor payload aligned to `ALIGNMENT`. Tensor infos have no
+  individual padding.
 
 This is the format the CLI and the `infer::Model` layer consume.

@@ -9,6 +9,8 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
   which on Qwen3-8B was thousands of thread creations per token.
 - `matvec_q8_0`: fused dequant+FMA AVX2 row dot, kept for the single-column
   (decode) case, which is bandwidth bound.
+- Q4_K decode also has a fused row dot. F16C availability is cached and used
+  for half conversion where supported.
 - `matmul`: type-generic batched matmul. Dequantizes `DOT_ROWS` weight rows
   through the registry, then walks the batch. `dot_f32_x4` loads each
   activation vector once and reuses it across those 4 rows, because the naive
@@ -16,6 +18,8 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
   2 FMAs/cycle, so it was load bound at half of FMA peak. `dot_f32` uses four
   independent accumulators; with one, every FMA depends on the previous and the
   loop runs at FMA latency rather than throughput.
+- `dot_f32_x4x3` reuses four weight rows across three activation columns in
+  batched prefill; remaining columns/rows use the smaller kernels.
 - `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
   budget was measured instead and was worse at every size (see
   `docs/STATUS.md`).

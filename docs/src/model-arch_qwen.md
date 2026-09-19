@@ -9,7 +9,7 @@ compute primitives (quantized matmul, RMSNorm, RoPE) are delegated to a
   `attention.head_count[_kv]`, `key_length`, `context_length`, `rope_theta`,
   `rms_eps`).
 - `Model`: loads tensors from a `GGUFModel`, owns the KV cache.
-  - `set_threads(n)`, `n_tokens()`, `head_dim()`.
+  - `set_threads(n)`, `n_tokens()`, `head_dim()`, `context_length()`.
   - `step(token_id) -> logits`: run one token through the full forward pass
     (embedding, per-block attention + FFN, output norm + head), updating the KV
     cache. This is the decode path.
@@ -24,10 +24,11 @@ compute primitives (quantized matmul, RMSNorm, RoPE) are delegated to a
   - `attend_heads` / `attend_head`: (parallel) attention over the KV cache.
   - `matvec` / `dequant_row`: per-tensor matmul helpers that dispatch on the
     tensor's type via `quant::Registry`. Q8_0 uses the backend's fused AVX2
-    matvec; other types use a correct generic dequant-row-to-f32 + dot path.
+    matvec; Q4_K has a fused decode dot; other supported quants use a
+    generic dequant-row-to-f32 + dot path.
   - The constructor calls `quant::register_builtins()` (idempotent) so the
     quant registry is populated before any tensor is processed.
 
-Supports dense Q8_0 / F32 and Q4_0 tensors (see the tensor layout comment in the
-header). Q4_0 uses the generic (correct-but-slower) matmul path until a fused
-kernel lands.
+Supports dense Qwen3 with Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K weights
+and F32 norms. F32 embeddings/matrices are currently rejected. Missing
+`output.weight` selects tied token embeddings for the output projection.

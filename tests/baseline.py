@@ -39,9 +39,9 @@ GOLDEN_PPL = os.path.join(HERE, "data", "baseline_perplexity.json")
 # added.
 BASELINE_MODELS = [
     {"repo": "Qwen/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q8_0.gguf",
-     "min_overlap": 5, "max_nll_delta": 0.01},
+     "min_overlap": 5, "max_nll_delta": 0.01, "max_chunk_nll_delta": 0.02},
     {"repo": "unsloth/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q4_0.gguf",
-     "min_overlap": 4, "max_nll_delta": 0.16},
+     "min_overlap": 4, "max_nll_delta": 0.16, "max_chunk_nll_delta": 0.20},
 ]
 
 # A correct next-token logit for these models sits around 15-25. Gross
@@ -139,23 +139,35 @@ def run_perplexity():
                 continue
             rc, out = cli(["tokenize", model, doc["text"]])
             assert rc == 0 and parse_ids(out) == doc["token_ids"], "PPL token IDs differ from HF"
-            rc, out = cli(["perplexity", model, "--file", path, "--threads", "6"])
-            assert rc == 0, "perplexity failed (exit %d): %s" % (rc, out)
-            fields = dict(line.split(":", 1) for line in out.splitlines() if ":" in line)
-            assert {"tokens", "mean NLL", "perplexity"} <= fields.keys(), "missing PPL results: " + out
-            assert int(fields["tokens"]) == doc["n_tokens"], "PPL token count differs from HF"
-            nll, ppl = float(fields["mean NLL"]), float(fields["perplexity"])
-            assert math.isfinite(nll) and math.isfinite(ppl), "non-finite PPL results: " + out
-            delta = abs(nll - doc["mean_nll"])
-            # Repeated measured deltas: Q8_0 0.00137442; mixed Q4_0 0.13155442.
-            # Bounds allow quantization error; they are not a lossless claim.
-            assert delta <= spec["max_nll_delta"], (
-                "%s mean NLL %.6f vs HF %.6f: delta %.6f exceeds %.3f"
-                % (spec["file"], nll, doc["mean_nll"], delta, spec["max_nll_delta"]))
-            # The CLI prints six significant digits, so allow decimal rounding.
-            assert math.isclose(ppl, math.exp(nll), rel_tol=2e-5), "inconsistent NLL/PPL: " + out
-            print("baseline-ppl[%s]: %d tokens, PPL %.4f vs HF %.4f, NLL delta %.6f <= %.3f  [ok]"
-                  % (spec["file"], doc["n_tokens"], ppl, doc["perplexity"], delta, spec["max_nll_delta"]))
+            continuous = dict(doc, context_size=0, max_chunks=0, chunks=1, used_tokens=doc["n_tokens"])
+            for case in [continuous] + doc["chunk_cases"]:
+                args = ["perplexity", model, "--file", path, "--threads", "6"]
+                if case["context_size"]:
+                    args += ["--ctx-size", str(case["context_size"])]
+                if case["max_chunks"]:
+                    args += ["--chunks", str(case["max_chunks"])]
+                rc, out = cli(args)
+                assert rc == 0, "perplexity failed (exit %d): %s" % (rc, out)
+                fields = dict(line.split(":", 1) for line in out.splitlines() if ":" in line)
+                required = {"tokens", "used tokens", "scored tokens", "chunks", "context size", "mean NLL", "perplexity"}
+                assert required <= fields.keys(), "missing PPL results: " + out
+                assert int(fields["tokens"]) == doc["n_tokens"], "PPL token count differs from HF"
+                assert int(fields["used tokens"]) == case["used_tokens"], "PPL used tokens differ from HF"
+                assert int(fields["scored tokens"]) == case["n_scored"], "PPL scored tokens differ from HF"
+                assert int(fields["chunks"]) == case["chunks"], "PPL chunk count differs from HF"
+                if case["context_size"]:
+                    assert int(fields["context size"]) == case["context_size"], "PPL context flag was ignored"
+                nll, ppl = float(fields["mean NLL"]), float(fields["perplexity"])
+                assert math.isfinite(nll) and math.isfinite(ppl), "non-finite PPL results: " + out
+                delta = abs(nll - case["mean_nll"])
+                bound = spec["max_chunk_nll_delta"] if case["context_size"] else spec["max_nll_delta"]
+                assert delta <= bound, (
+                    "%s context %d mean NLL %.6f vs HF %.6f: delta %.6f exceeds %.3f"
+                    % (spec["file"], case["context_size"], nll, case["mean_nll"], delta, bound))
+                # The CLI prints six significant digits, so allow decimal rounding.
+                assert math.isclose(ppl, math.exp(nll), rel_tol=2e-5), "inconsistent NLL/PPL: " + out
+                print("baseline-ppl[%s c=%d chunks=%d]: PPL %.4f vs HF %.4f, NLL delta %.6f <= %.3f  [ok]"
+                      % (spec["file"], case["context_size"], case["chunks"], ppl, case["perplexity"], delta, bound))
     return True
 
 

@@ -2,7 +2,8 @@
 
 Device-agnostic compute abstraction in namespace `backend`. The inference graph
 runs its primitive ops through a `Backend` so the same model code can target CPU
-now and ROCm / CUDA / Vulkan / oneAPI later without changes.
+now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
+`docs/ROADMAP.md` #4a: current operations take host pointers synchronously.
 
 - `set_threads(n)`, `threads_available()`: worker-thread control.
 - `dot_q8_0(row, x, nblocks)`: dot product of one Q8_0 block row with `x`.
@@ -19,5 +20,5 @@ now and ROCm / CUDA / Vulkan / oneAPI later without changes.
 - `rope(x, cos, sin, half)`: rotary position embedding.
 - `BackendPtr` / factory (`make_cpu_backend`).
 
-Kept device-agnostic so a model can later be split across several backends
-(per-layer / per-tensor / per-row) without changing this interface.
+Multi-device placement is planned. Device buffers, resident activations,
+backend attention and asynchronous execution require interface changes.

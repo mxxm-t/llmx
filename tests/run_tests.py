@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import roundtrip
 import perf
 import tokenizer
+import perplexity
 import baseline
 
 
@@ -17,6 +18,7 @@ def main():
     for name, fn in [("roundtrip", roundtrip.run),
                      ("perf", perf.run),
                      ("tokenizer", tokenizer.run),
+                     ("perplexity", perplexity.run),
                      ("baseline", baseline.run)]:
         try:
             ok = fn()

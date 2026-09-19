@@ -10,8 +10,9 @@ Commands and their entry points:
   conversion via `model.json`/`model.bin`).
 - `info`: `cmd_info` (dump metadata + tensor list).
 - `tokenize` / `detokenize`: `cmd_tokenize` / `cmd_detokenize`.
-- `perplexity`: `cmd_perplexity` (loss-based PPL, from inline text or
-  `-f/--file` UTF-8 input).
+- `perplexity`: `cmd_perplexity` loads and tokenizes inline or `-f/--file`
+  UTF-8 text, then delegates scoring to `infer::perplexity`. `-c/--ctx-size`
+  chooses window size; `--chunks` limits windows. See `inference-perplexity.md`.
 - `logits`: `cmd_logits` (top-N next-token logits; this is what the correctness
   gate compares against a full-precision reference, since sampled text hides
   everything except argmax flips).

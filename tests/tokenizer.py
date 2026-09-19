@@ -27,10 +27,11 @@ def build_byte_vocab():
     for b in range(33, 127):
         m[b] = chr(b)
     for b in range(161, 256):
-        m[b] = chr(b)
+        if b != 173:
+            m[b] = chr(b)
     n = 0
     for b in range(256):
-        if not ((33 <= b <= 126) or (161 <= b <= 255)):
+        if not ((33 <= b <= 126) or (161 <= b <= 255 and b != 173)):
             m[b] = chr(256 + n)
             n += 1
     return [m[b] for b in range(256)]

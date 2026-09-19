@@ -38,10 +38,12 @@ inline size_t utf8_char_len(unsigned char c) {
 inline std::unordered_map<uint8_t, std::string> build_byte_encoder() {
     std::unordered_map<uint8_t, std::string> m;
     for (int b = 33; b <= 126; b++) m[(uint8_t)b] = utf8_encode((uint32_t)b);
-    for (int b = 161; b <= 255; b++) m[(uint8_t)b] = utf8_encode((uint32_t)b);
+    for (int b = 161; b <= 255; b++)
+        if (b != 173) m[(uint8_t)b] = utf8_encode((uint32_t)b);
     int n = 0;
     for (int b = 0; b < 256; b++) {
-        bool in = (b >= 33 && b <= 126) || (b >= 161 && b <= 255);
+        // GPT-2 excludes the soft-hyphen byte, mapping it to U+0143 instead.
+        bool in = (b >= 33 && b <= 126) || (b >= 161 && b <= 255 && b != 173);
         if (!in) { m[(uint8_t)b] = utf8_encode((uint32_t)(256 + n)); n++; }
     }
     return m;

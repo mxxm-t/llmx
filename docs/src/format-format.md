@@ -7,8 +7,9 @@ never cares which container was used.
 - `Tensor`: a tensor as described by metadata (name, shape, GGML type id) — not
   yet loaded.
 - `ModelFormat` (abstract): `tensors()`, `metadata_string(key)`, `metadata_u64(key)`.
-- `ModelFormatPtr` / `open(path)`: auto-detect format from the header, return
-  `nullptr` if unrecognized.
+- `ModelFormatPtr` / `open(path)`: intended auto-detection interface; `open`
+  has no definition yet.
 
-GGUF is the first implementation (`format/gguf.hpp`). Future formats
-(safetensors, raw) implement the same interface.
+The standalone GGUF reader (`format/gguf.hpp`) does not derive from
+`ModelFormat`; CLI/model code currently uses `gguf::GGUFModel` directly.
+Integrating this interface belongs with the next format.

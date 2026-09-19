@@ -6,7 +6,7 @@ Single place for compile-time build knobs.
   to the include path; the checked-in copy is what the plain `build.bat` path
   uses. Keep the two in sync when adding build knobs.
 - **Backends** are the only things that need compile-time config, because GPU
-  backends pull in heavyweight SDKs (ROCm/CUDA/Vulkan). CPU is always on (no
+  backends pull in heavyweight SDKs (ROCm/CUDA/SYCL/Vulkan). CPU is always on (no
   external deps). Each GPU backend is gated by `LLMX_HAS_BACKEND_*`.
 - **Model architectures** are *not* here: all are compiled in and selected at
   runtime from the model file's metadata.
@@ -15,5 +15,5 @@ Single place for compile-time build knobs.
 Defines:
 
 - `LLMX_VERSION_MAJOR/MINOR/PATCH` and `LLMX_VERSION_STRING`
-- `LLMX_HAS_BACKEND_CPU/ROCM/CUDA/VULKAN`
+- `LLMX_HAS_BACKEND_CPU/ROCM/CUDA/SYCL/VULKAN`
 - `LLMX_DEFAULT_THREADS` (0 = auto / hardware concurrency)

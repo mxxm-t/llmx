@@ -262,5 +262,35 @@
  "n_tokens": 247,
  "n_scored": 246,
  "mean_nll": 3.3602855802490645,
- "perplexity": 28.79741367762286
+ "perplexity": 28.79741367762286,
+ "chunk_scoring": "Tokenize once; disjoint windows with reset positions/KV; score tokens 1..L-1 per window; include partial windows of >=2 tokens; omit singleton tail; aggregate total NLL / total targets.",
+ "chunk_cases": [
+  {
+   "context_size": 64,
+   "max_chunks": 0,
+   "used_tokens": 247,
+   "n_scored": 243,
+   "chunks": 4,
+   "mean_nll": 4.0303603464182824,
+   "perplexity": 56.28118831815059
+  },
+  {
+   "context_size": 64,
+   "max_chunks": 2,
+   "used_tokens": 128,
+   "n_scored": 126,
+   "chunks": 2,
+   "mean_nll": 3.710157365313032,
+   "perplexity": 40.86023600491807
+  },
+  {
+   "context_size": 123,
+   "max_chunks": 0,
+   "used_tokens": 246,
+   "n_scored": 244,
+   "chunks": 2,
+   "mean_nll": 3.6307939046332396,
+   "perplexity": 37.74276888507557
+  }
+ ]
 }

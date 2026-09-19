@@ -17,24 +17,22 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx loads **Q8_0 / Q4_0 / Q4_1 / Q6_K / F32** tensors (see
-`docs/src/format-gguf.md`). Those four quant types together are what a real
-llama.cpp "Q4_0" file contains, so Q4_0 models load as well as Q8_0 ones.
-K-quants (`Q4_K`, `Q5_K`) are not supported yet, which is what still excludes
-most of the Hub.
+llmx reads **Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32** tensors (see
+`docs/src/format-gguf.md`). Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;
+support for their tensor encodings does not add new architectures. F32 norms
+work, but F32 embeddings/matrix operations remain an inference gap.
 
 | Model                                            | Format | Status                       |
 |--------------------------------------------------|--------|------------------------------|
 | `Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf` (8.11 GB)| Q8_0   | **Usable** — the real-model gate |
 | `Qwen\Qwen2-0.5B-Instruct-GGUF\...fp16.gguf`     | FP16   | Not yet supported            |
-| `lmstudio-community\...\Qwen3-30B...Q4_K_M.gguf` | Q4_K_M | Not yet supported            |
-| `lmstudio-community\...\Qwen3-Coder...Q4_K_M.gguf`| Q4_K_M | Not yet supported            |
+| `lmstudio-community\...\Qwen3-30B...Q4_K_M.gguf` | Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
+| `lmstudio-community\...\Qwen3-Coder...Q4_K_M.gguf`| Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
 | `unsloth\...\Qwen3.5-4B-BF16.gguf`               | BF16   | Not yet supported            |
 | `unsloth\...\mmproj-F32.gguf`                    | F32    | Multimodal projector (not a main model) |
 
-The Q4_K_M / FP16 / BF16 models are relevant to `docs/ROADMAP.md` #1 (more quant
-formats): once those block types are supported, the same directory provides real
-models to validate them against.
+These assets exercise both tensor-format coverage and architecture support
+(`docs/ROADMAP.md` #1-3). Check both before selecting a validation model.
 
 Use the Qwen3-8B Q8_0 model for the manual real-model checks that the suite
 can't cover — e.g. the lossless correctness gate (path-controlled perplexity)
@@ -82,8 +80,30 @@ Q4_0 NLL **3.49184** / PPL **32.8463**. The absolute mean-NLL bounds are **0.01*
 and **0.16**, respectively (about 1.01% and 17.35% relative PPL). These bounds
 allow quantization error; they do not establish lossless inference. The gate
 also requires exact HF token IDs/count and finite, mutually consistent NLL/PPL.
-Full-corpus scoring, context-window policy and long-context validation remain
-separate work.
+
+The same pinned reference also scores disjoint 64-token windows (all four, or
+the first two) and 123-token windows (two, omitting the singleton tail).
+Positions/KV reset each window, and NLL is weighted by scored targets.
+
+| Context / limit | HF NLL | Q8_0 NLL | Mixed Q4_0 NLL |
+|---|---:|---:|---:|
+| 64 / all | 4.030360346 | 4.037034329 | 4.197941852 |
+| 64 / 2 | 3.710157365 | 3.712550543 | 3.779062509 |
+| 123 / all | 3.630793905 | 3.643202014 | 3.751242730 |
+
+Chunked mean-NLL bounds are **0.02** for Q8_0 and **0.20** for mixed Q4_0;
+the tighter continuous bounds above remain unchanged. An independent control
+running the previous scoring loop on the same token windows matched total
+NLL exactly for both quants. This establishes unchanged window arithmetic,
+not equivalence to the full-precision weights.
+
+A diagnostic with two-token windows gave HF NLL **11.543536540**, Q8_0
+**11.737387723**, Q4_0 **9.244354366**, identically under old/new scoring.
+Those large quantized/full-precision differences are not covered by the
+useful bounds above; the real-model gate uses contexts 64 and 123. Minimum
+context handling is tested separately using mathematically known, nonuniform
+probabilities in `tests/perplexity.py`. These short excerpts do not establish
+full-corpus or long-context numerical correctness.
 
 
 ## Wiki text location
@@ -99,9 +119,8 @@ This is the wikitext-2-raw test split (4358 articles, ~1.28 MB). It is a plain
 text dump — the `@-@` split tokens are present, matching the wikitext corpus
 format expected by the path-controlled perplexity gate in `docs/ROADMAP.md`.
 
-`llmx.exe perplexity <model.gguf> --file <excerpt.txt>` reads UTF-8 text from
-disk without the command-line length limit (`-f` is an alias). Use an excerpt
-that fits the model's context: scoring still uses one continuous sequence,
-and corpus chunking is not implemented. Passing the full wikitext file does
-not automatically divide it into context-sized chunks. Line endings are
-preserved, so use the same file bytes for both arms of a comparison.
+`llmx.exe perplexity <model.gguf> --file tests/data/wiki.test.raw --ctx-size 512`
+reads UTF-8 text and scores disjoint 512-token windows. Add `--chunks 4` to
+evaluate only the first four windows. See `docs/USAGE.md` for target selection;
+line endings are preserved, so use identical bytes and scoring policies for
+both arms of a comparison.

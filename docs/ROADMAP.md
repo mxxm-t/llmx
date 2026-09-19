@@ -11,9 +11,8 @@ specified in `docs/ARCHITECTURE.md` but not yet implemented.
 ## 1. More quantization formats
 `quant::Registry` is the only integration point: a new type is a pair of block
 kernels plus one registry entry, and nothing outside `quant/` and the GGUF type
-constants has to change. Note the kernels all currently live in one
-`quant/quant.hpp`, NOT a file per type; split it when the first K-quant with a
-shared sub-scale decoder lands and the file stops being readable.
+constants has to change. Block kernels and the registry live in
+`quant/quant.hpp`; shared K-quant kernels live in `quant/k_quants.hpp`.
 - Done: `Q8_0`, `Q4_0`, `Q4_1`, plus `Q4_K` and `Q6_K` read-only. Real files
   are MIXED: Qwen3-0.6B-Q4_0 is 193 Q4_0 / 113 F32 / 3 Q4_1 / 1 Q6_K, and
   Qwen3-8B-Q4_K_M is 217 Q4_K / 37 Q6_K / 145 F32. A type on its own loads
@@ -21,7 +20,8 @@ shared sub-scale decoder lands and the file stops being readable.
 - K-quant kernels live in `quant/k_quants.hpp`, split out when `Q4_K` brought
   the shared 6-bit sub-scale decoder (`get_scale_min_k4`) that `Q5_K` reuses.
 - `Q5_K` done (read-only). Qwen3-0.6B-Q5_K_M is 168 Q5_K / 29 Q6_K / 113 F32,
-  so K-quant coverage is now complete for the `_K_M` files the Hub ships.
+  so dense Qwen3 `Q4_K_M` and `Q5_K_M` mixtures can be read. Other mixtures
+  may still require missing types such as Q3_K.
 - A fused Q4_K row dot landed for decode: no dequantized value is materialised,
   because d*q - m factorises the dot into d*sum(q*x) - m*sum(x). 2.16 -> ~2.6
   tok/s. Q5_K and Q6_K still take the generic path and would benefit the same
@@ -45,9 +45,10 @@ registry keyed by `general.architecture`:
 - Each arch = a forward-graph file under `model/`, selected at load from metadata
 
 ## 3. More formats
-`format::ModelFormat` is the seam; GGUF is the first impl.
+`format::ModelFormat` is a declared, unused seam. CLI/model code currently
+consumes `gguf::GGUFModel` directly.
 - safetensors, raw `.bin`+`.json`, ONNX export path
-- A `format::open()` that sniffs magic and dispatches (GGUF check already stubbed)
+- Implement the declaration-only `format::open()` to sniff magic and dispatch
 - safetensors is HF-native and unlocks most of the Hub; see #9b
 
 ## 4. Backends **[design]**
@@ -70,11 +71,10 @@ call. Before any GPU work:
   layer; on GPU it is a large share of decode time at depth.
 - **Async**: a submit / sync concept. `dot_q8_0` returning `float` by value is a
   per-row kernel launch.
-- **Type-generic matmul**: drop the `_q8_0` suffix and dispatch through
-  `quant::Registry`, so Q4_0 and later types stop bypassing the backend.
-- **Batched prefill**: `infer::prefill` feeds one token at a time, so prompt
-  processing offers a GPU no matrix-matrix work. Batch-1 matvec caps the
-  achievable win to decode.
+- **Type-generic matmul (done for supported quants)**: dispatch through
+  `Backend::matmul` and `quant::Registry`. F32 matrices remain a gap.
+- **Batched prefill (done on CPU)**: `Model::prefill` batches tokens with
+  `--ubatch`. Device-resident execution still needs the refactor above.
 
 The CPU backend stays correct and fast through this refactor: it is the A/B
 reference for every GPU claim (see #8).
@@ -114,7 +114,7 @@ Split a single model across several backends on one machine.
 ## 6. Multi-node / cluster **[design]**
 - `node_id` on each Backend, message layer for cross-node tensor exchange
 - Per-layer pipeline across nodes; gradient/activation shipping
-- Split mode + node count chosen at launch (env / config file), not compile time
+- Split mode + node count chosen at launch (CLI flags), not compile time
 
 ## 7. Multi-user server **[design]**
 - HTTP/WS server front-end sharing the model + KV cache (batching, KV reuse)
@@ -134,7 +134,7 @@ because every test compared llmx against itself.
   tg tok/s. A ground-up runtime slower than the thing it replaces has no claim
   to being a runtime. Report both arms; never a single number.
 - Path-controlled perplexity on real text as the lossless gate (see
-  `gfx906-correctness-gate` skill)
+  `correctness-gate` skill)
 - Large-context output hashing to prove KV cache + RoPE correctness at depth
 - Every GPU kernel claim gated by a CPU-vs-GPU A/B on identical inputs; the CPU
   backend is the reference implementation (see #4a)
@@ -162,9 +162,8 @@ is gated on nothing and can start immediately; only the kernel half is gated (on
   Do not link OpenSSL, and do not implement TLS.
 
 ### 9b. Reading what the Hub actually hosts
-`docs/ASSETS.md` records 5 of 6 local models as unusable — that is this
-problem in miniature. Downloading a model is worth little if llmx cannot read
-it.
+`docs/ASSETS.md` records local model coverage. Quant support alone does not
+make a model usable: its architecture and tokenizer must also be implemented.
 - **K-quants** (`Q4_K_M` and friends): the dominant GGUF quant on the Hub — #1
 - **safetensors**: HF-native, and trivial to read — u64 header length + JSON
   header + raw tensor bytes. No new dependency; `core/json.hpp` already parses

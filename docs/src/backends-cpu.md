@@ -4,8 +4,21 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
 
 - Detects AVX2 **once** in the constructor (via `__cpuid` on MSVC, `__get_cpuid`
   on GCC/Clang) and caches it — not per row.
-- `matvec_q8_0`: fused dequant+FMA AVX2 row dot; uses a thread pool for large
-  problems, single-threaded fast path for small ones (threshold `nout < threads*8`).
+- Persistent worker pool, started once. `matvec_q8_0` and the model layer both
+  run through it; previously each created and joined `std::thread`s per call,
+  which on Qwen3-8B was thousands of thread creations per token.
+- `matvec_q8_0`: fused dequant+FMA AVX2 row dot, kept for the single-column
+  (decode) case, which is bandwidth bound.
+- `matmul`: type-generic batched matmul. Dequantizes `DOT_ROWS` weight rows
+  through the registry, then walks the batch. `dot_f32_x4` loads each
+  activation vector once and reuses it across those 4 rows, because the naive
+  kernel needs 2 loads per FMA while Zen3 sustains only ~2 loads/cycle against
+  2 FMAs/cycle, so it was load bound at half of FMA peak. `dot_f32` uses four
+  independent accumulators; with one, every FMA depends on the previous and the
+  loop runs at FMA latency rather than throughput.
+- `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
+  budget was measured instead and was worse at every size (see
+  `docs/STATUS.md`).
 - `dot_row_impl`: AVX2 fused dequant (f16 scale broadcast) + FMA accumulation
   over int8 blocks, with a scalar fallback.
 - `rms_norm`, `rope`: AVX2 vectorized with scalar tails for non-multiples of 8.

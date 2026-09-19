@@ -46,6 +46,31 @@ by the plain `build.bat` path. Keep the two in sync when you add build knobs.
   leave generic seams, flags, and scaffolding out until a concrete second use
   exists. When in doubt, ask whether the extra code pays for itself today.
 
+## Configuration: flags, not environment variables
+
+Runtime knobs are **CLI flags**. Environment variables are not used for runtime
+configuration, because they are invisible in a command line, do not appear in
+`--help`, and silently change results between runs - which is exactly what you
+do not want while measuring.
+
+- **A knob a user would set** is a flag: `--threads`, `--ubatch`. Name it after
+  the equivalent in llama.cpp where one exists, so the vocabulary carries over
+  (`--ubatch` is `n_ubatch` / `-ub`; llmx has no `n_batch`, see below).
+- **A value the code can determine** is not a knob at all. Row blocking in the
+  CPU matmul was briefly `LLMX_ROW_BLOCK`; it is now `DOT_ROWS`, the width the
+  fused kernel handles, because measurement showed the knee follows the kernel
+  and not the machine. A constant that is a property of the code does not
+  belong in the environment.
+- **Temporary A/B knobs get deleted** once they have answered their question.
+  Both `LLMX_ROW_BLOCK` and `LLMX_ROW_BLOCK_BYTES` existed only to find a
+  number and were removed with the finding recorded in `docs/STATUS.md`.
+- **The one environment variable is for tests**: `LLMX_BASELINE_GGUF` points
+  `tests/baseline.py` at a fixture model. That is test configuration, not
+  runtime configuration, and it never reaches the binary.
+
+If you add a flag, add it to `docs/USAGE.md` and to `print_usage` in the same
+change, or it does not exist as far as a user is concerned.
+
 ## Verify
 
 Round-trip test (generates fixtures, quantizes, dequantizes, compares):

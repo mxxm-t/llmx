@@ -31,6 +31,7 @@ struct GenParams {
     int top_k = 40;
     float top_p = 0.95f;
     int threads = 0;        // 0 = auto
+    int ubatch = 0;         // physical batch for prefill (0 = default 512)
     float penalty = 1.0f;   // repetition penalty (>= 1)
     uint64_t seed = 0;      // 0 = non-deterministic
     std::string stop;       // stop generating when decoded output contains this

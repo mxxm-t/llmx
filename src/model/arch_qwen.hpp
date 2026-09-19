@@ -147,6 +147,8 @@ public:
     }
 
     void set_threads(int n) { b_->set_threads(n); }
+    // 0 keeps the default. Changing it invalidates the scratch buffers.
+    void set_ubatch(int n) { if (n > 0 && n != ubatch_) { ubatch_ = n; xb_.clear(); } }
 
     int n_tokens() const { return n_tokens_; }
     int head_dim() const { return cfg.head_dim; }
@@ -279,6 +281,7 @@ private:
     QwenConfig cfg;
     int ratio_ = 1;
     int q_dim_ = 0;
+    int ubatch_ = 512;   // default matches llama.cpp
     std::string out_name_;
     std::unordered_map<std::string, size_t> tindex_;
 
@@ -340,21 +343,13 @@ private:
         }
     }
 
-    // Physical batch: how many tokens go through ONE forward pass of the graph.
-    // This is llama.cpp's n_ubatch (-ub), not n_batch: it sets the GEMM width
-    // and the scratch buffer sizes. llmx has no logical batch, since there is
-    // one sequence and no queue; that distinction only starts to matter with
-    // the multi-user server in ROADMAP #7, where tokens from different
-    // sequences get merged into one pass.
-    // LLMX_UBATCH overrides it for measurement; the default matches llama.cpp.
-    int ubatch() const {
-        static const int v = [] {
-            const char* e = std::getenv("LLMX_UBATCH");
-            int n = e ? std::atoi(e) : 0;
-            return (n > 0) ? n : 512;
-        }();
-        return v;
-    }
+    // Physical batch: how many tokens go through ONE forward pass of the
+    // graph. This is llama.cpp's n_ubatch (-ub), not n_batch: it sets the GEMM
+    // width and the scratch buffer sizes. llmx has no logical batch, since
+    // there is one sequence and no queue; that distinction only starts to
+    // matter with the multi-user server in ROADMAP #7.
+    int ubatch() const { return ubatch_; }
+
 
     // Sized to the largest chunk this prompt will actually use, so a short
     // prompt does not allocate scratch for a full ubatch (at n_ff 12288 a

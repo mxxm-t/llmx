@@ -77,9 +77,25 @@ Compute the loss-based perplexity of `text` under the model.
 
 Flags:
 
-| Flag            | Meaning                              |
-|-----------------|--------------------------------------|
-| `--threads N`   | worker thread count (0 = auto)       |
+| Flag            | Meaning                                        |
+|-----------------|------------------------------------------------|
+| `--threads N`   | worker thread count (0 = auto)                 |
+| `--ubatch N`    | prefill physical batch (default 512)           |
+
+## Physical batch (`--ubatch`)
+
+`--ubatch` is how many prompt tokens go through **one forward pass** of the
+graph. It sets the matmul width and the size of the prefill scratch buffers,
+and it only affects prompt processing; generation is one token at a time.
+
+It is llama.cpp's `n_ubatch` (`-ub`), not `n_batch`. llmx has no logical batch:
+there is one sequence and no queue, so the prompt is the batch. That
+distinction starts to matter only with the multi-user server in
+`docs/ROADMAP.md` #7, where tokens from different sequences are merged into one
+pass.
+
+Scratch is sized to the smaller of `--ubatch` and the actual prompt, so a short
+prompt does not allocate a full-width buffer.
 
 ## `llmx generate <in.gguf> "<prompt>" [flags...]`
 
@@ -98,6 +114,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--topp F`              | top-p nucleus truncation (1.0 = off)                 | 0.95    |
 | `--penalty F`           | repetition penalty (>= 1)                            | 1.0     |
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
+| `--ubatch N`            | prefill physical batch (llama.cpp `n_ubatch` / `-ub`) | 512     |
 | `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--think`               | show the Qwen3 `<thinking>` block                    | off     |

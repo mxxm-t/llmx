@@ -7,4 +7,14 @@ From-scratch half <-> float conversion, no libraries.
 - `f16_to_f32(uint16_t) -> float`: sign/exponent/mantissa reconstruction,
   including subnormal normalization and inf/nan.
 
+Both subnormal paths were wrong until 2026-09-19 and the bugs were invisible
+for the life of the project, because ordinary weights never produce a subnormal
+block scale. Decode incremented the exponent per normalizing shift instead of
+decrementing, making every subnormal 2^(2k) too large (16x for Q6_K super-block
+scales). Encode applied the normal path's 0xfff rounding bias after the shift
+had already happened, emitting a normal half about 200x too large. The decode
+bug alone made real llama.cpp Q4_0 files produce pure garbage, since their
+`token_embd` is Q6_K. `tests/roundtrip.py` now carries a tensor whose block
+scale lands in the subnormal band, with a RELATIVE bound.
+
 Used by the Q8_0 kernels to store/read the per-block f16 scale.

@@ -304,6 +304,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     bpe::Tokenizer tok(m);
     infer::Model model(m);
     if (gp.threads > 0) model.set_threads(gp.threads);
+    model.set_ubatch(gp.ubatch);
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
@@ -332,6 +333,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     bpe::Tokenizer tok(m);
     infer::Model model(m);
     if (gp.threads > 0) model.set_threads(gp.threads);
+    model.set_ubatch(gp.ubatch);
 
     std::vector<uint32_t> ids = tok.encode(text);
     if (ids.size() < 2) throw std::runtime_error("perplexity: need at least 2 tokens");
@@ -363,6 +365,7 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     bpe::Tokenizer tok(m);
     infer::Model model(m);
     if (gp.threads > 0) model.set_threads(gp.threads);
+    model.set_ubatch(gp.ubatch);
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
@@ -554,6 +557,7 @@ void print_usage() {
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N]\n"
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
+        << "           --ubatch N  prefill physical batch (default 512)\n"
         << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n";
 }
 
@@ -621,6 +625,7 @@ int main(int argc, char** argv) {
                 else if (a == "--seed") gp.seed = (i + 1 < argc) ? std::strtoull(argv[++i], nullptr, 0) : gp.seed;
                 else if (a == "--stop") gp.stop = (i + 1 < argc) ? argv[++i] : gp.stop;
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
+                else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--system") system = (i + 1 < argc) ? argv[++i] : system;
                 else if (a == "--verbose") gp.show_prompt_tokens = true;
                 else if (a == "--think") gp.show_thinking = true;
@@ -641,6 +646,7 @@ int main(int argc, char** argv) {
             for (int i = 4; i < argc; i++) {
                 std::string a = argv[i];
                 if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
+                else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             return cmd_perplexity(argv[2], argv[3], gp);

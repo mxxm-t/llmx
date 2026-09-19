@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <vector>
 #include <map>
@@ -162,6 +163,36 @@ struct Unary : Expr { std::string op; std::shared_ptr<Expr> e;
         return Value::none();
     }
 };
+
+inline void json_escape(const std::string& s, std::string& o) {
+    o += '"';
+    for (char c : s) {
+        switch (c) {
+            case '"':  o += "\\\""; break;
+            case '\\': o += "\\\\"; break;
+            case '\n': o += "\\n";  break;
+            case '\t': o += "\\t";  break;
+            case '\r': o += "\\r";  break;
+            default:
+                if ((unsigned char)c < 0x20) { char buf[8]; snprintf(buf, sizeof buf, "\\u%04x", (unsigned char)c); o += buf; }
+                else o += c;
+        }
+    }
+    o += '"';
+}
+
+inline std::string to_json(const Value& v) {
+    switch (v.t) {
+        case Value::NONE: return "null";
+        case Value::BOOL: return v.b ? "true" : "false";
+        case Value::NUM:  return v.to_str();
+        case Value::STR: { std::string o; json_escape(v.s, o); return o; }
+        case Value::LIST: { std::string o = "["; for (size_t i = 0; i < v.list.size(); i++) { if (i) o += ", "; o += to_json(v.list[i]); } return o + "]"; }
+        case Value::DICT: { std::string o = "{"; bool first = true; for (auto& kv : v.dict) { if (!first) o += ", "; first = false; json_escape(kv.first, o); o += ": "; o += to_json(kv.second); } return o + "}"; }
+    }
+    return "null";
+}
+
 struct Binary : Expr { std::string op; std::shared_ptr<Expr> l, r;
     Binary(const std::string& o, const std::shared_ptr<Expr>& a, const std::shared_ptr<Expr>& b) : op(o), l(a), r(b) {}
     Value eval(const Ctx& c) const {
@@ -200,11 +231,16 @@ struct Binary : Expr { std::string op; std::shared_ptr<Expr> l, r;
     }
 };
 struct Call : Expr { std::shared_ptr<Expr> callee; std::vector<std::shared_ptr<Expr>> args;
-    Call(const std::shared_ptr<Expr>& c, const std::vector<std::shared_ptr<Expr>>& a) : callee(c), args(a) {}
+    std::vector<std::pair<std::string, std::shared_ptr<Expr>>> kwargs;
+    Call(const std::shared_ptr<Expr>& c, const std::vector<std::shared_ptr<Expr>>& a,
+         const std::vector<std::pair<std::string, std::shared_ptr<Expr>>>& k = {})
+        : callee(c), args(a), kwargs(k) {}
     Value eval(const Ctx& c) const {
         std::vector<Value> av;
-        av.reserve(args.size());
+        av.reserve(args.size() + kwargs.size() * 2);
         for (auto& a : args) av.push_back(a->eval(c));
+        // keyword args are passed as (name, value) pairs; call_global::namespace pairs them
+        for (auto& kv : kwargs) { av.push_back(Value::str(kv.first)); av.push_back(kv.second->eval(c)); }
         if (auto v = dynamic_cast<Var*>(callee.get())) return call_global(v->name, av);
         if (auto at = dynamic_cast<Attr*>(callee.get())) {
             Value base = at->base->eval(c);
@@ -280,13 +316,31 @@ struct Call : Expr { std::shared_ptr<Expr> callee; std::vector<std::shared_ptr<E
             if (base.t == Value::DICT) return Value::number((double)base.dict.size());
             return Value::number((double)s.size());
         }
+        if (name == "lstrip" || name == "rstrip") {
+            std::string cs = args.empty() ? "" : args[0].to_str();
+            if (cs.empty()) cs = " \t\n\r";
+            if (name == "lstrip") {
+                size_t a = 0; while (a < s.size() && cs.find(s[a]) != std::string::npos) a++;
+                return Value::str(s.substr(a));
+            }
+            size_t b = s.size(); while (b > 0 && cs.find(s[b - 1]) != std::string::npos) b--;
+            return Value::str(s.substr(0, b));
+        }
         return Value::none();
     }
     static Value call_global(const std::string& name, const std::vector<Value>& args) {
         if (name == "range") {
-            long n = args.empty() ? 0 : (long)args[0].n;
             Value r = Value::arr();
-            for (long i = 0; i < n; i++) r.list.push_back(Value::number((double)i));
+            if (args.empty()) return r;
+            long a = (long)args[0].n;
+            if (args.size() == 1) {
+                for (long i = 0; i < a; i++) r.list.push_back(Value::number((double)i));
+                return r;
+            }
+            long b = (long)args[1].n;
+            long st = (args.size() > 2 && args[2].n != 0) ? (long)args[2].n : 1;
+            if (st > 0) { for (long i = a; i < b; i += st) r.list.push_back(Value::number((double)i)); }
+            else { for (long i = a; i > b; i += st) r.list.push_back(Value::number((double)i)); }
             return r;
         }
         if (name == "namespace") {
@@ -294,6 +348,56 @@ struct Call : Expr { std::shared_ptr<Expr> callee; std::vector<std::shared_ptr<E
             for (size_t i = 0; i + 1 < args.size(); i += 2) o.dict[args[i].to_str()] = args[i + 1];
             return o;
         }
+        return Value::none();
+    }
+};
+
+// `x is [not] <test>`; binds tighter than comparisons, like Jinja.
+struct Test : Expr { std::string name; bool neg; std::shared_ptr<Expr> e;
+    Test(const std::string& n, bool g, const std::shared_ptr<Expr>& x) : name(n), neg(g), e(x) {}
+    Value eval(const Ctx& c) const {
+        Value v = e->eval(c);
+        bool r;
+        if (name == "defined") r = true;
+        else if (name == "none") r = v.t == Value::NONE;
+        else if (name == "string") r = v.t == Value::STR;
+        else if (name == "number") r = v.t == Value::NUM || v.t == Value::BOOL;
+        else if (name == "boolean") r = v.t == Value::BOOL;
+        else if (name == "iterable") r = v.t == Value::LIST || v.t == Value::STR;
+        else if (name == "mapping") r = v.t == Value::DICT;
+        else if (name == "sequence") r = v.t == Value::LIST || v.t == Value::STR;
+        else r = false;
+        return Value::boolean(neg ? !r : r);
+    }
+};
+
+// `x | filter [args]`; postfix, same precedence level as `is`.
+struct Filter : Expr { std::string name; std::shared_ptr<Expr> e; std::vector<std::shared_ptr<Expr>> args;
+    Filter(const std::string& n, const std::shared_ptr<Expr>& x, const std::vector<std::shared_ptr<Expr>>& a) : name(n), e(x), args(a) {}
+    Value eval(const Ctx& c) const {
+        Value v = e->eval(c);
+        std::vector<Value> av;
+        for (auto& a : args) av.push_back(a->eval(c));
+        if (name == "length" || name == "len") return Call::call_method("length", v, {});
+        if (name == "tojson") return Value::str(to_json(v));
+        if (name == "upper" || name == "lower" || name == "strip" || name == "title")
+            return Call::call_method(name, v, {});
+        if (name == "first") {
+            if (v.t == Value::LIST && !v.list.empty()) return v.list.front();
+            if (v.t == Value::STR && !v.s.empty()) return Value::str(std::string(1, v.s.front()));
+            return Value::none();
+        }
+        if (name == "last") {
+            if (v.t == Value::LIST && !v.list.empty()) return v.list.back();
+            if (v.t == Value::STR && !v.s.empty()) return Value::str(std::string(1, v.s.back()));
+            return Value::none();
+        }
+        if (name == "join" && !av.empty() && v.t == Value::LIST) {
+            std::string sep = av[0].to_str(), o;
+            for (size_t i = 0; i < v.list.size(); i++) { if (i) o += sep; o += v.list[i].to_str(); }
+            return Value::str(o);
+        }
+        if (name == "default" && !av.empty()) return v.truthy() ? v : av[0];
         return Value::none();
     }
 };
@@ -348,7 +452,7 @@ inline std::vector<Tok> lex_expr(const std::string& s) {
             else if (c == ']') { ts.push_back({ Tok::RB, "]", 0 }); i++; }
             else if (c == ',') { ts.push_back({ Tok::COMMA, ",", 0 }); i++; }
             else if (c == '.') { ts.push_back({ Tok::DOT, ".", 0 }); i++; }
-            else if (c == '+' || c == '-' || c == '*' || c == '/' || c == '%' || c == '~' || c == '<' || c == '>' || c == '=') { ts.push_back({ Tok::OP, std::string(1, c), 0 }); i++; }
+            else if (c == '+' || c == '-' || c == '*' || c == '/' || c == '%' || c == '~' || c == '<' || c == '>' || c == '=' || c == '|') { ts.push_back({ Tok::OP, std::string(1, c), 0 }); i++; }
             else i++;
         }
     }
@@ -412,7 +516,36 @@ struct ExprParser {
     }
     std::shared_ptr<Expr> parse_unary() {
         if (is_op("-")) { adv(); return std::make_shared<Unary>("-", parse_unary()); }
-        return parse_postfix();
+        return parse_filter(parse_postfix());
+    }
+    // Postfix `| filter` and `is [not] test` chain (Jinja binds these tighter
+    // than comparisons).
+    std::shared_ptr<Expr> parse_filter(std::shared_ptr<Expr> e) {
+        while (true) {
+            if (cur().k == Tok::ID && cur().text == "is") {
+                adv();
+                bool neg = false;
+                if (is_id("not")) { neg = true; adv(); }
+                if (cur().k != Tok::ID) throw std::runtime_error("chat template: bad is-test");
+                std::string name = cur().text; adv();
+                e = std::make_shared<Test>(name, neg, e);
+            } else if (is_op("|")) {
+                adv();
+                if (cur().k != Tok::ID) throw std::runtime_error("chat template: bad filter");
+                std::string name = cur().text; adv();
+                std::vector<std::shared_ptr<Expr>> args;
+                if (cur().k == Tok::LP) {
+                    adv();
+                    if (cur().k != Tok::RP) {
+                        args.push_back(parse());
+                        while (cur().k == Tok::COMMA) { adv(); args.push_back(parse()); }
+                    }
+                    adv();
+                }
+                e = std::make_shared<Filter>(name, e, args);
+            } else break;
+        }
+        return e;
     }
     std::shared_ptr<Expr> parse_postfix() {
         auto e = parse_primary();
@@ -424,12 +557,19 @@ struct ExprParser {
             } else if (cur().k == Tok::LP) {
                 adv();
                 std::vector<std::shared_ptr<Expr>> args;
+                std::vector<std::pair<std::string, std::shared_ptr<Expr>>> kwargs;
                 if (cur().k != Tok::RP) {
                     args.push_back(parse());
-                    while (cur().k == Tok::COMMA) { adv(); args.push_back(parse()); }
+                    while (cur().k == Tok::COMMA) {
+                        adv();
+                        if (cur().k == Tok::ID && p + 1 < ts.size() && ts[p + 1].k == Tok::OP && ts[p + 1].text == "=") {
+                            std::string k = cur().text; adv(); adv();
+                            kwargs.emplace_back(k, parse());
+                        } else args.push_back(parse());
+                    }
                 }
                 adv(); // ')'
-                e = std::make_shared<Call>(e, args);
+                e = std::make_shared<Call>(e, args, kwargs);
             } else if (cur().k == Tok::LB) {
                 adv();
                 auto idx = parse();
@@ -485,6 +625,16 @@ struct ForNode : Node {
     std::string render(Ctx& c) const {
         Value it = iter->eval(c);
         std::string out;
+        auto save = [&c](const std::string& name) -> std::pair<bool, Value> {
+            auto it2 = c.vars.find(name);
+            return (it2 == c.vars.end()) ? std::pair<bool, Value>(false, Value::none())
+                                         : std::pair<bool, Value>(true, it2->second);
+        };
+        auto restore = [&c](const std::string& name, const std::pair<bool, Value>& sv) {
+            if (sv.first) c.vars[name] = sv.second; else c.vars.erase(name);
+        };
+        auto sv_var = save(var);
+        auto sv_loop = save("loop");
         if (it.t == Value::LIST) {
             size_t n = it.list.size();
             for (size_t i = 0; i < n; i++) {
@@ -500,10 +650,23 @@ struct ForNode : Node {
         } else if (it.t == Value::DICT) {
             for (auto& kv : it.dict) { c.vars[var] = Value::str(kv.first); for (auto& nd : body) out += nd->render(c); }
         }
+        restore(var, sv_var);
+        restore("loop", sv_loop);
         return out;
     }
 };
-struct SetNode : Node { std::string name; std::shared_ptr<Expr> e; std::string render(Ctx& c) const { c.vars[name] = e->eval(c); return ""; } };
+struct SetNode : Node { std::string name; std::shared_ptr<Expr> e;
+    std::string render(Ctx& c) const {
+        Value v = e->eval(c);
+        size_t dot = name.find('.');
+        if (dot == std::string::npos) { c.vars[name] = v; return ""; }
+        // "base.attr = ..." assigns into a namespace/dict value
+        std::string base = name.substr(0, dot), key = name.substr(dot + 1);
+        auto it = c.vars.find(base);
+        if (it != c.vars.end() && it->second.t == Value::DICT) it->second.dict[key] = v;
+        return "";
+    }
+};
 
 inline std::string strip_ws(const std::string& s) {
     std::string t = s;
@@ -526,94 +689,101 @@ inline std::string strip_ws(const std::string& s) {
     return t;
 }
 
-inline std::vector<std::shared_ptr<Node>> parse_nodes(
-    const std::vector<std::pair<std::string, std::string>>& blk, size_t& i,
-    std::string& terminator) {
-    std::vector<std::shared_ptr<Node>> nodes;
-    while (i < blk.size()) {
-        const auto& [kind, raw] = blk[i];
-        if (kind == "text") {
-            nodes.push_back(std::make_shared<Text>(raw)); i++;
-        } else if (kind == "output") {
-            nodes.push_back(std::make_shared<Output>(parse_expr(strip_ws(raw)))); i++;
-        } else if (kind == "comment") {
-            i++;
-        } else if (kind == "tag") {
-            std::string t = strip_ws(raw);
-            size_t sp = t.find(' ');
-            std::string name = (sp == std::string::npos) ? t : t.substr(0, sp);
-            std::string rest = (sp == std::string::npos) ? "" : t.substr(sp + 1);
+struct Block { std::string kind; std::string raw; bool trim_l = false, trim_r = false; };
 
-            if (name == "if") {
-                auto node = std::make_shared<IfNode>();
-                auto cond = parse_expr(rest);
-                i++;
-                std::string term;
-                auto body = parse_nodes(blk, i, term);
-                node->branches.push_back({ cond, body });
-                while (term == "elif") {
-                    // blk[i] is the {% elif ... %} tag; drop the leading keyword.
-                    std::string eraw = strip_ws(blk[i].second);
-                    size_t esp = eraw.find(' ');
-                    std::string econd = (esp == std::string::npos) ? "" : eraw.substr(esp + 1);
-                    auto cond2 = parse_expr(econd);
-                    i++;
-                    std::string t2;
-                    auto body2 = parse_nodes(blk, i, t2);
-                    node->branches.push_back({ cond2, body2 });
-                    term = t2;
-                }
-                if (term == "else") {
-                    i++;
-                    std::string t3;
-                    node->elseBody = parse_nodes(blk, i, t3);
-                    term = t3;
-                }
-                if (term != "endif") throw std::runtime_error("chat template: unbalanced {% if %}");
-                i++;
-                nodes.push_back(node);
-            } else if (name == "for") {
-                // rest: "var in expr"
-                size_t inpos = rest.find(" in ");
-                if (inpos == std::string::npos) throw std::runtime_error("chat template: bad {% for %}");
-                std::string var = rest.substr(0, inpos);
-                std::string iter = rest.substr(inpos + 4);
-                auto node = std::make_shared<ForNode>();
-                node->var = var;
-                node->iter = parse_expr(iter);
-                i++;
-                std::string term;
-                node->body = parse_nodes(blk, i, term);
-                if (term != "endfor") throw std::runtime_error("chat template: unbalanced {% for %}");
-                i++;
-                nodes.push_back(node);
-            } else if (name == "set") {
-                size_t eq = rest.find('=');
+// Recursive-descent parser over the lexed blocks. Each compound statement
+// ({% if %}, {% for %}) parses its own body via parse_body, so control flow
+// nests to any depth. A body returns at the first terminator tag
+// (elif/else/endif/endfor) or at EOF (term = ""); the tag is consumed and its
+// name reported in term, so each caller can check it is the one it expects.
+struct Parser {
+    const std::vector<Block>& blk;
+    size_t i = 0;
+    explicit Parser(const std::vector<Block>& b) : blk(b) {}
+
+    static bool is_terminator(const std::string& n) {
+        return n == "elif" || n == "else" || n == "endif" || n == "endfor";
+    }
+
+    static std::pair<std::string, std::string> split_tag(const Block& b) {
+        std::string t = strip_ws(b.raw);
+        size_t sp = t.find(' ');
+        std::string name = (sp == std::string::npos) ? t : t.substr(0, sp);
+        std::string rest = (sp == std::string::npos) ? "" : t.substr(sp + 1);
+        return { name, rest };
+    }
+
+    std::vector<std::shared_ptr<Node>> parse_body(std::string& term) {
+        term = "";
+        std::vector<std::shared_ptr<Node>> nodes;
+        while (i < blk.size()) {
+            const Block& bl = blk[i];
+            if (bl.kind == "text") { nodes.push_back(std::make_shared<Text>(bl.raw)); i++; continue; }
+            if (bl.kind == "output") { nodes.push_back(std::make_shared<Output>(parse_expr(strip_ws(bl.raw)))); i++; continue; }
+            if (bl.kind == "comment") { i++; continue; }
+            auto nt = split_tag(bl);
+            if (is_terminator(nt.first)) { term = nt.first; i++; return nodes; }
+            if (nt.first == "if") { nodes.push_back(parse_if()); continue; }
+            if (nt.first == "for") { nodes.push_back(parse_for()); continue; }
+            if (nt.first == "set") {
+                size_t eq = nt.second.find('=');
                 if (eq == std::string::npos) throw std::runtime_error("chat template: bad {% set %}");
                 auto node = std::make_shared<SetNode>();
-                node->name = rest.substr(0, eq);
-                // trim
+                node->name = nt.second.substr(0, eq);
                 size_t a = 0; while (a < node->name.size() && std::isspace((unsigned char)node->name[a])) a++;
                 size_t b = node->name.size(); while (b > a && std::isspace((unsigned char)node->name[b - 1])) b--;
                 node->name = node->name.substr(a, b - a);
-                node->e = parse_expr(rest.substr(eq + 1));
-                i++;
-                nodes.push_back(node);
-            } else if (name == "endif" || name == "endfor" || name == "else" || name == "elif") {
-                terminator = name;
-                i++;
-                return nodes;
-            } else {
-                i++;
+                node->e = parse_expr(nt.second.substr(eq + 1));
+                i++; nodes.push_back(node); continue;
             }
+            i++; // unknown tag: skip
         }
+        return nodes;
     }
-    terminator = "";
-    return nodes;
-}
 
-inline std::vector<std::pair<std::string, std::string>> lex_template(const std::string& s) {
-    std::vector<std::pair<std::string, std::string>> out;
+    std::shared_ptr<Node> parse_if() {
+        auto nt = split_tag(blk[i]);
+        auto node = std::make_shared<IfNode>();
+        node->branches.push_back({ parse_expr(nt.second), {} });
+        i++;
+        std::string term;
+        node->branches.back().second = parse_body(term);
+        while (term == "elif") {
+            auto et = split_tag(blk[i]);
+            i++;
+            node->branches.push_back({ parse_expr(et.second), {} });
+            term = "";
+            node->branches.back().second = parse_body(term);
+        }
+        if (term == "else") {
+            i++;
+            term = "";
+            node->elseBody = parse_body(term);
+        }
+        if (term != "endif") throw std::runtime_error("chat template: unbalanced {% if " + nt.second + " %}");
+        i++;
+        return node;
+    }
+
+    std::shared_ptr<Node> parse_for() {
+        auto nt = split_tag(blk[i]);
+        // rest: "var in expr"
+        size_t inpos = nt.second.find(" in ");
+        if (inpos == std::string::npos) throw std::runtime_error("chat template: bad {% for %}");
+        auto node = std::make_shared<ForNode>();
+        node->var = nt.second.substr(0, inpos);
+        node->iter = parse_expr(nt.second.substr(inpos + 4));
+        i++;
+        std::string term;
+        node->body = parse_body(term);
+        if (term != "endfor") throw std::runtime_error("chat template: unbalanced {% for " + nt.second + " %}");
+        i++;
+        return node;
+    }
+};
+
+inline std::vector<Block> lex_template(const std::string& s) {
+    std::vector<Block> out;
     size_t i = 0, n = s.size();
     while (i < n) {
         size_t best = n;
@@ -622,17 +792,51 @@ inline std::vector<std::pair<std::string, std::string>> lex_template(const std::
             size_t pos = s.find(mk, i);
             if (pos != std::string::npos && pos < best) { best = pos; marker = mk; }
         }
-        if (marker.empty()) { out.emplace_back("text", s.substr(i)); break; }
-        if (best > i) out.emplace_back("text", s.substr(i, best - i));
+        if (marker.empty()) { out.push_back({ "text", s.substr(i) }); break; }
+        if (best > i) out.push_back({ "text", s.substr(i, best - i) });
         std::string close = (marker == "{{") ? "}}" : (marker == "{%") ? "%}" : "#}";
         size_t epos = s.find(close, best + 2);
-        if (epos == std::string::npos) { out.emplace_back("text", s.substr(best)); break; }
+        if (epos == std::string::npos) { out.push_back({ "text", s.substr(best) }); break; }
         std::string content = s.substr(best + 2, epos - (best + 2));
         std::string kind = (marker == "{{") ? "output" : (marker == "{%") ? "tag" : "comment";
-        out.emplace_back(kind, content);
+        Block blk{ kind, content, false, false };
+        // Jinja whitespace control: a leading '-' on the tag trims whitespace
+        // before it, a trailing '-' trims whitespace after it.
+        size_t a = 0; while (a < blk.raw.size() && std::isspace((unsigned char)blk.raw[a])) a++;
+        if (a < blk.raw.size() && blk.raw[a] == '-') blk.trim_l = true;
+        size_t b = blk.raw.size(); while (b > 0 && std::isspace((unsigned char)blk.raw[b - 1])) b--;
+        if (b > 0 && blk.raw[b - 1] == '-') blk.trim_r = true;
+        out.push_back(std::move(blk));
         i = epos + 2;
     }
-    return out;
+    // trim_l: strip trailing whitespace from the preceding text block
+    for (size_t k = 0; k < out.size(); k++) {
+        if (out[k].kind == "text" || !out[k].trim_l) continue;
+        for (size_t j = k; j-- > 0; ) {
+            if (out[j].kind == "text") {
+                std::string& t = out[j].raw;
+                size_t e = t.size(); while (e > 0 && std::isspace((unsigned char)t[e - 1])) e--;
+                t = t.substr(0, e);
+                break;
+            }
+        }
+    }
+    // trim_r: strip leading whitespace from the following text block
+    for (size_t k = 0; k < out.size(); k++) {
+        if (out[k].kind == "text" || !out[k].trim_r) continue;
+        for (size_t j = k + 1; j < out.size(); j++) {
+            if (out[j].kind == "text") {
+                std::string& t = out[j].raw;
+                size_t a = 0; while (a < t.size() && std::isspace((unsigned char)t[a])) a++;
+                t = t.substr(a);
+                break;
+            }
+        }
+    }
+    // drop text blocks that became empty after trimming
+    std::vector<Block> out2;
+    for (auto& blk : out) if (!(blk.kind == "text" && blk.raw.empty())) out2.push_back(std::move(blk));
+    return out2;
 }
 
 } // namespace jj
@@ -646,9 +850,10 @@ inline std::string render(const std::string& tpl,
                           const std::string& bos_token,
                           const std::string& eos_token) {
     auto blk = jj::lex_template(tpl);
-    size_t i = 0;
+    jj::Parser p(blk);
     std::string term;
-    auto nodes = jj::parse_nodes(blk, i, term);
+    auto nodes = p.parse_body(term);
+    if (!term.empty()) throw std::runtime_error("chat template: unbalanced " + term);
 
     jj::Ctx ctx;
     jj::Value ml = jj::Value::arr();

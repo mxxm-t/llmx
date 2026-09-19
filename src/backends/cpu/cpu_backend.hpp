@@ -116,8 +116,7 @@ public:
         // size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against
         // 24.04 for a flat 4), because the knee follows the kernel width
         // rather than the working-set size.
-        size_t RB = (size_t)row_block();
-        if (RB < 1) RB = 1;
+        const size_t RB = (size_t)DOT_ROWS;
 
         auto do_rows = [&](int w, size_t o0, size_t o1) {
             std::vector<float>& buf = rowbuf_[(size_t)w];
@@ -149,17 +148,9 @@ public:
         });
     }
 
-    // Rows fused per activation load. Defaults to DOT_ROWS, the width
-    // dot_f32_x4 handles. LLMX_ROW_BLOCK overrides it for measurement.
+    // Rows fused per activation load: the width dot_f32_x4 handles.
     static const int DOT_ROWS = 4;
-    static int row_block() {
-        static const int v = [] {
-            const char* e = std::getenv("LLMX_ROW_BLOCK");
-            int n = e ? std::atoi(e) : 0;
-            return (n > 0) ? n : DOT_ROWS;
-        }();
-        return v;
-    }
+
 
     // Four dots against a SHARED activation vector, in one pass.
     // Calling dot_f32 four times costs 2 loads per FMA (one weight, one

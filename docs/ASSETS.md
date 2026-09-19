@@ -1003,8 +1003,10 @@ total time also includes instrumentation and is excluded from benchmark data.
 
 The matrix probes cycle through each layer's actual weights with fixed
 synthetic activations. Q/K/V and gate/up use grouped projections in llmx and
-a shared CPU graph in mx. The reference uses a persistent threadpool and
-preallocated tensor outputs/workspace; Q8 activation conversion is timed.
+a shared CPU graph in mx. The reference reuses a ggml threadpool state object
+and preallocated tensor outputs/workspace. The pinned Windows DLL uses OpenMP
+workers and barriers; the custom ggml polling path is not active. Q8 activation
+conversion is timed.
 Loading and graph construction are excluded. These probes isolate kernel and
 dispatch costs, not full-model quality or throughput.
 
@@ -1423,3 +1425,44 @@ Three alternating measured pairs follow one excluded warmup pair. Both arms use
 loading/prefill and the parent's pipe-read scheduling. This demonstrates live
 output, not an inference-kernel speedup or external performance-floor pass.
 Legacy reasoning filters remain buffered to preserve retroactive filtering.
+
+## CPU worker operation profile (2026-09-19)
+
+`benchmarks/cpu-worker-profile-20260919.json` compares pre-error 3a82284 with
+retained runtime 9cfe43f through the same instrumented backend wrapper. Pinned
+Qwen3-0.6B Q8_0/F32, 215 HF prompt IDs plus 32 forced IDs, ubatch128 and one/six
+workers are checked in three alternating process pairs. Each process uses one
+uninstrumented warmup and two instrumented sequences. No competing build/test
+or user inference ran during admitted samples.
+
+| Mean instrumented milliseconds | Before, 1 worker | Current, 1 worker | Before, 6 workers | Current, 6 workers |
+|---|---:|---:|---:|---:|
+| Q8 prefill | 2009.89 | 2017.30 | 562.43 | 573.38 |
+| Q8 decode, 32 steps | 1261.32 | 1271.89 | 764.09 | 762.44 |
+| F32 prefill | 2105.09 | 2059.57 | 617.72 | 626.08 |
+| F32 decode, 32 steps | 2941.53 | 2881.95 | 2443.77 | 2431.62 |
+
+Most of the mean prefill difference lies inside Q/K/V and gate/up projections,
+which include their worker scheduling and completion waits. For Q8, medians
+reverse the six-worker mean ordering (569.89 vs565.93 ms). These diagnostics do
+not prove a stable regression magnitude or a runtime speedup. Per-operation
+means, phase medians, process ranges and every sample are in the artifact.
+
+The instrument's initial total-time assertion caught double-counting of
+attention and its nested parallel_for. The rejected sample/source is retained;
+the corrected probe excludes nested operations. Final-vector FNV64 hashes
+match the uninstrumented warmup, across source arms and thread counts. This
+is a harness consistency witness, not an independent HF gate. The next probe
+separates worker-entry delays, callback spans and completion waits.
+
+The pinned reference DLL uses OpenMP: Release defines GGML_USE_OPENMP and the
+DLL imports VCOMP140.DLL, _vcomp_fork, _vcomp_barrier and OpenMP thread functions.
+Its SHA256 ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2
+matches the original cpu-thread-scaling artifact. The original samples and
+harness code remain intact with a dated interpretation correction appended.
+
+Root llmx.exe is now the validated streaming build 9cfe43f after the user's
+first-text delay report. The old executable is backed up in
+%TEMP%/llmx-live-generation/root-before-streaming.exe; the root replacement's
+hash and version verification are recorded in the profile artifact. No main
+merge or GitHub publication occurred.

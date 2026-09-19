@@ -1,0 +1,4796 @@
+{
+  "base": "9cfe43f",
+  "control": "3a82284",
+  "scope": "Operation-level instrumented profile; no production source changes or external floor claim.",
+  "hardware": "Ryzen 7 5800X, Windows, MSVC19.50, AVX2/FMA/F16C",
+  "settings": {
+    "threads": [
+      1,
+      6
+    ],
+    "ubatch": 128,
+    "prompt_tokens": 215,
+    "forced_tokens": 32,
+    "models": [
+      "Qwen3-0.6B Q8_0",
+      "Qwen3-0.6B F32"
+    ],
+    "process_pairs": 3,
+    "uninstrumented_warmups_per_process": 1,
+    "instrumented_sequences_per_process": 2
+  },
+  "summary": [
+    {
+      "model": "q8",
+      "threads": 1,
+      "phase": "pp",
+      "control": {
+        "total_mean_ms": 2009.89065,
+        "total_median_ms": 2008.25295,
+        "ops": {
+          "qkv": 464.2427833333333,
+          "gate_up": 697.8842333333333,
+          "attn_output": 254.12838333333335,
+          "ffn_down": 368.60561666666666,
+          "output": 9.3781,
+          "attention": 151.29651666666666,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          1985.6658,
+          2029.67095
+        ]
+      },
+      "current": {
+        "total_mean_ms": 2017.3043666666667,
+        "total_median_ms": 2018.1279,
+        "ops": {
+          "qkv": 466.9035166666667,
+          "gate_up": 701.1608833333333,
+          "attn_output": 253.85341666666665,
+          "ffn_down": 369.6282,
+          "output": 9.354566666666667,
+          "attention": 153.48321666666666,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          2002.73195,
+          2038.35115
+        ]
+      }
+    },
+    {
+      "model": "q8",
+      "threads": 1,
+      "phase": "tg",
+      "control": {
+        "total_mean_ms": 1261.3246166666668,
+        "total_median_ms": 1261.20795,
+        "ops": {
+          "qkv": 223.60406666666665,
+          "gate_up": 333.95433333333335,
+          "attn_output": 108.61648333333333,
+          "ffn_down": 163.41853333333333,
+          "output": 296.1304,
+          "attention": 117.71498333333334,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          1250.92225,
+          1271.84365
+        ]
+      },
+      "current": {
+        "total_mean_ms": 1271.8888833333333,
+        "total_median_ms": 1263.3551499999999,
+        "ops": {
+          "qkv": 224.6111,
+          "gate_up": 336.62345,
+          "attn_output": 109.51641666666667,
+          "ffn_down": 164.34323333333333,
+          "output": 298.49033333333335,
+          "attention": 118.87483333333333,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          1257.78335,
+          1298.29435
+        ]
+      }
+    },
+    {
+      "model": "q8",
+      "threads": 6,
+      "phase": "pp",
+      "control": {
+        "total_mean_ms": 562.4294166666666,
+        "total_median_ms": 569.892,
+        "ops": {
+          "qkv": 131.7232,
+          "gate_up": 191.25785,
+          "attn_output": 67.00136666666667,
+          "ffn_down": 102.23455,
+          "output": 5.114216666666667,
+          "attention": 39.17681666666667,
+          "parallel_for": 16.1326
+        },
+        "process_mean_range_ms": [
+          556.62615,
+          569.892
+        ]
+      },
+      "current": {
+        "total_mean_ms": 573.3762666666667,
+        "total_median_ms": 565.9299000000001,
+        "ops": {
+          "qkv": 135.69431666666668,
+          "gate_up": 197.85876666666667,
+          "attn_output": 66.78998333333334,
+          "ffn_down": 102.81728333333334,
+          "output": 4.939583333333333,
+          "attention": 39.91266666666667,
+          "parallel_for": 15.86295
+        },
+        "process_mean_range_ms": [
+          561.21985,
+          596.34455
+        ]
+      }
+    },
+    {
+      "model": "q8",
+      "threads": 6,
+      "phase": "tg",
+      "control": {
+        "total_mean_ms": 764.0889,
+        "total_median_ms": 765.0999999999999,
+        "ops": {
+          "qkv": 134.5629,
+          "gate_up": 193.27833333333334,
+          "attn_output": 71.65643333333334,
+          "ffn_down": 102.71065,
+          "output": 162.5168,
+          "attention": 78.50823333333334,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          752.6514500000001,
+          770.4772
+        ]
+      },
+      "current": {
+        "total_mean_ms": 762.4438666666666,
+        "total_median_ms": 767.6732999999999,
+        "ops": {
+          "qkv": 133.93061666666668,
+          "gate_up": 192.59191666666666,
+          "attn_output": 71.98705,
+          "ffn_down": 102.48406666666666,
+          "output": 159.08083333333335,
+          "attention": 78.22109999999999,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          757.6586500000001,
+          771.4418499999999
+        ]
+      }
+    },
+    {
+      "model": "f32",
+      "threads": 1,
+      "phase": "pp",
+      "control": {
+        "total_mean_ms": 2105.0895666666665,
+        "total_median_ms": 2094.36075,
+        "ops": {
+          "qkv": 488.9172,
+          "gate_up": 735.4227166666667,
+          "attn_output": 260.73845,
+          "ffn_down": 377.4404833333333,
+          "output": 24.772100000000002,
+          "attention": 153.15746666666666,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          2089.36075,
+          2130.04365
+        ]
+      },
+      "current": {
+        "total_mean_ms": 2059.569683333333,
+        "total_median_ms": 2054.0407999999998,
+        "ops": {
+          "qkv": 478.31333333333333,
+          "gate_up": 716.9014833333333,
+          "attn_output": 256.36193333333335,
+          "ffn_down": 369.7140333333333,
+          "output": 24.2778,
+          "attention": 152.74398333333335,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          2043.83855,
+          2080.8297000000002
+        ]
+      }
+    },
+    {
+      "model": "f32",
+      "threads": 1,
+      "phase": "tg",
+      "control": {
+        "total_mean_ms": 2941.529233333333,
+        "total_median_ms": 2915.5575500000004,
+        "ops": {
+          "qkv": 552.17,
+          "gate_up": 827.6313666666666,
+          "attn_output": 275.7986333333333,
+          "ffn_down": 411.99014999999997,
+          "output": 731.5856166666666,
+          "attention": 118.76753333333333,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          2860.41045,
+          3034.3386
+        ]
+      },
+      "current": {
+        "total_mean_ms": 2881.951266666667,
+        "total_median_ms": 2871.8825500000003,
+        "ops": {
+          "qkv": 542.6996666666666,
+          "gate_up": 812.9416,
+          "attn_output": 269.07528333333335,
+          "ffn_down": 403.66225,
+          "output": 717.4734833333333,
+          "attention": 116.72343333333333,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          2805.52785,
+          2952.79975
+        ]
+      }
+    },
+    {
+      "model": "f32",
+      "threads": 6,
+      "phase": "pp",
+      "control": {
+        "total_mean_ms": 617.7219666666666,
+        "total_median_ms": 615.24215,
+        "ops": {
+          "qkv": 142.82571666666666,
+          "gate_up": 205.21195,
+          "attn_output": 71.95628333333333,
+          "ffn_down": 112.12923333333333,
+          "output": 17.828416666666666,
+          "attention": 41.072433333333336,
+          "parallel_for": 16.380566666666667
+        },
+        "process_mean_range_ms": [
+          601.1261999999999,
+          627.34395
+        ]
+      },
+      "current": {
+        "total_mean_ms": 626.0828333333334,
+        "total_median_ms": 625.8983000000001,
+        "ops": {
+          "qkv": 144.6385,
+          "gate_up": 211.34088333333335,
+          "attn_output": 72.37026666666667,
+          "ffn_down": 112.16136666666667,
+          "output": 17.955866666666665,
+          "attention": 40.81301666666667,
+          "parallel_for": 16.970666666666666
+        },
+        "process_mean_range_ms": [
+          609.71405,
+          655.7009
+        ]
+      }
+    },
+    {
+      "model": "f32",
+      "threads": 6,
+      "phase": "tg",
+      "control": {
+        "total_mean_ms": 2443.7693,
+        "total_median_ms": 2439.4945,
+        "ops": {
+          "qkv": 460.2273166666667,
+          "gate_up": 680.1891833333333,
+          "attn_output": 238.74495000000002,
+          "ffn_down": 350.4315,
+          "output": 588.4545499999999,
+          "attention": 97.11275,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          2414.55125,
+          2477.2621499999996
+        ]
+      },
+      "current": {
+        "total_mean_ms": 2431.62025,
+        "total_median_ms": 2424.88645,
+        "ops": {
+          "qkv": 458.91895,
+          "gate_up": 676.1972333333333,
+          "attn_output": 237.06216666666666,
+          "ffn_down": 349.0626833333333,
+          "output": 586.3333,
+          "attention": 96.45173333333334,
+          "parallel_for": 0
+        },
+        "process_mean_range_ms": [
+          2347.17035,
+          2516.88645
+        ]
+      }
+    }
+  ],
+  "raw_results": [
+    {
+      "model": "q8",
+      "threads": 1,
+      "pair": 0,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 1997.6383,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 455.9758
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 692.1832
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 253.5018
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 370.1888
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 9.5657
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 151.2528
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1258.7583,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 223.3444
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 334.1714
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 108.4928
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 163.2925
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 295.1744
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 116.3666
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 1973.6933,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 455.5631
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 682.8092
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 253.2922
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 362.3995
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 9.6048
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 148.0905
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1263.6576,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 223.3513
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 334.8901
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 108.1902
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 163.6546
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 296.3155
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 119.4079
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 1,
+      "pair": 0,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 1999.1147,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 459.1521
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 689.1768
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 253.5852
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 371.6107
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 9.531
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 154.2899
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1255.6154,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 221.8988
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 330.2943
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 107.9672
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 161.6135
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 294.6974
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 116.844
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2006.3492,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 463.4661
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 696.1329
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 254.5116
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 365.4513
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 9.625
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 154.0252
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1259.9513,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 222.2313
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 332.8977
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 108.8774
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 162.1465
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 294.655
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 117.0977
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 6,
+      "pair": 0,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 575.5314,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 136.7159
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 192.151
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 70.7359
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 104.7807
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 5.3633
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 39.5024
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.494
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 763.7243,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 133.2661
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 192.1867
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 71.6399
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 102.4486
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 165.4277
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 77.9599
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 537.7209,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 126.6699
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 183.2078
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 64.1265
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 96.1053
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 5.1847
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 37.4977
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 15.3201
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 741.5786,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 129.9867
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 187.7056
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 69.7398
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 99.4487
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 159.4246
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 75.1152
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 6,
+      "pair": 0,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 558.8423,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 132.4874
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 186.3028
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 65.3608
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 104.9527
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 5.1656
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 39.4649
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 15.6788
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 773.0108,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 135.2322
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 195.222
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 73.484
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 103.9124
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 159.237
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 79.6724
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 566.2865,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 130.9358
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 191.3094
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 69.7054
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 104.4892
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 4.6464
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 39.768
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.0057
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 769.8729,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 134.8531
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 193.0738
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 73.2483
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 102.758
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 161.1277
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 78.8343
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 1,
+      "pair": 0,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2197.147,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 510.8108
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 769.4004
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 269.2293
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 393.1137
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 25.0532
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 159.4934
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 3160.3275,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 594.5426
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 891.8801
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 297.1492
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 442.022
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 780.4194
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 127.2142
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2062.9403,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 474.5611
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 718.6344
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 256.3984
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 374.2002
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 25.007
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 150.5927
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2908.3497,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 542.6791
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 812.7388
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 274.2981
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 403.9389
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 733.3802
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 116.2744
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 1,
+      "pair": 0,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2048.6982,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 472.6641
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 716.5983
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 255.6976
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 368.166
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 22.8667
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 151.2934
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2856.6012,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 538.5469
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 802.2892
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 266.5024
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 401.1681
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 713.9363
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 115.007
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2038.9789,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 470.1849
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 710.8415
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 254.0008
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 368.2753
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 23.4586
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 150.3548
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 3048.9983,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 573.1157
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 860.6939
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 285.1748
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 431.5812
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 754.7692
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 122.9926
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 6,
+      "pair": 0,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 598.3298,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 137.0005
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 197.9931
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 70.5185
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 110.0382
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 17.4359
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 38.6801
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.5051
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2491.1204,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 468.4022
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 693.542
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 244.2212
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 358.4248
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 597.2763
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 101.2287
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 656.3581,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 155.4098
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 224.6068
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 75.0941
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 114.8892
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 17.6091
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 41.3374
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.5865
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2463.4039,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 463.5582
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 685.3075
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 239.3081
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 353.3174
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 595.9517
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 98.4639
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 6,
+      "pair": 0,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 657.5468,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 152.2882
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 226.8638
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 75.6679
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 114.2105
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 18.9551
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 42.3697
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 17.1097
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2587.5842,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 487.9784
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 716.2548
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 255.2077
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 372.3387
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 618.0372
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 108.6061
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 653.855,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 152.3142
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 226.818
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 74.3749
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 113.0424
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 17.6733
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 41.4759
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 17.8523
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2446.1887,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 462.2541
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 684.3893
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 239.0128
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 351.8266
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 582.404
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 99.0035
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 6,
+      "pair": 1,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 638.3119,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 153.1102
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 212.6757
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 71.8967
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 114.5198
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 17.9132
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 39.6977
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 18.2749
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2358.9226,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 444.2063
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 655.3702
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 227.3953
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 337.0753
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 577.209
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 88.8034
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 581.1162,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 131.9049
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 188.663
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 70.6858
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 109.4861
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 16.247
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 38.6542
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.3168
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2335.4181,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 440.1888
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 650.7171
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 227.2034
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 334.6363
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 565.6767
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 88.3078
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 6,
+      "pair": 1,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 591.9109,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 134.7585
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 195.6852
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 69.5694
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 109.3223
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 17.29
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 39.6206
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 15.7469
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2403.4121,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 454.5572
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 667.689
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 233.9999
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 345.4113
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 577.2259
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 93.6166
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 610.3415,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 134.5022
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 208.8319
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 72.9157
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 109.3756
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 18.1248
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 40.7613
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 15.9145
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2425.6904,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 458.4037
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 675.602
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 236.5996
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 347.7739
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 580.2212
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 95.5923
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 1,
+      "pair": 1,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2050.3257,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 477.1553
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 718.8961
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 253.0157
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 367.394
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 23.0017
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 150.2047
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2794.5914,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 529.5297
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 786.649
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 259.8859
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 388.9097
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 696.7379
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 114.2389
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2057.7559,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 483.9082
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 714.2296
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 255.3981
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 368.2507
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 24.0204
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 152.0368
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2816.4643,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 526.9301
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 798.2236
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 263.1872
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 393.9567
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 701.3566
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 113.9509
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 1,
+      "pair": 1,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2088.2063,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 483.7534
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 733.954
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 258.3019
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 373.1521
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 24.649
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 151.1025
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2859.2169,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 536.7679
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 802.3102
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 267.4231
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 398.9462
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 712.4673
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 116.8541
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2103.5223,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 493.6085
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 733.2355
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 258.5823
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 376.5447
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 25.6403
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 152.0351
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2861.604,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 536.6451
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 803.9601
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 266.3984
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 400.4021
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 714.652
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 115.0636
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 6,
+      "pair": 1,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 565.5733,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 129.2648
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 203.6688
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 64.1575
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 100.0482
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 4.7083
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 39.3265
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 15.3043
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 744.7089,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 130.9443
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 187.3638
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 69.8232
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 99.9423
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 155.9273
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 75.2392
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 556.8664,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 131.2824
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 191.4576
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 67.4006
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 97.1912
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 4.7661
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 40.3139
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 15.1433
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 771.7533,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 135.4173
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 195.5945
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 72.7972
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 104.1154
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 158.508
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 78.9228
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 6,
+      "pair": 1,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 580.5238,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 134.433
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 201.9064
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 68.3159
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 103.6041
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 4.4431
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 41.6328
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.0964
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 766.4757,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 134.8483
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 193.8638
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 72.1102
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 103.0463
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 161.7584
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 79.8397
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 541.0164,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 126.2727
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 185.0169
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 64.0656
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 98.6418
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 5.0726
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 36.7455
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 15.6357
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 771.8004,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 137.0239
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 196.3324
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 72.3491
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 102.394
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 163.3165
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 79.349
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 1,
+      "pair": 1,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2029.9066,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 470.8508
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 706.202
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 254.3591
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 371.4984
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 9.6262
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 153.5586
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1312.8727,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 231.517
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 347.4593
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 112.8585
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 169.4095
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 309.6892
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 123.2291
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2046.7957,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 474.6172
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 708.3965
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 257.3341
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 375.3348
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 9.1158
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 156.8062
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1283.716,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 226.374
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 342.0013
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 110.5661
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 167.05
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 299.4681
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 120.0515
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 1,
+      "pair": 1,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2029.0714,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 470.3733
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 702.5288
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 256
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 373.2709
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 9.2581
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 151.1609
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1265.1556,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 224.5201
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 334.4134
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 109.5236
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 163.4022
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 297.0934
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 118.2253
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 1999.599,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 460.5723
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 694.5402
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 251.5558
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 370.2895
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 8.9301
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 150.63
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1278.5317,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 226.0665
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 337.3802
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 109.0766
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 165.872
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 303.4732
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 118.5813
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 1,
+      "pair": 2,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2042.435,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 477.7287
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 712.9199
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 254.2495
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 369.3319
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 10.2803
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 152.095
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1253.5403,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 221.9141
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 333.8687
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 108.5678
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 161.7908
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 292.3991
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 117.1651
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2016.9069,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 465.2435
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 702.3241
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 256.171
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 366.1531
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 8.6296
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 154.5499
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1248.3042,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 222.428
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 329.0022
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 107.8479
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 162.4991
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 292.3268
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 116.5437
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 1,
+      "pair": 2,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2030.5649,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 473.4608
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 713.5429
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 252.8428
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 366.8519
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 9.5567
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 151.2485
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1266.759,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 223.2169
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 334.7867
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 109.458
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 163.6013
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 299.027
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 118.8479
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 1991.0951,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 459.8741
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 693.5142
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 250.4877
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 367.0221
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 8.6727
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 150.9709
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 1252.4189,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 222.4286
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 332.3014
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 107.3713
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 162.2386
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 293.4053
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 117.1788
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 6,
+      "pair": 2,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 566.3649,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 133.0572
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 189.7863
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 68.0932
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 104.5262
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 5.7108
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 38.8622
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.6034
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 784.4694,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 138.4038
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 198.0985
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 73.203
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 106.6704
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 165.5327
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 81.0911
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 573.4191,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 133.1905
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 195.4787
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 66.6711
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 105.7492
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 4.9108
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 40.8203
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.646
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 756.485,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 133.8486
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 191.483
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 70.8966
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 102.2559
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 159.6409
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 77.6945
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "q8",
+      "threads": 6,
+      "pair": 2,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 625.6525,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 151.9234
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 216.4799
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 70.0647
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 111.879
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 5.0908
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 42.1569
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 17.7163
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 765.4737,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 135.6462
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 194.6108
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 72.1414
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 103.1568
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 159.8738
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 79.4744
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 567.0366,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 138.2721
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 197.9341
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 64.0509
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 98.3434
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 5.2603
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 38.4458
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 15.3293
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 749.8436,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 131.4906
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 189.6866
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 70.4282
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 101.0195
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 159.8112
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 77.1835
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "c22438705faf8f99"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 1,
+      "pair": 2,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2100.5152,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 493.1053
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 732.9303
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 260.9097
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 373.1905
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 24.0144
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 153.2219
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2922.7654,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 549.942
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 823.6582
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 273.5112
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 411.9847
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 725.4005
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 118.1099
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2078.2063,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 477.6641
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 724.3817
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 261.0091
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 374.4417
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 24.2687
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 152.4992
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2936.9119,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 552.4433
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 831.2408
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 276.0118
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 414.647
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 723.1943
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 119.089
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 1,
+      "pair": 2,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "1"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2067.0939,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 481.8923
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 712.991
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 260.0895
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 369.6366
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 24.3506
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 156.5324
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2887.1639,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 547.5821
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 810.2655
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 268.3497
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 403.5733
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 721.3246
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 116.6516
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 1,
+          "pp": {
+            "total_ms": 2094.5655,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 484.0752
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 727.8524
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 259.9699
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 376.5616
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 27.9688
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 156.0418
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2887.8885,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 540.4935
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 819.5284
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 271.3517
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 402.7845
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 716.7163
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 117.4996
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 6,
+      "pair": 2,
+      "arm": "control",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 620.1428,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 147.8827
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 201.532
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 71.7902
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 110.5429
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 17.8318
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 43.1016
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.9629
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2451.0902,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 460.3484
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 682.7526
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 240.9275
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 350.5698
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 591.4018
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 98.0444
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 629.2487,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 147.4006
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 202.6227
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 71.8498
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 118.6072
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 18.6789
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 42.9336
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.5675
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2427.8988,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 456.0942
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 676.242
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 237.4134
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 347.0918
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 588.6504
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 95.7306
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    },
+    {
+      "model": "f32",
+      "threads": 6,
+      "pair": 2,
+      "arm": "current",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt",
+        "6"
+      ],
+      "records": [
+        {
+          "run": 1,
+          "threads": 6,
+          "pp": {
+            "total_ms": 613.4847,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 139.189
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 213.6697
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 70.3327
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 106.2134
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 18.5007
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 40.0826
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 15.8599
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2403.5842,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 455.193
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 668.7817
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 234.1912
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 344.0132
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 581.956
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 94.6369
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        },
+        {
+          "run": 2,
+          "threads": 6,
+          "pp": {
+            "total_ms": 612.1824,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 56,
+                "ms": 139.0245
+              },
+              {
+                "name": "gate_up",
+                "calls": 56,
+                "ms": 199.3551
+              },
+              {
+                "name": "attn_output",
+                "calls": 56,
+                "ms": 71.2636
+              },
+              {
+                "name": "ffn_down",
+                "calls": 56,
+                "ms": 115.496
+              },
+              {
+                "name": "output",
+                "calls": 1,
+                "ms": 18.4459
+              },
+              {
+                "name": "attention",
+                "calls": 56,
+                "ms": 42.598
+              },
+              {
+                "name": "parallel_for",
+                "calls": 224,
+                "ms": 16.4104
+              }
+            ]
+          },
+          "tg": {
+            "total_ms": 2458.0237,
+            "ops": [
+              {
+                "name": "qkv",
+                "calls": 896,
+                "ms": 463.6931
+              },
+              {
+                "name": "gate_up",
+                "calls": 896,
+                "ms": 681.6703
+              },
+              {
+                "name": "attn_output",
+                "calls": 896,
+                "ms": 239.3626
+              },
+              {
+                "name": "ffn_down",
+                "calls": 896,
+                "ms": 354.486
+              },
+              {
+                "name": "output",
+                "calls": 32,
+                "ms": 592.7169
+              },
+              {
+                "name": "attention",
+                "calls": 896,
+                "ms": 99.3527
+              },
+              {
+                "name": "parallel_for",
+                "calls": 0,
+                "ms": 0
+              }
+            ]
+          },
+          "final_vector_fnv64": "d831f44d739f363d"
+        }
+      ]
+    }
+  ],
+  "scripts": {
+    "profile.cpp": "#include \"model/arch_qwen.hpp\"\n#include <array>\n#include <chrono>\n#include <iomanip>\n#include <iostream>\nusing Clock = std::chrono::steady_clock;\nstruct Stat { size_t calls = 0; double ms = 0; };\nclass ProfileBackend : public backend::CpuBackend {\npublic:\n    bool enabled = false, nested = false;\n    int ff = 0;\n    std::array<Stat, 7> stats{};\n    void add(size_t kind, Clock::time_point start) {\n        ++stats[kind].calls;\n        stats[kind].ms += std::chrono::duration<double, std::milli>(Clock::now() - start).count();\n    }\n    void matmul(uint32_t type, const uint8_t* data, const float* x, float* y,\n                size_t nin, size_t nout, size_t batch) override {\n        if (!enabled || nested) { CpuBackend::matmul(type, data, x, y, nin, nout, batch); return; }\n        const size_t kind = nout > 30000 ? 4 : nin == size_t(ff) ? 3 : 2;\n        auto start = Clock::now();\n        CpuBackend::matmul(type, data, x, y, nin, nout, batch);\n        add(kind, start);\n    }\n    void matmul_group(std::initializer_list<backend::Projection> p, const float* x,\n                      size_t nin, size_t batch) override {\n        if (!enabled) { CpuBackend::matmul_group(p, x, nin, batch); return; }\n        if (p.size() != 2 && p.size() != 3) throw std::runtime_error(\"unexpected group\");\n        nested = true;\n        auto start = Clock::now();\n        CpuBackend::matmul_group(p, x, nin, batch);\n        add(p.size() == 3 ? 0 : 1, start);\n        nested = false;\n    }\n    void attention(const float* q, const float* k, const float* v, float* out,\n                   int nh, int nk, int hd, int past, int batch, size_t stride) override {\n        if (!enabled) { CpuBackend::attention(q, k, v, out, nh, nk, hd, past, batch, stride); return; }\n        nested = true;\n        auto start = Clock::now();\n        CpuBackend::attention(q, k, v, out, nh, nk, hd, past, batch, stride);\n        add(5, start);\n        nested = false;\n    }\n    void parallel_for(int n, const std::function<void(int)>& fn) override {\n        if (!enabled || nested) { CpuBackend::parallel_for(n, fn); return; }\n        auto start = Clock::now();\n        CpuBackend::parallel_for(n, fn);\n        add(6, start);\n    }\n    void dump(const char* phase, double total) {\n        const char* names[] = {\"qkv\", \"gate_up\", \"attn_output\", \"ffn_down\", \"output\", \"attention\", \"parallel_for\"};\n        std::cout << \"\\\"\" << phase << \"\\\":{\\\"total_ms\\\":\" << total << \",\\\"ops\\\":[\";\n        for (size_t i = 0; i < stats.size(); ++i) {\n            if (i) std::cout << ',';\n            std::cout << \"{\\\"name\\\":\\\"\" << names[i] << \"\\\",\\\"calls\\\":\" << stats[i].calls << \",\\\"ms\\\":\" << stats[i].ms << '}';\n        }\n        std::cout << \"]}\";\n    }\n};\nint main(int argc, char** argv) {\n    if (argc != 4) return 2;\n    auto weights = gguf::read_gguf(argv[1]);\n    auto backend = std::make_shared<ProfileBackend>();\n    const auto cfg = infer::load_config(weights);\n    if (cfg.n_embd != 1024 || cfg.n_ff != 3072 || cfg.n_layer != 28) return 3;\n    backend->ff = cfg.n_ff;\n    infer::Model model(weights, backend);\n    const int threads = std::stoi(argv[3]);\n    model.set_threads(threads); model.set_ubatch(128);\n    std::ifstream input(argv[2]); std::vector<uint32_t> ids; uint32_t id;\n    while (input >> id) ids.push_back(id);\n    if (ids.size() != 247) return 4;\n    std::vector<uint32_t> prompt(ids.begin(), ids.begin() + 215);\n    uint64_t control_hash = 0;\n    for (int run = 0; run < 3; ++run) {\n        model.reset(); backend->enabled = run > 0; backend->stats = {};\n        auto start = Clock::now(); auto logits = model.prefill(prompt);\n        const double pp = std::chrono::duration<double, std::milli>(Clock::now() - start).count();\n        if (run) {\n            std::cout << std::setprecision(12) << \"{\\\"run\\\":\" << run << \",\\\"threads\\\":\" << threads << ',';\n            backend->dump(\"pp\", pp);\n        }\n        backend->stats = {}; start = Clock::now();\n        for (size_t i = 215; i < ids.size(); ++i) logits = model.step(ids[i]);\n        const double tg = std::chrono::duration<double, std::milli>(Clock::now() - start).count();\n        backend->enabled = false;\n        uint64_t hash = 14695981039346656037ull;\n        for (float value : logits) {\n            if (!std::isfinite(value)) return 5;\n            uint32_t bits; std::memcpy(&bits, &value, 4);\n            for (int shift = 0; shift < 32; shift += 8) { hash ^= (bits >> shift) & 255; hash *= 1099511628211ull; }\n        }\n        if (!run) control_hash = hash;\n        else {\n            if (hash != control_hash) return 6;\n            std::cout << ','; backend->dump(\"tg\", tg);\n            std::cout << \",\\\"final_vector_fnv64\\\":\\\"\" << std::hex << hash << std::dec << \"\\\"}\\n\" << std::flush;\n        }\n    }\n}\n",
+    "run.py": "from pathlib import Path\nimport subprocess,json,os,statistics,hashlib\nr=Path(os.environ['TEMP'])/'llmx-worker-profile'\nmodels={'q8':Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf','f32':r.parent/'Qwen3-0.6B-F32.gguf'}\nids=r.parent/'llmx-external-perf/eight-pairs/tokens.txt'\nrows=[];hashes={}\nfor pair in range(3):\n for model in (['q8','f32'] if pair%2==0 else ['f32','q8']):\n  for threads in ([1,6] if pair%2==0 else [6,1]):\n   for arm in (['control','current'] if pair%2==0 else ['current','control']):\n    active=subprocess.check_output(['powershell','-NoProfile','-Command',\"Get-CimInstance Win32_Process -Filter \\\"Name='llmx.exe'\\\" | Select-Object -ExpandProperty ProcessId\"],text=True).strip()\n    if active:raise RuntimeError('User llmx process still present; do not start profiling: '+active)\n    cmd=[str(r/(arm+'.exe')),str(models[model]),str(ids),str(threads)]\n    p=subprocess.run(cmd,capture_output=True,timeout=180)\n    name=f'{model}-t{threads}-pair{pair}-{arm}'\n    (r/(name+'.stdout')).write_bytes(p.stdout);(r/(name+'.stderr')).write_bytes(p.stderr)\n    active=subprocess.check_output(['powershell','-NoProfile','-Command',\"Get-CimInstance Win32_Process -Filter \\\"Name='llmx.exe'\\\" | Select-Object -ExpandProperty ProcessId\"],text=True).strip()\n    if active:\n     (r/(name+'.contended')).write_text(active)\n     raise RuntimeError('User chat started during profile; retained raw sample without admitting it: '+active)\n    p.check_returncode();records=[json.loads(x) for x in p.stdout.splitlines()];assert len(records)==2\n    for record in records:\n     assert record['threads']==threads\n     for phase in ['pp','tg']:\n      assert 0<sum(x['ms'] for x in record[phase]['ops'])<=record[phase]['total_ms']\n      qkv=next(x for x in record[phase]['ops'] if x['name']=='qkv');assert qkv['calls']==(56 if phase=='pp' else 896),qkv\n     h=record['final_vector_fnv64']\n     if model in hashes:assert hashes[model]==h\n     else:hashes[model]=h\n    rows.append(dict(model=model,threads=threads,pair=pair,arm=arm,command=cmd,records=records))\n    (r/'results.json').write_text(json.dumps(rows,indent=2));print(name,'pass',flush=True)\nsummary=[]\nfor model in models:\n for threads in [1,6]:\n  for phase in ['pp','tg']:\n   item=dict(model=model,threads=threads,phase=phase)\n   for arm in ['control','current']:\n    runs=[y for x in rows if x['model']==model and x['threads']==threads and x['arm']==arm for y in x['records']]\n    item[arm]={'total_mean_ms':statistics.mean(x[phase]['total_ms'] for x in runs),'total_median_ms':statistics.median(x[phase]['total_ms'] for x in runs),'ops':{op:statistics.mean(next(o['ms'] for o in x[phase]['ops'] if o['name']==op) for x in runs) for op in ['qkv','gate_up','attn_output','ffn_down','output','attention','parallel_for']}}\n   summary.append(item)\n(r/'summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2))\n",
+    "build.bat": "@echo off\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /arch:AVX2 /EHsc /Zi /I\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control\\src\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\profile.cpp\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.obj\" /Fd:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.pdb\" /link /DEBUG /MAP:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\control.map\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /arch:AVX2 /EHsc /Zi /I\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current\\src\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\profile.cpp\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.obj\" /Fd:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.pdb\" /link /DEBUG /MAP:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-profile\\current.map\"\nif errorlevel 1 exit /b 1\nexit /b 0\n",
+    "initial-nested-count-profile.cpp": "#include \"model/arch_qwen.hpp\"\n#include <array>\n#include <chrono>\n#include <iomanip>\n#include <iostream>\nusing Clock = std::chrono::steady_clock;\nstruct Stat { size_t calls = 0; double ms = 0; };\nclass ProfileBackend : public backend::CpuBackend {\npublic:\n    bool enabled = false, nested = false;\n    int ff = 0;\n    std::array<Stat, 7> stats{};\n    void add(size_t kind, Clock::time_point start) {\n        ++stats[kind].calls;\n        stats[kind].ms += std::chrono::duration<double, std::milli>(Clock::now() - start).count();\n    }\n    void matmul(uint32_t type, const uint8_t* data, const float* x, float* y,\n                size_t nin, size_t nout, size_t batch) override {\n        if (!enabled || nested) { CpuBackend::matmul(type, data, x, y, nin, nout, batch); return; }\n        const size_t kind = nout > 30000 ? 4 : nin == size_t(ff) ? 3 : 2;\n        auto start = Clock::now();\n        CpuBackend::matmul(type, data, x, y, nin, nout, batch);\n        add(kind, start);\n    }\n    void matmul_group(std::initializer_list<backend::Projection> p, const float* x,\n                      size_t nin, size_t batch) override {\n        if (!enabled) { CpuBackend::matmul_group(p, x, nin, batch); return; }\n        if (p.size() != 2 && p.size() != 3) throw std::runtime_error(\"unexpected group\");\n        nested = true;\n        auto start = Clock::now();\n        CpuBackend::matmul_group(p, x, nin, batch);\n        add(p.size() == 3 ? 0 : 1, start);\n        nested = false;\n    }\n    void attention(const float* q, const float* k, const float* v, float* out,\n                   int nh, int nk, int hd, int past, int batch, size_t stride) override {\n        if (!enabled) { CpuBackend::attention(q, k, v, out, nh, nk, hd, past, batch, stride); return; }\n        auto start = Clock::now();\n        CpuBackend::attention(q, k, v, out, nh, nk, hd, past, batch, stride);\n        add(5, start);\n    }\n    void parallel_for(int n, const std::function<void(int)>& fn) override {\n        if (!enabled) { CpuBackend::parallel_for(n, fn); return; }\n        auto start = Clock::now();\n        CpuBackend::parallel_for(n, fn);\n        add(6, start);\n    }\n    void dump(const char* phase, double total) {\n        const char* names[] = {\"qkv\", \"gate_up\", \"attn_output\", \"ffn_down\", \"output\", \"attention\", \"parallel_for\"};\n        std::cout << \"\\\"\" << phase << \"\\\":{\\\"total_ms\\\":\" << total << \",\\\"ops\\\":[\";\n        for (size_t i = 0; i < stats.size(); ++i) {\n            if (i) std::cout << ',';\n            std::cout << \"{\\\"name\\\":\\\"\" << names[i] << \"\\\",\\\"calls\\\":\" << stats[i].calls << \",\\\"ms\\\":\" << stats[i].ms << '}';\n        }\n        std::cout << \"]}\";\n    }\n};\nint main(int argc, char** argv) {\n    if (argc != 4) return 2;\n    auto weights = gguf::read_gguf(argv[1]);\n    auto backend = std::make_shared<ProfileBackend>();\n    const auto cfg = infer::load_config(weights);\n    if (cfg.n_embd != 1024 || cfg.n_ff != 3072 || cfg.n_layer != 28) return 3;\n    backend->ff = cfg.n_ff;\n    infer::Model model(weights, backend);\n    const int threads = std::stoi(argv[3]);\n    model.set_threads(threads); model.set_ubatch(128);\n    std::ifstream input(argv[2]); std::vector<uint32_t> ids; uint32_t id;\n    while (input >> id) ids.push_back(id);\n    if (ids.size() != 247) return 4;\n    std::vector<uint32_t> prompt(ids.begin(), ids.begin() + 215);\n    uint64_t control_hash = 0;\n    for (int run = 0; run < 3; ++run) {\n        model.reset(); backend->enabled = run > 0; backend->stats = {};\n        auto start = Clock::now(); auto logits = model.prefill(prompt);\n        const double pp = std::chrono::duration<double, std::milli>(Clock::now() - start).count();\n        if (run) {\n            std::cout << std::setprecision(12) << \"{\\\"run\\\":\" << run << \",\\\"threads\\\":\" << threads << ',';\n            backend->dump(\"pp\", pp);\n        }\n        backend->stats = {}; start = Clock::now();\n        for (size_t i = 215; i < ids.size(); ++i) logits = model.step(ids[i]);\n        const double tg = std::chrono::duration<double, std::milli>(Clock::now() - start).count();\n        backend->enabled = false;\n        uint64_t hash = 14695981039346656037ull;\n        for (float value : logits) {\n            if (!std::isfinite(value)) return 5;\n            uint32_t bits; std::memcpy(&bits, &value, 4);\n            for (int shift = 0; shift < 32; shift += 8) { hash ^= (bits >> shift) & 255; hash *= 1099511628211ull; }\n        }\n        if (!run) control_hash = hash;\n        else {\n            if (hash != control_hash) return 6;\n            std::cout << ','; backend->dump(\"tg\", tg);\n            std::cout << \",\\\"final_vector_fnv64\\\":\\\"\" << std::hex << hash << std::dec << \"\\\"}\\n\" << std::flush;\n        }\n    }\n}\n"
+  },
+  "initial_rejected_profile": {
+    "reason": "Attention delegates to parallel_for; the initial probe double-counted that nested work. The total-time assertion rejected it before admitting a sample.",
+    "stdout": "{\"run\":1,\"threads\":1,\"pp\":{\"total_ms\":1984.0234,\"ops\":[{\"name\":\"qkv\",\"calls\":56,\"ms\":456.7801},{\"name\":\"gate_up\",\"calls\":56,\"ms\":684.3996},{\"name\":\"attn_output\",\"calls\":56,\"ms\":253.5562},{\"name\":\"ffn_down\",\"calls\":56,\"ms\":368.1892},{\"name\":\"output\",\"calls\":1,\"ms\":9.1887},{\"name\":\"attention\",\"calls\":56,\"ms\":149.1441},{\"name\":\"parallel_for\",\"calls\":56,\"ms\":149.0283}]},\"tg\":{\"total_ms\":1255.8094,\"ops\":[{\"name\":\"qkv\",\"calls\":896,\"ms\":221.9077},{\"name\":\"gate_up\",\"calls\":896,\"ms\":330.9872},{\"name\":\"attn_output\",\"calls\":896,\"ms\":109.0396},{\"name\":\"ffn_down\",\"calls\":896,\"ms\":160.4942},{\"name\":\"output\",\"calls\":32,\"ms\":293.5154},{\"name\":\"attention\",\"calls\":896,\"ms\":117.2279},{\"name\":\"parallel_for\",\"calls\":896,\"ms\":116.7858}]},\"final_vector_fnv64\":\"c22438705faf8f99\"}\n{\"run\":2,\"threads\":1,\"pp\":{\"total_ms\":2005.5805,\"ops\":[{\"name\":\"qkv\",\"calls\":56,\"ms\":467.6306},{\"name\":\"gate_up\",\"calls\":56,\"ms\":693.9393},{\"name\":\"attn_output\",\"calls\":56,\"ms\":252.6801},{\"name\":\"ffn_down\",\"calls\":56,\"ms\":366.7666},{\"name\":\"output\",\"calls\":1,\"ms\":9.0455},{\"name\":\"attention\",\"calls\":56,\"ms\":150.9491},{\"name\":\"parallel_for\",\"calls\":56,\"ms\":150.8259}]},\"tg\":{\"total_ms\":1286.8849,\"ops\":[{\"name\":\"qkv\",\"calls\":896,\"ms\":226.2813},{\"name\":\"gate_up\",\"calls\":896,\"ms\":339.5676},{\"name\":\"attn_output\",\"calls\":896,\"ms\":111.0244},{\"name\":\"ffn_down\",\"calls\":896,\"ms\":165.7253},{\"name\":\"output\",\"calls\":32,\"ms\":301.2662},{\"name\":\"attention\",\"calls\":896,\"ms\":119.8605},{\"name\":\"parallel_for\",\"calls\":896,\"ms\":119.3985}]},\"final_vector_fnv64\":\"c22438705faf8f99\"}\n"
+  },
+  "binary_sha256": {
+    "control": "d6c22cfe7ea8bd782a3e0b97662e3681d7695ef738f6f567e927b72d7a7c1288",
+    "current": "216d0e97f6f941f9178e4e6b4effef772be23af34f5662478e4fc10cdc3fd19c"
+  },
+  "logs": {
+    "build-fixed.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nprofile.cpp\nprofile.cpp\n",
+    "build.log": "\ufffd\ufffdc\u0000m\u0000d\u0000 \u0000:\u0000 \u0000'\u0000v\u0000s\u0000w\u0000h\u0000e\u0000r\u0000e\u0000.\u0000e\u0000x\u0000e\u0000'\u0000 \u0000i\u0000s\u0000 \u0000n\u0000o\u0000t\u0000 \u0000r\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000z\u0000e\u0000d\u0000 \u0000a\u0000s\u0000 \u0000a\u0000n\u0000 \u0000i\u0000n\u0000t\u0000e\u0000r\u0000n\u0000a\u0000l\u0000 \u0000o\u0000r\u0000 \u0000e\u0000x\u0000t\u0000e\u0000r\u0000n\u0000a\u0000l\u0000 \u0000c\u0000o\u0000m\u0000m\u0000a\u0000n\u0000d\u0000,\u0000\n\u0000\n\u0000A\u0000t\u0000 \u0000l\u0000i\u0000n\u0000e\u0000:\u00001\u00001\u00005\u0000 \u0000c\u0000h\u0000a\u0000r\u0000:\u00001\u0000\n\u0000\n\u0000+\u0000 \u0000c\u0000m\u0000d\u0000 \u0000/\u0000c\u0000 \u0000\"\u0000$\u0000e\u0000n\u0000v\u0000:\u0000T\u0000E\u0000M\u0000P\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000w\u0000o\u0000r\u0000k\u0000e\u0000r\u0000-\u0000p\u0000r\u0000o\u0000f\u0000i\u0000l\u0000e\u0000/\u0000b\u0000u\u0000i\u0000l\u0000d\u0000.\u0000b\u0000a\u0000t\u0000\"\u0000 \u0000>\u0000 \u0000\"\u0000$\u0000e\u0000n\u0000v\u0000:\u0000T\u0000E\u0000M\u0000P\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000w\u0000o\u0000 \u0000.\u0000.\u0000.\u0000\n\u0000\n\u0000+\u0000 \u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000\n\u0000\n\u0000 \u0000 \u0000 \u0000 \u0000+\u0000 \u0000C\u0000a\u0000t\u0000e\u0000g\u0000o\u0000r\u0000y\u0000I\u0000n\u0000f\u0000o\u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000:\u0000 \u0000N\u0000o\u0000t\u0000S\u0000p\u0000e\u0000c\u0000i\u0000f\u0000i\u0000e\u0000d\u0000:\u0000 \u0000(\u0000'\u0000v\u0000s\u0000w\u0000h\u0000e\u0000r\u0000e\u0000.\u0000e\u0000x\u0000e\u0000'\u0000 \u0000i\u0000.\u0000.\u0000.\u0000t\u0000e\u0000r\u0000n\u0000a\u0000l\u0000 \u0000c\u0000o\u0000m\u0000m\u0000a\u0000n\u0000d\u0000,\u0000:\u0000S\u0000t\u0000r\u0000i\u0000n\u0000g\u0000)\u0000 \u0000[\u0000]\u0000,\u0000 \u0000R\u0000e\u0000m\u0000o\u0000t\u0000e\u0000E\u0000x\u0000c\u0000e\u0000p\u0000t\u0000i\u0000o\u0000n\u0000\n\u0000\n\u0000 \u0000 \u0000 \u0000 \u0000+\u0000 \u0000F\u0000u\u0000l\u0000l\u0000y\u0000Q\u0000u\u0000a\u0000l\u0000i\u0000f\u0000i\u0000e\u0000d\u0000E\u0000r\u0000r\u0000o\u0000r\u0000I\u0000d\u0000 \u0000:\u0000 \u0000N\u0000a\u0000t\u0000i\u0000v\u0000e\u0000C\u0000o\u0000m\u0000m\u0000a\u0000n\u0000d\u0000E\u0000r\u0000r\u0000o\u0000r\u0000\n\u0000\n\u0000 \u0000\n\u0000\n\u0000o\u0000p\u0000e\u0000r\u0000a\u0000b\u0000l\u0000e\u0000 \u0000p\u0000r\u0000o\u0000g\u0000r\u0000a\u0000m\u0000 \u0000o\u0000r\u0000 \u0000b\u0000a\u0000t\u0000c\u0000h\u0000 \u0000f\u0000i\u0000l\u0000e\u0000.\u0000\n\u0000\n\u0000p\u0000r\u0000o\u0000f\u0000i\u0000l\u0000e\u0000.\u0000c\u0000p\u0000p\u0000\n\u0000\n\u0000p\u0000r\u0000o\u0000f\u0000i\u0000l\u0000e\u0000.\u0000c\u0000p\u0000p\u0000\n\u0000\n\u0000"
+  },
+  "reference_path_correction": {
+    "finding": "The pinned Windows reference reuses a ggml threadpool state object, but OpenMP supplies workers and barriers. The custom ggml hybrid polling worker path is not active. Recorded measurements and harness sources are unchanged.",
+    "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+    "ggml_cpu_dll_sha256": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2",
+    "build_evidence": "Release ggml-cpu.vcxproj enables OpenMPSupport and defines GGML_USE_OPENMP.",
+    "imports": [
+      "VCOMP140.DLL",
+      "_vcomp_fork",
+      "_vcomp_barrier",
+      "omp_get_num_threads",
+      "omp_get_thread_num"
+    ]
+  },
+  "root_binary_update": {
+    "backup": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\root-before-streaming.exe",
+    "old_sha256": "cf428ec36a3d5ec5fb6a74c8217aeab71a944a91256e62ace6dfe47bdc1e5005",
+    "new_sha256": "9fcde79c839e1946117267e2fc0fa8b4a6d750cd25e4b6fc5b86644c806b283c",
+    "version": "llmx 0.1.0+g9cfe43f262a3"
+  },
+  "limitations": [
+    "Operation timers include worker scheduling and waiting within each operation; they do not yet distinguish those costs from computation.",
+    "Three processes per arm/count/model with two measured sequences each; means and medians differ in some cases. This cannot establish a small speedup or replace uninstrumented external comparisons.",
+    "Final-vector FNV64 identity matches the uninstrumented warmup, across measured runs, source arms and thread counts. This is a harness consistency witness, not a new independent HF numerical gate."
+  ]
+}

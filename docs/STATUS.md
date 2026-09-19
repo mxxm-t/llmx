@@ -9,21 +9,22 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`feat/live-generation`, based on version checkpoint `8226e17`. The TUI watcher on **8181** is
-restarted with its saved cursor. Root `llmx.exe` remains the validated `3a82284`
-KV build. CLI thread corrections are validated on the active branch; benchmark
+`research/cpu-worker-profile`, based on streaming checkpoint `9cfe43f`. The TUI watcher on **8181** is
+restarted with its saved cursor. Root `llmx.exe` was updated to validated streaming
+build `9cfe43f` after the user reported buffered 8B chat output; the old executable
+is backed up in `%TEMP%/llmx-live-generation/root-before-streaming.exe`.
+CLI thread corrections are validated on the active branch; benchmark
 comparator code is unchanged. Automatic build identification and the README/ASCII cleanup are validated. Live generation/loading progress is validated on Windows and Linux. Gitea is reachable
 again; feature checkpoints may be backed up there, with performance gates still
 required before merging to main. GitHub publication is authorized after the
 requirements pass. GitHub stays main-only; feature branches go to Gitea.
 
-**Documentation review (2026-09-19):** all 25 tracked Markdown files were
-reviewed against current source, CLI, CMake/CI, tests and archived evidence.
-This checkpoint updates callback ownership, streaming/filter behavior, loading
-status and failure handling, native test coverage and the default token limit.
-It corrects the 8B HF coverage wording and retains historical measurements with
-their original scope. The live generation block carries the latest change;
-external performance and broader numerical-coverage gaps remain open.
+**Documentation review (2026-09-19):** rechecked all 25 tracked Markdown files
+against current source, CLI, CMake/CI and recorded evidence. This checkpoint
+corrects current root-binary deployment, historical/latest implementation
+wording and the reference's OpenMP worker-path interpretation. Original
+measurement samples are preserved. Streaming documentation remains current;
+external performance and broader HF coverage requirements remain open.
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
@@ -55,6 +56,7 @@ external performance and broader numerical-coverage gaps remain open.
 | CPU Q8 scale / load scheduling       | In Progress |
 | Head-major CPU KV storage             | In Progress |
 | CPU worker exception safety           | In Progress |
+| CPU worker cost profile                 | In Progress |
 | CLI thread settings                    | In Progress |
 | Automatic build identification          | In Progress |
 | Live generation and loading progress     | In Progress |
@@ -63,6 +65,41 @@ external performance and broader numerical-coverage gaps remain open.
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### CPU worker cost profile
+
+- **Goal:** localize the remaining prefill/decode costs before selecting another
+  hot-path change; compare the pre-error worker control with the retained runtime.
+- **Done:** operation-level profiles cover 24 processes: Q8/F32, one/six
+  workers, both source arms, three alternating pairs and two instrumented
+  sequences after an uninstrumented warmup. Final-vector hashes agree with
+  warmups, across source arms and thread counts. The initial instrument double
+  counted attention's nested parallel_for; its consistency check rejected the
+  run and the corrected probe excludes nested calls. Full samples and sources:
+  `benchmarks/cpu-worker-profile-20260919.json`.
+  Release definitions, DLL imports and the archived DLL hash establish OpenMP
+  workers/barriers in the mx reference. Historical measurements are retained;
+  ASSETS and the original artifact now carry a dated interpretation correction.
+- **Left:** separate worker entry delay, callback computation and completion
+  wait within the grouped projections. That scratch probe is now in progress.
+  No production runtime change is selected. Keep the external performance gate.
+- **Gotchas:** instrumentation changes timing. The three-process comparison
+  locates costs but does not clear a small regression or prove causality.
+  Keep profiles isolated from builds/tests and user inference. Reference source
+  may be inspected but cannot be copied into llmx.
+
+| Instrumented phase mean ms, six workers | Before worker fix | Retained runtime |
+|---|---:|---:|
+| Q8 prefill | 562.43 | 573.38 |
+| Q8 decode, 32 steps | 764.09 | 762.44 |
+| F32 prefill | 617.72 | 626.08 |
+| F32 decode, 32 steps | 2443.77 | 2431.62 |
+
+Q/K/V and gate/up account for 10.57 ms of the 10.95 ms mean Q8 prefill difference
+and 7.94 ms of the 8.36 ms F32 difference. These include dispatch/wait time.
+Q8 prefill medians reverse the small mean ordering (569.89 vs 565.93 ms), so
+this diagnostic does not establish a stable regression magnitude. The next
+probe must distinguish scheduling from computation before choosing code.
 
 ### Live generation and loading progress
 
@@ -120,7 +157,8 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
   serving and HF goals. All source/comments/docs and new messages use ASCII;
   Unicode fixture data is preserved. The requirement is recorded in AGENTS.
 - **Left:** merge with the validated stack after its external gates pass. Next
-  development work is live generation/progress. Full evidence is in
+  live generation/progress checkpoint is 9cfe43f; current work is CPU cost
+  profiling. Full evidence for build identification is in
   `benchmarks/build-version-20260919.json`; all 25 Markdown files were reviewed
   for current capabilities, future goals, build behavior and ASCII compliance.
 - **Gotchas:** untracked files do not mark a build dirty. Source archives report
@@ -163,8 +201,8 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
   Full samples, hashes, commands, logs and harnesses are archived in
   `docs/benchmarks/worker-errors-cpu-20260919.json`.
 - **Left:** investigate the Q8 prefill cost before
-  adoption, and close the external Q8 decode floor. No merge; the existing
-  root executable is deliberately retained. Paired candidate Q8 prefill loses
+  adoption, and close the external Q8 decode floor. No merge. The old root
+  executable was retained at that checkpoint; current deployment is recorded above. Paired candidate Q8 prefill loses
   eight of nine rounds despite overlapping ranges; do not dismiss that as noise.
 - **Gotchas:** dispatch recovery does not roll back partially written outputs
   or establish Model/session recovery. No concurrent submissions are supported.
@@ -182,7 +220,8 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
   `docs/benchmarks/worker-cold-errors-cpu-20260919.json` and
   `docs/benchmarks/worker-shared-dispatch-cpu-20260919.json`. Both pass initial
   MSVC allocation/task-fault and grouped-kernel checks; neither entered full
-  HF/platform adoption gates. Runtime source and root executable are unchanged.
+  HF/platform adoption gates. Those experiments changed neither runtime source
+  nor the root executable.
   Next performance work should localize the remaining cost before changing code.
   User authorization includes merging main and publishing GitHub once the
   requirements pass; current performance evidence does not clear that gate.
@@ -604,8 +643,9 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Latest checkpoint:** runtime c072af2 contains the validated KV layout and
-  worker exception fix. The latest nine-round Q8 worker comparison remains
+- **Retained compute implementation:** c072af2 contains the validated KV layout
+  and worker exception fix used by these comparisons. Full runtime checkpoint
+  9cfe43f adds CLI thread controls, build identification and streaming. The latest nine-round Q8 worker comparison remains
   below mx on decode and shows a prefill cost versus its prior control.
   Post-reboot dispatch studies do not establish a sustained external pass;
   retain the simpler worker fix. See the worker block for current evidence.

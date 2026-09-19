@@ -8503,5 +8503,18 @@
     "Reference matrix probes use the pinned ggml CPU graph API with a persistent threadpool and preallocated outputs/workspace. Reference Q8 activation conversion is part of the measured operation.",
     "Displayed weight-byte rates are derived traffic estimates, not hardware DRAM counters.",
     "Linux validation covers building and argument rejection in the measurement wrapper; existing runtime platform/HF gates were not redundantly rerun."
-  ]
+  ],
+  "interpretation_correction_20260919": {
+    "finding": "The pinned Windows reference reuses a ggml threadpool state object, but OpenMP supplies workers and barriers. The custom ggml hybrid polling worker path is not active. Recorded measurements and harness sources are unchanged.",
+    "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+    "ggml_cpu_dll_sha256": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2",
+    "build_evidence": "Release ggml-cpu.vcxproj enables OpenMPSupport and defines GGML_USE_OPENMP.",
+    "imports": [
+      "VCOMP140.DLL",
+      "_vcomp_fork",
+      "_vcomp_barrier",
+      "omp_get_num_threads",
+      "omp_get_thread_num"
+    ]
+  }
 }

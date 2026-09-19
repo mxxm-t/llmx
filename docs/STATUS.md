@@ -33,10 +33,11 @@ session confirms both Q8 decode means/medians remain below mx; prefill exceeds
 mx on both models. Q16 scratch passed its own integer arithmetic/witness
 checks, then failed the unchanged native double-dot accuracy contract on both
 compilers. It is rejected; HF cost and performance comparisons were not run.
-The exact Q8 epilogue candidate now passes native and required-HF suites on
-Windows/Linux, with Windows independent scalar, repeated long-vector and 8B
-HF checks passing. Its isolated external timing is still in progress; it remains
-outside production. All 25 Markdown files are reviewed at this validation checkpoint.
+The exact Q8 epilogue candidate passed native/HF and exact-output checks, but
+its complete nine-round timing found no decode gain. It is rejected and remains
+outside production: both decode means/medians trail current and mx, with no
+candidate wins over mx in either model. All 25 Markdown files are reviewed at
+this rejection checkpoint.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
@@ -84,35 +85,39 @@ External performance requirements still block main/GitHub publication.
 
 ## Active feature blocks
 
-### Exact Q8 horizontal reduction study
+### Exact Q8 horizontal reduction study (rejected)
 
-- **Goal:** reduce Q8 row-dot epilogue instruction cost while preserving the
-  existing float products, four FMA chains and exact final addition order.
-- **Done:** current MSVC assembly confirms two horizontal-add instructions in
-  `dot_row_impl`. An equivalent shuffle/add schedule can express the same
-  pairwise additions. An isolated two-line candidate is prepared under
-  `%TEMP%/llmx-q8-exact-reduction`, with exact source manifests and patch.
-  Clean MSVC and GCC Release builds pass; unchanged native CTest is 7/7
-  for control and candidate on each platform. MSVC emits the intended
-  permute/add/move-high/scalar-add epilogue instead of two horizontal adds.
-  MSVC independent scalar checks pass 612,267 finite bit comparisons and
-  1,939 nonfinite classification checks; a deliberately wrong shuffle is rejected.
-  Windows and Linux required-HF suites pass 11/11 for each arm. Repeated control and
-  candidate on Windows agree on all 5,013,888 long-prompt logits and four serial NLL cases;
-  the existing HF bounds pass. Windows candidate 8B HF checks pass 37/37. Isolated
-  local perf smoke floors pass. The fixed matched control/candidate/mx timing
-  session is running after all correctness jobs finished; no verdict yet.
-  Validation evidence is archived in
-  `docs/benchmarks/q8-exact-reduction-validation-20260920.json`.
-  The preceding Q16 candidate is rejected and stays outside production.
-- **Left:** finish the fixed nine-round matched control/candidate/mx timing.
-  Adopt only
-  if the exact change provides a measured benefit without regressions. Avoid
-  changes to other quant types or the worker pool in this experiment.
-- **Gotchas:** a different instruction sequence need not be faster; preserve
-  addition operands/order and test signed zero, extremes and fallback behavior.
-  Current Q8 decode deficits are below one percent in mean, so short or noisy
-  timing cannot establish the required floor.
+- **Goal:** reduce Q8 row-dot epilogue cost while preserving all float products,
+  FMA chains and contributing addition order.
+- **Done:** the scratch shuffle/add sequence emits the intended instructions.
+  Native CTest passes 7/7 and required-HF suites pass 11/11 for control/candidate
+  on Windows/Linux. MSVC scalar checks pass 612,267 finite bit comparisons and
+  1,939 nonfinite classifications; a wrong shuffle is rejected. Windows repeated
+  control and candidate match 5,013,888 long-prompt logits and four serial NLL
+  cases, within HF bounds. Windows candidate 8B HF checks pass 37/37.
+  All 60 fixed timing processes completed: one discarded warmup plus nine
+  measured rounds per model/arm, with every sample retained.
+
+  | Mean tok/s | Current | Candidate | mx | Candidate/current | Candidate/mx |
+  |---|---:|---:|---:|---:|---:|
+  | 0.6B prefill | 473.669 | 453.120 | 277.206 | -4.34% | +63.46% |
+  | 0.6B decode | 48.966 | 48.723 | 49.969 | -0.50% | -2.49% |
+  | 8B prefill | 29.646 | 29.936 | 21.348 | +0.98% | +40.23% |
+  | 8B decode | 4.579 | 4.549 | 4.610 | -0.65% | -1.31% |
+
+  Both decode medians also trail current/mx. Candidate wins only 3/9 decode
+  pairs against current and 0/9 against mx on each model. The reduction is
+  rejected; production stays at `bf122fd`, and the native regression proposal
+  remains unapplied. Validation evidence is in
+  `docs/benchmarks/q8-exact-reduction-validation-20260920.json`; completed timing
+  is in `docs/benchmarks/q8-exact-reduction-performance-20260920.json`.
+- **Left:** close the separate production decode floor. Current control means
+  in this session trail mx by 2.01% (0.6B) and 0.67% (8B); do not pool this with
+  earlier sessions or revive the rejected epilogue based on selected samples.
+- **Gotchas:** the low 0.6B candidate prefill sample (357.111 tok/s) stays in the
+  mean. Its median is 471.589 versus current 476.152; do not describe the mean
+  gap as a universal causal slowdown. Correctness alone does not justify this
+  performance change. NaN payloads and alternate rounding modes remain unclaimed.
 
 
 ### Optional Qwen3-8B HF consumer
@@ -803,7 +808,7 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Current matched result (2026-09-20):** unchanged validated `bf122fd`
+- **Preceding two-arm result (2026-09-20):** unchanged validated `bf122fd`
   runtime versus pinned mx `5542318e74`, nine alternating measured pairs per
   model after one discarded warmup pair; six workers, ubatch 128, 215 prompt
   plus 32 forced tokens and F32 KV. Every process exits zero and llmx final
@@ -905,9 +910,9 @@ feature ships, delete its block and mark the row `Done` above.
   blocked. Every win after the first came from raising the FMA:load ratio.
 - **Left:**
   - Close the current Q8 decode deficits while retaining prefill gains. The
-    fresh `bf122fd` nine-pair comparison above measures mean gaps of -0.65%
-    (0.6B) and -0.82% (8B), with both medians below mx. Keep historical sessions
-    separate. Earlier bandwidth/thread observations and null allocation,
+    latest fixed `bf122fd` control/candidate/mx session measures control mean
+    gaps of -2.01% (0.6B) and -0.67% (8B), with both medians below mx. The
+    preceding two-arm session measured -0.65%/-0.82%; keep the sessions separate. Earlier bandwidth/thread observations and null allocation,
     fragmentation and prefetch experiments do not predict this current gap;
     mmap has not been established as a throughput improvement.
   - Grouped Q16 activation packing is now rejected. Its own scalar/integer
@@ -919,8 +924,11 @@ feature ships, delete its block and mark the row `Done` above.
     `benchmarks/q16-group-native-rejection-20260920.json`. Bounded-cost research
     does not satisfy AGENTS' lossless requirement. Preserve the rejection;
     do not tune a new tolerance to that failing case.
-  - Next investigate the exact Q8 horizontal reduction schedule described
-    above, with unchanged arithmetic and a measured instruction hypothesis.
+  - The exact Q8 horizontal reduction is rejected by complete timing despite
+    passing numerical gates. Read-only review also found two redundant `h_`
+    clears in `Model::step`, but no evidence that their cost closes the gap.
+    Inspect native loop scheduling before proposing another measured candidate;
+    previous F16C specialization, pointer increments and row pairing are nulls.
   - Thread and matrix-shape diagnostics are complete (see CPU comparison
     thread scaling above). F32 matrix ranges overlap mx, while Q8 matrix
     latency still trails it. The resulting head-major KV layout is now validated.

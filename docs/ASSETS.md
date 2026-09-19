@@ -1845,7 +1845,8 @@ An isolated candidate replaces the two horizontal additions at the end of
 `dot_row_impl` with a shuffle/add sequence preserving the contributing
 addition order. Weights, activation precision, FMA chains, other quant types
 and worker behavior are unchanged. MSVC emits the intended different epilogue.
-The candidate remains outside production while matched timing is in progress.
+At the validation checkpoint, the candidate remained outside production while
+matched timing was in progress. The completed rejection is recorded below.
 
 | Correctness check | Control | Candidate |
 |---|---:|---:|
@@ -1879,8 +1880,50 @@ within the existing 0.01 / 0.02 bounds. The verified model files are reused.
 
 The separate local perf smoke floors pass for both arms; all samples are
 retained. They do not establish an optimization benefit. The fixed external
-comparison is still running with one discarded warmup and nine measured
-control/candidate/mx rounds on each Q8 model. No partial-result verdict or
-main/GitHub publication is justified yet. Source hashes, commands, raw logs,
+comparison was still running at that validation checkpoint, with one discarded
+warmup and nine measured control/candidate/mx rounds on each Q8 model. No
+partial-result verdict or main/GitHub publication was justified at that point. Source hashes, commands, raw logs,
 independent reviews, numerical records and limits are archived in
 [`benchmarks/q8-exact-reduction-validation-20260920.json`](benchmarks/q8-exact-reduction-validation-20260920.json).
+
+
+### Exact Q8 reduction rejected after complete timing
+
+The fixed session completed all 60 processes: one discarded warmup and nine
+measured rounds per arm/model. Each process has an internal warmup; only its
+second iteration contributes to these rates. All arms use six workers, ubatch
+128, F32 KV and identical 215+32 token IDs. No builds/tests/model validation
+competed with timing. All samples remain, without pooling historical sessions.
+
+| Mean tok/s | Current | Candidate | mx | Candidate/current | Candidate/mx |
+|---|---:|---:|---:|---:|---:|
+| 0.6B prefill | 473.669 | 453.120 | 277.206 | -4.34% | +63.46% |
+| 0.6B decode | 48.966 | 48.723 | 49.969 | -0.50% | -2.49% |
+| 8B prefill | 29.646 | 29.936 | 21.348 | +0.98% | +40.23% |
+| 8B decode | 4.579 | 4.549 | 4.610 | -0.65% | -1.31% |
+
+| Median tok/s | Current | Candidate | mx | Candidate wins/current | Candidate wins/mx |
+|---|---:|---:|---:|---:|---:|
+| 0.6B prefill | 476.152 | 471.589 | 275.085 | 2/9 | 9/9 |
+| 0.6B decode | 49.307 | 48.794 | 50.018 | 3/9 | 0/9 |
+| 8B prefill | 29.624 | 29.760 | 21.384 | 8/9 | 9/9 |
+| 8B decode | 4.582 | 4.576 | 4.613 | 3/9 | 0/9 |
+
+The candidate establishes no decode benefit and loses every paired decode
+comparison to mx on both models. It is rejected; production and the native
+regression test stay unchanged. The low 0.6B prefill sample (357.111 tok/s)
+remains included, with the median shown separately. Do not interpret its effect
+on the mean as a universal causal slowdown or discard it to favor the candidate.
+
+The local three-round micro smoke also retains every sample. Its matmul means
+are 43.05/39.97 GFLOPS for current/candidate, synthetic prefill 7,862.67/8,030.33
+tok/s and decode 7,612.00/7,749.67 tok/s. These short variable samples pass the
+smoke floors but do not override the matched real-model rejection.
+
+The current runtime still trails mx decode in this session by 2.01%/0.67% mean
+on 0.6B/8B; both medians trail mx too. This does not replace the separate prior
+session's numbers with pooled rates. Full samples, raw output, hashes, commands,
+independent audit and rejection scope are in
+[`benchmarks/q8-exact-reduction-performance-20260920.json`](benchmarks/q8-exact-reduction-performance-20260920.json).
+The preceding validation artifact is preserved unchanged. Main/GitHub remains
+gated on external decode performance.

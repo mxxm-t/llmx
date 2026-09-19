@@ -290,6 +290,26 @@ feature ships, delete its block and mark the row `Done` above.
   result. Keep the pinned model, tokens, reference revision, warmup and KV
   settings. Scaling diagnostics do not waive the existing external floor.
 
+### Head-major KV locality investigation
+
+- **Goal:** make each KV head's history contiguous to improve attention reads
+  while preserving arithmetic order and growing storage with used context.
+- **Done:** control is `342960a` (runtime `475f312`); profiling and matrix
+  diagnostics are archived. Scratch layout/growth headers are prepared but
+  have not been built or validated. No runtime change has been adopted.
+  Architecture and server roadmap now explicitly separate shared weights,
+  per-sequence mutable KV, execution scratch and in-flight storage lifetime.
+- **Left:** build a scratch head-major cache with explicit head stride and
+  bounded capacity growth. Check growth, reset, mixed prefill/step histories,
+  context limits and exact full outputs, then run matched model measurements.
+  Any selected implementation needs independent HF, platform and long gates.
+  Centralize concrete CPU cache storage operations before adoption; keep
+  logical sequence state separate from physical capacity and avoid making
+  this CPU layout a requirement for future device or multi-user execution.
+- **Gotchas:** reset may retain allocated memory but must never expose stale
+  tokens. Growth must preserve every layer/head's used prefix. Do not allocate
+  the model's full maximum context at startup or change reduction order.
+
 ### Correctness baseline vs HF reference
 
 - **Goal:** give the suite an external ground truth. Correctness is measured

@@ -120,8 +120,13 @@ Split a single model across several backends on one machine.
 - Split mode + node count chosen at launch (CLI flags), not compile time
 
 ## 7. Multi-user server **[design]**
-- HTTP/WS server front-end sharing the model + KV cache (batching, KV reuse)
+- HTTP/WS server front-end sharing read-only model weights, with independent
+  sequence state and mutable KV histories (see ARCHITECTURE.md, KV state and
+  concurrent execution). Prefix reuse shares immutable KV only, with explicit
+  lifetime tracking; it must not share a user's mutable history.
 - Continuous batching, generation queues, `/generate` streaming
+- Separate execution scratch ownership and safe backend scheduling; internal
+  worker parallelism does not make the current `Model` concurrently callable.
 - `server/` directory is the planned home (not yet created — avoid empty stubs)
 
 ## 8. Correctness & perf gates

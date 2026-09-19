@@ -74,6 +74,43 @@ command reference.
 - **Split mode and node count** are runtime parameters chosen at launch, not
   build options. See `ROADMAP.md`.
 
+## KV state and concurrent execution
+
+Today `Model` combines a reference to model weights, one sequence's KV cache
+and token position, activation scratch, and a backend. It supports one sequence
+at a time. Parallel work inside a forward pass does not make concurrent calls
+to the same `Model` safe. Backend worker dispatch and attention scratch also
+need explicit ownership before concurrent submissions can be supported.
+
+The planned device and server work (ROADMAP #4a and #7) must preserve these
+boundaries:
+
+- Loaded weights are shared read-only. Each sequence owns its logical token
+  positions and mutable KV state; resetting or cancelling one sequence must
+  not change another sequence's history.
+- KV storage owns allocation, growth and layout. The forward graph supplies
+  the layer and positions to write; backend attention consumes an explicit
+  layout and valid sequence extent. Allocated capacity is not valid history.
+- Activation and attention scratch belong to an execution context, or have
+  exclusive scheduled use. A shared worker pool alone does not provide safe
+  concurrent execution.
+- Continuous batching must describe each sequence's positions and causal
+  boundaries independently. The current prefill microbatch contains tokens
+  from one sequence; it is not a batch of independent users.
+- With device execution, backend buffers own physical storage and submission
+  completion controls its lifetime. Cache growth, reset and reuse must not
+  invalidate storage still used by an in-flight operation. Model-level routing
+  determines placement across devices without introducing vendor types into
+  sequence state.
+- Future prefix reuse may share immutable KV blocks only when the model,
+  positions and relevant execution configuration match. Mutable suffixes stay
+  private, and shared blocks remain alive until all users and operations finish.
+
+These are design constraints, not implemented server features. The current
+CPU cache work should centralize concrete storage operations without adding
+unused paging, scheduling or device interfaces. A contiguous CPU layout must
+not become a requirement imposed on future device backends.
+
 ## Multi-device / multi-node design notes
 
 The `backend::Backend` interface is device-agnostic in *shape* — nothing in it

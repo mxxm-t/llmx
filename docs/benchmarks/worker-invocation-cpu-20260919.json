@@ -1,0 +1,3078 @@
+{
+  "date": "2026-09-19T22:01:49.577805",
+  "base_commit": "c072af2",
+  "pre_error_control": "3a82284",
+  "scope": "Caller dispatch through the existing stored callable; no kernel arithmetic or error completion policy changes.",
+  "paired": {
+    "Q8": {
+      "pp": {
+        "control": {
+          "percent": -4.347190247704136,
+          "wins": 0
+        },
+        "checkpoint": {
+          "percent": -0.5977148123129439,
+          "wins": 6
+        },
+        "mx": {
+          "percent": 53.830390444661916,
+          "wins": 9
+        }
+      },
+      "tg": {
+        "control": {
+          "percent": -0.3648536038402206,
+          "wins": 4
+        },
+        "checkpoint": {
+          "percent": -0.8824391437008972,
+          "wins": 3
+        },
+        "mx": {
+          "percent": -3.870422271491203,
+          "wins": 0
+        }
+      }
+    },
+    "F32": {
+      "pp": {
+        "control": {
+          "percent": -3.18814646694614,
+          "wins": 3
+        },
+        "checkpoint": {
+          "percent": -0.9061723387500442,
+          "wins": 4
+        },
+        "mx": {
+          "percent": -6.894142846893869,
+          "wins": 1
+        }
+      },
+      "tg": {
+        "control": {
+          "percent": -1.059196653159411,
+          "wins": 3
+        },
+        "checkpoint": {
+          "percent": -0.9491969752040141,
+          "wins": 3
+        },
+        "mx": {
+          "percent": -0.1916600579357386,
+          "wins": 3
+        }
+      }
+    }
+  },
+  "artifacts": {
+    "validation.json": [
+      {
+        "name": "numerical-build",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\numerical-build.bat"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "long-hf",
+        "command": [
+          "python",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\long-gate.py"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "exact",
+        "command": [
+          "python",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\exact-gate.py"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "windows-suite",
+        "command": [
+          "python",
+          "-X",
+          "utf8",
+          "-u",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate.exe",
+          "--require-baseline"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-configure",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "-S",
+          "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source",
+          "-B",
+          "/root/.cache/llmx-worker-call-release",
+          "-DCMAKE_BUILD_TYPE=Release"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-build",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "--build",
+          "/root/.cache/llmx-worker-call-release",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-native",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "ctest",
+          "--test-dir",
+          "/root/.cache/llmx-worker-call-release",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-suite",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "python3",
+          "-u",
+          "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/tests/run_tests.py",
+          "--exe",
+          "/root/.cache/llmx-worker-call-release/llmx",
+          "--require-baseline"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "ubsan-configure",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "-C",
+          "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-kv-head-major/validation/ubsan-cache.cmake",
+          "-S",
+          "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source",
+          "-B",
+          "/root/.cache/llmx-worker-call-ubsan",
+          "-DCMAKE_BUILD_TYPE=Release"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "ubsan-build",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "--build",
+          "/root/.cache/llmx-worker-call-ubsan",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "ubsan-native",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "ctest",
+          "--test-dir",
+          "/root/.cache/llmx-worker-call-ubsan",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      }
+    ],
+    "finish.json": [
+      {
+        "name": "synthetic-perf",
+        "command": [
+          "python",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\synthetic-perf.py"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "matched-nine",
+        "command": [
+          "python",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\bench-nine.py"
+        ],
+        "exit": 0
+      }
+    ],
+    "long/comparison.json": {
+      "prompt_tokens": 1943,
+      "generated_tokens": 32,
+      "greedy_match": true,
+      "logits_compared": 5013888,
+      "max_abs_error": 0.00012636184692382812,
+      "rms_error": 1.6163279547159805e-05,
+      "bound": 0.001
+    },
+    "exact/comparison.json": {
+      "binary_sha256": {
+        "base_ppl": "a9782b01204903580370e82d9c3f0044a7f4568f63932406c20278d8be2280ed",
+        "candidate_ppl": "ec96e6eca0bc5c6ca0ed242410c97d914da6fbd7e5765b6ab37e7455d8ca829d",
+        "candidate_forced": "cd7336cc3d6912aeaa9f6451a4ae29eda43b3299ea340e6400fbda2cec503f1a",
+        "candidate_long": "8938d7e2efbb009783f93d42e5339ea3f378fd36b892e40d19e8bd4b4107a9d6"
+      },
+      "f32_ppl": {
+        "base": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.3602856587153136,
+            "ppl": 28.79741593724798
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.030360358565375,
+            "ppl": 56.28118900180338
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.710157522040546,
+            "ppl": 40.860242408841785
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6307937854390597,
+            "ppl": 37.74276438635746
+          }
+        ],
+        "group": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.3602856587153136,
+            "ppl": 28.79741593724798
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.030360358565375,
+            "ppl": 56.28118900180338
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.710157522040546,
+            "ppl": 40.860242408841785
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6307937854390597,
+            "ppl": 37.74276438635746
+          }
+        ]
+      },
+      "q8_ppl": {
+        "base": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.361663767717966,
+            "ppl": 28.83712927377228
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.037034074325617,
+            "ppl": 56.658049792014495
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.7125502817810534,
+            "ppl": 40.95812821376951
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6432017866796906,
+            "ppl": 38.21399411742927
+          }
+        ],
+        "group": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.361663767717966,
+            "ppl": 28.83712927377228
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.037034074325617,
+            "ppl": 56.658049792014495
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.7125502817810534,
+            "ppl": 40.95812821376951
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6432017866796906,
+            "ppl": 38.21399411742927
+          }
+        ]
+      },
+      "q8_long": {
+        "values": 5013888,
+        "byte_identical": true,
+        "sha256": {
+          "-logits.f32": "792cc5b1dc8f74d87a1b290b7bfcb04668e4a6777d16af43ec3a1a9a81b77fdb",
+          "-step-00.f32": "0232c0fac77cf7eb9dc12fd4ca9a5fd372c48d6bace0fcad039966635588e836",
+          "-step-01.f32": "036f4c00306ee9d8cb992902adff4eb67bdf47c2e5f81e4986e41e321e916b22",
+          "-step-02.f32": "c7814c234abcece2d4185744cb4de81f2bcb2231e24b9d165c73bc0d2384c797",
+          "-step-03.f32": "3ebb1a826c8e24506be6ffc03ea118eeb7641b4ccb3925fd4029a2145a7df891",
+          "-step-04.f32": "aebc35a303a9e382502f357ba9e5d05feedbd53072ef04563c6bee4da066ac91",
+          "-step-05.f32": "b965b024d47812628bae78b9cf1642dbd4efcdff920a24b6eeeeea04119fa839",
+          "-step-06.f32": "3cca7c2160c8260d9efd2bee62819a35b17b7ac94b74982e2a13e12860e353ba",
+          "-step-07.f32": "9b7f78c8223f179a2b7e5180130e8e5323064c7f80d06a9fa4f2f364c99b4eec",
+          "-step-08.f32": "ffd9c3f1f1fade3b208e3865c6441c0ba0108dd13e24d3129a8ac9e917ffb455",
+          "-step-09.f32": "84494cd3e2193c47131da35e019e782d43e3d06d2ae1a5b9415acdaa291b0952",
+          "-step-10.f32": "5560601e5a4248f38838265f5156fa309b22c1f88d2bf3ab5a859c70de8db6ab",
+          "-step-11.f32": "f22e982421e849f4becf292b986871c2d008bf98791da759849dadd718ddcdc8",
+          "-step-12.f32": "8dd0e9b7284034a6962b7596221310072d06297aeea582f595c7bca8426cf7b7",
+          "-step-13.f32": "4b5d9093fae0e79ac21e1d62f8d3dd3194c0f82345a9d1a55c05d552efa426f9",
+          "-step-14.f32": "5c501dcab4925fd5edf85efdd7ab90acd685d5cc72bab6c707b5c171fd2742d5",
+          "-step-15.f32": "7462b12dd799fe190de10f0cb06274ecb01ad2662f178c0f095e477a0d3141f0",
+          "-step-16.f32": "e21c0199c0c4b2d67c66958ab5d17905d5e165b0c1a5ea9354ec90e0a10ecf50",
+          "-step-17.f32": "240f5b76a33758a05dcf752ba9d5168dc9825b15362f3986f2c4fe2c9f23ac2d",
+          "-step-18.f32": "57e8139e1047a26e7df89520592c8ced974a2b69b01d4a1babf16653cdd1caea",
+          "-step-19.f32": "514dac18f1f4ee3d7761697bf57179aa1208a1720c230422d7e10c35149b2e26",
+          "-step-20.f32": "26f2303b932a0ef76b74aab79b63fb285f981e190b2d2e410be6cfe0c0bd9cc6",
+          "-step-21.f32": "b2536cdb45519d9573fdc0021737c1fb798d9a1aa1a44b447e9e2276291075a0",
+          "-step-22.f32": "9e1a25d19f17a5a7a94893a427f34bd376b98659d555f44d1aed6df522bdea33",
+          "-step-23.f32": "714783139533ed43a01a3796c84881d341bdf16d2251dfe77af4ca3912ee13bf",
+          "-step-24.f32": "0be0f8baa65f182406d58ed206a927a07a3d0d041feeeee4bd5c113c103dfd5e",
+          "-step-25.f32": "8204b37925065c05e72030883fb785dc1b494d700b2d7e9f17fa3e0cae5312ec",
+          "-step-26.f32": "fa33d0e6a23a0c42e16c784db54821499e97e1589bce349cdcded5732df17109",
+          "-step-27.f32": "57c22aa76c9ffe1b25316de61c11fd2207ba330a9fd9806d39cba1a6221518a8",
+          "-step-28.f32": "12b7b72c5fe74df977e5bc9da0687636cbd0c3558402bb9315ee2fe28e528525",
+          "-step-29.f32": "470f203a46b4c221f04caa2f79aea20e3739511a3a188358f0f0f473809fe230",
+          "-step-30.f32": "87ff4441f5d177185186f6195d370b8148faf24c5bf40d534d42b99bba9a0171",
+          "-step-31.f32": "6ba1d89a9380d205a40903b8b245e2289bf72fa7c7e7d2cc4864c6626e542b2a"
+        }
+      },
+      "f32_long": {
+        "values": 5013888,
+        "byte_identical": true,
+        "sha256": {
+          "-logits.f32": "5a25da0ce497f0b399adfd15d0b63476a940f8571271c75acfc6bd75c178c99d",
+          "-step-00.f32": "03a8225c5bd2f895cb4b04cba6ebff6b5f6ba84a2de0baffc18cabb7cf34a3c7",
+          "-step-01.f32": "69aff52b7c8068f8c936c61daa070bd95e04a4b1ac99bd2b09a3aa9774e2972c",
+          "-step-02.f32": "90f3d7e6ee9667678ae33a1c1d3d610b580434f1e3ac764772b7123dda4b223c",
+          "-step-03.f32": "ec886b175da8da7bb3f42bf8ef90d64aede14f2194f6a34d8b67cdc15784efa0",
+          "-step-04.f32": "630f4c5c459b633a05ab43ddd29375a5998b541886fe0f5af8344a54197a3636",
+          "-step-05.f32": "d5883650201c2f3e0ec54e3262da5eb2ab08b1d494fe20bee14ff156eb1acc01",
+          "-step-06.f32": "061b5720a02a4538f64b628c1e3b8c5fd9410a04efad4a6379ee8f33e97700a1",
+          "-step-07.f32": "adb16ce8be43aa3e8d05469dbcabcd09de8a838d672856a9ebf0712c24c59d64",
+          "-step-08.f32": "1cc19a0309b38954a20c3b078a88b9383d68302494b2e54d2e91b0dceb2b38e7",
+          "-step-09.f32": "de320f85f0341561aa766cb2b6e1ae7cce91e9e641347e9b9734ee437964d347",
+          "-step-10.f32": "10a7bc8e552129aeeb5523fa3bff3d00d2667de8688f8c43a31f56acfa4d1830",
+          "-step-11.f32": "1aa0247c3d21c2ca561b892aa69ff3471a511158196eeae7cd7926c1830095eb",
+          "-step-12.f32": "2d2c1da15d8268af2517741781b8e05efdd026d4e658a9000ab929b6266ce191",
+          "-step-13.f32": "e0ae0c853697ce9804842d11e5a78e07aa3e500d45311da7f6be9166c094cf81",
+          "-step-14.f32": "ff9a56d43043b26589f6dc7a394fc05a4b35f52326fd5c4ea71fbdedf31040b3",
+          "-step-15.f32": "c17033431d218e432bbdc7a3537a42eb69cbf859d2efbda94db5d61af44e5864",
+          "-step-16.f32": "cb472916c97221248b42c0e677f209182e45a656ebaff60fb0e198809b0493c6",
+          "-step-17.f32": "f5945f0c7ab3d311699d7e7f883c92ee1b4cd3a784e69c0369a841924ecc4a06",
+          "-step-18.f32": "0d89c646449a9504b11062bc60c4ef57ca31360bf51c63d93619ebe59862435f",
+          "-step-19.f32": "797d1cdee7a8804af0d6d72bfd73fa8d5a1979310d4d0ae017e362614f584ff7",
+          "-step-20.f32": "a50738f70f389646fa87aaec56308712b2b78cf9c4cf060014dc8803c2792688",
+          "-step-21.f32": "4d42e084cba229cf0b70db96703a197b43bcf24c9e2346c82f50fc177083a035",
+          "-step-22.f32": "640c1d5a085b2100be49b3ce3f497ad8eb8bfc740a3ca0b547a467e03d683d83",
+          "-step-23.f32": "59575b93271bac64b7ac58c91e9fc6fff3cd3bad030723d273cd80d4a6803293",
+          "-step-24.f32": "5449b8f4eb7bac94bae3c74fdc53b73e10e78335538dd4ce27547de2da79ba38",
+          "-step-25.f32": "522a1f138ab3934872d6dfff6a6d6b12d82d5f2724799a13d19beeccbd923f87",
+          "-step-26.f32": "0ac8c18751a00f2a9955759cb21269b644b1d535eebbf3801e73aa8da1440bb3",
+          "-step-27.f32": "d94e1e141e475b9c4e0ccffb186d5e47f2a326173b00f8d29a80b668758bef64",
+          "-step-28.f32": "eaeab344dc3eb66c86a846539c501ad3e50fc41a2871e458d7b06d2de9b169f8",
+          "-step-29.f32": "a756a1762bb1d283abf355ac433d212cb4401b7d2624248cb685fca08b6c8f33",
+          "-step-30.f32": "963a512859532bd254cf7b40075da3a7af3dec9a76799b3bd2dd60d1bfce1dd2",
+          "-step-31.f32": "050e0710d8e2ccddc09cbc7be8982d20555d59055e1c7ae0e1afc75cf7963907"
+        }
+      },
+      "scope": "Four excerpt/window NLL cases; long vectors over 1943 prompt tokens and 32 continuation steps, not full corpus or maximum context."
+    },
+    "bench-five/metadata.json": {
+      "hashes": {
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-compare.exe": "f34310ad207b7fe5b09b8047f30326df98126468b5050e111362d54a3ba1e606",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-compare.exe": "6ca767f3fe400d28f269e229ba0465120032a9d5d6f15dd292e47c205375e004",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-compare.exe": "0bbfa746553375f7bf51d83160acf01809d24e57e1ed86e0f1a129f0c2c78118",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llmx-compare-threads.exe": "6156452d9e6e3cd63e4d184b1e8c57badfee57fece86092d23b0dc9d64f645bf",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\config.hpp": "9f20e6cf3b323a66204e25ef633d26ec5c1ed845da67a5e3b4de0914cf7c3368",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\backend.hpp": "5d76240be7893279a308a4c21cee074f53f1dcee5421feafadb496cae52dbcba",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\gguf.hpp": "87d4beee29a8a0adc4c0183d68e1f8f13ea30326d419dff11d9fcbfcea22e712",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\chat.hpp": "865051f5ef6ebe8d14330e18347daeabce6a8cd9cd3eee38f664b499883ad361",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\generate.hpp": "1277cbb7fd3b6d6c24bd06945ab8c562f553201a8f6893325343c04a7bf4f087",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\arch_qwen.hpp": "c064955de07e4f41537a50f9e9f343affe9db2f52571bf988476f2b448bd1ff5",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\tokenizer\\tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\cpu\\cpu_backend.hpp": "f114d3b6287b2a4577bc67180738853ec1b975500ea4168cbd90ab22db70ec1a",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\\backends\\cpu\\cpu_backend.hpp": "f8c0d817ed3be50a2c0b57d1d24616ab69eee0329902f8bd1211d98ee44728ab",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\config.hpp": "411a632de621d17c28a6fd594157d5c8ec7c1d77fc9d8cee26abf90ae567351f",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\backend.hpp": "e79f18ed28df5cfddb3e6ec0c9bcbe7a70c68d3186056e480616edcec1a453cd",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\fp16.hpp": "578b095d8e233f1d2870711c9d673a44ab845f7000a27e33b898f8bd2f9a5582",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\gguf.hpp": "d54df0021e2776e1123c45bb3a92beb04e2d1bc2d85641f8d55228b2cee46092",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\chat.hpp": "3bc261252f4a394d9b6fdb51cdfe942372b959e04f778242357e348ae646f65d",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\generate.hpp": "05fc7375ddbc9cd0a81d28805f5fea85091beb0d54a1e5e0cbdebe44db1603b9",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\perplexity.hpp": "c7ee22964b0e5555d2f27733d6467536907098db7ddf57f800f297165b071608",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\sampler.hpp": "4398398a746342d311693317e6a3298ec16fce0fff57304f4eff3a71c63785cf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\arch_qwen.hpp": "a3fe58109983665f713540353cefc2636941981860771d12309223949cf4a7ae",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\host_kv_cache.hpp": "581c8801e0e5b06cc42fefac0f6b64895b5d2d337bc386bc2be75515da088bfc",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\k_quants.hpp": "1d0dfc64c1c1f46f753848029fe164bee0539f98bece9765050cbe8187107326",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\quant.hpp": "83a3c2540f3129002eb0a03b04db8e293124dcdafb26683baef493a9214f64de",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\tokenizer\\tokenizer.hpp": "19ca659b22d177c2e6427baa42f02dc3fdb8c63fd3d13a837c39cae0acd9672e",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\cpu\\cpu_backend.hpp": "fbaaef384a606f916425827741c7c42bb44a8ac0dba33d3f6ea2ef4a9c15ffea",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llama.dll": "2d007cdf70a8f0f29daf87d04c73eda7975248de6528de82bf0b7e7820f9f775",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml.dll": "f8c791dc32f4ebfce0e17ba2ebefba02d16c8f7209f74a5f0a87d0d60d69a12c",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-base.dll": "255b1d609643421a5d1dabecb1d0010076235035cbce0516f6c3988115581a08",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-cpu.dll": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2"
+      },
+      "threads": 6,
+      "ubatch": 128,
+      "prompt": 215,
+      "decode": 32,
+      "reference": "5542318e748c154b634211def405ae95da3dfaa9",
+      "rounds": 5,
+      "outer_warmup_rounds": 1,
+      "process_warmup_sequences": 1
+    },
+    "bench-five/results.json": [
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 495.8464,
+        "tg_ms": 717.5162,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 573.2779,
+        "tg_ms": 724.8575,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 518.069,
+        "tg_ms": 712.6548,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 807.4537,
+        "tg_ms": 757.2959,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 663.9486,
+        "tg_ms": 762.7776,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 542.1529,
+        "tg_ms": 750.822,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 821.512,
+        "tg_ms": 693.3272,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 559.9247,
+        "tg_ms": 724.7177,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 625.2446,
+        "tg_ms": 787.8816,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 889.7445,
+        "tg_ms": 825.6064,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 717.4113,
+        "tg_ms": 836.1184,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 641.9591,
+        "tg_ms": 771.4857,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 833.9479,
+        "tg_ms": 697.2451,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 606.1996,
+        "tg_ms": 805.2447,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 623.8105,
+        "tg_ms": 801.4082,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 576.3826,
+        "tg_ms": 773.6211,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 571.6907,
+        "tg_ms": 778.9575,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 603.3116,
+        "tg_ms": 853.054,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 555.3646,
+        "tg_ms": 757.2089,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 836.5656,
+        "tg_ms": 765.8464,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 562.9539,
+        "tg_ms": 746.0409,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 586.734,
+        "tg_ms": 802.9849,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 814.0083,
+        "tg_ms": 765.2814,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 618.2384,
+        "tg_ms": 791.3319,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      }
+    ],
+    "bench-five/summary.json": {
+      "Q8": {
+        "control": {
+          "pp": {
+            "mean": 352.4354501850689,
+            "minimum": 299.6886165578936,
+            "maximum": 383.98020305230324
+          },
+          "tg": {
+            "mean": 40.737077581944355,
+            "minimum": 38.272091608078476,
+            "maximum": 44.15512412626323
+          }
+        },
+        "checkpoint": {
+          "pp": {
+            "mean": 348.3337940113395,
+            "minimum": 323.8202475312095,
+            "maximum": 381.91404305041675
+          },
+          "tg": {
+            "mean": 40.753086695612694,
+            "minimum": 37.51227941021319,
+            "maximum": 42.89309071392735
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 373.40338363428367,
+            "minimum": 343.86542482733955,
+            "maximum": 396.56709389546745
+          },
+          "tg": {
+            "mean": 41.34217753478794,
+            "minimum": 39.85130978179041,
+            "maximum": 42.6199551957721
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 256.45861033591393,
+            "minimum": 241.64240408341945,
+            "maximum": 264.1250709605787
+          },
+          "tg": {
+            "mean": 42.88141438567672,
+            "minimum": 38.75938946209719,
+            "maximum": 46.1542544414816
+          }
+        }
+      }
+    },
+    "bench-nine/metadata.json": {
+      "hashes": {
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-compare.exe": "f34310ad207b7fe5b09b8047f30326df98126468b5050e111362d54a3ba1e606",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-compare.exe": "6ca767f3fe400d28f269e229ba0465120032a9d5d6f15dd292e47c205375e004",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-compare.exe": "0bbfa746553375f7bf51d83160acf01809d24e57e1ed86e0f1a129f0c2c78118",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llmx-compare-threads.exe": "6156452d9e6e3cd63e4d184b1e8c57badfee57fece86092d23b0dc9d64f645bf",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\config.hpp": "9f20e6cf3b323a66204e25ef633d26ec5c1ed845da67a5e3b4de0914cf7c3368",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\backend.hpp": "5d76240be7893279a308a4c21cee074f53f1dcee5421feafadb496cae52dbcba",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\gguf.hpp": "87d4beee29a8a0adc4c0183d68e1f8f13ea30326d419dff11d9fcbfcea22e712",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\chat.hpp": "865051f5ef6ebe8d14330e18347daeabce6a8cd9cd3eee38f664b499883ad361",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\generate.hpp": "1277cbb7fd3b6d6c24bd06945ab8c562f553201a8f6893325343c04a7bf4f087",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\arch_qwen.hpp": "c064955de07e4f41537a50f9e9f343affe9db2f52571bf988476f2b448bd1ff5",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\tokenizer\\tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\cpu\\cpu_backend.hpp": "f114d3b6287b2a4577bc67180738853ec1b975500ea4168cbd90ab22db70ec1a",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\\backends\\cpu\\cpu_backend.hpp": "f8c0d817ed3be50a2c0b57d1d24616ab69eee0329902f8bd1211d98ee44728ab",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\config.hpp": "411a632de621d17c28a6fd594157d5c8ec7c1d77fc9d8cee26abf90ae567351f",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\backend.hpp": "e79f18ed28df5cfddb3e6ec0c9bcbe7a70c68d3186056e480616edcec1a453cd",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\fp16.hpp": "578b095d8e233f1d2870711c9d673a44ab845f7000a27e33b898f8bd2f9a5582",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\gguf.hpp": "d54df0021e2776e1123c45bb3a92beb04e2d1bc2d85641f8d55228b2cee46092",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\chat.hpp": "3bc261252f4a394d9b6fdb51cdfe942372b959e04f778242357e348ae646f65d",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\generate.hpp": "05fc7375ddbc9cd0a81d28805f5fea85091beb0d54a1e5e0cbdebe44db1603b9",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\perplexity.hpp": "c7ee22964b0e5555d2f27733d6467536907098db7ddf57f800f297165b071608",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\sampler.hpp": "4398398a746342d311693317e6a3298ec16fce0fff57304f4eff3a71c63785cf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\arch_qwen.hpp": "a3fe58109983665f713540353cefc2636941981860771d12309223949cf4a7ae",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\host_kv_cache.hpp": "581c8801e0e5b06cc42fefac0f6b64895b5d2d337bc386bc2be75515da088bfc",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\k_quants.hpp": "1d0dfc64c1c1f46f753848029fe164bee0539f98bece9765050cbe8187107326",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\quant.hpp": "83a3c2540f3129002eb0a03b04db8e293124dcdafb26683baef493a9214f64de",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\tokenizer\\tokenizer.hpp": "19ca659b22d177c2e6427baa42f02dc3fdb8c63fd3d13a837c39cae0acd9672e",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\cpu\\cpu_backend.hpp": "fbaaef384a606f916425827741c7c42bb44a8ac0dba33d3f6ea2ef4a9c15ffea",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llama.dll": "2d007cdf70a8f0f29daf87d04c73eda7975248de6528de82bf0b7e7820f9f775",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml.dll": "f8c791dc32f4ebfce0e17ba2ebefba02d16c8f7209f74a5f0a87d0d60d69a12c",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-base.dll": "255b1d609643421a5d1dabecb1d0010076235035cbce0516f6c3988115581a08",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-cpu.dll": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2"
+      },
+      "threads": 6,
+      "ubatch": 128,
+      "prompt": 215,
+      "decode": 32,
+      "reference": "5542318e748c154b634211def405ae95da3dfaa9",
+      "rounds": 9,
+      "outer_warmup_rounds": 1,
+      "process_warmup_sequences": 1
+    },
+    "bench-nine/results.json": [
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 496.2604,
+        "tg_ms": 730.7563,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 522.5563,
+        "tg_ms": 705.3989,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 566.7407,
+        "tg_ms": 715.2445,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 831.1002,
+        "tg_ms": 764.711,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 507.5996,
+        "tg_ms": 723.5013,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 626.4078,
+        "tg_ms": 736.6591,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 887.4699,
+        "tg_ms": 720.9819,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 520.0936,
+        "tg_ms": 699.9115,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 511.7748,
+        "tg_ms": 721.9263,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 818.148,
+        "tg_ms": 680.9506,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 493.1915,
+        "tg_ms": 755.2589,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 535.7036,
+        "tg_ms": 705.5076,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 817.7927,
+        "tg_ms": 697.8463,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 521.492,
+        "tg_ms": 702.175,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 529.1754,
+        "tg_ms": 701.6588,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 525.7852,
+        "tg_ms": 715.1249,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 507.8453,
+        "tg_ms": 712.5991,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 529.7852,
+        "tg_ms": 722.4333,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 545.1123,
+        "tg_ms": 714.3506,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 815.4528,
+        "tg_ms": 684.7356,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 534.8357,
+        "tg_ms": 709.0462,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 526.7164,
+        "tg_ms": 711.1237,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 807.1197,
+        "tg_ms": 682.9159,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 506.1493,
+        "tg_ms": 715.9796,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 520.7212,
+        "tg_ms": 746.8124,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 797.1084,
+        "tg_ms": 685.7313,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 516.5468,
+        "tg_ms": 732.4778,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 533.6481,
+        "tg_ms": 718.9259,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 798.2645,
+        "tg_ms": 687.3055,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 513.1537,
+        "tg_ms": 712.4519,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 537.2776,
+        "tg_ms": 704.3534,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 519.6113,
+        "tg_ms": 704.144,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 503.0263,
+        "tg_ms": 704.5344,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 512.5201,
+        "tg_ms": 713.6057,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 517.8656,
+        "tg_ms": 701.5899,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 796.2157,
+        "tg_ms": 683.6298,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 538.5231,
+        "tg_ms": 712.1148,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 509.1814,
+        "tg_ms": 718.1316,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 831.8349,
+        "tg_ms": 694.8677,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 497.7431,
+        "tg_ms": 711.8217,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "F32",
+        "round": -1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 536.9378,
+        "tg_ms": 2231.6721,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": -1,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 561.7693,
+        "tg_ms": 2265.9979,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": -1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 557.0899,
+        "tg_ms": 2270.0854,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": -1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 541.7947,
+        "tg_ms": 2233.98,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 0,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 588.2419,
+        "tg_ms": 2306.0239,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 0,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 553.2792,
+        "tg_ms": 2320.4262,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 0,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 575.5082,
+        "tg_ms": 2323.2714,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 0,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 567.5726,
+        "tg_ms": 2297.3565,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 599.4985,
+        "tg_ms": 2278.1157,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 576.6843,
+        "tg_ms": 2238.7752,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 548.901,
+        "tg_ms": 2323.3413,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 1,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 569.732,
+        "tg_ms": 2256.6334,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 2,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 575.2084,
+        "tg_ms": 2410.4153,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 2,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 553.9257,
+        "tg_ms": 2264.3381,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 2,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 613.159,
+        "tg_ms": 2361.2757,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 2,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 579.374,
+        "tg_ms": 2296.5743,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 3,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 586.1762,
+        "tg_ms": 2298.8,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 3,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 603.0704,
+        "tg_ms": 2292.9766,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 3,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 635.2109,
+        "tg_ms": 2488.5838,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 3,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 595.6832,
+        "tg_ms": 2452.6402,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 4,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 629.538,
+        "tg_ms": 2466.0715,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 4,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 670.3999,
+        "tg_ms": 2422.9175,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 4,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 580.9371,
+        "tg_ms": 2414.9817,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 4,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 614.0931,
+        "tg_ms": 2438.6203,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 5,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 684.292,
+        "tg_ms": 2485.4174,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 5,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 579.9252,
+        "tg_ms": 2455.2664,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 5,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 647.8167,
+        "tg_ms": 2451.0785,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 5,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 650.6244,
+        "tg_ms": 2494.6191,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 6,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 603.1077,
+        "tg_ms": 2488.9266,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 6,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 723.7971,
+        "tg_ms": 2463.8296,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 6,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 694.4465,
+        "tg_ms": 2443.5931,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 6,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 689.4187,
+        "tg_ms": 2480.5413,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 7,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 617.2868,
+        "tg_ms": 2414.3192,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 7,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 648.2641,
+        "tg_ms": 2404.1389,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 7,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 623.6862,
+        "tg_ms": 2457.637,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 7,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 584.0741,
+        "tg_ms": 2409.7755,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 8,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 601.0639,
+        "tg_ms": 2445.6291,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 8,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 624.2783,
+        "tg_ms": 2446.752,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 8,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 573.133,
+        "tg_ms": 2436.8929,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 8,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 629.1134,
+        "tg_ms": 2496.3606,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      }
+    ],
+    "bench-nine/summary.json": {
+      "Q8": {
+        "control": {
+          "pp": {
+            "mean": 422.70012936861343,
+            "minimum": 412.27861597109836,
+            "maximum": 435.9361424517657
+          },
+          "tg": {
+            "mean": 44.69335139838856,
+            "minimum": 42.369576843119624,
+            "maximum": 45.72006603692038
+          }
+        },
+        "checkpoint": {
+          "pp": {
+            "mean": 406.7557901754878,
+            "minimum": 399.240069738884,
+            "maximum": 423.56219350842673
+          },
+          "tg": {
+            "mean": 44.926737210265586,
+            "minimum": 44.22936074890259,
+            "maximum": 45.60621202213953
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 404.3245505676683,
+            "minimum": 343.2268882986451,
+            "maximum": 422.2463742784006
+          },
+          "tg": {
+            "mean": 44.530286095134564,
+            "minimum": 42.848779693534816,
+            "maximum": 45.61069080384424
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 262.83788879357866,
+            "minimum": 242.26173755301446,
+            "maximum": 270.02733053367325
+          },
+          "tg": {
+            "mean": 46.323189123849005,
+            "minimum": 44.383915879164235,
+            "maximum": 46.99312989811596
+          }
+        }
+      },
+      "F32": {
+        "control": {
+          "pp": {
+            "mean": 354.9453414881881,
+            "minimum": 297.04457229795474,
+            "maximum": 391.69176226678405
+          },
+          "tg": {
+            "mean": 13.443696527556224,
+            "minimum": 12.818660893782733,
+            "maximum": 14.13216515678467
+          }
+        },
+        "checkpoint": {
+          "pp": {
+            "mean": 346.77151164109955,
+            "minimum": 309.5990835867126,
+            "maximum": 377.370412755471
+          },
+          "tg": {
+            "mean": 13.428766792072999,
+            "minimum": 12.82760963387156,
+            "maximum": 14.180415835376715
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 343.62916412394253,
+            "minimum": 311.85693106380785,
+            "maximum": 388.59223336066134
+          },
+          "tg": {
+            "mean": 13.30130134387544,
+            "minimum": 12.858719083520516,
+            "maximum": 14.046696574717432
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 369.07362719282867,
+            "minimum": 356.48690938616767,
+            "maximum": 375.1310777777584
+          },
+          "tg": {
+            "mean": 13.326843580001878,
+            "minimum": 12.856948051421043,
+            "maximum": 14.29352978360668
+          }
+        }
+      }
+    },
+    "synthetic-perf/metadata.json": {
+      "sha256": {
+        "control": "cf428ec36a3d5ec5fb6a74c8217aeab71a944a91256e62ace6dfe47bdc1e5005",
+        "checkpoint": "bb105f5cfe8336dd35f3a4453862cf78c7575ea4c5e9a65dd881cb486a0b9538",
+        "candidate": "9df3bc85220a2bb197b5d6e2da525a18bf041b54f145eff0ab2c5535771121ff"
+      },
+      "rounds": 9,
+      "outer_warmup": 1,
+      "threads": 6,
+      "prompt": 64,
+      "decode": 64
+    },
+    "synthetic-perf/results.json": [
+      {
+        "pair": -1,
+        "arm": "control",
+        "matmul_ms": 0.069,
+        "matmul_gflops": 121.08,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.506,
+        "prefill_tps": 6092.0,
+        "decode_ms": 10.081,
+        "decode_tps": 6348.6
+      },
+      {
+        "pair": -1,
+        "arm": "checkpoint",
+        "matmul_ms": 0.063,
+        "matmul_gflops": 133.34,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.508,
+        "prefill_tps": 6090.8,
+        "decode_ms": 10.984,
+        "decode_tps": 5826.7
+      },
+      {
+        "pair": -1,
+        "arm": "candidate",
+        "matmul_ms": 0.076,
+        "matmul_gflops": 110.35,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.625,
+        "prefill_tps": 6023.3,
+        "decode_ms": 11.57,
+        "decode_tps": 5531.5
+      },
+      {
+        "pair": 0,
+        "arm": "checkpoint",
+        "matmul_ms": 0.068,
+        "matmul_gflops": 123.27,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.689,
+        "prefill_tps": 5987.4,
+        "decode_ms": 10.069,
+        "decode_tps": 6356.4
+      },
+      {
+        "pair": 0,
+        "arm": "candidate",
+        "matmul_ms": 0.073,
+        "matmul_gflops": 114.49,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.767,
+        "prefill_tps": 5944.1,
+        "decode_ms": 10.49,
+        "decode_tps": 6101.0
+      },
+      {
+        "pair": 0,
+        "arm": "control",
+        "matmul_ms": 0.061,
+        "matmul_gflops": 136.47,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.046,
+        "prefill_tps": 6370.4,
+        "decode_ms": 9.645,
+        "decode_tps": 6635.8
+      },
+      {
+        "pair": 1,
+        "arm": "candidate",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 128.29,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.686,
+        "prefill_tps": 5989.1,
+        "decode_ms": 9.976,
+        "decode_tps": 6415.5
+      },
+      {
+        "pair": 1,
+        "arm": "control",
+        "matmul_ms": 0.077,
+        "matmul_gflops": 109.34,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.152,
+        "prefill_tps": 6304.0,
+        "decode_ms": 10.02,
+        "decode_tps": 6387.4
+      },
+      {
+        "pair": 1,
+        "arm": "checkpoint",
+        "matmul_ms": 0.068,
+        "matmul_gflops": 122.93,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.354,
+        "prefill_tps": 6181.4,
+        "decode_ms": 10.71,
+        "decode_tps": 5975.6
+      },
+      {
+        "pair": 2,
+        "arm": "control",
+        "matmul_ms": 0.067,
+        "matmul_gflops": 125.6,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.718,
+        "prefill_tps": 5971.2,
+        "decode_ms": 10.166,
+        "decode_tps": 6295.7
+      },
+      {
+        "pair": 2,
+        "arm": "checkpoint",
+        "matmul_ms": 0.083,
+        "matmul_gflops": 100.69,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.378,
+        "prefill_tps": 6166.7,
+        "decode_ms": 14.709,
+        "decode_tps": 4351.1
+      },
+      {
+        "pair": 2,
+        "arm": "candidate",
+        "matmul_ms": 0.111,
+        "matmul_gflops": 75.46,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.02,
+        "prefill_tps": 5324.6,
+        "decode_ms": 9.808,
+        "decode_tps": 6525.3
+      },
+      {
+        "pair": 3,
+        "arm": "checkpoint",
+        "matmul_ms": 0.072,
+        "matmul_gflops": 116.07,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.919,
+        "prefill_tps": 6452.5,
+        "decode_ms": 9.168,
+        "decode_tps": 6981.1
+      },
+      {
+        "pair": 3,
+        "arm": "candidate",
+        "matmul_ms": 0.122,
+        "matmul_gflops": 68.61,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.454,
+        "prefill_tps": 6769.5,
+        "decode_ms": 9.766,
+        "decode_tps": 6553.3
+      },
+      {
+        "pair": 3,
+        "arm": "control",
+        "matmul_ms": 0.071,
+        "matmul_gflops": 118.05,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.345,
+        "prefill_tps": 6848.6,
+        "decode_ms": 8.872,
+        "decode_tps": 7213.9
+      },
+      {
+        "pair": 4,
+        "arm": "candidate",
+        "matmul_ms": 0.072,
+        "matmul_gflops": 116.9,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.763,
+        "prefill_tps": 6555.6,
+        "decode_ms": 10.371,
+        "decode_tps": 6171.2
+      },
+      {
+        "pair": 4,
+        "arm": "control",
+        "matmul_ms": 0.073,
+        "matmul_gflops": 114.33,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.948,
+        "prefill_tps": 6433.6,
+        "decode_ms": 9.838,
+        "decode_tps": 6505.3
+      },
+      {
+        "pair": 4,
+        "arm": "checkpoint",
+        "matmul_ms": 0.086,
+        "matmul_gflops": 97.37,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.644,
+        "prefill_tps": 6012.6,
+        "decode_ms": 11.257,
+        "decode_tps": 5685.2
+      },
+      {
+        "pair": 5,
+        "arm": "control",
+        "matmul_ms": 0.071,
+        "matmul_gflops": 117.7,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 9.974,
+        "prefill_tps": 6416.6,
+        "decode_ms": 9.677,
+        "decode_tps": 6613.6
+      },
+      {
+        "pair": 5,
+        "arm": "checkpoint",
+        "matmul_ms": 0.063,
+        "matmul_gflops": 133.75,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.575,
+        "prefill_tps": 6052.3,
+        "decode_ms": 9.678,
+        "decode_tps": 6612.9
+      },
+      {
+        "pair": 5,
+        "arm": "candidate",
+        "matmul_ms": 0.081,
+        "matmul_gflops": 103.31,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.042,
+        "prefill_tps": 6373.0,
+        "decode_ms": 9.87,
+        "decode_tps": 6484.2
+      },
+      {
+        "pair": 6,
+        "arm": "checkpoint",
+        "matmul_ms": 0.07,
+        "matmul_gflops": 119.91,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.181,
+        "prefill_tps": 6286.3,
+        "decode_ms": 10.009,
+        "decode_tps": 6394.2
+      },
+      {
+        "pair": 6,
+        "arm": "candidate",
+        "matmul_ms": 0.068,
+        "matmul_gflops": 123.87,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 11.261,
+        "prefill_tps": 5683.5,
+        "decode_ms": 10.573,
+        "decode_tps": 6053.0
+      },
+      {
+        "pair": 6,
+        "arm": "control",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 128.54,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.653,
+        "prefill_tps": 6007.6,
+        "decode_ms": 10.808,
+        "decode_tps": 5921.8
+      },
+      {
+        "pair": 7,
+        "arm": "candidate",
+        "matmul_ms": 0.09,
+        "matmul_gflops": 93.54,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.233,
+        "prefill_tps": 6254.2,
+        "decode_ms": 10.315,
+        "decode_tps": 6204.7
+      },
+      {
+        "pair": 7,
+        "arm": "control",
+        "matmul_ms": 0.073,
+        "matmul_gflops": 115.01,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.851,
+        "prefill_tps": 5897.9,
+        "decode_ms": 10.664,
+        "decode_tps": 6001.3
+      },
+      {
+        "pair": 7,
+        "arm": "checkpoint",
+        "matmul_ms": 0.079,
+        "matmul_gflops": 106.2,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.19,
+        "prefill_tps": 6280.7,
+        "decode_ms": 10.337,
+        "decode_tps": 6191.5
+      },
+      {
+        "pair": 8,
+        "arm": "control",
+        "matmul_ms": 0.08,
+        "matmul_gflops": 105.0,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.351,
+        "prefill_tps": 6183.2,
+        "decode_ms": 10.001,
+        "decode_tps": 6399.2
+      },
+      {
+        "pair": 8,
+        "arm": "checkpoint",
+        "matmul_ms": 0.093,
+        "matmul_gflops": 90.25,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.453,
+        "prefill_tps": 6122.8,
+        "decode_ms": 11.59,
+        "decode_tps": 5521.9
+      },
+      {
+        "pair": 8,
+        "arm": "candidate",
+        "matmul_ms": 0.068,
+        "matmul_gflops": 123.4,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 10.696,
+        "prefill_tps": 5983.3,
+        "decode_ms": 10.133,
+        "decode_tps": 6316.1
+      }
+    ],
+    "synthetic-perf/summary.json": {
+      "control": {
+        "matmul_gflops": {
+          "mean": 118.89333333333333,
+          "minimum": 105.0,
+          "maximum": 136.47
+        },
+        "prefill_tps": {
+          "mean": 6270.344444444445,
+          "minimum": 5897.9,
+          "maximum": 6848.6
+        },
+        "decode_tps": {
+          "mean": 6441.555555555556,
+          "minimum": 5921.8,
+          "maximum": 7213.9
+        }
+      },
+      "checkpoint": {
+        "matmul_gflops": {
+          "mean": 112.27111111111111,
+          "minimum": 90.25,
+          "maximum": 133.75
+        },
+        "prefill_tps": {
+          "mean": 6171.4111111111115,
+          "minimum": 5987.4,
+          "maximum": 6452.5
+        },
+        "decode_tps": {
+          "mean": 6007.766666666666,
+          "minimum": 4351.1,
+          "maximum": 6981.1
+        }
+      },
+      "candidate": {
+        "matmul_gflops": {
+          "mean": 105.31888888888889,
+          "minimum": 68.61,
+          "maximum": 128.29
+        },
+        "prefill_tps": {
+          "mean": 6097.433333333333,
+          "minimum": 5324.6,
+          "maximum": 6769.5
+        },
+        "decode_tps": {
+          "mean": 6313.811111111111,
+          "minimum": 6053.0,
+          "maximum": 6553.3
+        }
+      }
+    }
+  },
+  "post_reboot": {
+    "metadata.json": {
+      "hashes": {
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-compare.exe": "f34310ad207b7fe5b09b8047f30326df98126468b5050e111362d54a3ba1e606",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-compare.exe": "6ca767f3fe400d28f269e229ba0465120032a9d5d6f15dd292e47c205375e004",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llmx-compare-threads.exe": "6156452d9e6e3cd63e4d184b1e8c57badfee57fece86092d23b0dc9d64f645bf",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\config.hpp": "9f20e6cf3b323a66204e25ef633d26ec5c1ed845da67a5e3b4de0914cf7c3368",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\backend.hpp": "5d76240be7893279a308a4c21cee074f53f1dcee5421feafadb496cae52dbcba",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\gguf.hpp": "87d4beee29a8a0adc4c0183d68e1f8f13ea30326d419dff11d9fcbfcea22e712",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\chat.hpp": "865051f5ef6ebe8d14330e18347daeabce6a8cd9cd3eee38f664b499883ad361",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\generate.hpp": "1277cbb7fd3b6d6c24bd06945ab8c562f553201a8f6893325343c04a7bf4f087",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\arch_qwen.hpp": "c064955de07e4f41537a50f9e9f343affe9db2f52571bf988476f2b448bd1ff5",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\tokenizer\\tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\cpu\\cpu_backend.hpp": "f114d3b6287b2a4577bc67180738853ec1b975500ea4168cbd90ab22db70ec1a",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\config.hpp": "411a632de621d17c28a6fd594157d5c8ec7c1d77fc9d8cee26abf90ae567351f",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\backend.hpp": "e79f18ed28df5cfddb3e6ec0c9bcbe7a70c68d3186056e480616edcec1a453cd",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\fp16.hpp": "578b095d8e233f1d2870711c9d673a44ab845f7000a27e33b898f8bd2f9a5582",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\gguf.hpp": "d54df0021e2776e1123c45bb3a92beb04e2d1bc2d85641f8d55228b2cee46092",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\chat.hpp": "3bc261252f4a394d9b6fdb51cdfe942372b959e04f778242357e348ae646f65d",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\generate.hpp": "05fc7375ddbc9cd0a81d28805f5fea85091beb0d54a1e5e0cbdebe44db1603b9",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\perplexity.hpp": "c7ee22964b0e5555d2f27733d6467536907098db7ddf57f800f297165b071608",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\sampler.hpp": "4398398a746342d311693317e6a3298ec16fce0fff57304f4eff3a71c63785cf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\arch_qwen.hpp": "a3fe58109983665f713540353cefc2636941981860771d12309223949cf4a7ae",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\host_kv_cache.hpp": "581c8801e0e5b06cc42fefac0f6b64895b5d2d337bc386bc2be75515da088bfc",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\k_quants.hpp": "1d0dfc64c1c1f46f753848029fe164bee0539f98bece9765050cbe8187107326",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\quant.hpp": "83a3c2540f3129002eb0a03b04db8e293124dcdafb26683baef493a9214f64de",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\tokenizer\\tokenizer.hpp": "19ca659b22d177c2e6427baa42f02dc3fdb8c63fd3d13a837c39cae0acd9672e",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\cpu\\cpu_backend.hpp": "fbaaef384a606f916425827741c7c42bb44a8ac0dba33d3f6ea2ef4a9c15ffea",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llama.dll": "2d007cdf70a8f0f29daf87d04c73eda7975248de6528de82bf0b7e7820f9f775",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml.dll": "f8c791dc32f4ebfce0e17ba2ebefba02d16c8f7209f74a5f0a87d0d60d69a12c",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-base.dll": "255b1d609643421a5d1dabecb1d0010076235035cbce0516f6c3988115581a08",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-cpu.dll": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2"
+      },
+      "threads": 6,
+      "ubatch": 128,
+      "prompt": 215,
+      "decode": 32,
+      "reference": "5542318e748c154b634211def405ae95da3dfaa9",
+      "rounds": 9,
+      "outer_warmup_rounds": 1,
+      "process_warmup_sequences": 1
+    },
+    "results.json": [
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 541.2741,
+        "tg_ms": 741.3399,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 580.3464,
+        "tg_ms": 774.3202,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 828.973,
+        "tg_ms": 707.2372,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 574.3866,
+        "tg_ms": 732.4707,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 828.2316,
+        "tg_ms": 691.8187,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 532.0569,
+        "tg_ms": 708.0628,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 806.555,
+        "tg_ms": 746.0605,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 549.2838,
+        "tg_ms": 736.9572,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 517.5685,
+        "tg_ms": 717.3587,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 516.8873,
+        "tg_ms": 725.7984,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 587.7813,
+        "tg_ms": 742.7546,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 831.7468,
+        "tg_ms": 741.9216,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 548.9988,
+        "tg_ms": 736.1092,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 818.3529,
+        "tg_ms": 704.4723,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 534.6253,
+        "tg_ms": 716.8184,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 816.8816,
+        "tg_ms": 703.0792,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 540.3054,
+        "tg_ms": 729.5467,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 547.328,
+        "tg_ms": 716.9695,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 572.3069,
+        "tg_ms": 722.5231,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 544.9946,
+        "tg_ms": 708.2487,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 792.4883,
+        "tg_ms": 694.4585,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 541.9728,
+        "tg_ms": 721.5183,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 811.0908,
+        "tg_ms": 674.6285,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 519.6204,
+        "tg_ms": 711.2299,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 804.9802,
+        "tg_ms": 702.3174,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 566.5045,
+        "tg_ms": 740.7378,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 537.967,
+        "tg_ms": 743.9471,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 518.8621,
+        "tg_ms": 794.0325,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 537.1309,
+        "tg_ms": 716.2265,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 824.488,
+        "tg_ms": 755.6942,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      }
+    ],
+    "summary.json": {
+      "Q8": {
+        "control": {
+          "pp": {
+            "mean": 399.42900469767255,
+            "minimum": 375.6725630950806,
+            "maximum": 415.95140758923657
+          },
+          "tg": {
+            "mean": 43.776886387567714,
+            "minimum": 40.30061741805279,
+            "maximum": 45.19373140348568
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 392.3404331110071,
+            "minimum": 365.7823071268174,
+            "maximum": 415.4039513610276
+          },
+          "tg": {
+            "mean": 44.0786699779476,
+            "minimum": 43.013811062641416,
+            "maximum": 45.18186902425659
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 263.865975622518,
+            "minimum": 258.4921276523096,
+            "maximum": 271.29738066795437
+          },
+          "tg": {
+            "mean": 44.959715804073014,
+            "minimum": 42.345170837621886,
+            "maximum": 47.433513407749594
+          }
+        }
+      }
+    }
+  },
+  "logs": {
+    "backend-errors.log": "startup allocation failures: constructor=24 resize=3\nbackend errors: passed\n",
+    "backend-group.log": "grouped projections: 540 cases, 141750 outputs checked against separate calls and double dots; 253952 exact finite Q8 scale/weight cases\n",
+    "build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\ncompare_cpu.cpp\nmain.cpp\nbackend_errors.cpp\nbackend_group.cpp\n",
+    "exact.log": "START PPL f32 candidate\nEXACT PPL f32\nSTART PPL q8 candidate\nEXACT PPL q8\nSTART Q8 forced HF continuation\nEXACT LONG q8 5013888\nEXACT LONG f32 5013888\n",
+    "linux-build.log": "In file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Ma[ 30%] Linking CXX executable llmx-backend-group-test\n[ 30%] Built target llmx-backend-group-test\n[ 40%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 50%] Linking CXX executable llmx-backend-errors-test\n[ 50%] Built target llmx-backend-errors-test\n[ 60%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 70%] Linking CXX executable llmx-chat-template-test\n[ 70%] Built target llmx-chat-template-test\n[ 80%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 90%] Linking CXX executable llmx\n[ 90%] Built target llmx\n[100%] Linking CXX executable llmx-kv-cache-test\n[100%] Built target llmx-kv-cache-test\nlo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/tests/backend_errors.cpp:8:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "linux-configure.log": "-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.7s)\n-- Generating done (0.0s)\n-- Build files have been written to: /root/.cache/llmx-worker-call-release\n",
+    "linux-native.log": "Internal ctest changing into directory: /root/.cache/llmx-worker-call-release\nTest project /root/.cache/llmx-worker-call-release\n    Start 1: backend-group\n1/4 Test #1: backend-group ....................   Passed    0.19 sec\n    Start 2: backend-errors\n2/4 Test #2: backend-errors ...................   Passed    0.15 sec\n    Start 3: chat-template\n3/4 Test #3: chat-template ....................   Passed    0.01 sec\n    Start 4: kv-cache\n4/4 Test #4: kv-cache .........................   Passed    0.00 sec\n\n100% tests passed, 0 tests failed out of 4\n\nTotal Test time (real) =   0.36 sec\n",
+    "linux-suite.log": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 39.50 GFLOPS (0.212 ms), prefill 8363 tok/s, decode 7322 tok/s, rms_norm 0.000 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6581 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  baseline   PASS\n",
+    "long-hf.log": "{\"prompt_tokens\": 1943, \"generated_tokens\": 32, \"greedy_match\": true, \"logits_compared\": 5013888, \"max_abs_error\": 0.00012636184692382812, \"rms_error\": 1.6163279547159805e-05, \"bound\": 0.001}\n",
+    "matched-nine.log": "{\"model\": \"Q8\", \"round\": -1, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 496.2604, \"tg_ms\": 730.7563, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": -1, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 522.5563, \"tg_ms\": 705.3989, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": -1, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 566.7407, \"tg_ms\": 715.2445, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": -1, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 831.1002, \"tg_ms\": 764.711, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 0, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 507.5996, \"tg_ms\": 723.5013, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 0, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 626.4078, \"tg_ms\": 736.6591, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 0, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 887.4699, \"tg_ms\": 720.9819, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 0, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 520.0936, \"tg_ms\": 699.9115, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 1, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 511.7748, \"tg_ms\": 721.9263, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 1, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 818.148, \"tg_ms\": 680.9506, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 1, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 493.1915, \"tg_ms\": 755.2589, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 1, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 535.7036, \"tg_ms\": 705.5076, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 2, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 817.7927, \"tg_ms\": 697.8463, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 2, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 521.492, \"tg_ms\": 702.175, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 2, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 529.1754, \"tg_ms\": 701.6588, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 2, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 525.7852, \"tg_ms\": 715.1249, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 3, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 507.8453, \"tg_ms\": 712.5991, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 3, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 529.7852, \"tg_ms\": 722.4333, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 3, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 545.1123, \"tg_ms\": 714.3506, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 3, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 815.4528, \"tg_ms\": 684.7356, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 4, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 534.8357, \"tg_ms\": 709.0462, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 4, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 526.7164, \"tg_ms\": 711.1237, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 4, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 807.1197, \"tg_ms\": 682.9159, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 4, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 506.1493, \"tg_ms\": 715.9796, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 5, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 520.7212, \"tg_ms\": 746.8124, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 5, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 797.1084, \"tg_ms\": 685.7313, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 5, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 516.5468, \"tg_ms\": 732.4778, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 5, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 533.6481, \"tg_ms\": 718.9259, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 6, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 798.2645, \"tg_ms\": 687.3055, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 6, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 513.1537, \"tg_ms\": 712.4519, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 6, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 537.2776, \"tg_ms\": 704.3534, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 6, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 519.6113, \"tg_ms\": 704.144, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 7, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 503.0263, \"tg_ms\": 704.5344, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 7, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 512.5201, \"tg_ms\": 713.6057, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 7, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 517.8656, \"tg_ms\": 701.5899, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 7, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 796.2157, \"tg_ms\": 683.6298, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 8, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 538.5231, \"tg_ms\": 712.1148, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 8, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 509.1814, \"tg_ms\": 718.1316, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 8, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 831.8349, \"tg_ms\": 694.8677, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 8, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 497.7431, \"tg_ms\": 711.8217, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"F32\", \"round\": -1, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 536.9378, \"tg_ms\": 2231.6721, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": -1, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 561.7693, \"tg_ms\": 2265.9979, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": -1, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 557.0899, \"tg_ms\": 2270.0854, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": -1, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 541.7947, \"tg_ms\": 2233.98, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 0, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 588.2419, \"tg_ms\": 2306.0239, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 0, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 553.2792, \"tg_ms\": 2320.4262, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 0, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 575.5082, \"tg_ms\": 2323.2714, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 0, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 567.5726, \"tg_ms\": 2297.3565, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 1, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 599.4985, \"tg_ms\": 2278.1157, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 1, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 576.6843, \"tg_ms\": 2238.7752, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 1, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 548.901, \"tg_ms\": 2323.3413, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 1, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 569.732, \"tg_ms\": 2256.6334, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 2, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 575.2084, \"tg_ms\": 2410.4153, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 2, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 553.9257, \"tg_ms\": 2264.3381, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 2, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 613.159, \"tg_ms\": 2361.2757, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 2, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 579.374, \"tg_ms\": 2296.5743, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 3, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 586.1762, \"tg_ms\": 2298.8, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 3, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 603.0704, \"tg_ms\": 2292.9766, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 3, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 635.2109, \"tg_ms\": 2488.5838, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 3, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 595.6832, \"tg_ms\": 2452.6402, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 4, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 629.538, \"tg_ms\": 2466.0715, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 4, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 670.3999, \"tg_ms\": 2422.9175, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 4, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 580.9371, \"tg_ms\": 2414.9817, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 4, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 614.0931, \"tg_ms\": 2438.6203, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 5, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 684.292, \"tg_ms\": 2485.4174, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 5, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 579.9252, \"tg_ms\": 2455.2664, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 5, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 647.8167, \"tg_ms\": 2451.0785, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 5, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 650.6244, \"tg_ms\": 2494.6191, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 6, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 603.1077, \"tg_ms\": 2488.9266, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 6, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 723.7971, \"tg_ms\": 2463.8296, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 6, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 694.4465, \"tg_ms\": 2443.5931, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 6, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 689.4187, \"tg_ms\": 2480.5413, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 7, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 617.2868, \"tg_ms\": 2414.3192, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 7, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 648.2641, \"tg_ms\": 2404.1389, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 7, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 623.6862, \"tg_ms\": 2457.637, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 7, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 584.0741, \"tg_ms\": 2409.7755, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 8, \"arm\": \"checkpoint\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 601.0639, \"tg_ms\": 2445.6291, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 8, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 624.2783, \"tg_ms\": 2446.752, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 8, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 573.133, \"tg_ms\": 2436.8929, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 8, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 629.1134, \"tg_ms\": 2496.3606, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\n  \"Q8\": {\n    \"control\": {\n      \"pp\": {\n        \"mean\": 422.70012936861343,\n        \"minimum\": 412.27861597109836,\n        \"maximum\": 435.9361424517657\n      },\n      \"tg\": {\n        \"mean\": 44.69335139838856,\n        \"minimum\": 42.369576843119624,\n        \"maximum\": 45.72006603692038\n      }\n    },\n    \"checkpoint\": {\n      \"pp\": {\n        \"mean\": 406.7557901754878,\n        \"minimum\": 399.240069738884,\n        \"maximum\": 423.56219350842673\n      },\n      \"tg\": {\n        \"mean\": 44.926737210265586,\n        \"minimum\": 44.22936074890259,\n        \"maximum\": 45.60621202213953\n      }\n    },\n    \"candidate\": {\n      \"pp\": {\n        \"mean\": 404.3245505676683,\n        \"minimum\": 343.2268882986451,\n        \"maximum\": 422.2463742784006\n      },\n      \"tg\": {\n        \"mean\": 44.530286095134564,\n        \"minimum\": 42.848779693534816,\n        \"maximum\": 45.61069080384424\n      }\n    },\n    \"mx\": {\n      \"pp\": {\n        \"mean\": 262.83788879357866,\n        \"minimum\": 242.26173755301446,\n        \"maximum\": 270.02733053367325\n      },\n      \"tg\": {\n        \"mean\": 46.323189123849005,\n        \"minimum\": 44.383915879164235,\n        \"maximum\": 46.99312989811596\n      }\n    }\n  },\n  \"F32\": {\n    \"control\": {\n      \"pp\": {\n        \"mean\": 354.9453414881881,\n        \"minimum\": 297.04457229795474,\n        \"maximum\": 391.69176226678405\n      },\n      \"tg\": {\n        \"mean\": 13.443696527556224,\n        \"minimum\": 12.818660893782733,\n        \"maximum\": 14.13216515678467\n      }\n    },\n    \"checkpoint\": {\n      \"pp\": {\n        \"mean\": 346.77151164109955,\n        \"minimum\": 309.5990835867126,\n        \"maximum\": 377.370412755471\n      },\n      \"tg\": {\n        \"mean\": 13.428766792072999,\n        \"minimum\": 12.82760963387156,\n        \"maximum\": 14.180415835376715\n      }\n    },\n    \"candidate\": {\n      \"pp\": {\n        \"mean\": 343.62916412394253,\n        \"minimum\": 311.85693106380785,\n        \"maximum\": 388.59223336066134\n      },\n      \"tg\": {\n        \"mean\": 13.30130134387544,\n        \"minimum\": 12.858719083520516,\n        \"maximum\": 14.046696574717432\n      }\n    },\n    \"mx\": {\n      \"pp\": {\n        \"mean\": 369.07362719282867,\n        \"minimum\": 356.48690938616767,\n        \"maximum\": 375.1310777777584\n      },\n      \"tg\": {\n        \"mean\": 13.326843580001878,\n        \"minimum\": 12.856948051421043,\n        \"maximum\": 14.29352978360668\n      }\n    }\n  }\n}\n",
+    "numerical-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nmain.cpp\nllmx-attention-long.cpp\nforced-long.cpp\nppl-control.cpp\n",
+    "synthetic-perf.log": "{\"pair\": -1, \"arm\": \"control\", \"matmul_ms\": 0.069, \"matmul_gflops\": 121.08, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.506, \"prefill_tps\": 6092.0, \"decode_ms\": 10.081, \"decode_tps\": 6348.6}\n{\"pair\": -1, \"arm\": \"checkpoint\", \"matmul_ms\": 0.063, \"matmul_gflops\": 133.34, \"rms_norm_ms\": 0.0, \"rope_ms\": 0.0, \"prefill_ms\": 10.508, \"prefill_tps\": 6090.8, \"decode_ms\": 10.984, \"decode_tps\": 5826.7}\n{\"pair\": -1, \"arm\": \"candidate\", \"matmul_ms\": 0.076, \"matmul_gflops\": 110.35, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.625, \"prefill_tps\": 6023.3, \"decode_ms\": 11.57, \"decode_tps\": 5531.5}\n{\"pair\": 0, \"arm\": \"checkpoint\", \"matmul_ms\": 0.068, \"matmul_gflops\": 123.27, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.689, \"prefill_tps\": 5987.4, \"decode_ms\": 10.069, \"decode_tps\": 6356.4}\n{\"pair\": 0, \"arm\": \"candidate\", \"matmul_ms\": 0.073, \"matmul_gflops\": 114.49, \"rms_norm_ms\": 0.0, \"rope_ms\": 0.0, \"prefill_ms\": 10.767, \"prefill_tps\": 5944.1, \"decode_ms\": 10.49, \"decode_tps\": 6101.0}\n{\"pair\": 0, \"arm\": \"control\", \"matmul_ms\": 0.061, \"matmul_gflops\": 136.47, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.046, \"prefill_tps\": 6370.4, \"decode_ms\": 9.645, \"decode_tps\": 6635.8}\n{\"pair\": 1, \"arm\": \"candidate\", \"matmul_ms\": 0.065, \"matmul_gflops\": 128.29, \"rms_norm_ms\": 0.0, \"rope_ms\": 0.0, \"prefill_ms\": 10.686, \"prefill_tps\": 5989.1, \"decode_ms\": 9.976, \"decode_tps\": 6415.5}\n{\"pair\": 1, \"arm\": \"control\", \"matmul_ms\": 0.077, \"matmul_gflops\": 109.34, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.152, \"prefill_tps\": 6304.0, \"decode_ms\": 10.02, \"decode_tps\": 6387.4}\n{\"pair\": 1, \"arm\": \"checkpoint\", \"matmul_ms\": 0.068, \"matmul_gflops\": 122.93, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.354, \"prefill_tps\": 6181.4, \"decode_ms\": 10.71, \"decode_tps\": 5975.6}\n{\"pair\": 2, \"arm\": \"control\", \"matmul_ms\": 0.067, \"matmul_gflops\": 125.6, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.718, \"prefill_tps\": 5971.2, \"decode_ms\": 10.166, \"decode_tps\": 6295.7}\n{\"pair\": 2, \"arm\": \"checkpoint\", \"matmul_ms\": 0.083, \"matmul_gflops\": 100.69, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.378, \"prefill_tps\": 6166.7, \"decode_ms\": 14.709, \"decode_tps\": 4351.1}\n{\"pair\": 2, \"arm\": \"candidate\", \"matmul_ms\": 0.111, \"matmul_gflops\": 75.46, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.02, \"prefill_tps\": 5324.6, \"decode_ms\": 9.808, \"decode_tps\": 6525.3}\n{\"pair\": 3, \"arm\": \"checkpoint\", \"matmul_ms\": 0.072, \"matmul_gflops\": 116.07, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 9.919, \"prefill_tps\": 6452.5, \"decode_ms\": 9.168, \"decode_tps\": 6981.1}\n{\"pair\": 3, \"arm\": \"candidate\", \"matmul_ms\": 0.122, \"matmul_gflops\": 68.61, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 9.454, \"prefill_tps\": 6769.5, \"decode_ms\": 9.766, \"decode_tps\": 6553.3}\n{\"pair\": 3, \"arm\": \"control\", \"matmul_ms\": 0.071, \"matmul_gflops\": 118.05, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 9.345, \"prefill_tps\": 6848.6, \"decode_ms\": 8.872, \"decode_tps\": 7213.9}\n{\"pair\": 4, \"arm\": \"candidate\", \"matmul_ms\": 0.072, \"matmul_gflops\": 116.9, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 9.763, \"prefill_tps\": 6555.6, \"decode_ms\": 10.371, \"decode_tps\": 6171.2}\n{\"pair\": 4, \"arm\": \"control\", \"matmul_ms\": 0.073, \"matmul_gflops\": 114.33, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 9.948, \"prefill_tps\": 6433.6, \"decode_ms\": 9.838, \"decode_tps\": 6505.3}\n{\"pair\": 4, \"arm\": \"checkpoint\", \"matmul_ms\": 0.086, \"matmul_gflops\": 97.37, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.644, \"prefill_tps\": 6012.6, \"decode_ms\": 11.257, \"decode_tps\": 5685.2}\n{\"pair\": 5, \"arm\": \"control\", \"matmul_ms\": 0.071, \"matmul_gflops\": 117.7, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 9.974, \"prefill_tps\": 6416.6, \"decode_ms\": 9.677, \"decode_tps\": 6613.6}\n{\"pair\": 5, \"arm\": \"checkpoint\", \"matmul_ms\": 0.063, \"matmul_gflops\": 133.75, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.575, \"prefill_tps\": 6052.3, \"decode_ms\": 9.678, \"decode_tps\": 6612.9}\n{\"pair\": 5, \"arm\": \"candidate\", \"matmul_ms\": 0.081, \"matmul_gflops\": 103.31, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.042, \"prefill_tps\": 6373.0, \"decode_ms\": 9.87, \"decode_tps\": 6484.2}\n{\"pair\": 6, \"arm\": \"checkpoint\", \"matmul_ms\": 0.07, \"matmul_gflops\": 119.91, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.181, \"prefill_tps\": 6286.3, \"decode_ms\": 10.009, \"decode_tps\": 6394.2}\n{\"pair\": 6, \"arm\": \"candidate\", \"matmul_ms\": 0.068, \"matmul_gflops\": 123.87, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 11.261, \"prefill_tps\": 5683.5, \"decode_ms\": 10.573, \"decode_tps\": 6053.0}\n{\"pair\": 6, \"arm\": \"control\", \"matmul_ms\": 0.065, \"matmul_gflops\": 128.54, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.653, \"prefill_tps\": 6007.6, \"decode_ms\": 10.808, \"decode_tps\": 5921.8}\n{\"pair\": 7, \"arm\": \"candidate\", \"matmul_ms\": 0.09, \"matmul_gflops\": 93.54, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.233, \"prefill_tps\": 6254.2, \"decode_ms\": 10.315, \"decode_tps\": 6204.7}\n{\"pair\": 7, \"arm\": \"control\", \"matmul_ms\": 0.073, \"matmul_gflops\": 115.01, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.851, \"prefill_tps\": 5897.9, \"decode_ms\": 10.664, \"decode_tps\": 6001.3}\n{\"pair\": 7, \"arm\": \"checkpoint\", \"matmul_ms\": 0.079, \"matmul_gflops\": 106.2, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.19, \"prefill_tps\": 6280.7, \"decode_ms\": 10.337, \"decode_tps\": 6191.5}\n{\"pair\": 8, \"arm\": \"control\", \"matmul_ms\": 0.08, \"matmul_gflops\": 105.0, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.351, \"prefill_tps\": 6183.2, \"decode_ms\": 10.001, \"decode_tps\": 6399.2}\n{\"pair\": 8, \"arm\": \"checkpoint\", \"matmul_ms\": 0.093, \"matmul_gflops\": 90.25, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.453, \"prefill_tps\": 6122.8, \"decode_ms\": 11.59, \"decode_tps\": 5521.9}\n{\"pair\": 8, \"arm\": \"candidate\", \"matmul_ms\": 0.068, \"matmul_gflops\": 123.4, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 10.696, \"prefill_tps\": 5983.3, \"decode_ms\": 10.133, \"decode_tps\": 6316.1}\n{\n  \"control\": {\n    \"matmul_gflops\": {\n      \"mean\": 118.89333333333333,\n      \"minimum\": 105.0,\n      \"maximum\": 136.47\n    },\n    \"prefill_tps\": {\n      \"mean\": 6270.344444444445,\n      \"minimum\": 5897.9,\n      \"maximum\": 6848.6\n    },\n    \"decode_tps\": {\n      \"mean\": 6441.555555555556,\n      \"minimum\": 5921.8,\n      \"maximum\": 7213.9\n    }\n  },\n  \"checkpoint\": {\n    \"matmul_gflops\": {\n      \"mean\": 112.27111111111111,\n      \"minimum\": 90.25,\n      \"maximum\": 133.75\n    },\n    \"prefill_tps\": {\n      \"mean\": 6171.4111111111115,\n      \"minimum\": 5987.4,\n      \"maximum\": 6452.5\n    },\n    \"decode_tps\": {\n      \"mean\": 6007.766666666666,\n      \"minimum\": 4351.1,\n      \"maximum\": 6981.1\n    }\n  },\n  \"candidate\": {\n    \"matmul_gflops\": {\n      \"mean\": 105.31888888888889,\n      \"minimum\": 68.61,\n      \"maximum\": 128.29\n    },\n    \"prefill_tps\": {\n      \"mean\": 6097.433333333333,\n      \"minimum\": 5324.6,\n      \"maximum\": 6769.5\n    },\n    \"decode_tps\": {\n      \"mean\": 6313.811111111111,\n      \"minimum\": 6053.0,\n      \"maximum\": 6553.3\n    }\n  }\n}\n",
+    "ubsan-build.log": "In file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Ma[ 30%] Linking CXX executable llmx-backend-group-test\n[ 30%] Built target llmx-backend-group-test\n[ 40%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 50%] Linking CXX executable llmx-backend-errors-test\n[ 50%] Built target llmx-backend-errors-test\n[ 60%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 70%] Linking CXX executable llmx-chat-template-test\n[ 70%] Built target llmx-chat-template-test\n[ 80%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 90%] Linking CXX executable llmx-kv-cache-test\n[ 90%] Built target llmx-kv-cache-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\nlo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/tests/backend_errors.cpp:8:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "ubsan-configure.log": "loading initial cache file /mnt/c/Users/Marko/AppData/Local/Temp/llmx-kv-head-major/validation/ubsan-cache.cmake\n-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.7s)\n-- Generating done (0.0s)\n-- Build files have been written to: /root/.cache/llmx-worker-call-ubsan\n",
+    "ubsan-native.log": "Internal ctest changing into directory: /root/.cache/llmx-worker-call-ubsan\nTest project /root/.cache/llmx-worker-call-ubsan\n    Start 1: backend-group\n1/4 Test #1: backend-group ....................   Passed    0.27 sec\n    Start 2: backend-errors\n2/4 Test #2: backend-errors ...................   Passed    0.16 sec\n    Start 3: chat-template\n3/4 Test #3: chat-template ....................   Passed    0.01 sec\n    Start 4: kv-cache\n4/4 Test #4: kv-cache .........................   Passed    0.01 sec\n\n100% tests passed, 0 tests failed out of 4\n\nTotal Test time (real) =   0.44 sec\n",
+    "windows-suite.log": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 28.41 GFLOPS (0.295 ms), prefill 7505 tok/s, decode 7044 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  baseline   PASS\n"
+  },
+  "scripts": {
+    "archive.py": "\ufefffrom pathlib import Path\nimport os,json,hashlib,subprocess,datetime,difflib\nr=Path(os.environ['TEMP'])/'llmx-worker-call';old=r.parent/'llmx-worker-errors';repo=Path.cwd()\ndef read(p):return json.loads(p.read_text())\nfiles=['validation.json','finish.json','long/comparison.json','exact/comparison.json']\nfor bench in ['bench-five','bench-nine','synthetic-perf']:\n files.extend(bench+'/'+n+'.json' for n in ['metadata','results','summary'])\nmeta=read(r/'bench-nine/metadata.json');rows=read(r/'bench-nine/results.json');summary=read(r/'bench-nine/summary.json')\npaired={}\nfor model in ['Q8','F32']:\n paired[model]={}\n for phase in ['pp','tg']:\n  b=summary[model]['candidate'][phase]['mean'];v={}\n  for arm in ['control','checkpoint','mx']:\n   a=summary[model][arm][phase]['mean']\n   pairs={i:{x['arm']:x for x in rows if x['model']==model and x['round']==i} for i in range(9)}\n   v[arm]=dict(percent=(b/a-1)*100,wins=sum(p['candidate'][phase+'_ms']<p[arm][phase+'_ms'] for p in pairs.values()))\n  paired[model][phase]=v\nsource=(r/'candidate/backends/cpu/cpu_backend.hpp').read_text();base=subprocess.check_output(['git','show','c072af2:src/backends/cpu/cpu_backend.hpp'],text=True)\ndoc=dict(date=datetime.datetime.now().isoformat(),base_commit='c072af2',pre_error_control='3a82284',scope='Caller dispatch through the existing stored callable; no kernel arithmetic or error completion policy changes.',paired=paired,artifacts={n:read(r/n) for n in files},post_reboot={n:read(old/'bench-after-reboot'/n) for n in ['metadata.json','results.json','summary.json']},logs={p.name:p.read_text(errors='replace') for p in r.glob('*.log')},scripts={p.name:p.read_text(errors='replace') for p in r.iterdir() if p.suffix in ['.py','.bat']},source_patch=''.join(difflib.unified_diff(base.splitlines(True),source.splitlines(True),fromfile='c072af2/src/backends/cpu/cpu_backend.hpp',tofile='candidate/src/backends/cpu/cpu_backend.hpp')),candidate_source_sha256=hashlib.sha256((r/'candidate/backends/cpu/cpu_backend.hpp').read_bytes()).hexdigest(),limitations=['Session means are not pooled; all samples/outliers retained. Shared interactive Windows hardware.','Exact PPL controls reuse archived c072af2 rows with the same pinned weights/tokens; candidate rows are freshly measured.','Long-history coverage is 1943 prompt tokens plus 32 continuation steps, not full corpus or maximum context.','No hosted CI run yet; default branch merge still depends on external performance floors.','Microbenchmark prefill is repeated step, not batched prefill.'])\nfor p in [r.parent/'llmx-worker-call-setup.py',r.parent/'llmx-worker-call-prepare.py',old/'bench-after-reboot.py']:\n doc['scripts'][p.name]=p.read_text(encoding='utf-8-sig')\npath=repo/'docs/benchmarks/worker-invocation-cpu-20260919.json';path.write_text(json.dumps(doc,indent=2)+'\\n')\nprint(json.dumps(dict(summary=summary,paired=paired),indent=2))\n",
+    "bench-five.py": "from pathlib import Path\nimport subprocess,json,os,hashlib,statistics,math\nr=Path(os.environ['TEMP'])/'llmx-worker-call';out=r/'bench-five';out.mkdir(exist_ok=False)\ntokens=Path(os.environ['TEMP'])/'llmx-external-perf/eight-pairs/tokens.txt'\nmodels={'Q8':Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf','F32':Path(os.environ['TEMP'])/'Qwen3-0.6B-F32.gguf'}\nmodels.pop('F32')\nold=r.parent/'llmx-worker-errors'\narms={'control':old/'control-compare.exe','checkpoint':old/'candidate-compare.exe','candidate':r/'candidate-compare.exe','mx':Path.cwd().parent/'llmx-ref/build/bin/Release/llmx-compare-threads.exe'}\npaths=list(arms.values())+list(models.values())+[tokens]+list((Path.cwd()/'src').rglob('*.hpp'))+list((r/'candidate').rglob('*.hpp'))+list((old/'control').rglob('*.hpp'))+[arms['mx'].parent/x for x in ['llama.dll','ggml.dll','ggml-base.dll','ggml-cpu.dll']]\nhashes={}\nfor p in paths:\n with p.open('rb') as f: hashes[str(p)]=hashlib.file_digest(f,'sha256').hexdigest()\n(out/'metadata.json').write_text(json.dumps(dict(hashes=hashes,threads=6,ubatch=128,prompt=215,decode=32,reference='5542318e748c154b634211def405ae95da3dfaa9',rounds=5,outer_warmup_rounds=1,process_warmup_sequences=1),indent=2))\nrows=[]\nfor model,path in models.items():\n for round in range(-1,5):\n  order=list(arms); shift=(round+1)%len(arms); order=order[shift:]+order[:shift]\n  for arm in order:\n   p=subprocess.run([str(arms[arm]),str(path),str(tokens),'--threads','6'],capture_output=True)\n   prefix=out/f'{model}-{round}-{arm}';prefix.with_suffix('.stdout').write_bytes(p.stdout);prefix.with_suffix('.stderr').write_bytes(p.stderr)\n   p.check_returncode()\n   values=[json.loads(x) for x in p.stdout.splitlines() if x]\n   assert len(values)==2 and [x['run'] for x in values]==[0,1]\n   for x in values:\n    assert x['threads']==6 and x['pp_tokens']==215 and x['tg_tokens']==32\n    assert all(math.isfinite(x[k]) and x[k]>0 for k in ['pp_ms','tg_ms']) and math.isfinite(x['logit_sum'])\n   row=dict(model=model,round=round,arm=arm,**values[1]);rows.append(row)\n   (out/'results.json').write_text(json.dumps(rows,indent=2));print(json.dumps(row),flush=True)\nsummary={}\nfor model in models:\n summary[model]={}\n for arm in arms:\n  summary[model][arm]={}\n  for phase in ['pp','tg']:\n   rates=[x[phase+'_tokens']*1000/x[phase+'_ms'] for x in rows if x['model']==model and x['arm']==arm and x['round']>=0]\n   summary[model][arm][phase]=dict(mean=statistics.mean(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2),flush=True)\n",
+    "bench-nine.py": "from pathlib import Path\nimport subprocess,json,os,hashlib,statistics,math\nr=Path(os.environ['TEMP'])/'llmx-worker-call';out=r/'bench-nine';out.mkdir(exist_ok=False)\ntokens=Path(os.environ['TEMP'])/'llmx-external-perf/eight-pairs/tokens.txt'\nmodels={'Q8':Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf','F32':Path(os.environ['TEMP'])/'Qwen3-0.6B-F32.gguf'}\nold=r.parent/'llmx-worker-errors'\narms={'control':old/'control-compare.exe','checkpoint':old/'candidate-compare.exe','candidate':r/'candidate-compare.exe','mx':Path.cwd().parent/'llmx-ref/build/bin/Release/llmx-compare-threads.exe'}\npaths=list(arms.values())+list(models.values())+[tokens]+list((Path.cwd()/'src').rglob('*.hpp'))+list((r/'candidate').rglob('*.hpp'))+list((old/'control').rglob('*.hpp'))+[arms['mx'].parent/x for x in ['llama.dll','ggml.dll','ggml-base.dll','ggml-cpu.dll']]\nhashes={}\nfor p in paths:\n with p.open('rb') as f: hashes[str(p)]=hashlib.file_digest(f,'sha256').hexdigest()\n(out/'metadata.json').write_text(json.dumps(dict(hashes=hashes,threads=6,ubatch=128,prompt=215,decode=32,reference='5542318e748c154b634211def405ae95da3dfaa9',rounds=9,outer_warmup_rounds=1,process_warmup_sequences=1),indent=2))\nrows=[]\nfor model,path in models.items():\n for round in range(-1,9):\n  order=list(arms); shift=(round+1)%len(arms); order=order[shift:]+order[:shift]\n  for arm in order:\n   p=subprocess.run([str(arms[arm]),str(path),str(tokens),'--threads','6'],capture_output=True)\n   prefix=out/f'{model}-{round}-{arm}';prefix.with_suffix('.stdout').write_bytes(p.stdout);prefix.with_suffix('.stderr').write_bytes(p.stderr)\n   p.check_returncode()\n   values=[json.loads(x) for x in p.stdout.splitlines() if x]\n   assert len(values)==2 and [x['run'] for x in values]==[0,1]\n   for x in values:\n    assert x['threads']==6 and x['pp_tokens']==215 and x['tg_tokens']==32\n    assert all(math.isfinite(x[k]) and x[k]>0 for k in ['pp_ms','tg_ms']) and math.isfinite(x['logit_sum'])\n   row=dict(model=model,round=round,arm=arm,**values[1]);rows.append(row)\n   (out/'results.json').write_text(json.dumps(rows,indent=2));print(json.dumps(row),flush=True)\nsummary={}\nfor model in models:\n summary[model]={}\n for arm in arms:\n  summary[model][arm]={}\n  for phase in ['pp','tg']:\n   rates=[x[phase+'_tokens']*1000/x[phase+'_ms'] for x in rows if x['model']==model and x['arm']==arm and x['round']>=0]\n   summary[model][arm][phase]=dict(mean=statistics.mean(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2),flush=True)\n",
+    "build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-compare.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-compare.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\backend-errors.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\backend-errors.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_errors.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\backend-group.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\backend-group.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_group.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "exact-gate.py": "from pathlib import Path\nimport hashlib,json,subprocess,math,struct,os\nr=Path(__file__).parent\ntemp=Path(os.environ['TEMP'])\nout=r/\"exact\";out.mkdir(exist_ok=False)\nq8=Path.home()/\".cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf\"\nmodels={\"f32\":temp/\"Qwen3-0.6B-F32.gguf\",\"q8\":q8}\nresults={\"binary_sha256\":{name:hashlib.file_digest(path.open(\"rb\"),\"sha256\").hexdigest()\nfor name,path in {\"base_ppl\":temp/\"llmx-worker-errors/candidate-ppl.exe\",\"candidate_ppl\":r/\"candidate-ppl.exe\",\"candidate_forced\":r/\"candidate-forced.exe\",\"candidate_long\":r/\"candidate-long.exe\"}.items()}}\nfor name,model in models.items():\n    rows={}\n    rows['base']=json.loads((temp/'llmx-worker-errors/exact/comparison.json').read_text())[name+'_ppl']['group']\n    print('START PPL',name,'candidate',flush=True)\n    p=subprocess.run([str(r/'candidate-ppl.exe'),str(model),str(temp/'llmx-external-perf/eight-pairs/tokens.txt')],capture_output=True,timeout=240)\n    (out/f'{name}-candidate.stdout').write_bytes(p.stdout);(out/f'{name}-candidate.stderr').write_bytes(p.stderr);p.check_returncode()\n    rows['group']=[json.loads(x) for x in p.stdout.splitlines()]\n    assert len(rows['group'])==4 and all(math.isfinite(v['mean_nll']) for v in rows['group'])\n    assert rows[\"base\"]==rows[\"group\"], rows\n    results[name+\"_ppl\"]=rows\n    print(\"EXACT PPL\",name,flush=True)\nprint(\"START Q8 forced HF continuation\",flush=True)\np=subprocess.run([str(r/\"candidate-forced.exe\"),str(q8),str(temp/\"llmx-f32-controls/prompt.txt\"),str(out/\"q8\"),str(temp/\"llmx-q8-integer/hf-continuation.txt\")],capture_output=True,timeout=240)\n(out/\"q8-long.stdout\").write_bytes(p.stdout);(out/\"q8-long.stderr\").write_bytes(p.stderr);p.check_returncode()\nsuffixes=[\"-logits.f32\"]+[f\"-step-{i:02d}.f32\" for i in range(32)]\nfor name,current,base in [(\"q8\",out/\"q8\",temp/\"llmx-worker-errors/exact/q8\"),(\"f32\",r/\"long/llmx\",temp/\"llmx-worker-errors/long/llmx\")]:\n    hashes={};count=0\n    for suffix in suffixes:\n        a=Path(str(current)+suffix).read_bytes();b=Path(str(base)+suffix).read_bytes()\n        assert a==b and len(a)==151936*4,(name,suffix)\n        assert all(math.isfinite(x) for x, in struct.iter_unpack(\"<f\",a))\n        hashes[suffix]=hashlib.sha256(a).hexdigest();count+=len(a)//4\n    results[name+\"_long\"]=dict(values=count,byte_identical=True,sha256=hashes)\n    print(\"EXACT LONG\",name,count,flush=True)\nresults[\"scope\"]=\"Four excerpt/window NLL cases; long vectors over 1943 prompt tokens and 32 continuation steps, not full corpus or maximum context.\"\n(out/\"comparison.json\").write_text(json.dumps(results,indent=2))\n",
+    "finish.py": "from pathlib import Path\nimport subprocess,json\nr=Path(__file__).parent\ncommands=[('synthetic-perf', ['python', '-X', 'utf8', '-u', 'C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-worker-call\\\\synthetic-perf.py']), ('matched-nine', ['python', '-X', 'utf8', '-u', 'C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-worker-call\\\\bench-nine.py'])]\nrows=[]\nfor name,cmd in commands:\n print('START',name,flush=True)\n with (r/(name+'.log')).open('wb') as f: p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'finish.json').write_text(json.dumps(rows,indent=2));print('END',name,p.returncode,flush=True)\n if p.returncode: print((r/(name+'.log')).read_text(errors='replace')[-4000:])\n p.check_returncode()\n",
+    "long-gate.py": "import json, math, struct, subprocess, os\nfrom pathlib import Path\nroot=Path(__file__).parent\nold=Path(os.environ['TEMP'])/'llmx-attention-long'\nout=root/'long'\nout.mkdir(exist_ok=False)\np=subprocess.run([str(root/'candidate-long.exe'),str(Path(os.environ['TEMP'])/'Qwen3-0.6B-F32.gguf'),str(Path(os.environ['TEMP'])/'llmx-f32-controls/prompt.txt'),str(out/'llmx')],capture_output=True,timeout=180)\n(out/'generated.txt').write_bytes(p.stdout)\n(out/'stderr.txt').write_bytes(p.stderr)\np.check_returncode()\nids=list(map(int,p.stdout.split()))\nassert ids==json.loads((old/'hf-generated.json').read_text()), 'greedy mismatch'\ncount=0\nmaximum=0.0\nsquared=0.0\nfor suffix in ['-logits.f32']+[f'-step-{i:02d}.f32' for i in range(32)]:\n    a=(out/('llmx'+suffix)).read_bytes(); b=(old/('hf'+suffix)).read_bytes()\n    assert len(a)==len(b)==151936*4\n    for (x,), (y,) in zip(struct.iter_unpack('<f',a),struct.iter_unpack('<f',b)):\n        assert math.isfinite(x) and math.isfinite(y)\n        delta=abs(x-y)\n        maximum=max(maximum,delta); squared+=delta*delta; count+=1\nassert maximum<=0.001, maximum\nresult=dict(prompt_tokens=1943,generated_tokens=len(ids),greedy_match=True,logits_compared=count,max_abs_error=maximum,rms_error=math.sqrt(squared/count),bound=0.001)\n(out/'comparison.json').write_text(json.dumps(result,indent=2))\nprint(json.dumps(result),flush=True)\n",
+    "numerical-build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-long.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-long.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-attention-long.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-forced.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-forced.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\forced-long.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-ppl.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-call\\candidate-ppl.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\ppl-control.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "synthetic-perf.py": "from pathlib import Path\nimport os,sys,json,subprocess,statistics,hashlib\nsys.path.insert(0,'tests')\nfrom perf import parse\nr=Path(__file__).parent;out=r/'synthetic-perf';out.mkdir(exist_ok=False)\nold=r.parent/'llmx-worker-errors'\narms={'control':old/'control.exe','checkpoint':old/'candidate.exe','candidate':r/'candidate.exe'}\nrows=[]\n(out/'metadata.json').write_text(json.dumps(dict(sha256={k:hashlib.sha256(v.read_bytes()).hexdigest() for k,v in arms.items()},rounds=9,outer_warmup=1,threads=6,prompt=64,decode=64),indent=2))\nfor pair in range(-1,9):\n order=list(arms); shift=(pair+1)%len(order); order=order[shift:]+order[:shift]\n for arm in order:\n  cmd=[str(arms[arm]),'bench','--size','2048','--iters','10','--threads','6','--p','64','--n','64']\n  p=subprocess.run(cmd,capture_output=True);(out/f'{pair}-{arm}.stdout').write_bytes(p.stdout);(out/f'{pair}-{arm}.stderr').write_bytes(p.stderr);p.check_returncode()\n  row=dict(pair=pair,arm=arm,**parse(p.stdout.decode().splitlines()));rows.append(row)\n  (out/'results.json').write_text(json.dumps(rows,indent=2));print(json.dumps(row),flush=True)\nsummary={}\nfor arm in arms:\n summary[arm]={}\n for key in ['matmul_gflops','prefill_tps','decode_tps']:\n  values=[x[key] for x in rows if x['pair']>=0 and x['arm']==arm]\n  summary[arm][key]=dict(mean=statistics.mean(values),minimum=min(values),maximum=max(values))\n(out/'summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2),flush=True)\n",
+    "validate.py": "from pathlib import Path\nimport subprocess,json\nr=Path(__file__).parent\ncommands=[('numerical-build', ['cmd', '/c', 'C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-worker-call\\\\numerical-build.bat']), ('long-hf', ['python', '-X', 'utf8', '-u', 'C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-worker-call\\\\long-gate.py']), ('exact', ['python', '-X', 'utf8', '-u', 'C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-worker-call\\\\exact-gate.py']), ('windows-suite', ['python', '-X', 'utf8', '-u', 'tests/run_tests.py', '--exe', 'C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-worker-call\\\\candidate.exe', '--require-baseline']), ('linux-configure', ['wsl', '-d', 'Ubuntu', '--', 'cmake', '-S', '/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source', '-B', '/root/.cache/llmx-worker-call-release', '-DCMAKE_BUILD_TYPE=Release']), ('linux-build', ['wsl', '-d', 'Ubuntu', '--', 'cmake', '--build', '/root/.cache/llmx-worker-call-release', '--parallel', '2']), ('linux-native', ['wsl', '-d', 'Ubuntu', '--', 'ctest', '--test-dir', '/root/.cache/llmx-worker-call-release', '--output-on-failure']), ('linux-suite', ['wsl', '-d', 'Ubuntu', '--', 'python3', '-u', '/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source/tests/run_tests.py', '--exe', '/root/.cache/llmx-worker-call-release/llmx', '--require-baseline']), ('ubsan-configure', ['wsl', '-d', 'Ubuntu', '--', 'cmake', '-C', '/mnt/c/Users/Marko/AppData/Local/Temp/llmx-kv-head-major/validation/ubsan-cache.cmake', '-S', '/mnt/c/Users/Marko/AppData/Local/Temp/llmx-worker-call/source', '-B', '/root/.cache/llmx-worker-call-ubsan', '-DCMAKE_BUILD_TYPE=Release']), ('ubsan-build', ['wsl', '-d', 'Ubuntu', '--', 'cmake', '--build', '/root/.cache/llmx-worker-call-ubsan', '--parallel', '2']), ('ubsan-native', ['wsl', '-d', 'Ubuntu', '--', 'ctest', '--test-dir', '/root/.cache/llmx-worker-call-ubsan', '--output-on-failure'])]\nrows=[]\nfor name,cmd in commands:\n print('START',name,flush=True)\n with (r/(name+'.log')).open('wb') as f: p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'validation.json').write_text(json.dumps(rows,indent=2));print('END',name,p.returncode,flush=True)\n if p.returncode: print((r/(name+'.log')).read_text(errors='replace')[-4000:])\n p.check_returncode()\n",
+    "llmx-worker-call-setup.py": "from pathlib import Path\nimport os,subprocess\nrepo=Path.cwd();r=Path(os.environ['TEMP'])/'llmx-worker-call';r.mkdir(exist_ok=False)\np=r/'candidate/backends/cpu/cpu_backend.hpp';p.parent.mkdir(parents=True)\ns=(repo/'src/backends/cpu/cpu_backend.hpp').read_text();assert s.count('try { fn(0); }')==1\np.write_text(s.replace('try { fn(0); }','try { job(0); }'))\nlines=['@echo off','call \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\" >nul','if errorlevel 1 exit /b 1']\nfor name,source in [('candidate-compare',repo/'tools/compare_cpu.cpp'),('candidate',repo/'src/cli/main.cpp'),('backend-errors',repo/'tests/backend_errors.cpp'),('backend-group',repo/'tests/backend_group.cpp')]:\n lines += [f'cl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"{r / \"candidate\"}\" /I \"{repo / \"src\"}\" /Fe:\"{r/name}.exe\" /Fo:\"{r/name}.obj\" \"{source}\"','if errorlevel 1 exit /b 1']\n(r/'build.bat').write_text('\\n'.join(lines)+'\\n')\nwith (r/'build.log').open('wb') as f: p=subprocess.run(['cmd','/c',str(r/'build.bat')],stdout=f,stderr=subprocess.STDOUT)\np.check_returncode();print('build passed',flush=True)\nfor name in ['backend-errors','backend-group']:\n p=subprocess.run([str(r/(name+'.exe'))],capture_output=True,timeout=60);(r/(name+'.log')).write_bytes(p.stdout+p.stderr);print(name,p.returncode,flush=True);p.check_returncode()\n",
+    "llmx-worker-call-prepare.py": "from pathlib import Path\nimport os,subprocess,json\nrepo=Path.cwd();r=Path(os.environ['TEMP'])/'llmx-worker-call';old=Path(os.environ['TEMP'])/'llmx-worker-errors'\nsource=r/'source'\nfor name in subprocess.check_output(['git','ls-files'],text=True).splitlines():\n p=source/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((repo/name).read_bytes())\n(source/'src/backends/cpu/cpu_backend.hpp').write_bytes((r/'candidate/backends/cpu/cpu_backend.hpp').read_bytes())\ns=(old/'numerical-build.bat').read_text().replace(str(old),str(r)).replace('/I \"'+str(repo/'src')+'\"','/I \"'+str(r/'candidate')+'\" /I \"'+str(repo/'src')+'\"')\n(r/'numerical-build.bat').write_text(s)\n(r/'long-gate.py').write_text((old/'long-gate.py').read_text())\ns=(old/'exact-gate.py').read_text()\nstart=s.index('    for arm,exe in ');end=s.index('    assert rows[\"base\"]==rows[\"group\"]',start)\ns=s[:start]+'''    rows['base']=json.loads((temp/'llmx-worker-errors/exact/comparison.json').read_text())[name+'_ppl']['group']\n    print('START PPL',name,'candidate',flush=True)\n    p=subprocess.run([str(r/'candidate-ppl.exe'),str(model),str(temp/'llmx-external-perf/eight-pairs/tokens.txt')],capture_output=True,timeout=240)\n    (out/f'{name}-candidate.stdout').write_bytes(p.stdout);(out/f'{name}-candidate.stderr').write_bytes(p.stderr);p.check_returncode()\n    rows['group']=[json.loads(x) for x in p.stdout.splitlines()]\n    assert len(rows['group'])==4 and all(math.isfinite(v['mean_nll']) for v in rows['group'])\n'''+s[end:]\ns=s.replace('llmx-kv-head-major/validation','llmx-worker-errors')\n(r/'exact-gate.py').write_text(s)\ndef wp(p): return '/mnt/'+str(p)[0].lower()+str(p)[2:].replace('\\\\','/')\nlinux='/root/.cache/llmx-worker-call-release';ubsan='/root/.cache/llmx-worker-call-ubsan'\ncommands=[('numerical-build',['cmd','/c',str(r/'numerical-build.bat')]),('long-hf',['python','-X','utf8','-u',str(r/'long-gate.py')]),('exact',['python','-X','utf8','-u',str(r/'exact-gate.py')]),('windows-suite',['python','-X','utf8','-u','tests/run_tests.py','--exe',str(r/'candidate.exe'),'--require-baseline']),('linux-configure',['wsl','-d','Ubuntu','--','cmake','-S',wp(source),'-B',linux,'-DCMAKE_BUILD_TYPE=Release']),('linux-build',['wsl','-d','Ubuntu','--','cmake','--build',linux,'--parallel','2']),('linux-native',['wsl','-d','Ubuntu','--','ctest','--test-dir',linux,'--output-on-failure']),('linux-suite',['wsl','-d','Ubuntu','--','python3','-u',wp(source/'tests/run_tests.py'),'--exe',linux+'/llmx','--require-baseline']),('ubsan-configure',['wsl','-d','Ubuntu','--','cmake','-C',wp(r.parent/'llmx-kv-head-major/validation/ubsan-cache.cmake'),'-S',wp(source),'-B',ubsan,'-DCMAKE_BUILD_TYPE=Release']),('ubsan-build',['wsl','-d','Ubuntu','--','cmake','--build',ubsan,'--parallel','2']),('ubsan-native',['wsl','-d','Ubuntu','--','ctest','--test-dir',ubsan,'--output-on-failure'])]\n(r/'validate.py').write_text('from pathlib import Path\\nimport subprocess,json\\nr=Path(__file__).parent\\ncommands='+repr(commands)+'''\\nrows=[]\nfor name,cmd in commands:\n print('START',name,flush=True)\n with (r/(name+'.log')).open('wb') as f: p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'validation.json').write_text(json.dumps(rows,indent=2));print('END',name,p.returncode,flush=True)\n if p.returncode: print((r/(name+'.log')).read_text(errors='replace')[-4000:])\n p.check_returncode()\n''')\n",
+    "bench-after-reboot.py": "from pathlib import Path\nimport subprocess,json,os,hashlib,statistics,math\nr=Path(os.environ['TEMP'])/'llmx-worker-errors';out=r/'bench-after-reboot';out.mkdir(exist_ok=False)\ntokens=Path(os.environ['TEMP'])/'llmx-external-perf/eight-pairs/tokens.txt'\nmodels={'Q8':Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf','F32':Path(os.environ['TEMP'])/'Qwen3-0.6B-F32.gguf'}\nmodels.pop('F32')\narms={'control':r/'control-compare.exe','candidate':r/'candidate-compare.exe','mx':Path.cwd().parent/'llmx-ref/build/bin/Release/llmx-compare-threads.exe'}\npaths=list(arms.values())+list(models.values())+[tokens]+list((Path.cwd()/'src').rglob('*.hpp'))+list((r/'control').rglob('*.hpp'))+[arms['mx'].parent/x for x in ['llama.dll','ggml.dll','ggml-base.dll','ggml-cpu.dll']]\nhashes={}\nfor p in paths:\n with p.open('rb') as f: hashes[str(p)]=hashlib.file_digest(f,'sha256').hexdigest()\n(out/'metadata.json').write_text(json.dumps(dict(hashes=hashes,threads=6,ubatch=128,prompt=215,decode=32,reference='5542318e748c154b634211def405ae95da3dfaa9',rounds=9,outer_warmup_rounds=1,process_warmup_sequences=1),indent=2))\nrows=[]\nfor model,path in models.items():\n for round in range(-1,9):\n  order=list(arms); shift=(round+1)%3; order=order[shift:]+order[:shift]\n  for arm in order:\n   p=subprocess.run([str(arms[arm]),str(path),str(tokens),'--threads','6'],capture_output=True)\n   prefix=out/f'{model}-{round}-{arm}';prefix.with_suffix('.stdout').write_bytes(p.stdout);prefix.with_suffix('.stderr').write_bytes(p.stderr)\n   p.check_returncode()\n   values=[json.loads(x) for x in p.stdout.splitlines() if x]\n   assert len(values)==2 and [x['run'] for x in values]==[0,1]\n   for x in values:\n    assert x['threads']==6 and x['pp_tokens']==215 and x['tg_tokens']==32\n    assert all(math.isfinite(x[k]) and x[k]>0 for k in ['pp_ms','tg_ms']) and math.isfinite(x['logit_sum'])\n   row=dict(model=model,round=round,arm=arm,**values[1]);rows.append(row)\n   (out/'results.json').write_text(json.dumps(rows,indent=2));print(json.dumps(row),flush=True)\nsummary={}\nfor model in models:\n summary[model]={}\n for arm in arms:\n  summary[model][arm]={}\n  for phase in ['pp','tg']:\n   rates=[x[phase+'_tokens']*1000/x[phase+'_ms'] for x in rows if x['model']==model and x['arm']==arm and x['round']>=0]\n   summary[model][arm][phase]=dict(mean=statistics.mean(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2),flush=True)\n"
+  },
+  "source_patch": "--- c072af2/src/backends/cpu/cpu_backend.hpp\n+++ candidate/src/backends/cpu/cpu_backend.hpp\n@@ -90,7 +90,7 @@\n         }\n         cv_work_.notify_all();\n         std::exception_ptr error;\n-        try { fn(0); }\n+        try { job(0); }\n         catch (...) { error = std::current_exception(); }\n         std::unique_lock<std::mutex> lk(m_);\n         cv_done_.wait(lk, [&] { return pending_ == 0; });\n",
+  "candidate_source_sha256": "f8c0d817ed3be50a2c0b57d1d24616ab69eee0329902f8bd1211d98ee44728ab",
+  "limitations": [
+    "Session means are not pooled; all samples/outliers retained. Shared interactive Windows hardware.",
+    "Exact PPL controls reuse archived c072af2 rows with the same pinned weights/tokens; candidate rows are freshly measured.",
+    "Long-history coverage is 1943 prompt tokens plus 32 continuation steps, not full corpus or maximum context.",
+    "No hosted CI run yet; default branch merge still depends on external performance floors.",
+    "Microbenchmark prefill is repeated step, not batched prefill."
+  ]
+}

@@ -1245,3 +1245,45 @@ Separate eight-pair synthetic `bench --size 2048 --iters 10 --threads 6 --p 64
 
 Synthetic ranges overlap and all outliers are retained. The legacy prefill
 metric repeatedly calls step; it is not batched real-model prefill.
+
+## Worker caller invocation study after reboot (2026-09-19)
+
+Evidence: [`worker-invocation-cpu-20260919.json`](benchmarks/worker-invocation-cpu-20260919.json).
+Production source remains `c072af2`; the scratch-only `fn(0)` to `job(0)` change
+is not adopted. Post-reboot unchanged-binary controls and an exploratory run
+precede the full gate; their separate sessions are archived, not pooled.
+
+The stored-call candidate passes real F32 long HF logits (max absolute error
+0.0001263618469 <= 0.001), exact F32/Q8 long vectors and four NLL cases each,
+Windows/Linux full suites with real HF fixtures required, and Linux UBSan native
+checks. MSVC allocation/task fault and grouped-kernel tests pass. NLL controls
+reuse the archived c072af2 results with identical pinned weights and token IDs;
+candidate NLL is freshly computed. Long coverage remains 1943 prompt tokens
+plus 32 continuation steps, not full corpus or maximum context.
+
+| Mean tok/s, nine rounds | 3a82284 | c072af2 | Stored-call candidate | mx |
+|---|---:|---:|---:|---:|
+| Q8 prefill | 422.70 | 406.76 | 404.32 | 262.84 |
+| Q8 decode | 44.69 | 44.93 | 44.53 | 46.32 |
+| F32 prefill | 354.95 | 346.77 | 343.63 | 369.07 |
+| F32 decode | 13.44 | 13.43 | 13.30 | 13.33 |
+
+Same Ryzen 7 5800X, pinned 0.6B models, six threads, ubatch 128, F32 KV,
+215 prompt plus 32 forced tokens, mx 5542318e748c154b634211def405ae95da3dfaa9.
+Four rotating arms, one outer warmup and each process's warmup; all samples
+retained, and no build/test overlap. Candidate/control ranges overlap, but
+candidate Q8 prefill loses all pairs against 3a82284. No mean beats c072af2.
+The early five-round apparent win did not hold in the longer comparison.
+
+| Separate synthetic mean, nine rounds | 3a82284 | c072af2 | Stored call |
+|---|---:|---:|---:|
+| Matmul GFLOPS | 118.89 | 112.27 | 105.32 |
+| Step-prefill tok/s | 6270.34 | 6171.41 | 6097.43 |
+| Decode tok/s | 6441.56 | 6007.77 | 6313.81 |
+
+Synthetic ranges overlap and outliers remain in the archive. Prefill here is
+repeated step rather than batched model prefill. Next investigation moves
+exception_ptr construction/destruction off successful dispatches: the installed
+MSVC 14.50.35717 `include/exception` confirms calls to __ExceptionPtrCreate and
+__ExceptionPtrDestroy even for empty exception_ptr objects. That source fact
+identifies removable work; it does not by itself quantify performance impact.

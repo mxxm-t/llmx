@@ -8,13 +8,13 @@ feature currently stands right now.
 
 ## Status table
 
-**Paused at the user's request for a reboot (2026-09-19).** Do not resume
-development or restart the TUI watcher until the user explicitly says to resume.
-Checkpoint branch: `fix/cpu-worker-errors`. Root `llmx.exe` remains the validated
-`3a82284` KV build; the worker-error candidate is in `%TEMP%/llmx-worker-errors`.
-All validation/timing processes completed. The TUI is notified and its watcher
-is stopped for the reboot. On resume, reconnect to port **8181**, restart the
-watcher, and read this block plus the worker-error evidence below.
+**Resumed after explicit user authorization following the reboot.** Branch
+`fix/cpu-worker-errors`, checkpoint `c072af2`. The TUI watcher on **8181** is
+restarted with its saved cursor. Root `llmx.exe` remains the validated `3a82284`
+KV build. First investigate Q8 prefill overhead using the preserved binaries,
+then test a bounded dispatch change if evidence warrants it. Gitea is reachable
+again; feature checkpoints may be backed up there, with performance gates still
+required before merging to main.
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
@@ -65,14 +65,45 @@ watcher, and read this block plus the worker-error evidence below.
   long F32/Q8 vectors and continuous/window NLL are exact against the control.
   Full samples, hashes, commands, logs and harnesses are archived in
   `docs/benchmarks/worker-errors-cpu-20260919.json`.
-- **Left after explicit user resume:** investigate the Q8 prefill cost before
-  adoption, and close the external Q8 decode floor. No merge/push; the existing
+- **Left:** investigate the Q8 prefill cost before
+  adoption, and close the external Q8 decode floor. No merge; the existing
   root executable is deliberately retained. Paired candidate Q8 prefill loses
   eight of nine rounds despite overlapping ranges; do not dismiss that as noise.
 - **Gotchas:** dispatch recovery does not roll back partially written outputs
   or establish Model/session recovery. No concurrent submissions are supported.
   GGUF stream/extent validation and model config/tensor validation are separate
-  known gaps from the same review. Control is `3a82284`; no merge/push yet.
+  known gaps from the same review. Control is `3a82284`; no merge. Gitea holds
+  the feature checkpoint, while the public/default branch remains unchanged.
+
+- **Current experiments after reboot:** preserved binaries are remeasured before
+  any rebuild. Test a scratch-only change from `fn(0)` to the existing `job(0)`
+  inside the caller's try block, to separate task invocation from exception
+  handling in generated code. Preserve all completion/rethrow/startup behavior.
+  Compare against both `3a82284` and `c072af2`; no kernel arithmetic change.
+  Gitea now holds `fix/cpu-worker-errors` at `c072af2`; main is unchanged.
+  The longer stored-call Q8 run does not reproduce its early gain; do not adopt
+  it on the exploratory result. Next isolate successful-dispatch exception
+  bookkeeping: MSVC's exception_ptr default constructor/destructor call runtime
+  helpers even for an empty pointer. Keep exception capture/clearing on failure
+  paths, retaining the same completion/lifetime guarantees and fault tests.
+  Scratch `%TEMP%/llmx-worker-cold` passes initial MSVC allocation/task fault and
+  grouped-kernel checks; performance and full numerical/platform gates are next.
+
+Stored-call experiment is **not adopted**. Full HF, exact vectors/NLL,
+Windows/Linux suites and Linux UBSan native checks pass, but the longer run
+does not establish a performance gain. Evidence and commands:
+`docs/benchmarks/worker-invocation-cpu-20260919.json`.
+
+| Mean tok/s, nine rounds | Before errors | Error checkpoint | Stored call | mx |
+|---|---:|---:|---:|---:|
+| Q8 prefill | 422.70 | 406.76 | 404.32 | 262.84 |
+| Q8 decode | 44.69 | 44.93 | 44.53 | 46.32 |
+| F32 prefill | 354.95 | 346.77 | 343.63 | 369.07 |
+| F32 decode | 13.44 | 13.43 | 13.30 | 13.33 |
+
+All ranges overlap. Stored-call Q8 prefill loses every pair against the
+pre-error control, and no mean beats the error checkpoint. Preserve the early
+five-round result as exploratory, not a reason to select the variant.
 
 | Mean tok/s, nine matched rounds | Control | Candidate | mx-llama.cpp |
 |---|---:|---:|---:|

@@ -20,10 +20,13 @@ shared sub-scale decoder lands and the file stops being readable.
   nothing; the set is what matters.
 - K-quant kernels live in `quant/k_quants.hpp`, split out when `Q4_K` brought
   the shared 6-bit sub-scale decoder (`get_scale_min_k4`) that `Q5_K` reuses.
-- Next: `Q5_K`, then a FUSED per-type matmul kernel. Q4_K currently takes the
-  generic dequantize-to-f32 path and runs at 2.16 tok/s against Q8_0's 4.12
-  despite the file being 5 GB against 8.1 GB - it is compute bound on
-  unpacking, not bandwidth bound.
+- `Q5_K` done (read-only). Qwen3-0.6B-Q5_K_M is 168 Q5_K / 29 Q6_K / 113 F32,
+  so K-quant coverage is now complete for the `_K_M` files the Hub ships.
+- A fused Q4_K row dot landed for decode: no dequantized value is materialised,
+  because d*q - m factorises the dot into d*sum(q*x) - m*sum(x). 2.16 -> ~2.6
+  tok/s. Q5_K and Q6_K still take the generic path and would benefit the same
+  way; measure before assuming, and note prefill is a different question since
+  the batched path already reuses the dequantized row.
 - `IQ2/IQ3/IQ4` are deliberately NOT next. Every quant type multiplies the
   per-backend kernel work later (see #4b), and these are both rarer on the Hub
   and harder to implement. Hold them until a GPU backend exists and that cost

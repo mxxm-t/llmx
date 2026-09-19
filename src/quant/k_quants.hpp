@@ -59,6 +59,43 @@ inline void dequantize_row_q4_K(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+// Q5_K super-block, gguf::Q5_K_TYPESIZE = 176 bytes:
+//   d       f16 super-block scale for the sub-scales
+//   dmin    f16 super-block scale for the sub-mins
+//   sc[12]  eight 6-bit sub-scales and eight 6-bit sub-mins, packed as in Q4_K
+//   qh[32]  the FIFTH bit of every quant, one bit per value
+//   qs[128] the low 4 bits
+// Q4_K with a fifth bit bolted on: the value is d*sc*(nibble + 16*bit) -
+// dmin*m. The bit for a given value lives in qh at a position that advances by
+// two per 64-value group, which is what u1/u2 track.
+inline void dequantize_row_q5_K(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; b++) {
+        const uint8_t* p = src + b * gguf::Q5_K_TYPESIZE;
+        const float d    = f16_to_f32((uint16_t)(p[0] | ((uint16_t)p[1] << 8)));
+        const float dmin = f16_to_f32((uint16_t)(p[2] | ((uint16_t)p[3] << 8)));
+        const uint8_t* sc = p + 4;
+        const uint8_t* qh = p + 16;
+        const uint8_t* ql = p + 48;
+        float* y = dst + b * gguf::Q5_K_BLOCK;
+        int is = 0;
+        uint8_t u1 = 1, u2 = 2;
+        for (int j = 0; j < (int)gguf::Q5_K_BLOCK; j += 64) {
+            uint8_t s, mm;
+            get_scale_min_k4(is + 0, sc, &s, &mm);
+            const float d1 = d * (float)s, m1 = dmin * (float)mm;
+            get_scale_min_k4(is + 1, sc, &s, &mm);
+            const float d2 = d * (float)s, m2 = dmin * (float)mm;
+            for (int l = 0; l < 32; l++)
+                y[l]      = d1 * (float)((ql[l] & 0xF) + ((qh[l] & u1) ? 16 : 0)) - m1;
+            for (int l = 0; l < 32; l++)
+                y[l + 32] = d2 * (float)((ql[l] >>  4) + ((qh[l] & u2) ? 16 : 0)) - m2;
+            y += 64; ql += 32; is += 2;
+            u1 = (uint8_t)(u1 << 2);
+            u2 = (uint8_t)(u2 << 2);
+        }
+    }
+}
+
 // Q6_K super-block, gguf::Q6_K_TYPESIZE = 210 bytes:
 //   ql[128]  low 4 bits of each quant
 //   qh[64]   high 2 bits, packed 4 quants per byte

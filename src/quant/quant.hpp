@@ -188,6 +188,9 @@ inline void register_builtins() {
     r.add(gguf::GGML_TYPE_Q4_K,
           { "Q4_K", gguf::Q4_K_BLOCK, gguf::Q4_K_TYPESIZE,
             nullptr, dequantize_row_q4_K });
+    r.add(gguf::GGML_TYPE_Q5_K,
+          { "Q5_K", gguf::Q5_K_BLOCK, gguf::Q5_K_TYPESIZE,
+            nullptr, dequantize_row_q5_K });
     r.add(gguf::GGML_TYPE_Q6_K,
           { "Q6_K", gguf::Q6_K_BLOCK, gguf::Q6_K_TYPESIZE,
             nullptr, dequantize_row_q6_K });

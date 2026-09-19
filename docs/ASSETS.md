@@ -65,6 +65,69 @@ Fetch and SHA-256 verify the pinned snapshots with
 combined). Revisions and digests are recorded in `tests/baseline.py`; the
 numerical checks use those exact snapshots unless explicitly overridden.
 
+### Generating pinned HF references
+
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity` or
+`f32` (default `all`). Real-model modes default to `Qwen/Qwen3-0.6B` at commit
+`c1899de289a04d12100db370d81485cdf75e47ca`. Both model and tokenizer loaders
+receive that revision. Logits and PPL use CPU float32 eager attention with six
+threads by default; `--threads N` selects another positive count. Generated
+numerical metadata records the revision, execution settings and package versions;
+logit cases also record the exact input token IDs.
+
+For review, generate into a separate directory before replacing any goldens:
+
+```
+python tools/gen_baseline.py all --output-dir reference-review
+```
+
+Another model requires `--repo`, `--revision` (a full 40-character commit SHA),
+`--output-dir`, `--gguf-repo` and `--gguf-file`. The last two are associated
+GGUF labels; independently verify that the GGUF derives from the intended HF
+weights. A changed model or revision cannot write into the default `tests/data`
+directory. Local model-directory paths are rejected because they bypass Hub
+revision selection. Explicit output directories are caller-owned and can be
+overwritten on subsequent runs.
+
+`f32` generates the independent deterministic tiny model, uses one thread and
+accepts only `--output-dir`. `all` includes this same tiny fixture even when
+another real-model repository is selected. Tokenizer mode does not accept
+`--threads`; it does no numerical inference. Use `--help` for the flag reference.
+Generation needs the optional HF tooling described in the script; running the
+ordinary suite still needs only Python's standard library and the built runtime.
+
+The local 8B GGUF is not an independent HF reference. Its cached HF snapshot
+contains only `tokenizer.json`; original weights/config and confirmed GGUF
+provenance remain needed. FP32 8B weights alone need roughly 32 GB before
+activation and loading overhead, so generation needs a host with sufficient
+memory. Separate 8B output does not extend the current suite: a dedicated
+consumer and predeclared model-specific bounds are still required. Tooling
+support does not establish 8B correctness or broaden CI downloads.
+
+Validation on 2026-09-19 used cached original 0.6B weights with network access
+disabled in the HF tooling. Two complete generations reproduced all numerical
+fields. Compared with the committed fixtures:
+
+| Regenerated reference check | Result |
+|---|---:|
+| Tokenizer cases identical | 20/20 |
+| Ordered top-10 token ID lists identical | 6/6 prompts |
+| Maximum rounded top-10 logit difference | 0.0001 |
+| PPL token IDs identical | 247/247 |
+| Continuous/windowed NLL values identical | 4/4 |
+| Synthetic F32 fixture JSON | Exact |
+| Windows required-HF suite components | 10/10 pass |
+| Linux generator safeguard tests | 2/2 pass |
+
+The small rounded-logit difference is an observation, not a new acceptance
+bound; the old generator did not explicitly select the revision, eager
+attention, no-cache execution or thread count. Existing goldens are preserved.
+The Windows suite reused validated runtime 9cfe43f because no C++ source or
+build setting changed. Full runtime Linux/native validation remains that
+checkpoint's result; this tooling change adds the targeted Linux check above.
+Commands, metadata, output hashes and comparison results are archived in
+[`benchmarks/hf-reference-tools-20260919.json`](benchmarks/hf-reference-tools-20260919.json).
+
 ### Fixed-excerpt HF perplexity gate
 
 `tests/data/baseline_perplexity.json` records an HF float32 reference from

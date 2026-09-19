@@ -9,7 +9,9 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/cpu-worker-profile`, based on streaming checkpoint `9cfe43f`. The TUI watcher on **8181** is
+`feat/hf-reference-tools`, based on completed worker-span checkpoint `e98c786`.
+Pinned reference tooling is validated; broader 8B HF coverage remains open.
+The TUI watcher on **8181** is
 restarted with its saved cursor. Root `llmx.exe` was updated to validated streaming
 build `9cfe43f` after the user reported buffered 8B chat output; the old executable
 is backed up in `%TEMP%/llmx-live-generation/root-before-streaming.exe`.
@@ -21,12 +23,12 @@ requirements pass. GitHub stays main-only; feature branches go to Gitea.
 
 **Documentation review (2026-09-19):** rechecked all 25 tracked Markdown files
 against current source, CLI, CMake/CI and recorded evidence. This checkpoint
-archives the completed worker-span probe, its instrumentation controls and
-remaining attribution limits. Historical measurements and the corrected OpenMP
-interpretation are preserved. Streaming documentation remains current; external
-performance and broader HF coverage requirements remain open. The numerical
-fixture-generation dependency clarification is tracked with the separate HF
-tooling work.
+documents pinned reference selection, alternate-model output, generator tests
+and numerical-fixture dependencies. A separate agent reviewed all unchanged
+runtime documentation and then the tooling diff; no correctness blocker was
+found. The completed worker-span checkpoint and historical measurements are
+preserved. Streaming documentation remains current; external performance and
+broader HF coverage requirements remain open.
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
@@ -45,6 +47,7 @@ tooling work.
 | Multi-user server                        | Planned  |
 | Chat follow-up cache validation          | In Progress |
 | Correctness baseline vs HF reference     | In Progress |
+| Pinned HF reference generation           | In Progress |
 | HF fixed-excerpt PPL baseline            | Done     |
 | Performance floor vs mx-llama.cpp        | In Progress |
 | Matched CPU comparison thread selection | In Progress |
@@ -67,6 +70,30 @@ tooling work.
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### Pinned HF reference generation
+
+- **Goal:** reuse independent HF tokenizer/logit/PPL generation for explicitly
+  pinned models, keeping larger-model fixtures separate from the existing suite.
+- **Done:** model/revision/output and associated GGUF labels are explicit;
+  numerical loaders share pinned CPU float32 eager execution. Alternate models
+  require separate output and cannot overwrite the default fixture directory.
+  Windows full required-HF suite passes 10/10 components against the unchanged
+  validated 9cfe43f executable; Linux generator safeguards pass 2/2 tests.
+  Two offline generations from cached 0.6B HF weights reproduce every numerical
+  field. Against committed goldens: 20 tokenizer cases, six top-10 ID lists,
+  247 PPL token IDs, four NLL values and synthetic F32 JSON match exactly.
+  Rounded top-10 logit values differ by at most 0.0001. Existing fixtures,
+  acceptance bounds and default CI model downloads are unchanged. Evidence:
+  `benchmarks/hf-reference-tools-20260919.json`.
+- **Left:** merge the tooling with the runtime stack after its external gates
+  pass. Actual 8B goldens need original weights/config, confirmed GGUF
+  provenance and sufficient-memory host, then a separate consumer with
+  predeclared model-specific acceptance bounds.
+- **Gotchas:** do not overwrite small-model goldens with another model or expand
+  default CI downloads. Tooling support alone is not an 8B correctness result.
+  HF generation and tests ran after worker timing finished. No hot path changed
+  and no new mx-llama.cpp performance gate was run.
 
 ### CPU worker cost profile
 

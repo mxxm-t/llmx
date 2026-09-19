@@ -31,6 +31,12 @@ skips. Test execution does not install torch, transformers or HF packages.
 The ordinary CPU jobs can skip real-model checks because their fixtures are
 absent; the separate HF job supplies that coverage.
 
+The Python suite also checks reference-generator argument safeguards and that
+the requested commit, float32 dtype and eager attention reach the HF loader.
+These use standard-library test doubles; CI does not generate new HF goldens
+or download larger models. Alternate-model output does not register a new
+fixture with the default suite or change its acceptance bounds.
+
 Every job checks that `--version` and the usage banner agree with the release
 version, then runs the small F32 HF fixture without downloads. Its deterministic
 weights are generated locally; committed HF float32 logits/NLL cover tied and

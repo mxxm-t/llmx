@@ -1,0 +1,143 @@
+{
+  "date": "2026-09-19",
+  "scope": "Pinned HF golden-generator tooling; no runtime source, committed fixture, model roster or numerical-bound changes",
+  "base_revision": "e98c7862a73ebdbf05c67cf35ad9da8db68f1fe2",
+  "reference": {
+    "reference_repo": "Qwen/Qwen3-0.6B",
+    "reference_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "reference_dtype": "float32",
+    "attention": "eager",
+    "device": "cpu",
+    "threads": 6,
+    "torch_version": "2.5.1+cpu",
+    "transformers_version": "4.55.2"
+  },
+  "generation": {
+    "command": "python -X utf8 tools/gen_baseline.py all --output-dir <scratch>/final-generated",
+    "environment": {
+      "HF_HUB_OFFLINE": "1",
+      "TRANSFORMERS_OFFLINE": "1"
+    },
+    "scratch_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-hf-reference-tools",
+    "exit_code": 0,
+    "repetition": "Two all-mode runs; only docstring and emitted explanatory comment changed between runs. All other JSON fields match exactly."
+  },
+  "comparison": {
+    "tokenizer_cases_exact": 20,
+    "top10_ranked_id_lists_exact": 6,
+    "logit_token_counts_exact": true,
+    "max_rounded_top10_logit_delta": 9.999999999976694e-05,
+    "logit_delta_interpretation": "Observed regeneration difference, not a new quantization bound. Original logit generator did not explicitly choose revision, eager attention, no-cache or six threads; no single-cause attribution.",
+    "ppl_token_ids_exact": 247,
+    "nll_cases_exact": 4,
+    "max_nll_delta": 0,
+    "continuous_mean_nll": 3.3602855802490645,
+    "chunk_cases": [
+      {
+        "context_size": 64,
+        "max_chunks": 0,
+        "used_tokens": 247,
+        "n_scored": 243,
+        "chunks": 4,
+        "mean_nll": 4.0303603464182824,
+        "perplexity": 56.28118831815059
+      },
+      {
+        "context_size": 64,
+        "max_chunks": 2,
+        "used_tokens": 128,
+        "n_scored": 126,
+        "chunks": 2,
+        "mean_nll": 3.710157365313032,
+        "perplexity": 40.86023600491807
+      },
+      {
+        "context_size": 123,
+        "max_chunks": 0,
+        "used_tokens": 246,
+        "n_scored": 244,
+        "chunks": 2,
+        "mean_nll": 3.6307939046332396,
+        "perplexity": 37.74276888507557
+      }
+    ],
+    "synthetic_f32_json_exact": true
+  },
+  "validation": {
+    "windows_full_suite": {
+      "command": "python -X utf8 tests/run_tests.py --exe C:/Users/Marko/Desktop/Projects/llmx/llmx.exe --require-baseline",
+      "exit_code": 0,
+      "passed_components": [
+        "version",
+        "reference-generator",
+        "roundtrip",
+        "perf",
+        "tokenizer",
+        "perplexity",
+        "f32",
+        "chat",
+        "threads",
+        "baseline"
+      ],
+      "baseline_skipped": false,
+      "perf_floor_enabled": true,
+      "log": "version: release/build identifier and usage banner agree  [ok]\r\n..\r\n----------------------------------------------------------------------\r\nRan 2 tests in 0.016s\r\n\r\nOK\r\nroundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\r\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\r\nperf: matmul 26.82 GFLOPS (0.313 ms), prefill 7103 tok/s, decode 7305 tok/s, rms_norm 0.002 ms, rope 0.000 ms  [ok]\r\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\r\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\r\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\r\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\r\nchat progress: completed loading percentages and per-turn phases stay on stderr  [ok]\r\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\r\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\r\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\r\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\r\n\r\n  version    PASS\r\n  reference-generator PASS\r\n  roundtrip  PASS\r\n  perf       PASS\r\n  tokenizer  PASS\r\n  perplexity PASS\r\n  f32        PASS\r\n  chat       PASS\r\n  threads    PASS\r\n  baseline   PASS\r\n"
+    },
+    "linux_generator_tests": {
+      "command": "wsl -d Ubuntu -- python3 -X utf8 /mnt/c/Users/Marko/Desktop/Projects/llmx-hf-reference-tools/tests/reference_generator.py",
+      "exit_code": 0,
+      "tests_passed": 2
+    },
+    "runtime_revision": "9cfe43f262a3538a48fd021d488fbc0f93ddf0b0",
+    "runtime_sha256": "9fcde79c839e1946117267e2fc0fa8b4a6d750cd25e4b6fc5b86644c806b283c",
+    "runtime_build": "Existing validated Windows binary reused; C++ source/build configuration unchanged",
+    "timing_isolation": "Worker profiling finished before HF generation or suite execution. No new external performance measurement."
+  },
+  "generated_files_sha256": {
+    "baseline_f32.json": "42caa7b77f4ee09ea30b51bab28ef872286986396536c1d1966c9d805fa2cd29",
+    "baseline_logits.json": "5b8eeca46290557b376796ded31649f5aaff0b522e7bef958d8967bee7aba05f",
+    "baseline_perplexity.json": "cac9d94bd465c01f848657ab39d6264d4459c11b90c0a7068b1ff5948632d9a7",
+    "baseline_tokenizer.json": "8d62a3427081809f669444b716f6f7b87417b2401a63ab456b797af5d6cbfe3e"
+  },
+  "source_sha256_lf": {
+    "tools/gen_baseline.py": "d9f65628d1b753e313531aeee0e634a58743746409b3f6f0f6761e02fa54dc80",
+    "tests/reference_generator.py": "57d876c1c7d1c64d16c2a21ea391d436910dcfca6d1d7ed84fabe5cb28e9ff33",
+    "tests/run_tests.py": "184a6b369d79a7a34733e2645862acaccafe406cf22adce141d4acd86014db4f"
+  },
+  "limits": [
+    "No independent 8B numerical result; original HF weights/config, GGUF provenance and sufficient FP32 memory remain needed.",
+    "Alternate-model outputs need a dedicated consumer and predeclared model-specific bounds; default CI models are unchanged.",
+    "GGUF repository/file fields are labels, not converted-weight provenance evidence.",
+    "No new mx-llama.cpp comparison or external performance clearance."
+  ],
+  "documentation_review": {
+    "files": [
+      "AGENTS.md",
+      "README.md",
+      "docs/ARCHITECTURE.md",
+      "docs/ASSETS.md",
+      "docs/CI.md",
+      "docs/ROADMAP.md",
+      "docs/STATUS.md",
+      "docs/USAGE.md",
+      "docs/src/backends-backend.md",
+      "docs/src/backends-cpu.md",
+      "docs/src/cli-main.md",
+      "docs/src/config.md",
+      "docs/src/core-fp16.md",
+      "docs/src/core-json.md",
+      "docs/src/format-format.md",
+      "docs/src/format-gguf.md",
+      "docs/src/inference-chat.md",
+      "docs/src/inference-generate.md",
+      "docs/src/inference-perplexity.md",
+      "docs/src/inference-sampler.md",
+      "docs/src/model-arch_qwen.md",
+      "docs/src/model-host_kv_cache.md",
+      "docs/src/quant-k_quants.md",
+      "docs/src/quant-quant.md",
+      "docs/src/tokenizer-tokenizer.md"
+    ],
+    "scope": "All 25 Markdown files reviewed against the unchanged runtime; focused independent tooling/docs review found no correctness blocker. Updated AGENTS, ASSETS, CI and STATUS."
+  }
+}

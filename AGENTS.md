@@ -142,8 +142,13 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   Compares llmx against golden fixtures generated once from the HF
   reference by `tools/gen_baseline.py` and committed to `tests/data/`. Needs a
   real model, so it SKIPS when none is on disk; point it at one with
-  `LLMX_BASELINE_GGUF`. Regenerating fixtures needs `tokenizers` and
-  `huggingface_hub`; RUNNING the suite needs neither, and never needs torch.
+  `LLMX_BASELINE_GGUF`. Regenerating tokenizer fixtures needs `tokenizers` and
+  `huggingface_hub`; numerical fixtures also need `torch` and `transformers`.
+  RUNNING the suite needs none of these packages.
+- **Reference generator** (`tests/reference_generator.py`): standard-library
+  checks for pinned reference selection, separate alternate-model output and
+  forwarding the revision/float32/eager settings to the HF loaders. Actual
+  reference generation and model correctness remain separate checks.
 
 The two project gates are external and are defined in `docs/ROADMAP.md` #8:
 **correctness is the HF reference**, and **performance must be at least

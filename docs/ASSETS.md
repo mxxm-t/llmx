@@ -836,6 +836,76 @@ platform results, prototype patches, assembly and reproduction scripts are in
 Scratch: `%TEMP%/llmx-q8-scale-load/validation`. The checkpoint is unmerged;
 external performance floors and hosted CI remain open.
 
+## Q8 row instruction studies (2026-09-19)
+
+Control is `475f312`, with native memory-scale broadcasts and direct signed
+byte loads already selected. These scratch experiments retain per-row float
+arithmetic and accumulator order. None is adopted.
+
+Paired rows share each activation load while processing adjacent weight rows.
+Assembly confirms that sharing and no inner-loop accumulator spills. Decode
+regresses with disjoint ranges in the initial matched model diagnostic.
+
+| Paired-row study, mean tok/s | Control | Paired | mx |
+|---|---:|---:|---:|
+| Qwen3-0.6B Q8 prefill | 416.65 | 403.09 | 271.13 |
+| Qwen3-0.6B Q8 decode | 46.00 | 43.81 | 48.31 |
+
+Direct pointer increments remove repeated block-address multiplication from
+the native loop. They do not rescue paired-row decode. The longer single-row
+comparison does not establish a decode gain; its prefill ranges overlap.
+
+| Pointer study, mean tok/s | Control | Pointer | Paired + pointer | mx |
+|---|---:|---:|---:|---:|
+| Initial prefill | 413.38 | 421.58 | 420.93 | 272.19 |
+| Initial decode | 45.91 | 46.10 | 44.41 | 47.79 |
+| Longer prefill | 413.06 | 419.71 | Not retested | 273.86 |
+| Longer decode | 46.22 | 45.86 | Not retested | 48.22 |
+
+Explicit inlining removes all assembly calls to the native Q8 row helper but
+increases code size and does not establish a model decode gain. Adding pointer
+increments to that variant also fails to establish a gain.
+
+| Inlining study, mean tok/s | Control | Inline | Inline + pointer | mx |
+|---|---:|---:|---:|---:|
+| Prefill | 418.15 | 416.33 | 418.29 | 271.44 |
+| Decode | 46.56 | 46.04 | 46.38 | 48.46 |
+
+| Comparator code / scoped checks | Control | Each applicable prototype |
+|---|---:|---:|
+| Q8 row-helper calls in assembly | 3 | 0 with explicit inlining |
+| Comparator virtual code bytes | 316,008 | 320,392 with explicit inlining |
+| Exact matrix cases per prototype | Reference | 504 passed |
+| Exact matrix outputs per prototype | Reference | 14,328 matched |
+| Finite scale/weight output checks per prototype | Expected products | 507,904 passed |
+| Grouped backend cases, paired prototype | Double oracle / separate calls | 540 passed |
+
+The direct paired-scale test checks both rows, all finite half scales and
+signed extremes with one-hot activations. Matrix cases include zero/odd row
+counts, varied block lengths, output sentinels and different thread counts.
+Native AVX2/F16C, forced software-half SIMD and forced scalar paths are checked
+on AVX2 hardware; this does not prove a non-AVX binary target. A passing printed
+model sum is only diagnostic, not a model-level numerical gate. These rejected
+prototypes were not promoted to cross-platform, full HF, long-context or
+larger-model validation.
+
+| Measurement setting | Value |
+|---|---:|
+| Short-study measured rounds per arm | 3 |
+| Longer pointer-study measured rounds per arm | 8 |
+| Discarded outer warmup rounds | 1 |
+| Per-process warmup sequences | 1 |
+| Threads | 6 |
+| Ubatch | 128 |
+| Prompt / forced decode tokens | 215 / 32 |
+
+Model, token hashes and mx reference are unchanged from the preceding study.
+All samples are retained; loading, tokenization and sampling are excluded.
+Do not combine absolute rates across these separate sessions. Evidence is in
+[`benchmarks/q8-row-instructions-20260919.json`](benchmarks/q8-row-instructions-20260919.json),
+including patches, assembly extracts, source/binary hashes, raw samples and
+reproduction scripts. Scratch: `%TEMP%/llmx-q8-paired`. Runtime remains `475f312`.
+
 ## Wiki text location
 
 The wikitext corpus used for corpus-level perplexity is committed to the test

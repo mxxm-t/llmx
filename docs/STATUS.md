@@ -332,6 +332,23 @@ feature ships, delete its block and mark the row `Done` above.
   output bits and improves Q8 decode on both measured model sizes. External
   Q8 and F32 decode floors remain open. See its block and evidence JSON above
   for current model measurements, HF gates and the tiny-prompt limitation.
+- **Latest investigation (no runtime change):** paired native Q8 rows regress;
+  direct pointer increments and explicit row-kernel inlining do not establish
+  a decode gain. Exact row/tail/fallback checks pass. Assembly confirms shared
+  activation loads without inner-loop spills, removal of native-loop address
+  multiplication, and removal of row calls in the respective prototypes.
+
+  | Separate Qwen3-0.6B Q8 studies, mean decode tok/s | Control | Prototype | mx |
+  |---|---:|---:|---:|
+  | Paired rows | 46.00 | 43.81 | 48.31 |
+  | Pointer increments, longer run | 46.22 | 45.86 | 48.22 |
+  | Explicit inlining | 46.56 | 46.04 | 48.46 |
+  | Inlining plus pointers | 46.56 | 46.38 | 48.46 |
+
+  No prototype is adopted. Do not pool absolute rates across these sessions.
+  ASSETS and `benchmarks/q8-row-instructions-20260919.json` retain patches,
+  assembly, exact checks, complete samples, code hashes and reproduction.
+  These scratch prototypes did not enter the full HF/platform adoption gate.
 - **Previous investigation:** AVX2 integer dots with vectorized activation packing
   were tested at 8-bit and 16-bit precision. Q16 improves matched mean decode
   by 2.79% on 0.6B and 4.06% on 8B, but still trails mx by 5.12% / 1.21%.

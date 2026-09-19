@@ -1,0 +1,1226 @@
+{
+  "base_commit": "475f312",
+  "decision": "No prototype adopted. Paired rows regress; direct pointer increments and explicit inlining do not establish a decode gain on the measured workload. Runtime remains 475f312.",
+  "hardware": "Ryzen 7 5800X, Windows, MSVC 19.50 /O2 /arch:AVX2 /std:c++17",
+  "settings": {
+    "threads": 6,
+    "ubatch": 128,
+    "kv": "F32",
+    "prompt_tokens": 215,
+    "forced_decode_tokens": 32,
+    "model": "Qwen3-0.6B Q8_0",
+    "mx_commit": "5542318e748c154b634211def405ae95da3dfaa9"
+  },
+  "experiments": {
+    "diagnostic": {
+      "hashes": {
+        "base": "1a3c248fc4a43b753849d5f1fe2044406908546bcb3af6461722f1678f4c8d15",
+        "paired": "1f11a726dd155d67333e0b111ec641f731ba0d3d6aed24d4d3e2879189d4c2c7",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "q8": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 510.287,
+          "tg_ms": 709.6974,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "paired",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 542.1431,
+          "tg_ms": 728.9705,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 797.6802,
+          "tg_ms": 684.0986,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 522.7364,
+          "tg_ms": 691.8445,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 782.2366,
+          "tg_ms": 655.3253,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "paired",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 537.5645,
+          "tg_ms": 738.2579,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 799.2794,
+          "tg_ms": 648.8824,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 515.2011,
+          "tg_ms": 685.8854,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "paired",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 520.9215,
+          "tg_ms": 724.1379,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        }
+      ],
+      "summary": {
+        "q8": {
+          "base": {
+            "pp": {
+              "mean": 416.64715500502035,
+              "median": 417.3127735946216,
+              "minimum": 411.297166219915,
+              "maximum": 421.3315252005244,
+              "n": 3
+            },
+            "tg": {
+              "mean": 45.99927735602988,
+              "median": 46.253168161342614,
+              "minimum": 45.08963961260109,
+              "maximum": 46.65502429414593,
+              "n": 3
+            }
+          },
+          "paired": {
+            "pp": {
+              "mean": 403.0854670688462,
+              "median": 399.9520057593089,
+              "minimum": 396.5742624041512,
+              "maximum": 412.7301330430784,
+              "n": 3
+            },
+            "tg": {
+              "mean": 43.81109610192052,
+              "median": 43.89752397387823,
+              "minimum": 43.34528624752949,
+              "maximum": 44.19047808435383,
+              "n": 3
+            }
+          },
+          "mx": {
+            "pp": {
+              "mean": 271.1255905178301,
+              "median": 269.5315741822349,
+              "minimum": 268.9922948095497,
+              "maximum": 274.8529025617058,
+              "n": 3
+            },
+            "tg": {
+              "mean": 48.30771829491155,
+              "median": 48.830710488363565,
+              "minimum": 46.77688274760393,
+              "maximum": 49.31556164876717,
+              "n": 3
+            }
+          }
+        }
+      },
+      "stdout": {
+        "q8--1-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":547.4629,\"tg_ms\":718.4857,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":514.8465,\"tg_ms\":691.7178,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8--1-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":802.7616,\"tg_ms\":654.5455,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":804.8394,\"tg_ms\":669.6441,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8--1-paired.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":537.8317,\"tg_ms\":737.1177,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":517.208,\"tg_ms\":717.5226,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":547.3642,\"tg_ms\":700.9308,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":510.287,\"tg_ms\":709.6974,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":807.0498,\"tg_ms\":654.4616,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":797.6802,\"tg_ms\":684.0986,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-0-paired.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":558.9154,\"tg_ms\":748.7076,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":542.1431,\"tg_ms\":728.9705,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":532.0391,\"tg_ms\":721.0007,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":522.7364,\"tg_ms\":691.8445,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":778.3991,\"tg_ms\":650.2994,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":782.2366,\"tg_ms\":655.3253,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-1-paired.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":543.662,\"tg_ms\":738.0424,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":537.5645,\"tg_ms\":738.2579,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":541.2305,\"tg_ms\":705.5369,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":515.2011,\"tg_ms\":685.8854,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":770.5522,\"tg_ms\":695.9679,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":799.2794,\"tg_ms\":648.8824,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-2-paired.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":539.7916,\"tg_ms\":757.5319,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":520.9215,\"tg_ms\":724.1379,\"top1\":4013,\"logit_sum\":-492001.8287}\n"
+      }
+    },
+    "pointer-diagnostic": {
+      "hashes": {
+        "base": "1a3c248fc4a43b753849d5f1fe2044406908546bcb3af6461722f1678f4c8d15",
+        "pointer": "d5f502f5a698b70ae8e78978df7cf18ab35f4049ad15dc8fa256f863d410daa5",
+        "paired-pointer": "4582446572b1b6e9e71dd0469ffd45f8863ffc3a5664003c45a68cfaa0416cc5",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "q8": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 509.8777,
+          "tg_ms": 696.7462,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 522.6788,
+          "tg_ms": 684.6017,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "paired-pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 515.4773,
+          "tg_ms": 711.0606,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 792.9287,
+          "tg_ms": 653.9125,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 513.8068,
+          "tg_ms": 695.6652,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 791.8413,
+          "tg_ms": 684.0702,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "paired-pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 502.0872,
+          "tg_ms": 713.0304,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 497.7478,
+          "tg_ms": 704.1225,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "paired-pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 514.9942,
+          "tg_ms": 738.2733,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 784.9362,
+          "tg_ms": 671.5233,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 537.4688,
+          "tg_ms": 698.8397,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 510.1382,
+          "tg_ms": 694.0807,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        }
+      ],
+      "summary": {
+        "q8": {
+          "base": {
+            "pp": {
+              "mean": 413.3793955020745,
+              "median": 418.4452210441746,
+              "minimum": 400.02321995248843,
+              "maximum": 421.6697455095604,
+              "n": 3
+            },
+            "tg": {
+              "mean": 45.905698667151825,
+              "median": 45.927771116656245,
+              "minimum": 45.79018621867075,
+              "maximum": 45.999138666128474,
+              "n": 3
+            }
+          },
+          "pointer": {
+            "pp": {
+              "mean": 421.5808564578961,
+              "median": 421.45442156654804,
+              "minimum": 411.34249179419555,
+              "maximum": 431.9456560129447,
+              "n": 3
+            },
+            "tg": {
+              "mean": 46.09776460815578,
+              "median": 46.104148984404844,
+              "minimum": 45.44663748140416,
+              "maximum": 46.74250735865832,
+              "n": 3
+            }
+          },
+          "paired-pointer": {
+            "pp": {
+              "mean": 420.92735709113566,
+              "median": 417.480429876686,
+              "minimum": 417.0891715309287,
+              "maximum": 428.21246986579223,
+              "n": 3
+            },
+            "tg": {
+              "mean": 44.40881688173864,
+              "median": 44.8788719246753,
+              "minimum": 43.34438208722976,
+              "maximum": 45.00319663331086,
+              "n": 3
+            }
+          },
+          "mx": {
+            "pp": {
+              "mean": 272.1911215161851,
+              "median": 271.5190531233973,
+              "minimum": 271.14669957084413,
+              "maximum": 273.90761185431376,
+              "n": 3
+            },
+            "tg": {
+              "mean": 47.789295663771455,
+              "median": 47.65285136048146,
+              "minimum": 46.77882474634913,
+              "maximum": 48.93621088448378,
+              "n": 3
+            }
+          }
+        }
+      },
+      "stdout": {
+        "q8--1-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":546.3571,\"tg_ms\":693.9057,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":520.0367,\"tg_ms\":690.5332,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8--1-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":771.7178,\"tg_ms\":677.1215,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":787.547,\"tg_ms\":654.8035,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8--1-paired-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":614.3571,\"tg_ms\":793.5874,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":520.6922,\"tg_ms\":716.4308,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8--1-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":539.4768,\"tg_ms\":740.743,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":597.8525,\"tg_ms\":699.9314,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":538.4699,\"tg_ms\":699.6402,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":509.8777,\"tg_ms\":696.7462,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":792.8271,\"tg_ms\":654.1385,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":792.9287,\"tg_ms\":653.9125,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-0-paired-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":546.3661,\"tg_ms\":733.4477,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":515.4773,\"tg_ms\":711.0606,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":532.1099,\"tg_ms\":693.9114,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":522.6788,\"tg_ms\":684.6017,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":535.5129,\"tg_ms\":697.3424,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":513.8068,\"tg_ms\":695.6652,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":800.5374,\"tg_ms\":653.2382,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":791.8413,\"tg_ms\":684.0702,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-1-paired-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":547.9288,\"tg_ms\":747.8687,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":502.0872,\"tg_ms\":713.0304,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":531.8215,\"tg_ms\":708.2935,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":497.7478,\"tg_ms\":704.1225,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":547.6204,\"tg_ms\":777.2625,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":537.4688,\"tg_ms\":698.8397,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":808.5736,\"tg_ms\":665.4944,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":784.9362,\"tg_ms\":671.5233,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-2-paired-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":542.3439,\"tg_ms\":742.1311,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":514.9942,\"tg_ms\":738.2733,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":539.1314,\"tg_ms\":721.7225,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":510.1382,\"tg_ms\":694.0807,\"top1\":4013,\"logit_sum\":-492001.8287}\n"
+      }
+    },
+    "pointer-eight-rounds": {
+      "hashes": {
+        "base": "1a3c248fc4a43b753849d5f1fe2044406908546bcb3af6461722f1678f4c8d15",
+        "pointer": "d5f502f5a698b70ae8e78978df7cf18ab35f4049ad15dc8fa256f863d410daa5",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "q8": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 500.949,
+          "tg_ms": 711.4045,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 500.0609,
+          "tg_ms": 687.6309,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 779.7185,
+          "tg_ms": 660.4018,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 505.9621,
+          "tg_ms": 679.1914,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 779.0865,
+          "tg_ms": 657.947,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 526.8686,
+          "tg_ms": 702.1535,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 781.8409,
+          "tg_ms": 655.8133,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 526.3412,
+          "tg_ms": 699.6796,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 503.289,
+          "tg_ms": 695.0653,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 3,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 799.9399,
+          "tg_ms": 652.5762,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 3,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 509.6149,
+          "tg_ms": 681.0898,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 3,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 506.2915,
+          "tg_ms": 701.8124,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 4,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 522.063,
+          "tg_ms": 711.2309,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 4,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 784.766,
+          "tg_ms": 670.7204,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 4,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 524.2729,
+          "tg_ms": 681.7066,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 5,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 504.1011,
+          "tg_ms": 710.8232,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 5,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 513.896,
+          "tg_ms": 698.5092,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 5,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 800.5249,
+          "tg_ms": 675.4469,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 6,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 555.796,
+          "tg_ms": 686.8042,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 6,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 515.5746,
+          "tg_ms": 701.7701,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 6,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 778.8273,
+          "tg_ms": 663.0516,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 7,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 534.8907,
+          "tg_ms": 681.2649,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 7,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 776.5983,
+          "tg_ms": 674.062,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 7,
+          "arm": "pointer",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 517.7827,
+          "tg_ms": 693.441,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        }
+      ],
+      "summary": {
+        "q8": {
+          "base": {
+            "pp": {
+              "mean": 413.06293215124623,
+              "median": 414.232178049695,
+              "minimum": 386.8325788598694,
+              "maximum": 429.18540609922366,
+              "n": 8
+            },
+            "tg": {
+              "mean": 46.21808335533125,
+              "median": 46.2022307623232,
+              "minimum": 44.981441641147896,
+              "maximum": 47.114848627353055,
+              "n": 8
+            }
+          },
+          "pointer": {
+            "pp": {
+              "mean": 419.7085196873858,
+              "median": 419.44882574506016,
+              "minimum": 408.07138630011355,
+              "maximum": 429.9476323783763,
+              "n": 8
+            },
+            "tg": {
+              "mean": 45.86116828578312,
+              "median": 45.8189093644184,
+              "minimum": 44.99242088610042,
+              "maximum": 46.9835255204233,
+              "n": 8
+            }
+          },
+          "mx": {
+            "pp": {
+              "mean": 273.8640288610754,
+              "median": 275.36627446929947,
+              "minimum": 268.5737820272674,
+              "maximum": 276.8484041234703,
+              "n": 8
+            },
+            "tg": {
+              "mean": 48.21791220135296,
+              "median": 48.3585266855453,
+              "minimum": 47.37604095895621,
+              "maximum": 49.03641904194483,
+              "n": 8
+            }
+          }
+        }
+      },
+      "stdout": {
+        "q8--1-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":546.8519,\"tg_ms\":698.5491,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":534.6551,\"tg_ms\":720.025,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8--1-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":780.3851,\"tg_ms\":670.1352,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":794.9255,\"tg_ms\":671.4319,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8--1-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":545.7197,\"tg_ms\":696.9377,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":504.4319,\"tg_ms\":702.3649,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":534.7049,\"tg_ms\":703.2817,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":500.949,\"tg_ms\":711.4045,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":775.554,\"tg_ms\":660.5288,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":779.7185,\"tg_ms\":660.4018,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-0-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":538.9724,\"tg_ms\":709.879,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":500.0609,\"tg_ms\":687.6309,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":521.6238,\"tg_ms\":701.3294,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":505.9621,\"tg_ms\":679.1914,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":746.7602,\"tg_ms\":661.9711,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":779.0865,\"tg_ms\":657.947,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-1-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":545.4996,\"tg_ms\":687.0689,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":526.8686,\"tg_ms\":702.1535,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":536.8179,\"tg_ms\":700.5257,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":526.3412,\"tg_ms\":699.6796,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":811.9434,\"tg_ms\":696.5917,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":781.8409,\"tg_ms\":655.8133,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-2-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":578.7622,\"tg_ms\":722.9747,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":503.289,\"tg_ms\":695.0653,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-3-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":540.5168,\"tg_ms\":703.209,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":506.2915,\"tg_ms\":701.8124,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-3-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":809.1649,\"tg_ms\":681.8433,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":799.9399,\"tg_ms\":652.5762,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-3-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":535.1364,\"tg_ms\":711.7152,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":509.6149,\"tg_ms\":681.0898,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-4-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":558.0677,\"tg_ms\":700.9596,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":524.2729,\"tg_ms\":681.7066,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-4-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":790.7196,\"tg_ms\":665.0775,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":784.766,\"tg_ms\":670.7204,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-4-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":521.5098,\"tg_ms\":698.5005,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":522.063,\"tg_ms\":711.2309,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-5-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":542.355,\"tg_ms\":697.5758,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":513.896,\"tg_ms\":698.5092,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-5-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":811.299,\"tg_ms\":661.823,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":800.5249,\"tg_ms\":675.4469,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-5-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":547.7911,\"tg_ms\":703.7225,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":504.1011,\"tg_ms\":710.8232,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-6-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":547.5017,\"tg_ms\":702.2522,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":555.796,\"tg_ms\":686.8042,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-6-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":792.8946,\"tg_ms\":664.6806,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":778.8273,\"tg_ms\":663.0516,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-6-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":519.5845,\"tg_ms\":708.5542,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":515.5746,\"tg_ms\":701.7701,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-7-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":540.8317,\"tg_ms\":694.0943,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":534.8907,\"tg_ms\":681.2649,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-7-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":774.2192,\"tg_ms\":662.9976,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":776.5983,\"tg_ms\":674.062,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-7-pointer.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":538.4728,\"tg_ms\":734.4568,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":517.7827,\"tg_ms\":693.441,\"top1\":4013,\"logit_sum\":-492001.8287}\n"
+      }
+    },
+    "inline-diagnostic": {
+      "hashes": {
+        "base": "1a3c248fc4a43b753849d5f1fe2044406908546bcb3af6461722f1678f4c8d15",
+        "inline": "232aacf0480cee8b365541378340e48e9624545e0da06cd6871fdaffc2b8fdfc",
+        "pointer-inline": "ac12fc72e11fb561c00bd0161907ef4389b78b7c168b9592fc2c39f77e904aba",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "q8": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 526.0846,
+          "tg_ms": 680.0449,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "inline",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 515.896,
+          "tg_ms": 701.6583,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "pointer-inline",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 533.306,
+          "tg_ms": 684.1205,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 780.6394,
+          "tg_ms": 672.6947,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 510.5588,
+          "tg_ms": 688.3193,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 793.6226,
+          "tg_ms": 645.9158,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "pointer-inline",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 500.912,
+          "tg_ms": 699.9265,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 1,
+          "arm": "inline",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 514.9552,
+          "tg_ms": 684.5537,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "pointer-inline",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 508.8734,
+          "tg_ms": 686.0102,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 802.2745,
+          "tg_ms": 662.9324,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "base",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 506.2918,
+          "tg_ms": 693.4781,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "model": "q8",
+          "round": 2,
+          "arm": "inline",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 518.4044,
+          "tg_ms": 699.36,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        }
+      ],
+      "summary": {
+        "q8": {
+          "base": {
+            "pp": {
+              "mean": 418.1476792178058,
+              "median": 421.10722604330783,
+              "minimum": 408.6795165644461,
+              "maximum": 424.6562950456634,
+              "n": 3
+            },
+            "tg": {
+              "mean": 46.56332657577582,
+              "median": 46.49005192793519,
+              "minimum": 46.14421133125905,
+              "maximum": 47.055716468133205,
+              "n": 3
+            }
+          },
+          "inline": {
+            "pp": {
+              "mean": 416.33228159176736,
+              "median": 416.75066292431035,
+              "minimum": 414.73413420102145,
+              "maximum": 417.5120476499703,
+              "n": 3
+            },
+            "tg": {
+              "mean": 46.03604976116618,
+              "median": 45.75611988103409,
+              "minimum": 45.60624452101543,
+              "maximum": 46.74578488144903,
+              "n": 3
+            }
+          },
+          "pointer-inline": {
+            "pp": {
+              "mean": 418.2882372455091,
+              "median": 422.50194252637294,
+              "minimum": 403.14566121513724,
+              "maximum": 429.2171079950171,
+              "n": 3
+            },
+            "tg": {
+              "mean": 46.38033609710118,
+              "median": 46.6465367424566,
+              "minimum": 45.71908621833864,
+              "maximum": 46.77538533050829,
+              "n": 3
+            }
+          },
+          "mx": {
+            "pp": {
+              "mean": 271.43765198145553,
+              "median": 270.90962379347565,
+              "minimum": 267.98807640028446,
+              "maximum": 275.4152557506065,
+              "n": 3
+            },
+            "tg": {
+              "mean": 48.46077120681626,
+              "median": 48.27038171614481,
+              "minimum": 47.5698708492872,
+              "maximum": 49.54206105501677,
+              "n": 3
+            }
+          }
+        }
+      },
+      "stdout": {
+        "q8--1-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":534.2968,\"tg_ms\":710.9927,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":512.8327,\"tg_ms\":758.1887,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8--1-inline.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":546.1695,\"tg_ms\":706.3635,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":510.3947,\"tg_ms\":688.0711,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8--1-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":804.8198,\"tg_ms\":660.6482,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":805.4659,\"tg_ms\":661.7408,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8--1-pointer-inline.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":537.2546,\"tg_ms\":710.3963,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":505.8427,\"tg_ms\":690.5259,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":550.762,\"tg_ms\":701.8466,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":526.0846,\"tg_ms\":680.0449,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-inline.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":570.7353,\"tg_ms\":726.8778,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":515.896,\"tg_ms\":701.6583,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-0-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":803.6034,\"tg_ms\":670.3176,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":780.6394,\"tg_ms\":672.6947,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-0-pointer-inline.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":546.6899,\"tg_ms\":695.6874,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":533.306,\"tg_ms\":684.1205,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":541.6059,\"tg_ms\":697.5607,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":510.5588,\"tg_ms\":688.3193,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-inline.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":537.1341,\"tg_ms\":707.0219,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":514.9552,\"tg_ms\":684.5537,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-1-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":813.8426,\"tg_ms\":671.3624,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":793.6226,\"tg_ms\":645.9158,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-1-pointer-inline.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":549.8733,\"tg_ms\":696.3514,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":500.912,\"tg_ms\":699.9265,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-base.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":557.7569,\"tg_ms\":737.2768,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":506.2918,\"tg_ms\":693.4781,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-inline.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":545.021,\"tg_ms\":702.0484,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":518.4044,\"tg_ms\":699.36,\"top1\":4013,\"logit_sum\":-492001.8287}\n",
+        "q8-2-mx.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":800.4049,\"tg_ms\":658.4345,\"top1\":4013,\"logit_sum\":-495135.3053}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":802.2745,\"tg_ms\":662.9324,\"top1\":4013,\"logit_sum\":-495135.3053}\n",
+        "q8-2-pointer-inline.stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":605.0536,\"tg_ms\":705.0746,\"top1\":4013,\"logit_sum\":-492001.8287}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":508.8734,\"tg_ms\":686.0102,\"top1\":4013,\"logit_sum\":-492001.8287}\n"
+      }
+    }
+  },
+  "patches": {
+    "paired": "--- a/src/backends/cpu/cpu_backend.hpp\n+++ b/src/backends/cpu/cpu_backend.hpp\n@@ -60,16 +60,14 @@\n         const int nt = threads_;\n         // Small problems are not worth waking the pool.\n         if (nt <= 1 || nout < (size_t)nt * 8) {\n-            for (size_t o = 0; o < nout; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+            dot_rows_q8(data, x, out, nblocks, 0, nout);\n             return;\n         }\n         const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;\n         run_parallel([&](int w) {\n             size_t start = (size_t)w * chunk;\n             size_t end = std::min(nout, start + chunk);\n-            for (size_t o = start; o < end; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+            dot_rows_q8(data, x, out, nblocks, start, end);\n         });\n     }\n \n@@ -220,8 +218,7 @@\n                         p.out[o] = dot_f32(data + o * nin, X, nin);\n                 } else if (p.type == gguf::GGML_TYPE_Q8_0) {\n                     const size_t blocks = nin / gguf::Q8_0_BLOCK;\n-                    for (size_t o = first; o < last; ++o)\n-                        p.out[o] = dot_row_impl(p.data + o * blocks * gguf::Q8_0_TYPESIZE, X, blocks);\n+                    dot_rows_q8(p.data, X, p.out, blocks, first, last);\n                 } else {\n                     const size_t blocks = nin / gguf::Q4_K_BLOCK;\n                     for (size_t o = first; o < last; ++o)\n@@ -709,6 +706,63 @@\n         return f16_to_f32(h);\n     }\n \n+    void dot_rows_q8(const uint8_t* data, const float* x, float* out,\n+                     size_t nblocks, size_t first, size_t last) {\n+        const size_t stride = nblocks * gguf::Q8_0_TYPESIZE;\n+        size_t o = first;\n+        if (avx2_ && f16c_) {\n+            for (; o + 1 < last; o += 2) {\n+                const uint8_t* r0 = data + o * stride;\n+                const uint8_t* r1 = r0 + stride;\n+                __m256 s00 = _mm256_setzero_ps();\n+                __m256 s01 = _mm256_setzero_ps();\n+                __m256 s02 = _mm256_setzero_ps();\n+                __m256 s03 = _mm256_setzero_ps();\n+                __m256 s10 = _mm256_setzero_ps();\n+                __m256 s11 = _mm256_setzero_ps();\n+                __m256 s12 = _mm256_setzero_ps();\n+                __m256 s13 = _mm256_setzero_ps();\n+                for (size_t b = 0; b < nblocks; ++b) {\n+                    const uint8_t* y0 = r0 + b * gguf::Q8_0_TYPESIZE;\n+                    const uint8_t* y1 = r1 + b * gguf::Q8_0_TYPESIZE;\n+                    const __m256 d0 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y0)));\n+                    const __m256 d1 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y1)));\n+                    const __m256 x0 = _mm256_loadu_ps(x + b * 32 + 0);\n+                    const __m256 q00 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 2))));\n+                    s00 = _mm256_fmadd_ps(_mm256_mul_ps(q00, d0), x0, s00);\n+                    const __m256 q10 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 2))));\n+                    s10 = _mm256_fmadd_ps(_mm256_mul_ps(q10, d1), x0, s10);\n+                    const __m256 x1 = _mm256_loadu_ps(x + b * 32 + 8);\n+                    const __m256 q01 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 10))));\n+                    s01 = _mm256_fmadd_ps(_mm256_mul_ps(q01, d0), x1, s01);\n+                    const __m256 q11 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 10))));\n+                    s11 = _mm256_fmadd_ps(_mm256_mul_ps(q11, d1), x1, s11);\n+                    const __m256 x2 = _mm256_loadu_ps(x + b * 32 + 16);\n+                    const __m256 q02 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 18))));\n+                    s02 = _mm256_fmadd_ps(_mm256_mul_ps(q02, d0), x2, s02);\n+                    const __m256 q12 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 18))));\n+                    s12 = _mm256_fmadd_ps(_mm256_mul_ps(q12, d1), x2, s12);\n+                    const __m256 x3 = _mm256_loadu_ps(x + b * 32 + 24);\n+                    const __m256 q03 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 26))));\n+                    s03 = _mm256_fmadd_ps(_mm256_mul_ps(q03, d0), x3, s03);\n+                    const __m256 q13 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 26))));\n+                    s13 = _mm256_fmadd_ps(_mm256_mul_ps(q13, d1), x3, s13);\n+                }\n+                const __m256 acc0 = _mm256_add_ps(_mm256_add_ps(s00, s01), _mm256_add_ps(s02, s03));\n+                __m128 v0 = _mm_add_ps(_mm256_castps256_ps128(acc0), _mm256_extractf128_ps(acc0, 1));\n+                v0 = _mm_hadd_ps(v0, v0);\n+                v0 = _mm_hadd_ps(v0, v0);\n+                out[o + 0] = _mm_cvtss_f32(v0);\n+                const __m256 acc1 = _mm256_add_ps(_mm256_add_ps(s10, s11), _mm256_add_ps(s12, s13));\n+                __m128 v1 = _mm_add_ps(_mm256_castps256_ps128(acc1), _mm256_extractf128_ps(acc1, 1));\n+                v1 = _mm_hadd_ps(v1, v1);\n+                v1 = _mm_hadd_ps(v1, v1);\n+                out[o + 1] = _mm_cvtss_f32(v1);\n+            }\n+        }\n+        for (; o < last; ++o) out[o] = dot_row_impl(data + o * stride, x, nblocks);\n+    }\n+\n     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {\n         if (avx2_) {\n             // Four independent accumulators. A single chained accumulator\n",
+    "pointer": "--- a/src/backends/cpu/cpu_backend.hpp\n+++ b/src/backends/cpu/cpu_backend.hpp\n@@ -722,8 +722,9 @@\n             // made no difference (4.10/4.14 against 4.12/4.12 tok/s): the\n             // hardware prefetcher already keeps up with these sequential\n             // streams. Not reinstated.\n-            for (size_t b = 0; b < nblocks; b++) {\n-                const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;\n+            const uint8_t* y = row;\n+            const float* xp = x;\n+            for (size_t b = 0; b < nblocks; ++b, y += gguf::Q8_0_TYPESIZE, xp += gguf::Q8_0_BLOCK) {\n                 // Hardware f16 convert. The scalar f16_to_f32 is a branchy\n                 // function (zero, subnormal, inf/nan cases) called once per\n                 // 34 bytes of weights, which is a lot of unpredictable control\n@@ -739,7 +740,6 @@\n                 __m256 f1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 10))));\n                 __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 18))));\n                 __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 26))));\n-                const float* xp = x + b * gguf::Q8_0_BLOCK;\n                 s0 = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), s0);\n                 s1 = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), s1);\n                 s2 = _mm256_fmadd_ps(_mm256_mul_ps(f2, dv), _mm256_loadu_ps(xp + 16), s2);\n",
+    "paired-pointer": "--- a/src/backends/cpu/cpu_backend.hpp\n+++ b/src/backends/cpu/cpu_backend.hpp\n@@ -60,16 +60,14 @@\n         const int nt = threads_;\n         // Small problems are not worth waking the pool.\n         if (nt <= 1 || nout < (size_t)nt * 8) {\n-            for (size_t o = 0; o < nout; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+            dot_rows_q8(data, x, out, nblocks, 0, nout);\n             return;\n         }\n         const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;\n         run_parallel([&](int w) {\n             size_t start = (size_t)w * chunk;\n             size_t end = std::min(nout, start + chunk);\n-            for (size_t o = start; o < end; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+            dot_rows_q8(data, x, out, nblocks, start, end);\n         });\n     }\n \n@@ -220,8 +218,7 @@\n                         p.out[o] = dot_f32(data + o * nin, X, nin);\n                 } else if (p.type == gguf::GGML_TYPE_Q8_0) {\n                     const size_t blocks = nin / gguf::Q8_0_BLOCK;\n-                    for (size_t o = first; o < last; ++o)\n-                        p.out[o] = dot_row_impl(p.data + o * blocks * gguf::Q8_0_TYPESIZE, X, blocks);\n+                    dot_rows_q8(p.data, X, p.out, blocks, first, last);\n                 } else {\n                     const size_t blocks = nin / gguf::Q4_K_BLOCK;\n                     for (size_t o = first; o < last; ++o)\n@@ -709,6 +706,64 @@\n         return f16_to_f32(h);\n     }\n \n+    void dot_rows_q8(const uint8_t* data, const float* x, float* out,\n+                     size_t nblocks, size_t first, size_t last) {\n+        const size_t stride = nblocks * gguf::Q8_0_TYPESIZE;\n+        size_t o = first;\n+        if (avx2_ && f16c_) {\n+            for (; o + 1 < last; o += 2) {\n+                const uint8_t* r0 = data + o * stride;\n+                const uint8_t* r1 = r0 + stride;\n+                __m256 s00 = _mm256_setzero_ps();\n+                __m256 s01 = _mm256_setzero_ps();\n+                __m256 s02 = _mm256_setzero_ps();\n+                __m256 s03 = _mm256_setzero_ps();\n+                __m256 s10 = _mm256_setzero_ps();\n+                __m256 s11 = _mm256_setzero_ps();\n+                __m256 s12 = _mm256_setzero_ps();\n+                __m256 s13 = _mm256_setzero_ps();\n+                const uint8_t* y0 = r0;\n+                const uint8_t* y1 = r1;\n+                const float* xp = x;\n+                for (size_t b = 0; b < nblocks; ++b, y0 += 34, y1 += 34, xp += 32) {\n+                    const __m256 d0 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y0)));\n+                    const __m256 d1 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y1)));\n+                    const __m256 x0 = _mm256_loadu_ps(xp + 0);\n+                    const __m256 q00 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 2))));\n+                    s00 = _mm256_fmadd_ps(_mm256_mul_ps(q00, d0), x0, s00);\n+                    const __m256 q10 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 2))));\n+                    s10 = _mm256_fmadd_ps(_mm256_mul_ps(q10, d1), x0, s10);\n+                    const __m256 x1 = _mm256_loadu_ps(xp + 8);\n+                    const __m256 q01 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 10))));\n+                    s01 = _mm256_fmadd_ps(_mm256_mul_ps(q01, d0), x1, s01);\n+                    const __m256 q11 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 10))));\n+                    s11 = _mm256_fmadd_ps(_mm256_mul_ps(q11, d1), x1, s11);\n+                    const __m256 x2 = _mm256_loadu_ps(xp + 16);\n+                    const __m256 q02 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 18))));\n+                    s02 = _mm256_fmadd_ps(_mm256_mul_ps(q02, d0), x2, s02);\n+                    const __m256 q12 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 18))));\n+                    s12 = _mm256_fmadd_ps(_mm256_mul_ps(q12, d1), x2, s12);\n+                    const __m256 x3 = _mm256_loadu_ps(xp + 24);\n+                    const __m256 q03 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 26))));\n+                    s03 = _mm256_fmadd_ps(_mm256_mul_ps(q03, d0), x3, s03);\n+                    const __m256 q13 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 26))));\n+                    s13 = _mm256_fmadd_ps(_mm256_mul_ps(q13, d1), x3, s13);\n+                }\n+                const __m256 acc0 = _mm256_add_ps(_mm256_add_ps(s00, s01), _mm256_add_ps(s02, s03));\n+                __m128 v0 = _mm_add_ps(_mm256_castps256_ps128(acc0), _mm256_extractf128_ps(acc0, 1));\n+                v0 = _mm_hadd_ps(v0, v0);\n+                v0 = _mm_hadd_ps(v0, v0);\n+                out[o + 0] = _mm_cvtss_f32(v0);\n+                const __m256 acc1 = _mm256_add_ps(_mm256_add_ps(s10, s11), _mm256_add_ps(s12, s13));\n+                __m128 v1 = _mm_add_ps(_mm256_castps256_ps128(acc1), _mm256_extractf128_ps(acc1, 1));\n+                v1 = _mm_hadd_ps(v1, v1);\n+                v1 = _mm_hadd_ps(v1, v1);\n+                out[o + 1] = _mm_cvtss_f32(v1);\n+            }\n+        }\n+        for (; o < last; ++o) out[o] = dot_row_impl(data + o * stride, x, nblocks);\n+    }\n+\n     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {\n         if (avx2_) {\n             // Four independent accumulators. A single chained accumulator\n",
+    "inline": "--- a/src/backends/cpu/cpu_backend.hpp\n+++ b/src/backends/cpu/cpu_backend.hpp\n@@ -709,6 +709,11 @@\n         return f16_to_f32(h);\n     }\n \n+#if defined(_MSC_VER)\n+    __forceinline\n+#elif defined(__GNUC__) || defined(__clang__)\n+    __attribute__((always_inline)) inline\n+#endif\n     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {\n         if (avx2_) {\n             // Four independent accumulators. A single chained accumulator\n",
+    "pointer-inline": "--- a/src/backends/cpu/cpu_backend.hpp\n+++ b/src/backends/cpu/cpu_backend.hpp\n@@ -709,6 +709,11 @@\n         return f16_to_f32(h);\n     }\n \n+#if defined(_MSC_VER)\n+    __forceinline\n+#elif defined(__GNUC__) || defined(__clang__)\n+    __attribute__((always_inline)) inline\n+#endif\n     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {\n         if (avx2_) {\n             // Four independent accumulators. A single chained accumulator\n@@ -722,8 +727,9 @@\n             // made no difference (4.10/4.14 against 4.12/4.12 tok/s): the\n             // hardware prefetcher already keeps up with these sequential\n             // streams. Not reinstated.\n-            for (size_t b = 0; b < nblocks; b++) {\n-                const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;\n+            const uint8_t* y = row;\n+            const float* xp = x;\n+            for (size_t b = 0; b < nblocks; ++b, y += gguf::Q8_0_TYPESIZE, xp += gguf::Q8_0_BLOCK) {\n                 // Hardware f16 convert. The scalar f16_to_f32 is a branchy\n                 // function (zero, subnormal, inf/nan cases) called once per\n                 // 34 bytes of weights, which is a lot of unpredictable control\n@@ -739,7 +745,6 @@\n                 __m256 f1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 10))));\n                 __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 18))));\n                 __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 26))));\n-                const float* xp = x + b * gguf::Q8_0_BLOCK;\n                 s0 = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), s0);\n                 s1 = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), s1);\n                 s2 = _mm256_fmadd_ps(_mm256_mul_ps(f2, dv), _mm256_loadu_ps(xp + 16), s2);\n"
+  },
+  "validation": {
+    "paired": {
+      "result": {
+        "matrix_cases": 504,
+        "exact_outputs": 14328,
+        "finite_scale_cases": 507904,
+        "native_avx2": 1,
+        "native_f16c": 1
+      },
+      "binary_sha256": "6b7ce45f7d8483bf1bb2c3fdb67aec490f608178bccc505d14ce9c8fcbf09179"
+    },
+    "pointer": {
+      "result": {
+        "matrix_cases": 504,
+        "exact_outputs": 14328,
+        "finite_scale_cases": 507904,
+        "native_avx2": 1,
+        "native_f16c": 1
+      },
+      "binary_sha256": "35f083be3c115914bc57d8c102f077ea596c568b0a6ac18dee4d452ba7599805"
+    },
+    "paired-pointer": {
+      "result": {
+        "matrix_cases": 504,
+        "exact_outputs": 14328,
+        "finite_scale_cases": 507904,
+        "native_avx2": 1,
+        "native_f16c": 1
+      },
+      "binary_sha256": "dedf3ab20410a07021791199b6204019548b3201abbe444c11265d2f07225605"
+    },
+    "inline": {
+      "result": {
+        "matrix_cases": 504,
+        "exact_outputs": 14328,
+        "finite_scale_cases": 507904,
+        "native_avx2": 1,
+        "native_f16c": 1
+      },
+      "binary_sha256": "0f2cbbefa7bca994fac371b9b64ed2e9c451e6145ab44304d5d8623d18907ea0"
+    },
+    "pointer-inline": {
+      "result": {
+        "matrix_cases": 504,
+        "exact_outputs": 14328,
+        "finite_scale_cases": 507904,
+        "native_avx2": 1,
+        "native_f16c": 1
+      },
+      "binary_sha256": "70bbe30eabf591fe611839da5f0aa4e20a6943bb43f090ba2f6785485db2b439"
+    },
+    "backend": "grouped projections: 540 cases, 141750 outputs checked against separate calls and double dots; 253952 exact finite Q8 scale/weight cases\n",
+    "production-hashes": {
+      "src/backends/cpu/cpu_backend.hpp": "47dc75e47ab2b2e7251f401b8483a93e81ac13f3e935e4a96a42596ac1bd5695",
+      "src/model/arch_qwen.hpp": "f606f6e2d630037812b03185ca284cdb7c96bf671a95ad4db0c0d4ee1a3651bc"
+    },
+    "code-hashes": {
+      "base": {
+        "binary_bytes": 437760,
+        "binary_sha256": "1a3c248fc4a43b753849d5f1fe2044406908546bcb3af6461722f1678f4c8d15",
+        "text_virtual_bytes": 316008,
+        "text_raw_bytes": 316416,
+        "text_sha256": "70b8b986a81c7abc86ea93aa8a45dc55a6f0ab22c16a57a9f53d626921112ec0"
+      },
+      "paired": {
+        "binary_bytes": 439296,
+        "binary_sha256": "1f11a726dd155d67333e0b111ec641f731ba0d3d6aed24d4d3e2879189d4c2c7",
+        "text_virtual_bytes": 317480,
+        "text_raw_bytes": 317952,
+        "text_sha256": "8d93395e2b1bda3f10cd332259934730fa8a1b5f5a69468e587aa4494cdb0f96"
+      },
+      "pointer": {
+        "binary_bytes": 437760,
+        "binary_sha256": "d5f502f5a698b70ae8e78978df7cf18ab35f4049ad15dc8fa256f863d410daa5",
+        "text_virtual_bytes": 316024,
+        "text_raw_bytes": 316416,
+        "text_sha256": "41cfbdcc0f45460b6fcaea28e1d5f45586320c146b4120fb2760e3ffa123547e"
+      },
+      "paired-pointer": {
+        "binary_bytes": 439296,
+        "binary_sha256": "4582446572b1b6e9e71dd0469ffd45f8863ffc3a5664003c45a68cfaa0416cc5",
+        "text_virtual_bytes": 317480,
+        "text_raw_bytes": 317952,
+        "text_sha256": "778ee4941af5115b231d32b192e918010ada9616b7a1ae1497b711a8304fdc0f"
+      },
+      "inline": {
+        "binary_bytes": 441856,
+        "binary_sha256": "232aacf0480cee8b365541378340e48e9624545e0da06cd6871fdaffc2b8fdfc",
+        "text_virtual_bytes": 320392,
+        "text_raw_bytes": 320512,
+        "text_sha256": "4ba014dc17ad8c8ed1781ec3e4fd196e013be85776468349bdf65f63b5930acb"
+      },
+      "pointer-inline": {
+        "binary_bytes": 441856,
+        "binary_sha256": "ac12fc72e11fb561c00bd0161907ef4389b78b7c168b9592fc2c39f77e904aba",
+        "text_virtual_bytes": 320408,
+        "text_raw_bytes": 320512,
+        "text_sha256": "d1736c73a74ad6b4429645a5832aaae602a0763cadedca9d97c89355ca19362c"
+      }
+    },
+    "assembly-summary": {
+      "pointer": {
+        "imul_in_function": 1,
+        "shift_in_function": 10
+      },
+      "paired-pointer": {
+        "imul_in_function": 3,
+        "shift_in_function": 0
+      }
+    },
+    "inline-assembly-summary": {
+      "inline": {
+        "row_calls_remaining": 0,
+        "calls": [],
+        "binary_bytes": 441856
+      },
+      "pointer-inline": {
+        "row_calls_remaining": 0,
+        "calls": [],
+        "binary_bytes": 441856
+      }
+    }
+  },
+  "assembly": {
+    "paired": "?dot_rows_q8@CpuBackend@backend@@AEAAXPEBEPEBMPEAM_K33@Z PROC ; backend::CpuBackend::dot_rows_q8, COMDAT\n\n; 710  :                      size_t nblocks, size_t first, size_t last) {\n\n$LN36:\n\tmov\tr11, rsp\n\tmov\tQWORD PTR [r11+16], rbx\n\tmov\tQWORD PTR [r11+24], rsi\n\tmov\tQWORD PTR [r11+8], rcx\n\tpush\trdi\n\tpush\tr12\n\tpush\tr13\n\tpush\tr14\n\tpush\tr15\n\tsub\trsp, 176\t\t\t\t; 000000b0H\n\n; 711  :         const size_t stride = nblocks * gguf::Q8_0_TYPESIZE;\n\n\tmov\trdi, QWORD PTR nblocks$[rsp]\n\tmov\trsi, r9\n\n; 712  :         size_t o = first;\n\n\tmov\trbx, QWORD PTR first$[rsp]\n\tmov\tr15, r8\n\n; 713  :         if (avx2_ && f16c_) {\n\n\tmov\tr14, QWORD PTR last$[rsp]\n\tmov\tr12, rdx\n\timul\tr13, rdi, 34\t\t\t\t; 00000022H\n\tcmp\tBYTE PTR [rcx+12], 0\n\tmov\trax, rcx\n\tje\t$LN3@dot_rows_q\n\tcmp\tBYTE PTR [rcx+13], 0\n\tje\t$LN3@dot_rows_q\n\n; 714  :             for (; o + 1 < last; o += 2) {\n\n\tlea\trax, QWORD PTR [rbx+1]\n\tcmp\trax, r14\n\tjae\t$LN28@dot_rows_q\n\tvmovaps\tXMMWORD PTR [r11-56], xmm6\n\tvmovaps\tXMMWORD PTR [r11-72], xmm7\n\tvmovaps\tXMMWORD PTR [r11-88], xmm8\n\tvmovaps\tXMMWORD PTR [r11-104], xmm9\n\tvmovaps\tXMMWORD PTR [r11-120], xmm10\n\tvmovaps\tXMMWORD PTR [rsp+80], xmm11\n\tvmovaps\tXMMWORD PTR [rsp+64], xmm12\n\tvmovaps\tXMMWORD PTR [rsp+48], xmm13\n\tvmovaps\tXMMWORD PTR [rsp+32], xmm14\n\tlea\tr10, QWORD PTR [rdx+r13]\n$LL4@dot_rows_q:\n\n; 715  :                 const uint8_t* r0 = data + o * stride;\n\n\tmov\trax, rbx\n\txor\tr9d, r9d\n\timul\trax, r13\n\tvxorps\txmm7, xmm7, xmm7\n\tvxorps\txmm8, xmm8, xmm8\n\tvxorps\txmm9, xmm9, xmm9\n\tvxorps\txmm10, xmm10, xmm10\n\tlea\trdx, QWORD PTR [rax+r12]\n\tlea\tr8, QWORD PTR [rax+r10]\n\tvxorps\txmm11, xmm11, xmm11\n\tvxorps\txmm12, xmm12, xmm12\n\tvxorps\txmm13, xmm13, xmm13\n\tvxorps\txmm14, xmm14, xmm14\n\n; 716  :                 const uint8_t* r1 = r0 + stride;\n; 717  :                 __m256 s00 = _mm256_setzero_ps();\n; 718  :                 __m256 s01 = _mm256_setzero_ps();\n; 719  :                 __m256 s02 = _mm256_setzero_ps();\n; 720  :                 __m256 s03 = _mm256_setzero_ps();\n; 721  :                 __m256 s10 = _mm256_setzero_ps();\n; 722  :                 __m256 s11 = _mm256_setzero_ps();\n; 723  :                 __m256 s12 = _mm256_setzero_ps();\n; 724  :                 __m256 s13 = _mm256_setzero_ps();\n; 725  :                 for (size_t b = 0; b < nblocks; ++b) {\n\n\ttest\trdi, rdi\n\tje\t$LN6@dot_rows_q\n\tnpad\t12\n$LL7@dot_rows_q:\n\n; 726  :                     const uint8_t* y0 = r0 + b * gguf::Q8_0_TYPESIZE;\n\n\timul\trcx, r9, 34\t\t\t\t; 00000022H\n\n; 727  :                     const uint8_t* y1 = r1 + b * gguf::Q8_0_TYPESIZE;\n; 728  :                     const __m256 d0 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y0)));\n; 729  :                     const __m256 d1 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y1)));\n; 730  :                     const __m256 x0 = _mm256_loadu_ps(x + b * 32 + 0);\n\n\tmov\trax, r9\n\tinc\tr9\n\tshl\trax, 7\n\tvpbroadcastw xmm1, XMMWORD PTR [rcx+r8]\n\tvmovups\tymm4, YMMWORD PTR [rax+r15]\n\tvpbroadcastw xmm0, XMMWORD PTR [rcx+rdx]\n\tvcvtph2ps ymm6, xmm1\n\n; 731  :                     const __m256 q00 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 2))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+rdx+2]\n\tvcvtdq2ps ymm2, ymm1\n\n; 732  :                     s00 = _mm256_fmadd_ps(_mm256_mul_ps(q00, d0), x0, s00);\n; 733  :                     const __m256 q10 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 2))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+r8+2]\n\tvcvtph2ps ymm5, xmm0\n\tvmulps\tymm3, ymm2, ymm5\n\tvfmadd231ps ymm7, ymm3, ymm4\n\tvcvtdq2ps ymm2, ymm1\n\n; 734  :                     s10 = _mm256_fmadd_ps(_mm256_mul_ps(q10, d1), x0, s10);\n; 735  :                     const __m256 x1 = _mm256_loadu_ps(x + b * 32 + 8);\n; 736  :                     const __m256 q01 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 10))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+rdx+10]\n\tvmulps\tymm3, ymm2, ymm6\n\tvfmadd231ps ymm11, ymm3, ymm4\n\tvmovups\tymm4, YMMWORD PTR [rax+r15+32]\n\tvcvtdq2ps ymm2, ymm1\n\n; 737  :                     s01 = _mm256_fmadd_ps(_mm256_mul_ps(q01, d0), x1, s01);\n; 738  :                     const __m256 q11 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 10))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+r8+10]\n\tvmulps\tymm3, ymm2, ymm5\n\tvfmadd231ps ymm8, ymm3, ymm4\n\tvcvtdq2ps ymm2, ymm1\n\n; 739  :                     s11 = _mm256_fmadd_ps(_mm256_mul_ps(q11, d1), x1, s11);\n; 740  :                     const __m256 x2 = _mm256_loadu_ps(x + b * 32 + 16);\n; 741  :                     const __m256 q02 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 18))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+rdx+18]\n\tvmulps\tymm3, ymm2, ymm6\n\tvfmadd231ps ymm12, ymm3, ymm4\n\tvmovups\tymm4, YMMWORD PTR [rax+r15+64]\n\tvcvtdq2ps ymm2, ymm1\n\n; 742  :                     s02 = _mm256_fmadd_ps(_mm256_mul_ps(q02, d0), x2, s02);\n; 743  :                     const __m256 q12 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 18))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+r8+18]\n\tvmulps\tymm3, ymm2, ymm5\n\tvcvtdq2ps ymm2, ymm1\n\n; 744  :                     s12 = _mm256_fmadd_ps(_mm256_mul_ps(q12, d1), x2, s12);\n; 745  :                     const __m256 x3 = _mm256_loadu_ps(x + b * 32 + 24);\n; 746  :                     const __m256 q03 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 26))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+rdx+26]\n\tvfmadd231ps ymm9, ymm3, ymm4\n\tvmulps\tymm3, ymm2, ymm6\n\tvcvtdq2ps ymm2, ymm1\n\n; 747  :                     s03 = _mm256_fmadd_ps(_mm256_mul_ps(q03, d0), x3, s03);\n; 748  :                     const __m256 q13 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 26))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+r8+26]\n\tvfmadd231ps ymm13, ymm3, ymm4\n\tvmovups\tymm4, YMMWORD PTR [rax+r15+96]\n\tvmulps\tymm3, ymm2, ymm5\n\tvcvtdq2ps ymm2, ymm1\n\tvfmadd231ps ymm10, ymm3, ymm4\n\n; 749  :                     s13 = _mm256_fmadd_ps(_mm256_mul_ps(q13, d1), x3, s13);\n\n\tvmulps\tymm3, ymm2, ymm6\n\tvfmadd231ps ymm14, ymm3, ymm4\n\tcmp\tr9, rdi\n\tjb\t$LL7@dot_rows_q\n$LN6@dot_rows_q:\n\n; 750  :                 }\n; 751  :                 const __m256 acc0 = _mm256_add_ps(_mm256_add_ps(s00, s01), _mm256_add_ps(s02, s03));\n\n\tvaddps\tymm1, ymm10, ymm9\n\tvaddps\tymm0, ymm8, ymm7\n\tvaddps\tymm3, ymm1, ymm0\n\n; 752  :                 __m128 v0 = _mm_add_ps(_mm256_castps256_ps128(acc0), _mm256_extractf128_ps(acc0, 1));\n\n\tvextractf128 xmm2, ymm3, 1\n\tvaddps\txmm0, xmm2, xmm3\n\n; 753  :                 v0 = _mm_hadd_ps(v0, v0);\n\n\tvhaddps\txmm1, xmm0, xmm0\n\n; 754  :                 v0 = _mm_hadd_ps(v0, v0);\n\n\tvhaddps\txmm0, xmm1, xmm1\n\n; 755  :                 out[o + 0] = _mm_cvtss_f32(v0);\n\n\tvmovss\tDWORD PTR [rsi+rbx*4], xmm0\n\n; 756  :                 const __m256 acc1 = _mm256_add_ps(_mm256_add_ps(s10, s11), _mm256_add_ps(s12, s13));\n\n\tvaddps\tymm0, ymm12, ymm11\n\tvaddps\tymm1, ymm14, ymm13\n\tvaddps\tymm3, ymm1, ymm0\n\n; 757  :                 __m128 v1 = _mm_add_ps(_mm256_castps256_ps128(acc1), _mm256_extractf128_ps(acc1, 1));\n\n\tvextractf128 xmm2, ymm3, 1\n\tvaddps\txmm0, xmm2, xmm3\n\n; 758  :                 v1 = _mm_hadd_ps(v1, v1);\n\n\tvhaddps\txmm1, xmm0, xmm0\n\n; 759  :                 v1 = _mm_hadd_ps(v1, v1);\n\n\tvhaddps\txmm2, xmm1, xmm1\n\n; 760  :                 out[o + 1] = _mm_cvtss_f32(v1);\n\n\tvmovss\tDWORD PTR [rsi+rbx*4+4], xmm2\n\tadd\trbx, 2\n\tlea\trax, QWORD PTR [rbx+1]\n\tcmp\trax, r14\n\tjb\t$LL4@dot_rows_q\n\n; 714  :             for (; o + 1 < last; o += 2) {\n\n\tvmovaps\txmm14, XMMWORD PTR [rsp+32]\n\tvmovaps\txmm13, XMMWORD PTR [rsp+48]\n\tvmovaps\txmm12, XMMWORD PTR [rsp+64]\n\tvmovaps\txmm11, XMMWORD PTR [rsp+80]\n\tvmovaps\txmm10, XMMWORD PTR [rsp+96]\n\tvmovaps\txmm9, XMMWORD PTR [rsp+112]\n\tvmovaps\txmm8, XMMWORD PTR [rsp+128]\n\tvmovaps\txmm7, XMMWORD PTR [rsp+144]\n\tvmovaps\txmm6, XMMWORD PTR [rsp+160]\n$LN28@dot_rows_q:\n\n; 761  :             }\n; 762  :         }\n; 763  :         for (; o < last; ++o) out[o] = dot_row_impl(data + o * stride, x, nblocks);\n\n\tmov\trax, QWORD PTR this$[rsp]\n$LN3@dot_rows_q:\n\tcmp\trbx, r14\n\tjae\tSHORT $LN9@dot_rows_q\n\tnpad\t1\n$LL10@dot_rows_q:\n\tmov\trdx, rbx\n\tmov\tr9, rdi\n\timul\trdx, r13\n\tmov\tr8, r15\n\tmov\trcx, rax\n\tadd\trdx, r12\n\tvzeroupper\n\tcall\t?dot_row_impl@CpuBackend@backend@@AEAAMPEBEPEBM_K@Z ; backend::CpuBackend::dot_row_impl\n\tmov\trax, QWORD PTR this$[rsp]\n\tvmovss\tDWORD PTR [rsi+rbx*4], xmm0\n\tinc\trbx\n\tcmp\trbx, r14\n\tjb\tSHORT $LL10@dot_rows_q\n$LN9@dot_rows_q:\n\n; 764  :     }\n\n\tvzeroupper\n\tlea\tr11, QWORD PTR [rsp+176]\n\tmov\trbx, QWORD PTR [r11+56]\n\tmov\trsi, QWORD PTR [r11+64]\n\tmov\trsp, r11\n\tpop\tr15\n\tpop\tr14\n\tpop\tr13\n\tpop\tr12\n\tpop\trdi\n\tret\t0\n",
+    "pointer": "?dot_row_impl@CpuBackend@backend@@AEAAMPEBEPEBM_K@Z PROC ; backend::CpuBackend::dot_row_impl, COMDAT\n\n; 712  :     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {\n\n$LN108:\n\tmov\tQWORD PTR [rsp+16], rbx\n\tpush\trdi\n\tsub\trsp, 48\t\t\t\t\t; 00000030H\n\n; 713  :         if (avx2_) {\n\n\tcmp\tBYTE PTR [rcx+12], 0\n\tmov\trbx, r9\n\tmov\tr11, r8\n\tmov\tr10, rdx\n\tje\t$LN11@dot_row_im\n\tvmovaps\tXMMWORD PTR [rsp+32], xmm6\n\tvmovaps\tXMMWORD PTR [rsp+16], xmm7\n\tvmovaps\tXMMWORD PTR [rsp], xmm8\n\tvxorps\txmm8, xmm8, xmm8\n\tvxorps\txmm5, xmm5, xmm5\n\tvxorps\txmm6, xmm6, xmm6\n\tvxorps\txmm7, xmm7, xmm7\n\n; 714  :             // Four independent accumulators. A single chained accumulator\n; 715  :             // serialised the loop at FMA latency, which also capped how many\n; 716  :             // loads could be in flight; decode is bandwidth bound, so fewer\n; 717  :             // outstanding loads means less memory-level parallelism and less\n; 718  :             // achieved bandwidth.\n; 719  :             __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();\n; 720  :             __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();\n; 721  :             // Software prefetch of the weight stream was measured here and\n; 722  :             // made no difference (4.10/4.14 against 4.12/4.12 tok/s): the\n; 723  :             // hardware prefetcher already keeps up with these sequential\n; 724  :             // streams. Not reinstated.\n; 725  :             const uint8_t* y = row;\n; 726  :             const float* xp = x;\n; 727  :             for (size_t b = 0; b < nblocks; ++b, y += gguf::Q8_0_TYPESIZE, xp += gguf::Q8_0_BLOCK) {\n\n\ttest\trbx, rbx\n\tje\t$LN3@dot_row_im\n\n; 728  :                 // Hardware f16 convert. The scalar f16_to_f32 is a branchy\n; 729  :                 // function (zero, subnormal, inf/nan cases) called once per\n; 730  :                 // 34 bytes of weights, which is a lot of unpredictable control\n; 731  :                 // flow in a loop whose job is to keep loads in flight.\n; 732  :                 __m256 dv;\n; 733  :                 if (f16c_) {\n\n\tmovzx\tedi, BYTE PTR [rcx+13]\n\txor\tr9d, r9d\n\tnpad\t1\n$LL4@dot_row_im:\n\ttest\tdil, dil\n\tje\tSHORT $LN12@dot_row_im\n\n; 734  :                     dv = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y)));\n\n\tvpbroadcastw xmm0, XMMWORD PTR [r10]\n\tvcvtph2ps ymm4, xmm0\n\n; 735  :                 } else {\n\n\tjmp\tSHORT $LN13@dot_row_im\n$LN12@dot_row_im:\n; File C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\fp16.hpp\n\n; 45   :     uint32_t sign = (uint32_t)(h & 0x8000u) << 16;\n\n\tmovzx\teax, BYTE PTR [r10]\n\tmovzx\tecx, BYTE PTR [r10+1]\n\tshl\tecx, 8\n\tor\tecx, eax\n\tmov\tedx, ecx\n\n; 46   :     uint32_t e = (h >> 10) & 0x1fu;\n\n\tmov\teax, ecx\n\tand\tedx, -32768\t\t\t\t; ffff8000H\n\tshr\teax, 10\n\tshl\tedx, 16\n\n; 47   :     uint32_t m = h & 0x3ffu;\n\n\tand\tecx, 1023\t\t\t\t; 000003ffH\n\tand\teax, 31\n\n; 48   :     uint32_t u;\n; 49   :     if (e == 0) {\n\n\tjne\tSHORT $LN18@dot_row_im\n\n; 50   :         if (m == 0) {\n\n\ttest\tecx, ecx\n\tje\tSHORT $LN23@dot_row_im\n\n; 51   :             u = sign;                      // zero\n; 52   :         } else {\n; 53   :             // Subnormal half: value is m * 2^-24, with no implicit leading 1.\n; 54   :             // Shift left until bit 10 becomes that implicit 1; after k shifts\n; 55   :             // the value is (1+frac) * 2^(-14-k), so the f32 exponent field is\n; 56   :             // 113 - k. Incrementing instead of decrementing here made every\n; 57   :             // subnormal 2^(2k) too large -- 16x for the k=2 case that Q6_K\n; 58   :             // super-block scales land in.\n; 59   :             uint32_t k = 0;\n\n\txor\tr8d, r8d\n$LL16@dot_row_im:\n\n; 60   :             while ((m & 0x400u) == 0) { m <<= 1; k++; }\n\n\tadd\tecx, ecx\n\tinc\tr8d\n\tbt\tecx, 10\n\tjae\tSHORT $LL16@dot_row_im\n\n; 61   :             m &= 0x3ffu;\n; 62   :             u = sign | ((113u - k) << 23) | (m << 13);\n\n\tmov\teax, 113\t\t\t\t; 00000071H\n\tsub\teax, r8d\n\tand\tecx, 1023\t\t\t\t; 000003ffH\n\n; 63   :         }\n\n\tjmp\tSHORT $LN105@dot_row_im\n$LN18@dot_row_im:\n\n; 64   :     } else if (e == 0x1fu) {               // inf / nan\n\n\tcmp\teax, 31\n\tjne\tSHORT $LN22@dot_row_im\n\n; 65   :         u = sign | 0x7f800000u | (m << 13);\n\n\tor\tecx, 261120\t\t\t\t; 0003fc00H\n\tshl\tecx, 13\n\tor\tedx, ecx\n\n; 66   :     } else {\n\n\tjmp\tSHORT $LN23@dot_row_im\n$LN22@dot_row_im:\n\n; 67   :         u = sign | ((e + 112) << 23) | (m << 13);\n\n\tadd\teax, 112\t\t\t\t; 00000070H\n$LN105@dot_row_im:\n; File C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\pointer\\backends\\cpu\\cpu_backend.hpp\n\n; 737  :                     dv = _mm256_set1_ps(f16_to_f32(h));\n\n\tshl\tecx, 13\n\tshl\teax, 23\n\tor\teax, ecx\n\tor\tedx, eax\n$LN23@dot_row_im:\n\tvmovd\txmm4, edx\n\tvbroadcastss ymm4, xmm4\n$LN13@dot_row_im:\n\n; 738  :                 }\n; 739  :                 __m256 f0 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 2))));\n\n\tvpmovsxbd ymm1, QWORD PTR [r10+2]\n\tvcvtdq2ps ymm2, ymm1\n\n; 740  :                 __m256 f1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 10))));\n\n\tvpmovsxbd ymm1, QWORD PTR [r10+10]\n\n; 741  :                 __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 18))));\n; 742  :                 __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 26))));\n; 743  :                 s0 = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), s0);\n\n\tvmulps\tymm3, ymm2, ymm4\n\tvfmadd231ps ymm5, ymm3, YMMWORD PTR [r11]\n\tvcvtdq2ps ymm2, ymm1\n\tvpmovsxbd ymm1, QWORD PTR [r10+18]\n\n; 744  :                 s1 = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), s1);\n\n\tvmulps\tymm3, ymm2, ymm4\n\tvfmadd231ps ymm6, ymm3, YMMWORD PTR [r11+32]\n\tvcvtdq2ps ymm2, ymm1\n\tvpmovsxbd ymm1, QWORD PTR [r10+26]\n\n; 745  :                 s2 = _mm256_fmadd_ps(_mm256_mul_ps(f2, dv), _mm256_loadu_ps(xp + 16), s2);\n\n\tvmulps\tymm3, ymm2, ymm4\n\tvfmadd231ps ymm7, ymm3, YMMWORD PTR [r11+64]\n\tvcvtdq2ps ymm2, ymm1\n\n; 746  :                 s3 = _mm256_fmadd_ps(_mm256_mul_ps(f3, dv), _mm256_loadu_ps(xp + 24), s3);\n\n\tvmulps\tymm3, ymm2, ymm4\n\tvfmadd231ps ymm8, ymm3, YMMWORD PTR [r11+96]\n\tsub\tr11, -128\t\t\t\t; ffffffffffffff80H\n\tinc\tr9\n\tadd\tr10, 34\t\t\t\t\t; 00000022H\n\tcmp\tr9, rbx\n\tjb\t$LL4@dot_row_im\n$LN3@dot_row_im:\n\n; 747  :             }\n; 748  :             __m256 acc = _mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3));\n\n\tvaddps\tymm1, ymm8, ymm7\n\n; 749  :             __m128 lo = _mm256_castps256_ps128(acc);\n; 750  :             __m128 hi = _mm256_extractf128_ps(acc, 1);\n; 751  :             __m128 s = _mm_add_ps(lo, hi);\n; 752  :             s = _mm_hadd_ps(s, s);\n; 753  :             s = _mm_hadd_ps(s, s);\n; 754  :             return _mm_cvtss_f32(s);\n\n\tvmovaps\txmm8, XMMWORD PTR [rsp]\n\tvmovaps\txmm7, XMMWORD PTR [rsp+16]\n\tvaddps\tymm0, ymm6, ymm5\n\tvmovaps\txmm6, XMMWORD PTR [rsp+32]\n\tvaddps\tymm3, ymm1, ymm0\n\tvextractf128 xmm2, ymm3, 1\n\tvaddps\txmm0, xmm2, xmm3\n\tvhaddps\txmm1, xmm0, xmm0\n\tvhaddps\txmm0, xmm1, xmm1\n\n; 765  :     }\n\n\tvzeroupper\n\tmov\trbx, QWORD PTR [rsp+72]\n\tadd\trsp, 48\t\t\t\t\t; 00000030H\n\tpop\trdi\n\tret\t0\n$LN11@dot_row_im:\n\n; 755  :         }\n; 756  :         float acc = 0.0f;\n\n\txor\tedi, edi\n\tvxorps\txmm3, xmm3, xmm3\n\n; 757  :         for (size_t b = 0; b < nblocks; b++) {\n\n\ttest\trbx, rbx\n\tje\t$LN6@dot_row_im\n\tmov\tQWORD PTR [rsp+64], rsi\n\txor\tesi, esi\n\tnpad\t6\n$LL7@dot_row_im:\n\n; 758  :             const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;\n\n\timul\tr9, rdi, 34\t\t\t\t; 00000022H\n; File C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\fp16.hpp\n\n; 45   :     uint32_t sign = (uint32_t)(h & 0x8000u) << 16;\n\n\tmovzx\teax, BYTE PTR [r9+r10]\n\tmovzx\tecx, BYTE PTR [r9+r10+1]\n\tshl\tecx, 8\n\tor\tecx, eax\n\tmov\tedx, ecx\n\n; 46   :     uint32_t e = (h >> 10) & 0x1fu;\n\n\tmov\teax, ecx\n\tand\tedx, -32768\t\t\t\t; ffff8000H\n\tshr\teax, 10\n\tshl\tedx, 16\n\n; 47   :     uint32_t m = h & 0x3ffu;\n\n\tand\tecx, 1023\t\t\t\t; 000003ffH\n\tand\teax, 31\n\n; 48   :     uint32_t u;\n; 49   :     if (e == 0) {\n\n\tjne\tSHORT $LN28@dot_row_im\n\n; 50   :         if (m == 0) {\n\n\ttest\tecx, ecx\n\tje\tSHORT $LN33@dot_row_im\n\n; 51   :             u = sign;                      // zero\n; 52   :         } else {\n; 53   :             // Subnormal half: value is m * 2^-24, with no implicit leading 1.\n; 54   :             // Shift left until bit 10 becomes that implicit 1; after k shifts\n; 55   :             // the value is (1+frac) * 2^(-14-k), so the f32 exponent field is\n; 56   :             // 113 - k. Incrementing instead of decrementing here made every\n; 57   :             // subnormal 2^(2k) too large -- 16x for the k=2 case that Q6_K\n; 58   :             // super-block scales land in.\n; 59   :             uint32_t k = 0;\n\n\txor\tr8d, r8d\n\tnpad\t10\n$LL26@dot_row_im:\n\n; 60   :             while ((m & 0x400u) == 0) { m <<= 1; k++; }\n\n\tadd\tecx, ecx\n\tinc\tr8d\n\tbt\tecx, 10\n\tjae\tSHORT $LL26@dot_row_im\n\n; 61   :             m &= 0x3ffu;\n; 62   :             u = sign | ((113u - k) << 23) | (m << 13);\n\n\tmov\teax, 113\t\t\t\t; 00000071H\n\tsub\teax, r8d\n\tand\tecx, 1023\t\t\t\t; 000003ffH\n\n; 63   :         }\n\n\tjmp\tSHORT $LN106@dot_row_im\n$LN28@dot_row_im:\n\n; 64   :     } else if (e == 0x1fu) {               // inf / nan\n\n\tcmp\teax, 31\n\tjne\tSHORT $LN32@dot_row_im\n\n; 65   :         u = sign | 0x7f800000u | (m << 13);\n\n\tor\tecx, 261120\t\t\t\t; 0003fc00H\n\tshl\tecx, 13\n\tor\tedx, ecx\n\n; 66   :     } else {\n\n\tjmp\tSHORT $LN33@dot_row_im\n$LN32@dot_row_im:\n\n; 67   :         u = sign | ((e + 112) << 23) | (m << 13);\n\n\tadd\teax, 112\t\t\t\t; 00000070H\n$LN106@dot_row_im:\n; File C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\pointer\\backends\\cpu\\cpu_backend.hpp\n\n; 760  :             float d = f16_to_f32(d16);\n\n\tshl\tecx, 13\n\tshl\teax, 23\n\tor\teax, ecx\n\tor\tedx, eax\n$LN33@dot_row_im:\n\n; 761  :             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n; 762  :                 acc += (float)(int8_t)y[2 + j] * d * x[b * gguf::Q8_0_BLOCK + j];\n\n\tmovsx\teax, BYTE PTR [r9+r10+3]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+2]\n\tvmovd\txmm5, edx\n\tvmulss\txmm1, xmm0, xmm5\n\tvmulss\txmm4, xmm1, DWORD PTR [rsi+r11+4]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+4]\n\tvmulss\txmm1, xmm0, xmm5\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+5]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+6]\n\tvaddss\txmm3, xmm2, xmm3\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+8]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+7]\n\tvaddss\txmm4, xmm4, xmm3\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+12]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+8]\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+16]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+9]\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+20]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+10]\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+24]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+11]\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+28]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+32]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+12]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+36]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+13]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+40]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+14]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+44]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+15]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+48]\n\tvaddss\txmm3, xmm4, xmm2\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+16]\n\tvmulss\txmm1, xmm0, xmm5\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+52]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+17]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+18]\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+56]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+19]\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+60]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+20]\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+64]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+21]\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+68]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+22]\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+72]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+23]\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+76]\n\tvmulss\txmm1, xmm0, xmm5\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+24]\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+80]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+84]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+25]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+88]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+26]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+92]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+27]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+96]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+28]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+100]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm4, xmm3, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+104]\n\tmovsx\teax, BYTE PTR [r9+r10+29]\n\tinc\trdi\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+30]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+108]\n\tvaddss\txmm4, xmm3, xmm2\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+31]\n\tvmulss\txmm1, xmm0, xmm5\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+112]\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+32]\n\tvmulss\txmm1, xmm0, xmm5\n\tvaddss\txmm3, xmm4, xmm2\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+116]\n\tvaddss\txmm4, xmm3, xmm2\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tmovsx\teax, BYTE PTR [r9+r10+33]\n\tvmulss\txmm1, xmm0, xmm5\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+120]\n\tvaddss\txmm3, xmm4, xmm2\n\tvxorps\txmm0, xmm0, xmm0\n\tvcvtsi2ss xmm0, xmm0, eax\n\tvmulss\txmm1, xmm0, xmm5\n\tvmulss\txmm2, xmm1, DWORD PTR [rsi+r11+124]\n\tsub\trsi, -128\t\t\t\t; ffffffffffffff80H\n\tvaddss\txmm3, xmm3, xmm2\n\tcmp\trdi, rbx\n\tjb\t$LL7@dot_row_im\n\n; 757  :         for (size_t b = 0; b < nblocks; b++) {\n\n\tmov\trsi, QWORD PTR [rsp+64]\n$LN6@dot_row_im:\n\n; 763  :         }\n; 764  :         return acc;\n\n\tvmovaps\txmm0, xmm3\n\n; 765  :     }\n\n\tvzeroupper\n\tmov\trbx, QWORD PTR [rsp+72]\n\tadd\trsp, 48\t\t\t\t\t; 00000030H\n\tpop\trdi\n\tret\t0\n?dot_row_impl@CpuBackend@backend@@AEAAMPEBEPEBM_K@Z ENDP ; backend::CpuBackend::dot_row_impl",
+    "paired-pointer": "?dot_rows_q8@CpuBackend@backend@@AEAAXPEBEPEBMPEAM_K33@Z PROC ; backend::CpuBackend::dot_rows_q8, COMDAT\n\n; 710  :                      size_t nblocks, size_t first, size_t last) {\n\n$LN36:\n\tmov\tr11, rsp\n\tmov\tQWORD PTR [r11+16], rbx\n\tmov\tQWORD PTR [r11+24], rsi\n\tmov\tQWORD PTR [r11+8], rcx\n\tpush\trdi\n\tpush\tr12\n\tpush\tr13\n\tpush\tr14\n\tpush\tr15\n\tsub\trsp, 176\t\t\t\t; 000000b0H\n\n; 711  :         const size_t stride = nblocks * gguf::Q8_0_TYPESIZE;\n\n\tmov\trdi, QWORD PTR nblocks$[rsp]\n\tmov\trsi, r9\n\n; 712  :         size_t o = first;\n\n\tmov\trbx, QWORD PTR first$[rsp]\n\tmov\tr13, r8\n\n; 713  :         if (avx2_ && f16c_) {\n\n\tmov\tr14, QWORD PTR last$[rsp]\n\tmov\tr15, rdx\n\timul\tr12, rdi, 34\t\t\t\t; 00000022H\n\tcmp\tBYTE PTR [rcx+12], 0\n\tmov\trax, rcx\n\tje\t$LN3@dot_rows_q\n\tcmp\tBYTE PTR [rcx+13], 0\n\tje\t$LN3@dot_rows_q\n\n; 714  :             for (; o + 1 < last; o += 2) {\n\n\tlea\trax, QWORD PTR [rbx+1]\n\tcmp\trax, r14\n\tjae\t$LN28@dot_rows_q\n\tvmovaps\tXMMWORD PTR [r11-56], xmm6\n\tvmovaps\tXMMWORD PTR [r11-72], xmm7\n\tvmovaps\tXMMWORD PTR [r11-88], xmm8\n\tvmovaps\tXMMWORD PTR [r11-104], xmm9\n\tvmovaps\tXMMWORD PTR [r11-120], xmm10\n\tvmovaps\tXMMWORD PTR [rsp+80], xmm11\n\tvmovaps\tXMMWORD PTR [rsp+64], xmm12\n\tvmovaps\tXMMWORD PTR [rsp+48], xmm13\n\tvmovaps\tXMMWORD PTR [rsp+32], xmm14\n\tlea\tr9, QWORD PTR [rdx+r12]\n$LL4@dot_rows_q:\n\n; 715  :                 const uint8_t* r0 = data + o * stride;\n\n\tmov\trax, rbx\n\txor\tr8d, r8d\n\timul\trax, r12\n\tvxorps\txmm7, xmm7, xmm7\n\tvxorps\txmm8, xmm8, xmm8\n\tvxorps\txmm9, xmm9, xmm9\n\tvxorps\txmm10, xmm10, xmm10\n\tlea\trcx, QWORD PTR [rax+r15]\n\n; 716  :                 const uint8_t* r1 = r0 + stride;\n; 717  :                 __m256 s00 = _mm256_setzero_ps();\n; 718  :                 __m256 s01 = _mm256_setzero_ps();\n; 719  :                 __m256 s02 = _mm256_setzero_ps();\n; 720  :                 __m256 s03 = _mm256_setzero_ps();\n; 721  :                 __m256 s10 = _mm256_setzero_ps();\n; 722  :                 __m256 s11 = _mm256_setzero_ps();\n; 723  :                 __m256 s12 = _mm256_setzero_ps();\n; 724  :                 __m256 s13 = _mm256_setzero_ps();\n; 725  :                 const uint8_t* y0 = r0;\n\n\tlea\trdx, QWORD PTR [rax+r9]\n\n; 726  :                 const uint8_t* y1 = r1;\n; 727  :                 const float* xp = x;\n\n\tmov\trax, r13\n\tvxorps\txmm11, xmm11, xmm11\n\tvxorps\txmm12, xmm12, xmm12\n\tvxorps\txmm13, xmm13, xmm13\n\tvxorps\txmm14, xmm14, xmm14\n\n; 728  :                 for (size_t b = 0; b < nblocks; ++b, y0 += 34, y1 += 34, xp += 32) {\n\n\ttest\trdi, rdi\n\tje\t$LN6@dot_rows_q\n\tnpad\t9\n$LL7@dot_rows_q:\n\n; 729  :                     const __m256 d0 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y0)));\n; 730  :                     const __m256 d1 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y1)));\n; 731  :                     const __m256 x0 = _mm256_loadu_ps(xp + 0);\n\n\tvmovups\tymm4, YMMWORD PTR [rax]\n\tvpbroadcastw xmm1, XMMWORD PTR [rdx]\n\tvpbroadcastw xmm0, XMMWORD PTR [rcx]\n\tvcvtph2ps ymm6, xmm1\n\n; 732  :                     const __m256 q00 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 2))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+2]\n\tvcvtdq2ps ymm2, ymm1\n\n; 733  :                     s00 = _mm256_fmadd_ps(_mm256_mul_ps(q00, d0), x0, s00);\n; 734  :                     const __m256 q10 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 2))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rdx+2]\n\tvcvtph2ps ymm5, xmm0\n\tvmulps\tymm3, ymm2, ymm5\n\tvfmadd231ps ymm7, ymm3, ymm4\n\tvcvtdq2ps ymm2, ymm1\n\n; 735  :                     s10 = _mm256_fmadd_ps(_mm256_mul_ps(q10, d1), x0, s10);\n; 736  :                     const __m256 x1 = _mm256_loadu_ps(xp + 8);\n; 737  :                     const __m256 q01 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 10))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+10]\n\tvmulps\tymm3, ymm2, ymm6\n\tvfmadd231ps ymm11, ymm3, ymm4\n\tvmovups\tymm4, YMMWORD PTR [rax+32]\n\tvcvtdq2ps ymm2, ymm1\n\n; 738  :                     s01 = _mm256_fmadd_ps(_mm256_mul_ps(q01, d0), x1, s01);\n; 739  :                     const __m256 q11 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 10))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rdx+10]\n\tvmulps\tymm3, ymm2, ymm5\n\tvfmadd231ps ymm8, ymm3, ymm4\n\tvcvtdq2ps ymm2, ymm1\n\n; 740  :                     s11 = _mm256_fmadd_ps(_mm256_mul_ps(q11, d1), x1, s11);\n; 741  :                     const __m256 x2 = _mm256_loadu_ps(xp + 16);\n; 742  :                     const __m256 q02 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 18))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+18]\n\tvmulps\tymm3, ymm2, ymm6\n\tvfmadd231ps ymm12, ymm3, ymm4\n\tvmovups\tymm4, YMMWORD PTR [rax+64]\n\tvcvtdq2ps ymm2, ymm1\n\n; 743  :                     s02 = _mm256_fmadd_ps(_mm256_mul_ps(q02, d0), x2, s02);\n; 744  :                     const __m256 q12 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 18))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rdx+18]\n\tvmulps\tymm3, ymm2, ymm5\n\tvcvtdq2ps ymm2, ymm1\n\n; 745  :                     s12 = _mm256_fmadd_ps(_mm256_mul_ps(q12, d1), x2, s12);\n; 746  :                     const __m256 x3 = _mm256_loadu_ps(xp + 24);\n; 747  :                     const __m256 q03 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y0 + 26))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rcx+26]\n\tvfmadd231ps ymm9, ymm3, ymm4\n\tvmulps\tymm3, ymm2, ymm6\n\tvcvtdq2ps ymm2, ymm1\n\n; 748  :                     s03 = _mm256_fmadd_ps(_mm256_mul_ps(q03, d0), x3, s03);\n; 749  :                     const __m256 q13 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y1 + 26))));\n\n\tvpmovsxbd ymm1, QWORD PTR [rdx+26]\n\tvfmadd231ps ymm13, ymm3, ymm4\n\tvmovups\tymm4, YMMWORD PTR [rax+96]\n\tvmulps\tymm3, ymm2, ymm5\n\tvcvtdq2ps ymm2, ymm1\n\tvfmadd231ps ymm10, ymm3, ymm4\n\tinc\tr8\n\tlea\trcx, QWORD PTR [rcx+34]\n\tlea\trdx, QWORD PTR [rdx+34]\n\tlea\trax, QWORD PTR [rax+128]\n\n; 750  :                     s13 = _mm256_fmadd_ps(_mm256_mul_ps(q13, d1), x3, s13);\n\n\tvmulps\tymm3, ymm2, ymm6\n\tvfmadd231ps ymm14, ymm3, ymm4\n\tcmp\tr8, rdi\n\tjb\t$LL7@dot_rows_q\n$LN6@dot_rows_q:\n\n; 751  :                 }\n; 752  :                 const __m256 acc0 = _mm256_add_ps(_mm256_add_ps(s00, s01), _mm256_add_ps(s02, s03));\n\n\tvaddps\tymm1, ymm10, ymm9\n\tvaddps\tymm0, ymm8, ymm7\n\tvaddps\tymm3, ymm1, ymm0\n\n; 753  :                 __m128 v0 = _mm_add_ps(_mm256_castps256_ps128(acc0), _mm256_extractf128_ps(acc0, 1));\n\n\tvextractf128 xmm2, ymm3, 1\n\tvaddps\txmm0, xmm2, xmm3\n\n; 754  :                 v0 = _mm_hadd_ps(v0, v0);\n\n\tvhaddps\txmm1, xmm0, xmm0\n\n; 755  :                 v0 = _mm_hadd_ps(v0, v0);\n\n\tvhaddps\txmm0, xmm1, xmm1\n\n; 756  :                 out[o + 0] = _mm_cvtss_f32(v0);\n\n\tvmovss\tDWORD PTR [rsi+rbx*4], xmm0\n\n; 757  :                 const __m256 acc1 = _mm256_add_ps(_mm256_add_ps(s10, s11), _mm256_add_ps(s12, s13));\n\n\tvaddps\tymm0, ymm12, ymm11\n\tvaddps\tymm1, ymm14, ymm13\n\tvaddps\tymm3, ymm1, ymm0\n\n; 758  :                 __m128 v1 = _mm_add_ps(_mm256_castps256_ps128(acc1), _mm256_extractf128_ps(acc1, 1));\n\n\tvextractf128 xmm2, ymm3, 1\n\tvaddps\txmm0, xmm2, xmm3\n\n; 759  :                 v1 = _mm_hadd_ps(v1, v1);\n\n\tvhaddps\txmm1, xmm0, xmm0\n\n; 760  :                 v1 = _mm_hadd_ps(v1, v1);\n\n\tvhaddps\txmm2, xmm1, xmm1\n\n; 761  :                 out[o + 1] = _mm_cvtss_f32(v1);\n\n\tvmovss\tDWORD PTR [rsi+rbx*4+4], xmm2\n\tadd\trbx, 2\n\tlea\trax, QWORD PTR [rbx+1]\n\tcmp\trax, r14\n\tjb\t$LL4@dot_rows_q\n\n; 714  :             for (; o + 1 < last; o += 2) {\n\n\tvmovaps\txmm14, XMMWORD PTR [rsp+32]\n\tvmovaps\txmm13, XMMWORD PTR [rsp+48]\n\tvmovaps\txmm12, XMMWORD PTR [rsp+64]\n\tvmovaps\txmm11, XMMWORD PTR [rsp+80]\n\tvmovaps\txmm10, XMMWORD PTR [rsp+96]\n\tvmovaps\txmm9, XMMWORD PTR [rsp+112]\n\tvmovaps\txmm8, XMMWORD PTR [rsp+128]\n\tvmovaps\txmm7, XMMWORD PTR [rsp+144]\n\tvmovaps\txmm6, XMMWORD PTR [rsp+160]\n$LN28@dot_rows_q:\n\n; 762  :             }\n; 763  :         }\n; 764  :         for (; o < last; ++o) out[o] = dot_row_impl(data + o * stride, x, nblocks);\n\n\tmov\trax, QWORD PTR this$[rsp]\n$LN3@dot_rows_q:\n\tcmp\trbx, r14\n\tjae\tSHORT $LN9@dot_rows_q\n\tnpad\t15\n$LL10@dot_rows_q:\n\tmov\trdx, rbx\n\tmov\tr9, rdi\n\timul\trdx, r12\n\tmov\tr8, r13\n\tmov\trcx, rax\n\tadd\trdx, r15\n\tvzeroupper\n\tcall\t?dot_row_impl@CpuBackend@backend@@AEAAMPEBEPEBM_K@Z ; backend::CpuBackend::dot_row_impl\n\tmov\trax, QWORD PTR this$[rsp]\n\tvmovss\tDWORD PTR [rsi+rbx*4], xmm0\n\tinc\trbx\n\tcmp\trbx, r14\n\tjb\tSHORT $LL10@dot_rows_q\n$LN9@dot_rows_q:\n\n; 765  :     }\n\n\tvzeroupper\n\tlea\tr11, QWORD PTR [rsp+176]\n\tmov\trbx, QWORD PTR [r11+56]\n\tmov\trsi, QWORD PTR [r11+64]\n\tmov\trsp, r11\n\tpop\tr15\n\tpop\tr14\n\tpop\tr13\n\tpop\tr12\n\tpop\trdi\n\tret\t0\n?dot_rows_q8@CpuBackend@backend@@AEAAXPEBEPEBMPEAM_K33@Z ENDP ; backend::CpuBackend::dot_rows_q8"
+  },
+  "reproduction": {
+    "diagnostic.py": "import hashlib,json,math,statistics,subprocess\nfrom pathlib import Path\nr=Path(__file__).parent\ntemp=r.parent\nout=r/\"diagnostic\";out.mkdir(exist_ok=False)\narms={\"base\":temp/\"llmx-q8-scale-load/validation/candidate-compare.exe\",\"paired\":r/\"paired.exe\",\"mx\":Path.home()/\"Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe\"}\nmodels={\"q8\":Path.home()/\".cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf\"}\nids=temp/\"llmx-external-perf/eight-pairs/tokens.txt\"\nhashes={name:hashlib.file_digest(p.open(\"rb\"),\"sha256\").hexdigest() for name,p in dict(arms,**models,tokens=ids).items()}\n(out/\"hashes.json\").write_text(json.dumps(hashes,indent=2))\nrows=[]\nfor model,path in models.items():\n    for round in range(-1,3):\n        order=list(arms);order=order[round%len(arms):]+order[:round%len(arms)]\n        if round%2:order.reverse()\n        for arm in order:\n            p=subprocess.run([str(arms[arm]),str(path),str(ids)],capture_output=True,timeout=180)\n            (out/f\"{model}-{round}-{arm}.stdout\").write_bytes(p.stdout);(out/f\"{model}-{round}-{arm}.stderr\").write_bytes(p.stderr);p.check_returncode()\n            samples=[json.loads(v) for v in p.stdout.splitlines()];assert len(samples)==2\n            row=dict(model=model,round=round,arm=arm,**samples[1])\n            assert row[\"pp_tokens\"]==215 and row[\"tg_tokens\"]==32 and row[\"run\"]==1\n            assert all(math.isfinite(row[k]) and row[k]>0 for k in (\"pp_ms\",\"tg_ms\"))\n            assert arm==\"mx\" or row[\"logit_sum\"]=={\"q8\":-492001.8287,\"f32\":-501040.0615}[model]\n            if round>=0:rows.append(row)\n            (out/\"results.json\").write_text(json.dumps(rows,indent=2))\n            print(row,flush=True)\nsummary={}\nfor model in models:\n    summary[model]={}\n    for arm in arms:\n        summary[model][arm]={}\n        for phase in (\"pp\",\"tg\"):\n            v=[x[phase+\"_tokens\"]*1000/x[phase+\"_ms\"] for x in rows if x[\"model\"]==model and x[\"arm\"]==arm]\n            summary[model][arm][phase]=dict(mean=statistics.mean(v),median=statistics.median(v),minimum=min(v),maximum=max(v),n=len(v))\n(out/\"summary.json\").write_text(json.dumps(summary,indent=2));print(summary,flush=True)\n",
+    "inline-diagnostic.py": "import hashlib,json,math,statistics,subprocess\nfrom pathlib import Path\nr=Path(__file__).parent\ntemp=r.parent\nout=r/\"inline-diagnostic\";out.mkdir(exist_ok=False)\narms={\"base\":temp/\"llmx-q8-scale-load/validation/candidate-compare.exe\",\"inline\":r/\"inline.exe\",\"pointer-inline\":r/\"pointer-inline.exe\",\"mx\":Path.home()/\"Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe\"}\nmodels={\"q8\":Path.home()/\".cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf\"}\nids=temp/\"llmx-external-perf/eight-pairs/tokens.txt\"\nhashes={name:hashlib.file_digest(p.open(\"rb\"),\"sha256\").hexdigest() for name,p in dict(arms,**models,tokens=ids).items()}\n(out/\"hashes.json\").write_text(json.dumps(hashes,indent=2))\nrows=[]\nfor model,path in models.items():\n    for round in range(-1,3):\n        order=list(arms);order=order[round%len(arms):]+order[:round%len(arms)]\n        if round%2:order.reverse()\n        for arm in order:\n            p=subprocess.run([str(arms[arm]),str(path),str(ids)],capture_output=True,timeout=180)\n            (out/f\"{model}-{round}-{arm}.stdout\").write_bytes(p.stdout);(out/f\"{model}-{round}-{arm}.stderr\").write_bytes(p.stderr);p.check_returncode()\n            samples=[json.loads(v) for v in p.stdout.splitlines()];assert len(samples)==2\n            row=dict(model=model,round=round,arm=arm,**samples[1])\n            assert row[\"pp_tokens\"]==215 and row[\"tg_tokens\"]==32 and row[\"run\"]==1\n            assert all(math.isfinite(row[k]) and row[k]>0 for k in (\"pp_ms\",\"tg_ms\"))\n            assert arm==\"mx\" or row[\"logit_sum\"]=={\"q8\":-492001.8287,\"f32\":-501040.0615}[model]\n            if round>=0:rows.append(row)\n            (out/\"results.json\").write_text(json.dumps(rows,indent=2))\n            print(row,flush=True)\nsummary={}\nfor model in models:\n    summary[model]={}\n    for arm in arms:\n        summary[model][arm]={}\n        for phase in (\"pp\",\"tg\"):\n            v=[x[phase+\"_tokens\"]*1000/x[phase+\"_ms\"] for x in rows if x[\"model\"]==model and x[\"arm\"]==arm]\n            summary[model][arm][phase]=dict(mean=statistics.mean(v),median=statistics.median(v),minimum=min(v),maximum=max(v),n=len(v))\n(out/\"summary.json\").write_text(json.dumps(summary,indent=2));print(summary,flush=True)\n",
+    "pointer-diagnostic.py": "import hashlib,json,math,statistics,subprocess\nfrom pathlib import Path\nr=Path(__file__).parent\ntemp=r.parent\nout=r/\"pointer-diagnostic\";out.mkdir(exist_ok=False)\narms={\"base\":temp/\"llmx-q8-scale-load/validation/candidate-compare.exe\",\"pointer\":r/\"pointer.exe\",\"paired-pointer\":r/\"paired-pointer.exe\",\"mx\":Path.home()/\"Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe\"}\nmodels={\"q8\":Path.home()/\".cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf\"}\nids=temp/\"llmx-external-perf/eight-pairs/tokens.txt\"\nhashes={name:hashlib.file_digest(p.open(\"rb\"),\"sha256\").hexdigest() for name,p in dict(arms,**models,tokens=ids).items()}\n(out/\"hashes.json\").write_text(json.dumps(hashes,indent=2))\nrows=[]\nfor model,path in models.items():\n    for round in range(-1,3):\n        order=list(arms);order=order[round%len(arms):]+order[:round%len(arms)]\n        if round%2:order.reverse()\n        for arm in order:\n            p=subprocess.run([str(arms[arm]),str(path),str(ids)],capture_output=True,timeout=180)\n            (out/f\"{model}-{round}-{arm}.stdout\").write_bytes(p.stdout);(out/f\"{model}-{round}-{arm}.stderr\").write_bytes(p.stderr);p.check_returncode()\n            samples=[json.loads(v) for v in p.stdout.splitlines()];assert len(samples)==2\n            row=dict(model=model,round=round,arm=arm,**samples[1])\n            assert row[\"pp_tokens\"]==215 and row[\"tg_tokens\"]==32 and row[\"run\"]==1\n            assert all(math.isfinite(row[k]) and row[k]>0 for k in (\"pp_ms\",\"tg_ms\"))\n            assert arm==\"mx\" or row[\"logit_sum\"]=={\"q8\":-492001.8287,\"f32\":-501040.0615}[model]\n            if round>=0:rows.append(row)\n            (out/\"results.json\").write_text(json.dumps(rows,indent=2))\n            print(row,flush=True)\nsummary={}\nfor model in models:\n    summary[model]={}\n    for arm in arms:\n        summary[model][arm]={}\n        for phase in (\"pp\",\"tg\"):\n            v=[x[phase+\"_tokens\"]*1000/x[phase+\"_ms\"] for x in rows if x[\"model\"]==model and x[\"arm\"]==arm]\n            summary[model][arm][phase]=dict(mean=statistics.mean(v),median=statistics.median(v),minimum=min(v),maximum=max(v),n=len(v))\n(out/\"summary.json\").write_text(json.dumps(summary,indent=2));print(summary,flush=True)\n",
+    "pointer-eight-rounds.py": "import hashlib,json,math,statistics,subprocess\nfrom pathlib import Path\nr=Path(__file__).parent\ntemp=r.parent\nout=r/\"pointer-eight-rounds\";out.mkdir(exist_ok=False)\narms={\"base\":temp/\"llmx-q8-scale-load/validation/candidate-compare.exe\",\"pointer\":r/\"pointer.exe\",\"mx\":Path.home()/\"Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe\"}\nmodels={\"q8\":Path.home()/\".cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf\"}\nids=temp/\"llmx-external-perf/eight-pairs/tokens.txt\"\nhashes={name:hashlib.file_digest(p.open(\"rb\"),\"sha256\").hexdigest() for name,p in dict(arms,**models,tokens=ids).items()}\n(out/\"hashes.json\").write_text(json.dumps(hashes,indent=2))\nrows=[]\nfor model,path in models.items():\n    for round in range(-1,8):\n        order=list(arms);order=order[round%len(arms):]+order[:round%len(arms)]\n        if round%2:order.reverse()\n        for arm in order:\n            p=subprocess.run([str(arms[arm]),str(path),str(ids)],capture_output=True,timeout=180)\n            (out/f\"{model}-{round}-{arm}.stdout\").write_bytes(p.stdout);(out/f\"{model}-{round}-{arm}.stderr\").write_bytes(p.stderr);p.check_returncode()\n            samples=[json.loads(v) for v in p.stdout.splitlines()];assert len(samples)==2\n            row=dict(model=model,round=round,arm=arm,**samples[1])\n            assert row[\"pp_tokens\"]==215 and row[\"tg_tokens\"]==32 and row[\"run\"]==1\n            assert all(math.isfinite(row[k]) and row[k]>0 for k in (\"pp_ms\",\"tg_ms\"))\n            assert arm==\"mx\" or row[\"logit_sum\"]=={\"q8\":-492001.8287,\"f32\":-501040.0615}[model]\n            if round>=0:rows.append(row)\n            (out/\"results.json\").write_text(json.dumps(rows,indent=2))\n            print(row,flush=True)\nsummary={}\nfor model in models:\n    summary[model]={}\n    for arm in arms:\n        summary[model][arm]={}\n        for phase in (\"pp\",\"tg\"):\n            v=[x[phase+\"_tokens\"]*1000/x[phase+\"_ms\"] for x in rows if x[\"model\"]==model and x[\"arm\"]==arm]\n            summary[model][arm][phase]=dict(mean=statistics.mean(v),median=statistics.median(v),minimum=min(v),maximum=max(v),n=len(v))\n(out/\"summary.json\").write_text(json.dumps(summary,indent=2));print(summary,flush=True)\n",
+    "prepare-inline.py": "from pathlib import Path\nimport os\nrepo=Path.cwd();r=Path(os.environ['TEMP'])/'llmx-q8-paired'\np=repo/'docs/STATUS.md';s=p.read_text(encoding='utf-8');s=s.replace('''  Check exact outputs and matched model timing before considering adoption.\n- **Gotchas:** paired F32''','''  Check exact outputs and matched model timing before considering adoption.\n  Assembly also retains a function call for each Q8 row; test explicit inlining\n  separately, including its code-size cost, after the current timing run.\n- **Gotchas:** paired F32''');p.write_text(s,encoding='utf-8')\nfor arm,source in [('inline',r/'control.hpp'),('pointer-inline',r/'pointer/backends/cpu/cpu_backend.hpp')]:\n s=source.read_text().replace('    float dot_row_impl(','''#if defined(_MSC_VER)\n    __forceinline\n#elif defined(__GNUC__) || defined(__clang__)\n    __attribute__((always_inline)) inline\n#endif\n    float dot_row_impl(''')\n p=r/arm/'backends/cpu/cpu_backend.hpp';p.parent.mkdir(parents=True);p.write_text(s)\n (r/(arm+'-test.hpp')).write_text(s.replace('private:','public:'))\n (r/('exact-'+arm+'.cpp')).write_text((r/'exact.cpp').read_text().replace('paired-test.hpp',arm+'-test.hpp'))\nlines=['@echo off','call \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\" >nul','if errorlevel 1 exit /b 1']\nfor arm in ('inline','pointer-inline'):\n for kind,src in [('compare',repo/'tools/compare_cpu.cpp'),('exact',r/('exact-'+arm+'.cpp'))]:\n  name=arm if kind=='compare' else 'exact-'+arm\n  lines += [f'cl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Fa{name}.asm /I \"{r/arm}\" /I \"{repo/\"src\"}\" /Fe:{name}.exe /Fo:{name}.obj \"{src}\"','if errorlevel 1 exit /b 1']\n(r/'build-inline.bat').write_text('\\n'.join(lines)+'\\n')\ns=(r/'pointer-diagnostic.py').read_text().replace('out=r/\"pointer-diagnostic\"','out=r/\"inline-diagnostic\"').replace('\"pointer\":r/\"pointer.exe\",\"paired-pointer\":r/\"paired-pointer.exe\"','\"inline\":r/\"inline.exe\",\"pointer-inline\":r/\"pointer-inline.exe\"')\n(r/'inline-diagnostic.py').write_text(s)\n",
+    "prepare-pointers.py": "from pathlib import Path\nimport os\nr=Path(os.environ['TEMP'])/'llmx-q8-paired';repo=Path.cwd()\ns=(r/'control.hpp').read_text();a=s.index('    float dot_row_impl(');end=s.index('        float acc = 0.0f;',a)\nbody=s[a:end]\nbody=body.replace('''            for (size_t b = 0; b < nblocks; b++) {\n                const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;''','''            const uint8_t* y = row;\n            const float* xp = x;\n            for (size_t b = 0; b < nblocks; ++b, y += gguf::Q8_0_TYPESIZE, xp += gguf::Q8_0_BLOCK) {''').replace('                const float* xp = x + b * gguf::Q8_0_BLOCK;\\n','')\nptr=s[:a]+body+s[end:]\np=r/'pointer/backends/cpu/cpu_backend.hpp';p.parent.mkdir(parents=True);p.write_text(ptr)\n(r/'pointer-test.hpp').write_text(ptr.replace('private:','public:'))\n(r/'exact-pointer.cpp').write_text((r/'exact.cpp').read_text().replace('paired-test.hpp','pointer-test.hpp'))\ns=(r/'paired/backends/cpu/cpu_backend.hpp').read_text()\ns=s.replace('''                for (size_t b = 0; b < nblocks; ++b) {\n                    const uint8_t* y0 = r0 + b * gguf::Q8_0_TYPESIZE;\n                    const uint8_t* y1 = r1 + b * gguf::Q8_0_TYPESIZE;''','''                const uint8_t* y0 = r0;\n                const uint8_t* y1 = r1;\n                const float* xp = x;\n                for (size_t b = 0; b < nblocks; ++b, y0 += 34, y1 += 34, xp += 32) {''')\ns=s.replace('x + b * 32 + ', 'xp + ')\np=r/'paired-pointer/backends/cpu/cpu_backend.hpp';p.parent.mkdir(parents=True);p.write_text(s)\n(r/'paired-pointer-test.hpp').write_text(s.replace('private:','public:'))\n(r/'exact-paired-pointer.cpp').write_text((r/'exact.cpp').read_text().replace('paired-test.hpp','paired-pointer-test.hpp'))\nlines=['@echo off','call \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\" >nul','if errorlevel 1 exit /b 1']\nfor arm in ('pointer','paired-pointer'):\n for kind,src in [('compare',repo/'tools/compare_cpu.cpp'),('exact',r/('exact-'+arm+'.cpp'))]:\n  name=arm if kind=='compare' else 'exact-'+arm\n  lines += [f'cl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Fa{name}.asm /I \"{r/arm}\" /I \"{repo/\"src\"}\" /Fe:{name}.exe /Fo:{name}.obj \"{src}\"','if errorlevel 1 exit /b 1']\n(r/'build-pointers.bat').write_text('\\n'.join(lines)+'\\n')\ns=(r/'diagnostic.py').read_text().replace('out=r/\"diagnostic\"','out=r/\"pointer-diagnostic\"').replace('\"paired\":r/\"paired.exe\"','\"pointer\":r/\"pointer.exe\",\"paired-pointer\":r/\"paired-pointer.exe\"')\n(r/'pointer-diagnostic.py').write_text(s)\np=repo/'docs/STATUS.md';s=p.read_text(encoding='utf-8').replace('''- **Left:** build a scratch paired-row kernel and check exact row outputs,\n  including odd row tails and fallback paths. Inspect assembly, then measure\n  against the control on matched Q8 model histories before considering adoption.''','''- **Finding:** paired-row exact checks pass, including tails/fallbacks, but\n  matched model decode regresses with disjoint ranges. Do not adopt it. Assembly\n  confirms shared activation loads without inner-loop accumulator spills.\n- **Left:** test direct pointer increments instead of repeated block-address\n  multiplication in both the current single-row and scratch paired kernels.\n  Check exact outputs and matched model timing before considering adoption.''');p.write_text(s,encoding='utf-8')\n",
+    "exact-inline.cpp": "#include \"inline-test.hpp\"\n#include \"control-test.hpp\"\n#include <array>\n#include <cstring>\n#include <iostream>\n#include <random>\nint main() {\n    backend::CpuBackend candidate;\n    control_backend::CpuBackend control;\n    const bool avx = candidate.avx2_, half = candidate.f16c_;\n    std::mt19937 rng(87912);\n    size_t outputs=0, cases=0, scales=0;\n    for(int path=0;path<3;++path) {\n        candidate.avx2_=control.avx2_=path==2?false:avx;\n        candidate.f16c_=control.f16c_=path==0?half:false;\n        for(int threads : {1,3,6}) {\n            candidate.set_threads(threads); control.set_threads(threads);\n            for(size_t blocks : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(7),size_t(32),size_t(37),size_t(128)}) {\n                for(size_t rows : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(17),size_t(49),size_t(127)}) {\n                    std::vector<uint8_t> data(std::max(size_t(1),rows*blocks*34));\n                    std::vector<float> x(std::max(size_t(1),blocks*32));\n                    for(float& v:x) v=float(int(rng()%20001)-10000)/10001.0f;\n                    for(size_t b=0;b<rows*blocks;++b) {\n                        unsigned h=rng()&65535;\n                        if((h&0x7c00)==0x7c00) h^=0x0400;\n                        data[b*34]=uint8_t(h);data[b*34+1]=uint8_t(h>>8);\n                        for(size_t i=2;i<34;++i) data[b*34+i]=uint8_t(rng());\n                    }\n                    std::vector<float> a(rows+2,12345.0f),b=a;\n                    control.matvec_q8_0(data.data(),x.data(),a.data()+1,blocks,rows);\n                    candidate.matvec_q8_0(data.data(),x.data(),b.data()+1,blocks,rows);\n                    if(std::memcmp(a.data(),b.data(),a.size()*sizeof(float))) {\n                        std::cerr<<\"mismatch path=\"<<path<<\" threads=\"<<threads<<\" blocks=\"<<blocks<<\" rows=\"<<rows<<\"\\n\";return 1;\n                    }\n                    for(float v:b) if(!std::isfinite(v)) return 2;\n                    outputs+=rows;++cases;\n                }\n            }\n        }\n    }\n    candidate.set_threads(1);candidate.avx2_=avx;candidate.f16c_=half;\n    std::array<uint8_t,68> data{};\n    std::array<float,32> x{};\n    for(unsigned h=0;h<65536;++h) {\n        if((h&0x7c00)==0x7c00) continue;\n        unsigned other=h^0x8000;\n        data[0]=uint8_t(h);data[1]=uint8_t(h>>8);\n        data[34]=uint8_t(other);data[35]=uint8_t(other>>8);\n        x[h%32]=1.0f;\n        for(int q : {-128,-1,0,127}) {\n            std::fill(data.begin()+2,data.begin()+34,uint8_t(q));\n            std::fill(data.begin()+36,data.end(),uint8_t(q));\n            float out[2];candidate.matvec_q8_0(data.data(),x.data(),out,1,2);\n            if(out[0]!=f16_to_f32(uint16_t(h))*float(q)||out[1]!=f16_to_f32(uint16_t(other))*float(q)) return 3;\n            scales+=2;\n        }\n        x[h%32]=0;\n    }\n    std::cout<<\"{\\\"matrix_cases\\\":\"<<cases<<\",\\\"exact_outputs\\\":\"<<outputs<<\",\\\"finite_scale_cases\\\":\"<<scales<<\",\\\"native_avx2\\\":\"<<avx<<\",\\\"native_f16c\\\":\"<<half<<\"}\\n\";\n}\n",
+    "exact-paired-pointer.cpp": "#include \"paired-pointer-test.hpp\"\n#include \"control-test.hpp\"\n#include <array>\n#include <cstring>\n#include <iostream>\n#include <random>\nint main() {\n    backend::CpuBackend candidate;\n    control_backend::CpuBackend control;\n    const bool avx = candidate.avx2_, half = candidate.f16c_;\n    std::mt19937 rng(87912);\n    size_t outputs=0, cases=0, scales=0;\n    for(int path=0;path<3;++path) {\n        candidate.avx2_=control.avx2_=path==2?false:avx;\n        candidate.f16c_=control.f16c_=path==0?half:false;\n        for(int threads : {1,3,6}) {\n            candidate.set_threads(threads); control.set_threads(threads);\n            for(size_t blocks : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(7),size_t(32),size_t(37),size_t(128)}) {\n                for(size_t rows : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(17),size_t(49),size_t(127)}) {\n                    std::vector<uint8_t> data(std::max(size_t(1),rows*blocks*34));\n                    std::vector<float> x(std::max(size_t(1),blocks*32));\n                    for(float& v:x) v=float(int(rng()%20001)-10000)/10001.0f;\n                    for(size_t b=0;b<rows*blocks;++b) {\n                        unsigned h=rng()&65535;\n                        if((h&0x7c00)==0x7c00) h^=0x0400;\n                        data[b*34]=uint8_t(h);data[b*34+1]=uint8_t(h>>8);\n                        for(size_t i=2;i<34;++i) data[b*34+i]=uint8_t(rng());\n                    }\n                    std::vector<float> a(rows+2,12345.0f),b=a;\n                    control.matvec_q8_0(data.data(),x.data(),a.data()+1,blocks,rows);\n                    candidate.matvec_q8_0(data.data(),x.data(),b.data()+1,blocks,rows);\n                    if(std::memcmp(a.data(),b.data(),a.size()*sizeof(float))) {\n                        std::cerr<<\"mismatch path=\"<<path<<\" threads=\"<<threads<<\" blocks=\"<<blocks<<\" rows=\"<<rows<<\"\\n\";return 1;\n                    }\n                    for(float v:b) if(!std::isfinite(v)) return 2;\n                    outputs+=rows;++cases;\n                }\n            }\n        }\n    }\n    candidate.set_threads(1);candidate.avx2_=avx;candidate.f16c_=half;\n    std::array<uint8_t,68> data{};\n    std::array<float,32> x{};\n    for(unsigned h=0;h<65536;++h) {\n        if((h&0x7c00)==0x7c00) continue;\n        unsigned other=h^0x8000;\n        data[0]=uint8_t(h);data[1]=uint8_t(h>>8);\n        data[34]=uint8_t(other);data[35]=uint8_t(other>>8);\n        x[h%32]=1.0f;\n        for(int q : {-128,-1,0,127}) {\n            std::fill(data.begin()+2,data.begin()+34,uint8_t(q));\n            std::fill(data.begin()+36,data.end(),uint8_t(q));\n            float out[2];candidate.matvec_q8_0(data.data(),x.data(),out,1,2);\n            if(out[0]!=f16_to_f32(uint16_t(h))*float(q)||out[1]!=f16_to_f32(uint16_t(other))*float(q)) return 3;\n            scales+=2;\n        }\n        x[h%32]=0;\n    }\n    std::cout<<\"{\\\"matrix_cases\\\":\"<<cases<<\",\\\"exact_outputs\\\":\"<<outputs<<\",\\\"finite_scale_cases\\\":\"<<scales<<\",\\\"native_avx2\\\":\"<<avx<<\",\\\"native_f16c\\\":\"<<half<<\"}\\n\";\n}\n",
+    "exact-pointer-inline.cpp": "#include \"pointer-inline-test.hpp\"\n#include \"control-test.hpp\"\n#include <array>\n#include <cstring>\n#include <iostream>\n#include <random>\nint main() {\n    backend::CpuBackend candidate;\n    control_backend::CpuBackend control;\n    const bool avx = candidate.avx2_, half = candidate.f16c_;\n    std::mt19937 rng(87912);\n    size_t outputs=0, cases=0, scales=0;\n    for(int path=0;path<3;++path) {\n        candidate.avx2_=control.avx2_=path==2?false:avx;\n        candidate.f16c_=control.f16c_=path==0?half:false;\n        for(int threads : {1,3,6}) {\n            candidate.set_threads(threads); control.set_threads(threads);\n            for(size_t blocks : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(7),size_t(32),size_t(37),size_t(128)}) {\n                for(size_t rows : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(17),size_t(49),size_t(127)}) {\n                    std::vector<uint8_t> data(std::max(size_t(1),rows*blocks*34));\n                    std::vector<float> x(std::max(size_t(1),blocks*32));\n                    for(float& v:x) v=float(int(rng()%20001)-10000)/10001.0f;\n                    for(size_t b=0;b<rows*blocks;++b) {\n                        unsigned h=rng()&65535;\n                        if((h&0x7c00)==0x7c00) h^=0x0400;\n                        data[b*34]=uint8_t(h);data[b*34+1]=uint8_t(h>>8);\n                        for(size_t i=2;i<34;++i) data[b*34+i]=uint8_t(rng());\n                    }\n                    std::vector<float> a(rows+2,12345.0f),b=a;\n                    control.matvec_q8_0(data.data(),x.data(),a.data()+1,blocks,rows);\n                    candidate.matvec_q8_0(data.data(),x.data(),b.data()+1,blocks,rows);\n                    if(std::memcmp(a.data(),b.data(),a.size()*sizeof(float))) {\n                        std::cerr<<\"mismatch path=\"<<path<<\" threads=\"<<threads<<\" blocks=\"<<blocks<<\" rows=\"<<rows<<\"\\n\";return 1;\n                    }\n                    for(float v:b) if(!std::isfinite(v)) return 2;\n                    outputs+=rows;++cases;\n                }\n            }\n        }\n    }\n    candidate.set_threads(1);candidate.avx2_=avx;candidate.f16c_=half;\n    std::array<uint8_t,68> data{};\n    std::array<float,32> x{};\n    for(unsigned h=0;h<65536;++h) {\n        if((h&0x7c00)==0x7c00) continue;\n        unsigned other=h^0x8000;\n        data[0]=uint8_t(h);data[1]=uint8_t(h>>8);\n        data[34]=uint8_t(other);data[35]=uint8_t(other>>8);\n        x[h%32]=1.0f;\n        for(int q : {-128,-1,0,127}) {\n            std::fill(data.begin()+2,data.begin()+34,uint8_t(q));\n            std::fill(data.begin()+36,data.end(),uint8_t(q));\n            float out[2];candidate.matvec_q8_0(data.data(),x.data(),out,1,2);\n            if(out[0]!=f16_to_f32(uint16_t(h))*float(q)||out[1]!=f16_to_f32(uint16_t(other))*float(q)) return 3;\n            scales+=2;\n        }\n        x[h%32]=0;\n    }\n    std::cout<<\"{\\\"matrix_cases\\\":\"<<cases<<\",\\\"exact_outputs\\\":\"<<outputs<<\",\\\"finite_scale_cases\\\":\"<<scales<<\",\\\"native_avx2\\\":\"<<avx<<\",\\\"native_f16c\\\":\"<<half<<\"}\\n\";\n}\n",
+    "exact-pointer.cpp": "#include \"pointer-test.hpp\"\n#include \"control-test.hpp\"\n#include <array>\n#include <cstring>\n#include <iostream>\n#include <random>\nint main() {\n    backend::CpuBackend candidate;\n    control_backend::CpuBackend control;\n    const bool avx = candidate.avx2_, half = candidate.f16c_;\n    std::mt19937 rng(87912);\n    size_t outputs=0, cases=0, scales=0;\n    for(int path=0;path<3;++path) {\n        candidate.avx2_=control.avx2_=path==2?false:avx;\n        candidate.f16c_=control.f16c_=path==0?half:false;\n        for(int threads : {1,3,6}) {\n            candidate.set_threads(threads); control.set_threads(threads);\n            for(size_t blocks : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(7),size_t(32),size_t(37),size_t(128)}) {\n                for(size_t rows : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(17),size_t(49),size_t(127)}) {\n                    std::vector<uint8_t> data(std::max(size_t(1),rows*blocks*34));\n                    std::vector<float> x(std::max(size_t(1),blocks*32));\n                    for(float& v:x) v=float(int(rng()%20001)-10000)/10001.0f;\n                    for(size_t b=0;b<rows*blocks;++b) {\n                        unsigned h=rng()&65535;\n                        if((h&0x7c00)==0x7c00) h^=0x0400;\n                        data[b*34]=uint8_t(h);data[b*34+1]=uint8_t(h>>8);\n                        for(size_t i=2;i<34;++i) data[b*34+i]=uint8_t(rng());\n                    }\n                    std::vector<float> a(rows+2,12345.0f),b=a;\n                    control.matvec_q8_0(data.data(),x.data(),a.data()+1,blocks,rows);\n                    candidate.matvec_q8_0(data.data(),x.data(),b.data()+1,blocks,rows);\n                    if(std::memcmp(a.data(),b.data(),a.size()*sizeof(float))) {\n                        std::cerr<<\"mismatch path=\"<<path<<\" threads=\"<<threads<<\" blocks=\"<<blocks<<\" rows=\"<<rows<<\"\\n\";return 1;\n                    }\n                    for(float v:b) if(!std::isfinite(v)) return 2;\n                    outputs+=rows;++cases;\n                }\n            }\n        }\n    }\n    candidate.set_threads(1);candidate.avx2_=avx;candidate.f16c_=half;\n    std::array<uint8_t,68> data{};\n    std::array<float,32> x{};\n    for(unsigned h=0;h<65536;++h) {\n        if((h&0x7c00)==0x7c00) continue;\n        unsigned other=h^0x8000;\n        data[0]=uint8_t(h);data[1]=uint8_t(h>>8);\n        data[34]=uint8_t(other);data[35]=uint8_t(other>>8);\n        x[h%32]=1.0f;\n        for(int q : {-128,-1,0,127}) {\n            std::fill(data.begin()+2,data.begin()+34,uint8_t(q));\n            std::fill(data.begin()+36,data.end(),uint8_t(q));\n            float out[2];candidate.matvec_q8_0(data.data(),x.data(),out,1,2);\n            if(out[0]!=f16_to_f32(uint16_t(h))*float(q)||out[1]!=f16_to_f32(uint16_t(other))*float(q)) return 3;\n            scales+=2;\n        }\n        x[h%32]=0;\n    }\n    std::cout<<\"{\\\"matrix_cases\\\":\"<<cases<<\",\\\"exact_outputs\\\":\"<<outputs<<\",\\\"finite_scale_cases\\\":\"<<scales<<\",\\\"native_avx2\\\":\"<<avx<<\",\\\"native_f16c\\\":\"<<half<<\"}\\n\";\n}\n",
+    "exact.cpp": "#include \"paired-test.hpp\"\n#include \"control-test.hpp\"\n#include <array>\n#include <cstring>\n#include <iostream>\n#include <random>\nint main() {\n    backend::CpuBackend candidate;\n    control_backend::CpuBackend control;\n    const bool avx = candidate.avx2_, half = candidate.f16c_;\n    std::mt19937 rng(87912);\n    size_t outputs=0, cases=0, scales=0;\n    for(int path=0;path<3;++path) {\n        candidate.avx2_=control.avx2_=path==2?false:avx;\n        candidate.f16c_=control.f16c_=path==0?half:false;\n        for(int threads : {1,3,6}) {\n            candidate.set_threads(threads); control.set_threads(threads);\n            for(size_t blocks : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(7),size_t(32),size_t(37),size_t(128)}) {\n                for(size_t rows : {size_t(0),size_t(1),size_t(2),size_t(3),size_t(17),size_t(49),size_t(127)}) {\n                    std::vector<uint8_t> data(std::max(size_t(1),rows*blocks*34));\n                    std::vector<float> x(std::max(size_t(1),blocks*32));\n                    for(float& v:x) v=float(int(rng()%20001)-10000)/10001.0f;\n                    for(size_t b=0;b<rows*blocks;++b) {\n                        unsigned h=rng()&65535;\n                        if((h&0x7c00)==0x7c00) h^=0x0400;\n                        data[b*34]=uint8_t(h);data[b*34+1]=uint8_t(h>>8);\n                        for(size_t i=2;i<34;++i) data[b*34+i]=uint8_t(rng());\n                    }\n                    std::vector<float> a(rows+2,12345.0f),b=a;\n                    control.matvec_q8_0(data.data(),x.data(),a.data()+1,blocks,rows);\n                    candidate.matvec_q8_0(data.data(),x.data(),b.data()+1,blocks,rows);\n                    if(std::memcmp(a.data(),b.data(),a.size()*sizeof(float))) {\n                        std::cerr<<\"mismatch path=\"<<path<<\" threads=\"<<threads<<\" blocks=\"<<blocks<<\" rows=\"<<rows<<\"\\n\";return 1;\n                    }\n                    for(float v:b) if(!std::isfinite(v)) return 2;\n                    outputs+=rows;++cases;\n                }\n            }\n        }\n    }\n    candidate.set_threads(1);candidate.avx2_=avx;candidate.f16c_=half;\n    std::array<uint8_t,68> data{};\n    std::array<float,32> x{};\n    for(unsigned h=0;h<65536;++h) {\n        if((h&0x7c00)==0x7c00) continue;\n        unsigned other=h^0x8000;\n        data[0]=uint8_t(h);data[1]=uint8_t(h>>8);\n        data[34]=uint8_t(other);data[35]=uint8_t(other>>8);\n        x[h%32]=1.0f;\n        for(int q : {-128,-1,0,127}) {\n            std::fill(data.begin()+2,data.begin()+34,uint8_t(q));\n            std::fill(data.begin()+36,data.end(),uint8_t(q));\n            float out[2];candidate.matvec_q8_0(data.data(),x.data(),out,1,2);\n            if(out[0]!=f16_to_f32(uint16_t(h))*float(q)||out[1]!=f16_to_f32(uint16_t(other))*float(q)) return 3;\n            scales+=2;\n        }\n        x[h%32]=0;\n    }\n    std::cout<<\"{\\\"matrix_cases\\\":\"<<cases<<\",\\\"exact_outputs\\\":\"<<outputs<<\",\\\"finite_scale_cases\\\":\"<<scales<<\",\\\"native_avx2\\\":\"<<avx<<\",\\\"native_f16c\\\":\"<<half<<\"}\\n\";\n}\n",
+    "build-inline.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Fainline.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\inline\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:inline.exe /Fo:inline.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Faexact-inline.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\inline\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:exact-inline.exe /Fo:exact-inline.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\exact-inline.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Fapointer-inline.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\pointer-inline\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:pointer-inline.exe /Fo:pointer-inline.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Faexact-pointer-inline.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\pointer-inline\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:exact-pointer-inline.exe /Fo:exact-pointer-inline.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\exact-pointer-inline.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "build-pointers.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Fapointer.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\pointer\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:pointer.exe /Fo:pointer.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Faexact-pointer.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\pointer\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:exact-pointer.exe /Fo:exact-pointer.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\exact-pointer.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Fapaired-pointer.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\paired-pointer\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:paired-pointer.exe /Fo:paired-pointer.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Faexact-paired-pointer.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\paired-pointer\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:exact-paired-pointer.exe /Fo:exact-paired-pointer.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\exact-paired-pointer.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Fapaired.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\paired\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:paired.exe /Fo:paired.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Fabackend.asm /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\paired\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:backend.exe /Fo:backend.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_group.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Faexact.asm /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:exact.exe /Fo:exact.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-paired\\exact.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "prepare.py": "from pathlib import Path\nimport os,json,hashlib\nrepo=Path.cwd();r=Path(os.environ['TEMP'])/'llmx-q8-paired';r.mkdir(exist_ok=False)\ns=(repo/'src/backends/cpu/cpu_backend.hpp').read_text()\n(r/'control.hpp').write_text(s)\np=r/'paired/backends/cpu/cpu_backend.hpp';p.parent.mkdir(parents=True)\nnew=s\npairs=[('''            for (size_t o = 0; o < nout; o++)\n                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);''','''            dot_rows_q8(data, x, out, nblocks, 0, nout);'''),('''            for (size_t o = start; o < end; o++)\n                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);''','''            dot_rows_q8(data, x, out, nblocks, start, end);'''),('''                    for (size_t o = first; o < last; ++o)\n                        p.out[o] = dot_row_impl(p.data + o * blocks * gguf::Q8_0_TYPESIZE, X, blocks);''','''                    dot_rows_q8(p.data, X, p.out, blocks, first, last);''')]\nfor a,b in pairs:\n assert new.count(a)==1,a;new=new.replace(a,b)\nf='''    void dot_rows_q8(const uint8_t* data, const float* x, float* out,\n                     size_t nblocks, size_t first, size_t last) {\n        const size_t stride = nblocks * gguf::Q8_0_TYPESIZE;\n        size_t o = first;\n        if (avx2_ && f16c_) {\n            for (; o + 1 < last; o += 2) {\n                const uint8_t* r0 = data + o * stride;\n                const uint8_t* r1 = r0 + stride;\n'''\nfor row in range(2):\n for lane in range(4):f+=f'                __m256 s{row}{lane} = _mm256_setzero_ps();\\n'\nf+='''                for (size_t b = 0; b < nblocks; ++b) {\n                    const uint8_t* y0 = r0 + b * gguf::Q8_0_TYPESIZE;\n                    const uint8_t* y1 = r1 + b * gguf::Q8_0_TYPESIZE;\n                    const __m256 d0 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y0)));\n                    const __m256 d1 = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y1)));\n'''\nfor lane in range(4):\n f+=f'                    const __m256 x{lane} = _mm256_loadu_ps(x + b * 32 + {lane*8});\\n'\n for row in range(2):\n  f+=f'                    const __m256 q{row}{lane} = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y{row} + {2+lane*8}))));\\n'\n  f+=f'                    s{row}{lane} = _mm256_fmadd_ps(_mm256_mul_ps(q{row}{lane}, d{row}), x{lane}, s{row}{lane});\\n'\nf+='                }\\n'\nfor row in range(2):\n f+=f'''                const __m256 acc{row} = _mm256_add_ps(_mm256_add_ps(s{row}0, s{row}1), _mm256_add_ps(s{row}2, s{row}3));\n                __m128 v{row} = _mm_add_ps(_mm256_castps256_ps128(acc{row}), _mm256_extractf128_ps(acc{row}, 1));\n                v{row} = _mm_hadd_ps(v{row}, v{row});\n                v{row} = _mm_hadd_ps(v{row}, v{row});\n                out[o + {row}] = _mm_cvtss_f32(v{row});\n'''\nf+='''            }\n        }\n        for (; o < last; ++o) out[o] = dot_row_impl(data + o * stride, x, nblocks);\n    }\n\n'''\nnew=new.replace('    float dot_row_impl(',f+'    float dot_row_impl(');p.write_text(new)\n(r/'paired-test.hpp').write_text(new.replace('private:', 'public:'))\n(r/'control-test.hpp').write_text(s.replace('private:', 'public:').replace('namespace backend {','namespace control_backend { using namespace backend;'))\n(r/'production-hashes.json').write_text(json.dumps({str(p.relative_to(repo)).replace('\\\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in (repo/'src/backends/cpu/cpu_backend.hpp',repo/'src/model/arch_qwen.hpp')},indent=2))\nlines=['@echo off','call \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\" >nul','if errorlevel 1 exit /b 1']\nfor name,src,override in [('paired',repo/'tools/compare_cpu.cpp',True),('backend',repo/'tests/backend_group.cpp',True),('exact',r/'exact.cpp',False)]:\n includes=(f'/I \"{r / \"paired\"}\" ' if override else '')+f'/I \"{repo / \"src\"}\"'\n lines += [f'cl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /FAs /Fa{name}.asm {includes} /Fe:{name}.exe /Fo:{name}.obj \"{src}\"','if errorlevel 1 exit /b 1']\n(r/'build.bat').write_text('\\n'.join(lines)+'\\n')\nprint(r)\n"
+  },
+  "limitations": [
+    "No prototype is adopted; runtime remains 475f312.",
+    "Exact checks cover native AVX2/F16C, forced software-half SIMD and forced scalar on AVX2 hardware; not a non-AVX ISA build.",
+    "Matrix cases include zero/odd tails, signed random weights and finite half scales; one-hot paired-scale checks include all finite scales and signed extremes.",
+    "These are control equality checks, not a new independent HF model gate. Model-level sums are diagnostics only.",
+    "All raw samples retained. Short studies have three measured rounds; pointer final has eight. Do not pool absolute rates across sessions.",
+    "No larger-model, cross-platform, full-corpus or long-context validation for these rejected/research prototypes.",
+    "Assembly call-count and code-size changes do not establish performance improvements."
+  ]
+}

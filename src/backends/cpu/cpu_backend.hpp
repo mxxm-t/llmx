@@ -728,21 +728,17 @@ private:
                 // function (zero, subnormal, inf/nan cases) called once per
                 // 34 bytes of weights, which is a lot of unpredictable control
                 // flow in a loop whose job is to keep loads in flight.
-                const uint16_t h = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
                 __m256 dv;
                 if (f16c_) {
-                    dv = _mm256_broadcastss_ps(_mm_cvtph_ps(_mm_cvtsi32_si128((int)h)));
+                    dv = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y)));
                 } else {
+                    const uint16_t h = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
                     dv = _mm256_set1_ps(f16_to_f32(h));
                 }
-                const __m128i* p = (const __m128i*)(y + 2);
-                __m128i a = _mm_loadu_si128(p);
-                __m128i c = _mm_loadu_si128(p + 1);
-                // sign-extend the 32 int8 to 4 groups of 8 int32 -> float
-                __m256 f0 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(a));
-                __m256 f1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(a, 8)));
-                __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(c));
-                __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(c, 8)));
+                __m256 f0 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 2))));
+                __m256 f1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 10))));
+                __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 18))));
+                __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 26))));
                 const float* xp = x + b * gguf::Q8_0_BLOCK;
                 s0 = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), s0);
                 s1 = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), s1);

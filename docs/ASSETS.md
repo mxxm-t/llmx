@@ -667,8 +667,8 @@ All samples, including outliers, are retained.
 
 The Q8 decode mean improves, but remains below mx; the F32 decode floor is
 also unmet. F32 control/candidate ranges overlap. This checkpoint is unmerged.
-The larger-model grouped comparison is pending; earlier 8B results do not
-validate this candidate.
+The follow-up grouped 8B comparison is recorded below; its decode floor also
+remains unmet.
 
 | Validation | F32 | Q8_0 |
 |---|---:|---:|
@@ -703,6 +703,138 @@ is `tools/compare_cpu.cpp`; reference remains public mx commit `5542318e74`.
 Run `ctest --test-dir build -C Release --output-on-failure` after a CMake build
 for the new backend tests. CI runs them on each configured CPU job; hosted CI
 for this unmerged checkpoint has not run.
+
+## Grouped projections on Qwen3-8B (2026-09-19)
+
+Same Q8_0 model and pinned 215+32 token IDs, six threads, ubatch 128 and F32 KV.
+Three measured interleaved rounds after outer and per-process warmups; loading
+is excluded. These are diagnostics, not proof of a sub-percent speedup.
+
+| Qwen3-8B Q8_0, mean tok/s | Previous 5a9518c | Grouped b6a890f | mx |
+|---|---:|---:|---:|
+| Prefill | 29.12 | 29.25 | 21.20 |
+| Decode | 4.31 | 4.33 | 4.49 |
+
+Control/group ranges overlap; the external decode floor remains open. A
+separate harness loads the same weight object once and runs the previous and
+current implementations on identical histories, comparing every full vector.
+
+| Equality check vs previous llmx | Result |
+|---|---:|
+| Prompt tokens | 215 |
+| Forced continuation tokens | 32 |
+| Full vectors compared | 33 |
+| Finite logits byte-identical | 5,013,888 |
+| Maximum added error | 0 |
+
+This is same-weight equality, not an independent 8B HF reference or a
+maximum-context test. The binary hash, output hash, raw timing samples and
+reproduction sources are in
+[`benchmarks/grouped-projections-8b-20260919.json`](benchmarks/grouped-projections-8b-20260919.json).
+Scratch: `%TEMP%/llmx-grouped-projections/validation/eight-b-*`.
+
+## Q8 scale/load scheduling (2026-09-19)
+
+The selected native Q8 row kernel broadcasts the stored half scale directly
+from memory and loads signed byte groups directly into widening instructions.
+It preserves float activations and the existing per-lane FMA/reduction order.
+Assembly and a real-model activation witness confirm the intended path. Feature
+specialization is excluded: its decode median was similar and prefill lower.
+
+Matched comparisons use the same models, reference commit, settings and token
+histories documented above. These are final interleaved means after outer and
+per-process warmups; loading, tokenization and sampling are excluded.
+
+| Qwen3-0.6B mean tok/s | Before b6a890f | Candidate | mx |
+|---|---:|---:|---:|
+| Q8 prefill | 422.99 | 418.43 | 273.51 |
+| Q8 decode | 45.30 | 46.54 | 48.35 |
+| F32 prefill | 398.17 | 395.23 | 394.92 |
+| F32 decode | 14.70 | 14.77 | 14.98 |
+
+| Comparison scope | Result |
+|---|---:|
+| Measured rounds per arm/model | 8 |
+| Q8 decode mean improvement vs before | 2.74% |
+| Q8 decode mean gap vs mx | -3.73% |
+| F32 decode mean gap vs mx | -1.39% |
+
+Q8 prefill and F32 timing ranges overlap. No external decode parity is claimed.
+All outliers are retained; do not pool absolute rates across separate sessions.
+
+| Numerical check | Observed | Bound / requirement |
+|---|---:|---:|
+| Tiny F32 HF maximum logit error | 0.00000070 | 0.00002 |
+| Long F32 HF maximum logit error | 0.00012636 | 0.001 |
+| Long F32 HF greedy IDs | 32/32 | 32/32 |
+| Long F32 values byte-identical to b6a890f | 5,013,888 | All compared values |
+| Long Q8 values byte-identical to b6a890f | 5,013,888 | All compared values |
+| Excerpt/window NLL cases identical, per format | 4/4 | 4/4 |
+| 8B Q8 values byte-identical to b6a890f | 5,013,888 | All compared values |
+| Finite half-scale/signed-weight exact cases | 253,952 | All cases |
+
+The long smaller-model histories, NLL scopes and HF references are as above.
+The larger-model equality case uses the pinned comparison history and compares
+full vectors with explicit old/new backend objects sharing the same weights.
+It is not an independent HF 8B reference or a full-corpus/max-context claim.
+The scale regression rejects a wrong-half-offset mutant. Windows and Linux
+full suites require the real Q8/Q4 HF fixtures; real F32 HF checks pass. Backend
+CTest passes on both platforms. UBSan synthetic/backend tests pass, with real
+fixtures intentionally skipped in that sanitizer configuration. Production
+comparator and root CLI code hashes match the measured/validated binaries.
+
+The larger-model diagnostic uses the same settings with fewer measured rounds:
+
+| Qwen3-8B Q8 mean tok/s | Before b6a890f | Candidate | mx |
+|---|---:|---:|---:|
+| Prefill | 28.97 | 29.04 | 21.13 |
+| Decode | 4.29 | 4.45 | 4.49 |
+
+| Diagnostic scope | Value |
+|---|---:|
+| Measured rounds per arm | 3 |
+| Decode mean improvement vs before | 3.65% |
+| Decode mean gap vs mx | -0.94% |
+
+Before/candidate decode ranges are disjoint, while candidate/mx ranges overlap.
+This short diagnostic does not establish external parity.
+
+The synthetic hot-path guard improves the Q8 matrix-vector kernel; the CLI
+labels it "matmul" but it calls `matvec_q8_0`. Its "prefill" is repeated
+`step()`, so the separate batched guard remains necessary.
+
+| Synthetic guard, mean | Before | Candidate |
+|---|---:|---:|
+| Q8 matrix-vector GFLOPS | 128.52 | 158.98 |
+| Repeated-step prefill tok/s | 6919.28 | 7165.46 |
+| Decode tok/s | 7077.54 | 7528.79 |
+
+The short batched guard initially showed disjoint slower ranges in the
+threaded single-token case. A longer follow-up retains all samples and shows
+substantial overlap, with paired differences in both directions. The higher
+threaded candidate means remain recorded; this does not prove zero slowdown.
+
+| Longer synthetic prefill, mean ms | Before | Candidate |
+|---|---:|---:|
+| 1 thread, 1 token | 0.16995 | 0.12580 |
+| 1 thread, 2 tokens | 0.23972 | 0.23734 |
+| 6 threads, 1 token | 0.15864 | 0.16167 |
+| 6 threads, 2 tokens | 0.23358 | 0.23651 |
+
+| Follow-up settings | Value |
+|---|---:|
+| Interleaved measured pairs | 8 |
+| Discarded outer warmup pairs | 1 |
+| Warmup iterations per case | 200 |
+| Timed iterations per case | 2000 |
+| Six-thread single-token mean latency change | +1.91% |
+| Six-thread single-token paired change range | -5.18% to +7.86% |
+
+Raw samples from both guards, model timings, exact-output hashes, HF logs,
+platform results, prototype patches, assembly and reproduction scripts are in
+[`benchmarks/q8-scale-load-cpu-20260919.json`](benchmarks/q8-scale-load-cpu-20260919.json).
+Scratch: `%TEMP%/llmx-q8-scale-load/validation`. The checkpoint is unmerged;
+external performance floors and hosted CI remain open.
 
 ## Wiki text location
 

@@ -8,6 +8,30 @@ static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 
+static size_t check_q8_scales(backend::CpuBackend& cpu) {
+    size_t count = 0;
+    std::array<uint8_t, 34> row{};
+    std::array<float, 32> x{};
+    for (unsigned h = 0; h < 65536; ++h) {
+        if ((h & 0x7c00) == 0x7c00) continue;
+        row[0] = uint8_t(h);
+        row[1] = uint8_t(h >> 8);
+        const size_t lane = h % x.size();
+        x[lane] = 1.0f;
+        for (int q : {-128, -1, 0, 127}) {
+            std::fill(row.begin() + 2, row.end(), uint8_t(q));
+            // A one-hot input makes every finite f16 scale times int8 exact
+            // in f32, independently of the SIMD reduction order.
+            const float expected = f16_to_f32(uint16_t(h)) * float(q);
+            const float actual = cpu.dot_q8_0(row.data(), x.data(), 1);
+            require(std::isfinite(actual) && actual == expected, "Q8 scale or signed weight differs");
+            ++count;
+        }
+        x[lane] = 0.0f;
+    }
+    return count;
+}
+
 struct Matrix {
     uint32_t type;
     size_t rows;
@@ -100,6 +124,8 @@ int main() {
     try {
         quant::register_builtins();
         backend::CpuBackend cpu;
+        cpu.set_threads(1);
+        const size_t scales = check_q8_scales(cpu);
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
@@ -127,7 +153,8 @@ int main() {
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "invalid quant type was not rejected on caller");
         std::cout << "grouped projections: " << cases << " cases, " << values
-                  << " outputs checked against separate calls and double dots\n";
+                  << " outputs checked against separate calls and double dots; "
+                  << scales << " exact finite Q8 scale/weight cases\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

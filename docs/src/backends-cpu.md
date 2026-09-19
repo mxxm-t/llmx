@@ -31,8 +31,11 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
 - `matmul_group`: one pool dispatch for multiple native F32/Q8_0/Q4_K decode
   projections, preserving each matrix's row partition and dot kernel. Other
   formats, batches, single projections and small jobs use sequential matmul.
-- `dot_row_impl`: AVX2 fused dequant (f16 scale broadcast) + FMA accumulation
-  over int8 blocks, with a scalar fallback.
+- `dot_row_impl`: AVX2 fused dequant + FMA accumulation over int8 blocks.
+  The stored half scale is broadcast directly from memory before F16C
+  conversion; signed byte groups load directly into the widening operations.
+  Float activations and per-lane accumulation order are unchanged. Software
+  half conversion and scalar dot fallbacks remain available.
 - `rms_norm`, `rope`: AVX2 vectorized with scalar tails for non-multiples of 8.
 - `attention`: causal GQA over the host KV cache. Heads use the persistent
   worker pool and separate score rows, reused across queries. The backend

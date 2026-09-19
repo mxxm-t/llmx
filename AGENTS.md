@@ -93,7 +93,9 @@ ctest --test-dir build -C Release --output-on-failure
 
 `backend-group` checks mixed types, uneven rows, batches, thread counts,
 output boundaries and fallback behavior against separate calls and double dots.
-The independent HF fixtures below remain the external correctness gate.
+It also checks every finite f16 scale against signed Q8 weight extremes using
+one-hot inputs with exact expected products. The independent HF fixtures below
+remain the external correctness gate.
 
 Run the full suite (all generate their own fixtures, no real models needed):
 ```
@@ -132,6 +134,10 @@ correctness bugs were live, because every test compared llmx against llmx.
 When you change a hot path, run `tests/perf.py` and note the before/after in the
 commit message. The lossless correctness gate (path-controlled perplexity on a
 real model) is tracked in `docs/ROADMAP.md`.
+
+Report numerical results in comparison tables: before / candidate / mx-llama.cpp
+for performance, and observed error / HF bound for correctness. Include units
+and distinguish measured results from targets or unverified claims.
 
 Real models and corpora for manual verification (the Qwen3-8B Q8_0 model, the
 wikitext test set) are documented in `docs/ASSETS.md`.

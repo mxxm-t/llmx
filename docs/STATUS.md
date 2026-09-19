@@ -33,6 +33,7 @@ feature currently stands right now.
 | CPU row streaming / parallel prefill   | In Progress |
 | CPU attention value accumulation      | In Progress |
 | CPU grouped projections              | In Progress |
+| CPU Q8 scale / load scheduling       | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
@@ -56,13 +57,9 @@ feature ships, delete its block and mark the row `Done` above.
   prompt plus 32 greedy tokens. Measurements/provenance are in ASSETS.
 - **Left:** close the measured F32 CPU gap versus public mx-llama.cpp
   `5542318e74`, then merge and observe the expanded five-job hosted CI.
-  Eight alternating pairs on Ryzen 7 5800X, six threads, ubatch 128, F32 KV,
-  identical 215 HF prompt tokens and 32 forced continuation tokens:
-  with grouped projections, mean prefill 394.25 vs 390.07 tok/s;
-  decode 14.64 vs 14.86 tok/s. External decode parity remains unproven.
-  Model loading is excluded and each process warms up before measurement.
-  No external performance parity is claimed; raw timing samples and hashes
-  are in `docs/benchmarks/grouped-projections-cpu-20260919.json`.
+  The latest matched F32 results are in the Q8 scale/load block below and
+  `docs/benchmarks/q8-scale-load-cpu-20260919.json`; external decode parity
+  remains unproven. Model loading is excluded and each process warms up.
 - **Findings:** activation tiling and a fully spinning worker pool did not
   establish a win. Profiling instead identifies scalar attention as roughly
   170-180 ms of prefill. Backend attention now improves prefill by 24.8%
@@ -199,13 +196,75 @@ feature ships, delete its block and mark the row `Done` above.
   the faster six-thread single-token case. Raw samples, hashes, exact-output
   gates and reproduction sources are in ASSETS and
   `benchmarks/grouped-projections-cpu-20260919.json`.
-- **Left:** measure the grouped path on the real 8B model and close the external
-  decode floors before merge and hosted CI. The ready follow-up diagnostic is
-  `%TEMP%/llmx-grouped-projections/validation/eight-b-diagnostic.py`.
+  The follow-up real 8B Q8_0 diagnostic also preserves all 5,013,888 logits
+  on its matched 215+32-token history. Three measured rounds, after warmup:
+
+  | 8B mean tok/s | Previous | Grouped | mx |
+  |---|---:|---:|---:|
+  | Prefill | 29.12 | 29.25 | 21.20 |
+  | Decode | 4.31 | 4.33 | 4.49 |
+
+  Control/group ranges overlap; this does not establish a small speedup.
+  Decode remains below mx. Exact-vector equality is against previous llmx,
+  not an independent 8B HF baseline. Evidence and the full-vector control are
+  in `benchmarks/grouped-projections-8b-20260919.json`.
+- **Left:** close the external decode floors before merge and hosted CI.
+  Native Q8 scale/load scheduling is the next bounded investigation below.
 - **Gotchas:** exact equality is scoped to tested inputs/platform, not a
   full-corpus or maximum-context proof. The legacy bench prefill uses step();
   batched prefill has a separate guard. All outliers retained; do not pool
   absolute rates from separate sessions. Candidate is validated but unmerged.
+
+### CPU Q8 scale / load scheduling
+
+- **Goal:** reduce native Q8 decode instruction overhead while preserving
+  float activations, per-lane accumulation order and exact weight scales (#8).
+- **Done:** selected direct memory half broadcast plus direct byte-load sign
+  extension. Assembly confirms the intended instructions; scalar fallback and
+  accumulator order are unchanged. Feature specialization did not establish a
+  further gain and is excluded. Exhaustive finite-half scale/signed-weight
+  regression passes, and a wrong-half-offset mutant fails. Windows/Linux full
+  suites with required Q8/Q4 HF fixtures, real F32 HF checks, backend CTest and
+  UBSan synthetic/backend checks pass. Instrumentation confirms real Q8 use.
+  Recorded F32/Q8 long vectors and excerpt/window NLL are exactly unchanged
+  from `b6a890f`; the same-weight 8B vector comparison also passes.
+
+  | Eight-round mean tok/s | Before b6a890f | Candidate | mx |
+  |---|---:|---:|---:|
+  | Qwen3-0.6B Q8 prefill | 422.99 | 418.43 | 273.51 |
+  | Qwen3-0.6B Q8 decode | 45.30 | 46.54 | 48.35 |
+  | Qwen3-0.6B F32 prefill | 398.17 | 395.23 | 394.92 |
+  | Qwen3-0.6B F32 decode | 14.70 | 14.77 | 14.98 |
+
+  Q8 prefill and F32 ranges overlap. Q8 decode improves but remains below mx.
+  Root CLI and production comparator code hashes match their validated arms.
+  The larger-model diagnostic also improves decode but does not establish
+  external parity:
+
+  | Qwen3-8B Q8 mean tok/s | Before | Candidate | mx |
+  |---|---:|---:|---:|
+  | Prefill | 28.97 | 29.04 | 21.13 |
+  | Decode | 4.29 | 4.45 | 4.49 |
+
+  The short synthetic guard's threaded single-token regression does not
+  retain disjoint ranges in the longer follow-up. Paired changes run in both
+  directions; the higher candidate mean remains visible:
+
+  | Synthetic prefill mean ms | Before | Candidate |
+  |---|---:|---:|
+  | 1 thread, 1 token | 0.16995 | 0.12580 |
+  | 6 threads, 1 token | 0.15864 | 0.16167 |
+
+  ASSETS and `benchmarks/q8-scale-load-cpu-20260919.json` retain all samples,
+  controls, hashes, HF/platform logs, prototype patches and reproduction code.
+- **Left:** close the external decode floors before merge and hosted CI.
+  Continue matrix-operation work with matched model measurements; retain the
+  threaded tiny-prompt guard because zero slowdown has not been established.
+- **Gotchas:** retain F16 subnormal/negative-scale behavior and scalar fallback;
+  do not multiply activations by scales instead, which changes rounding.
+  Exact equality is scoped to recorded inputs/platforms. The 8B equality check
+  is against previous llmx, not an independent HF 8B reference. All samples
+  are retained; no external parity claim.
 
 ### Correctness baseline vs HF reference
 
@@ -269,10 +328,10 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Latest checkpoint:** grouped decode preserves all tested output bits and
-  improves Q8 decode in the final matched comparison, but both real-model
-  decode floors remain open. See the grouped-projection block and its evidence
-  JSON above for current measurements; the larger-model check is next.
+- **Latest checkpoint:** native Q8 scale/load scheduling preserves all tested
+  output bits and improves Q8 decode on both measured model sizes. External
+  Q8 and F32 decode floors remain open. See its block and evidence JSON above
+  for current model measurements, HF gates and the tiny-prompt limitation.
 - **Previous investigation:** AVX2 integer dots with vectorized activation packing
   were tested at 8-bit and 16-bit precision. Q16 improves matched mean decode
   by 2.79% on 0.6B and 4.06% on 8B, but still trails mx by 5.12% / 1.21%.
@@ -344,8 +403,9 @@ feature ships, delete its block and mark the row `Done` above.
   - The integer-activation study above found a modest decode gain despite the
     earlier bandwidth prediction, but did not meet the external floor and
     introduces a precision change. Keep its measured cost visible if revisited.
-  - Extend grouped-projection measurements to the real 8B model, then
-    investigate the remaining matrix-operation cost. Keep float arithmetic
+  - Investigate the remaining matrix-operation cost after grouped dispatch
+    and native Q8 scale/load scheduling (latest results in its block above).
+    The larger-model diagnostic did not close the gap. Keep float arithmetic
     unchanged where possible and apply independent HF gates to any change.
 - **Gotchas:**
   - Synthetic `bench` throughput does not establish real-model speed. Small

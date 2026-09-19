@@ -23,9 +23,18 @@ inline uint16_t f32_to_f16(float f) {
         if (es < -10) {                    // underflow to zero
             return (uint16_t)s;
         }
+        // Subnormal half: the result is the full 24-bit significand shifted
+        // right by (14 - es), with no implicit leading 1 left in it.
+        // The 0xfff round-to-nearest bias that the NORMAL path uses belongs
+        // before a pending 13-bit shift; applying it here added 4095 to an
+        // already-shifted 10-bit value and produced a normal half roughly
+        // 200x too large.
         m |= 0x800000u;                    // restore implicit leading 1
-        uint32_t shift = (uint32_t)(14 - es);
-        uint32_t half = (m >> shift) + 0xfffu + ((m >> (shift + 13)) & 1u);
+        const uint32_t shift = (uint32_t)(14 - es);   // 14..24
+        uint32_t half = m >> shift;
+        const uint32_t rem = m & ((1u << shift) - 1u);
+        const uint32_t halfway = 1u << (shift - 1);
+        if (rem > halfway || (rem == halfway && (half & 1u))) half++;
         return (uint16_t)(s | half);
     }
     uint32_t h = (m >> 13) + ((m & 0x1000u) ? 1u : 0u); // round-to-nearest
@@ -40,11 +49,17 @@ inline float f16_to_f32(uint16_t h) {
     if (e == 0) {
         if (m == 0) {
             u = sign;                      // zero
-        } else {                           // subnormal: normalize
-            e = 1;
-            while ((m & 0x400u) == 0) { m <<= 1; e++; }
+        } else {
+            // Subnormal half: value is m * 2^-24, with no implicit leading 1.
+            // Shift left until bit 10 becomes that implicit 1; after k shifts
+            // the value is (1+frac) * 2^(-14-k), so the f32 exponent field is
+            // 113 - k. Incrementing instead of decrementing here made every
+            // subnormal 2^(2k) too large -- 16x for the k=2 case that Q6_K
+            // super-block scales land in.
+            uint32_t k = 0;
+            while ((m & 0x400u) == 0) { m <<= 1; k++; }
             m &= 0x3ffu;
-            u = sign | ((e + 112) << 23) | (m << 13);
+            u = sign | ((113u - k) << 23) | (m << 13);
         }
     } else if (e == 0x1fu) {               // inf / nan
         u = sign | 0x7f800000u | (m << 13);

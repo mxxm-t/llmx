@@ -1,0 +1,237 @@
+{
+  "date": "2026-09-19",
+  "metadata": {
+    "sha256": {
+      "llmx-compare.exe": "28e7a284e26d1014e7f77c65f87f7dd99980236493cc732e3955cd6a6c149773",
+      "mx-compare.exe": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+      "Qwen3-0.6B-F32.gguf": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+      "baseline_perplexity.json": "7a7a310054bbcd6e4a558adea4f06f007fc0cee80766b6edacd14542cecef15c",
+      "llama.dll": "2d007cdf70a8f0f29daf87d04c73eda7975248de6528de82bf0b7e7820f9f775",
+      "ggml.dll": "f8c791dc32f4ebfce0e17ba2ebefba02d16c8f7209f74a5f0a87d0d60d69a12c",
+      "ggml-base.dll": "255b1d609643421a5d1dabecb1d0010076235035cbce0516f6c3988115581a08",
+      "ggml-cpu.dll": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2"
+    },
+    "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+    "threads": 6,
+    "ubatch": 128,
+    "kv_type": "f32",
+    "prompt_tokens": 215,
+    "forced_decode_tokens": 32,
+    "warmup_sequences_per_process": 1,
+    "rounds": 8,
+    "timing": "model inference only; no load, tokenization or sampling",
+    "llmx_runtime_revision": "2131c1b",
+    "cpu": "AMD Ryzen 7 5800X",
+    "compiler": "MSVC 19.50.35728.0, /O2 /arch:AVX2",
+    "os": "Windows 10.0.19045",
+    "harness_sha256": "2328c08a156a55ea6a636cbf3d64e676cd8353a95a654f6ffacbbf07f4337110"
+  },
+  "results": [
+    {
+      "pair": 0,
+      "arm": "llmx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 740.251,
+      "tg_ms": 2404.1126,
+      "top1": 4013,
+      "logit_sum": -501039.9476
+    },
+    {
+      "pair": 0,
+      "arm": "reference",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 543.9148,
+      "tg_ms": 2215.336,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 1,
+      "arm": "reference",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 551.0726,
+      "tg_ms": 2171.9397,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 1,
+      "arm": "llmx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 754.1564,
+      "tg_ms": 2456.4249,
+      "top1": 4013,
+      "logit_sum": -501039.9476
+    },
+    {
+      "pair": 2,
+      "arm": "llmx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 744.3157,
+      "tg_ms": 2387.8756,
+      "top1": 4013,
+      "logit_sum": -501039.9476
+    },
+    {
+      "pair": 2,
+      "arm": "reference",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 540.957,
+      "tg_ms": 2207.2489,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 3,
+      "arm": "reference",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 574.9133,
+      "tg_ms": 2265.049,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 3,
+      "arm": "llmx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 803.3983,
+      "tg_ms": 2509.5567,
+      "top1": 4013,
+      "logit_sum": -501039.9476
+    },
+    {
+      "pair": 4,
+      "arm": "llmx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 800.6677,
+      "tg_ms": 2485.8309,
+      "top1": 4013,
+      "logit_sum": -501039.9476
+    },
+    {
+      "pair": 4,
+      "arm": "reference",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 539.4742,
+      "tg_ms": 2201.9546,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 5,
+      "arm": "reference",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 553.6729,
+      "tg_ms": 2176.9068,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 5,
+      "arm": "llmx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 805.3547,
+      "tg_ms": 2471.9648,
+      "top1": 4013,
+      "logit_sum": -501039.9476
+    },
+    {
+      "pair": 6,
+      "arm": "llmx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 744.506,
+      "tg_ms": 2386.551,
+      "top1": 4013,
+      "logit_sum": -501039.9476
+    },
+    {
+      "pair": 6,
+      "arm": "reference",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 546.7357,
+      "tg_ms": 2185.3838,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 7,
+      "arm": "reference",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 540.4095,
+      "tg_ms": 2246.3886,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 7,
+      "arm": "llmx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 855.3187,
+      "tg_ms": 2470.7013,
+      "top1": 4013,
+      "logit_sum": -501039.9476
+    }
+  ],
+  "summary": {
+    "llmx": {
+      "pp": {
+        "mean": 275.9546621711449,
+        "median": 276.80631773713344,
+        "minimum": 251.36829114106823,
+        "maximum": 290.44202574532153
+      },
+      "tg": {
+        "mean": 13.083532841218133,
+        "median": 12.989425219271414,
+        "minimum": 12.751256028604573,
+        "maximum": 13.408471052996564
+      }
+    },
+    "reference": {
+      "pp": {
+        "mean": 391.84819273013557,
+        "median": 394.2627602278718,
+        "minimum": 373.9694315647246,
+        "maximum": 398.53620432636075
+      },
+      "tg": {
+        "mean": 14.49045918943066,
+        "median": 14.51511418640299,
+        "minimum": 14.127729687084033,
+        "maximum": 14.733374043487489
+      }
+    }
+  }
+}

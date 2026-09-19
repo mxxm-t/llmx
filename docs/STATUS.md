@@ -29,6 +29,7 @@ feature currently stands right now.
 | Perplexity text-file input (-f/--file)    | Done     |
 | Chunked corpus perplexity               | Done     |
 | F32 embedding/matrix inference          | In Progress |
+| CPU attention in backend (ROADMAP #4a)  | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
@@ -50,11 +51,38 @@ feature ships, delete its block and mark the row `Done` above.
   F32 tensors verified against original HF weights; all real HF checks pass.
   Copy/direct controls match matrix hashes and all logits over a 1,943-token
   prompt plus 32 greedy tokens. Measurements/provenance are in ASSETS.
-- **Left:** establish matched external CPU performance versus mx-llama.cpp;
-  then merge and observe the expanded five-job hosted CI. No external perf
-  parity is claimed from the copy-buffer comparison.
+- **Left:** close the measured F32 CPU gap versus public mx-llama.cpp
+  `5542318e74`, then merge and observe the expanded five-job hosted CI.
+  Eight alternating pairs on Ryzen 7 5800X, six threads, ubatch 128, F32 KV,
+  identical 215 HF prompt tokens and 32 forced continuation tokens:
+  mean prefill 275.95 vs 391.85 tok/s; decode 13.08 vs 14.49 tok/s.
+  Model loading is excluded and each process warms up before measurement.
+  No external performance parity is claimed; raw timing samples and hashes
+  are committed in `docs/benchmarks/f32-cpu-20260919.json`.
+- **Findings:** activation tiling and a fully spinning worker pool did not
+  establish a win. Profiling instead identifies scalar attention as roughly
+  170-180 ms of prefill; an initial vectorized diagnostic is promising but
+  changes summation order. Next: move attention into the CPU backend per
+  ROADMAP #4a, validate against HF and repeat the external comparison.
+  `tools/compare_cpu.cpp` / `.py` preserve the matched measurement procedure;
+  commands and limitations are in ASSETS.
 - **Gotchas:** do not treat success on quantized weights widened to F32 as
   parity with the original HF weights. Validate tied/untied output and prefill.
+
+### CPU attention in backend
+
+- **Goal:** move causal GQA attention out of the model and into the backend
+  (ROADMAP #4a), sharing the decode and prefill implementation and improving
+  CPU throughput with measured, numerically bounded vectorization.
+- **Done:** profiled the unchanged F32 path and ran an isolated AVX2 diagnostic.
+  No attention implementation has changed in the repository yet.
+- **Left:** implement the backend operation; cover batches, GQA, causal
+  positions and vector tails; run HF numerical, quantized regression and
+  long-context checks; repeat matched prefill/decode measurements.
+- **Gotchas:** SIMD dot reductions change summation order. A matching top token
+  or logit sum is not a numerical gate. This step does not implement device
+  buffers, resident activations or async execution, which remain prerequisites
+  for GPU backends.
 
 ### Correctness baseline vs HF reference
 
@@ -106,10 +134,9 @@ feature ships, delete its block and mark the row `Done` above.
     Qwen3-8B (32*128 == 4096) and fails for 0.6B/1.7B/4B.
   - torch is a fixture-GENERATION dependency only, never needed to run the
     suite and never at runtime.
-  - Analytic scoring tests exposed unsupported F32 embeddings/matrices.
-    Norms work, but the registry's F32 entry has no dequantizer and both
-    embedding lookup and backend matmul reject it. Fix and validate this
-    before claiming all-F32 inference or a tight F32 numerical gate.
+  - F32 embedding/matrix support and a tight HF numerical gate are implemented
+    on the active feature branch. Its external performance gate remains open;
+    see the F32 block above before merging.
   - Generation's legacy reasoning filter searches `thinking_start/end`, not
     Qwen3's actual `<think>` / `</think>` markers. Its docs now state that limit.
   - Qwen3 does NOT use the GPT-2 pretokenizer regex. Read the Split pattern out

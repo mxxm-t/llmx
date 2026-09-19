@@ -169,6 +169,62 @@ bench mean throughput was 114.53 -> 114.44 GFLOPS, synthetic prefill
 4108 -> 4250 tok/s and decode 4126 -> 4141 tok/s under the same eight-pair
 measurement; these guardrails do not establish a quantized-path speedup.
 
+### Matched external CPU benchmark
+
+`tools/compare_cpu.cpp` builds against either llmx or the public mx-llama.cpp
+C API. `tools/compare_cpu.py` feeds both binaries the committed HF token IDs:
+215 prompt tokens followed by 32 forced continuation tokens. This measures
+model execution, with loading, tokenization and sampling excluded. It is not
+a greedy-generation or numerical-correctness test. Both arms use six threads,
+ubatch 128, F32 KV and causal attention; the reference disables GPU offload and
+flash attention. Each process runs one warmup sequence and one measured
+sequence with cleared KV state. The driver alternates arm order, rejects
+failed runs and invalid timings, and saves raw stdout/stderr, hashes and
+mean/median/range summaries. The default is eight process pairs.
+
+The reference is public mx-llama.cpp
+`5542318e748c154b634211def405ae95da3dfaa9`, built in a clean detached worktree.
+The eight-pair measurement on Ryzen 7 5800X, Windows, MSVC 19.50,
+llmx `2131c1b` and the exact F32 model above found:
+
+| Phase | llmx mean / median tok/s | mx mean / median tok/s |
+|---|---:|---:|
+| Prefill | 275.95 / 276.81 | 391.85 / 394.26 |
+| Decode | 13.08 / 12.99 | 14.49 / 14.52 |
+
+Raw per-process timings, artifact hashes and ranges are committed in
+[`benchmarks/f32-cpu-20260919.json`](benchmarks/f32-cpu-20260919.json).
+Prefill ranges are 251.37-290.44 vs 373.97-398.54 tok/s; decode ranges are
+12.75-13.41 vs 14.13-14.73 tok/s. An earlier five-pair run also failed the
+floor (285.14 vs 375.98 prefill, 13.14 vs 14.27 decode); the runs are not
+pooled, and changes between runs are not treated as code speedups.
+
+The external floor is not met. A three-pair diagnostic of 16x12, 32x12 and
+16x24 output-row/activation tiles did not show a consistent prefill benefit.
+A fully spinning worker-pool diagnostic worsened prefill. Neither experiment
+is in the runtime. Profiling the original path attributes about 170-180 ms
+of a 720-770 ms prefill to scalar attention. A first AVX2 attention diagnostic
+reached about 600 ms, but changes summation order and has not passed the HF
+gate or a repeated performance comparison. It is an investigation target,
+not a validated speedup.
+
+To reproduce on Windows, use a Visual Studio x64 developer command prompt.
+The example assumes the two repositories are siblings, with the clean
+reference checkout named `llmx-ref`. Run from the llmx root:
+
+```bat
+cmake -S ../llmx-ref -B ../llmx-ref/build -DLLAMA_BUILD_COMMON=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF -DLLAMA_BUILD_APP=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_AVX512=OFF -DGGML_BLAS=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_VULKAN=OFF -DGGML_SYCL=OFF
+cmake --build ../llmx-ref/build --config Release --target llama --parallel 6
+cl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I src /Fe:"%TEMP%\llmx-compare.exe" /Fo:"%TEMP%\llmx-compare.obj" tools\compare_cpu.cpp
+cl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /DLLMX_COMPARE_REFERENCE /I ..\llmx-ref\include /I ..\llmx-ref\ggml\include /Fe:..\llmx-ref\build\bin\Release\llmx-compare.exe /Fo:"%TEMP%\mx-compare.obj" tools\compare_cpu.cpp /link ..\llmx-ref\build\src\Release\llama.lib
+python -X utf8 tools/compare_cpu.py --llmx "%TEMP%\llmx-compare.exe" --reference ../llmx-ref/build/bin/Release/llmx-compare.exe --reference-revision 5542318e748c154b634211def405ae95da3dfaa9 --model "%TEMP%\Qwen3-0.6B-F32.gguf" --output "%TEMP%\llmx-cpu-comparison"
+```
+
+Use a new output directory for each run. The reference executable lives beside
+its DLLs, which the driver also hashes on Windows. Record the actual source
+revision and build flags when changing either build; the revision argument
+is provenance supplied by the caller, not a source-to-binary verification.
+
 ## Wiki text location
 
 The wikitext corpus used for corpus-level perplexity is committed to the test

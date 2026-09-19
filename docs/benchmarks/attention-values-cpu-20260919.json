@@ -1,0 +1,2193 @@
+{
+  "date": "2026-09-19",
+  "cpu": "AMD Ryzen 7 5800X",
+  "compiler": "MSVC 19.50 /O2 /arch:AVX2",
+  "before_runtime_revision": "c4436fd",
+  "parent_revision": "0556afd",
+  "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+  "conditions": {
+    "model": "Qwen3-0.6B-F32.gguf",
+    "threads": 6,
+    "ubatch": 128,
+    "KV": "F32",
+    "prompt_tokens": 215,
+    "forced_decode_tokens": 32,
+    "rounds": 8,
+    "warmup_sequences_per_process": 1,
+    "measured_sequences_per_process": 1,
+    "timing_excludes": [
+      "loading",
+      "tokenization",
+      "sampling"
+    ],
+    "measurement": "interleaved rotating/reversed arm order; no concurrent builds/tests; all samples retained; interactive workstation"
+  },
+  "implementation": "Normalize attention weights once; accumulate 32 output lanes, then eight-lane/scalar tails across the sequence in registers. Preserve per-lane sequence order. Head scheduling and pool unchanged.",
+  "final": {
+    "hashes": {
+      "base": "3fa6d6455b6ece959fb519d05a5f1eddc3d203bc61acefefd2446a90a5ade246",
+      "candidate": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+      "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+      "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+      "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 583.5295,
+        "tg_ms": 2240.3039,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 541.1837,
+        "tg_ms": 2187.384,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 531.7512,
+        "tg_ms": 2139.595,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 550.4344,
+        "tg_ms": 2187.28,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 552.0933,
+        "tg_ms": 2207.4565,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 541.4112,
+        "tg_ms": 2192.6488,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 557.3569,
+        "tg_ms": 2117.852,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 2,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 563.5339,
+        "tg_ms": 2188.4685,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 543.3676,
+        "tg_ms": 2182.4194,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 3,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 524.3404,
+        "tg_ms": 2116.8316,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 3,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 548.007,
+        "tg_ms": 2180.3113,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 3,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 545.8146,
+        "tg_ms": 2180.8547,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 4,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 522.7932,
+        "tg_ms": 2186.0564,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 4,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 537.2191,
+        "tg_ms": 2195.1749,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 4,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 549.268,
+        "tg_ms": 2205.9602,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 5,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 542.8678,
+        "tg_ms": 2212.6588,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 5,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 553.7181,
+        "tg_ms": 2200.9227,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 5,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 540.7676,
+        "tg_ms": 2130.7516,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 6,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 557.4042,
+        "tg_ms": 2172.3541,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 6,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 547.051,
+        "tg_ms": 2223.181,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 6,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 538.9055,
+        "tg_ms": 2136.1457,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 7,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 567.367,
+        "tg_ms": 2209.2812,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 7,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 541.2422,
+        "tg_ms": 2156.2767,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 7,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 539.7229,
+        "tg_ms": 2201.1957,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      }
+    ],
+    "summary": {
+      "base": {
+        "pp": {
+          "mean": 384.85624238815666,
+          "median": 387.0003620887902,
+          "minimum": 368.4475249323299,
+          "maximum": 393.90664888773586
+        },
+        "tg": {
+          "mean": 14.558685866546965,
+          "median": 14.580727103210222,
+          "minimum": 14.283776410869972,
+          "maximum": 14.73056349330894
+        }
+      },
+      "candidate": {
+        "pp": {
+          "mean": 397.6331576983632,
+          "median": 396.57761149186285,
+          "minimum": 392.3307548991163,
+          "maximum": 411.2524799480942
+        },
+        "tg": {
+          "mean": 14.574351357136013,
+          "median": 14.61178383586757,
+          "minimum": 14.393789799391053,
+          "maximum": 14.67680326199291
+        }
+      },
+      "mx": {
+        "pp": {
+          "mean": 397.9403566157736,
+          "median": 398.26988285694,
+          "minimum": 385.7492389526352,
+          "maximum": 410.03897468133295
+        },
+        "tg": {
+          "mean": 14.886906628990133,
+          "median": 14.968176543172628,
+          "minimum": 14.496321898075909,
+          "maximum": 15.11693230581025
+        }
+      }
+    }
+  },
+  "candidate_selection_three_rounds": {
+    "hashes": {
+      "base": "3fa6d6455b6ece959fb519d05a5f1eddc3d203bc61acefefd2446a90a5ade246",
+      "values": "80c25a76b9322658719d6cba6566f5f6a16f6d316bdc6b759ce17818f2e28add",
+      "both": "43cd8e2f400e92d4498353ea569ed3b9a56dd77cd8a89e6878c4affa5e69c933",
+      "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+      "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+      "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 588.0863,
+        "tg_ms": 2222.171,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "values",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 534.4892,
+        "tg_ms": 2176.6568,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "both",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 551.2733,
+        "tg_ms": 2167.3104,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 550.8755,
+        "tg_ms": 2118.5639,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 549.3971,
+        "tg_ms": 2180.9612,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 550.5652,
+        "tg_ms": 2183.4029,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "both",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 530.7949,
+        "tg_ms": 2248.2169,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "values",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 545.5776,
+        "tg_ms": 2210.5627,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "both",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 536.8531,
+        "tg_ms": 2191.9039,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 571.3618,
+        "tg_ms": 2135.6893,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 2,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 566.3333,
+        "tg_ms": 2172.74,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "values",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 537.7812,
+        "tg_ms": 2202.8316,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      }
+    ],
+    "summary": {
+      "base": {
+        "pp": {
+          "mean": 378.85525711255195,
+          "median": 379.63510180312545,
+          "minimum": 365.5926009498946,
+          "maximum": 391.3380685846358
+        },
+        "tg": {
+          "mean": 14.600236293497728,
+          "median": 14.672429752532965,
+          "minimum": 14.400331927650933,
+          "maximum": 14.727947200309288
+        }
+      },
+      "values": {
+        "pp": {
+          "mean": 398.7072745818886,
+          "median": 399.79084430619736,
+          "minimum": 394.0777627233963,
+          "maximum": 402.25321671607213
+        },
+        "tg": {
+          "mean": 14.568051463959538,
+          "median": 14.52675728821032,
+          "minimum": 14.475952208910428,
+          "maximum": 14.701444894757868
+        }
+      },
+      "both": {
+        "pp": {
+          "mean": 398.51368654784375,
+          "median": 400.48199405014145,
+          "minimum": 390.0061911215363,
+          "maximum": 405.05287447185344
+        },
+        "tg": {
+          "mean": 14.532508775718432,
+          "median": 14.599180192160798,
+          "minimum": 14.23350211449794,
+          "maximum": 14.764844020496557
+        }
+      },
+      "mx": {
+        "pp": {
+          "mean": 385.6965281695062,
+          "median": 390.2878236552542,
+          "minimum": 376.2939699503887,
+          "maximum": 390.5077909028758
+        },
+        "tg": {
+          "mean": 14.914681999658187,
+          "median": 14.983452883338414,
+          "minimum": 14.656021570732548,
+          "maximum": 15.104571544903601
+        }
+      }
+    }
+  },
+  "query_scheduling_eight_rounds_not_adopted": {
+    "hashes": {
+      "base": "3fa6d6455b6ece959fb519d05a5f1eddc3d203bc61acefefd2446a90a5ade246",
+      "candidate": "58da93ae9bf158312dff1db71848add7b909891f8792b8ecd70f3269fb577e43",
+      "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+      "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+      "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 531.4944,
+        "tg_ms": 2187.832,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 545.35,
+        "tg_ms": 2192.4663,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 526.7989,
+        "tg_ms": 2160.8404,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 574.5556,
+        "tg_ms": 2175.5046,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 539.1247,
+        "tg_ms": 2144.1654,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 534.0839,
+        "tg_ms": 2159.4664,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 533.7799,
+        "tg_ms": 2162.6161,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 2,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 548.3804,
+        "tg_ms": 2200.4924,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 546.5665,
+        "tg_ms": 2181.2323,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 3,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 540.3057,
+        "tg_ms": 2156.0736,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 3,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 552.6921,
+        "tg_ms": 2177.0164,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 3,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 571.8468,
+        "tg_ms": 2178.6385,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 4,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 535.699,
+        "tg_ms": 2184.5057,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 4,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 530.4311,
+        "tg_ms": 2152.9543,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 4,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 621.0753,
+        "tg_ms": 2176.2511,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 5,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 537.9224,
+        "tg_ms": 2185.088,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 5,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 591.9319,
+        "tg_ms": 2189.311,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 5,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 533.9567,
+        "tg_ms": 2144.9547,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 6,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 557.5246,
+        "tg_ms": 2180.4874,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 6,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 546.1774,
+        "tg_ms": 2176.7367,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 6,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 524.1462,
+        "tg_ms": 2160.2816,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 7,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 562.4014,
+        "tg_ms": 2172.1796,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 7,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 516.1233,
+        "tg_ms": 2136.1291,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 7,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 596.1402,
+        "tg_ms": 2209.4998,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      }
+    ],
+    "summary": {
+      "base": {
+        "pp": {
+          "mean": 378.00927213378964,
+          "median": 379.1320286517264,
+          "minimum": 346.1738053340714,
+          "maximum": 404.51978421597664
+        },
+        "tg": {
+          "mean": 14.661734481005283,
+          "median": 14.681845163847811,
+          "minimum": 14.54219973674983,
+          "maximum": 14.731746859237607
+        }
+      },
+      "candidate": {
+        "pp": {
+          "mean": 391.8124476376799,
+          "median": 393.9436124791176,
+          "minimum": 360.6534167633721,
+          "maximum": 402.558474426958
+        },
+        "tg": {
+          "mean": 14.657587080278002,
+          "median": 14.65961447529731,
+          "minimum": 14.482915997548403,
+          "maximum": 14.818475527102438
+        }
+      },
+      "mx": {
+        "pp": {
+          "mean": 405.29670520892654,
+          "median": 404.0592118501754,
+          "minimum": 397.92287958464993,
+          "maximum": 416.5671264986487
+        },
+        "tg": {
+          "mean": 14.868405143624331,
+          "median": 14.852545637474549,
+          "minimum": 14.796893447709003,
+          "maximum": 14.980367993676037
+        }
+      }
+    }
+  },
+  "q8_step_guard": {
+    "hashes": {
+      "before": "2e94600cd6ef71bf0ecb2d9a5c38af3ac51d801eead87b650a2c983dc85b58dc",
+      "after": "5066cc5b94d524d3d02b4c33294c792bd7554224428d34399c82924498408664"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "before",
+        "matmul_ms": 0.066,
+        "matmul_gflops": 127.48,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.517,
+        "prefill_tps": 5113.2,
+        "decode_ms": 12.757,
+        "decode_tps": 5016.8
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 128.46,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 13.051,
+        "prefill_tps": 4904.0,
+        "decode_ms": 12.874,
+        "decode_tps": 4971.3
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.12,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.13,
+        "prefill_tps": 5276.0,
+        "decode_ms": 12.21,
+        "decode_tps": 5241.6
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 128.96,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.349,
+        "prefill_tps": 5182.7,
+        "decode_ms": 12.642,
+        "decode_tps": 5062.5
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 128.86,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.272,
+        "prefill_tps": 5215.3,
+        "decode_ms": 12.747,
+        "decode_tps": 5020.8
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.55,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.631,
+        "prefill_tps": 5066.9,
+        "decode_ms": 13.297,
+        "decode_tps": 4813.1
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "matmul_ms": 0.064,
+        "matmul_gflops": 130.06,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.857,
+        "prefill_tps": 4977.9,
+        "decode_ms": 12.762,
+        "decode_tps": 5015.0
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "matmul_ms": 0.071,
+        "matmul_gflops": 117.58,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.711,
+        "prefill_tps": 5035.1,
+        "decode_ms": 12.207,
+        "decode_tps": 5242.7
+      },
+      {
+        "pair": 4,
+        "arm": "before",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 128.94,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.088,
+        "prefill_tps": 5294.4,
+        "decode_ms": 11.863,
+        "decode_tps": 5394.8
+      },
+      {
+        "pair": 4,
+        "arm": "after",
+        "matmul_ms": 0.07,
+        "matmul_gflops": 119.55,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 13.373,
+        "prefill_tps": 4785.9,
+        "decode_ms": 13.805,
+        "decode_tps": 4636.1
+      },
+      {
+        "pair": 5,
+        "arm": "after",
+        "matmul_ms": 0.066,
+        "matmul_gflops": 127.58,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.863,
+        "prefill_tps": 4975.4,
+        "decode_ms": 12.295,
+        "decode_tps": 5205.5
+      },
+      {
+        "pair": 5,
+        "arm": "before",
+        "matmul_ms": 0.066,
+        "matmul_gflops": 127.34,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 13.086,
+        "prefill_tps": 4890.6,
+        "decode_ms": 12.482,
+        "decode_tps": 5127.2
+      },
+      {
+        "pair": 6,
+        "arm": "before",
+        "matmul_ms": 0.066,
+        "matmul_gflops": 126.34,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.802,
+        "prefill_tps": 4999.2,
+        "decode_ms": 12.141,
+        "decode_tps": 5271.5
+      },
+      {
+        "pair": 6,
+        "arm": "after",
+        "matmul_ms": 0.067,
+        "matmul_gflops": 126.06,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.086,
+        "prefill_tps": 5295.5,
+        "decode_ms": 11.628,
+        "decode_tps": 5503.8
+      },
+      {
+        "pair": 7,
+        "arm": "after",
+        "matmul_ms": 0.064,
+        "matmul_gflops": 130.47,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.182,
+        "prefill_tps": 5253.6,
+        "decode_ms": 12.174,
+        "decode_tps": 5257.2
+      },
+      {
+        "pair": 7,
+        "arm": "before",
+        "matmul_ms": 0.066,
+        "matmul_gflops": 126.99,
+        "rms_norm_ms": 0.0,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.858,
+        "prefill_tps": 4977.3,
+        "decode_ms": 12.524,
+        "decode_tps": 5110.1
+      }
+    ],
+    "summary": {
+      "before": {
+        "matmul_gflops": {
+          "mean": 126.56125,
+          "median": 127.41,
+          "minimum": 117.58,
+          "maximum": 128.96
+        },
+        "prefill_tps": {
+          "mean": 5088.475,
+          "median": 5074.15,
+          "minimum": 4890.6,
+          "maximum": 5294.4
+        },
+        "decode_tps": {
+          "mean": 5155.8,
+          "median": 5118.65,
+          "minimum": 5016.8,
+          "maximum": 5394.8
+        }
+      },
+      "after": {
+        "matmul_gflops": {
+          "mean": 127.60625,
+          "median": 128.79000000000002,
+          "minimum": 119.55,
+          "maximum": 130.47
+        },
+        "prefill_tps": {
+          "mean": 5066.9,
+          "median": 5022.4,
+          "minimum": 4785.9,
+          "maximum": 5295.5
+        },
+        "decode_tps": {
+          "mean": 5080.45,
+          "median": 5110.25,
+          "minimum": 4636.1,
+          "maximum": 5503.8
+        }
+      }
+    }
+  },
+  "q8_batched_guard": {
+    "hashes": {
+      "before": "e915230e15e4dedae34f918d4ffa7811957c4d0cd9d6cea22573b055b7bd59e8",
+      "after": "fd16f406f67537f34937853d4e3d1aca85f10ef60e986c7952ec5585631e5b73"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.174962,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.235115,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.343671,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.507877,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.902569,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.362339,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.24865,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.260715,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.274127,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.332431,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.470821,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 0,
+        "arm": "before",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.10045,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.168908,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.232427,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.344444,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.500481,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.897143,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.238157,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.23926,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.284502,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.289846,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.333629,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.456953,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 0,
+        "arm": "after",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.056846,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.169915,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.244735,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.345344,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.501154,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.894446,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.246223,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.256848,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.283642,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.301128,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.350713,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.462491,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 1,
+        "arm": "after",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.0593,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.165667,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.236117,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.350615,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.506302,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.902651,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.283392,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.247408,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.288032,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.28005,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.346583,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.471748,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 1,
+        "arm": "before",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.076134,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.166177,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.235368,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.346554,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.516036,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.918947,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.307407,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.250987,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.27883,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.287034,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.344097,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.476943,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 2,
+        "arm": "before",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.523355,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.170695,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.295787,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.407307,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.588341,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 16,
+        "ms": 1.031218,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.680895,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.231053,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.251902,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.262694,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.318453,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.465753,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 2,
+        "arm": "after",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.209679,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.165587,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.231983,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.344831,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.505467,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.906966,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.233067,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.230053,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.274975,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.266032,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.330178,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.453506,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 3,
+        "arm": "after",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.05838,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 1,
+        "ms": 0.166298,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 2,
+        "ms": 0.23482,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 4,
+        "ms": 0.344058,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 8,
+        "ms": 0.499889,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 16,
+        "ms": 0.912725,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 1,
+        "batch": 64,
+        "ms": 3.330971,
+        "sum": 2.18122082949
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 1,
+        "ms": 0.248348,
+        "sum": -57.281781584
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 2,
+        "ms": 0.28507,
+        "sum": -146.001931489
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 4,
+        "ms": 0.272071,
+        "sum": -11.4719158411
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 8,
+        "ms": 0.338735,
+        "sum": -68.6558400989
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 16,
+        "ms": 0.456366,
+        "sum": -104.98259455
+      },
+      {
+        "pair": 3,
+        "arm": "before",
+        "threads": 6,
+        "batch": 64,
+        "ms": 1.068726,
+        "sum": 2.18122082949
+      }
+    ],
+    "summary": [
+      {
+        "threads": 1,
+        "batch": 1,
+        "before": {
+          "mean_ms": 0.168276,
+          "median_ms": 0.16623749999999998,
+          "min_ms": 0.165667,
+          "max_ms": 0.174962
+        },
+        "after": {
+          "mean_ms": 0.16877625000000002,
+          "median_ms": 0.1694115,
+          "min_ms": 0.165587,
+          "max_ms": 0.170695
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 2,
+        "before": {
+          "mean_ms": 0.23535499999999998,
+          "median_ms": 0.2352415,
+          "min_ms": 0.23482,
+          "max_ms": 0.236117
+        },
+        "after": {
+          "mean_ms": 0.251233,
+          "median_ms": 0.238581,
+          "min_ms": 0.231983,
+          "max_ms": 0.295787
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 4,
+        "before": {
+          "mean_ms": 0.3462245,
+          "median_ms": 0.345306,
+          "min_ms": 0.343671,
+          "max_ms": 0.350615
+        },
+        "after": {
+          "mean_ms": 0.3604815,
+          "median_ms": 0.3450875,
+          "min_ms": 0.344444,
+          "max_ms": 0.407307
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 8,
+        "before": {
+          "mean_ms": 0.507526,
+          "median_ms": 0.5070895,
+          "min_ms": 0.499889,
+          "max_ms": 0.516036
+        },
+        "after": {
+          "mean_ms": 0.52386075,
+          "median_ms": 0.5033105,
+          "min_ms": 0.500481,
+          "max_ms": 0.588341
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 16,
+        "before": {
+          "mean_ms": 0.909223,
+          "median_ms": 0.907688,
+          "min_ms": 0.902569,
+          "max_ms": 0.918947
+        },
+        "after": {
+          "mean_ms": 0.93244325,
+          "median_ms": 0.9020545,
+          "min_ms": 0.894446,
+          "max_ms": 1.031218
+        }
+      },
+      {
+        "threads": 1,
+        "batch": 64,
+        "before": {
+          "mean_ms": 3.32102725,
+          "median_ms": 3.3191889999999997,
+          "min_ms": 3.283392,
+          "max_ms": 3.362339
+        },
+        "after": {
+          "mean_ms": 3.3495855,
+          "median_ms": 3.24219,
+          "min_ms": 3.233067,
+          "max_ms": 3.680895
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 1,
+        "before": {
+          "mean_ms": 0.24884825,
+          "median_ms": 0.24849900000000003,
+          "min_ms": 0.247408,
+          "max_ms": 0.250987
+        },
+        "after": {
+          "mean_ms": 0.2393035,
+          "median_ms": 0.2351565,
+          "min_ms": 0.230053,
+          "max_ms": 0.256848
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 2,
+        "before": {
+          "mean_ms": 0.27816175,
+          "median_ms": 0.28195000000000003,
+          "min_ms": 0.260715,
+          "max_ms": 0.288032
+        },
+        "after": {
+          "mean_ms": 0.27375525,
+          "median_ms": 0.2793085,
+          "min_ms": 0.251902,
+          "max_ms": 0.284502
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 4,
+        "before": {
+          "mean_ms": 0.2783205,
+          "median_ms": 0.2770885,
+          "min_ms": 0.272071,
+          "max_ms": 0.287034
+        },
+        "after": {
+          "mean_ms": 0.279925,
+          "median_ms": 0.277939,
+          "min_ms": 0.262694,
+          "max_ms": 0.301128
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 8,
+        "before": {
+          "mean_ms": 0.3404615,
+          "median_ms": 0.341416,
+          "min_ms": 0.332431,
+          "max_ms": 0.346583
+        },
+        "after": {
+          "mean_ms": 0.33324325,
+          "median_ms": 0.3319035,
+          "min_ms": 0.318453,
+          "max_ms": 0.350713
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 16,
+        "before": {
+          "mean_ms": 0.4689695,
+          "median_ms": 0.4712845,
+          "min_ms": 0.456366,
+          "max_ms": 0.476943
+        },
+        "after": {
+          "mean_ms": 0.45967575,
+          "median_ms": 0.45972199999999996,
+          "min_ms": 0.453506,
+          "max_ms": 0.465753
+        }
+      },
+      {
+        "threads": 6,
+        "batch": 64,
+        "before": {
+          "mean_ms": 1.19216625,
+          "median_ms": 1.088292,
+          "min_ms": 1.068726,
+          "max_ms": 1.523355
+        },
+        "after": {
+          "mean_ms": 1.09605125,
+          "median_ms": 1.05884,
+          "min_ms": 1.056846,
+          "max_ms": 1.209679
+        }
+      }
+    ]
+  },
+  "correctness": {
+    "long_HF": {
+      "prompt_tokens": 1943,
+      "generated_tokens": 32,
+      "greedy_match": true,
+      "logits_compared": 5013888,
+      "max_abs_error": 0.00012636184692382812,
+      "rms_error": 1.6163279547159805e-05,
+      "bound": 0.001
+    },
+    "long_control_identity": {
+      "comparison": "byte-identical to validated c4436fd across all 33 vectors",
+      "values": 5013888,
+      "sha256": "986be83255fa7e25c17b987c3d6f27f58b0f65e6dd84d90568bf4ac819b9d702"
+    },
+    "fixture_head_dim": 42,
+    "fixture_lane_coverage": [
+      32,
+      8,
+      2
+    ],
+    "fixture_logit_bound": 2e-05,
+    "fixture_NLL_bound": 1e-05,
+    "fixture_max_abs_error_rounded": 7e-07,
+    "mutant_error_rounded": 0.19888665,
+    "mutant_gate": "Missing output lanes from the 32-lane block rejected by independent HF fixture",
+    "scalar_gate": "Forced scalar value-accumulation branch passes; this is not a no-AVX ISA test",
+    "platforms": "Windows and WSL Ubuntu full suites including required real Q8/Q4 HF fixtures passed; Linux UBSan synthetic suite passed with real model checks deliberately skipped",
+    "scope": "1943 prompt tokens plus 32 greedy tokens; not maximum-context or full-corpus proof; HF numeric bounds unchanged",
+    "validation_completion_marker": "All commands completed with exit 0.\n"
+  },
+  "code_section_identity": {
+    "benchmark": {
+      "values.exe": "e0b7f269eb2d37dfa087dd3be1aa24d99156c4a48d08c2e1e61e6ba98290be4a",
+      "validation/candidate-compare.exe": "e0b7f269eb2d37dfa087dd3be1aa24d99156c4a48d08c2e1e61e6ba98290be4a"
+    },
+    "cli": {
+      "root_llmx": "e9ff7be6059bdf2c7a134aed8510417a9e01a887f95707fb5515a63e7000de3c",
+      "validated_candidate": "e9ff7be6059bdf2c7a134aed8510417a9e01a887f95707fb5515a63e7000de3c"
+    }
+  },
+  "source_sha256": {
+    "src/backends/cpu/cpu_backend.hpp": "83e78f86dc06c0810d57cffa4cbe1e576a877f060806ff377278f0a4f7da6673",
+    "tests/f32.py": "f1b19cfdd04d592cf159c9c77b506389854204c4df3c3052dec78ac9567996c5",
+    "tools/gen_baseline.py": "008b3b6ed887aebdbd3d719722e9a1f52bf6cd199f53ff8a7df79f1a4b9f3b78",
+    "tests/data/baseline_f32.json": "42caa7b77f4ee09ea30b51bab28ef872286986396536c1d1966c9d805fa2cd29",
+    "tools/compare_cpu.cpp": "2328c08a156a55ea6a636cbf3d64e676cd8353a95a654f6ffacbbf07f4337110",
+    "tools/compare_cpu.py": "92020fb560755ff3cffbe676c001c5fc42396dbb9cf8e69a01ec2d306e6e71de"
+  },
+  "validation_logs": {
+    "build-linux.log": {
+      "sha256": "645ae423d622f272eda9ea31b93111ba97465d2e89e4bc4cc4ce49142ac4caeb",
+      "text": "[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:730:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  730 |             uint16_t d16 = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));\n      |                             ~~^~~~~~~~~~~~~~~~~~\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\n"
+    },
+    "build-ubsan.log": {
+      "sha256": "dcb183582a4e25d76dcceed6085cff7593c667922b34803f2f0ba64b29d172cc",
+      "text": "[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:732:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  732 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\n"
+    },
+    "build-windows.log": {
+      "sha256": "87cba67604e7da0d2c312c37e7b932ca36fbce7512630b93a08a9a38f4b05bef",
+      "text": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nmain.cpp\ncompare_cpu.cpp\nllmx-attention-long.cpp\n"
+    },
+    "f32-hf.log": {
+      "sha256": "c22e54ccfdd6f959a5ddab0c9d36a7a57f6d4037331d4c3c51bf1ca4b0506862",
+      "text": "baseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-F32.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=0 chunks=1]: PPL 28.7974 vs HF 28.7974, NLL delta 0.000004 <= 0.000  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=64 chunks=4]: PPL 56.2812 vs HF 56.2812, NLL delta 0.000000 <= 0.000  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=64 chunks=2]: PPL 40.8602 vs HF 40.8602, NLL delta 0.000003 <= 0.000  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=123 chunks=2]: PPL 37.7428 vs HF 37.7428, NLL delta 0.000004 <= 0.000  [ok]\n"
+    },
+    "linux-suite.log": {
+      "sha256": "36efc354f11902897fba0e457d93b179b76faa19ceb3382f5ea5fbd8bc0721b7",
+      "text": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 29.67 GFLOPS (0.283 ms), prefill 5971 tok/s, decode 5364 tok/s, rms_norm 0.000 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6581 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  baseline   PASS\n"
+    },
+    "long-hf.log": {
+      "sha256": "fd1f249608feee5ea853cc589e852b4c4a08af629847323f96552fde064728f9",
+      "text": "{\"prompt_tokens\": 1943, \"generated_tokens\": 32, \"greedy_match\": true, \"logits_compared\": 5013888, \"max_abs_error\": 0.00012636184692382812, \"rms_error\": 1.6163279547159805e-05, \"bound\": 0.001}\n"
+    },
+    "mutant-gate.log": {
+      "sha256": "672874d812de29c8ae65dad69b7784b94cc3dde9e59f9d74ebe03dfef5814865",
+      "text": "Injected missing 32-lane-block output rejected: F32/HF logit error: 0.19888665\n"
+    },
+    "quant-guard.log": {
+      "sha256": "8f3052c2be3be7e35ee467ea2ce2c14b9f9fe13375e824f28a60e4a821eb66cb",
+      "text": "{'pair': 0, 'arm': 'before', 'matmul_ms': 0.066, 'matmul_gflops': 127.48, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.517, 'prefill_tps': 5113.2, 'decode_ms': 12.757, 'decode_tps': 5016.8}\n{'pair': 0, 'arm': 'after', 'matmul_ms': 0.065, 'matmul_gflops': 128.46, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 13.051, 'prefill_tps': 4904.0, 'decode_ms': 12.874, 'decode_tps': 4971.3}\n{'pair': 1, 'arm': 'after', 'matmul_ms': 0.065, 'matmul_gflops': 129.12, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.13, 'prefill_tps': 5276.0, 'decode_ms': 12.21, 'decode_tps': 5241.6}\n{'pair': 1, 'arm': 'before', 'matmul_ms': 0.065, 'matmul_gflops': 128.96, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.349, 'prefill_tps': 5182.7, 'decode_ms': 12.642, 'decode_tps': 5062.5}\n{'pair': 2, 'arm': 'before', 'matmul_ms': 0.065, 'matmul_gflops': 128.86, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.272, 'prefill_tps': 5215.3, 'decode_ms': 12.747, 'decode_tps': 5020.8}\n{'pair': 2, 'arm': 'after', 'matmul_ms': 0.065, 'matmul_gflops': 129.55, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.631, 'prefill_tps': 5066.9, 'decode_ms': 13.297, 'decode_tps': 4813.1}\n{'pair': 3, 'arm': 'after', 'matmul_ms': 0.064, 'matmul_gflops': 130.06, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.857, 'prefill_tps': 4977.9, 'decode_ms': 12.762, 'decode_tps': 5015.0}\n{'pair': 3, 'arm': 'before', 'matmul_ms': 0.071, 'matmul_gflops': 117.58, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.711, 'prefill_tps': 5035.1, 'decode_ms': 12.207, 'decode_tps': 5242.7}\n{'pair': 4, 'arm': 'before', 'matmul_ms': 0.065, 'matmul_gflops': 128.94, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.088, 'prefill_tps': 5294.4, 'decode_ms': 11.863, 'decode_tps': 5394.8}\n{'pair': 4, 'arm': 'after', 'matmul_ms': 0.07, 'matmul_gflops': 119.55, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 13.373, 'prefill_tps': 4785.9, 'decode_ms': 13.805, 'decode_tps': 4636.1}\n{'pair': 5, 'arm': 'after', 'matmul_ms': 0.066, 'matmul_gflops': 127.58, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.863, 'prefill_tps': 4975.4, 'decode_ms': 12.295, 'decode_tps': 5205.5}\n{'pair': 5, 'arm': 'before', 'matmul_ms': 0.066, 'matmul_gflops': 127.34, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 13.086, 'prefill_tps': 4890.6, 'decode_ms': 12.482, 'decode_tps': 5127.2}\n{'pair': 6, 'arm': 'before', 'matmul_ms': 0.066, 'matmul_gflops': 126.34, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.802, 'prefill_tps': 4999.2, 'decode_ms': 12.141, 'decode_tps': 5271.5}\n{'pair': 6, 'arm': 'after', 'matmul_ms': 0.067, 'matmul_gflops': 126.06, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.086, 'prefill_tps': 5295.5, 'decode_ms': 11.628, 'decode_tps': 5503.8}\n{'pair': 7, 'arm': 'after', 'matmul_ms': 0.064, 'matmul_gflops': 130.47, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.182, 'prefill_tps': 5253.6, 'decode_ms': 12.174, 'decode_tps': 5257.2}\n{'pair': 7, 'arm': 'before', 'matmul_ms': 0.066, 'matmul_gflops': 126.99, 'rms_norm_ms': 0.0, 'rope_ms': 0.0, 'prefill_ms': 12.858, 'prefill_tps': 4977.3, 'decode_ms': 12.524, 'decode_tps': 5110.1}\n{'before': {'matmul_gflops': {'mean': 126.56125, 'median': 127.41, 'minimum': 117.58, 'maximum': 128.96}, 'prefill_tps': {'mean': 5088.475, 'median': 5074.15, 'minimum': 4890.6, 'maximum': 5294.4}, 'decode_tps': {'mean': 5155.8, 'median': 5118.65, 'minimum': 5016.8, 'maximum': 5394.8}}, 'after': {'matmul_gflops': {'mean': 127.60625, 'median': 128.79000000000002, 'minimum': 119.55, 'maximum': 130.47}, 'prefill_tps': {'mean': 5066.9, 'median': 5022.4, 'minimum': 4785.9, 'maximum': 5295.5}, 'decode_tps': {'mean': 5080.45, 'median': 5110.25, 'minimum': 4636.1, 'maximum': 5503.8}}}\n"
+    },
+    "scalar-gate.log": {
+      "sha256": "06ba35ce654fc06bc7592c4a6319bb929482ec821943a0514bfabe47dcd7c1d4",
+      "text": "f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\n"
+    },
+    "ubsan-suite.log": {
+      "sha256": "f6f2693b54a9dc2928dc3dabfff7953c2ba3beb6e4498e8da84865cbdaf352c2",
+      "text": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 19.93 GFLOPS (0.421 ms), prefill 3901 tok/s, decode 3737 tok/s, rms_norm 0.002 ms, rope 0.000 ms  [ok]\nperf: hardware-specific floors disabled; timings are diagnostic only\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nbaseline: SKIP - no fixture model on disk (Qwen3-0.6B-Q8_0.gguf). Set LLMX_BASELINE_GGUF or `python tools/gen_baseline.py` deps.\nbaseline-logits: SKIP - no fixture model on disk\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf]: SKIP - fixture model not on disk\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf]: SKIP - fixture model not on disk\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  baseline   PASS\n"
+    },
+    "windows-suite.log": {
+      "sha256": "229c090db7cf899d65c4e4504de1507f297873462c12d1526e7ababe058a71f1",
+      "text": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 29.33 GFLOPS (0.286 ms), prefill 5828 tok/s, decode 5682 tok/s, rms_norm 0.000 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  baseline   PASS\n"
+    }
+  },
+  "reproduction_sources": {
+    "validate.py": "import os, subprocess, sys\nfrom pathlib import Path\nroot=Path(__file__).parent\nrepo=Path.home()/'Desktop/Projects/llmx'\ncommands=[\n('build-windows',['cmd','/c',str(root/'build-candidate.bat')],root),\n('quant-guard',[sys.executable,'-X','utf8','-u',str(root/'quant-guard.py')],repo),\n('windows-suite',[sys.executable,'-X','utf8','-u','tests/run_tests.py','--exe',str(root/'candidate.exe'),'--require-baseline'],repo),\n('f32-hf',[sys.executable,'-X','utf8','-u',str(root/'f32-gate.py')],repo),\n('long-hf',[sys.executable,'-X','utf8','-u',str(root/'long-gate.py')],repo),\n('build-linux',['wsl','-d','Ubuntu','--','cmake','--build','/root/.cache/llmx-xdev-ci-20260919','-j','6'],repo),\n('linux-suite',['wsl','-d','Ubuntu','--','python3','-u','/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py','--exe','/root/.cache/llmx-xdev-ci-20260919/llmx','--require-baseline'],repo),\n('build-ubsan',['wsl','-d','Ubuntu','--','cmake','--build','/root/.cache/llmx-f32-ubsan','-j','6'],repo),\n('ubsan-suite',['wsl','-d','Ubuntu','--','env','LLMX_BASELINE_GGUF=/root/.cache/llmx-f32-missing/Qwen3-0.6B-Q8_0.gguf','python3','-u','/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py','--exe','/root/.cache/llmx-f32-ubsan/llmx','--no-perf-floor'],repo)]\nfor name,cmd,cwd in commands:\n    print('START '+name,flush=True)\n    with (root/(name+'.log')).open('w',encoding='utf-8') as log:\n        p=subprocess.Popen(cmd,cwd=cwd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace')\n        for line in p.stdout:\n            log.write(line); log.flush(); print(line,end='',flush=True)\n        rc=p.wait()\n    print('END '+name+' '+str(rc),flush=True)\n    if rc: sys.exit(rc)\n(root/'validation-passed.txt').write_text('All commands completed with exit 0.\\n')\n",
+    "build-candidate.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate.exe /Fo:candidate.exe.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate-compare.exe /Fo:candidate-compare.exe.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate-long.exe /Fo:candidate-long.exe.obj \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-attention-long.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "f32-gate.py": "import os\nfrom pathlib import Path\nimport sys\nsys.path.insert(0,str(Path.home()/'Desktop/Projects/llmx/tests'))\nimport baseline, common\ncommon.EXE=str(Path.home()/\"AppData/Local/Temp/llmx-attention-values/validation/candidate.exe\")\nbaseline.BASELINE_MODELS=[dict(repo='Qwen/Qwen3-0.6B',file='Qwen3-0.6B-F32.gguf',min_overlap=5,max_nll_delta=1e-4,max_chunk_nll_delta=1e-4,revision='c1899de289a04d12100db370d81485cdf75e47ca')]\nos.environ['LLMX_BASELINE_GGUF']=str(Path.home()/'AppData/Local/Temp/Qwen3-0.6B-F32.gguf')\nassert baseline.run()\n",
+    "long-gate.py": "import json, math, struct, subprocess\nfrom pathlib import Path\nroot=Path(__file__).parent\nold=root.parent.parent/'llmx-attention-long'\nout=root/'long'\nout.mkdir(exist_ok=False)\np=subprocess.run([str(root/'candidate-long.exe'),str(root.parent.parent/'Qwen3-0.6B-F32.gguf'),str(root.parent.parent/'llmx-f32-controls/prompt.txt'),str(out/'llmx')],capture_output=True,timeout=180)\n(out/'generated.txt').write_bytes(p.stdout)\n(out/'stderr.txt').write_bytes(p.stderr)\np.check_returncode()\nids=list(map(int,p.stdout.split()))\nassert ids==json.loads((old/'hf-generated.json').read_text()), 'greedy mismatch'\ncount=0\nmaximum=0.0\nsquared=0.0\nfor suffix in ['-logits.f32']+[f'-step-{i:02d}.f32' for i in range(32)]:\n    a=(out/('llmx'+suffix)).read_bytes(); b=(old/('hf'+suffix)).read_bytes()\n    assert len(a)==len(b)==151936*4\n    for (x,), (y,) in zip(struct.iter_unpack('<f',a),struct.iter_unpack('<f',b)):\n        assert math.isfinite(x) and math.isfinite(y)\n        delta=abs(x-y)\n        maximum=max(maximum,delta); squared+=delta*delta; count+=1\nassert maximum<=0.001, maximum\nresult=dict(prompt_tokens=1943,generated_tokens=len(ids),greedy_match=True,logits_compared=count,max_abs_error=maximum,rms_error=math.sqrt(squared/count),bound=0.001)\n(out/'comparison.json').write_text(json.dumps(result,indent=2))\nprint(json.dumps(result),flush=True)\n",
+    "mutant-gate.py": "from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path.home()/'Desktop/Projects/llmx/tests'))\nimport common,f32\ncommon.EXE=str(Path(__file__).parent/'mutant.exe')\ntry:\n    f32.run()\nexcept AssertionError as error:\n    assert 'F32/HF logit error' in str(error), str(error)\n    print('Injected missing 32-lane-block output rejected:',error)\nelse:\n    raise SystemExit('MUTANT WAS NOT REJECTED')\n",
+    "eight-rounds.py": "import hashlib,json,math,os,statistics,subprocess\nfrom pathlib import Path\nroot=Path.home()/'AppData/Local/Temp'\nout=root/'llmx-attention-values/validation/eight-rounds'\nout.mkdir(exist_ok=False)\narms={'base':root/'llmx-cpu-gap/guarded/candidate-compare.exe','candidate':root/'llmx-attention-values/validation/candidate-compare.exe','mx':Path.home()/'Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe'}\nmodel=root/'Qwen3-0.6B-F32.gguf'\nids=root/'llmx-external-perf/eight-pairs/tokens.txt'\nhashes={name:hashlib.file_digest(path.open('rb'),'sha256').hexdigest() for name,path in dict(arms,model=model,tokens=ids).items()}\n(out/'hashes.json').write_text(json.dumps(hashes,indent=2))\nprint(hashes,flush=True)\nrows=[]\nfor pair in range(8):\n    order=list(arms)\n    order=order[pair%len(arms):]+order[:pair%len(arms)]\n    if pair%2: order.reverse()\n    for arm in order:\n        p=subprocess.run([str(arms[arm]),str(model),str(ids)],capture_output=True,timeout=180)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        samples=[json.loads(line) for line in p.stdout.decode().splitlines() if line]\n        assert len(samples)==2 and samples[0]['run']==0 and samples[1]['run']==1\n        row=dict(pair=pair,arm=arm,**samples[1])\n        assert row['pp_tokens']==215 and row['tg_tokens']==32 and row['top1']==4013\n        assert arm=='mx' or row['logit_sum']==-501040.0615\n        assert all(math.isfinite(row[k]) and row[k]>0 for k in ('pp_ms','tg_ms'))\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for phase in ('pp','tg'):\n        rates=[r[phase+'_tokens']*1000/r[phase+'_ms'] for r in rows if r['arm']==arm]\n        summary[arm][phase]=dict(mean=statistics.mean(rates),median=statistics.median(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\nprint(summary,flush=True)\n",
+    "quant-guard.py": "import hashlib,json,pathlib,statistics,subprocess,sys\nroot=pathlib.Path.home()/'AppData/Local/Temp'\nrepo=pathlib.Path.home()/'Desktop/Projects/llmx'\nsys.path.insert(0,str(repo/'tests'))\nimport perf\narms={'before':root/'llmx-cpu-gap/guarded/candidate.exe','after':root/'llmx-attention-values/validation/candidate.exe'}\nout=root/'llmx-attention-values/validation/quant-guard'\nout.mkdir(exist_ok=False)\nrows=[]\nfor pair in range(-1,8):\n    for arm in (('before','after') if pair%2==0 else ('after','before')):\n        p=subprocess.run([str(arms[arm]),'bench','--size','2048','--iters','2000','--threads','6'],capture_output=True,text=True,timeout=60)\n        p.check_returncode()\n        (out/f'{pair}-{arm}.stdout').write_text(p.stdout)\n        values=perf.parse(p.stdout.splitlines())\n        assert values['matmul_gflops']>=8 and values['prefill_tps']>=1000 and values['decode_tps']>=800\n        if pair<0: continue\n        row=dict(pair=pair,arm=arm,**values)\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for metric in ('matmul_gflops','prefill_tps','decode_tps'):\n        values=[r[metric] for r in rows if r['arm']==arm]\n        summary[arm][metric]=dict(mean=statistics.mean(values),median=statistics.median(values),minimum=min(values),maximum=max(values))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\n(out/'hashes.json').write_text(json.dumps({arm:hashlib.file_digest(p.open('rb'),'sha256').hexdigest() for arm,p in arms.items()},indent=2))\nprint(summary,flush=True)\n",
+    "small-guard.py": "import hashlib,json,statistics,subprocess\nfrom pathlib import Path\nroot=Path(__file__).parent\nout=root/'small-guard'\nout.mkdir(exist_ok=False)\nrows=[]\nfor pair in range(4):\n    for arm in (('before','after') if pair%2==0 else ('after','before')):\n        p=subprocess.run([str(root/f'small-{arm}.exe')],capture_output=True,timeout=120)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        values=[json.loads(line) for line in p.stdout.splitlines()]\n        assert len(values)==12\n        rows.extend(dict(pair=pair,arm=arm,**v) for v in values)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(pair,arm,flush=True)\nsummary=[]\nfor nt in (1,6):\n    for b in (1,2,4,8,16,64):\n        selected=[v for v in rows if v['threads']==nt and v['batch']==b]\n        assert len(set(v['sum'] for v in selected))==1\n        item=dict(threads=nt,batch=b)\n        for arm in ('before','after'):\n            values=[v['ms'] for v in selected if v['arm']==arm]\n            item[arm]=dict(mean_ms=statistics.mean(values),median_ms=statistics.median(values),min_ms=min(values),max_ms=max(values))\n        summary.append(item)\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\n(out/'hashes.json').write_text(json.dumps({a:hashlib.file_digest((root/f'small-{a}.exe').open('rb'),'sha256').hexdigest() for a in ('before','after')},indent=2))\nprint(json.dumps(summary,indent=2),flush=True)\n",
+    "small.cpp": "#define main llmx_cli_main\n#include \"C:/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp\"\n#undef main\nint main() {\n    auto weights=build_synthetic_model(2,256,1024,8,2,32,512,12345u);\n    infer::Model model(weights);\n    for(int nt: {1,6}) {\n        model.set_threads(nt);\n        for(int count: {1,2,4,8,16,64}) {\n            std::vector<uint32_t> ids(count);\n            for(int i=0;i<count;++i) ids[i]=i;\n            std::vector<float> logits;\n            for(int i=0;i<10;++i) {model.reset(); logits=model.prefill(ids);}\n            auto start=std::chrono::steady_clock::now();\n            for(int i=0;i<100;++i) {model.reset(); logits=model.prefill(ids);}\n            double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count()/100;\n            double sum=0;for(float x:logits) {if(!std::isfinite(x)) return 2;sum+=x;}\n            std::cout << std::setprecision(12) << \"{\\\"threads\\\":\"<<nt<<\",\\\"batch\\\":\"<<count<<\",\\\"ms\\\":\"<<ms<<\",\\\"sum\\\":\"<<sum<<\"}\\n\";\n        }\n    }\n}\n",
+    "profile.cpp": "#include <algorithm>\n#include <chrono>\n#include <cmath>\n#include <fstream>\n#include <iomanip>\n#include <iostream>\n#include <stdexcept>\n#include <vector>\n#include <map>\n#include <tuple>\n#ifdef LLMX_COMPARE_REFERENCE\n#include \"llama.h\"\n#else\n#include \"model/arch_qwen.hpp\"\n#endif\nusing Clock = std::chrono::steady_clock;\nstruct ProfileCpu : backend::CpuBackend {\n    std::map<std::tuple<size_t,size_t,size_t>,double> matrices;\n    double attention_ms=0, elementwise_ms=0;\n    bool in_attention=false;\n    void matmul(uint32_t type,const uint8_t* data,const float* X,float* Y,size_t ni,size_t no,size_t nb) override {\n        auto start=Clock::now();\n        CpuBackend::matmul(type,data,X,Y,ni,no,nb);\n        matrices[{ni,no,nb}]+=std::chrono::duration<double,std::milli>(Clock::now()-start).count();\n    }\n    void attention(const float* Q,const float* K,const float* V,float* out,int h,int hk,int d,int past,int batch) override {\n        auto start=Clock::now();in_attention=true;\n        CpuBackend::attention(Q,K,V,out,h,hk,d,past,batch);\n        in_attention=false;attention_ms+=std::chrono::duration<double,std::milli>(Clock::now()-start).count();\n    }\n    void parallel_for(int n,const std::function<void(int)>& fn) override {\n        auto start=Clock::now();CpuBackend::parallel_for(n,fn);\n        if(!in_attention) elementwise_ms+=std::chrono::duration<double,std::milli>(Clock::now()-start).count();\n    }\n    void reset_profile() {matrices.clear();attention_ms=elementwise_ms=0;}\n    void report(const char* phase) {\n        std::cerr<<phase<<\" attention_ms=\"<<attention_ms<<\" parallel_elementwise_ms=\"<<elementwise_ms<<\"\\n\";\n        for(const auto& item:matrices) std::cerr<<phase<<\" matmul \"<<std::get<0>(item.first)<<\" \"<<std::get<1>(item.first)<<\" \"<<std::get<2>(item.first)<<\" ms=\"<<item.second<<\"\\n\";\n    }\n};\nint main(int argc, char ** argv) {\n    if (argc != 3) {\n        std::cerr << \"usage: compare-cpu MODEL.gguf TOKEN_IDS.txt\\n\";\n        return 2;\n    }\n    std::ifstream input(argv[2]);\n    std::vector<uint32_t> ids;\n    uint32_t id;\n    while (input >> id) ids.push_back(id);\n    if (ids.size() != 247) throw std::runtime_error(\"expected 247 pinned HF tokens\");\n    const size_t np = ids.size() - 32;\n    std::vector<uint32_t> prompt(ids.begin(), ids.begin() + np);\n#ifdef LLMX_COMPARE_REFERENCE\n    llama_backend_init();\n    auto mp = llama_model_default_params();\n    mp.n_gpu_layers = 0;\n    mp.load_mode = LLAMA_LOAD_MODE_NONE;\n    auto * model = llama_model_load_from_file(argv[1], mp);\n    if (!model) return 3;\n    auto cp = llama_context_default_params();\n    cp.n_ctx = 512;\n    cp.n_batch = (uint32_t)np;\n    cp.n_ubatch = 128;\n    cp.n_threads = cp.n_threads_batch = 6;\n    cp.type_k = cp.type_v = GGML_TYPE_F32;\n    cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;\n    cp.offload_kqv = cp.op_offload = false;\n    auto * ctx = llama_init_from_model(model, cp);\n    if (!ctx) return 4;\n    const size_t nv = llama_vocab_n_tokens(llama_model_get_vocab(model));\n    std::vector<llama_token> ref_ids(ids.begin(), ids.end());\n#else\n    auto weights = gguf::read_gguf(argv[1]);\n    auto profiler=std::make_shared<ProfileCpu>();\n    infer::Model model(weights,profiler);\n    model.set_threads(6);\n    model.set_ubatch(128);\n#endif\n    for (int run = 0; run < 2; ++run) {\n#ifdef LLMX_COMPARE_REFERENCE\n        llama_memory_clear(llama_get_memory(ctx), true);\n#else\n        model.reset();\n#endif\n        profiler->reset_profile();\n        const auto start = Clock::now();\n#ifdef LLMX_COMPARE_REFERENCE\n        if (llama_decode(ctx, llama_batch_get_one(ref_ids.data(), (int32_t)np))) return 5;\n        llama_synchronize(ctx);\n#else\n        auto logits = model.prefill(prompt);\n#endif\n        const auto pp_end = Clock::now();\n        profiler->report(\"prefill\");profiler->reset_profile();\n        for (size_t i = np; i < ids.size(); ++i) {\n#ifdef LLMX_COMPARE_REFERENCE\n            if (llama_decode(ctx, llama_batch_get_one(&ref_ids[i], 1))) return 6;\n            llama_synchronize(ctx);\n#else\n            logits = model.step(ids[i]);\n#endif\n        }\n        const auto tg_end = Clock::now();\n        profiler->report(\"decode\");\n#ifdef LLMX_COMPARE_REFERENCE\n        const float * values = llama_get_logits_ith(ctx, -1);\n#else\n        const float * values = logits.data();\n        const size_t nv = logits.size();\n#endif\n        double sum = 0;\n        for (size_t i = 0; i < nv; ++i) {\n            if (!std::isfinite(values[i])) return 7;\n            sum += values[i];\n        }\n        std::cout << std::setprecision(10) << \"{\\\"run\\\":\" << run\n                  << \",\\\"pp_tokens\\\":\" << np << \",\\\"tg_tokens\\\":32,\\\"pp_ms\\\":\"\n                  << std::chrono::duration<double,std::milli>(pp_end-start).count()\n                  << \",\\\"tg_ms\\\":\" << std::chrono::duration<double,std::milli>(tg_end-pp_end).count()\n                  << \",\\\"top1\\\":\" << (std::max_element(values,values+nv)-values)\n                  << \",\\\"logit_sum\\\":\" << sum << \"}\" << std::endl;\n    }\n#ifdef LLMX_COMPARE_REFERENCE\n    llama_free(ctx);\n    llama_model_free(model);\n    llama_backend_free();\n#endif\n}\n",
+    "build-profile.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:profile.exe /Fo:profile.obj profile.cpp\nexit /b %errorlevel%\n"
+  },
+  "profile": {
+    "kind": "intrusive diagnostic; not comparative timing evidence",
+    "stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":564.8113,\"tg_ms\":2234.0044,\"top1\":4013,\"logit_sum\":-501040.0615}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":526.8053,\"tg_ms\":2187.0697,\"top1\":4013,\"logit_sum\":-501040.0615}\n",
+    "stderr": "prefill attention_ms=50.4883 parallel_elementwise_ms=14.2038\nprefill matmul 1024 1024 87 ms=23.3502\nprefill matmul 1024 1024 128 ms=35.8719\nprefill matmul 1024 2048 87 ms=23.9495\nprefill matmul 1024 2048 128 ms=37.1979\nprefill matmul 1024 3072 87 ms=69.5849\nprefill matmul 1024 3072 128 ms=104.493\nprefill matmul 1024 151936 1 ms=17.1929\nprefill matmul 2048 1024 87 ms=24.7938\nprefill matmul 2048 1024 128 ms=39.98\nprefill matmul 3072 1024 87 ms=39.0196\nprefill matmul 3072 1024 128 ms=60.6309\ndecode attention_ms=89.8233 parallel_elementwise_ms=0\ndecode matmul 1024 1024 1 ms=220.537\ndecode matmul 1024 2048 1 ms=212.126\ndecode matmul 1024 3072 1 ms=613.844\ndecode matmul 1024 151936 1 ms=538.662\ndecode matmul 2048 1024 1 ms=212.563\ndecode matmul 3072 1024 1 ms=309.985\nprefill attention_ms=50.5786 parallel_elementwise_ms=13.8819\nprefill matmul 1024 1024 87 ms=22.6142\nprefill matmul 1024 1024 128 ms=35.9994\nprefill matmul 1024 2048 87 ms=22.2197\nprefill matmul 1024 2048 128 ms=35.3669\nprefill matmul 1024 3072 87 ms=63.6569\nprefill matmul 1024 3072 128 ms=100.509\nprefill matmul 1024 151936 1 ms=15.8124\nprefill matmul 2048 1024 87 ms=21.4966\nprefill matmul 2048 1024 128 ms=37.5825\nprefill matmul 3072 1024 87 ms=35.2917\nprefill matmul 3072 1024 128 ms=61.7277\ndecode attention_ms=87.0635 parallel_elementwise_ms=0\ndecode matmul 1024 1024 1 ms=216.977\ndecode matmul 1024 2048 1 ms=207.291\ndecode matmul 1024 3072 1 ms=606.122\ndecode matmul 1024 151936 1 ms=528.472\ndecode matmul 2048 1024 1 ms=208.831\ndecode matmul 3072 1024 1 ms=305.491\n",
+    "source_sha256": "00323b66691dc09209d71f9e0d7314618ab885e1abf1013fdb8d6d4e285f58e3"
+  },
+  "verdict": "Prefill mean improves 3.32% vs control, with narrowly overlapping ranges. Decode means differ 0.11%, with overlapping ranges. External mean gaps remain -0.077% prefill and -2.10% decode; parity unproven. Development checkpoint only; no merge."
+}

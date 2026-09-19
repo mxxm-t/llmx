@@ -11,13 +11,14 @@ from tokenizer import build_byte_vocab, w_str
 
 CONFIG = {"block_count": 2, "embedding_length": 37, "feed_forward_length": 19,
           "attention.head_count": 2, "attention.head_count_kv": 1,
-          "attention.key_length": 10, "context_length": 16}
+          "attention.key_length": 42, "context_length": 16}
 TEXTS = ["a", "ab", "abc", "abcdefg", "abcdefghijklm"]
 
 
 def tensors(tied):
     state = 12345
     result = []
+    hd = CONFIG["attention.key_length"]
 
     def add(name, hf_name, shape, norm=False):
         nonlocal state
@@ -34,13 +35,13 @@ def tensors(tied):
         name, hf = "blk.%d." % layer, "model.layers.%d." % layer
         for norm, mapped, width in (("attn_norm", "input_layernorm", 37),
                                     ("ffn_norm", "post_attention_layernorm", 37),
-                                    ("attn_q_norm", "self_attn.q_norm", 10),
-                                    ("attn_k_norm", "self_attn.k_norm", 10)):
+                                    ("attn_q_norm", "self_attn.q_norm", hd),
+                                    ("attn_k_norm", "self_attn.k_norm", hd)):
             add(name + norm + ".weight", hf + mapped + ".weight", [width], True)
-        for tensor, mapped, shape in (("attn_q", "self_attn.q_proj", [37, 20]),
-                                      ("attn_k", "self_attn.k_proj", [37, 10]),
-                                      ("attn_v", "self_attn.v_proj", [37, 10]),
-                                      ("attn_output", "self_attn.o_proj", [20, 37]),
+        for tensor, mapped, shape in (("attn_q", "self_attn.q_proj", [37, 2 * hd]),
+                                      ("attn_k", "self_attn.k_proj", [37, hd]),
+                                      ("attn_v", "self_attn.v_proj", [37, hd]),
+                                      ("attn_output", "self_attn.o_proj", [2 * hd, 37]),
                                       ("ffn_gate", "mlp.gate_proj", [37, 19]),
                                       ("ffn_up", "mlp.up_proj", [37, 19]),
                                       ("ffn_down", "mlp.down_proj", [19, 37])):

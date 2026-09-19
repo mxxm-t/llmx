@@ -37,6 +37,10 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
   model's full context. AVX2 dots and weighted value accumulation have scalar
   tails; a scalar branch is retained for the runtime AVX2 check.
   Vectorized dot reductions change summation order and require the HF gate.
+  Value coefficients are normalized once, then output accumulators stay in
+  registers across the KV sequence: 32-lane tiles, eight-lane remainders, and
+  scalar tails. This avoids repeatedly loading/storing output rows while
+  retaining each value lane's sequence order.
 - `make_cpu_backend()` factory.
 
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a

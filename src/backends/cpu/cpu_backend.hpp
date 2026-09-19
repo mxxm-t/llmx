@@ -393,18 +393,39 @@ public:
                     sum += scores[t];
                 }
                 float* dst = out + (size_t)b * q_stride + (size_t)h * head_dim;
-                std::fill(dst, dst + head_dim, 0.0f);
-                for (size_t t = 0; t < end; ++t) {
-                    const float* v = V + t * kv_stride + kv_offset;
-                    const float weight = scores[t] / sum;
-                    int d = 0;
-                    if (avx2_) {
-                        const __m256 w = _mm256_set1_ps(weight);
-                        for (; d + 8 <= head_dim; d += 8)
-                            _mm256_storeu_ps(dst + d, _mm256_add_ps(_mm256_loadu_ps(dst + d),
-                                _mm256_mul_ps(w, _mm256_loadu_ps(v + d))));
+                // Normalize once; each lane then keeps sequence order while
+                // its partial sum stays in a register across KV rows.
+                for (size_t t = 0; t < end; ++t) scores[t] /= sum;
+                int d = 0;
+                if (avx2_) {
+                    for (; d + 32 <= head_dim; d += 32) {
+                        __m256 a0 = _mm256_setzero_ps(), a1 = _mm256_setzero_ps();
+                        __m256 a2 = _mm256_setzero_ps(), a3 = _mm256_setzero_ps();
+                        for (size_t t = 0; t < end; ++t) {
+                            const float* v = V + t * kv_stride + kv_offset + d;
+                            const __m256 sw = _mm256_set1_ps(scores[t]);
+                            a0 = _mm256_add_ps(a0, _mm256_mul_ps(sw, _mm256_loadu_ps(v)));
+                            a1 = _mm256_add_ps(a1, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 8)));
+                            a2 = _mm256_add_ps(a2, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 16)));
+                            a3 = _mm256_add_ps(a3, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 24)));
+                        }
+                        _mm256_storeu_ps(dst + d, a0); _mm256_storeu_ps(dst + d + 8, a1);
+                        _mm256_storeu_ps(dst + d + 16, a2); _mm256_storeu_ps(dst + d + 24, a3);
                     }
-                    for (; d < head_dim; ++d) dst[d] += weight * v[d];
+                    for (; d + 8 <= head_dim; d += 8) {
+                        __m256 acc = _mm256_setzero_ps();
+                        for (size_t t = 0; t < end; ++t) {
+                            const float* v = V + t * kv_stride + kv_offset + d;
+                            acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t]), _mm256_loadu_ps(v)));
+                        }
+                        _mm256_storeu_ps(dst + d, acc);
+                    }
+                }
+                for (; d < head_dim; ++d) {
+                    float acc = 0.0f;
+                    for (size_t t = 0; t < end; ++t)
+                        acc += scores[t] * V[t * kv_stride + kv_offset + d];
+                    dst[d] = acc;
                 }
             }
         });

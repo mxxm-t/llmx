@@ -31,7 +31,7 @@ feature currently stands right now.
 | F32 embedding/matrix inference          | In Progress |
 | CPU attention in backend (ROADMAP #4a)  | In Progress |
 | CPU row streaming / parallel prefill   | In Progress |
-| CPU attention query scheduling        | In Progress |
+| CPU attention value accumulation      | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
@@ -57,11 +57,11 @@ feature ships, delete its block and mark the row `Done` above.
   `5542318e74`, then merge and observe the expanded five-job hosted CI.
   Eight alternating pairs on Ryzen 7 5800X, six threads, ubatch 128, F32 KV,
   identical 215 HF prompt tokens and 32 forced continuation tokens:
-  with attention plus row scheduling, mean prefill 383.06 vs 398.97 tok/s;
-  decode 14.68 vs 14.89 tok/s. Both remain below the external floor.
+  with register attention values, mean prefill 397.63 vs 397.94 tok/s;
+  decode 14.57 vs 14.89 tok/s. External parity remains unproven.
   Model loading is excluded and each process warms up before measurement.
   No external performance parity is claimed; raw timing samples and hashes
-  are in `docs/benchmarks/row-scheduling-cpu-20260919.json`.
+  are in `docs/benchmarks/attention-values-cpu-20260919.json`.
 - **Findings:** activation tiling and a fully spinning worker pool did not
   establish a win. Profiling instead identifies scalar attention as roughly
   170-180 ms of prefill. Backend attention now improves prefill by 24.8%
@@ -92,8 +92,8 @@ feature ships, delete its block and mark the row `Done` above.
   Q8 synthetic guardrails pass; matmul 123.07 -> 121.80 GFLOPS, prefill
   4828 -> 4800 and decode 4522 -> 4875 tok/s, with overlapping ranges.
 - **Left:** close the remaining external CPU floor gap, then merge and run
-  hosted CI. The row-scheduling work below improves the next matched F32
-  run to 383.06 / 14.68 vs mx 398.97 / 14.89 tok/s (prefill / decode).
+  hosted CI. The latest value-kernel comparison below gives 397.63 / 14.57
+  vs mx 397.94 / 14.89 tok/s (prefill / decode).
   Profiling after vectorization finds prefill attention around 60-67 ms and
   decode attention around 97-100 ms; matrix operations now dominate decode.
   Sequential F32 row streaming and parallel batched elementwise work are
@@ -124,29 +124,47 @@ feature ships, delete its block and mark the row `Done` above.
   Instrumented pool profiling finds 26-28 ms after worker callbacks finish
   during 32 decode steps. Bounded completion polling did not establish a win
   over its atomic-only control (eight rounds); no pool change was adopted.
-  Full spinning was already rejected. The attention query scheduling
-  experiment below is the next candidate; no new runtime change is adopted.
+  Full spinning was already rejected. Query scheduling remains scratch-only;
+  the value-accumulation kernel below is the next validated checkpoint.
 - **Gotchas:** single-row dots change reduction order. Printed sums alone
   are not the numerical gate. Initial unconditional scheduling appeared above
   mx for prefill, but final guarded measurements did not; use the final run.
   The legacy bench "prefill" is repeated step(), not batched prefill, so keep
   the separate batched regression guard. Reader alignment was not adopted.
 
-### CPU attention query scheduling
+### CPU attention value accumulation
 
-- **Goal:** improve CPU attention worker utilization without changing each
-  query's arithmetic (ROADMAP #4a / #8).
-- **Done:** scratch implementation distributes head/query pairs cyclically
-  and uses worker-owned score rows. Three matched diagnostic rounds against
-  `c4436fd`: prefill 388.08 -> 399.48 tok/s (disjoint ranges), decode
-  14.57 -> 14.46 (overlapping ranges). Same-run mx: 395.48 / 14.83.
-  Exact patch, hashes and samples are recorded in the attention-scheduling
-  diagnostic JSON. Runtime files are still the validated `c4436fd` source.
-- **Left:** repeat the comparison and run HF/platform/small-workload gates
-  before adopting. The performance floor remains unproven for this candidate.
-- **Gotchas:** finite logits and matching printed sums are only smoke checks.
-  Cyclic work assignment changes KV reuse among workers, including decode;
-  measure both phases and verify results rather than assuming a pure win.
+- **Goal:** reduce CPU attention output loads/stores by retaining value-sum
+  lanes in SIMD registers, while preserving per-lane summation order (#4a/#8).
+- **Done:** normalized coefficients and register value sums implemented, with
+  32-lane blocks, eight-lane remainders and scalar tails. Expanded the tiny HF
+  fixture to head width 42, deriving its tensor shapes and HF config together.
+  SIMD and forced scalar-value branches pass at maximum HF error 0.00000070
+  under 0.00002; a missing SIMD-block output mutant fails at 0.19888665.
+  Windows/Linux full suites pass with required real Q8/Q4 fixtures; Linux
+  UBSan synthetic suite passes. Real F32 HF logits and excerpt/window NLL pass.
+  All 5,013,888 logits over 1,943 prompt plus 32 greedy tokens are byte-identical
+  to c4436fd; HF maximum error 0.00012636 under 0.001, greedy IDs 32/32 exact.
+  Q8 step and batched guards show overlapping control/candidate ranges.
+  Final eight interleaved rounds:
+
+  | Mean tok/s | Control c4436fd | Value kernel | mx | Gap vs mx |
+  |---|---:|---:|---:|---:|
+  | Prefill | 384.86 | 397.63 | 397.94 | -0.08% |
+  | Decode | 14.56 | 14.57 | 14.89 | -2.10% |
+
+  Prefill improves 3.32% with narrowly overlapping ranges; decode is unchanged
+  within noise. ASSETS and `benchmarks/attention-values-cpu-20260919.json`
+  retain all samples, hashes, validation logs and reproduction harnesses.
+- **Left:** close the external performance gap before merge/hosted CI.
+  Instrumented profiling attributes about 2,073 of 2,187 ms decode to matmul,
+  including 528 ms in the output projection; attention is about 87 ms.
+  Investigate matrix operations next, using matched controls and HF gates.
+- **Gotchas:** means close to mx are not proof of parity. This is an interactive
+  workstation and no outliers were discarded. Query scheduling and polling
+  remain scratch-only. The value kernel keeps sequence order per lane; byte
+  identity is established for the recorded Windows long-prompt case, not all
+  inputs or compilers. Forced scalar values do not prove no-AVX ISA support.
 
 ### Correctness baseline vs HF reference
 

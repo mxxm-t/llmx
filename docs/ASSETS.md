@@ -369,7 +369,7 @@ rejected candidate did not proceed to a full HF gate. Raw timings, hashes,
 the exact patch and the stress source are preserved in
 [`benchmarks/completion-polling-20260919.json`](benchmarks/completion-polling-20260919.json).
 
-### Attention query scheduling: diagnostic candidate
+### Attention query scheduling: not adopted
 
 A scratch change schedules independent head/query pairs cyclically across
 workers, with one score row per worker. Per-query arithmetic is unchanged
@@ -380,12 +380,93 @@ in source. Three interleaved rounds against `c4436fd` show:
 | Prefill | 388.08 | 399.48 | 395.48 |
 | Decode | 14.57 | 14.46 | 14.83 |
 
-Prefill control/candidate ranges are disjoint; decode ranges overlap. This
-is a lead for the next full gate, not adopted runtime code or an external
-parity claim. Only finite outputs/top-token/printed-sum smoke checks ran.
+Prefill control/candidate ranges are disjoint; decode ranges overlap. A
+subsequent eight-round run did not establish external parity:
+
+| Phase | Current mean tok/s | Candidate | mx |
+|---|---:|---:|---:|
+| Prefill | 378.01 | 391.81 | 405.30 |
+| Decode | 14.66 | 14.66 | 14.87 |
+
+Scheduling remains scratch-only. Combining it with the value kernel below
+added no clear diagnostic benefit. Only finite outputs/top-token/printed-sum
+smoke checks ran for scheduling; it did not proceed to a full HF gate.
 The exact patch and raw samples are in
 [`benchmarks/attention-scheduling-diagnostic-20260919.json`](benchmarks/attention-scheduling-diagnostic-20260919.json).
 Scratch files are under `%TEMP%/llmx-attention-balance`.
+
+### Register attention value accumulation
+
+The next candidate normalizes attention coefficients once and retains output
+sums in registers across the KV sequence. It uses 32-lane blocks, eight-lane
+remainders and scalar tails, preserving sequence order per output lane.
+Head scheduling and worker-pool behavior are unchanged.
+
+Final measurements use the same Ryzen 7 5800X, F32 Qwen3-0.6B weights, pinned
+215 prompt plus 32 forced continuation tokens, six threads, ubatch 128 and
+F32 KV as the previous comparison. Control is `c4436fd`; mx remains
+`5542318e748c154b634211def405ae95da3dfaa9`. Eight rounds rotate/reverse arm
+order; each process runs one warmup and one measured sequence. Loading,
+tokenization and sampling are excluded. No builds/tests ran concurrently.
+All samples are retained; unrelated interactive activity was not controlled.
+
+| Phase | Control mean / median tok/s | Candidate mean / median | mx mean / median | Mean gap vs mx |
+|---|---:|---:|---:|---:|
+| Prefill | 384.86 / 387.00 | 397.63 / 396.58 | 397.94 / 398.27 | -0.08% |
+| Decode | 14.56 / 14.58 | 14.57 / 14.61 | 14.89 / 14.97 | -2.10% |
+
+Prefill improves 3.32% against its control, with narrowly overlapping ranges.
+Decode differs by 0.11%, within overlapping ranges. Prefill is close to mx,
+but external parity remains unproven and decode still trails. This is a
+development checkpoint, not a merge or an external-floor pass. These final
+results supersede the three-round candidate-selection diagnostic; runs are
+not pooled or compared by their absolute throughput across sessions.
+
+The deterministic HF fixture now uses head width 42, exercising the full
+32-lane block plus eight-lane and scalar tails. Tensor shapes and HF head
+configuration derive from the same width. The generator still uses original
+HF model code, and numerical bounds are unchanged.
+
+| Numerical gate | Measured | Bound / expected |
+|---|---:|---:|
+| Tiny HF maximum logit error | 0.00000070 | 0.00002 |
+| Forced scalar-value branch maximum error | 0.00000070 | 0.00002 |
+| Missing SIMD-block output mutant error | 0.19888665 | Must fail 0.00002 |
+| Long-prompt HF maximum logit error | 0.00012636 | 0.001 |
+| Long-prompt HF RMS logit error | 0.00001616 | Recorded diagnostic |
+| Greedy IDs matching HF | 32/32 | 32/32 |
+| Long logits byte-identical to c4436fd | 5,013,888 | All recorded values |
+
+The long case covers 1,943 prompt tokens plus 32 greedy tokens, not the model's
+maximum context or the full corpus. All values were checked finite. The
+concatenated vector hash is
+`986be83255fa7e25c17b987c3d6f27f58b0f65e6dd84d90568bf4ac819b9d702`.
+Windows and Linux full suites pass with required Q8/Q4 HF fixtures; real F32
+HF logits and excerpt/window NLL pass. Linux UBSan synthetic tests pass;
+real model fixtures were deliberately skipped in that sanitizer run.
+The scalar-value test still enables AVX elsewhere and is not an ISA portability
+test. The root CLI rebuild has an identical code section to the tested CLI.
+
+The eight-pair Q8 step guard and four-pair batched guard have overlapping
+control/candidate ranges. The latter calls real `Model::prefill()` at batches
+1/2/4/8/16/64 and one/six threads, with ten warmups and 100 timed iterations.
+The legacy `bench` prefill label still calls repeated `step()`.
+
+| Q8 step guard | Control mean | Candidate mean |
+|---|---:|---:|
+| Matmul, GFLOPS | 126.56 | 127.61 |
+| Reported prefill, tok/s | 5088.48 | 5066.90 |
+| Decode, tok/s | 5155.80 | 5080.45 |
+
+Instrumented profiling separately places about 2,073 ms of the 2,187 ms decode
+in matrix operations, including 528 ms in the output projection; attention
+takes about 87 ms. This diagnostic identifies the next investigation target;
+it is not a comparative benchmark or proof of achievable savings.
+
+All final/diagnostic timing samples, the scheduling follow-up, hashes,
+validation logs and reproduction harnesses are in
+[`benchmarks/attention-values-cpu-20260919.json`](benchmarks/attention-values-cpu-20260919.json).
+Scratch artifacts are under `%TEMP%/llmx-attention-values/validation`.
 
 ## Wiki text location
 

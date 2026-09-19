@@ -203,7 +203,7 @@ def gen_f32():
     for tied in (False, True):
         config = Qwen3Config(vocab_size=257, hidden_size=37, intermediate_size=19,
                              num_hidden_layers=2, num_attention_heads=2, num_key_value_heads=1,
-                             head_dim=10, max_position_embeddings=16, rope_theta=10000.0,
+                             head_dim=CONFIG["attention.key_length"], max_position_embeddings=16, rope_theta=10000.0,
                              rms_norm_eps=1e-6, tie_word_embeddings=tied, attention_dropout=0.0)
         config._attn_implementation = "eager"
         model = Qwen3ForCausalLM(config).float().eval()

@@ -7,6 +7,11 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
 - Persistent worker pool, started once. `matvec_q8_0` and attention both
   run through it; previously each created and joined `std::thread`s per call,
   which on Qwen3-8B was thousands of thread creations per token.
+- Dispatch catches exceptions from callers and workers, waits for all
+  participants, clears the borrowed job and rethrows on the caller. Failure
+  leaves outputs potentially partial but the pool reusable. Partial startup
+  joins created threads; failed reconfiguration falls back to serial execution.
+  Concurrent or recursive submissions remain unsupported.
 - `matvec_q8_0`: fused dequant+FMA AVX2 row dot, kept for the single-column
   (decode) case, which is bandwidth bound.
 - Q4_K decode also has a fused row dot. F16C availability is cached and used

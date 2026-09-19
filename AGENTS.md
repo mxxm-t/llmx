@@ -97,6 +97,10 @@ It also checks every finite f16 scale against signed Q8 weight extremes using
 one-hot inputs with exact expected products. The independent HF fixtures below
 remain the external correctness gate.
 
+`backend-errors` injects task and startup-allocation failures, checks completion
+before error propagation, and exercises pool reuse and thread reconfiguration.
+It does not establish recovery of partially executed model sessions.
+
 Run the full suite (all generate their own fixtures, no real models needed):
 ```
 python tests/run_tests.py

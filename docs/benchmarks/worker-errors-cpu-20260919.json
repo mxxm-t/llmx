@@ -1,0 +1,1850 @@
+{
+  "date": "2026-09-19T21:28:05.251095",
+  "control_commit": "3a82284",
+  "branch": "fix/cpu-worker-errors",
+  "scope": "CPU dispatch/startup exception safety; no arithmetic changes; current backend still excludes concurrent/recursive submissions. Partial task outputs are invalid and no model/session rollback is established.",
+  "limitations": [
+    "All performance samples retained; shared interactive Windows host; means and ranges are descriptive, not an equivalence test.",
+    "Long history is 1943 prompt tokens and 32 continuations, not maximum supported context or full corpus.",
+    "Initial control-errors.json comes from the dispatch-only test before the startup sweep was added. Final control-startup-errors.json uses the final test and includes binary/source hashes.",
+    "Allocation fault sweep covers partial thread-pool construction; OS thread resource exhaustion is not separately forced.",
+    "Hosted CI not run for this unmerged branch."
+  ],
+  "artifacts": {
+    "validation.json": [
+      {
+        "name": "windows-build",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\build.bat"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "faults",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\backend-errors.exe"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "numerical-build",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\numerical-build.bat"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "f32-hf",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\f32-gate.py"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "long-hf",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\long-gate.py"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "exact",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\exact-gate.py"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "windows-suite",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+          "--require-baseline"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-configure",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "-S",
+          "/mnt/c/Users/Marko/Desktop/Projects/llmx",
+          "-B",
+          "/root/.cache/llmx-worker-errors-release",
+          "-DCMAKE_BUILD_TYPE=Release"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-build",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "--build",
+          "/root/.cache/llmx-worker-errors-release",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-native",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "ctest",
+          "--test-dir",
+          "/root/.cache/llmx-worker-errors-release",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-suite",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "python3",
+          "-u",
+          "/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py",
+          "--exe",
+          "/root/.cache/llmx-worker-errors-release/llmx",
+          "--require-baseline"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "ubsan-configure",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "-C",
+          "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-kv-head-major/validation/ubsan-cache.cmake",
+          "-S",
+          "/mnt/c/Users/Marko/Desktop/Projects/llmx",
+          "-B",
+          "/root/.cache/llmx-worker-errors-ubsan",
+          "-DCMAKE_BUILD_TYPE=Release"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "ubsan-build",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "--build",
+          "/root/.cache/llmx-worker-errors-ubsan",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "ubsan-native",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "ctest",
+          "--test-dir",
+          "/root/.cache/llmx-worker-errors-ubsan",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      }
+    ],
+    "finish.json": [
+      {
+        "name": "windows-native",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\native.bat"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "synthetic-perf",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\synthetic-perf.py"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "matched-perf",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\bench.py"
+        ],
+        "exit": 0
+      }
+    ],
+    "test-final.json": [
+      {
+        "name": "test-final-build",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\test-final.bat"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "test-final-windows",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\backend-errors.exe"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "test-final-linux-build",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "--build",
+          "/root/.cache/llmx-worker-errors-release",
+          "--target",
+          "llmx-backend-errors-test",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "test-final-linux",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "ctest",
+          "--test-dir",
+          "/root/.cache/llmx-worker-errors-release",
+          "-R",
+          "backend-errors",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "test-final-ubsan-build",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "--build",
+          "/root/.cache/llmx-worker-errors-ubsan",
+          "--target",
+          "llmx-backend-errors-test",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "test-final-ubsan",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "ctest",
+          "--test-dir",
+          "/root/.cache/llmx-worker-errors-ubsan",
+          "-R",
+          "backend-errors",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      }
+    ],
+    "control-errors.json": {
+      "exit": 3221226505,
+      "stdout": "",
+      "stderr": ""
+    },
+    "control-startup-errors.json": {
+      "exit": 3221226505,
+      "stdout": "",
+      "stderr": "",
+      "binary_sha256": "3f198b0d9634ec7e7f1c2f15454a5be6bd4d91f9b62f8d80b687133b2b066173",
+      "test_sha256": "473a3a4d48c2d4d84a1ff238a60418f805795222201a8027a12ce008a3d0e5a2",
+      "scope": "Final startup allocation-fault test compiled against 3a82284; original process terminates."
+    },
+    "long/comparison.json": {
+      "prompt_tokens": 1943,
+      "generated_tokens": 32,
+      "greedy_match": true,
+      "logits_compared": 5013888,
+      "max_abs_error": 0.00012636184692382812,
+      "rms_error": 1.6163279547159805e-05,
+      "bound": 0.001
+    },
+    "exact/comparison.json": {
+      "binary_sha256": {
+        "base_ppl": "58842390c80dc374bcd30f9eba1bf48ac8f1479d9af64020eaeb2e5a41b6e903",
+        "candidate_ppl": "a9782b01204903580370e82d9c3f0044a7f4568f63932406c20278d8be2280ed",
+        "candidate_forced": "fd2204a03228dbdcb37a10dff358ff7b87c73ca0f87ab31480c7837a10c949ff",
+        "candidate_long": "6701365ae35248c2b05c968351b03defb2861ba0de3ac1a6fe6ea25e299ebb6d"
+      },
+      "f32_ppl": {
+        "base": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.3602856587153136,
+            "ppl": 28.79741593724798
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.030360358565375,
+            "ppl": 56.28118900180338
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.710157522040546,
+            "ppl": 40.860242408841785
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6307937854390597,
+            "ppl": 37.74276438635746
+          }
+        ],
+        "group": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.3602856587153136,
+            "ppl": 28.79741593724798
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.030360358565375,
+            "ppl": 56.28118900180338
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.710157522040546,
+            "ppl": 40.860242408841785
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6307937854390597,
+            "ppl": 37.74276438635746
+          }
+        ]
+      },
+      "q8_ppl": {
+        "base": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.361663767717966,
+            "ppl": 28.83712927377228
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.037034074325617,
+            "ppl": 56.658049792014495
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.7125502817810534,
+            "ppl": 40.95812821376951
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6432017866796906,
+            "ppl": 38.21399411742927
+          }
+        ],
+        "group": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.361663767717966,
+            "ppl": 28.83712927377228
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.037034074325617,
+            "ppl": 56.658049792014495
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.7125502817810534,
+            "ppl": 40.95812821376951
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6432017866796906,
+            "ppl": 38.21399411742927
+          }
+        ]
+      },
+      "q8_long": {
+        "values": 5013888,
+        "byte_identical": true,
+        "sha256": {
+          "-logits.f32": "792cc5b1dc8f74d87a1b290b7bfcb04668e4a6777d16af43ec3a1a9a81b77fdb",
+          "-step-00.f32": "0232c0fac77cf7eb9dc12fd4ca9a5fd372c48d6bace0fcad039966635588e836",
+          "-step-01.f32": "036f4c00306ee9d8cb992902adff4eb67bdf47c2e5f81e4986e41e321e916b22",
+          "-step-02.f32": "c7814c234abcece2d4185744cb4de81f2bcb2231e24b9d165c73bc0d2384c797",
+          "-step-03.f32": "3ebb1a826c8e24506be6ffc03ea118eeb7641b4ccb3925fd4029a2145a7df891",
+          "-step-04.f32": "aebc35a303a9e382502f357ba9e5d05feedbd53072ef04563c6bee4da066ac91",
+          "-step-05.f32": "b965b024d47812628bae78b9cf1642dbd4efcdff920a24b6eeeeea04119fa839",
+          "-step-06.f32": "3cca7c2160c8260d9efd2bee62819a35b17b7ac94b74982e2a13e12860e353ba",
+          "-step-07.f32": "9b7f78c8223f179a2b7e5180130e8e5323064c7f80d06a9fa4f2f364c99b4eec",
+          "-step-08.f32": "ffd9c3f1f1fade3b208e3865c6441c0ba0108dd13e24d3129a8ac9e917ffb455",
+          "-step-09.f32": "84494cd3e2193c47131da35e019e782d43e3d06d2ae1a5b9415acdaa291b0952",
+          "-step-10.f32": "5560601e5a4248f38838265f5156fa309b22c1f88d2bf3ab5a859c70de8db6ab",
+          "-step-11.f32": "f22e982421e849f4becf292b986871c2d008bf98791da759849dadd718ddcdc8",
+          "-step-12.f32": "8dd0e9b7284034a6962b7596221310072d06297aeea582f595c7bca8426cf7b7",
+          "-step-13.f32": "4b5d9093fae0e79ac21e1d62f8d3dd3194c0f82345a9d1a55c05d552efa426f9",
+          "-step-14.f32": "5c501dcab4925fd5edf85efdd7ab90acd685d5cc72bab6c707b5c171fd2742d5",
+          "-step-15.f32": "7462b12dd799fe190de10f0cb06274ecb01ad2662f178c0f095e477a0d3141f0",
+          "-step-16.f32": "e21c0199c0c4b2d67c66958ab5d17905d5e165b0c1a5ea9354ec90e0a10ecf50",
+          "-step-17.f32": "240f5b76a33758a05dcf752ba9d5168dc9825b15362f3986f2c4fe2c9f23ac2d",
+          "-step-18.f32": "57e8139e1047a26e7df89520592c8ced974a2b69b01d4a1babf16653cdd1caea",
+          "-step-19.f32": "514dac18f1f4ee3d7761697bf57179aa1208a1720c230422d7e10c35149b2e26",
+          "-step-20.f32": "26f2303b932a0ef76b74aab79b63fb285f981e190b2d2e410be6cfe0c0bd9cc6",
+          "-step-21.f32": "b2536cdb45519d9573fdc0021737c1fb798d9a1aa1a44b447e9e2276291075a0",
+          "-step-22.f32": "9e1a25d19f17a5a7a94893a427f34bd376b98659d555f44d1aed6df522bdea33",
+          "-step-23.f32": "714783139533ed43a01a3796c84881d341bdf16d2251dfe77af4ca3912ee13bf",
+          "-step-24.f32": "0be0f8baa65f182406d58ed206a927a07a3d0d041feeeee4bd5c113c103dfd5e",
+          "-step-25.f32": "8204b37925065c05e72030883fb785dc1b494d700b2d7e9f17fa3e0cae5312ec",
+          "-step-26.f32": "fa33d0e6a23a0c42e16c784db54821499e97e1589bce349cdcded5732df17109",
+          "-step-27.f32": "57c22aa76c9ffe1b25316de61c11fd2207ba330a9fd9806d39cba1a6221518a8",
+          "-step-28.f32": "12b7b72c5fe74df977e5bc9da0687636cbd0c3558402bb9315ee2fe28e528525",
+          "-step-29.f32": "470f203a46b4c221f04caa2f79aea20e3739511a3a188358f0f0f473809fe230",
+          "-step-30.f32": "87ff4441f5d177185186f6195d370b8148faf24c5bf40d534d42b99bba9a0171",
+          "-step-31.f32": "6ba1d89a9380d205a40903b8b245e2289bf72fa7c7e7d2cc4864c6626e542b2a"
+        }
+      },
+      "f32_long": {
+        "values": 5013888,
+        "byte_identical": true,
+        "sha256": {
+          "-logits.f32": "5a25da0ce497f0b399adfd15d0b63476a940f8571271c75acfc6bd75c178c99d",
+          "-step-00.f32": "03a8225c5bd2f895cb4b04cba6ebff6b5f6ba84a2de0baffc18cabb7cf34a3c7",
+          "-step-01.f32": "69aff52b7c8068f8c936c61daa070bd95e04a4b1ac99bd2b09a3aa9774e2972c",
+          "-step-02.f32": "90f3d7e6ee9667678ae33a1c1d3d610b580434f1e3ac764772b7123dda4b223c",
+          "-step-03.f32": "ec886b175da8da7bb3f42bf8ef90d64aede14f2194f6a34d8b67cdc15784efa0",
+          "-step-04.f32": "630f4c5c459b633a05ab43ddd29375a5998b541886fe0f5af8344a54197a3636",
+          "-step-05.f32": "d5883650201c2f3e0ec54e3262da5eb2ab08b1d494fe20bee14ff156eb1acc01",
+          "-step-06.f32": "061b5720a02a4538f64b628c1e3b8c5fd9410a04efad4a6379ee8f33e97700a1",
+          "-step-07.f32": "adb16ce8be43aa3e8d05469dbcabcd09de8a838d672856a9ebf0712c24c59d64",
+          "-step-08.f32": "1cc19a0309b38954a20c3b078a88b9383d68302494b2e54d2e91b0dceb2b38e7",
+          "-step-09.f32": "de320f85f0341561aa766cb2b6e1ae7cce91e9e641347e9b9734ee437964d347",
+          "-step-10.f32": "10a7bc8e552129aeeb5523fa3bff3d00d2667de8688f8c43a31f56acfa4d1830",
+          "-step-11.f32": "1aa0247c3d21c2ca561b892aa69ff3471a511158196eeae7cd7926c1830095eb",
+          "-step-12.f32": "2d2c1da15d8268af2517741781b8e05efdd026d4e658a9000ab929b6266ce191",
+          "-step-13.f32": "e0ae0c853697ce9804842d11e5a78e07aa3e500d45311da7f6be9166c094cf81",
+          "-step-14.f32": "ff9a56d43043b26589f6dc7a394fc05a4b35f52326fd5c4ea71fbdedf31040b3",
+          "-step-15.f32": "c17033431d218e432bbdc7a3537a42eb69cbf859d2efbda94db5d61af44e5864",
+          "-step-16.f32": "cb472916c97221248b42c0e677f209182e45a656ebaff60fb0e198809b0493c6",
+          "-step-17.f32": "f5945f0c7ab3d311699d7e7f883c92ee1b4cd3a784e69c0369a841924ecc4a06",
+          "-step-18.f32": "0d89c646449a9504b11062bc60c4ef57ca31360bf51c63d93619ebe59862435f",
+          "-step-19.f32": "797d1cdee7a8804af0d6d72bfd73fa8d5a1979310d4d0ae017e362614f584ff7",
+          "-step-20.f32": "a50738f70f389646fa87aaec56308712b2b78cf9c4cf060014dc8803c2792688",
+          "-step-21.f32": "4d42e084cba229cf0b70db96703a197b43bcf24c9e2346c82f50fc177083a035",
+          "-step-22.f32": "640c1d5a085b2100be49b3ce3f497ad8eb8bfc740a3ca0b547a467e03d683d83",
+          "-step-23.f32": "59575b93271bac64b7ac58c91e9fc6fff3cd3bad030723d273cd80d4a6803293",
+          "-step-24.f32": "5449b8f4eb7bac94bae3c74fdc53b73e10e78335538dd4ce27547de2da79ba38",
+          "-step-25.f32": "522a1f138ab3934872d6dfff6a6d6b12d82d5f2724799a13d19beeccbd923f87",
+          "-step-26.f32": "0ac8c18751a00f2a9955759cb21269b644b1d535eebbf3801e73aa8da1440bb3",
+          "-step-27.f32": "d94e1e141e475b9c4e0ccffb186d5e47f2a326173b00f8d29a80b668758bef64",
+          "-step-28.f32": "eaeab344dc3eb66c86a846539c501ad3e50fc41a2871e458d7b06d2de9b169f8",
+          "-step-29.f32": "a756a1762bb1d283abf355ac433d212cb4401b7d2624248cb685fca08b6c8f33",
+          "-step-30.f32": "963a512859532bd254cf7b40075da3a7af3dec9a76799b3bd2dd60d1bfce1dd2",
+          "-step-31.f32": "050e0710d8e2ccddc09cbc7be8982d20555d59055e1c7ae0e1afc75cf7963907"
+        }
+      },
+      "scope": "Four excerpt/window NLL cases; long vectors over 1943 prompt tokens and 32 continuation steps, not full corpus or maximum context."
+    },
+    "bench-nine/metadata.json": {
+      "hashes": {
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-compare.exe": "f34310ad207b7fe5b09b8047f30326df98126468b5050e111362d54a3ba1e606",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-compare.exe": "6ca767f3fe400d28f269e229ba0465120032a9d5d6f15dd292e47c205375e004",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llmx-compare-threads.exe": "6156452d9e6e3cd63e4d184b1e8c57badfee57fece86092d23b0dc9d64f645bf",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\config.hpp": "9f20e6cf3b323a66204e25ef633d26ec5c1ed845da67a5e3b4de0914cf7c3368",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\backend.hpp": "5d76240be7893279a308a4c21cee074f53f1dcee5421feafadb496cae52dbcba",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\gguf.hpp": "87d4beee29a8a0adc4c0183d68e1f8f13ea30326d419dff11d9fcbfcea22e712",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\chat.hpp": "865051f5ef6ebe8d14330e18347daeabce6a8cd9cd3eee38f664b499883ad361",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\generate.hpp": "1277cbb7fd3b6d6c24bd06945ab8c562f553201a8f6893325343c04a7bf4f087",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\arch_qwen.hpp": "c064955de07e4f41537a50f9e9f343affe9db2f52571bf988476f2b448bd1ff5",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\tokenizer\\tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\cpu\\cpu_backend.hpp": "f114d3b6287b2a4577bc67180738853ec1b975500ea4168cbd90ab22db70ec1a",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\config.hpp": "411a632de621d17c28a6fd594157d5c8ec7c1d77fc9d8cee26abf90ae567351f",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\backend.hpp": "e79f18ed28df5cfddb3e6ec0c9bcbe7a70c68d3186056e480616edcec1a453cd",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\fp16.hpp": "578b095d8e233f1d2870711c9d673a44ab845f7000a27e33b898f8bd2f9a5582",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\gguf.hpp": "d54df0021e2776e1123c45bb3a92beb04e2d1bc2d85641f8d55228b2cee46092",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\chat.hpp": "3bc261252f4a394d9b6fdb51cdfe942372b959e04f778242357e348ae646f65d",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\generate.hpp": "05fc7375ddbc9cd0a81d28805f5fea85091beb0d54a1e5e0cbdebe44db1603b9",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\perplexity.hpp": "c7ee22964b0e5555d2f27733d6467536907098db7ddf57f800f297165b071608",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\sampler.hpp": "4398398a746342d311693317e6a3298ec16fce0fff57304f4eff3a71c63785cf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\arch_qwen.hpp": "a3fe58109983665f713540353cefc2636941981860771d12309223949cf4a7ae",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\host_kv_cache.hpp": "581c8801e0e5b06cc42fefac0f6b64895b5d2d337bc386bc2be75515da088bfc",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\k_quants.hpp": "1d0dfc64c1c1f46f753848029fe164bee0539f98bece9765050cbe8187107326",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\quant.hpp": "83a3c2540f3129002eb0a03b04db8e293124dcdafb26683baef493a9214f64de",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\tokenizer\\tokenizer.hpp": "19ca659b22d177c2e6427baa42f02dc3fdb8c63fd3d13a837c39cae0acd9672e",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\cpu\\cpu_backend.hpp": "fbaaef384a606f916425827741c7c42bb44a8ac0dba33d3f6ea2ef4a9c15ffea",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llama.dll": "2d007cdf70a8f0f29daf87d04c73eda7975248de6528de82bf0b7e7820f9f775",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml.dll": "f8c791dc32f4ebfce0e17ba2ebefba02d16c8f7209f74a5f0a87d0d60d69a12c",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-base.dll": "255b1d609643421a5d1dabecb1d0010076235035cbce0516f6c3988115581a08",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-cpu.dll": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2"
+      },
+      "threads": 6,
+      "ubatch": 128,
+      "prompt": 215,
+      "decode": 32,
+      "reference": "5542318e748c154b634211def405ae95da3dfaa9",
+      "rounds": 9,
+      "outer_warmup_rounds": 1,
+      "process_warmup_sequences": 1
+    },
+    "bench-nine/results.json": [
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 621.7043,
+        "tg_ms": 774.8407,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 530.2078,
+        "tg_ms": 750.5491,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 832.6734,
+        "tg_ms": 742.455,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 609.4417,
+        "tg_ms": 735.2179,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 787.9416,
+        "tg_ms": 695.3125,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 507.6708,
+        "tg_ms": 701.4437,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 781.5795,
+        "tg_ms": 680.3133,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 522.0001,
+        "tg_ms": 699.141,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 537.4443,
+        "tg_ms": 701.0234,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 510.8461,
+        "tg_ms": 769.6223,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 526.6758,
+        "tg_ms": 774.2893,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 821.5337,
+        "tg_ms": 687.3446,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 504.9128,
+        "tg_ms": 718.4955,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 831.2319,
+        "tg_ms": 736.7309,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 522.6918,
+        "tg_ms": 738.2928,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 799.0548,
+        "tg_ms": 681.4679,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 534.7629,
+        "tg_ms": 718.2647,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 536.2121,
+        "tg_ms": 720.7324,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 547.0801,
+        "tg_ms": 754.8559,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 549.7325,
+        "tg_ms": 733.2533,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 5,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 831.6056,
+        "tg_ms": 696.8346,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 540.7381,
+        "tg_ms": 723.6812,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 801.0542,
+        "tg_ms": 712.482,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 6,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 515.4483,
+        "tg_ms": 710.6821,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 847.0718,
+        "tg_ms": 724.1178,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 560.6283,
+        "tg_ms": 790.5834,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 7,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 614.3053,
+        "tg_ms": 727.4627,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 521.5295,
+        "tg_ms": 693.027,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 615.9297,
+        "tg_ms": 724.1577,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 8,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 839.5004,
+        "tg_ms": 676.5806,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "F32",
+        "round": -1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 596.6051,
+        "tg_ms": 2368.7097,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": -1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 617.5544,
+        "tg_ms": 2464.7835,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": -1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 593.9393,
+        "tg_ms": 2344.0299,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 0,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 560.0769,
+        "tg_ms": 2276.8833,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 0,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 569.0417,
+        "tg_ms": 2330.1888,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 0,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 584.016,
+        "tg_ms": 2316.249,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 564.8015,
+        "tg_ms": 2455.3959,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 559.4483,
+        "tg_ms": 2262.1994,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 565.7855,
+        "tg_ms": 2356.6483,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 2,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 545.2609,
+        "tg_ms": 2274.0407,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 2,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 612.519,
+        "tg_ms": 2293.8051,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 2,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 582.6866,
+        "tg_ms": 2286.4751,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 3,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 591.1216,
+        "tg_ms": 2283.5311,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 3,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 644.2353,
+        "tg_ms": 2455.8634,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 3,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 729.191,
+        "tg_ms": 2432.4897,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 4,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 576.5571,
+        "tg_ms": 2287.9185,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 4,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 604.9368,
+        "tg_ms": 2288.7424,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 4,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 553.5484,
+        "tg_ms": 2232.9091,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 5,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 587.0668,
+        "tg_ms": 2258.2084,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 5,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 568.0088,
+        "tg_ms": 2262.5653,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 5,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 592.8985,
+        "tg_ms": 2292.2497,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 6,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 549.4523,
+        "tg_ms": 2246.3002,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 6,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 582.3995,
+        "tg_ms": 2264.6979,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 6,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 607.3025,
+        "tg_ms": 2315.7725,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 7,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 571.3981,
+        "tg_ms": 2352.5917,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "model": "F32",
+        "round": 7,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 582.7117,
+        "tg_ms": 2300.8127,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 7,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 571.2238,
+        "tg_ms": 2274.4596,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 8,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 566.6962,
+        "tg_ms": 2263.1211,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 8,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 564.5915,
+        "tg_ms": 2254.6651,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "model": "F32",
+        "round": 8,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 551.0031,
+        "tg_ms": 2329.3689,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      }
+    ],
+    "bench-nine/summary.json": {
+      "Q8": {
+        "control": {
+          "pp": {
+            "mean": 408.3872751497755,
+            "minimum": 383.49830003230306,
+            "maximum": 423.5027896030262
+          },
+          "tg": {
+            "mean": 43.88162126879704,
+            "minimum": 40.47643803297666,
+            "maximum": 46.17424717940282
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 386.17551154503724,
+            "minimum": 349.0658105949429,
+            "maximum": 425.8161013149201
+          },
+          "tg": {
+            "mean": 43.94159377450525,
+            "minimum": 41.32822189328976,
+            "maximum": 45.64754899765114
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 263.8028031273397,
+            "minimum": 253.81555613113315,
+            "maximum": 275.0839805803504
+          },
+          "tg": {
+            "mean": 45.814656324916456,
+            "minimum": 43.43512671994618,
+            "maximum": 47.29665615597018
+          }
+        }
+      },
+      "F32": {
+        "control": {
+          "pp": {
+            "mean": 362.8466025832395,
+            "minimum": 294.84730338141856,
+            "maximum": 394.3066520999397
+          },
+          "tg": {
+            "mean": 13.911806633646036,
+            "minimum": 13.155245837217727,
+            "maximum": 14.170525625535712
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 377.11242707013355,
+            "minimum": 351.00951970469487,
+            "maximum": 391.2987533221719
+          },
+          "tg": {
+            "mean": 14.064327392642246,
+            "minimum": 13.57860653199716,
+            "maximum": 14.33108047255484
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 370.26231735439296,
+            "minimum": 333.72899622234297,
+            "maximum": 390.1974417203823
+          },
+          "tg": {
+            "mean": 13.689651139579327,
+            "minimum": 13.03004067734386,
+            "maximum": 14.129919933250257
+          }
+        }
+      }
+    },
+    "synthetic-perf/metadata.json": {
+      "sha256": {
+        "control": "cf428ec36a3d5ec5fb6a74c8217aeab71a944a91256e62ace6dfe47bdc1e5005",
+        "candidate": "bb105f5cfe8336dd35f3a4453862cf78c7575ea4c5e9a65dd881cb486a0b9538"
+      },
+      "rounds": 8,
+      "outer_warmup": 1,
+      "threads": 6,
+      "prompt": 64,
+      "decode": 64
+    },
+    "synthetic-perf/results.json": [
+      {
+        "pair": -1,
+        "arm": "candidate",
+        "matmul_ms": 0.065,
+        "matmul_gflops": 129.15,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 13.02,
+        "prefill_tps": 4915.6,
+        "decode_ms": 11.664,
+        "decode_tps": 5487.0
+      },
+      {
+        "pair": -1,
+        "arm": "control",
+        "matmul_ms": 0.068,
+        "matmul_gflops": 123.85,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 15.065,
+        "prefill_tps": 4248.2,
+        "decode_ms": 14.37,
+        "decode_tps": 4453.8
+      },
+      {
+        "pair": 0,
+        "arm": "control",
+        "matmul_ms": 0.1,
+        "matmul_gflops": 84.13,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.365,
+        "prefill_tps": 5176.0,
+        "decode_ms": 11.953,
+        "decode_tps": 5354.3
+      },
+      {
+        "pair": 0,
+        "arm": "candidate",
+        "matmul_ms": 0.093,
+        "matmul_gflops": 89.79,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.691,
+        "prefill_tps": 5042.9,
+        "decode_ms": 11.679,
+        "decode_tps": 5479.9
+      },
+      {
+        "pair": 1,
+        "arm": "candidate",
+        "matmul_ms": 0.079,
+        "matmul_gflops": 106.08,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.92,
+        "prefill_tps": 4953.6,
+        "decode_ms": 12.24,
+        "decode_tps": 5228.9
+      },
+      {
+        "pair": 1,
+        "arm": "control",
+        "matmul_ms": 0.099,
+        "matmul_gflops": 85.03,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.075,
+        "prefill_tps": 5300.0,
+        "decode_ms": 11.39,
+        "decode_tps": 5619.0
+      },
+      {
+        "pair": 2,
+        "arm": "control",
+        "matmul_ms": 0.091,
+        "matmul_gflops": 91.85,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.962,
+        "prefill_tps": 4937.5,
+        "decode_ms": 12.407,
+        "decode_tps": 5158.4
+      },
+      {
+        "pair": 2,
+        "arm": "candidate",
+        "matmul_ms": 0.08,
+        "matmul_gflops": 105.21,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 13.2,
+        "prefill_tps": 4848.6,
+        "decode_ms": 13.048,
+        "decode_tps": 4905.0
+      },
+      {
+        "pair": 3,
+        "arm": "candidate",
+        "matmul_ms": 0.104,
+        "matmul_gflops": 80.47,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.678,
+        "prefill_tps": 5048.1,
+        "decode_ms": 13.519,
+        "decode_tps": 4734.1
+      },
+      {
+        "pair": 3,
+        "arm": "control",
+        "matmul_ms": 0.134,
+        "matmul_gflops": 62.61,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.582,
+        "prefill_tps": 5086.8,
+        "decode_ms": 13.857,
+        "decode_tps": 4618.6
+      },
+      {
+        "pair": 4,
+        "arm": "control",
+        "matmul_ms": 0.082,
+        "matmul_gflops": 102.55,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.707,
+        "prefill_tps": 5036.4,
+        "decode_ms": 12.629,
+        "decode_tps": 5067.9
+      },
+      {
+        "pair": 4,
+        "arm": "candidate",
+        "matmul_ms": 0.098,
+        "matmul_gflops": 85.51,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.817,
+        "prefill_tps": 4993.3,
+        "decode_ms": 12.62,
+        "decode_tps": 5071.4
+      },
+      {
+        "pair": 5,
+        "arm": "candidate",
+        "matmul_ms": 0.104,
+        "matmul_gflops": 80.39,
+        "rms_norm_ms": 0.002,
+        "rope_ms": 0.0,
+        "prefill_ms": 13.115,
+        "prefill_tps": 4879.8,
+        "decode_ms": 12.416,
+        "decode_tps": 5154.6
+      },
+      {
+        "pair": 5,
+        "arm": "control",
+        "matmul_ms": 0.094,
+        "matmul_gflops": 89.35,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.45,
+        "prefill_tps": 5140.4,
+        "decode_ms": 12.37,
+        "decode_tps": 5173.8
+      },
+      {
+        "pair": 6,
+        "arm": "control",
+        "matmul_ms": 0.096,
+        "matmul_gflops": 87.53,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 12.903,
+        "prefill_tps": 4960.2,
+        "decode_ms": 12.737,
+        "decode_tps": 5024.8
+      },
+      {
+        "pair": 6,
+        "arm": "candidate",
+        "matmul_ms": 0.082,
+        "matmul_gflops": 102.33,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 13.091,
+        "prefill_tps": 4888.7,
+        "decode_ms": 12.877,
+        "decode_tps": 4970.0
+      },
+      {
+        "pair": 7,
+        "arm": "candidate",
+        "matmul_ms": 0.102,
+        "matmul_gflops": 81.85,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 11.978,
+        "prefill_tps": 5343.2,
+        "decode_ms": 11.438,
+        "decode_tps": 5595.3
+      },
+      {
+        "pair": 7,
+        "arm": "control",
+        "matmul_ms": 0.071,
+        "matmul_gflops": 117.93,
+        "rms_norm_ms": 0.001,
+        "rope_ms": 0.0,
+        "prefill_ms": 11.248,
+        "prefill_tps": 5690.0,
+        "decode_ms": 10.239,
+        "decode_tps": 6250.5
+      }
+    ],
+    "synthetic-perf/summary.json": {
+      "control": {
+        "matmul_gflops": {
+          "mean": 90.1225,
+          "minimum": 62.61,
+          "maximum": 117.93
+        },
+        "prefill_tps": {
+          "mean": 5165.9125,
+          "minimum": 4937.5,
+          "maximum": 5690.0
+        },
+        "decode_tps": {
+          "mean": 5283.4125,
+          "minimum": 4618.6,
+          "maximum": 6250.5
+        }
+      },
+      "candidate": {
+        "matmul_gflops": {
+          "mean": 91.45375,
+          "minimum": 80.39,
+          "maximum": 106.08
+        },
+        "prefill_tps": {
+          "mean": 4999.775,
+          "minimum": 4848.6,
+          "maximum": 5343.2
+        },
+        "decode_tps": {
+          "mean": 5142.4,
+          "minimum": 4734.1,
+          "maximum": 5595.3
+        }
+      }
+    }
+  },
+  "paired": {
+    "Q8": {
+      "pp": {
+        "vs_control_percent": -5.438897085270877,
+        "vs_mx_percent": 46.387948485379525,
+        "candidate_wins": 1
+      },
+      "tg": {
+        "vs_control_percent": 0.1366688467156818,
+        "vs_mx_percent": -4.088347923266067,
+        "candidate_wins": 3
+      }
+    },
+    "F32": {
+      "pp": {
+        "vs_control_percent": 3.93164063968916,
+        "vs_mx_percent": 1.8500693683024982,
+        "candidate_wins": 7
+      },
+      "tg": {
+        "vs_control_percent": 1.0963404179823444,
+        "vs_mx_percent": 2.736930614540345,
+        "candidate_wins": 6
+      }
+    }
+  },
+  "logs": {
+    "build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nmain.cpp\ncompare_cpu.cpp\ncompare_cpu.cpp\nbackend_errors.cpp\nbackend_errors.cpp\n",
+    "exact.log": "START PPL f32 base\nSTART PPL f32 group\nEXACT PPL f32\nSTART PPL q8 base\nSTART PPL q8 group\nEXACT PPL q8\nSTART Q8 forced HF continuation\nEXACT LONG q8 5013888\nEXACT LONG f32 5013888\n",
+    "f32-hf.log": "baseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-F32.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=0 chunks=1]: PPL 28.7974 vs HF 28.7974, NLL delta 0.000004 <= 0.000  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=64 chunks=4]: PPL 56.2812 vs HF 56.2812, NLL delta 0.000000 <= 0.000  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=64 chunks=2]: PPL 40.8602 vs HF 40.8602, NLL delta 0.000003 <= 0.000  [ok]\nbaseline-ppl[Qwen3-0.6B-F32.gguf c=123 chunks=2]: PPL 37.7428 vs HF 37.7428, NLL delta 0.000004 <= 0.000  [ok]\n",
+    "faults.log": "startup allocation failures: constructor=24 resize=3\nbackend errors: passed\n",
+    "linux-build.log": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/[ 30%] Linking CXX executable llmx-backend-group-test\n[ 30%] Built target llmx-backend-group-test\n[ 40%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 50%] Linking CXX executable llmx-backend-errors-test\n[ 50%] Built target llmx-backend-errors-test\n[ 60%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 70%] Linking CXX executable llmx-chat-template-test\n[ 70%] Built target llmx-chat-template-test\n[ 80%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 90%] Linking CXX executable llmx\n[ 90%] Built target llmx\n[100%] Linking CXX executable llmx-kv-cache-test\n[100%] Built target llmx-kv-cache-test\nects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:8:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn function \u2018void operator delete(void*, std::size_t)\u2019,\n    inlined from \u2018void std::__new_allocator<_Tp>::deallocate(_Tp*, size_type) [with _Tp = std::vector<float>]\u2019 at /usr/include/c++/13/bits/new_allocator.h:172:26,\n    inlined from \u2018static void std::allocator_traits<std::allocator<_CharT> >::deallocate(allocator_type&, pointer, size_type) [with _Tp = std::vector<float>]\u2019 at /usr/include/c++/13/bits/alloc_traits.h:517:23,\n    inlined from \u2018void std::_Vector_base<_Tp, _Alloc>::_M_deallocate(pointer, std::size_t) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:390:19,\n    inlined from \u2018std::_Vector_base<_Tp, _Alloc>::~_Vector_base() [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:369:15,\n    inlined from \u2018std::vector<_Tp, _Alloc>::vector(size_type, const value_type&, const allocator_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:572:43,\n    inlined from \u2018void std::vector<_Tp, _Alloc>::_M_fill_assign(std::size_t, const value_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/vector.tcc:275:11:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:21:64: warning: \u2018void free(void*)\u2019 called on pointer returned from a mismatched allocation function [-Wmismatched-new-delete]\n   21 | void operator delete(void* p, std::size_t) noexcept { std::free(p); }\n      |                                                       ~~~~~~~~~^~~\nIn file included from /usr/include/x86_64-linux-gnu/c++/13/bits/c++allocator.h:33,\n                 from /usr/include/c++/13/bits/allocator.h:46,\n                 from /usr/include/c++/13/string:43,\n                 from /usr/include/c++/13/stdexcept:39,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:6:\nIn member function \u2018_Tp* std::__new_allocator<_Tp>::allocate(size_type, const void*) [with _Tp = std::vector<float>]\u2019,\n    inlined from \u2018static _Tp* std::allocator_traits<std::allocator<_CharT> >::allocate(allocator_type&, size_type) [with _Tp = std::vector<float>]\u2019 at /usr/include/c++/13/bits/alloc_traits.h:482:28,\n    inlined from \u2018std::_Vector_base<_Tp, _Alloc>::pointer std::_Vector_base<_Tp, _Alloc>::_M_allocate(std::size_t) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:381:33,\n    inlined from \u2018void std::_Vector_base<_Tp, _Alloc>::_M_create_storage(std::size_t) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:398:44,\n    inlined from \u2018std::_Vector_base<_Tp, _Alloc>::_Vector_base(std::size_t, const allocator_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:335:26,\n    inlined from \u2018std::vector<_Tp, _Alloc>::vector(size_type, const value_type&, const allocator_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:571:47,\n    inlined from \u2018void std::vector<_Tp, _Alloc>::_M_fill_assign(std::size_t, const value_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/vector.tcc:275:11:\n/usr/include/c++/13/bits/new_allocator.h:151:55: note: returned from \u2018void* operator new(std::size_t)\u2019\n  151 |         return static_cast<_Tp*>(_GLIBCXX_OPERATOR_NEW(__n * sizeof(_Tp)));\n      |                                                       ^\n",
+    "linux-configure.log": "-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.7s)\n-- Generating done (0.0s)\n-- Build files have been written to: /root/.cache/llmx-worker-errors-release\n",
+    "linux-native.log": "Internal ctest changing into directory: /root/.cache/llmx-worker-errors-release\nTest project /root/.cache/llmx-worker-errors-release\n    Start 1: backend-group\n1/4 Test #1: backend-group ....................   Passed    0.18 sec\n    Start 2: backend-errors\n2/4 Test #2: backend-errors ...................   Passed    0.15 sec\n    Start 3: chat-template\n3/4 Test #3: chat-template ....................   Passed    0.01 sec\n    Start 4: kv-cache\n4/4 Test #4: kv-cache .........................   Passed    0.00 sec\n\n100% tests passed, 0 tests failed out of 4\n\nTotal Test time (real) =   0.35 sec\n",
+    "linux-suite.log": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 41.85 GFLOPS (0.200 ms), prefill 8577 tok/s, decode 7918 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6581 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  baseline   PASS\n",
+    "long-hf.log": "{\"prompt_tokens\": 1943, \"generated_tokens\": 32, \"greedy_match\": true, \"logits_compared\": 5013888, \"max_abs_error\": 0.00012636184692382812, \"rms_error\": 1.6163279547159805e-05, \"bound\": 0.001}\n",
+    "matched-perf.log": "{\"model\": \"Q8\", \"round\": -1, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 621.7043, \"tg_ms\": 774.8407, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": -1, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 530.2078, \"tg_ms\": 750.5491, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": -1, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 832.6734, \"tg_ms\": 742.455, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 0, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 609.4417, \"tg_ms\": 735.2179, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 0, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 787.9416, \"tg_ms\": 695.3125, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 0, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 507.6708, \"tg_ms\": 701.4437, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 1, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 781.5795, \"tg_ms\": 680.3133, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 1, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 522.0001, \"tg_ms\": 699.141, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 1, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 537.4443, \"tg_ms\": 701.0234, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 2, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 510.8461, \"tg_ms\": 769.6223, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 2, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 526.6758, \"tg_ms\": 774.2893, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 2, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 821.5337, \"tg_ms\": 687.3446, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 3, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 504.9128, \"tg_ms\": 718.4955, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 3, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 831.2319, \"tg_ms\": 736.7309, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 3, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 522.6918, \"tg_ms\": 738.2928, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 4, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 799.0548, \"tg_ms\": 681.4679, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 4, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 534.7629, \"tg_ms\": 718.2647, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 4, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 536.2121, \"tg_ms\": 720.7324, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 5, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 547.0801, \"tg_ms\": 754.8559, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 5, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 549.7325, \"tg_ms\": 733.2533, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 5, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 831.6056, \"tg_ms\": 696.8346, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 6, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 540.7381, \"tg_ms\": 723.6812, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 6, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 801.0542, \"tg_ms\": 712.482, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 6, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 515.4483, \"tg_ms\": 710.6821, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 7, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 847.0718, \"tg_ms\": 724.1178, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"Q8\", \"round\": 7, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 560.6283, \"tg_ms\": 790.5834, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 7, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 614.3053, \"tg_ms\": 727.4627, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 8, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 521.5295, \"tg_ms\": 693.027, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 8, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 615.9297, \"tg_ms\": 724.1577, \"top1\": 4013, \"logit_sum\": -492001.8287}\n{\"model\": \"Q8\", \"round\": 8, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 839.5004, \"tg_ms\": 676.5806, \"top1\": 4013, \"logit_sum\": -495135.3053}\n{\"model\": \"F32\", \"round\": -1, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 596.6051, \"tg_ms\": 2368.7097, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": -1, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 617.5544, \"tg_ms\": 2464.7835, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": -1, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 593.9393, \"tg_ms\": 2344.0299, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 0, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 560.0769, \"tg_ms\": 2276.8833, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 0, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 569.0417, \"tg_ms\": 2330.1888, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 0, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 584.016, \"tg_ms\": 2316.249, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 1, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 564.8015, \"tg_ms\": 2455.3959, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 1, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 559.4483, \"tg_ms\": 2262.1994, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 1, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 565.7855, \"tg_ms\": 2356.6483, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 2, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 545.2609, \"tg_ms\": 2274.0407, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 2, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 612.519, \"tg_ms\": 2293.8051, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 2, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 582.6866, \"tg_ms\": 2286.4751, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 3, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 591.1216, \"tg_ms\": 2283.5311, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 3, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 644.2353, \"tg_ms\": 2455.8634, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 3, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 729.191, \"tg_ms\": 2432.4897, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 4, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 576.5571, \"tg_ms\": 2287.9185, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 4, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 604.9368, \"tg_ms\": 2288.7424, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 4, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 553.5484, \"tg_ms\": 2232.9091, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 5, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 587.0668, \"tg_ms\": 2258.2084, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 5, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 568.0088, \"tg_ms\": 2262.5653, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 5, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 592.8985, \"tg_ms\": 2292.2497, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 6, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 549.4523, \"tg_ms\": 2246.3002, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 6, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 582.3995, \"tg_ms\": 2264.6979, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 6, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 607.3025, \"tg_ms\": 2315.7725, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 7, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 571.3981, \"tg_ms\": 2352.5917, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\"model\": \"F32\", \"round\": 7, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 582.7117, \"tg_ms\": 2300.8127, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 7, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 571.2238, \"tg_ms\": 2274.4596, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 8, \"arm\": \"control\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 566.6962, \"tg_ms\": 2263.1211, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 8, \"arm\": \"candidate\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 564.5915, \"tg_ms\": 2254.6651, \"top1\": 4013, \"logit_sum\": -501040.0615}\n{\"model\": \"F32\", \"round\": 8, \"arm\": \"mx\", \"run\": 1, \"threads\": 6, \"pp_tokens\": 215, \"tg_tokens\": 32, \"pp_ms\": 551.0031, \"tg_ms\": 2329.3689, \"top1\": 4013, \"logit_sum\": -501040.3761}\n{\n  \"Q8\": {\n    \"control\": {\n      \"pp\": {\n        \"mean\": 408.3872751497755,\n        \"minimum\": 383.49830003230306,\n        \"maximum\": 423.5027896030262\n      },\n      \"tg\": {\n        \"mean\": 43.88162126879704,\n        \"minimum\": 40.47643803297666,\n        \"maximum\": 46.17424717940282\n      }\n    },\n    \"candidate\": {\n      \"pp\": {\n        \"mean\": 386.17551154503724,\n        \"minimum\": 349.0658105949429,\n        \"maximum\": 425.8161013149201\n      },\n      \"tg\": {\n        \"mean\": 43.94159377450525,\n        \"minimum\": 41.32822189328976,\n        \"maximum\": 45.64754899765114\n      }\n    },\n    \"mx\": {\n      \"pp\": {\n        \"mean\": 263.8028031273397,\n        \"minimum\": 253.81555613113315,\n        \"maximum\": 275.0839805803504\n      },\n      \"tg\": {\n        \"mean\": 45.814656324916456,\n        \"minimum\": 43.43512671994618,\n        \"maximum\": 47.29665615597018\n      }\n    }\n  },\n  \"F32\": {\n    \"control\": {\n      \"pp\": {\n        \"mean\": 362.8466025832395,\n        \"minimum\": 294.84730338141856,\n        \"maximum\": 394.3066520999397\n      },\n      \"tg\": {\n        \"mean\": 13.911806633646036,\n        \"minimum\": 13.155245837217727,\n        \"maximum\": 14.170525625535712\n      }\n    },\n    \"candidate\": {\n      \"pp\": {\n        \"mean\": 377.11242707013355,\n        \"minimum\": 351.00951970469487,\n        \"maximum\": 391.2987533221719\n      },\n      \"tg\": {\n        \"mean\": 14.064327392642246,\n        \"minimum\": 13.57860653199716,\n        \"maximum\": 14.33108047255484\n      }\n    },\n    \"mx\": {\n      \"pp\": {\n        \"mean\": 370.26231735439296,\n        \"minimum\": 333.72899622234297,\n        \"maximum\": 390.1974417203823\n      },\n      \"tg\": {\n        \"mean\": 13.689651139579327,\n        \"minimum\": 13.03004067734386,\n        \"maximum\": 14.129919933250257\n      }\n    }\n  }\n}\n",
+    "numerical-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nmain.cpp\nllmx-attention-long.cpp\nforced-long.cpp\nppl-control.cpp\n",
+    "synthetic-perf.log": "{\"pair\": -1, \"arm\": \"candidate\", \"matmul_ms\": 0.065, \"matmul_gflops\": 129.15, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 13.02, \"prefill_tps\": 4915.6, \"decode_ms\": 11.664, \"decode_tps\": 5487.0}\n{\"pair\": -1, \"arm\": \"control\", \"matmul_ms\": 0.068, \"matmul_gflops\": 123.85, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 15.065, \"prefill_tps\": 4248.2, \"decode_ms\": 14.37, \"decode_tps\": 4453.8}\n{\"pair\": 0, \"arm\": \"control\", \"matmul_ms\": 0.1, \"matmul_gflops\": 84.13, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.365, \"prefill_tps\": 5176.0, \"decode_ms\": 11.953, \"decode_tps\": 5354.3}\n{\"pair\": 0, \"arm\": \"candidate\", \"matmul_ms\": 0.093, \"matmul_gflops\": 89.79, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.691, \"prefill_tps\": 5042.9, \"decode_ms\": 11.679, \"decode_tps\": 5479.9}\n{\"pair\": 1, \"arm\": \"candidate\", \"matmul_ms\": 0.079, \"matmul_gflops\": 106.08, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.92, \"prefill_tps\": 4953.6, \"decode_ms\": 12.24, \"decode_tps\": 5228.9}\n{\"pair\": 1, \"arm\": \"control\", \"matmul_ms\": 0.099, \"matmul_gflops\": 85.03, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.075, \"prefill_tps\": 5300.0, \"decode_ms\": 11.39, \"decode_tps\": 5619.0}\n{\"pair\": 2, \"arm\": \"control\", \"matmul_ms\": 0.091, \"matmul_gflops\": 91.85, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.962, \"prefill_tps\": 4937.5, \"decode_ms\": 12.407, \"decode_tps\": 5158.4}\n{\"pair\": 2, \"arm\": \"candidate\", \"matmul_ms\": 0.08, \"matmul_gflops\": 105.21, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 13.2, \"prefill_tps\": 4848.6, \"decode_ms\": 13.048, \"decode_tps\": 4905.0}\n{\"pair\": 3, \"arm\": \"candidate\", \"matmul_ms\": 0.104, \"matmul_gflops\": 80.47, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.678, \"prefill_tps\": 5048.1, \"decode_ms\": 13.519, \"decode_tps\": 4734.1}\n{\"pair\": 3, \"arm\": \"control\", \"matmul_ms\": 0.134, \"matmul_gflops\": 62.61, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.582, \"prefill_tps\": 5086.8, \"decode_ms\": 13.857, \"decode_tps\": 4618.6}\n{\"pair\": 4, \"arm\": \"control\", \"matmul_ms\": 0.082, \"matmul_gflops\": 102.55, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.707, \"prefill_tps\": 5036.4, \"decode_ms\": 12.629, \"decode_tps\": 5067.9}\n{\"pair\": 4, \"arm\": \"candidate\", \"matmul_ms\": 0.098, \"matmul_gflops\": 85.51, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.817, \"prefill_tps\": 4993.3, \"decode_ms\": 12.62, \"decode_tps\": 5071.4}\n{\"pair\": 5, \"arm\": \"candidate\", \"matmul_ms\": 0.104, \"matmul_gflops\": 80.39, \"rms_norm_ms\": 0.002, \"rope_ms\": 0.0, \"prefill_ms\": 13.115, \"prefill_tps\": 4879.8, \"decode_ms\": 12.416, \"decode_tps\": 5154.6}\n{\"pair\": 5, \"arm\": \"control\", \"matmul_ms\": 0.094, \"matmul_gflops\": 89.35, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.45, \"prefill_tps\": 5140.4, \"decode_ms\": 12.37, \"decode_tps\": 5173.8}\n{\"pair\": 6, \"arm\": \"control\", \"matmul_ms\": 0.096, \"matmul_gflops\": 87.53, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 12.903, \"prefill_tps\": 4960.2, \"decode_ms\": 12.737, \"decode_tps\": 5024.8}\n{\"pair\": 6, \"arm\": \"candidate\", \"matmul_ms\": 0.082, \"matmul_gflops\": 102.33, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 13.091, \"prefill_tps\": 4888.7, \"decode_ms\": 12.877, \"decode_tps\": 4970.0}\n{\"pair\": 7, \"arm\": \"candidate\", \"matmul_ms\": 0.102, \"matmul_gflops\": 81.85, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 11.978, \"prefill_tps\": 5343.2, \"decode_ms\": 11.438, \"decode_tps\": 5595.3}\n{\"pair\": 7, \"arm\": \"control\", \"matmul_ms\": 0.071, \"matmul_gflops\": 117.93, \"rms_norm_ms\": 0.001, \"rope_ms\": 0.0, \"prefill_ms\": 11.248, \"prefill_tps\": 5690.0, \"decode_ms\": 10.239, \"decode_tps\": 6250.5}\n{\n  \"control\": {\n    \"matmul_gflops\": {\n      \"mean\": 90.1225,\n      \"minimum\": 62.61,\n      \"maximum\": 117.93\n    },\n    \"prefill_tps\": {\n      \"mean\": 5165.9125,\n      \"minimum\": 4937.5,\n      \"maximum\": 5690.0\n    },\n    \"decode_tps\": {\n      \"mean\": 5283.4125,\n      \"minimum\": 4618.6,\n      \"maximum\": 6250.5\n    }\n  },\n  \"candidate\": {\n    \"matmul_gflops\": {\n      \"mean\": 91.45375,\n      \"minimum\": 80.39,\n      \"maximum\": 106.08\n    },\n    \"prefill_tps\": {\n      \"mean\": 4999.775,\n      \"minimum\": 4848.6,\n      \"maximum\": 5343.2\n    },\n    \"decode_tps\": {\n      \"mean\": 5142.4,\n      \"minimum\": 4734.1,\n      \"maximum\": 5595.3\n    }\n  }\n}\n",
+    "test-final-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nbackend_errors.cpp\nbackend_errors.cpp\n",
+    "test-final-linux-build.log": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hp[100%] Linking CXX executable llmx-backend-errors-test\n[100%] Built target llmx-backend-errors-test\nt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "test-final-linux.log": "Internal ctest changing into directory: /root/.cache/llmx-worker-errors-release\nTest project /root/.cache/llmx-worker-errors-release\n    Start 2: backend-errors\n1/1 Test #2: backend-errors ...................   Passed    0.15 sec\n\n100% tests passed, 0 tests failed out of 1\n\nTotal Test time (real) =   0.16 sec\n",
+    "test-final-ubsan-build.log": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hp[100%] Linking CXX executable llmx-backend-errors-test\n[100%] Built target llmx-backend-errors-test\nt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "test-final-ubsan.log": "Internal ctest changing into directory: /root/.cache/llmx-worker-errors-ubsan\nTest project /root/.cache/llmx-worker-errors-ubsan\n    Start 2: backend-errors\n1/1 Test #2: backend-errors ...................   Passed    0.16 sec\n\n100% tests passed, 0 tests failed out of 1\n\nTotal Test time (real) =   0.16 sec\n",
+    "test-final-windows.log": "startup allocation failures: constructor=24 resize=3\nbackend errors: passed\n",
+    "ubsan-build.log": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/[ 30%] Linking CXX executable llmx-backend-group-test\n[ 30%] Built target llmx-backend-group-test\n[ 40%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 50%] Linking CXX executable llmx-backend-errors-test\n[ 50%] Built target llmx-backend-errors-test\n[ 60%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 70%] Linking CXX executable llmx-chat-template-test\n[ 70%] Built target llmx-chat-template-test\n[ 80%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 90%] Linking CXX executable llmx-kv-cache-test\n[ 90%] Built target llmx-kv-cache-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\nects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:8:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn function \u2018void operator delete(void*, std::size_t)\u2019,\n    inlined from \u2018void std::__new_allocator<_Tp>::deallocate(_Tp*, size_type) [with _Tp = std::vector<float>]\u2019 at /usr/include/c++/13/bits/new_allocator.h:172:26,\n    inlined from \u2018static void std::allocator_traits<std::allocator<_CharT> >::deallocate(allocator_type&, pointer, size_type) [with _Tp = std::vector<float>]\u2019 at /usr/include/c++/13/bits/alloc_traits.h:517:23,\n    inlined from \u2018void std::_Vector_base<_Tp, _Alloc>::_M_deallocate(pointer, std::size_t) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:390:19,\n    inlined from \u2018std::_Vector_base<_Tp, _Alloc>::~_Vector_base() [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:369:15,\n    inlined from \u2018std::vector<_Tp, _Alloc>::vector(size_type, const value_type&, const allocator_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:572:43,\n    inlined from \u2018void std::vector<_Tp, _Alloc>::_M_fill_assign(std::size_t, const value_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/vector.tcc:275:11:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:21:64: warning: \u2018void free(void*)\u2019 called on pointer returned from a mismatched allocation function [-Wmismatched-new-delete]\n   21 | void operator delete(void* p, std::size_t) noexcept { std::free(p); }\n      |                                                       ~~~~~~~~~^~~\nIn file included from /usr/include/x86_64-linux-gnu/c++/13/bits/c++allocator.h:33,\n                 from /usr/include/c++/13/bits/allocator.h:46,\n                 from /usr/include/c++/13/string:43,\n                 from /usr/include/c++/13/stdexcept:39,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:6:\nIn member function \u2018_Tp* std::__new_allocator<_Tp>::allocate(size_type, const void*) [with _Tp = std::vector<float>]\u2019,\n    inlined from \u2018static _Tp* std::allocator_traits<std::allocator<_CharT> >::allocate(allocator_type&, size_type) [with _Tp = std::vector<float>]\u2019 at /usr/include/c++/13/bits/alloc_traits.h:482:28,\n    inlined from \u2018std::_Vector_base<_Tp, _Alloc>::pointer std::_Vector_base<_Tp, _Alloc>::_M_allocate(std::size_t) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:381:33,\n    inlined from \u2018void std::_Vector_base<_Tp, _Alloc>::_M_create_storage(std::size_t) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:398:44,\n    inlined from \u2018std::_Vector_base<_Tp, _Alloc>::_Vector_base(std::size_t, const allocator_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:335:26,\n    inlined from \u2018std::vector<_Tp, _Alloc>::vector(size_type, const value_type&, const allocator_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/stl_vector.h:571:47,\n    inlined from \u2018void std::vector<_Tp, _Alloc>::_M_fill_assign(std::size_t, const value_type&) [with _Tp = std::vector<float>; _Alloc = std::allocator<std::vector<float> >]\u2019 at /usr/include/c++/13/bits/vector.tcc:275:11:\n/usr/include/c++/13/bits/new_allocator.h:151:55: note: returned from \u2018void* operator new(std::size_t)\u2019\n  151 |         return static_cast<_Tp*>(_GLIBCXX_OPERATOR_NEW(__n * sizeof(_Tp)));\n      |                                                       ^\n",
+    "ubsan-configure.log": "loading initial cache file /mnt/c/Users/Marko/AppData/Local/Temp/llmx-kv-head-major/validation/ubsan-cache.cmake\n-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.6s)\n-- Generating done (0.0s)\n-- Build files have been written to: /root/.cache/llmx-worker-errors-ubsan\n",
+    "ubsan-native.log": "Internal ctest changing into directory: /root/.cache/llmx-worker-errors-ubsan\nTest project /root/.cache/llmx-worker-errors-ubsan\n    Start 1: backend-group\n1/4 Test #1: backend-group ....................   Passed    0.26 sec\n    Start 2: backend-errors\n2/4 Test #2: backend-errors ...................   Passed    0.16 sec\n    Start 3: chat-template\n3/4 Test #3: chat-template ....................   Passed    0.01 sec\n    Start 4: kv-cache\n4/4 Test #4: kv-cache .........................   Passed    0.01 sec\n\n100% tests passed, 0 tests failed out of 4\n\nTotal Test time (real) =   0.44 sec\n",
+    "windows-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nmain.cpp\ncompare_cpu.cpp\ncompare_cpu.cpp\nbackend_errors.cpp\nbackend_errors.cpp\n",
+    "windows-native.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nbackend_group.cpp\ngrouped projections: 540 cases, 141750 outputs checked against separate calls and double dots; 253952 exact finite Q8 scale/weight cases\nchat_template.cpp\n12 Qwen chat-template cases match Jinja2\nkv_cache.cpp\nKV storage: layer/head/lane isolation, growth, retained reset and bounds pass\n",
+    "windows-suite.log": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 24.51 GFLOPS (0.342 ms), prefill 7537 tok/s, decode 6629 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  baseline   PASS\n"
+  },
+  "scripts": {
+    "archive.py": "\ufefffrom pathlib import Path\nimport os,json,hashlib,subprocess,datetime\nr=Path(os.environ['TEMP'])/'llmx-worker-errors';repo=Path.cwd()\ndef read(p): return json.loads(p.read_text())\nsummary=read(r/'bench-nine/summary.json');rows=read(r/'bench-nine/results.json')\npaired={}\nfor model in ['Q8','F32']:\n paired[model]={}\n for phase in ['pp','tg']:\n  a=summary[model]['control'][phase]['mean'];b=summary[model]['candidate'][phase]['mean'];c=summary[model]['mx'][phase]['mean']\n  pairs={i:{x['arm']:x for x in rows if x['model']==model and x['round']==i} for i in range(9)}\n  paired[model][phase]=dict(vs_control_percent=(b/a-1)*100,vs_mx_percent=(b/c-1)*100,candidate_wins=sum(p['candidate'][phase+'_ms']<p['control'][phase+'_ms'] for p in pairs.values()))\nfiles=['validation.json','finish.json','test-final.json','control-errors.json','control-startup-errors.json','long/comparison.json','exact/comparison.json','bench-nine/metadata.json','bench-nine/results.json','bench-nine/summary.json','synthetic-perf/metadata.json','synthetic-perf/results.json','synthetic-perf/summary.json']\nartifact=dict(date=datetime.datetime.now().isoformat(),control_commit='3a82284',branch='fix/cpu-worker-errors',scope='CPU dispatch/startup exception safety; no arithmetic changes; current backend still excludes concurrent/recursive submissions. Partial task outputs are invalid and no model/session rollback is established.',limitations=['All performance samples retained; shared interactive Windows host; means and ranges are descriptive, not an equivalence test.','Long history is 1943 prompt tokens and 32 continuations, not maximum supported context or full corpus.','Initial control-errors.json comes from the dispatch-only test before the startup sweep was added. Final control-startup-errors.json uses the final test and includes binary/source hashes.','Allocation fault sweep covers partial thread-pool construction; OS thread resource exhaustion is not separately forced.','Hosted CI not run for this unmerged branch.'],artifacts={name:read(r/name) for name in files},paired=paired,logs={p.name:p.read_text(errors='replace') for p in r.glob('*.log')},scripts={p.name:p.read_text(errors='replace') for p in r.iterdir() if p.suffix in ['.py','.bat']},source_sha256={str(p.relative_to(repo)):hashlib.sha256(p.read_bytes()).hexdigest() for p in list((repo/'src').rglob('*.hpp'))+[repo/'tests/backend_errors.cpp']},source_patch=subprocess.check_output(['git','diff','--','src','CMakeLists.txt'],text=True),test_source=(repo/'tests/backend_errors.cpp').read_text())\nfor name in ['llmx-worker-errors-setup.py','llmx-worker-errors-validate.py']:\n artifact['scripts'][name]=(r.parent/name).read_text(encoding='utf-8-sig')\nfor p in [r.parent/'llmx-attention-long.cpp',r.parent/'llmx-q8-integer/forced-long.cpp',r.parent/'llmx-q8-integer/ppl-control.cpp']:\n artifact['scripts'][p.name]=p.read_text()\npath=repo/'docs/benchmarks/worker-errors-cpu-20260919.json';path.write_text(json.dumps(artifact,indent=2)+'\\n')\nprint(json.dumps(dict(summary=summary,paired=paired,synthetic=read(r/'synthetic-perf/summary.json')),indent=2))\n",
+    "bench.py": "from pathlib import Path\nimport subprocess,json,os,hashlib,statistics,math\nr=Path(os.environ['TEMP'])/'llmx-worker-errors';out=r/'bench-nine';out.mkdir(exist_ok=False)\ntokens=Path(os.environ['TEMP'])/'llmx-external-perf/eight-pairs/tokens.txt'\nmodels={'Q8':Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf','F32':Path(os.environ['TEMP'])/'Qwen3-0.6B-F32.gguf'}\narms={'control':r/'control-compare.exe','candidate':r/'candidate-compare.exe','mx':Path.cwd().parent/'llmx-ref/build/bin/Release/llmx-compare-threads.exe'}\npaths=list(arms.values())+list(models.values())+[tokens]+list((Path.cwd()/'src').rglob('*.hpp'))+list((r/'control').rglob('*.hpp'))+[arms['mx'].parent/x for x in ['llama.dll','ggml.dll','ggml-base.dll','ggml-cpu.dll']]\nhashes={}\nfor p in paths:\n with p.open('rb') as f: hashes[str(p)]=hashlib.file_digest(f,'sha256').hexdigest()\n(out/'metadata.json').write_text(json.dumps(dict(hashes=hashes,threads=6,ubatch=128,prompt=215,decode=32,reference='5542318e748c154b634211def405ae95da3dfaa9',rounds=9,outer_warmup_rounds=1,process_warmup_sequences=1),indent=2))\nrows=[]\nfor model,path in models.items():\n for round in range(-1,9):\n  order=list(arms); shift=(round+1)%3; order=order[shift:]+order[:shift]\n  for arm in order:\n   p=subprocess.run([str(arms[arm]),str(path),str(tokens),'--threads','6'],capture_output=True)\n   prefix=out/f'{model}-{round}-{arm}';prefix.with_suffix('.stdout').write_bytes(p.stdout);prefix.with_suffix('.stderr').write_bytes(p.stderr)\n   p.check_returncode()\n   values=[json.loads(x) for x in p.stdout.splitlines() if x]\n   assert len(values)==2 and [x['run'] for x in values]==[0,1]\n   for x in values:\n    assert x['threads']==6 and x['pp_tokens']==215 and x['tg_tokens']==32\n    assert all(math.isfinite(x[k]) and x[k]>0 for k in ['pp_ms','tg_ms']) and math.isfinite(x['logit_sum'])\n   row=dict(model=model,round=round,arm=arm,**values[1]);rows.append(row)\n   (out/'results.json').write_text(json.dumps(rows,indent=2));print(json.dumps(row),flush=True)\nsummary={}\nfor model in models:\n summary[model]={}\n for arm in arms:\n  summary[model][arm]={}\n  for phase in ['pp','tg']:\n   rates=[x[phase+'_tokens']*1000/x[phase+'_ms'] for x in rows if x['model']==model and x['arm']==arm and x['round']>=0]\n   summary[model][arm][phase]=dict(mean=statistics.mean(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2),flush=True)\n",
+    "build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-compare.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-compare.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-compare.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-compare.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\backend-errors.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\backend-errors.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_errors.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-errors.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-errors.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_errors.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "exact-gate.py": "from pathlib import Path\nimport hashlib,json,subprocess,math,struct,os\nr=Path(__file__).parent\ntemp=Path(os.environ['TEMP'])\nout=r/\"exact\";out.mkdir(exist_ok=False)\nq8=Path.home()/\".cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf\"\nmodels={\"f32\":temp/\"Qwen3-0.6B-F32.gguf\",\"q8\":q8}\nresults={\"binary_sha256\":{name:hashlib.file_digest(path.open(\"rb\"),\"sha256\").hexdigest()\nfor name,path in {\"base_ppl\":temp/\"llmx-kv-head-major/validation/candidate-ppl.exe\",\"candidate_ppl\":r/\"candidate-ppl.exe\",\"candidate_forced\":r/\"candidate-forced.exe\",\"candidate_long\":r/\"candidate-long.exe\"}.items()}}\nfor name,model in models.items():\n    rows={}\n    for arm,exe in {\"base\":temp/\"llmx-kv-head-major/validation/candidate-ppl.exe\",\"group\":r/\"candidate-ppl.exe\"}.items():\n        print(\"START PPL\",name,arm,flush=True)\n        p=subprocess.run([str(exe),str(model),str(temp/\"llmx-external-perf/eight-pairs/tokens.txt\")],capture_output=True,timeout=240)\n        (out/f\"{name}-{arm}.stdout\").write_bytes(p.stdout);(out/f\"{name}-{arm}.stderr\").write_bytes(p.stderr);p.check_returncode()\n        rows[arm]=[json.loads(x) for x in p.stdout.splitlines()]\n        assert len(rows[arm])==4 and all(math.isfinite(v[\"mean_nll\"]) for v in rows[arm])\n    assert rows[\"base\"]==rows[\"group\"], rows\n    results[name+\"_ppl\"]=rows\n    print(\"EXACT PPL\",name,flush=True)\nprint(\"START Q8 forced HF continuation\",flush=True)\np=subprocess.run([str(r/\"candidate-forced.exe\"),str(q8),str(temp/\"llmx-f32-controls/prompt.txt\"),str(out/\"q8\"),str(temp/\"llmx-q8-integer/hf-continuation.txt\")],capture_output=True,timeout=240)\n(out/\"q8-long.stdout\").write_bytes(p.stdout);(out/\"q8-long.stderr\").write_bytes(p.stderr);p.check_returncode()\nsuffixes=[\"-logits.f32\"]+[f\"-step-{i:02d}.f32\" for i in range(32)]\nfor name,current,base in [(\"q8\",out/\"q8\",temp/\"llmx-kv-head-major/validation/exact/q8\"),(\"f32\",r/\"long/llmx\",temp/\"llmx-kv-head-major/validation/long/llmx\")]:\n    hashes={};count=0\n    for suffix in suffixes:\n        a=Path(str(current)+suffix).read_bytes();b=Path(str(base)+suffix).read_bytes()\n        assert a==b and len(a)==151936*4,(name,suffix)\n        assert all(math.isfinite(x) for x, in struct.iter_unpack(\"<f\",a))\n        hashes[suffix]=hashlib.sha256(a).hexdigest();count+=len(a)//4\n    results[name+\"_long\"]=dict(values=count,byte_identical=True,sha256=hashes)\n    print(\"EXACT LONG\",name,count,flush=True)\nresults[\"scope\"]=\"Four excerpt/window NLL cases; long vectors over 1943 prompt tokens and 32 continuation steps, not full corpus or maximum context.\"\n(out/\"comparison.json\").write_text(json.dumps(results,indent=2))\n",
+    "f32-gate.py": "import os\nfrom pathlib import Path\nimport sys\nsys.path.insert(0,str(Path.home()/'Desktop/Projects/llmx/tests'))\nimport baseline, common\ncommon.EXE=str(Path(__file__).parent/'candidate.exe')\nbaseline.BASELINE_MODELS=[dict(repo='Qwen/Qwen3-0.6B',file='Qwen3-0.6B-F32.gguf',min_overlap=5,max_nll_delta=1e-4,max_chunk_nll_delta=1e-4,revision='c1899de289a04d12100db370d81485cdf75e47ca')]\nos.environ['LLMX_BASELINE_GGUF']=str(Path.home()/'AppData/Local/Temp/Qwen3-0.6B-F32.gguf')\nassert baseline.run()\n",
+    "finish.py": "from pathlib import Path\nimport subprocess,json\nr=Path(__file__).parent\ncommands=[('windows-native', ['cmd', '/c', 'C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-worker-errors\\\\native.bat']), ('synthetic-perf', ['C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe', '-X', 'utf8', '-u', 'C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-worker-errors\\\\synthetic-perf.py']), ('matched-perf', ['C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe', '-X', 'utf8', '-u', 'C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-worker-errors\\\\bench.py'])]\nrows=[]\nfor name,cmd in commands:\n print('START',name,flush=True)\n with (r/(name+'.log')).open('wb') as f: p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'finish.json').write_text(json.dumps(rows,indent=2))\n print('END',name,p.returncode,flush=True)\n if p.returncode: print((r/(name+'.log')).read_text(errors='replace')[-6000:])\n p.check_returncode()\n",
+    "long-gate.py": "import json, math, struct, subprocess, os\nfrom pathlib import Path\nroot=Path(__file__).parent\nold=Path(os.environ['TEMP'])/'llmx-attention-long'\nout=root/'long'\nout.mkdir(exist_ok=False)\np=subprocess.run([str(root/'candidate-long.exe'),str(Path(os.environ['TEMP'])/'Qwen3-0.6B-F32.gguf'),str(Path(os.environ['TEMP'])/'llmx-f32-controls/prompt.txt'),str(out/'llmx')],capture_output=True,timeout=180)\n(out/'generated.txt').write_bytes(p.stdout)\n(out/'stderr.txt').write_bytes(p.stderr)\np.check_returncode()\nids=list(map(int,p.stdout.split()))\nassert ids==json.loads((old/'hf-generated.json').read_text()), 'greedy mismatch'\ncount=0\nmaximum=0.0\nsquared=0.0\nfor suffix in ['-logits.f32']+[f'-step-{i:02d}.f32' for i in range(32)]:\n    a=(out/('llmx'+suffix)).read_bytes(); b=(old/('hf'+suffix)).read_bytes()\n    assert len(a)==len(b)==151936*4\n    for (x,), (y,) in zip(struct.iter_unpack('<f',a),struct.iter_unpack('<f',b)):\n        assert math.isfinite(x) and math.isfinite(y)\n        delta=abs(x-y)\n        maximum=max(maximum,delta); squared+=delta*delta; count+=1\nassert maximum<=0.001, maximum\nresult=dict(prompt_tokens=1943,generated_tokens=len(ids),greedy_match=True,logits_compared=count,max_abs_error=maximum,rms_error=math.sqrt(squared/count),bound=0.001)\n(out/'comparison.json').write_text(json.dumps(result,indent=2))\nprint(json.dumps(result),flush=True)\n",
+    "native.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\backend-group.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\backend-group.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_group.cpp\"\nif errorlevel 1 exit /b 1\n\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\backend-group.exe\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\chat-template.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\chat-template.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\chat_template.cpp\"\nif errorlevel 1 exit /b 1\n\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\chat-template.exe\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\data\\baseline_chat_template.json\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\kv-cache.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\kv-cache.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\kv_cache.cpp\"\nif errorlevel 1 exit /b 1\n\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\kv-cache.exe\"\nif errorlevel 1 exit /b 1\n",
+    "numerical-build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-long.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-long.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-attention-long.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-forced.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-forced.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\forced-long.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-ppl.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-ppl.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\ppl-control.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "synthetic-perf.py": "from pathlib import Path\nimport os,sys,json,subprocess,statistics,hashlib\nsys.path.insert(0,'tests')\nfrom perf import parse\nr=Path(__file__).parent;out=r/'synthetic-perf';out.mkdir(exist_ok=False)\narms={'control':r/'control.exe','candidate':r/'candidate.exe'}\nrows=[]\n(out/'metadata.json').write_text(json.dumps(dict(sha256={k:hashlib.sha256(v.read_bytes()).hexdigest() for k,v in arms.items()},rounds=8,outer_warmup=1,threads=6,prompt=64,decode=64),indent=2))\nfor pair in range(-1,8):\n for arm in (list(arms) if pair%2==0 else list(reversed(arms))):\n  cmd=[str(arms[arm]),'bench','--size','2048','--iters','10','--threads','6','--p','64','--n','64']\n  p=subprocess.run(cmd,capture_output=True);(out/f'{pair}-{arm}.stdout').write_bytes(p.stdout);(out/f'{pair}-{arm}.stderr').write_bytes(p.stderr);p.check_returncode()\n  row=dict(pair=pair,arm=arm,**parse(p.stdout.decode().splitlines()));rows.append(row)\n  (out/'results.json').write_text(json.dumps(rows,indent=2));print(json.dumps(row),flush=True)\nsummary={}\nfor arm in arms:\n summary[arm]={}\n for key in ['matmul_gflops','prefill_tps','decode_tps']:\n  values=[x[key] for x in rows if x['pair']>=0 and x['arm']==arm]\n  summary[arm][key]=dict(mean=statistics.mean(values),minimum=min(values),maximum=max(values))\n(out/'summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2),flush=True)\n",
+    "test-final.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\backend-errors.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\backend-errors.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_errors.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-errors.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-errors.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_errors.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "test-final.py": "\ufefffrom pathlib import Path\nimport os,subprocess,sys,json,hashlib\nr=Path(os.environ['TEMP'])/'llmx-worker-errors'\ncommands=[('test-final-build',['cmd','/c',str(r/'test-final.bat')]),('test-final-windows',[str(r/'backend-errors.exe')])]\nfor label,build in [('linux','/root/.cache/llmx-worker-errors-release'),('ubsan','/root/.cache/llmx-worker-errors-ubsan')]:\n commands += [(f'test-final-{label}-build',['wsl','-d','Ubuntu','--','cmake','--build',build,'--target','llmx-backend-errors-test','--parallel','2']), (f'test-final-{label}',['wsl','-d','Ubuntu','--','ctest','--test-dir',build,'-R','backend-errors','--output-on-failure'])]\nrows=[]\nfor name,cmd in commands:\n print('START',name,flush=True)\n with (r/(name+'.log')).open('wb') as f: p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'test-final.json').write_text(json.dumps(rows,indent=2));print('END',name,p.returncode,flush=True)\n if p.returncode: print((r/(name+'.log')).read_text(errors='replace')[-3000:])\n p.check_returncode()\np=subprocess.run([str(r/'control-errors.exe')],capture_output=True,timeout=30)\nassert p.returncode!=0\n(r/'control-startup-errors.json').write_text(json.dumps(dict(exit=p.returncode,stdout=p.stdout.decode(errors='replace'),stderr=p.stderr.decode(errors='replace'),binary_sha256=hashlib.sha256((r/'control-errors.exe').read_bytes()).hexdigest(),test_sha256=hashlib.sha256(Path('tests/backend_errors.cpp').read_bytes()).hexdigest(),scope='Final startup allocation-fault test compiled against 3a82284; original process terminates.'),indent=2))\n",
+    "llmx-worker-errors-setup.py": "from pathlib import Path\nimport os,subprocess,json,shutil\nr=Path(os.environ['TEMP'])/'llmx-worker-errors';r.mkdir(exist_ok=True)\nrepo=Path.cwd()\nfor name in subprocess.check_output(['git','ls-files','src'],text=True).splitlines():\n p=r/'control'/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(subprocess.check_output(['git','show','3a82284:'+name]))\nshutil.copy2('llmx.exe',r/'control.exe')\ncommands=[('candidate',repo/'src/cli/main.cpp',repo/'src'),('candidate-compare',repo/'tools/compare_cpu.cpp',repo/'src'),('control-compare',repo/'tools/compare_cpu.cpp',r/'control/src'),('backend-errors',repo/'tests/backend_errors.cpp',repo/'src'),('control-errors',repo/'tests/backend_errors.cpp',r/'control/src')]\nlines=['@echo off','call \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\" >nul','if errorlevel 1 exit /b 1']\nfor name,source,inc in commands:\n lines += [f'cl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"{inc}\" /Fe:\"{r/name}.exe\" /Fo:\"{r/name}.obj\" \"{source}\"','if errorlevel 1 exit /b 1']\n(r/'build.bat').write_text('\\n'.join(lines)+'\\n')\nwith (r/'build.log').open('wb') as f: p=subprocess.run(['cmd','/c',str(r/'build.bat')],stdout=f,stderr=subprocess.STDOUT)\nprint('build',p.returncode);p.check_returncode()\nfor name in ['control-errors','backend-errors']:\n p=subprocess.run([str(r/(name+'.exe'))],capture_output=True,timeout=30)\n (r/(name+'.json')).write_text(json.dumps(dict(exit=p.returncode,stdout=p.stdout.decode(errors='replace'),stderr=p.stderr.decode(errors='replace')),indent=2))\n print(name,p.returncode,p.stdout.decode(errors='replace'),flush=True)\n if name=='backend-errors': p.check_returncode()\n else: assert p.returncode!=0\n",
+    "llmx-worker-errors-validate.py": "from pathlib import Path\nimport os,subprocess,sys,json,shutil\nr=Path(os.environ['TEMP'])/'llmx-worker-errors';old=Path(os.environ['TEMP'])/'llmx-kv-head-major/validation'\n# Reuse the proven numerical harnesses with the current source, preserving previous artifacts.\nfor name in ['f32-gate.py','long-gate.py','exact-gate.py']:\n text=(old/name).read_text().replace('llmx-q8-scale-load/validation','llmx-kv-head-major/validation')\n (r/name).write_text(text)\ntext=(old/'build.bat').read_text()\ntext=text.replace('/I \"'+str(old.parent/'candidate')+'\" ','').replace(str(old),str(r))\n(r/'numerical-build.bat').write_text(text)\ndef wp(p): return '/mnt/'+str(p)[0].lower()+str(p)[2:].replace('\\\\','/')\nrepo=Path.cwd();linux='/root/.cache/llmx-worker-errors-release';ubsan='/root/.cache/llmx-worker-errors-ubsan'\ncommands=[('windows-build',['cmd','/c',str(r/'build.bat')]),('faults',[str(r/'backend-errors.exe')]),('numerical-build',['cmd','/c',str(r/'numerical-build.bat')]),('f32-hf',[sys.executable,'-X','utf8','-u',str(r/'f32-gate.py')]),('long-hf',[sys.executable,'-X','utf8','-u',str(r/'long-gate.py')]),('exact',[sys.executable,'-X','utf8','-u',str(r/'exact-gate.py')]),('windows-suite',[sys.executable,'-X','utf8','-u','tests/run_tests.py','--exe',str(r/'candidate.exe'),'--require-baseline']),('linux-configure',['wsl','-d','Ubuntu','--','cmake','-S',wp(repo),'-B',linux,'-DCMAKE_BUILD_TYPE=Release']),('linux-build',['wsl','-d','Ubuntu','--','cmake','--build',linux,'--parallel','2']),('linux-native',['wsl','-d','Ubuntu','--','ctest','--test-dir',linux,'--output-on-failure']),('linux-suite',['wsl','-d','Ubuntu','--','python3','-u',wp(repo/'tests/run_tests.py'),'--exe',linux+'/llmx','--require-baseline']),('ubsan-configure',['wsl','-d','Ubuntu','--','cmake','-C',wp(old/'ubsan-cache.cmake'),'-S',wp(repo),'-B',ubsan,'-DCMAKE_BUILD_TYPE=Release']),('ubsan-build',['wsl','-d','Ubuntu','--','cmake','--build',ubsan,'--parallel','2']),('ubsan-native',['wsl','-d','Ubuntu','--','ctest','--test-dir',ubsan,'--output-on-failure'])]\nrows=[]\nfor name,cmd in commands:\n print('START',name,flush=True)\n with (r/(name+'.log')).open('wb') as f: p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'validation.json').write_text(json.dumps(rows,indent=2))\n print('END',name,p.returncode,flush=True)\n if p.returncode: print((r/(name+'.log')).read_text(errors='replace')[-5000:])\n p.check_returncode()\n",
+    "llmx-attention-long.cpp": "#include <algorithm>\n#include <fstream>\n#include <iostream>\n#include <string>\n#include \"model/arch_qwen.hpp\"\n#include \"tokenizer/tokenizer.hpp\"\nint main(int argc,char**argv) {\n    if(argc!=4) return 2;\n    auto weights=gguf::read_gguf(argv[1]);\n    infer::Model model(weights);\n    model.set_threads(6);model.set_ubatch(128);\n    bpe::Tokenizer tok(weights);\n    std::ifstream input(argv[2],std::ios::binary);\n    std::string text((std::istreambuf_iterator<char>(input)),{});\n    auto ids=tok.encode(text);\n    if(ids.size()!=1943) return 3;\n    auto logits=model.prefill(ids);\n    auto save=[&](const std::string& suffix) {\n        std::ofstream output(std::string(argv[3])+suffix,std::ios::binary);\n        output.write((const char*)logits.data(),logits.size()*sizeof(float));\n        if(!output) throw std::runtime_error(\"write failed\");\n    };\n    save(\"-logits.f32\");\n    for(int i=0;i<32;++i) {\n        int token=(int)(std::max_element(logits.begin(),logits.end())-logits.begin());\n        std::cout << token << \" \";\n        logits=model.step(token);\n        save(\"-step-\"+std::string(i<10?\"0\":\"\")+std::to_string(i)+\".f32\");\n    }\n    std::cout << \"\\n\";\n}\n",
+    "forced-long.cpp": "#include <algorithm>\n#include <fstream>\n#include <iostream>\n#include <string>\n#include \"model/arch_qwen.hpp\"\n#include \"tokenizer/tokenizer.hpp\"\nint main(int argc,char**argv) {\n    if(argc!=5) return 2;\n    std::ifstream continuation(argv[4]);\n    std::vector<int> forced; int id; while(continuation >> id) forced.push_back(id);\n    if(forced.size()!=32) return 4;\n    auto weights=gguf::read_gguf(argv[1]);\n    infer::Model model(weights);\n    model.set_threads(6);model.set_ubatch(128);\n    bpe::Tokenizer tok(weights);\n    std::ifstream input(argv[2],std::ios::binary);\n    std::string text((std::istreambuf_iterator<char>(input)),{});\n    auto ids=tok.encode(text);\n    if(ids.size()!=1943) return 3;\n    auto logits=model.prefill(ids);\n    auto save=[&](const std::string& suffix) {\n        std::ofstream output(std::string(argv[3])+suffix,std::ios::binary);\n        output.write((const char*)logits.data(),logits.size()*sizeof(float));\n        if(!output) throw std::runtime_error(\"write failed\");\n    };\n    save(\"-logits.f32\");\n    for(int i=0;i<32;++i) {\n        int token=(int)(std::max_element(logits.begin(),logits.end())-logits.begin());\n        std::cout << token << \" \";\n        logits=model.step(forced[size_t(i)]);\n        save(\"-step-\"+std::string(i<10?\"0\":\"\")+std::to_string(i)+\".f32\");\n    }\n    std::cout << \"\\n\";\n}\n",
+    "ppl-control.cpp": "#include <fstream>\n#include <iostream>\n#include <iomanip>\n#include \"inference/perplexity.hpp\"\nint main(int argc,char** argv) {\n    if(argc!=3)return 2;\n    auto weights=gguf::read_gguf(argv[1]);infer::Model model(weights);model.set_threads(6);\n    std::ifstream in(argv[2]);std::vector<uint32_t> ids;uint32_t id;while(in>>id)ids.push_back(id);\n    if(ids.size()!=247)return 3;\n    for(auto flags: {std::pair<int,int>{0,0},{64,0},{64,2},{123,0}}) {\n        auto v=infer::perplexity(model,ids,flags.first,flags.second);\n        std::cout<<std::setprecision(17)<<\"{\\\"ctx\\\":\"<<flags.first<<\",\\\"max_chunks\\\":\"<<flags.second\n            <<\",\\\"used\\\":\"<<v.used_tokens<<\",\\\"scored\\\":\"<<v.scored_tokens<<\",\\\"chunks\\\":\"<<v.chunks\n            <<\",\\\"mean_nll\\\":\"<<v.mean_nll()<<\",\\\"ppl\\\":\"<<std::exp(v.mean_nll())<<\"}\\n\"<<std::flush;\n    }\n}\n"
+  },
+  "source_sha256": {
+    "src\\config.hpp": "9f20e6cf3b323a66204e25ef633d26ec5c1ed845da67a5e3b4de0914cf7c3368",
+    "src\\backends\\backend.hpp": "5d76240be7893279a308a4c21cee074f53f1dcee5421feafadb496cae52dbcba",
+    "src\\core\\fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+    "src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+    "src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+    "src\\format\\gguf.hpp": "87d4beee29a8a0adc4c0183d68e1f8f13ea30326d419dff11d9fcbfcea22e712",
+    "src\\inference\\chat.hpp": "865051f5ef6ebe8d14330e18347daeabce6a8cd9cd3eee38f664b499883ad361",
+    "src\\inference\\generate.hpp": "1277cbb7fd3b6d6c24bd06945ab8c562f553201a8f6893325343c04a7bf4f087",
+    "src\\inference\\perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+    "src\\inference\\sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+    "src\\model\\arch_qwen.hpp": "c064955de07e4f41537a50f9e9f343affe9db2f52571bf988476f2b448bd1ff5",
+    "src\\model\\host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+    "src\\quant\\k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+    "src\\quant\\quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+    "src\\tokenizer\\tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+    "src\\backends\\cpu\\cpu_backend.hpp": "f114d3b6287b2a4577bc67180738853ec1b975500ea4168cbd90ab22db70ec1a",
+    "tests\\backend_errors.cpp": "473a3a4d48c2d4d84a1ff238a60418f805795222201a8027a12ce008a3d0e5a2"
+  },
+  "source_patch": "diff --git a/CMakeLists.txt b/CMakeLists.txt\nindex b0d1232..bb81829 100644\n--- a/CMakeLists.txt\n+++ b/CMakeLists.txt\n@@ -36,6 +36,11 @@ if(BUILD_TESTING)\n     list(APPEND LLMX_TARGETS llmx-backend-group-test)\n     add_test(NAME backend-group COMMAND llmx-backend-group-test)\n     set_tests_properties(backend-group PROPERTIES TIMEOUT 60)\n+    add_executable(llmx-backend-errors-test tests/backend_errors.cpp)\n+    target_include_directories(llmx-backend-errors-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)\n+    list(APPEND LLMX_TARGETS llmx-backend-errors-test)\n+    add_test(NAME backend-errors COMMAND llmx-backend-errors-test)\n+    set_tests_properties(backend-errors PROPERTIES TIMEOUT 30)\n     add_executable(llmx-chat-template-test tests/chat_template.cpp)\n     target_include_directories(llmx-chat-template-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)\n     list(APPEND LLMX_TARGETS llmx-chat-template-test)\ndiff --git a/src/backends/backend.hpp b/src/backends/backend.hpp\nindex d44eaee..9bcd406 100644\n--- a/src/backends/backend.hpp\n+++ b/src/backends/backend.hpp\n@@ -70,7 +70,9 @@ public:\n                            int n_head, int n_head_kv, int head_dim,\n                            int n_past, int nbatch, size_t kv_head_stride) = 0;\n \n-    // Run fn(i) for i in [0, n) across the backend's workers.\n+    // Run fn(i) for i in [0, n) across the backend's workers. On failure,\n+    // finish active participants before propagating an exception. Outputs may\n+    // be partial; this does not roll back an operation or make submission concurrent.\n     virtual void parallel_for(int n, const std::function<void(int)>& fn) = 0;\n \n     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm).\ndiff --git a/src/backends/cpu/cpu_backend.hpp b/src/backends/cpu/cpu_backend.hpp\nindex cde205e..9ff088c 100644\n--- a/src/backends/cpu/cpu_backend.hpp\n+++ b/src/backends/cpu/cpu_backend.hpp\n@@ -5,6 +5,7 @@\n #include <mutex>\n #include <condition_variable>\n #include <functional>\n+#include <exception>\n #include <limits>\n #include <vector>\n #include <cstdlib>\n@@ -88,10 +89,18 @@ public:\n             epoch_++;\n         }\n         cv_work_.notify_all();\n-        fn(0);\n+        std::exception_ptr error;\n+        try { fn(0); }\n+        catch (...) { error = std::current_exception(); }\n         std::unique_lock<std::mutex> lk(m_);\n         cv_done_.wait(lk, [&] { return pending_ == 0; });\n         job_ = nullptr;\n+        if (!error) error = worker_error_;\n+        worker_error_ = nullptr;\n+        lk.unlock();\n+        // The borrowed callable must stay alive until all workers finish,\n+        // including when the calling participant fails.\n+        if (error) std::rethrow_exception(error);\n     }\n \n     void matmul(uint32_t ggml_type, const uint8_t* data, const float* X, float* Y,\n@@ -541,17 +550,24 @@ private:\n     std::mutex m_;\n     std::condition_variable cv_work_, cv_done_;\n     const std::function<void(int)>* job_ = nullptr;\n+    std::exception_ptr worker_error_;\n     unsigned epoch_ = 0;\n     int pending_ = 0;\n     bool stop_ = false;\n \n     void start_pool() {\n-        rowbuf_.assign((size_t)(threads_ > 0 ? threads_ : 1), std::vector<float>());\n-        stop_ = false;\n-        epoch_ = 0;\n-        pending_ = 0;\n-        for (int i = 1; i < threads_; i++)\n-            pool_.emplace_back([this, i] { worker(i); });\n+        try {\n+            rowbuf_.assign((size_t)(threads_ > 0 ? threads_ : 1), std::vector<float>());\n+            stop_ = false;\n+            epoch_ = 0;\n+            pending_ = 0;\n+            for (int i = 1; i < threads_; i++)\n+                pool_.emplace_back([this, i] { worker(i); });\n+        } catch (...) {\n+            stop_pool();\n+            threads_ = 1;\n+            throw;\n+        }\n     }\n \n     void stop_pool() {\n@@ -576,9 +592,12 @@ private:\n                 seen = epoch_;\n                 job = job_;\n             }\n-            if (job) (*job)(idx);\n+            std::exception_ptr error;\n+            try { if (job) (*job)(idx); }\n+            catch (...) { error = std::current_exception(); }\n             {\n                 std::lock_guard<std::mutex> lk(m_);\n+                if (error && !worker_error_) worker_error_ = error;\n                 if (--pending_ == 0) cv_done_.notify_one();\n             }\n         }\n",
+  "test_source": "#include <atomic>\n#include <chrono>\n#include <cstdio>\n#include <cstdlib>\n#include <new>\n#include <stdexcept>\n#include <thread>\n#include \"backends/cpu/cpu_backend.hpp\"\n\nstatic std::atomic<int> fail_allocation{-1};\n\nvoid* operator new(std::size_t size) {\n    if (fail_allocation.load() >= 0 && fail_allocation.fetch_sub(1) == 0) {\n        fail_allocation.store(-1);\n        throw std::bad_alloc();\n    }\n    if (void* p = std::malloc(size ? size : 1)) return p;\n    throw std::bad_alloc();\n}\n#if defined(__GNUC__)\n// Keep GCC's allocation-pair warning from inlining through this test allocator.\n__attribute__((noinline))\n#endif\nvoid operator delete(void* p) noexcept { std::free(p); }\nvoid operator delete(void* p, std::size_t) noexcept { ::operator delete(p); }\n\nstruct AllocationFailure {\n    explicit AllocationFailure(int after) { fail_allocation.store(after); }\n    ~AllocationFailure() { fail_allocation.store(-1); }\n};\n\nstruct Failure { int worker; };\n\nstatic void require(bool value, const char* message) {\n    if (!value) throw std::runtime_error(message);\n}\n\nstatic void check_dispatch(backend::CpuBackend& cpu, int threads, int failing) {\n    std::atomic<int> entered{0}, finished{0};\n    bool caught = false;\n    try {\n        cpu.run_parallel([&](int worker) {\n            entered.fetch_add(1);\n            while (entered.load() != threads) std::this_thread::yield();\n            if (worker == failing || failing == -1) {\n                finished.fetch_add(1);\n                throw Failure{worker};\n            }\n            std::this_thread::sleep_for(std::chrono::milliseconds(2));\n            finished.fetch_add(1);\n        });\n    } catch (const Failure& error) {\n        caught = true;\n        require(failing == -1 || error.worker == failing, \"wrong exception payload\");\n        require(finished.load() == threads, \"exception escaped before workers finished\");\n    }\n    require(caught, \"task exception was swallowed\");\n    std::atomic<int> calls{0};\n    cpu.parallel_for(37, [&](int) { calls.fetch_add(1); });\n    require(calls.load() == 37, \"pool not reusable after exception\");\n}\n\nstatic void check_startup() {\n    bool success = false;\n    int constructor_failures = 0, resize_failures = 0;\n    for (int after = 0; after < 128 && !success; ++after) {\n        try {\n            AllocationFailure fail(after);\n            backend::CpuBackend cpu;\n            success = true;\n        } catch (const std::bad_alloc&) { ++constructor_failures; }\n    }\n    require(success && constructor_failures > 1, \"constructor fault sweep incomplete\");\n    backend::CpuBackend cpu;\n    success = false;\n    for (int after = 0; after < 128 && !success; ++after) {\n        cpu.set_threads(1);\n        try {\n            AllocationFailure fail(after);\n            cpu.set_threads(4);\n            success = true;\n        } catch (const std::bad_alloc&) {\n            ++resize_failures;\n            require(cpu.threads_available() == 1, \"failed startup did not leave serial backend\");\n            check_dispatch(cpu, 1, 0);\n            cpu.set_threads(4);\n            check_dispatch(cpu, 4, 2);\n        }\n    }\n    require(success && resize_failures > 1, \"resize fault sweep incomplete\");\n    std::printf(\"startup allocation failures: constructor=%d resize=%d\\n\",\n                constructor_failures, resize_failures);\n}\n\nint main() {\n    try {\n        check_startup();\n        backend::CpuBackend cpu;\n        for (int threads : {1, 2, 4}) {\n            cpu.set_threads(threads);\n            for (int repeat = 0; repeat < 10; ++repeat)\n                for (int failing = -1; failing < threads; ++failing)\n                    check_dispatch(cpu, threads, failing);\n            bool caught = false;\n            try {\n                cpu.parallel_for(64, [](int i) { if (i == 63) throw std::bad_alloc(); });\n            } catch (const std::bad_alloc&) { caught = true; }\n            require(caught, \"allocation exception type was lost\");\n            check_dispatch(cpu, threads, 0);\n        }\n        std::puts(\"backend errors: passed\");\n        return 0;\n    } catch (const std::exception& error) {\n        std::fprintf(stderr, \"%s\\n\", error.what());\n        return 1;\n    } catch (...) {\n        std::fputs(\"unexpected exception\\n\", stderr);\n        return 1;\n    }\n}\n"
+}

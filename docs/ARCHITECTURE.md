@@ -116,6 +116,26 @@ CPU cache centralizes concrete storage operations without adding unused paging,
 scheduling or device interfaces. A contiguous CPU layout must
 not become a requirement imposed on future device backends.
 
+## Error handling
+
+Runtime validation throws exceptions; the CLI catches `std::exception`, prints
+the diagnostic and returns failure. Checks on external input and resource
+limits must remain active in release builds. Assertions, if added, are for
+internal programmer invariants and must not replace those checks.
+
+CPU dispatch waits for every participant before propagating a task exception
+on the calling thread. This keeps the borrowed callable alive and leaves the
+pool reusable. Other participants finish their work; there is no cancellation
+or rollback. Partially written outputs are invalid, and pool recovery alone
+does not establish that a failed model/session can resume. Partial pool startup
+joins threads already created; a failed thread-count change leaves the backend
+in serial mode, from which it can be configured again.
+
+Known gaps remain: GGUF stream errors and file extents need comprehensive
+validation, and model configuration, tensor shapes and token IDs need validation
+before execution. A future server must define request/session recovery rather
+than treating the CLI's process-level catch as request isolation.
+
 ## Multi-device / multi-node design notes
 
 The `backend::Backend` interface is device-agnostic in *shape* — nothing in it

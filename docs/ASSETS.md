@@ -1189,3 +1189,59 @@ reads UTF-8 text and scores disjoint 512-token windows. Add `--chunks 4` to
 evaluate only the first four windows. See `docs/USAGE.md` for target selection;
 line endings are preserved, so use identical bytes and scoring policies for
 both arms of a comparison.
+
+## CPU worker exception checkpoint (2026-09-19)
+
+Branch `fix/cpu-worker-errors`, control `3a82284`. Evidence:
+[`worker-errors-cpu-20260919.json`](benchmarks/worker-errors-cpu-20260919.json).
+The archive includes exact commands, source hashes/patch, fault tests, numerical
+harnesses, full logs and every timing sample. Scratch: `%TEMP%/llmx-worker-errors`.
+
+Dispatch waits for all participants before propagating caller/worker exceptions;
+partial startup joins already-created threads. Failed outputs are not rolled
+back. Windows/Linux full suites with required real-model HF fixtures pass;
+Windows/Linux native checks and Linux UBSan native tests pass. Allocation fault
+sweeps cover construction/reconfiguration; OS thread exhaustion is not separately
+forced. The original pool terminates in both initial task and final startup
+regressions. Final test allocator suppresses a GCC inlining false positive;
+the final Windows/Linux/UBSan fault tests were rebuilt and rerun afterwards.
+
+| Correctness | Observed | Requirement |
+|---|---:|---:|
+| Long F32 max absolute logit error vs HF | 0.0001263618469 | <= 0.001 |
+| Long F32 greedy continuation IDs | 32/32 | 32/32 |
+| F32 full values identical to control | 5,013,888 | Exact |
+| Q8 full values identical to control | 5,013,888 | Exact |
+| F32 continuous/window NLL cases | 4/4 exact | Exact |
+| Q8 continuous/window NLL cases | 4/4 exact | Exact |
+
+Matched Ryzen 7 5800X Windows CPU run: same pinned Qwen3-0.6B F32/Q8 models,
+215 prompt tokens + 32 forced tokens, six threads, ubatch 128, F32 KV,
+mx commit `5542318e748c154b634211def405ae95da3dfaa9`. Nine measured rounds,
+rotating arm order, one excluded outer warmup and each process's warmup sequence.
+Model loading/tokenization are excluded. No build/test work overlaps timing.
+
+| Mean tok/s | Control | Candidate | mx | Candidate vs control |
+|---|---:|---:|---:|---:|
+| Q8 prefill | 408.39 | 386.18 | 263.80 | -5.44% |
+| Q8 decode | 43.88 | 43.94 | 45.81 | +0.14% |
+| F32 prefill | 362.85 | 377.11 | 370.26 | +3.93% |
+| F32 decode | 13.91 | 14.06 | 13.69 | +1.10% |
+
+All candidate/control ranges overlap, but Q8 prefill loses eight of nine paired
+rounds: a performance concern that must be investigated after the user's reboot
+pause. Q8 decode remains 4.09% below mx. F32 means lead in this session; this is
+not an equivalence test or proof of all-workload parity. No merge/push, and root
+`llmx.exe` stays on the previous KV build.
+
+Separate eight-pair synthetic `bench --size 2048 --iters 10 --threads 6 --p 64
+--n 64`, alternating order with outer warmup excluded:
+
+| Mean synthetic metric | Control | Candidate |
+|---|---:|---:|
+| Matmul GFLOPS | 90.12 | 91.45 |
+| Step-prefill tok/s | 5,165.91 | 4,999.78 |
+| Decode tok/s | 5,283.41 | 5,142.40 |
+
+Synthetic ranges overlap and all outliers are retained. The legacy prefill
+metric repeatedly calls step; it is not batched real-model prefill.

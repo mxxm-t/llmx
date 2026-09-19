@@ -8,6 +8,14 @@ feature currently stands right now.
 
 ## Status table
 
+**Paused at the user's request for a reboot (2026-09-19).** Do not resume
+development or restart the TUI watcher until the user explicitly says to resume.
+Checkpoint branch: `fix/cpu-worker-errors`. Root `llmx.exe` remains the validated
+`3a82284` KV build; the worker-error candidate is in `%TEMP%/llmx-worker-errors`.
+All validation/timing processes completed. The TUI is notified and its watcher
+is stopped for the reboot. On resume, reconnect to port **8181**, restart the
+watcher, and read this block plus the worker-error evidence below.
+
 | Feature                                  | Status   |
 |------------------------------------------|----------|
 | Layered restructure                      | Done     |
@@ -37,11 +45,46 @@ feature currently stands right now.
 | CPU grouped projections              | In Progress |
 | CPU Q8 scale / load scheduling       | In Progress |
 | Head-major CPU KV storage             | In Progress |
+| CPU worker exception safety           | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### CPU worker exception safety
+
+- **Goal:** propagate CPU task failures after every participant finishes, with
+  safe job lifetime and reusable dispatch state; clean up partial pool startup.
+  This repairs the existing backend before ROADMAP #4a/#7 execution work.
+- **Done:** dispatch catches caller/worker failures and waits for completion
+  before rethrowing; startup joins partially created pools. Windows/Linux
+  native checks, full suites with required real HF fixtures, Linux UBSan native
+  tests and allocation/task fault sweeps pass. The original pool terminates on
+  the task and partial-startup regressions. Independent real F32 HF checks pass;
+  long F32/Q8 vectors and continuous/window NLL are exact against the control.
+  Full samples, hashes, commands, logs and harnesses are archived in
+  `docs/benchmarks/worker-errors-cpu-20260919.json`.
+- **Left after explicit user resume:** investigate the Q8 prefill cost before
+  adoption, and close the external Q8 decode floor. No merge/push; the existing
+  root executable is deliberately retained. Paired candidate Q8 prefill loses
+  eight of nine rounds despite overlapping ranges; do not dismiss that as noise.
+- **Gotchas:** dispatch recovery does not roll back partially written outputs
+  or establish Model/session recovery. No concurrent submissions are supported.
+  GGUF stream/extent validation and model config/tensor validation are separate
+  known gaps from the same review. Control is `3a82284`; no merge/push yet.
+
+| Mean tok/s, nine matched rounds | Control | Candidate | mx-llama.cpp |
+|---|---:|---:|---:|
+| Q8 prefill | 408.39 | 386.18 | 263.80 |
+| Q8 decode | 43.88 | 43.94 | 45.81 |
+| F32 prefill | 362.85 | 377.11 | 370.26 |
+| F32 decode | 13.91 | 14.06 | 13.69 |
+
+Q8 prefill mean changes by -5.44%; Q8 decode remains -4.09% below mx. All
+candidate/control ranges overlap; F32 means lead in this session without an
+equivalence claim. Separate synthetic timing also has lower prefill/decode
+means (see ASSETS). All samples are retained; builds/tests do not overlap timing.
 
 One block per in-flight feature. A block is what lets a fresh agent pick a
 feature back up with a "continue feature X" prompt, so keep it current. When the

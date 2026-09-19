@@ -1,0 +1,120 @@
+#include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <new>
+#include <stdexcept>
+#include <thread>
+#include "backends/cpu/cpu_backend.hpp"
+
+static std::atomic<int> fail_allocation{-1};
+
+void* operator new(std::size_t size) {
+    if (fail_allocation.load() >= 0 && fail_allocation.fetch_sub(1) == 0) {
+        fail_allocation.store(-1);
+        throw std::bad_alloc();
+    }
+    if (void* p = std::malloc(size ? size : 1)) return p;
+    throw std::bad_alloc();
+}
+#if defined(__GNUC__)
+// Keep GCC's allocation-pair warning from inlining through this test allocator.
+__attribute__((noinline))
+#endif
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete(void* p, std::size_t) noexcept { ::operator delete(p); }
+
+struct AllocationFailure {
+    explicit AllocationFailure(int after) { fail_allocation.store(after); }
+    ~AllocationFailure() { fail_allocation.store(-1); }
+};
+
+struct Failure { int worker; };
+
+static void require(bool value, const char* message) {
+    if (!value) throw std::runtime_error(message);
+}
+
+static void check_dispatch(backend::CpuBackend& cpu, int threads, int failing) {
+    std::atomic<int> entered{0}, finished{0};
+    bool caught = false;
+    try {
+        cpu.run_parallel([&](int worker) {
+            entered.fetch_add(1);
+            while (entered.load() != threads) std::this_thread::yield();
+            if (worker == failing || failing == -1) {
+                finished.fetch_add(1);
+                throw Failure{worker};
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            finished.fetch_add(1);
+        });
+    } catch (const Failure& error) {
+        caught = true;
+        require(failing == -1 || error.worker == failing, "wrong exception payload");
+        require(finished.load() == threads, "exception escaped before workers finished");
+    }
+    require(caught, "task exception was swallowed");
+    std::atomic<int> calls{0};
+    cpu.parallel_for(37, [&](int) { calls.fetch_add(1); });
+    require(calls.load() == 37, "pool not reusable after exception");
+}
+
+static void check_startup() {
+    bool success = false;
+    int constructor_failures = 0, resize_failures = 0;
+    for (int after = 0; after < 128 && !success; ++after) {
+        try {
+            AllocationFailure fail(after);
+            backend::CpuBackend cpu;
+            success = true;
+        } catch (const std::bad_alloc&) { ++constructor_failures; }
+    }
+    require(success && constructor_failures > 1, "constructor fault sweep incomplete");
+    backend::CpuBackend cpu;
+    success = false;
+    for (int after = 0; after < 128 && !success; ++after) {
+        cpu.set_threads(1);
+        try {
+            AllocationFailure fail(after);
+            cpu.set_threads(4);
+            success = true;
+        } catch (const std::bad_alloc&) {
+            ++resize_failures;
+            require(cpu.threads_available() == 1, "failed startup did not leave serial backend");
+            check_dispatch(cpu, 1, 0);
+            cpu.set_threads(4);
+            check_dispatch(cpu, 4, 2);
+        }
+    }
+    require(success && resize_failures > 1, "resize fault sweep incomplete");
+    std::printf("startup allocation failures: constructor=%d resize=%d\n",
+                constructor_failures, resize_failures);
+}
+
+int main() {
+    try {
+        check_startup();
+        backend::CpuBackend cpu;
+        for (int threads : {1, 2, 4}) {
+            cpu.set_threads(threads);
+            for (int repeat = 0; repeat < 10; ++repeat)
+                for (int failing = -1; failing < threads; ++failing)
+                    check_dispatch(cpu, threads, failing);
+            bool caught = false;
+            try {
+                cpu.parallel_for(64, [](int i) { if (i == 63) throw std::bad_alloc(); });
+            } catch (const std::bad_alloc&) { caught = true; }
+            require(caught, "allocation exception type was lost");
+            check_dispatch(cpu, threads, 0);
+        }
+        std::puts("backend errors: passed");
+        return 0;
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "%s\n", error.what());
+        return 1;
+    } catch (...) {
+        std::fputs("unexpected exception\n", stderr);
+        return 1;
+    }
+}

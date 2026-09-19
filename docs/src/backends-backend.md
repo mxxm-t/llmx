@@ -24,6 +24,9 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
   capacity. It must hold at least `n_past + nbatch` positions. Query `b` sees
   only positions through `n_past + b`. The backend owns temporary score storage.
 - `parallel_for(n, fn)`: run `fn(i)` across the backend's workers.
+  Task failure waits for active participants before propagating an exception;
+  partially written outputs are not rolled back. Concurrent submission is not
+  supported by the current CPU implementation.
 - `rms_norm(dst, src, w, n, eps)`: RMS norm.
 - `rope(x, cos, sin, half)`: rotary position embedding.
 - `BackendPtr` / factory (`make_cpu_backend`).

@@ -5,6 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <exception>
 #include <limits>
 #include <vector>
 #include <cstdlib>
@@ -88,10 +89,18 @@ public:
             epoch_++;
         }
         cv_work_.notify_all();
-        fn(0);
+        std::exception_ptr error;
+        try { fn(0); }
+        catch (...) { error = std::current_exception(); }
         std::unique_lock<std::mutex> lk(m_);
         cv_done_.wait(lk, [&] { return pending_ == 0; });
         job_ = nullptr;
+        if (!error) error = worker_error_;
+        worker_error_ = nullptr;
+        lk.unlock();
+        // The borrowed callable must stay alive until all workers finish,
+        // including when the calling participant fails.
+        if (error) std::rethrow_exception(error);
     }
 
     void matmul(uint32_t ggml_type, const uint8_t* data, const float* X, float* Y,
@@ -541,17 +550,24 @@ private:
     std::mutex m_;
     std::condition_variable cv_work_, cv_done_;
     const std::function<void(int)>* job_ = nullptr;
+    std::exception_ptr worker_error_;
     unsigned epoch_ = 0;
     int pending_ = 0;
     bool stop_ = false;
 
     void start_pool() {
-        rowbuf_.assign((size_t)(threads_ > 0 ? threads_ : 1), std::vector<float>());
-        stop_ = false;
-        epoch_ = 0;
-        pending_ = 0;
-        for (int i = 1; i < threads_; i++)
-            pool_.emplace_back([this, i] { worker(i); });
+        try {
+            rowbuf_.assign((size_t)(threads_ > 0 ? threads_ : 1), std::vector<float>());
+            stop_ = false;
+            epoch_ = 0;
+            pending_ = 0;
+            for (int i = 1; i < threads_; i++)
+                pool_.emplace_back([this, i] { worker(i); });
+        } catch (...) {
+            stop_pool();
+            threads_ = 1;
+            throw;
+        }
     }
 
     void stop_pool() {
@@ -576,9 +592,12 @@ private:
                 seen = epoch_;
                 job = job_;
             }
-            if (job) (*job)(idx);
+            std::exception_ptr error;
+            try { if (job) (*job)(idx); }
+            catch (...) { error = std::current_exception(); }
             {
                 std::lock_guard<std::mutex> lk(m_);
+                if (error && !worker_error_) worker_error_ = error;
                 if (--pending_ == 0) cv_done_.notify_one();
             }
         }

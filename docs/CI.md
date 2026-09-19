@@ -46,6 +46,7 @@ To reproduce locally:
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 2
+ctest --test-dir build -C Release --output-on-failure
 python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor
 python -X utf8 tools/fetch_test_models.py
 python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-baseline

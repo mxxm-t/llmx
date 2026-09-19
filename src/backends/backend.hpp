@@ -70,7 +70,9 @@ public:
                            int n_head, int n_head_kv, int head_dim,
                            int n_past, int nbatch, size_t kv_head_stride) = 0;
 
-    // Run fn(i) for i in [0, n) across the backend's workers.
+    // Run fn(i) for i in [0, n) across the backend's workers. On failure,
+    // finish active participants before propagating an exception. Outputs may
+    // be partial; this does not roll back an operation or make submission concurrent.
     virtual void parallel_for(int n, const std::function<void(int)>& fn) = 0;
 
     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm).

@@ -228,7 +228,21 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Latest investigation:** paired F32 decode rows did not improve throughput;
+- **Latest investigation:** AVX2 integer dots with vectorized activation packing
+  were tested at 8-bit and 16-bit precision. Q16 improves matched mean decode
+  by 2.79% on 0.6B and 4.06% on 8B, but still trails mx by 5.12% / 1.21%.
+  Both variants pass existing Windows HF fixture bounds; Q16 stays much closer
+  to the current float path. Independent packing/product controls pass,
+  including signed weight extremes, half subnormals and fallback cases.
+  Across four excerpt/window cases, Q16's maximum absolute NLL change versus
+  current llmx is 0.00003155. Across 5,013,888 logits on a 1,943+32-token
+  forced-HF continuation, maximum change is 0.002213; maximum and RMS error
+  against HF are slightly lower in this case. This is a nonzero precision
+  change, not a lossless result. Full corpus, independent 8B HF, maximum
+  context and cross-platform validation remain open. No candidate was adopted;
+  all patches, samples and numerical controls are preserved in
+  `benchmarks/q8-integer-activation-20260919.json` and ASSETS.
+- **Earlier investigations:** paired F32 decode rows did not improve throughput;
   packed F32 prefill variants regressed. None was adopted. Exact patches,
   samples and diagnostics are in ASSETS and the paired-decode/packed-prefill
   benchmark JSON files. Runtime remains the validated `5a9518c` implementation.
@@ -282,11 +296,12 @@ feature ships, delete its block and mark the row `Done` above.
     llama.cpp's 37, so the ceiling on the whole gap is bandwidth efficiency.
     Allocation churn, layout fragmentation and software prefetch are measured
     NULL. mmap has not been established as a throughput improvement.
-  - The earlier bandwidth analysis predicted no decode benefit from an int8
-    activation dot. The matched Q8 gap and source inspection above motivate
-    testing that prediction explicitly on both model sizes. Activation
-    quantization is lossy and requires an appropriate numerical cost bound;
-    top-token rankings alone do not establish that bound.
+  - The integer-activation study above found a modest decode gain despite the
+    earlier bandwidth prediction, but did not meet the external floor and
+    introduces a precision change. Keep its measured cost visible if revisited.
+  - Investigate grouping projections that share activations: Q/K/V and FFN
+    gate/up currently wake the worker pool separately. Preserve existing row
+    arithmetic while measuring whether fewer dispatches close the gap.
 - **Gotchas:**
   - The synthetic `bench` model (2 layers, 256 embd) shows NONE of these wins:
     its matvecs take the single-threaded fast path. Measure on a real model.

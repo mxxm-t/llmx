@@ -1,0 +1,1230 @@
+{
+  "date": "2026-09-19",
+  "runtime_control": "5a9518c",
+  "parent": "1f60b72",
+  "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+  "conditions": "Ryzen 7 5800X, MSVC19.50 AVX2/FMA/F16C; Q8_0 models, 215+32 pinned tokens, six threads, ubatch128, F32 KV; three interleaved rounds with per-process warmup; no concurrent agent builds/tests, all samples retained on an interactive workstation",
+  "diagnostics": {
+    "diagnostic": {
+      "hashes": {
+        "llmx": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+        "candidate": "c85f61c2bc8ab7aa535f224582ef96a94769af771e28e81d6f93605819a5d829",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "model": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "pair": 0,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 524.8952,
+          "tg_ms": 726.4781,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 505.4014,
+          "tg_ms": 744.5398,
+          "top1": 4013,
+          "logit_sum": -502238.0517
+        },
+        {
+          "pair": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 786.2522,
+          "tg_ms": 667.6028,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 584.766,
+          "tg_ms": 756.088,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 802.2653,
+          "tg_ms": 675.8643,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 517.0284,
+          "tg_ms": 740.4389,
+          "top1": 4013,
+          "logit_sum": -502238.0517
+        },
+        {
+          "pair": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 804.9203,
+          "tg_ms": 666.9957,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 2,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 510.5918,
+          "tg_ms": 728.7551,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 514.2778,
+          "tg_ms": 724.0531,
+          "top1": 4013,
+          "logit_sum": -502238.0517
+        }
+      ],
+      "summary": {
+        "llmx": {
+          "pp": {
+            "mean": 399.4513396681229,
+            "median": 409.6055745985103,
+            "minimum": 367.6684348953257,
+            "maximum": 421.0800095105327
+          },
+          "tg": {
+            "mean": 43.42724741310549,
+            "median": 43.910498876783166,
+            "minimum": 42.32311582778724,
+            "maximum": 44.04812753474606
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 419.7681073493151,
+            "median": 418.061989065054,
+            "minimum": 415.83789207710834,
+            "maximum": 425.40444090578296
+          },
+          "tg": {
+            "mean": 43.464277842387034,
+            "median": 43.217610528026015,
+            "minimum": 42.9795693930667,
+            "maximum": 44.1956536060684
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 269.51583184881764,
+            "median": 267.99114956112396,
+            "minimum": 267.10719061253644,
+            "maximum": 273.4491553727926
+          },
+          "tg": {
+            "mean": 47.75193222735202,
+            "median": 47.93269291261211,
+            "minimum": 47.34678248281497,
+            "maximum": 47.97632128662898
+          }
+        }
+      }
+    },
+    "vector-diagnostic": {
+      "hashes": {
+        "llmx": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+        "candidate": "c85f61c2bc8ab7aa535f224582ef96a94769af771e28e81d6f93605819a5d829",
+        "vector": "8b01fbb6c187bd1e55aa9256d8024225fb8ae7f0c957e5715833643f17fca282",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "model": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "pair": 0,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 505.1519,
+          "tg_ms": 733.6402,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 508.8688,
+          "tg_ms": 790.7242,
+          "top1": 4013,
+          "logit_sum": -502238.0517
+        },
+        {
+          "pair": 0,
+          "arm": "vector",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 498.4529,
+          "tg_ms": 714.6632,
+          "top1": 4013,
+          "logit_sum": -493805.1193
+        },
+        {
+          "pair": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 775.0576,
+          "tg_ms": 682.1019,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 540.3662,
+          "tg_ms": 725.22,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 757.0565,
+          "tg_ms": 677.3837,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "vector",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 515.2322,
+          "tg_ms": 709.7367,
+          "top1": 4013,
+          "logit_sum": -493805.1193
+        },
+        {
+          "pair": 1,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 506.056,
+          "tg_ms": 723.9356,
+          "top1": 4013,
+          "logit_sum": -502238.0517
+        },
+        {
+          "pair": 2,
+          "arm": "vector",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 498.5533,
+          "tg_ms": 715.3446,
+          "top1": 4013,
+          "logit_sum": -493805.1193
+        },
+        {
+          "pair": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 770.3092,
+          "tg_ms": 663.4979,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 2,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 519.3399,
+          "tg_ms": 732.8714,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 514.3143,
+          "tg_ms": 727.7662,
+          "top1": 4013,
+          "logit_sum": -502238.0517
+        }
+      ],
+      "summary": {
+        "llmx": {
+          "pp": {
+            "mean": 412.49331455376404,
+            "median": 413.98706319310344,
+            "minimum": 397.8783276970321,
+            "maximum": 425.6145527711565
+          },
+          "tg": {
+            "mean": 43.8021736205013,
+            "median": 43.66386790370043,
+            "minimum": 43.61811143936769,
+            "maximum": 44.124541518435784
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 421.7974160208668,
+            "median": 422.5057617995051,
+            "minimum": 418.03231992577304,
+            "maximum": 424.85416633732234
+          },
+          "tg": {
+            "mean": 42.88074087887208,
+            "median": 43.97016514369587,
+            "minimum": 40.469230611634245,
+            "maximum": 44.20282688128612
+          }
+        },
+        "vector": {
+          "pp": {
+            "mean": 426.6233306854054,
+            "median": 431.24777230438553,
+            "minimum": 417.2875841222656,
+            "maximum": 431.334635629565
+          },
+          "tg": {
+            "mean": 44.86572149251166,
+            "median": 44.77633660163277,
+            "minimum": 44.73368499601451,
+            "maximum": 45.08714287988771
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 280.16736474379076,
+            "median": 279.1087007658743,
+            "minimum": 277.39873784864506,
+            "maximum": 283.99465561685287
+          },
+          "tg": {
+            "mean": 47.4612113471431,
+            "median": 47.240581667377,
+            "minimum": 46.91381155806779,
+            "maximum": 48.2292408159845
+          }
+        }
+      }
+    },
+    "unrolled-diagnostic": {
+      "hashes": {
+        "llmx": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+        "candidate": "77e5df2e2441ffe14fccbaa0b0cfea81fd1bdce2256bc0035dfec70fd8e394fd",
+        "vector": "8b01fbb6c187bd1e55aa9256d8024225fb8ae7f0c957e5715833643f17fca282",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "model": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "pair": 0,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 512.0413,
+          "tg_ms": 726.8152,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 493.544,
+          "tg_ms": 722.0513,
+          "top1": 4013,
+          "logit_sum": -487776.756
+        },
+        {
+          "pair": 0,
+          "arm": "vector",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 521.3107,
+          "tg_ms": 716.4124,
+          "top1": 4013,
+          "logit_sum": -493805.1193
+        },
+        {
+          "pair": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 788.2592,
+          "tg_ms": 683.7957,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 541.6856,
+          "tg_ms": 739.1224,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 771.2777,
+          "tg_ms": 681.3022,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "vector",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 532.9115,
+          "tg_ms": 704.5229,
+          "top1": 4013,
+          "logit_sum": -493805.1193
+        },
+        {
+          "pair": 1,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 496.5311,
+          "tg_ms": 714.6377,
+          "top1": 4013,
+          "logit_sum": -487776.756
+        },
+        {
+          "pair": 2,
+          "arm": "vector",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 513.4892,
+          "tg_ms": 715.6738,
+          "top1": 4013,
+          "logit_sum": -493805.1193
+        },
+        {
+          "pair": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 794.0558,
+          "tg_ms": 669.6905,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 2,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 503.2952,
+          "tg_ms": 736.0828,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 517.9769,
+          "tg_ms": 722.8936,
+          "top1": 4013,
+          "logit_sum": -487776.756
+        }
+      ],
+      "summary": {
+        "llmx": {
+          "pp": {
+            "mean": 414.66063020627746,
+            "median": 419.8880051277114,
+            "minimum": 396.90920341984355,
+            "maximum": 427.18468207127745
+          },
+          "tg": {
+            "mean": 43.598552074943214,
+            "median": 43.47337011542723,
+            "minimum": 43.294588284700886,
+            "maximum": 44.02769782470152
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 427.9017694305955,
+            "median": 433.0040958159519,
+            "minimum": 415.0764252228236,
+            "maximum": 435.6247872530109
+          },
+          "tg": {
+            "mean": 44.454219058723915,
+            "median": 44.3181807165225,
+            "minimum": 44.266542130128144,
+            "maximum": 44.7779343295211
+          }
+        },
+        "vector": {
+          "pp": {
+            "mean": 411.52337707357515,
+            "median": 412.4219970930963,
+            "minimum": 403.44409906710587,
+            "maximum": 418.7040350605232
+          },
+          "tg": {
+            "mean": 44.933642414604144,
+            "median": 44.71310812272295,
+            "minimum": 44.66701023042035,
+            "maximum": 45.42080889066913
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 274.09099051311796,
+            "median": 272.7529218815334,
+            "minimum": 270.76182807303974,
+            "maximum": 278.7582215847807
+          },
+          "tg": {
+            "mean": 47.18324953684064,
+            "median": 46.96887812779703,
+            "minimum": 46.79760343623103,
+            "maximum": 47.78326704649386
+          }
+        }
+      }
+    },
+    "int16-diagnostic": {
+      "hashes": {
+        "llmx": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+        "candidate": "677eb7d342ec2e3077f0ae68939e3ea3c50df7afb05b0c4b525f1a0826a9e7d9",
+        "vector": "8b01fbb6c187bd1e55aa9256d8024225fb8ae7f0c957e5715833643f17fca282",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "model": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "pair": 0,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 504.3738,
+          "tg_ms": 728.5738,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 0,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 514.7498,
+          "tg_ms": 718.0554,
+          "top1": 4013,
+          "logit_sum": -491997.6431
+        },
+        {
+          "pair": 0,
+          "arm": "vector",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 510.4378,
+          "tg_ms": 709.3907,
+          "top1": 4013,
+          "logit_sum": -493805.1193
+        },
+        {
+          "pair": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 764.0388,
+          "tg_ms": 668.4746,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 526.3695,
+          "tg_ms": 728.5261,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 796.2657,
+          "tg_ms": 690.6158,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 1,
+          "arm": "vector",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 522.3584,
+          "tg_ms": 701.6506,
+          "top1": 4013,
+          "logit_sum": -493805.1193
+        },
+        {
+          "pair": 1,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 510.2921,
+          "tg_ms": 708.3263,
+          "top1": 4013,
+          "logit_sum": -491997.6431
+        },
+        {
+          "pair": 2,
+          "arm": "vector",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 500.1064,
+          "tg_ms": 708.8445,
+          "top1": 4013,
+          "logit_sum": -493805.1193
+        },
+        {
+          "pair": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 781.5761,
+          "tg_ms": 665.0668,
+          "top1": 4013,
+          "logit_sum": -495135.3053
+        },
+        {
+          "pair": 2,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 513.5841,
+          "tg_ms": 735.3927,
+          "top1": 4013,
+          "logit_sum": -492001.8287
+        },
+        {
+          "pair": 2,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 538.1485,
+          "tg_ms": 706.6032,
+          "top1": 4013,
+          "logit_sum": -491997.6431
+        }
+      ],
+      "summary": {
+        "llmx": {
+          "pp": {
+            "mean": 417.7853780995949,
+            "median": 418.62666698599116,
+            "minimum": 408.45831682876764,
+            "maximum": 426.2711504840259
+          },
+          "tg": {
+            "mean": 43.78663101475463,
+            "median": 43.92142566751645,
+            "minimum": 43.51416596874024,
+            "maximum": 43.9243014080072
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 412.8413127325768,
+            "median": 417.6786469853898,
+            "minimum": 399.51797691529384,
+            "maximum": 421.3273142970467
+          },
+          "tg": {
+            "mean": 45.009603962969216,
+            "median": 45.17691916846798,
+            "minimum": 44.56480655949388,
+            "maximum": 45.287086160945776
+          }
+        },
+        "vector": {
+          "pp": {
+            "mean": 420.90345444026656,
+            "median": 421.2070501048316,
+            "minimum": 411.5947977480596,
+            "maximum": 429.90851546790844
+          },
+          "tg": {
+            "mean": 45.286590478844936,
+            "median": 45.14389263089436,
+            "minimum": 45.10913379608726,
+            "maximum": 45.60674500955319
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 275.4982911763893,
+            "median": 275.08517724633595,
+            "minimum": 270.0103746776987,
+            "maximum": 281.39932160513314
+          },
+          "tg": {
+            "mean": 47.4403690771387,
+            "median": 47.870180856535164,
+            "minimum": 46.33545887597706,
+            "maximum": 48.115467498903875
+          }
+        }
+      }
+    },
+    "int16-eight-b": {
+      "hashes": {
+        "llmx": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+        "candidate": "677eb7d342ec2e3077f0ae68939e3ea3c50df7afb05b0c4b525f1a0826a9e7d9",
+        "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+        "model": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+        "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+      },
+      "results": [
+        {
+          "pair": 0,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 7560.4026,
+          "tg_ms": 7483.9415,
+          "top1": 4013,
+          "logit_sum": -26302.95244
+        },
+        {
+          "pair": 0,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 7771.7846,
+          "tg_ms": 7200.3746,
+          "top1": 4013,
+          "logit_sum": -26285.05549
+        },
+        {
+          "pair": 0,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 10087.2734,
+          "tg_ms": 7096.6729,
+          "top1": 4013,
+          "logit_sum": -26296.27124
+        },
+        {
+          "pair": 1,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 7501.543,
+          "tg_ms": 7441.6527,
+          "top1": 4013,
+          "logit_sum": -26302.95244
+        },
+        {
+          "pair": 1,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 10131.8524,
+          "tg_ms": 7073.0556,
+          "top1": 4013,
+          "logit_sum": -26296.27124
+        },
+        {
+          "pair": 1,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 7493.8518,
+          "tg_ms": 7219.2796,
+          "top1": 4013,
+          "logit_sum": -26285.05549
+        },
+        {
+          "pair": 2,
+          "arm": "mx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 10131.7341,
+          "tg_ms": 7055.6376,
+          "top1": 4013,
+          "logit_sum": -26296.27124
+        },
+        {
+          "pair": 2,
+          "arm": "llmx",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 7455.1024,
+          "tg_ms": 7431.534,
+          "top1": 4013,
+          "logit_sum": -26302.95244
+        },
+        {
+          "pair": 2,
+          "arm": "candidate",
+          "run": 1,
+          "pp_tokens": 215,
+          "tg_tokens": 32,
+          "pp_ms": 7521.6898,
+          "tg_ms": 7066.4562,
+          "top1": 4013,
+          "logit_sum": -26285.05549
+        }
+      ],
+      "summary": {
+        "llmx": {
+          "pp": {
+            "mean": 28.64590599315918,
+            "median": 28.660770190879397,
+            "minimum": 28.437639022027742,
+            "maximum": 28.839308766570397
+          },
+          "tg": {
+            "mean": 4.293972291846694,
+            "median": 4.300120052632932,
+            "minimum": 4.27582177118835,
+            "maximum": 4.305975051718797
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 28.31278734617541,
+            "median": 28.584002493694967,
+            "minimum": 27.664173811507847,
+            "maximum": 28.690185733323414
+          },
+          "tg": {
+            "mean": 4.4684084061470255,
+            "median": 4.444213221906538,
+            "minimum": 4.4325752392247,
+            "maximum": 4.528436757309838
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 21.25154878041983,
+            "median": 21.220454255703377,
+            "minimum": 21.22020648465033,
+            "maximum": 21.31398560090579
+          },
+          "tg": {
+            "mean": 4.522915724564848,
+            "median": 4.524211572718303,
+            "minimum": 4.509155269083911,
+            "maximum": 4.53538033189233
+          }
+        }
+      }
+    }
+  },
+  "patches": {
+    "candidate": "--- 5a9518c\n+++ scratch-candidate\n@@ -57,11 +57,15 @@\n \n     void matvec_q8_0(const uint8_t* data, const float* x, float* out,\n                      size_t nblocks, size_t nout) override {\n+        const bool packed = avx2_ && pack_q8_activation(x, nblocks);\n+        const auto dot = [&](const uint8_t* row) {\n+            return packed ? dot_q8_integer(row, nblocks) : dot_row_impl(row, x, nblocks);\n+        };\n         const int nt = threads_;\n         // Small problems are not worth waking the pool.\n         if (nt <= 1 || nout < (size_t)nt * 8) {\n             for (size_t o = 0; o < nout; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n             return;\n         }\n         const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;\n@@ -69,7 +73,7 @@\n             size_t start = (size_t)w * chunk;\n             size_t end = std::min(nout, start + chunk);\n             for (size_t o = start; o < end; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n         });\n     }\n \n@@ -501,6 +505,8 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<int8_t> q8_values_;\n+    std::vector<float> q8_scales_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n@@ -661,6 +667,42 @@\n         return acc;\n     }\n \n+    bool pack_q8_activation(const float* x, size_t nblocks) {\n+        q8_values_.resize(nblocks * 32);\n+        q8_scales_.resize(nblocks);\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            float maximum = 0.0f;\n+            for (size_t i = 0; i < 32; ++i) {\n+                if (!std::isfinite(x[b * 32 + i])) return false;\n+                maximum = std::max(maximum, std::fabs(x[b * 32 + i]));\n+            }\n+            const float scale = maximum / 127.0f;\n+            if (maximum != 0.0f && scale == 0.0f) return false;\n+            q8_scales_[b] = scale;\n+            for (size_t i = 0; i < 32; ++i) {\n+                const float q = scale > 0.0f ? std::round(x[b * 32 + i] / scale) : 0.0f;\n+                q8_values_[b * 32 + i] = static_cast<int8_t>(std::max(-127.0f, std::min(127.0f, q)));\n+            }\n+        }\n+        return true;\n+    }\n+\n+    float dot_q8_integer(const uint8_t* row, size_t nblocks) const {\n+        __m256 sum = _mm256_setzero_ps();\n+        const __m256i ones = _mm256_set1_epi16(1);\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const uint8_t* w = row + b * gguf::Q8_0_TYPESIZE;\n+            const __m256i weights = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(w + 2));\n+            const __m256i values = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(q8_values_.data() + b * 32));\n+            const __m256i pairs = _mm256_maddubs_epi16(_mm256_abs_epi8(weights), _mm256_sign_epi8(values, weights));\n+            const __m256i products = _mm256_madd_epi16(pairs, ones);\n+            const uint16_t half = uint16_t(w[0] | (uint16_t(w[1]) << 8));\n+            const float scale = half_to_float(half) * q8_scales_[b];\n+            sum = _mm256_fmadd_ps(_mm256_cvtepi32_ps(products), _mm256_set1_ps(scale), sum);\n+        }\n+        return hsum256(sum);\n+    }\n+\n     static float hsum256(__m256 v) {\n         __m128 lo = _mm256_castps256_ps128(v);\n         __m128 hi = _mm256_extractf128_ps(v, 1);\n",
+    "vector": "--- 5a9518c\n+++ scratch-candidate\n@@ -57,11 +57,15 @@\n \n     void matvec_q8_0(const uint8_t* data, const float* x, float* out,\n                      size_t nblocks, size_t nout) override {\n+        const bool packed = avx2_ && pack_q8_activation(x, nblocks);\n+        const auto dot = [&](const uint8_t* row) {\n+            return packed ? dot_q8_integer(row, nblocks) : dot_row_impl(row, x, nblocks);\n+        };\n         const int nt = threads_;\n         // Small problems are not worth waking the pool.\n         if (nt <= 1 || nout < (size_t)nt * 8) {\n             for (size_t o = 0; o < nout; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n             return;\n         }\n         const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;\n@@ -69,7 +73,7 @@\n             size_t start = (size_t)w * chunk;\n             size_t end = std::min(nout, start + chunk);\n             for (size_t o = start; o < end; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n         });\n     }\n \n@@ -501,6 +505,8 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<int8_t> q8_values_;\n+    std::vector<float> q8_scales_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n@@ -661,6 +667,57 @@\n         return acc;\n     }\n \n+    bool pack_q8_activation(const float* x, size_t nblocks) {\n+        q8_values_.resize(nblocks * 32);\n+        q8_scales_.resize(nblocks);\n+        const __m256 sign = _mm256_set1_ps(-0.0f);\n+        const __m256i order = _mm256_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7);\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const __m256 x0 = _mm256_loadu_ps(x + b * 32);\n+            const __m256 x1 = _mm256_loadu_ps(x + b * 32 + 8);\n+            const __m256 x2 = _mm256_loadu_ps(x + b * 32 + 16);\n+            const __m256 x3 = _mm256_loadu_ps(x + b * 32 + 24);\n+            const __m256 valid = _mm256_and_ps(_mm256_and_ps(_mm256_cmp_ps(x0, x0, _CMP_ORD_Q), _mm256_cmp_ps(x1, x1, _CMP_ORD_Q)),\n+                _mm256_and_ps(_mm256_cmp_ps(x2, x2, _CMP_ORD_Q), _mm256_cmp_ps(x3, x3, _CMP_ORD_Q)));\n+            if (_mm256_movemask_ps(valid) != 255) return false;\n+            const __m256 m = _mm256_max_ps(_mm256_max_ps(_mm256_andnot_ps(sign, x0), _mm256_andnot_ps(sign, x1)),\n+                _mm256_max_ps(_mm256_andnot_ps(sign, x2), _mm256_andnot_ps(sign, x3)));\n+            __m128 maximum = _mm_max_ps(_mm256_castps256_ps128(m), _mm256_extractf128_ps(m, 1));\n+            maximum = _mm_max_ps(maximum, _mm_movehl_ps(maximum, maximum));\n+            maximum = _mm_max_ss(maximum, _mm_shuffle_ps(maximum, maximum, 1));\n+            const float peak = _mm_cvtss_f32(maximum);\n+            const float scale = peak / 127.0f;\n+            if (!std::isfinite(peak) || (peak != 0.0f && scale == 0.0f)) return false;\n+            const float inverse = scale > 0.0f ? 1.0f / scale : 0.0f;\n+            if (!std::isfinite(inverse)) return false;\n+            q8_scales_[b] = scale;\n+            const __m256 inv = _mm256_set1_ps(inverse);\n+            const __m256i q0 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x0, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q1 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x1, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q2 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x2, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q3 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x3, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i bytes = _mm256_packs_epi16(_mm256_packs_epi32(q0, q1), _mm256_packs_epi32(q2, q3));\n+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(q8_values_.data() + b * 32), _mm256_permutevar8x32_epi32(bytes, order));\n+        }\n+        return true;\n+    }\n+\n+    float dot_q8_integer(const uint8_t* row, size_t nblocks) const {\n+        __m256 sum = _mm256_setzero_ps();\n+        const __m256i ones = _mm256_set1_epi16(1);\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const uint8_t* w = row + b * gguf::Q8_0_TYPESIZE;\n+            const __m256i weights = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(w + 2));\n+            const __m256i values = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(q8_values_.data() + b * 32));\n+            const __m256i pairs = _mm256_maddubs_epi16(_mm256_abs_epi8(weights), _mm256_sign_epi8(values, weights));\n+            const __m256i products = _mm256_madd_epi16(pairs, ones);\n+            const uint16_t half = uint16_t(w[0] | (uint16_t(w[1]) << 8));\n+            const float scale = half_to_float(half) * q8_scales_[b];\n+            sum = _mm256_fmadd_ps(_mm256_cvtepi32_ps(products), _mm256_set1_ps(scale), sum);\n+        }\n+        return hsum256(sum);\n+    }\n+\n     static float hsum256(__m256 v) {\n         __m128 lo = _mm256_castps256_ps128(v);\n         __m128 hi = _mm256_extractf128_ps(v, 1);\n",
+    "unrolled": "--- 5a9518c\n+++ scratch-candidate\n@@ -57,11 +57,15 @@\n \n     void matvec_q8_0(const uint8_t* data, const float* x, float* out,\n                      size_t nblocks, size_t nout) override {\n+        const bool packed = avx2_ && pack_q8_activation(x, nblocks);\n+        const auto dot = [&](const uint8_t* row) {\n+            return packed ? dot_q8_integer(row, nblocks) : dot_row_impl(row, x, nblocks);\n+        };\n         const int nt = threads_;\n         // Small problems are not worth waking the pool.\n         if (nt <= 1 || nout < (size_t)nt * 8) {\n             for (size_t o = 0; o < nout; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n             return;\n         }\n         const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;\n@@ -69,7 +73,7 @@\n             size_t start = (size_t)w * chunk;\n             size_t end = std::min(nout, start + chunk);\n             for (size_t o = start; o < end; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n         });\n     }\n \n@@ -501,6 +505,8 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<int8_t> q8_values_;\n+    std::vector<float> q8_scales_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n@@ -659,6 +665,65 @@\n             }\n         }\n         return acc;\n+    }\n+\n+    bool pack_q8_activation(const float* x, size_t nblocks) {\n+        q8_values_.resize(nblocks * 32);\n+        q8_scales_.resize(nblocks);\n+        const __m256 sign = _mm256_set1_ps(-0.0f);\n+        const __m256i order = _mm256_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7);\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const __m256 x0 = _mm256_loadu_ps(x + b * 32);\n+            const __m256 x1 = _mm256_loadu_ps(x + b * 32 + 8);\n+            const __m256 x2 = _mm256_loadu_ps(x + b * 32 + 16);\n+            const __m256 x3 = _mm256_loadu_ps(x + b * 32 + 24);\n+            const __m256 valid = _mm256_and_ps(_mm256_and_ps(_mm256_cmp_ps(x0, x0, _CMP_ORD_Q), _mm256_cmp_ps(x1, x1, _CMP_ORD_Q)),\n+                _mm256_and_ps(_mm256_cmp_ps(x2, x2, _CMP_ORD_Q), _mm256_cmp_ps(x3, x3, _CMP_ORD_Q)));\n+            if (_mm256_movemask_ps(valid) != 255) return false;\n+            const __m256 m = _mm256_max_ps(_mm256_max_ps(_mm256_andnot_ps(sign, x0), _mm256_andnot_ps(sign, x1)),\n+                _mm256_max_ps(_mm256_andnot_ps(sign, x2), _mm256_andnot_ps(sign, x3)));\n+            __m128 maximum = _mm_max_ps(_mm256_castps256_ps128(m), _mm256_extractf128_ps(m, 1));\n+            maximum = _mm_max_ps(maximum, _mm_movehl_ps(maximum, maximum));\n+            maximum = _mm_max_ss(maximum, _mm_shuffle_ps(maximum, maximum, 1));\n+            const float peak = _mm_cvtss_f32(maximum);\n+            const float scale = peak / 127.0f;\n+            if (!std::isfinite(peak) || (peak != 0.0f && scale == 0.0f)) return false;\n+            const float inverse = scale > 0.0f ? 1.0f / scale : 0.0f;\n+            if (!std::isfinite(inverse)) return false;\n+            q8_scales_[b] = scale;\n+            const __m256 inv = _mm256_set1_ps(inverse);\n+            const __m256i q0 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x0, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q1 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x1, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q2 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x2, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q3 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x3, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i bytes = _mm256_packs_epi16(_mm256_packs_epi32(q0, q1), _mm256_packs_epi32(q2, q3));\n+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(q8_values_.data() + b * 32), _mm256_permutevar8x32_epi32(bytes, order));\n+        }\n+        return true;\n+    }\n+\n+    float dot_q8_integer(const uint8_t* row, size_t nblocks) const {\n+        const __m256i ones = _mm256_set1_epi16(1);\n+        const auto step = [&](size_t b, __m256 sum) {\n+            const uint8_t* w = row + b * gguf::Q8_0_TYPESIZE;\n+            const __m256i weights = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(w + 2));\n+            const __m256i values = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(q8_values_.data() + b * 32));\n+            const __m256i pairs = _mm256_maddubs_epi16(_mm256_abs_epi8(weights), _mm256_sign_epi8(values, weights));\n+            const __m256i products = _mm256_madd_epi16(pairs, ones);\n+            const uint16_t half = uint16_t(w[0] | (uint16_t(w[1]) << 8));\n+            const float scale = half_to_float(half) * q8_scales_[b];\n+            return _mm256_fmadd_ps(_mm256_cvtepi32_ps(products), _mm256_set1_ps(scale), sum);\n+        };\n+        __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();\n+        __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();\n+        size_t b = 0;\n+        for (; b + 4 <= nblocks; b += 4) {\n+            s0 = step(b, s0); s1 = step(b + 1, s1);\n+            s2 = step(b + 2, s2); s3 = step(b + 3, s3);\n+        }\n+        __m256 sum = _mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3));\n+        for (; b < nblocks; ++b) sum = step(b, sum);\n+        return hsum256(sum);\n     }\n \n     static float hsum256(__m256 v) {\n",
+    "int16": "--- 5a9518c\n+++ scratch-candidate\n@@ -57,11 +57,15 @@\n \n     void matvec_q8_0(const uint8_t* data, const float* x, float* out,\n                      size_t nblocks, size_t nout) override {\n+        const bool packed = avx2_ && pack_q8_activation(x, nblocks);\n+        const auto dot = [&](const uint8_t* row) {\n+            return packed ? dot_q8_integer(row, nblocks) : dot_row_impl(row, x, nblocks);\n+        };\n         const int nt = threads_;\n         // Small problems are not worth waking the pool.\n         if (nt <= 1 || nout < (size_t)nt * 8) {\n             for (size_t o = 0; o < nout; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n             return;\n         }\n         const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;\n@@ -69,7 +73,7 @@\n             size_t start = (size_t)w * chunk;\n             size_t end = std::min(nout, start + chunk);\n             for (size_t o = start; o < end; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n         });\n     }\n \n@@ -501,6 +505,8 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<int16_t> q16_values_;\n+    std::vector<float> q8_scales_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n@@ -659,6 +665,58 @@\n             }\n         }\n         return acc;\n+    }\n+\n+    bool pack_q8_activation(const float* x, size_t nblocks) {\n+        q16_values_.resize(nblocks * 32);\n+        q8_scales_.resize(nblocks);\n+        const __m256 sign = _mm256_set1_ps(-0.0f);\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const __m256 x0 = _mm256_loadu_ps(x + b * 32);\n+            const __m256 x1 = _mm256_loadu_ps(x + b * 32 + 8);\n+            const __m256 x2 = _mm256_loadu_ps(x + b * 32 + 16);\n+            const __m256 x3 = _mm256_loadu_ps(x + b * 32 + 24);\n+            const __m256 valid = _mm256_and_ps(_mm256_and_ps(_mm256_cmp_ps(x0, x0, _CMP_ORD_Q), _mm256_cmp_ps(x1, x1, _CMP_ORD_Q)),\n+                _mm256_and_ps(_mm256_cmp_ps(x2, x2, _CMP_ORD_Q), _mm256_cmp_ps(x3, x3, _CMP_ORD_Q)));\n+            if (_mm256_movemask_ps(valid) != 255) return false;\n+            const __m256 m = _mm256_max_ps(_mm256_max_ps(_mm256_andnot_ps(sign, x0), _mm256_andnot_ps(sign, x1)),\n+                _mm256_max_ps(_mm256_andnot_ps(sign, x2), _mm256_andnot_ps(sign, x3)));\n+            __m128 maximum = _mm_max_ps(_mm256_castps256_ps128(m), _mm256_extractf128_ps(m, 1));\n+            maximum = _mm_max_ps(maximum, _mm_movehl_ps(maximum, maximum));\n+            maximum = _mm_max_ss(maximum, _mm_shuffle_ps(maximum, maximum, 1));\n+            const float peak = _mm_cvtss_f32(maximum);\n+            const float scale = peak / 32767.0f;\n+            if (!std::isfinite(peak) || (peak != 0.0f && scale == 0.0f)) return false;\n+            const float inverse = scale > 0.0f ? 1.0f / scale : 0.0f;\n+            if (!std::isfinite(inverse)) return false;\n+            q8_scales_[b] = scale;\n+            const __m256 inv = _mm256_set1_ps(inverse);\n+            const __m256i q0 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x0, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q1 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x1, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q2 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x2, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q3 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x3, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i lo = _mm256_permute4x64_epi64(_mm256_packs_epi32(q0, q1), 0xd8);\n+            const __m256i hi = _mm256_permute4x64_epi64(_mm256_packs_epi32(q2, q3), 0xd8);\n+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(q16_values_.data() + b * 32), lo);\n+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(q16_values_.data() + b * 32 + 16), hi);\n+        }\n+        return true;\n+    }\n+\n+    float dot_q8_integer(const uint8_t* row, size_t nblocks) const {\n+        __m256 sum = _mm256_setzero_ps();\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const uint8_t* w = row + b * gguf::Q8_0_TYPESIZE;\n+            const __m256i w0 = _mm256_cvtepi8_epi16(_mm_loadu_si128(reinterpret_cast<const __m128i*>(w + 2)));\n+            const __m256i w1 = _mm256_cvtepi8_epi16(_mm_loadu_si128(reinterpret_cast<const __m128i*>(w + 18)));\n+            const __m256i x0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(q16_values_.data() + b * 32));\n+            const __m256i x1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(q16_values_.data() + b * 32 + 16));\n+            const __m256i products = _mm256_add_epi32(_mm256_madd_epi16(w0, x0), _mm256_madd_epi16(w1, x1));\n+            const uint16_t half = uint16_t(w[0] | (uint16_t(w[1]) << 8));\n+            const float scale = half_to_float(half) * q8_scales_[b];\n+            sum = _mm256_fmadd_ps(_mm256_cvtepi32_ps(products), _mm256_set1_ps(scale), sum);\n+        }\n+        return hsum256(sum);\n     }\n \n     static float hsum256(__m256 v) {\n",
+    "float-control": "--- 5a9518c\n+++ scratch-candidate\n@@ -57,11 +57,20 @@\n \n     void matvec_q8_0(const uint8_t* data, const float* x, float* out,\n                      size_t nblocks, size_t nout) override {\n+        const bool packed = avx2_ && pack_q8_activation(x, nblocks);\n+        reconstructed_.resize(nblocks * 32);\n+        if (packed)\n+            for (size_t b = 0; b < nblocks; ++b)\n+                for (size_t j = 0; j < 32; ++j)\n+                    reconstructed_[b * 32 + j] = float(q16_values_[b * 32 + j]) * q8_scales_[b];\n+        const auto dot = [&](const uint8_t* row) {\n+            return dot_row_impl(row, packed ? reconstructed_.data() : x, nblocks);\n+        };\n         const int nt = threads_;\n         // Small problems are not worth waking the pool.\n         if (nt <= 1 || nout < (size_t)nt * 8) {\n             for (size_t o = 0; o < nout; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n             return;\n         }\n         const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;\n@@ -69,7 +78,7 @@\n             size_t start = (size_t)w * chunk;\n             size_t end = std::min(nout, start + chunk);\n             for (size_t o = start; o < end; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n         });\n     }\n \n@@ -501,6 +510,9 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<float> reconstructed_;\n+    std::vector<int16_t> q16_values_;\n+    std::vector<float> q8_scales_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n@@ -659,6 +671,58 @@\n             }\n         }\n         return acc;\n+    }\n+\n+    bool pack_q8_activation(const float* x, size_t nblocks) {\n+        q16_values_.resize(nblocks * 32);\n+        q8_scales_.resize(nblocks);\n+        const __m256 sign = _mm256_set1_ps(-0.0f);\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const __m256 x0 = _mm256_loadu_ps(x + b * 32);\n+            const __m256 x1 = _mm256_loadu_ps(x + b * 32 + 8);\n+            const __m256 x2 = _mm256_loadu_ps(x + b * 32 + 16);\n+            const __m256 x3 = _mm256_loadu_ps(x + b * 32 + 24);\n+            const __m256 valid = _mm256_and_ps(_mm256_and_ps(_mm256_cmp_ps(x0, x0, _CMP_ORD_Q), _mm256_cmp_ps(x1, x1, _CMP_ORD_Q)),\n+                _mm256_and_ps(_mm256_cmp_ps(x2, x2, _CMP_ORD_Q), _mm256_cmp_ps(x3, x3, _CMP_ORD_Q)));\n+            if (_mm256_movemask_ps(valid) != 255) return false;\n+            const __m256 m = _mm256_max_ps(_mm256_max_ps(_mm256_andnot_ps(sign, x0), _mm256_andnot_ps(sign, x1)),\n+                _mm256_max_ps(_mm256_andnot_ps(sign, x2), _mm256_andnot_ps(sign, x3)));\n+            __m128 maximum = _mm_max_ps(_mm256_castps256_ps128(m), _mm256_extractf128_ps(m, 1));\n+            maximum = _mm_max_ps(maximum, _mm_movehl_ps(maximum, maximum));\n+            maximum = _mm_max_ss(maximum, _mm_shuffle_ps(maximum, maximum, 1));\n+            const float peak = _mm_cvtss_f32(maximum);\n+            const float scale = peak / 32767.0f;\n+            if (!std::isfinite(peak) || (peak != 0.0f && scale == 0.0f)) return false;\n+            const float inverse = scale > 0.0f ? 1.0f / scale : 0.0f;\n+            if (!std::isfinite(inverse)) return false;\n+            q8_scales_[b] = scale;\n+            const __m256 inv = _mm256_set1_ps(inverse);\n+            const __m256i q0 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x0, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q1 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x1, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q2 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x2, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q3 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x3, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i lo = _mm256_permute4x64_epi64(_mm256_packs_epi32(q0, q1), 0xd8);\n+            const __m256i hi = _mm256_permute4x64_epi64(_mm256_packs_epi32(q2, q3), 0xd8);\n+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(q16_values_.data() + b * 32), lo);\n+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(q16_values_.data() + b * 32 + 16), hi);\n+        }\n+        return true;\n+    }\n+\n+    float dot_q8_integer(const uint8_t* row, size_t nblocks) const {\n+        __m256 sum = _mm256_setzero_ps();\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const uint8_t* w = row + b * gguf::Q8_0_TYPESIZE;\n+            const __m256i w0 = _mm256_cvtepi8_epi16(_mm_loadu_si128(reinterpret_cast<const __m128i*>(w + 2)));\n+            const __m256i w1 = _mm256_cvtepi8_epi16(_mm_loadu_si128(reinterpret_cast<const __m128i*>(w + 18)));\n+            const __m256i x0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(q16_values_.data() + b * 32));\n+            const __m256i x1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(q16_values_.data() + b * 32 + 16));\n+            const __m256i products = _mm256_add_epi32(_mm256_madd_epi16(w0, x0), _mm256_madd_epi16(w1, x1));\n+            const uint16_t half = uint16_t(w[0] | (uint16_t(w[1]) << 8));\n+            const float scale = half_to_float(half) * q8_scales_[b];\n+            sum = _mm256_fmadd_ps(_mm256_cvtepi32_ps(products), _mm256_set1_ps(scale), sum);\n+        }\n+        return hsum256(sum);\n     }\n \n     static float hsum256(__m256 v) {\n",
+    "witness": "--- 5a9518c\n+++ scratch-candidate\n@@ -1,5 +1,6 @@\n #pragma once\n #include <algorithm>\n+#include <cstdio>\n #include <cmath>\n #include <thread>\n #include <mutex>\n@@ -39,7 +40,10 @@\n         start_pool();\n     }\n \n-    ~CpuBackend() override { stop_pool(); }\n+    ~CpuBackend() override {\n+        stop_pool();\n+        std::fprintf(stderr, \"Q16 packed matvec calls=%zu float fallback calls=%zu\\n\", packed_calls_, fallback_calls_);\n+    }\n \n     void set_threads(int n) override {\n         int t = (n > 0) ? n : 1;\n@@ -57,11 +61,16 @@\n \n     void matvec_q8_0(const uint8_t* data, const float* x, float* out,\n                      size_t nblocks, size_t nout) override {\n+        const bool packed = avx2_ && pack_q8_activation(x, nblocks);\n+        if (packed) ++packed_calls_; else ++fallback_calls_;\n+        const auto dot = [&](const uint8_t* row) {\n+            return packed ? dot_q8_integer(row, nblocks) : dot_row_impl(row, x, nblocks);\n+        };\n         const int nt = threads_;\n         // Small problems are not worth waking the pool.\n         if (nt <= 1 || nout < (size_t)nt * 8) {\n             for (size_t o = 0; o < nout; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n             return;\n         }\n         const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;\n@@ -69,7 +78,7 @@\n             size_t start = (size_t)w * chunk;\n             size_t end = std::min(nout, start + chunk);\n             for (size_t o = start; o < end; o++)\n-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);\n+                out[o] = dot(data + o * nblocks * gguf::Q8_0_TYPESIZE);\n         });\n     }\n \n@@ -501,6 +510,9 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    size_t packed_calls_ = 0, fallback_calls_ = 0;\n+    std::vector<int16_t> q16_values_;\n+    std::vector<float> q8_scales_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n@@ -659,6 +671,58 @@\n             }\n         }\n         return acc;\n+    }\n+\n+    bool pack_q8_activation(const float* x, size_t nblocks) {\n+        q16_values_.resize(nblocks * 32);\n+        q8_scales_.resize(nblocks);\n+        const __m256 sign = _mm256_set1_ps(-0.0f);\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const __m256 x0 = _mm256_loadu_ps(x + b * 32);\n+            const __m256 x1 = _mm256_loadu_ps(x + b * 32 + 8);\n+            const __m256 x2 = _mm256_loadu_ps(x + b * 32 + 16);\n+            const __m256 x3 = _mm256_loadu_ps(x + b * 32 + 24);\n+            const __m256 valid = _mm256_and_ps(_mm256_and_ps(_mm256_cmp_ps(x0, x0, _CMP_ORD_Q), _mm256_cmp_ps(x1, x1, _CMP_ORD_Q)),\n+                _mm256_and_ps(_mm256_cmp_ps(x2, x2, _CMP_ORD_Q), _mm256_cmp_ps(x3, x3, _CMP_ORD_Q)));\n+            if (_mm256_movemask_ps(valid) != 255) return false;\n+            const __m256 m = _mm256_max_ps(_mm256_max_ps(_mm256_andnot_ps(sign, x0), _mm256_andnot_ps(sign, x1)),\n+                _mm256_max_ps(_mm256_andnot_ps(sign, x2), _mm256_andnot_ps(sign, x3)));\n+            __m128 maximum = _mm_max_ps(_mm256_castps256_ps128(m), _mm256_extractf128_ps(m, 1));\n+            maximum = _mm_max_ps(maximum, _mm_movehl_ps(maximum, maximum));\n+            maximum = _mm_max_ss(maximum, _mm_shuffle_ps(maximum, maximum, 1));\n+            const float peak = _mm_cvtss_f32(maximum);\n+            const float scale = peak / 32767.0f;\n+            if (!std::isfinite(peak) || (peak != 0.0f && scale == 0.0f)) return false;\n+            const float inverse = scale > 0.0f ? 1.0f / scale : 0.0f;\n+            if (!std::isfinite(inverse)) return false;\n+            q8_scales_[b] = scale;\n+            const __m256 inv = _mm256_set1_ps(inverse);\n+            const __m256i q0 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x0, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q1 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x1, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q2 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x2, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i q3 = _mm256_cvttps_epi32(_mm256_round_ps(_mm256_mul_ps(x3, inv), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n+            const __m256i lo = _mm256_permute4x64_epi64(_mm256_packs_epi32(q0, q1), 0xd8);\n+            const __m256i hi = _mm256_permute4x64_epi64(_mm256_packs_epi32(q2, q3), 0xd8);\n+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(q16_values_.data() + b * 32), lo);\n+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(q16_values_.data() + b * 32 + 16), hi);\n+        }\n+        return true;\n+    }\n+\n+    float dot_q8_integer(const uint8_t* row, size_t nblocks) const {\n+        __m256 sum = _mm256_setzero_ps();\n+        for (size_t b = 0; b < nblocks; ++b) {\n+            const uint8_t* w = row + b * gguf::Q8_0_TYPESIZE;\n+            const __m256i w0 = _mm256_cvtepi8_epi16(_mm_loadu_si128(reinterpret_cast<const __m128i*>(w + 2)));\n+            const __m256i w1 = _mm256_cvtepi8_epi16(_mm_loadu_si128(reinterpret_cast<const __m128i*>(w + 18)));\n+            const __m256i x0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(q16_values_.data() + b * 32));\n+            const __m256i x1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(q16_values_.data() + b * 32 + 16));\n+            const __m256i products = _mm256_add_epi32(_mm256_madd_epi16(w0, x0), _mm256_madd_epi16(w1, x1));\n+            const uint16_t half = uint16_t(w[0] | (uint16_t(w[1]) << 8));\n+            const float scale = half_to_float(half) * q8_scales_[b];\n+            sum = _mm256_fmadd_ps(_mm256_cvtepi32_ps(products), _mm256_set1_ps(scale), sum);\n+        }\n+        return hsum256(sum);\n     }\n \n     static float hsum256(__m256 v) {\n"
+  },
+  "scripts": {
+    "build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate.exe /Fo:candidate.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nexit /b %errorlevel%\n",
+    "build-vector.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\vector\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:vector.exe /Fo:vector.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nexit /b %errorlevel%\n",
+    "build-unrolled.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\unrolled\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:unrolled.exe /Fo:unrolled.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nexit /b %errorlevel%\n",
+    "build-int16.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\int16\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:int16.exe /Fo:int16.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nexit /b %errorlevel%\n",
+    "diagnostic.py": "import hashlib,json,math,os,statistics,subprocess\nfrom pathlib import Path\nroot=Path.home()/'AppData/Local/Temp'\nout=root/'llmx-q8-integer/diagnostic'\nout.mkdir(exist_ok=False)\narms={'llmx':root/'llmx-attention-values/validation/candidate-compare.exe','candidate':root/'llmx-q8-integer/candidate.exe','mx':Path.home()/'Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe'}\nmodel=Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf'\nids=root/'llmx-external-perf/eight-pairs/tokens.txt'\nhashes={name:hashlib.file_digest(path.open('rb'),'sha256').hexdigest() for name,path in dict(arms,model=model,tokens=ids).items()}\n(out/'hashes.json').write_text(json.dumps(hashes,indent=2))\nprint(hashes,flush=True)\nrows=[]\nfor pair in range(3):\n    order=list(arms)\n    order=order[pair%len(arms):]+order[:pair%len(arms)]\n    if pair%2: order.reverse()\n    for arm in order:\n        p=subprocess.run([str(arms[arm]),str(model),str(ids)],capture_output=True,timeout=180)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        samples=[json.loads(line) for line in p.stdout.decode().splitlines() if line]\n        assert len(samples)==2 and samples[0]['run']==0 and samples[1]['run']==1\n        row=dict(pair=pair,arm=arm,**samples[1])\n        assert row['pp_tokens']==215 and row['tg_tokens']==32\n        assert math.isfinite(row['logit_sum'])\n        assert all(math.isfinite(row[k]) and row[k]>0 for k in ('pp_ms','tg_ms'))\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for phase in ('pp','tg'):\n        rates=[r[phase+'_tokens']*1000/r[phase+'_ms'] for r in rows if r['arm']==arm]\n        summary[arm][phase]=dict(mean=statistics.mean(rates),median=statistics.median(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\nprint(summary,flush=True)\n",
+    "vector-diagnostic.py": "import hashlib,json,math,os,statistics,subprocess\nfrom pathlib import Path\nroot=Path.home()/'AppData/Local/Temp'\nout=root/'llmx-q8-integer/vector-diagnostic'\nout.mkdir(exist_ok=False)\narms={'llmx':root/'llmx-attention-values/validation/candidate-compare.exe','candidate':root/'llmx-q8-integer/candidate.exe','vector':root/'llmx-q8-integer/vector.exe','mx':Path.home()/'Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe'}\nmodel=Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf'\nids=root/'llmx-external-perf/eight-pairs/tokens.txt'\nhashes={name:hashlib.file_digest(path.open('rb'),'sha256').hexdigest() for name,path in dict(arms,model=model,tokens=ids).items()}\n(out/'hashes.json').write_text(json.dumps(hashes,indent=2))\nprint(hashes,flush=True)\nrows=[]\nfor pair in range(3):\n    order=list(arms)\n    order=order[pair%len(arms):]+order[:pair%len(arms)]\n    if pair%2: order.reverse()\n    for arm in order:\n        p=subprocess.run([str(arms[arm]),str(model),str(ids)],capture_output=True,timeout=180)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        samples=[json.loads(line) for line in p.stdout.decode().splitlines() if line]\n        assert len(samples)==2 and samples[0]['run']==0 and samples[1]['run']==1\n        row=dict(pair=pair,arm=arm,**samples[1])\n        assert row['pp_tokens']==215 and row['tg_tokens']==32\n        assert math.isfinite(row['logit_sum'])\n        assert all(math.isfinite(row[k]) and row[k]>0 for k in ('pp_ms','tg_ms'))\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for phase in ('pp','tg'):\n        rates=[r[phase+'_tokens']*1000/r[phase+'_ms'] for r in rows if r['arm']==arm]\n        summary[arm][phase]=dict(mean=statistics.mean(rates),median=statistics.median(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\nprint(summary,flush=True)\n",
+    "unrolled-diagnostic.py": "import hashlib,json,math,os,statistics,subprocess\nfrom pathlib import Path\nroot=Path.home()/'AppData/Local/Temp'\nout=root/'llmx-q8-integer/unrolled-diagnostic'\nout.mkdir(exist_ok=False)\narms={'llmx':root/'llmx-attention-values/validation/candidate-compare.exe','candidate':root/'llmx-q8-integer/unrolled.exe','vector':root/'llmx-q8-integer/vector.exe','mx':Path.home()/'Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe'}\nmodel=Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf'\nids=root/'llmx-external-perf/eight-pairs/tokens.txt'\nhashes={name:hashlib.file_digest(path.open('rb'),'sha256').hexdigest() for name,path in dict(arms,model=model,tokens=ids).items()}\n(out/'hashes.json').write_text(json.dumps(hashes,indent=2))\nprint(hashes,flush=True)\nrows=[]\nfor pair in range(3):\n    order=list(arms)\n    order=order[pair%len(arms):]+order[:pair%len(arms)]\n    if pair%2: order.reverse()\n    for arm in order:\n        p=subprocess.run([str(arms[arm]),str(model),str(ids)],capture_output=True,timeout=180)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        samples=[json.loads(line) for line in p.stdout.decode().splitlines() if line]\n        assert len(samples)==2 and samples[0]['run']==0 and samples[1]['run']==1\n        row=dict(pair=pair,arm=arm,**samples[1])\n        assert row['pp_tokens']==215 and row['tg_tokens']==32\n        assert math.isfinite(row['logit_sum'])\n        assert all(math.isfinite(row[k]) and row[k]>0 for k in ('pp_ms','tg_ms'))\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for phase in ('pp','tg'):\n        rates=[r[phase+'_tokens']*1000/r[phase+'_ms'] for r in rows if r['arm']==arm]\n        summary[arm][phase]=dict(mean=statistics.mean(rates),median=statistics.median(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\nprint(summary,flush=True)\n",
+    "int16-diagnostic.py": "import hashlib,json,math,os,statistics,subprocess\nfrom pathlib import Path\nroot=Path.home()/'AppData/Local/Temp'\nout=root/'llmx-q8-integer/int16-diagnostic'\nout.mkdir(exist_ok=False)\narms={'llmx':root/'llmx-attention-values/validation/candidate-compare.exe','candidate':root/'llmx-q8-integer/int16.exe','vector':root/'llmx-q8-integer/vector.exe','mx':Path.home()/'Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe'}\nmodel=Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf'\nids=root/'llmx-external-perf/eight-pairs/tokens.txt'\nhashes={name:hashlib.file_digest(path.open('rb'),'sha256').hexdigest() for name,path in dict(arms,model=model,tokens=ids).items()}\n(out/'hashes.json').write_text(json.dumps(hashes,indent=2))\nprint(hashes,flush=True)\nrows=[]\nfor pair in range(3):\n    order=list(arms)\n    order=order[pair%len(arms):]+order[:pair%len(arms)]\n    if pair%2: order.reverse()\n    for arm in order:\n        p=subprocess.run([str(arms[arm]),str(model),str(ids)],capture_output=True,timeout=180)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        samples=[json.loads(line) for line in p.stdout.decode().splitlines() if line]\n        assert len(samples)==2 and samples[0]['run']==0 and samples[1]['run']==1\n        row=dict(pair=pair,arm=arm,**samples[1])\n        assert row['pp_tokens']==215 and row['tg_tokens']==32\n        assert math.isfinite(row['logit_sum'])\n        assert all(math.isfinite(row[k]) and row[k]>0 for k in ('pp_ms','tg_ms'))\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for phase in ('pp','tg'):\n        rates=[r[phase+'_tokens']*1000/r[phase+'_ms'] for r in rows if r['arm']==arm]\n        summary[arm][phase]=dict(mean=statistics.mean(rates),median=statistics.median(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\nprint(summary,flush=True)\n",
+    "int16-eight-b.py": "import hashlib,json,math,os,statistics,subprocess\nfrom pathlib import Path\nroot=Path.home()/'AppData/Local/Temp'\nout=root/'llmx-q8-integer/int16-eight-b'\nout.mkdir(exist_ok=False)\narms={'llmx':root/'llmx-attention-values/validation/candidate-compare.exe','candidate':root/'llmx-q8-integer/int16.exe','mx':Path.home()/'Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe'}\nmodel=Path.home()/'.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf'\nids=root/'llmx-external-perf/eight-pairs/tokens.txt'\nhashes={name:hashlib.file_digest(path.open('rb'),'sha256').hexdigest() for name,path in dict(arms,model=model,tokens=ids).items()}\n(out/'hashes.json').write_text(json.dumps(hashes,indent=2))\nprint(hashes,flush=True)\nrows=[]\nfor pair in range(3):\n    order=list(arms)\n    order=order[pair%len(arms):]+order[:pair%len(arms)]\n    if pair%2: order.reverse()\n    for arm in order:\n        p=subprocess.run([str(arms[arm]),str(model),str(ids)],capture_output=True,timeout=300)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        samples=[json.loads(line) for line in p.stdout.decode().splitlines() if line]\n        assert len(samples)==2 and samples[0]['run']==0 and samples[1]['run']==1\n        row=dict(pair=pair,arm=arm,**samples[1])\n        assert row['pp_tokens']==215 and row['tg_tokens']==32\n        assert math.isfinite(row['logit_sum'])\n        assert all(math.isfinite(row[k]) and row[k]>0 for k in ('pp_ms','tg_ms'))\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for phase in ('pp','tg'):\n        rates=[r[phase+'_tokens']*1000/r[phase+'_ms'] for r in rows if r['arm']==arm]\n        summary[arm][phase]=dict(mean=statistics.mean(rates),median=statistics.median(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\nprint(summary,flush=True)\n",
+    "integer-core.cpp": "#include \"backends/cpu/cpu_backend.hpp\"\n#include <iostream>\n#include <cstring>\n#include <cfenv>\n#include <limits>\nint main() {\n    std::fesetround(FE_TONEAREST);\n    backend::CpuBackend cpu;\n    uint32_t state=12345;\n    auto next=[&](){state=state*1664525u+1013904223u;return float(int(state>>8)-8388608)/8388608.0f;};\n    size_t values_checked=0,outputs_checked=0;\n    for(size_t nb: {size_t(1),size_t(3),size_t(7),size_t(32)}) {\n        const size_t rows=49;\n        std::vector<float> x(nb*32), scales(nb), expected(rows), out(rows);\n        std::vector<int> quantized(nb*32);\n        std::vector<uint8_t> weights(rows*nb*34);\n        for(int kind=0;kind<4;++kind) {\n            for(auto& v:x) v=kind==0?0.0f:kind==1?next()*13.0f:kind==2?127.0f:-127.0f;\n            if(!cpu.pack_q8_activation(x.data(),nb)) return 2;\n            for(size_t b=0;b<nb;++b) {\n                float maximum=0;for(size_t j=0;j<32;++j)maximum=std::max(maximum,std::fabs(x[b*32+j]));\n                scales[b]=maximum/float((1<<(ACT_BITS-1))-1);\n                float inv=scales[b]>0?1.0f/scales[b]:0;\n                if(std::memcmp(&scales[b],&cpu.q8_scales_[b],4)) return 3;\n                for(size_t j=0;j<32;++j) {\n                    quantized[b*32+j]=int(std::nearbyint(x[b*32+j]*inv));\n#if ACT_BITS == 16\n                    const int actual=cpu.q16_values_[b*32+j];\n#else\n                    const int actual=cpu.q8_values_[b*32+j];\n#endif\n                    if(actual!=quantized[b*32+j]) return 4;\n                    ++values_checked;\n                }\n            }\n            for(size_t row=0;row<rows;++row) {\n                float lanes[8]={};\n                for(size_t b=0;b<nb;++b) {\n                    uint8_t* w=weights.data()+(row*nb+b)*34;\n                    const uint16_t cases[]={0x0001,0x0400,0x3800,0x3c00,0x8001};\n                    uint16_t h=cases[(row+b)%5];w[0]=uint8_t(h);w[1]=uint8_t(h>>8);\n                    for(size_t j=0;j<32;++j) w[2+j]=uint8_t((row*13+b*7+j*19)&255);\n                    if(kind>=2)for(size_t j=0;j<32;++j)w[2+j]=128;\n                    float scale=f16_to_f32(h)*scales[b];\n                    for(size_t lane=0;lane<8;++lane) {\n                        int sum=0;\n                        for(size_t t=0;t<4;++t) {\n#if ACT_BITS == 16\n                            size_t j=2*lane+(t&1)+(t/2)*16;\n#else\n                            size_t j=4*lane+t;\n#endif\n                            sum+=int(int8_t(w[2+j]))*quantized[b*32+j];\n                        }\n                        lanes[lane]=std::fma(float(sum),scale,lanes[lane]);\n                    }\n                }\n                float a=lanes[0]+lanes[4],b=lanes[1]+lanes[5],c=lanes[2]+lanes[6],d=lanes[3]+lanes[7];\n                expected[row]=(a+b)+(c+d);\n            }\n            for(int nt:{1,4,6}) {\n                cpu.set_threads(nt);cpu.matvec_q8_0(weights.data(),x.data(),out.data(),nb,rows);\n                for(size_t row=0;row<rows;++row) {\n                    if(std::memcmp(&expected[row],&out[row],4)) {std::cerr<<\"dot mismatch \"<<ACT_BITS<<\" \"<<nb<<\" \"<<kind<<\" \"<<row<<\"\\n\";return 5;}\n                    ++outputs_checked;\n                }\n            }\n        }\n    }\n    std::vector<float> special(32,1.0f);\n    for(float v:{std::numeric_limits<float>::infinity(),-std::numeric_limits<float>::infinity(),std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::denorm_min()}) {\n        if(std::isfinite(v)) std::fill(special.begin(),special.end(),v);else special[7]=v;\n        if(cpu.pack_q8_activation(special.data(),1)) return 6;\n    }\n    std::cout<<\"activation_bits=\"<<ACT_BITS<<\" packed_values=\"<<values_checked<<\" integer_outputs=\"<<outputs_checked<<\" exact_reference_match; nonfinite/tiny fallback gates pass\\n\";\n}\n",
+    "build-unit.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /DACT_BITS=8 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\vector-unit\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:vector-unit.exe /Fo:vector-unit.obj integer-core.cpp\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /DACT_BITS=16 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\int16-unit\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:int16-unit.exe /Fo:int16-unit.obj integer-core.cpp\nif errorlevel 1 exit /b 1\nexit /b %errorlevel%\n",
+    "build-quality.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\vector\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:vector-cli.exe /Fo:vector-cli.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\unrolled\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:unrolled-cli.exe /Fo:unrolled-cli.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\int16\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:int16-cli.exe /Fo:int16-cli.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nif errorlevel 1 exit /b 1\nexit /b %errorlevel%\n",
+    "hf-gate.py": "from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path.home()/'Desktop/Projects/llmx/tests'))\nimport baseline,common\nroot=Path(__file__).parent\nfor name in ['vector','int16']:\n    print('ARM '+name,flush=True)\n    common.EXE=str(root/(name+'-cli.exe'))\n    try:\n        checks=[baseline.run_tokenizer(),baseline.run_logits(),baseline.run_perplexity()]\n        result=all(checks)\n    except AssertionError as error: print('HF FAIL '+str(error),flush=True)\n    else: print('HF RESULT '+str(result),flush=True)\n",
+    "ppl-control.cpp": "#include <fstream>\n#include <iostream>\n#include <iomanip>\n#include \"inference/perplexity.hpp\"\nint main(int argc,char** argv) {\n    if(argc!=3)return 2;\n    auto weights=gguf::read_gguf(argv[1]);infer::Model model(weights);model.set_threads(6);\n    std::ifstream in(argv[2]);std::vector<uint32_t> ids;uint32_t id;while(in>>id)ids.push_back(id);\n    if(ids.size()!=247)return 3;\n    for(auto flags: {std::pair<int,int>{0,0},{64,0},{64,2},{123,0}}) {\n        auto v=infer::perplexity(model,ids,flags.first,flags.second);\n        std::cout<<std::setprecision(17)<<\"{\\\"ctx\\\":\"<<flags.first<<\",\\\"max_chunks\\\":\"<<flags.second\n            <<\",\\\"used\\\":\"<<v.used_tokens<<\",\\\"scored\\\":\"<<v.scored_tokens<<\",\\\"chunks\\\":\"<<v.chunks\n            <<\",\\\"mean_nll\\\":\"<<v.mean_nll()<<\",\\\"ppl\\\":\"<<std::exp(v.mean_nll())<<\"}\\n\"<<std::flush;\n    }\n}\n",
+    "ppl-control.py": "from pathlib import Path\nimport subprocess,json,hashlib,math\nr=Path(__file__).parent\nmodel=Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf'\nids=r.parent/'llmx-external-perf/eight-pairs/tokens.txt'\nout=r/'ppl-controls';out.mkdir(exist_ok=False)\nresults={}\nfor arm in ['base','float-control','int16']:\n    exe=r/(arm+'-ppl.exe')\n    print('START '+arm,flush=True)\n    p=subprocess.run([str(exe),str(model),str(ids)],capture_output=True,timeout=180)\n    (out/(arm+'.stdout')).write_bytes(p.stdout);(out/(arm+'.stderr')).write_bytes(p.stderr);p.check_returncode()\n    rows=[json.loads(line) for line in p.stdout.decode().splitlines()]\n    assert len(rows)==4 and all(math.isfinite(row['mean_nll']) for row in rows)\n    results[arm]=dict(sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),rows=rows)\n    (out/'results.json').write_text(json.dumps(results,indent=2))\n    print(arm,rows,flush=True)\nsummary=[]\nfor i,base in enumerate(results['base']['rows']):\n    control=results['float-control']['rows'][i];candidate=results['int16']['rows'][i]\n    assert all(base[k]==control[k]==candidate[k] for k in ['ctx','max_chunks','used','scored','chunks'])\n    summary.append(dict(ctx=base['ctx'],max_chunks=base['max_chunks'],base_nll=base['mean_nll'],control_nll=control['mean_nll'],int16_nll=candidate['mean_nll'],conversion_delta=control['mean_nll']-base['mean_nll'],integer_delta=candidate['mean_nll']-control['mean_nll'],total_delta=candidate['mean_nll']-base['mean_nll']))\n(out/'summary.json').write_text(json.dumps(summary,indent=2));print(summary,flush=True)\n",
+    "build-ppl-control.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:base-ppl.exe /Fo:base-ppl.obj ppl-control.cpp\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\float-control\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:float-control-ppl.exe /Fo:float-control-ppl.obj ppl-control.cpp\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\int16\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:int16-ppl.exe /Fo:int16-ppl.obj ppl-control.cpp\nif errorlevel 1 exit /b 1\nexit /b %errorlevel%\n",
+    "forced-long.cpp": "#include <algorithm>\n#include <fstream>\n#include <iostream>\n#include <string>\n#include \"model/arch_qwen.hpp\"\n#include \"tokenizer/tokenizer.hpp\"\nint main(int argc,char**argv) {\n    if(argc!=5) return 2;\n    std::ifstream continuation(argv[4]);\n    std::vector<int> forced; int id; while(continuation >> id) forced.push_back(id);\n    if(forced.size()!=32) return 4;\n    auto weights=gguf::read_gguf(argv[1]);\n    infer::Model model(weights);\n    model.set_threads(6);model.set_ubatch(128);\n    bpe::Tokenizer tok(weights);\n    std::ifstream input(argv[2],std::ios::binary);\n    std::string text((std::istreambuf_iterator<char>(input)),{});\n    auto ids=tok.encode(text);\n    if(ids.size()!=1943) return 3;\n    auto logits=model.prefill(ids);\n    auto save=[&](const std::string& suffix) {\n        std::ofstream output(std::string(argv[3])+suffix,std::ios::binary);\n        output.write((const char*)logits.data(),logits.size()*sizeof(float));\n        if(!output) throw std::runtime_error(\"write failed\");\n    };\n    save(\"-logits.f32\");\n    for(int i=0;i<32;++i) {\n        int token=(int)(std::max_element(logits.begin(),logits.end())-logits.begin());\n        std::cout << token << \" \";\n        logits=model.step(forced[size_t(i)]);\n        save(\"-step-\"+std::string(i<10?\"0\":\"\")+std::to_string(i)+\".f32\");\n    }\n    std::cout << \"\\n\";\n}\n",
+    "forced-long.py": "from pathlib import Path\nimport subprocess,json,hashlib,math,struct\nr=Path(__file__).parent\nmodel=Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf'\nprompt=r.parent/'llmx-f32-controls/prompt.txt'\nout=r/'forced-long';out.mkdir(exist_ok=False)\nfor arm in ['base','float-control','int16']:\n    print('START '+arm,flush=True)\n    exe=r/(arm+'-long.exe')\n    p=subprocess.run([str(exe),str(model),str(prompt),str(out/arm),str(r/'hf-continuation.txt')],capture_output=True,timeout=180)\n    (out/(arm+'.stdout')).write_bytes(p.stdout);(out/(arm+'.stderr')).write_bytes(p.stderr);p.check_returncode()\n    print('END '+arm,flush=True)\nprefixes={name:out/name for name in ['base','float-control','int16']}\nprefixes['hf']=r.parent/'llmx-attention-long/hf'\nsuffixes=['-logits.f32']+[f'-step-{i:02d}.f32' for i in range(32)]\npairs=[('base','hf'),('float-control','hf'),('int16','hf'),('int16','base'),('float-control','base'),('int16','float-control')]\nresults={}\nfor a,b in pairs:\n    largest=0;squared=0;count=0;top1=0\n    for suffix in suffixes:\n        x=(Path(str(prefixes[a])+suffix)).read_bytes();y=(Path(str(prefixes[b])+suffix)).read_bytes()\n        assert len(x)==len(y)==151936*4\n        xx=struct.unpack('<151936f',x);yy=struct.unpack('<151936f',y)\n        assert all(math.isfinite(v) for v in xx) and all(math.isfinite(v) for v in yy)\n        top1+=max(range(len(xx)),key=xx.__getitem__)==max(range(len(yy)),key=yy.__getitem__)\n        for u,v in zip(xx,yy):\n            delta=abs(u-v);largest=max(largest,delta);squared+=delta*delta;count+=1\n    results[a+'_vs_'+b]=dict(values=count,max_abs_error=largest,rms_error=math.sqrt(squared/count),top1_equal=top1,vectors=len(suffixes))\n    print(a,b,results[a+'_vs_'+b],flush=True)\nresults['provenance']={name:hashlib.sha256(b''.join(Path(str(prefix)+s).read_bytes() for s in suffixes)).hexdigest() for name,prefix in prefixes.items()}\nresults['scope']='1943 prompt tokens plus 32 forced HF continuation tokens; all comparisons share inputs. Full-vector measurement, not a full-corpus or maximum-context quality proof.'\n(out/'comparison.json').write_text(json.dumps(results,indent=2))\n",
+    "build-long.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:base-long.exe /Fo:base-long.obj forced-long.cpp\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\float-control\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:float-control-long.exe /Fo:float-control-long.obj forced-long.cpp\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\int16\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:int16-long.exe /Fo:int16-long.obj forced-long.cpp\nif errorlevel 1 exit /b 1\nexit /b %errorlevel%\n",
+    "check-long-tokens.py": "from pathlib import Path\nimport tokenizers,json,subprocess,hashlib,struct\nr=Path(__file__).parent\nsnapshot=Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca'\nprompt=(r.parent/'llmx-f32-controls/prompt.txt').read_text(encoding='utf-8')\ntok=tokenizers.Tokenizer.from_file(str(snapshot/'tokenizer.json'))\nwant=tok.encode(prompt,add_special_tokens=False).ids\nmodel=Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf'\np=subprocess.run([str(r/'int16-cli.exe'),'tokenize',str(model),prompt],capture_output=True,timeout=60);p.check_returncode()\ngot=list(map(int,p.stdout.replace(b',',b' ').split()));assert got==want and len(got)==1943\nresult=dict(tokens=len(got),hf_snapshot=snapshot.name,tokenizers_version=tokenizers.__version__,token_ids_sha256=hashlib.sha256(struct.pack('<%dI'%len(got),*got)).hexdigest(),prompt_sha256=hashlib.sha256(prompt.encode()).hexdigest(),match=True)\n(r/'long-token-alignment.json').write_text(json.dumps(result,indent=2));print(result)\n",
+    "witness.py": "from pathlib import Path\nimport subprocess,re,json\nr=Path(__file__).parent\nmodels={\"0.6B\":Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf',\"8B\":Path.home()/'.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf'}\nresult={}\nfor name,model in models.items():\n    p=subprocess.run([str(r/'witness-cli.exe'),'logits',str(model),'hello','--threads','6','--top','1'],capture_output=True,timeout=120)\n    (r/(name+'-witness.stdout')).write_bytes(p.stdout);(r/(name+'-witness.stderr')).write_bytes(p.stderr);p.check_returncode()\n    m=re.search(rb'Q16 packed matvec calls=(\\d+) float fallback calls=(\\d+)',p.stderr)\n    assert m and int(m[1])>0 and int(m[2])==0\n    result[name]=dict(packed_calls=int(m[1]),fallback_calls=int(m[2]))\n    print(name,result[name],flush=True)\n(r/'witness.json').write_text(json.dumps(result,indent=2))\n",
+    "build-witness.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q8-integer\\witness\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:witness-cli.exe /Fo:witness-cli.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nexit /b %errorlevel%\n"
+  },
+  "hf_fixture_gate": {
+    "log": "ARM vector\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.5305 vs HF 28.7974, NLL delta 0.009316 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.5494 vs HF 56.2812, NLL delta 0.004750 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.6501 vs HF 40.8602, NLL delta 0.005157 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 37.4950 vs HF 37.7428, NLL delta 0.006584 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\nHF RESULT True\nARM int16\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8364 vs HF 28.7974, NLL delta 0.001354 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6587 vs HF 56.2812, NLL delta 0.006680 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9571 vs HF 40.8602, NLL delta 0.002363 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2128 vs HF 37.7428, NLL delta 0.012376 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\nHF RESULT True\n",
+    "scope": "Existing tokenizer/ranking/continuous and chunked NLL checks passed for both tested activation precisions, including Q8/Q4 fixtures; tolerances unchanged. Windows only for these scratch candidates. Not a full-suite/platform certification."
+  },
+  "kernel_controls": {
+    "vector": "activation_bits=8 packed_values=5504 integer_outputs=2352 exact_reference_match; nonfinite/tiny fallback gates pass\n",
+    "int16": "activation_bits=16 packed_values=5504 integer_outputs=2352 exact_reference_match; nonfinite/tiny fallback gates pass\n"
+  },
+  "kernel_control_scope": "For unit compilation only, private access is changed to public in a copy of the prototype header. The scalar oracle independently quantizes and computes signed products plus float FMA reduction; checks 5504 packed values and 2352 outputs for each precision, including -128 weights, half subnormals, multiple threads and nonfinite/tiny-input fallback.",
+  "ppl_controls": {
+    "results": {
+      "base": {
+        "sha256": "97a59554a95765dd79cb91e2456a30acdd0a27364a94d3e85e98eff684059631",
+        "rows": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.361663767717966,
+            "ppl": 28.83712927377228
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.037034074325617,
+            "ppl": 56.658049792014495
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.7125502817810534,
+            "ppl": 40.95812821376951
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6432017866796906,
+            "ppl": 38.21399411742927
+          }
+        ]
+      },
+      "float-control": {
+        "sha256": "8cb19317a56f0297067e7fd3be99c6e52fc1f25b18712c48c504967b72b1287a",
+        "rows": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.3616856050740305,
+            "ppl": 28.837759007307938
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.037066738587846,
+            "ppl": 56.659900515636394
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.7125643503241834,
+            "ppl": 40.958704439016124
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.643222113476377,
+            "ppl": 38.214770893412926
+          }
+        ]
+      },
+      "int16": {
+        "sha256": "3b60b7e6c3e5727081d6ffdbe6f291f7e3366fce9076efe02eb9db86b97b1ca5",
+        "rows": [
+          {
+            "ctx": 0,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 246,
+            "chunks": 1,
+            "mean_nll": 3.3616375571536667,
+            "ppl": 28.83637344624662
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 0,
+            "used": 247,
+            "scored": 243,
+            "chunks": 4,
+            "mean_nll": 4.037044697960318,
+            "ppl": 56.65865170963562
+          },
+          {
+            "ctx": 64,
+            "max_chunks": 2,
+            "used": 128,
+            "scored": 126,
+            "chunks": 2,
+            "mean_nll": 3.7125243624269424,
+            "ppl": 40.957066619298594
+          },
+          {
+            "ctx": 123,
+            "max_chunks": 0,
+            "used": 246,
+            "scored": 244,
+            "chunks": 2,
+            "mean_nll": 3.6431702367377783,
+            "ppl": 38.21278848715351
+          }
+        ]
+      }
+    },
+    "summary": [
+      {
+        "ctx": 0,
+        "max_chunks": 0,
+        "base_nll": 3.361663767717966,
+        "control_nll": 3.3616856050740305,
+        "int16_nll": 3.3616375571536667,
+        "conversion_delta": 2.1837356064313695e-05,
+        "integer_delta": -4.804792036372518e-05,
+        "total_delta": -2.6210564299411487e-05
+      },
+      {
+        "ctx": 64,
+        "max_chunks": 0,
+        "base_nll": 4.037034074325617,
+        "control_nll": 4.037066738587846,
+        "int16_nll": 4.037044697960318,
+        "conversion_delta": 3.266426222925389e-05,
+        "integer_delta": -2.2040627528419066e-05,
+        "total_delta": 1.0623634700834828e-05
+      },
+      {
+        "ctx": 64,
+        "max_chunks": 2,
+        "base_nll": 3.7125502817810534,
+        "control_nll": 3.7125643503241834,
+        "int16_nll": 3.7125243624269424,
+        "conversion_delta": 1.4068543130019151e-05,
+        "integer_delta": -3.998789724102281e-05,
+        "total_delta": -2.5919354111003656e-05
+      },
+      {
+        "ctx": 123,
+        "max_chunks": 0,
+        "base_nll": 3.6432017866796906,
+        "control_nll": 3.643222113476377,
+        "int16_nll": 3.6431702367377783,
+        "conversion_delta": 2.032679668628745e-05,
+        "integer_delta": -5.1876738598632954e-05,
+        "total_delta": -3.15499419123455e-05
+      }
+    ]
+  },
+  "ppl_scope": "Same weights, pinned token stream and scoring. The float control reconstructs Q16 activations and runs the original float dot. Whole-model differences include subsequent activation divergence; not isolated per-layer rounding. Four excerpt/window cases, not full corpus.",
+  "long_vectors": {
+    "base_vs_hf": {
+      "values": 5013888,
+      "max_abs_error": 0.999403715133667,
+      "rms_error": 0.11080896779425511,
+      "top1_equal": 33,
+      "vectors": 33
+    },
+    "float-control_vs_hf": {
+      "values": 5013888,
+      "max_abs_error": 0.9983179569244385,
+      "rms_error": 0.11077513779150275,
+      "top1_equal": 33,
+      "vectors": 33
+    },
+    "int16_vs_hf": {
+      "values": 5013888,
+      "max_abs_error": 0.9992517232894897,
+      "rms_error": 0.11079608014466655,
+      "top1_equal": 33,
+      "vectors": 33
+    },
+    "int16_vs_base": {
+      "values": 5013888,
+      "max_abs_error": 0.002213001251220703,
+      "rms_error": 0.0002632165979256859,
+      "top1_equal": 33,
+      "vectors": 33
+    },
+    "float-control_vs_base": {
+      "values": 5013888,
+      "max_abs_error": 0.0026845932006835938,
+      "rms_error": 0.0002848531573710689,
+      "top1_equal": 33,
+      "vectors": 33
+    },
+    "int16_vs_float-control": {
+      "values": 5013888,
+      "max_abs_error": 0.002535700798034668,
+      "rms_error": 0.0003247087426843764,
+      "top1_equal": 33,
+      "vectors": 33
+    },
+    "provenance": {
+      "base": "d3518b5823b2d65a60d5e9f2580391279661326ed0bc578c780ba61d7ca90045",
+      "float-control": "99a78b16434cc0063941abc9531c9a0e51e400a5ed60e84b27164af1eaf1a224",
+      "int16": "0f61f6e6250dc7d777ff857e073ce0439dfdd6c5d2739259258202e75fdab5f7",
+      "hf": "9d00a6b3df1c952ed60215cbde1142a88bc8fce83fdac923603b00722d13074d"
+    },
+    "scope": "1943 prompt tokens plus 32 forced HF continuation tokens; all comparisons share inputs. Full-vector measurement, not a full-corpus or maximum-context quality proof."
+  },
+  "long_token_alignment": {
+    "tokens": 1943,
+    "hf_snapshot": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "tokenizers_version": "0.21.4",
+    "token_ids_sha256": "3eef836c5620aeeca00c9b9b46b54a4a599a90e96a8636adc5dc29a88420d444",
+    "prompt_sha256": "b6b45b11937fb5a556ba2b29545100d2cbdc8749e3f60ad40de54830d26b9b22",
+    "match": true
+  },
+  "activation_witness": {
+    "0.6B": {
+      "packed_calls": 197,
+      "fallback_calls": 0
+    },
+    "8B": {
+      "packed_calls": 253,
+      "fallback_calls": 0
+    }
+  },
+  "artifact_sha256": {
+    "base-long.exe": "72e58496fbdd62e21bd1de6ecb80d6c64d835c51ada7e00e8813400a76c923b0",
+    "base-ppl.exe": "97a59554a95765dd79cb91e2456a30acdd0a27364a94d3e85e98eff684059631",
+    "candidate.exe": "c85f61c2bc8ab7aa535f224582ef96a94769af771e28e81d6f93605819a5d829",
+    "float-control-cli.exe": "298f79611aafe644e1f4d10b05c7ff2fa63413c7992501a3d1dde2ab2ec69203",
+    "float-control-long.exe": "53c01645422890b58657644bab89b785337ce58f8ca76883d706976a81cb1fcc",
+    "float-control-ppl.exe": "8cb19317a56f0297067e7fd3be99c6e52fc1f25b18712c48c504967b72b1287a",
+    "int16-cli.exe": "a5dba725431f638fc1c2b2f845a474bad3a6a1ad5678d1bdc2a23b8a2d09b437",
+    "int16-long.exe": "40e6bde584cab67f790d347f1c1f9c1815f4f44d6192b31f21eaa3327b65c36f",
+    "int16-ppl.exe": "3b60b7e6c3e5727081d6ffdbe6f291f7e3366fce9076efe02eb9db86b97b1ca5",
+    "int16-unit.exe": "80f16cb2d2fae5b2e60ce0d11831d5bf09a084598d7d8905efaa00c6f27232fc",
+    "int16.exe": "677eb7d342ec2e3077f0ae68939e3ea3c50df7afb05b0c4b525f1a0826a9e7d9",
+    "unrolled-cli.exe": "e3df368ce272c1b1a8e330b6c60fc4c14396941049c34ad5f9f410a336400ab3",
+    "unrolled.exe": "77e5df2e2441ffe14fccbaa0b0cfea81fd1bdce2256bc0035dfec70fd8e394fd",
+    "vector-cli.exe": "5e5ed614c22faf6159c5d72ff651f94264b51812de00a4a27422379a11f81243",
+    "vector-unit.exe": "8afbdcfbdbd994f4f3cccdc3d2a2444da0ae366e231aec43e8d45759e3c66815",
+    "vector.exe": "8b01fbb6c187bd1e55aa9256d8024225fb8ae7f0c957e5715833643f17fca282",
+    "witness-cli.exe": "5400b416f7acb8646b281f601b9ff974544c4c8ee6795191ba6f72edefddd3f1"
+  },
+  "logs": {
+    "forced-long.log": "START base\nEND base\nSTART float-control\nEND float-control\nSTART int16\nEND int16\nbase hf {'values': 5013888, 'max_abs_error': 0.999403715133667, 'rms_error': 0.11080896779425511, 'top1_equal': 33, 'vectors': 33}\nfloat-control hf {'values': 5013888, 'max_abs_error': 0.9983179569244385, 'rms_error': 0.11077513779150275, 'top1_equal': 33, 'vectors': 33}\nint16 hf {'values': 5013888, 'max_abs_error': 0.9992517232894897, 'rms_error': 0.11079608014466655, 'top1_equal': 33, 'vectors': 33}\nint16 base {'values': 5013888, 'max_abs_error': 0.002213001251220703, 'rms_error': 0.0002632165979256859, 'top1_equal': 33, 'vectors': 33}\nfloat-control base {'values': 5013888, 'max_abs_error': 0.0026845932006835938, 'rms_error': 0.0002848531573710689, 'top1_equal': 33, 'vectors': 33}\nint16 float-control {'values': 5013888, 'max_abs_error': 0.002535700798034668, 'rms_error': 0.0003247087426843764, 'top1_equal': 33, 'vectors': 33}\n",
+    "hf-gate.log": "ARM vector\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.5305 vs HF 28.7974, NLL delta 0.009316 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.5494 vs HF 56.2812, NLL delta 0.004750 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.6501 vs HF 40.8602, NLL delta 0.005157 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 37.4950 vs HF 37.7428, NLL delta 0.006584 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\nHF RESULT True\nARM int16\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8364 vs HF 28.7974, NLL delta 0.001354 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6587 vs HF 56.2812, NLL delta 0.006680 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9571 vs HF 40.8602, NLL delta 0.002363 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2128 vs HF 37.7428, NLL delta 0.012376 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\nHF RESULT True\n",
+    "int16-unit.log": "activation_bits=16 packed_values=5504 integer_outputs=2352 exact_reference_match; nonfinite/tiny fallback gates pass\n",
+    "ppl-control.log": "START base\nbase [{'ctx': 0, 'max_chunks': 0, 'used': 247, 'scored': 246, 'chunks': 1, 'mean_nll': 3.361663767717966, 'ppl': 28.83712927377228}, {'ctx': 64, 'max_chunks': 0, 'used': 247, 'scored': 243, 'chunks': 4, 'mean_nll': 4.037034074325617, 'ppl': 56.658049792014495}, {'ctx': 64, 'max_chunks': 2, 'used': 128, 'scored': 126, 'chunks': 2, 'mean_nll': 3.7125502817810534, 'ppl': 40.95812821376951}, {'ctx': 123, 'max_chunks': 0, 'used': 246, 'scored': 244, 'chunks': 2, 'mean_nll': 3.6432017866796906, 'ppl': 38.21399411742927}]\nSTART float-control\nfloat-control [{'ctx': 0, 'max_chunks': 0, 'used': 247, 'scored': 246, 'chunks': 1, 'mean_nll': 3.3616856050740305, 'ppl': 28.837759007307938}, {'ctx': 64, 'max_chunks': 0, 'used': 247, 'scored': 243, 'chunks': 4, 'mean_nll': 4.037066738587846, 'ppl': 56.659900515636394}, {'ctx': 64, 'max_chunks': 2, 'used': 128, 'scored': 126, 'chunks': 2, 'mean_nll': 3.7125643503241834, 'ppl': 40.958704439016124}, {'ctx': 123, 'max_chunks': 0, 'used': 246, 'scored': 244, 'chunks': 2, 'mean_nll': 3.643222113476377, 'ppl': 38.214770893412926}]\nSTART int16\nint16 [{'ctx': 0, 'max_chunks': 0, 'used': 247, 'scored': 246, 'chunks': 1, 'mean_nll': 3.3616375571536667, 'ppl': 28.83637344624662}, {'ctx': 64, 'max_chunks': 0, 'used': 247, 'scored': 243, 'chunks': 4, 'mean_nll': 4.037044697960318, 'ppl': 56.65865170963562}, {'ctx': 64, 'max_chunks': 2, 'used': 128, 'scored': 126, 'chunks': 2, 'mean_nll': 3.7125243624269424, 'ppl': 40.957066619298594}, {'ctx': 123, 'max_chunks': 0, 'used': 246, 'scored': 244, 'chunks': 2, 'mean_nll': 3.6431702367377783, 'ppl': 38.21278848715351}]\n[{'ctx': 0, 'max_chunks': 0, 'base_nll': 3.361663767717966, 'control_nll': 3.3616856050740305, 'int16_nll': 3.3616375571536667, 'conversion_delta': 2.1837356064313695e-05, 'integer_delta': -4.804792036372518e-05, 'total_delta': -2.6210564299411487e-05}, {'ctx': 64, 'max_chunks': 0, 'base_nll': 4.037034074325617, 'control_nll': 4.037066738587846, 'int16_nll': 4.037044697960318, 'conversion_delta': 3.266426222925389e-05, 'integer_delta': -2.2040627528419066e-05, 'total_delta': 1.0623634700834828e-05}, {'ctx': 64, 'max_chunks': 2, 'base_nll': 3.7125502817810534, 'control_nll': 3.7125643503241834, 'int16_nll': 3.7125243624269424, 'conversion_delta': 1.4068543130019151e-05, 'integer_delta': -3.998789724102281e-05, 'total_delta': -2.5919354111003656e-05}, {'ctx': 123, 'max_chunks': 0, 'base_nll': 3.6432017866796906, 'control_nll': 3.643222113476377, 'int16_nll': 3.6431702367377783, 'conversion_delta': 2.032679668628745e-05, 'integer_delta': -5.1876738598632954e-05, 'total_delta': -3.15499419123455e-05}]\n",
+    "vector-unit.log": "activation_bits=8 packed_values=5504 integer_outputs=2352 exact_reference_match; nonfinite/tiny fallback gates pass\n"
+  },
+  "verdict": "Not adopted. Q16 activations give a measured 2.79%/4.06% decode gain on 0.6B/8B but remain 5.12%/1.21% below same-run mx means. Q8 activation quantization has larger HF excerpt deviations at similar speed. Q16 passes existing HF fixture bounds and has small measured path-controlled NLL cost; its long full-vector change is nonzero. Full-corpus, independent 8B HF, maximum-context and cross-platform validation remain unproven. Production runtime remains validated 5a9518c; no merge."
+}

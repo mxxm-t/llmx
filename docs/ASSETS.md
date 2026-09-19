@@ -559,6 +559,91 @@ Raw output, samples, hashes, flags and reproduction scripts are in
 [`benchmarks/q8-external-floor-20260919.json`](benchmarks/q8-external-floor-20260919.json).
 Scratch artifacts are under `%TEMP%/llmx-q8-floor`.
 
+### Integer activation experiments: not adopted
+
+Scratch AVX2 kernels consume the existing Q8_0 weights with quantized
+activations, using either signed 8-bit or signed 16-bit activation values and
+F32 block scales. Activation conversion happens once per matrix. Invalid or
+too-small activation ranges use the existing float path. The 16-bit scratch
+layout is internal to the CPU kernel and does not add a GGUF weight format.
+
+Scalar activation packing erased the initial integer-dot benefit. Vectorized
+packing produced a modest gain; unrolling the dot added no further benefit.
+The 16-bit representation performed similarly to 8-bit activations while
+retaining much closer excerpt numerics. Final diagnostic comparisons use the
+same `5a9518c` control, pinned mx build, models and 215+32 tokens as above,
+six threads, ubatch 128 and F32 KV. Each has three interleaved rounds with
+per-process warmup; all samples are retained and no builds/tests compete.
+
+| Q8_0 model / phase | Control mean tok/s | Q16 activation candidate | mx | Candidate vs mx |
+|---|---:|---:|---:|---:|
+| Qwen3-0.6B prefill | 417.79 | 412.84 | 275.50 | +49.85% |
+| Qwen3-0.6B decode | 43.79 | 45.01 | 47.44 | -5.12% |
+| Qwen3-8B prefill | 28.65 | 28.31 | 21.25 | +33.23% |
+| Qwen3-8B decode | 4.29 | 4.47 | 4.52 | -1.21% |
+
+Decode improves 2.79% / 4.06% against the respective controls, with disjoint
+control/candidate ranges. Prefill control/candidate ranges overlap. Neither
+decode comparison establishes the external floor; no candidate is adopted.
+Absolute rates from other sessions are not pooled with these runs.
+
+Independent scalar packing and signed-product controls match 5,504 activation
+values and 2,352 outputs exactly for each precision. Cases include -128 weight
+bytes, half subnormal scales, zero and extreme-sign blocks, one/four/six
+threads, and nonfinite/tiny-input fallbacks. Test compilation exposes private
+members in a copied header only; production APIs are unchanged. A separately
+instrumented model run witnesses 197 / 253 packed calls on 0.6B / 8B, with no
+fallback calls, for the one-token `hello` prompt.
+
+Existing Windows HF tokenizer, ranking, continuous NLL and chunked NLL checks
+pass for both activation precisions without changing tolerances. This is not
+a full platform-suite certification. The continuous excerpt shows:
+
+| Absolute NLL error versus HF | Measured | Existing bound |
+|---|---:|---:|
+| Current float activations | 0.001374 | 0.010 |
+| Q8 activations, vectorized packing | 0.009316 | 0.010 |
+| Q16 activations, vectorized packing | 0.001354 | 0.010 |
+
+A path-controlled comparison uses identical weights, token IDs and scoring
+for current llmx, a control that reconstructs Q16 activations and calls the
+original float dot, and the Q16 integer kernel. Over four continuous/chunked
+excerpt cases:
+
+| Maximum absolute NLL shift | Measured |
+|---|---:|
+| Activation conversion with the original float dot | 0.00003266 |
+| Integer kernel versus that control | 0.00005188 |
+| Complete candidate versus current llmx | 0.00003155 |
+
+These are whole-model effects: later activations can diverge, so this is not
+an isolated per-layer rounding decomposition. They do not prove full-corpus
+quality or losslessness.
+
+The longer Q8 test feeds identical 1,943 prompt tokens and 32 forced HF
+continuation tokens to every arm. Prompt IDs were independently checked
+against the pinned HF tokenizer. All 33 full vectors (5,013,888 finite logits)
+were compared, including the prefill output:
+
+| Comparison | Maximum absolute logit error | RMS error | Top token agrees |
+|---|---:|---:|---:|
+| Current Q8 llmx vs original HF | 0.999404 | 0.110809 | 33/33 |
+| Reconstructed-Q16 float control vs HF | 0.998318 | 0.110775 | 33/33 |
+| Q16 integer candidate vs HF | 0.999252 | 0.110796 | 33/33 |
+| Q16 candidate vs current Q8 llmx | 0.002213 | 0.000263 | 33/33 |
+
+The candidate's maximum and RMS distance to HF are slightly smaller in this
+case, but its added precision change is nonzero. No new global acceptance
+bound is inferred from the result. Full-corpus, independent 8B HF,
+maximum-context and cross-platform validation are still unproven.
+
+All prototype patches, raw samples, numerical controls, activation witnesses,
+vector hashes and reproduction sources are in
+[`benchmarks/q8-integer-activation-20260919.json`](benchmarks/q8-integer-activation-20260919.json).
+Scratch artifacts are under `%TEMP%/llmx-q8-integer`. Runtime remains the
+validated `5a9518c` code; the next investigation targets projection dispatch
+while preserving its float arithmetic.
+
 ## Wiki text location
 
 The wikitext corpus used for corpus-level perplexity is committed to the test

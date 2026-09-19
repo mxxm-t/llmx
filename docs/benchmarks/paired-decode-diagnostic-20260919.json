@@ -1,0 +1,163 @@
+{
+  "hashes": {
+    "base": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+    "candidate": "53ab0eab3cc697ecf1db70857dd9bb561059811c1fb6503d7de608a660486e00",
+    "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+    "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+    "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+  },
+  "results": [
+    {
+      "pair": 0,
+      "arm": "base",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 537.8555,
+      "tg_ms": 2281.6294,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 0,
+      "arm": "candidate",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 527.0743,
+      "tg_ms": 2263.7979,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 0,
+      "arm": "mx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 540.5259,
+      "tg_ms": 2217.5284,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 1,
+      "arm": "base",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 656.5479,
+      "tg_ms": 2266.2846,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 1,
+      "arm": "mx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 525.1163,
+      "tg_ms": 2212.8327,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 547.7152,
+      "tg_ms": 2237.0676,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 2,
+      "arm": "mx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 552.1957,
+      "tg_ms": 2157.4588,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 2,
+      "arm": "base",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 551.6066,
+      "tg_ms": 2193.0528,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 533.8248,
+      "tg_ms": 2236.3167,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    }
+  ],
+  "summary": {
+    "base": {
+      "pp": {
+        "mean": 372.325515745086,
+        "median": 389.77053574050785,
+        "minimum": 327.4703947724149,
+        "maximum": 399.7356167223353
+      },
+      "tg": {
+        "mean": 14.245541261143144,
+        "median": 14.120027113982067,
+        "minimum": 14.025064719099431,
+        "maximum": 14.591531950347935
+      }
+    },
+    "candidate": {
+      "pp": {
+        "mean": 401.0685880291429,
+        "median": 402.75386231587595,
+        "minimum": 392.5397724949025,
+        "maximum": 407.9121292766504
+      },
+      "tg": {
+        "mean": 14.249740397371589,
+        "median": 14.304440330725814,
+        "minimum": 14.135537452349434,
+        "maximum": 14.309243409039517
+      }
+    },
+    "mx": {
+      "pp": {
+        "mean": 398.84953326089936,
+        "median": 397.76077335054623,
+        "minimum": 389.3547160906903,
+        "maximum": 409.4331103414615
+      },
+      "tg": {
+        "mean": 14.574615775768821,
+        "median": 14.461102278540986,
+        "minimum": 14.430480349203194,
+        "maximum": 14.832264699562282
+      }
+    }
+  },
+  "date": "2026-09-19",
+  "control_revision": "5a9518c",
+  "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+  "conditions": "Ryzen5800X, MSVC AVX2, same F32 Qwen3-0.6B model, 215+32 tokens, six threads, ubatch128, F32 KV, three interleaved rounds with warmup; all samples retained",
+  "verdict": "Not adopted: no measured decode benefit; prefill control outlier precludes speedup inference. Not run through full HF gate.",
+  "identity": "12642 outputs byte-identical to single-row dot across widths/tails/odd rows and 1/4/6 threads",
+  "identity_source": "#include \"backends/cpu/cpu_backend.hpp\"\n#include <iostream>\n#include <cstring>\n#include <cstdint>\nint main() {\n    backend::CpuBackend cpu;\n    uint32_t rng=12345;\n    auto next=[&](){rng=rng*1664525u+1013904223u; return float(int(rng>>8)-8388608)/8388608.0f;};\n    size_t tested=0;\n    for(size_t ni: {size_t(1),size_t(7),size_t(8),size_t(10),size_t(31),size_t(32),size_t(33),size_t(42),size_t(63),size_t(64),size_t(65),size_t(129),size_t(1024),size_t(3072)}) {\n        for(size_t no: {size_t(1),size_t(2),size_t(3),size_t(13),size_t(25),size_t(257)}) {\n            std::vector<float> w(ni*no),x(ni),y(no),expected(no);\n            for(auto& f:w)f=next();for(auto& f:x)f=next();\n            for(size_t o=0;o<no;++o) expected[o]=backend::CpuBackend::dot_f32(w.data()+o*ni,x.data(),ni);\n            for(int nt: {1,4,6}) {\n                cpu.set_threads(nt);\n                cpu.matmul(gguf::GGML_TYPE_F32,reinterpret_cast<const uint8_t*>(w.data()),x.data(),y.data(),ni,no,1);\n                for(size_t o=0;o<no;++o) {\n                    if(std::memcmp(&y[o],&expected[o],sizeof(float))) {std::cerr<<ni<<\" \"<<no<<\" \"<<nt<<\" \"<<o<<\"\\n\"; return 1;}\n                    ++tested;\n                }\n            }\n        }\n    }\n    std::cout<<tested<<\" matrix outputs byte-identical to single-row control\\n\";\n}\n",
+  "patch": "--- 5a9518c\n+++ paired-rows\n@@ -142,7 +142,11 @@\n             if (f32 && nbatch == 1) {\n                 // Decode streams each resident row contiguously; prefill keeps\n                 // the fused kernels that reuse weights across batch columns.\n-                for (size_t o = o0; o < o1; ++o)\n+                size_t o = o0;\n+                for (; o + 2 <= o1; o += 2)\n+                    dot_f32_pair((const float*)(data + o * rowbytes),\n+                                 (const float*)(data + (o + 1) * rowbytes), X, nin, Y + o);\n+                for (; o < o1; ++o)\n                     Y[o] = dot_f32((const float*)(data + o * rowbytes), X, nin);\n                 return;\n             }\n@@ -318,6 +322,39 @@\n             for (size_t j = i; j < n; j++) v += r[(size_t)k * stride + j] * x[j];\n             out[k] = v;\n         }\n+    }\n+\n+    static void dot_f32_pair(const float* a, const float* b, const float* x,\n+                             size_t n, float* out) {\n+        __m256 a0 = _mm256_setzero_ps(), a1 = _mm256_setzero_ps();\n+        __m256 a2 = _mm256_setzero_ps(), a3 = _mm256_setzero_ps();\n+        __m256 b0 = _mm256_setzero_ps(), b1 = _mm256_setzero_ps();\n+        __m256 b2 = _mm256_setzero_ps(), b3 = _mm256_setzero_ps();\n+        size_t i = 0;\n+        for (; i + 32 <= n; i += 32) {\n+            const __m256 x0 = _mm256_loadu_ps(x + i);\n+            const __m256 x1 = _mm256_loadu_ps(x + i + 8);\n+            const __m256 x2 = _mm256_loadu_ps(x + i + 16);\n+            const __m256 x3 = _mm256_loadu_ps(x + i + 24);\n+            a0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i), x0, a0);\n+            b0 = _mm256_fmadd_ps(_mm256_loadu_ps(b + i), x0, b0);\n+            a1 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 8), x1, a1);\n+            b1 = _mm256_fmadd_ps(_mm256_loadu_ps(b + i + 8), x1, b1);\n+            a2 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 16), x2, a2);\n+            b2 = _mm256_fmadd_ps(_mm256_loadu_ps(b + i + 16), x2, b2);\n+            a3 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 24), x3, a3);\n+            b3 = _mm256_fmadd_ps(_mm256_loadu_ps(b + i + 24), x3, b3);\n+        }\n+        __m256 aa = _mm256_add_ps(_mm256_add_ps(a0, a1), _mm256_add_ps(a2, a3));\n+        __m256 bb = _mm256_add_ps(_mm256_add_ps(b0, b1), _mm256_add_ps(b2, b3));\n+        for (; i + 8 <= n; i += 8) {\n+            const __m256 xv = _mm256_loadu_ps(x + i);\n+            aa = _mm256_fmadd_ps(_mm256_loadu_ps(a + i), xv, aa);\n+            bb = _mm256_fmadd_ps(_mm256_loadu_ps(b + i), xv, bb);\n+        }\n+        float ya = hsum256(aa), yb = hsum256(bb);\n+        for (; i < n; ++i) { ya += a[i] * x[i]; yb += b[i] * x[i]; }\n+        out[0] = ya; out[1] = yb;\n     }\n \n     // Four independent accumulators. With a single accumulator every FMA\n",
+  "benchmark_script": "import hashlib,json,math,os,statistics,subprocess\nfrom pathlib import Path\nroot=Path.home()/'AppData/Local/Temp'\nout=root/'llmx-paired-decode/diagnostic'\nout.mkdir(exist_ok=False)\narms={'base':root/'llmx-attention-values/validation/candidate-compare.exe','candidate':root/'llmx-paired-decode/candidate.exe','mx':Path.home()/'Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe'}\nmodel=root/'Qwen3-0.6B-F32.gguf'\nids=root/'llmx-external-perf/eight-pairs/tokens.txt'\nhashes={name:hashlib.file_digest(path.open('rb'),'sha256').hexdigest() for name,path in dict(arms,model=model,tokens=ids).items()}\n(out/'hashes.json').write_text(json.dumps(hashes,indent=2))\nprint(hashes,flush=True)\nrows=[]\nfor pair in range(3):\n    order=list(arms)\n    order=order[pair%len(arms):]+order[:pair%len(arms)]\n    if pair%2: order.reverse()\n    for arm in order:\n        p=subprocess.run([str(arms[arm]),str(model),str(ids)],capture_output=True,timeout=180)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        samples=[json.loads(line) for line in p.stdout.decode().splitlines() if line]\n        assert len(samples)==2 and samples[0]['run']==0 and samples[1]['run']==1\n        row=dict(pair=pair,arm=arm,**samples[1])\n        assert row['pp_tokens']==215 and row['tg_tokens']==32 and row['top1']==4013\n        assert arm=='mx' or row['logit_sum']==-501040.0615\n        assert all(math.isfinite(row[k]) and row[k]>0 for k in ('pp_ms','tg_ms'))\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for phase in ('pp','tg'):\n        rates=[r[phase+'_tokens']*1000/r[phase+'_ms'] for r in rows if r['arm']==arm]\n        summary[arm][phase]=dict(mean=statistics.mean(rates),median=statistics.median(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\nprint(summary,flush=True)\n"
+}

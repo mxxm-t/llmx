@@ -468,6 +468,97 @@ validation logs and reproduction harnesses are in
 [`benchmarks/attention-values-cpu-20260919.json`](benchmarks/attention-values-cpu-20260919.json).
 Scratch artifacts are under `%TEMP%/llmx-attention-values/validation`.
 
+### Paired decode and packed prefill: not adopted
+
+Two further matrix-kernel investigations use `5a9518c` as the control and
+the same pinned mx build, F32 model, 215+32 tokens, six threads and ubatch 128.
+Each diagnostic has three interleaved rounds with a warmup per process.
+
+The paired-row decode kernel shares activation loads while retaining four
+independent accumulation chains per row. All 12,642 synthetic outputs are
+byte-identical to the single-row control across odd rows, dimension tails and
+one/four/six threads, but decode throughput does not improve:
+
+| Mean tok/s | Control | Paired rows | mx |
+|---|---:|---:|---:|
+| Prefill | 372.33 | 401.07 | 398.85 |
+| Decode | 14.25 | 14.25 | 14.57 |
+
+A large control prefill outlier prevents attributing the apparent prefill gain
+to this decode change. All samples were retained. The candidate was rejected
+without proceeding to a full HF gate. Its patch, harness and raw samples are
+in [`benchmarks/paired-decode-diagnostic-20260919.json`](benchmarks/paired-decode-diagnostic-20260919.json).
+
+Packed F32 prefill uses activation panels and a six-row by sixteen-token
+kernel. Scalar packing first regressed mean prefill from 403.48 to 334.59 tok/s.
+A vectorized transpose improved the prototype; an intrusive profile measured
+about 19 ms packing time. A follow-up comparison separated vectorized packing,
+packing weights as well, and processing only full panels with the existing
+kernel for remaining tokens:
+
+| Mean tok/s | Control | Vectorized activation packing | Also pack weights | Full panels + tail fallback | mx |
+|---|---:|---:|---:|---:|---:|
+| Prefill | 379.36 | 348.64 | 300.56 | 293.27 | 371.42 |
+| Decode | 14.23 | 14.04 | 14.34 | 14.24 | 14.27 |
+
+All packed variants are slower on prefill and were rejected. Their smoke
+checks establish finite logits and matching top tokens only, not full-vector
+HF correctness. No runtime or fixture change was adopted. Raw samples,
+patches and profiling sources are in
+[`benchmarks/packed-prefill-diagnostic-20260919.json`](benchmarks/packed-prefill-diagnostic-20260919.json).
+These runs occurred on an interactive workstation; results from separate
+sessions are not pooled or used to infer a change in the reference.
+
+That artifact also records a separate intrusive profile of unchanged `5a9518c`
+arithmetic. During 2,237.50 ms decode, SiLU takes 7.45 ms caller wall time and
+softmax takes 9.42 ms summed worker time. Softmax runs across workers, so its
+sum is not elapsed time. These components are small relative to matrix work;
+an approximate exponential was not implemented on this evidence.
+
+### Q8 external floor on two model sizes
+
+The validated `5a9518c` runtime was compared directly with public mx
+`5542318e748c154b634211def405ae95da3dfaa9` on Qwen3-0.6B Q8_0 and the real
+Qwen3-8B Q8_0 asset. Both arms receive the same pinned 215-token prompt and
+32 forced continuation IDs used above, with six threads, ubatch 128 and F32
+KV. The benchmark bypasses tokenization; the same token stream is reused
+for both model sizes. Model loading and sampling are excluded. The reference
+uses context 512, no GPU offload, no flash attention and no BLAS.
+Three alternating pairs each run one warmup and one measured sequence;
+no other agent builds/tests ran concurrently and no samples were removed.
+
+| Q8_0 model / phase | llmx mean / median tok/s | mx mean / median | Mean gap vs mx |
+|---|---:|---:|---:|
+| Qwen3-0.6B prefill | 380.50 / 383.68 | 265.35 / 265.79 | +43.39% |
+| Qwen3-0.6B decode | 42.73 / 42.86 | 46.81 / 47.06 | -8.71% |
+| Qwen3-8B prefill | 25.94 / 26.21 | 20.07 / 20.03 | +29.27% |
+| Qwen3-8B decode | 4.10 / 4.11 | 4.39 / 4.36 | -6.64% |
+
+Each phase has disjoint llmx/mx sample ranges on each model. Prefill exceeds
+the reference in these runs, while decode still misses the floor. This does
+not establish parity for other models, quants or hardware. Historical 8B
+stand-in measurements used different prompts/thread counts and are not
+pooled with these runs. No throughput improvement is claimed from comparing
+their absolute values.
+
+The 0.6B model hash is the required HF Q8 fixture digest recorded above.
+The 8B file is 8,709,518,112 bytes, SHA-256
+`408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6`.
+Source/fixture/benchmark hashes still match the validated `5a9518c` artifact.
+Its Windows/Linux required HF fixture checks cover 0.6B; the 8B timing smoke
+check does not add an independent 8B HF correctness baseline.
+
+At the pinned reference revision, CPU Q8 type traits select activation
+conversion through `quantize_row_q8_0` and an integer Q8-by-Q8 dot. llmx's
+current fused dot consumes float activations. This source difference
+motivates an experiment, not a claim that activation quantization will close
+the gap or preserve quality. Any such candidate needs a measured numerical
+cost bound in addition to performance validation.
+
+Raw output, samples, hashes, flags and reproduction scripts are in
+[`benchmarks/q8-external-floor-20260919.json`](benchmarks/q8-external-floor-20260919.json).
+Scratch artifacts are under `%TEMP%/llmx-q8-floor`.
+
 ## Wiki text location
 
 The wikitext corpus used for corpus-level perplexity is committed to the test

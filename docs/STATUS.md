@@ -228,8 +228,31 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Status: recorded prefill parity with the upstream CPU stand-in; decode
-  remains below it. The exact mx-llama.cpp floor is not yet established.**
+- **Latest investigation:** paired F32 decode rows did not improve throughput;
+  packed F32 prefill variants regressed. None was adopted. Exact patches,
+  samples and diagnostics are in ASSETS and the paired-decode/packed-prefill
+  benchmark JSON files. Runtime remains the validated `5a9518c` implementation.
+  Profiling scalar exponentials finds only 7.45 ms SiLU wall time and 9.42 ms
+  summed softmax worker time during 2,237.50 ms decode; these are not the main
+  remaining cost. The summed worker measurement is not wall time.
+  A new matched Q8 comparison now covers both the HF fixture and real 8B
+  model against pinned public mx `5542318e74`: three alternating pairs,
+  215+32 pinned tokens, six threads, ubatch 128 and F32 KV.
+
+  | Q8_0 model / phase | llmx mean tok/s | mx mean tok/s | Gap |
+  |---|---:|---:|---:|
+  | Qwen3-0.6B prefill | 380.50 | 265.35 | +43.39% |
+  | Qwen3-0.6B decode | 42.73 | 46.81 | -8.71% |
+  | Qwen3-8B prefill | 25.94 | 20.07 | +29.27% |
+  | Qwen3-8B decode | 4.10 | 4.39 | -6.64% |
+
+  Prefill exceeds the reference on both models, but decode remains below it;
+  both comparisons have disjoint arm ranges in each phase. Raw samples,
+  hashes, flags and scope are in `benchmarks/q8-external-floor-20260919.json`.
+  Source inspection confirms mx uses quantized Q8 activations and integer
+  dots, while llmx retains float activations. Any analogous optimization
+  needs a measured numerical cost bound before adoption.
+- **Historical stand-in comparison (different conditions; not pooled):**
   Qwen3-8B Q8_0, 343-token wikitext prompt, -t 16, this workstation. Reference
   is the CPU AVX2 llama.cpp shipped with LM Studio, stock `llama-server`, same
   machine, so no rig time was used.
@@ -253,16 +276,17 @@ feature ships, delete its block and mark the row `Done` above.
   2 FMAs/cycle, so it ran at half of FMA peak no matter how the batch was
   blocked. Every win after the first came from raising the FMA:load ratio.
 - **Left:**
-  - Close the decode gap and measure both phases against mx-llama.cpp itself.
+  - Close the measured Q8 and F32 decode gaps against mx-llama.cpp itself.
     Q8_0 decode is memory-bandwidth bound (early thread scaling was flat:
     4/8/16 threads give 3.83/4.13/3.90 tok/s) at about 32 GB/s against
     llama.cpp's 37, so the ceiling on the whole gap is bandwidth efficiency.
     Allocation churn, layout fragmentation and software prefetch are measured
     NULL. mmap has not been established as a throughput improvement.
-  - An int8 x int8 inner product is NOT worth it for decode (saving ALU work
-    buys nothing while stalled on RAM) but may still help prefill. It is lossy,
-    so it needs an appropriate numerical bound; top-token rankings alone do
-    not establish that bound.
+  - The earlier bandwidth analysis predicted no decode benefit from an int8
+    activation dot. The matched Q8 gap and source inspection above motivate
+    testing that prediction explicitly on both model sizes. Activation
+    quantization is lossy and requires an appropriate numerical cost bound;
+    top-token rankings alone do not establish that bound.
 - **Gotchas:**
   - The synthetic `bench` model (2 layers, 256 embd) shows NONE of these wins:
     its matvecs take the single-threaded fast path. Measure on a real model.

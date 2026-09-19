@@ -1,0 +1,438 @@
+{
+  "date": "2026-09-19",
+  "control_revision": "5a9518c",
+  "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+  "conditions": "Ryzen 7 5800X, MSVC19.50 AVX2; F32 Qwen3-0.6B, 215+32 pinned tokens, six threads, ubatch128, F32 KV; three interleaved rounds per diagnostic, warmup per process, all samples retained; interactive workstation",
+  "initial": {
+    "hashes": {
+      "base": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+      "candidate": "0a774382bf49f988695589a1d4902b4925dde37981ce256d6ac70b892ddba1d7",
+      "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+      "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+      "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 527.5724,
+        "tg_ms": 2187.9697,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 635.9369,
+        "tg_ms": 2197.3591,
+        "top1": 4013,
+        "logit_sum": -501040.4584
+      },
+      {
+        "pair": 0,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 528.4478,
+        "tg_ms": 2136.3705,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 539.9385,
+        "tg_ms": 2230.1757,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 513.6053,
+        "tg_ms": 2153.8123,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 634.8187,
+        "tg_ms": 2183.4503,
+        "top1": 4013,
+        "logit_sum": -501040.4584
+      },
+      {
+        "pair": 2,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 537.1675,
+        "tg_ms": 2150.9356,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 2,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 531.2432,
+        "tg_ms": 2182.19,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "candidate",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 657.4962,
+        "tg_ms": 2223.551,
+        "top1": 4013,
+        "logit_sum": -501040.4584
+      }
+    ],
+    "summary": {
+      "base": {
+        "pp": {
+          "mean": 403.47718848069957,
+          "median": 404.7110626545431,
+          "minimum": 398.193497963194,
+          "maximum": 407.52700482436154
+        },
+        "tg": {
+          "mean": 14.54608132334767,
+          "median": 14.62543105601508,
+          "minimum": 14.34864526593129,
+          "maximum": 14.664167648096637
+        }
+      },
+      "candidate": {
+        "pp": {
+          "mean": 334.58710626074895,
+          "median": 338.08385706191916,
+          "minimum": 326.99808759351004,
+          "maximum": 338.6793741268176
+        },
+        "tg": {
+          "mean": 14.53667803282613,
+          "median": 14.562936026250783,
+          "minimum": 14.391394665559728,
+          "maximum": 14.655703406667879
+        }
+      },
+      "mx": {
+        "pp": {
+          "mean": 408.56963284938837,
+          "median": 406.8519161211382,
+          "minimum": 400.2475950238985,
+          "maximum": 418.6093874031284
+        },
+        "tg": {
+          "mean": 14.90443285683024,
+          "median": 14.877246905951068,
+          "minimum": 14.857376383262366,
+          "maximum": 14.978675281277289
+        }
+      }
+    }
+  },
+  "refined": {
+    "hashes": {
+      "base": "9fadf9190bc3bda6ec0435647e4b3ed334cd185d93979a210975941bbc9104c2",
+      "transpose": "8b1df6a4ea85fc78c6bdfb43986f7336d51756e2495f009830dc761a963a1d82",
+      "weights": "01f79c98080159262e1107c2cd1bf6bf3a780bbd3b6ce66cbdae93cb317df1a5",
+      "full": "cfe41b08c389d79a03550f298f341bba7bf75767d624dd0cd53ec6852c7dde52",
+      "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+      "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+      "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 529.2421,
+        "tg_ms": 2185.9713,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "transpose",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 610.1939,
+        "tg_ms": 2327.6889,
+        "top1": 4013,
+        "logit_sum": -501040.4584
+      },
+      {
+        "pair": 0,
+        "arm": "weights",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 710.023,
+        "tg_ms": 2244.0628,
+        "top1": 4013,
+        "logit_sum": -501040.4584
+      },
+      {
+        "pair": 0,
+        "arm": "full",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 740.5246,
+        "tg_ms": 2312.2381,
+        "top1": 4013,
+        "logit_sum": -501040.3293
+      },
+      {
+        "pair": 0,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 578.786,
+        "tg_ms": 2216.7631,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 586.6973,
+        "tg_ms": 2284.8775,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 587.4922,
+        "tg_ms": 2240.8456,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "full",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 729.4143,
+        "tg_ms": 2219.7892,
+        "top1": 4013,
+        "logit_sum": -501040.3293
+      },
+      {
+        "pair": 1,
+        "arm": "weights",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 718.7417,
+        "tg_ms": 2242.8525,
+        "top1": 4013,
+        "logit_sum": -501040.4584
+      },
+      {
+        "pair": 1,
+        "arm": "transpose",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 599.1578,
+        "tg_ms": 2259.6768,
+        "top1": 4013,
+        "logit_sum": -501040.4584
+      },
+      {
+        "pair": 2,
+        "arm": "weights",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 717.2647,
+        "tg_ms": 2207.0578,
+        "top1": 4013,
+        "logit_sum": -501040.4584
+      },
+      {
+        "pair": 2,
+        "arm": "full",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 729.5469,
+        "tg_ms": 2214.188,
+        "top1": 4013,
+        "logit_sum": -501040.3293
+      },
+      {
+        "pair": 2,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 570.548,
+        "tg_ms": 2268.2237,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 2,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 588.4499,
+        "tg_ms": 2277.2084,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "transpose",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 642.2771,
+        "tg_ms": 2253.6392,
+        "top1": 4013,
+        "logit_sum": -501040.4584
+      }
+    ],
+    "summary": {
+      "base": {
+        "pp": {
+          "mean": 379.3553811563549,
+          "median": 366.45813778246463,
+          "minimum": 365.36670326564763,
+          "maximum": 406.2413024209525
+        },
+        "tg": {
+          "mean": 14.232073954772197,
+          "median": 14.0522931498057,
+          "minimum": 14.005127189532043,
+          "maximum": 14.638801524978849
+        }
+      },
+      "transpose": {
+        "pp": {
+          "mean": 348.64350654207703,
+          "median": 352.34701625171937,
+          "minimum": 334.74648247617733,
+          "maximum": 358.83702089833434
+        },
+        "tg": {
+          "mean": 14.036038288558716,
+          "median": 14.161317229083378,
+          "minimum": 13.747541606612463,
+          "maximum": 14.199256029980308
+        }
+      },
+      "weights": {
+        "pp": {
+          "mean": 300.56361682796944,
+          "median": 299.7498691905513,
+          "minimum": 299.13388912873705,
+          "maximum": 302.80709216462003
+        },
+        "tg": {
+          "mean": 14.342112188679602,
+          "median": 14.26754545829474,
+          "minimum": 14.259850481902733,
+          "maximum": 14.498940625841335
+        }
+      },
+      "full": {
+        "pp": {
+          "mean": 293.26507423683137,
+          "median": 294.70346594578086,
+          "minimum": 290.33471676700543,
+          "maximum": 294.75703999770775
+        },
+        "tg": {
+          "mean": 14.235813046036602,
+          "median": 14.415783264464931,
+          "minimum": 13.83940520658318,
+          "maximum": 14.452250667061694
+        }
+      },
+      "mx": {
+        "pp": {
+          "mean": 371.42005868028565,
+          "median": 371.4671743960635,
+          "minimum": 365.9623055420991,
+          "maximum": 376.8306961026943
+        },
+        "tg": {
+          "mean": 14.274580540914698,
+          "median": 14.280323463606774,
+          "minimum": 14.107955930449013,
+          "maximum": 14.435462228688307
+        }
+      }
+    }
+  },
+  "patches": {
+    "candidate": "--- 5a9518c\n+++ scratch-candidate\n@@ -136,6 +136,40 @@\n         // size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against\n         // 24.04 for a flat 4), because the knee follows the kernel width\n         // rather than the working-set size.\n+        if (f32 && nbatch >= 16) {\n+            const size_t panels = (nbatch + 15) / 16;\n+            packed_x_.resize(panels * nin * 16);\n+            for (size_t panel = 0; panel < panels; ++panel) {\n+                float* packed = packed_x_.data() + panel * nin * 16;\n+                const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                for (size_t k = 0; k < nin; ++k) {\n+                    size_t j = 0;\n+                    for (; j < cols; ++j) packed[k * 16 + j] = X[(panel * 16 + j) * nin + k];\n+                    for (; j < 16; ++j) packed[k * 16 + j] = 0.0f;\n+                }\n+            }\n+            const size_t groups = (nout + 5) / 6;\n+            const size_t chunk = (groups + size_t(threads_) - 1) / size_t(threads_);\n+            run_parallel([&](int w) {\n+                const size_t begin = size_t(w) * chunk * 6;\n+                const size_t end = std::min(nout, begin + chunk * 6);\n+                for (size_t panel = 0; panel < panels; ++panel) {\n+                    const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                    size_t o = begin;\n+                    for (; o + 6 <= end; o += 6)\n+                        dot_packed_f32_6(reinterpret_cast<const float*>(data) + o * nin,\n+                                         nin, packed_x_.data() + panel * nin * 16,\n+                                         Y + panel * 16 * nout + o, nout, cols);\n+                    for (; o < end; ++o)\n+                        for (size_t j = 0; j < cols; ++j)\n+                            Y[(panel * 16 + j) * nout + o] = dot_f32(\n+                                reinterpret_cast<const float*>(data) + o * nin,\n+                                X + (panel * 16 + j) * nin, nin);\n+                }\n+            });\n+            return;\n+        }\n+\n         const size_t RB = (size_t)DOT_ROWS;\n \n         auto do_rows = [&](int w, size_t o0, size_t o1) {\n@@ -320,6 +354,42 @@\n         }\n     }\n \n+    static void dot_packed_f32_6(const float* rows, size_t n, const float* x,\n+                                  float* out, size_t stride, size_t columns) {\n+        __m256 a0 = _mm256_setzero_ps(), b0 = _mm256_setzero_ps();\n+        __m256 a1 = _mm256_setzero_ps(), b1 = _mm256_setzero_ps();\n+        __m256 a2 = _mm256_setzero_ps(), b2 = _mm256_setzero_ps();\n+        __m256 a3 = _mm256_setzero_ps(), b3 = _mm256_setzero_ps();\n+        __m256 a4 = _mm256_setzero_ps(), b4 = _mm256_setzero_ps();\n+        __m256 a5 = _mm256_setzero_ps(), b5 = _mm256_setzero_ps();\n+        for (size_t i = 0; i < n; ++i) {\n+            const __m256 x0 = _mm256_loadu_ps(x + i * 16);\n+            const __m256 x1 = _mm256_loadu_ps(x + i * 16 + 8);\n+            __m256 w;\n+            w = _mm256_set1_ps(rows[0 * n + i]);\n+            a0 = _mm256_fmadd_ps(w, x0, a0); b0 = _mm256_fmadd_ps(w, x1, b0);\n+            w = _mm256_set1_ps(rows[1 * n + i]);\n+            a1 = _mm256_fmadd_ps(w, x0, a1); b1 = _mm256_fmadd_ps(w, x1, b1);\n+            w = _mm256_set1_ps(rows[2 * n + i]);\n+            a2 = _mm256_fmadd_ps(w, x0, a2); b2 = _mm256_fmadd_ps(w, x1, b2);\n+            w = _mm256_set1_ps(rows[3 * n + i]);\n+            a3 = _mm256_fmadd_ps(w, x0, a3); b3 = _mm256_fmadd_ps(w, x1, b3);\n+            w = _mm256_set1_ps(rows[4 * n + i]);\n+            a4 = _mm256_fmadd_ps(w, x0, a4); b4 = _mm256_fmadd_ps(w, x1, b4);\n+            w = _mm256_set1_ps(rows[5 * n + i]);\n+            a5 = _mm256_fmadd_ps(w, x0, a5); b5 = _mm256_fmadd_ps(w, x1, b5);\n+        }\n+        alignas(32) float values[6][16];\n+        _mm256_store_ps(values[0], a0); _mm256_store_ps(values[0] + 8, b0);\n+        _mm256_store_ps(values[1], a1); _mm256_store_ps(values[1] + 8, b1);\n+        _mm256_store_ps(values[2], a2); _mm256_store_ps(values[2] + 8, b2);\n+        _mm256_store_ps(values[3], a3); _mm256_store_ps(values[3] + 8, b3);\n+        _mm256_store_ps(values[4], a4); _mm256_store_ps(values[4] + 8, b4);\n+        _mm256_store_ps(values[5], a5); _mm256_store_ps(values[5] + 8, b5);\n+        for (size_t j = 0; j < columns; ++j)\n+            for (size_t r = 0; r < 6; ++r) out[j * stride + r] = values[r][j];\n+    }\n+\n     // Four independent accumulators. With a single accumulator every FMA\n     // depends on the previous one, so the loop runs at FMA LATENCY (about 4\n     // cycles) instead of FMA throughput (about 0.5), which is most of an order\n@@ -501,6 +571,7 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<float> packed_x_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n",
+    "transpose": "--- 5a9518c\n+++ scratch-candidate\n@@ -136,6 +136,48 @@\n         // size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against\n         // 24.04 for a flat 4), because the knee follows the kernel width\n         // rather than the working-set size.\n+        if (f32 && nbatch >= 16) {\n+            const size_t panels = (nbatch + 15) / 16;\n+            packed_x_.resize(panels * nin * 16);\n+            for (size_t panel = 0; panel < panels; ++panel) {\n+                float* packed = packed_x_.data() + panel * nin * 16;\n+                const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                size_t j = 0;\n+                for (; j + 8 <= cols; j += 8) {\n+                    size_t k = 0;\n+                    for (; k + 8 <= nin; k += 8)\n+                        pack_transpose8(X + (panel * 16 + j) * nin + k, nin, packed + k * 16 + j);\n+                    for (; k < nin; ++k)\n+                        for (size_t c = 0; c < 8; ++c) packed[k * 16 + j + c] = X[(panel * 16 + j + c) * nin + k];\n+                }\n+                for (size_t k = 0; k < nin; ++k) {\n+                    size_t c = j;\n+                    for (; c < cols; ++c) packed[k * 16 + c] = X[(panel * 16 + c) * nin + k];\n+                    for (; c < 16; ++c) packed[k * 16 + c] = 0.0f;\n+                }\n+            }\n+            const size_t groups = (nout + 5) / 6;\n+            const size_t chunk = (groups + size_t(threads_) - 1) / size_t(threads_);\n+            run_parallel([&](int w) {\n+                const size_t begin = size_t(w) * chunk * 6;\n+                const size_t end = std::min(nout, begin + chunk * 6);\n+                for (size_t panel = 0; panel < panels; ++panel) {\n+                    const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                    size_t o = begin;\n+                    for (; o + 6 <= end; o += 6)\n+                        dot_packed_f32_6(reinterpret_cast<const float*>(data) + o * nin,\n+                                         nin, packed_x_.data() + panel * nin * 16,\n+                                         Y + panel * 16 * nout + o, nout, cols);\n+                    for (; o < end; ++o)\n+                        for (size_t j = 0; j < cols; ++j)\n+                            Y[(panel * 16 + j) * nout + o] = dot_f32(\n+                                reinterpret_cast<const float*>(data) + o * nin,\n+                                X + (panel * 16 + j) * nin, nin);\n+                }\n+            });\n+            return;\n+        }\n+\n         const size_t RB = (size_t)DOT_ROWS;\n \n         auto do_rows = [&](int w, size_t o0, size_t o1) {\n@@ -320,6 +362,77 @@\n         }\n     }\n \n+    static void pack_transpose8(const float* x, size_t stride, float* p) {\n+        const __m256 r0 = _mm256_loadu_ps(x + 0 * stride);\n+        const __m256 r1 = _mm256_loadu_ps(x + 1 * stride);\n+        const __m256 r2 = _mm256_loadu_ps(x + 2 * stride);\n+        const __m256 r3 = _mm256_loadu_ps(x + 3 * stride);\n+        const __m256 r4 = _mm256_loadu_ps(x + 4 * stride);\n+        const __m256 r5 = _mm256_loadu_ps(x + 5 * stride);\n+        const __m256 r6 = _mm256_loadu_ps(x + 6 * stride);\n+        const __m256 r7 = _mm256_loadu_ps(x + 7 * stride);\n+        const __m256 t0 = _mm256_unpacklo_ps(r0, r1);\n+        const __m256 t1 = _mm256_unpackhi_ps(r0, r1);\n+        const __m256 t2 = _mm256_unpacklo_ps(r2, r3);\n+        const __m256 t3 = _mm256_unpackhi_ps(r2, r3);\n+        const __m256 t4 = _mm256_unpacklo_ps(r4, r5);\n+        const __m256 t5 = _mm256_unpackhi_ps(r4, r5);\n+        const __m256 t6 = _mm256_unpacklo_ps(r6, r7);\n+        const __m256 t7 = _mm256_unpackhi_ps(r6, r7);\n+        const __m256 s0 = _mm256_shuffle_ps(t0, t2, 0x44);\n+        const __m256 s1 = _mm256_shuffle_ps(t0, t2, 0xee);\n+        const __m256 s2 = _mm256_shuffle_ps(t1, t3, 0x44);\n+        const __m256 s3 = _mm256_shuffle_ps(t1, t3, 0xee);\n+        const __m256 s4 = _mm256_shuffle_ps(t4, t6, 0x44);\n+        const __m256 s5 = _mm256_shuffle_ps(t4, t6, 0xee);\n+        const __m256 s6 = _mm256_shuffle_ps(t5, t7, 0x44);\n+        const __m256 s7 = _mm256_shuffle_ps(t5, t7, 0xee);\n+        _mm256_storeu_ps(p + 0 * 16, _mm256_permute2f128_ps(s0, s4, 0x20));\n+        _mm256_storeu_ps(p + 4 * 16, _mm256_permute2f128_ps(s0, s4, 0x31));\n+        _mm256_storeu_ps(p + 1 * 16, _mm256_permute2f128_ps(s1, s5, 0x20));\n+        _mm256_storeu_ps(p + 5 * 16, _mm256_permute2f128_ps(s1, s5, 0x31));\n+        _mm256_storeu_ps(p + 2 * 16, _mm256_permute2f128_ps(s2, s6, 0x20));\n+        _mm256_storeu_ps(p + 6 * 16, _mm256_permute2f128_ps(s2, s6, 0x31));\n+        _mm256_storeu_ps(p + 3 * 16, _mm256_permute2f128_ps(s3, s7, 0x20));\n+        _mm256_storeu_ps(p + 7 * 16, _mm256_permute2f128_ps(s3, s7, 0x31));\n+    }\n+\n+    static void dot_packed_f32_6(const float* rows, size_t n, const float* x,\n+                                  float* out, size_t stride, size_t columns) {\n+        __m256 a0 = _mm256_setzero_ps(), b0 = _mm256_setzero_ps();\n+        __m256 a1 = _mm256_setzero_ps(), b1 = _mm256_setzero_ps();\n+        __m256 a2 = _mm256_setzero_ps(), b2 = _mm256_setzero_ps();\n+        __m256 a3 = _mm256_setzero_ps(), b3 = _mm256_setzero_ps();\n+        __m256 a4 = _mm256_setzero_ps(), b4 = _mm256_setzero_ps();\n+        __m256 a5 = _mm256_setzero_ps(), b5 = _mm256_setzero_ps();\n+        for (size_t i = 0; i < n; ++i) {\n+            const __m256 x0 = _mm256_loadu_ps(x + i * 16);\n+            const __m256 x1 = _mm256_loadu_ps(x + i * 16 + 8);\n+            __m256 w;\n+            w = _mm256_set1_ps(rows[0 * n + i]);\n+            a0 = _mm256_fmadd_ps(w, x0, a0); b0 = _mm256_fmadd_ps(w, x1, b0);\n+            w = _mm256_set1_ps(rows[1 * n + i]);\n+            a1 = _mm256_fmadd_ps(w, x0, a1); b1 = _mm256_fmadd_ps(w, x1, b1);\n+            w = _mm256_set1_ps(rows[2 * n + i]);\n+            a2 = _mm256_fmadd_ps(w, x0, a2); b2 = _mm256_fmadd_ps(w, x1, b2);\n+            w = _mm256_set1_ps(rows[3 * n + i]);\n+            a3 = _mm256_fmadd_ps(w, x0, a3); b3 = _mm256_fmadd_ps(w, x1, b3);\n+            w = _mm256_set1_ps(rows[4 * n + i]);\n+            a4 = _mm256_fmadd_ps(w, x0, a4); b4 = _mm256_fmadd_ps(w, x1, b4);\n+            w = _mm256_set1_ps(rows[5 * n + i]);\n+            a5 = _mm256_fmadd_ps(w, x0, a5); b5 = _mm256_fmadd_ps(w, x1, b5);\n+        }\n+        alignas(32) float values[6][16];\n+        _mm256_store_ps(values[0], a0); _mm256_store_ps(values[0] + 8, b0);\n+        _mm256_store_ps(values[1], a1); _mm256_store_ps(values[1] + 8, b1);\n+        _mm256_store_ps(values[2], a2); _mm256_store_ps(values[2] + 8, b2);\n+        _mm256_store_ps(values[3], a3); _mm256_store_ps(values[3] + 8, b3);\n+        _mm256_store_ps(values[4], a4); _mm256_store_ps(values[4] + 8, b4);\n+        _mm256_store_ps(values[5], a5); _mm256_store_ps(values[5] + 8, b5);\n+        for (size_t j = 0; j < columns; ++j)\n+            for (size_t r = 0; r < 6; ++r) out[j * stride + r] = values[r][j];\n+    }\n+\n     // Four independent accumulators. With a single accumulator every FMA\n     // depends on the previous one, so the loop runs at FMA LATENCY (about 4\n     // cycles) instead of FMA throughput (about 0.5), which is most of an order\n@@ -501,6 +614,7 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<float> packed_x_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n",
+    "weights": "--- 5a9518c\n+++ scratch-candidate\n@@ -136,6 +136,53 @@\n         // size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against\n         // 24.04 for a flat 4), because the knee follows the kernel width\n         // rather than the working-set size.\n+        if (f32 && nbatch >= 16) {\n+            const size_t panels = (nbatch + 15) / 16;\n+            packed_x_.resize(panels * nin * 16);\n+            for (size_t panel = 0; panel < panels; ++panel) {\n+                float* packed = packed_x_.data() + panel * nin * 16;\n+                const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                size_t j = 0;\n+                for (; j + 8 <= cols; j += 8) {\n+                    size_t k = 0;\n+                    for (; k + 8 <= nin; k += 8)\n+                        pack_transpose8(X + (panel * 16 + j) * nin + k, nin, packed + k * 16 + j);\n+                    for (; k < nin; ++k)\n+                        for (size_t c = 0; c < 8; ++c) packed[k * 16 + j + c] = X[(panel * 16 + j + c) * nin + k];\n+                }\n+                for (size_t k = 0; k < nin; ++k) {\n+                    size_t c = j;\n+                    for (; c < cols; ++c) packed[k * 16 + c] = X[(panel * 16 + c) * nin + k];\n+                    for (; c < 16; ++c) packed[k * 16 + c] = 0.0f;\n+                }\n+            }\n+            const size_t groups = (nout + 5) / 6;\n+            const size_t chunk = (groups + size_t(threads_) - 1) / size_t(threads_);\n+            run_parallel([&](int w) {\n+                const size_t begin = size_t(w) * chunk * 6;\n+                const size_t end = std::min(nout, begin + chunk * 6);\n+                std::vector<float>& packed_weights = rowbuf_[size_t(w)];\n+                packed_weights.resize(nin * 6);\n+                size_t o = begin;\n+                for (; o + 6 <= end; o += 6) {\n+                    const float* rows = reinterpret_cast<const float*>(data) + o * nin;\n+                    for (size_t k = 0; k < nin; ++k)\n+                        for (size_t r = 0; r < 6; ++r) packed_weights[k * 6 + r] = rows[r * nin + k];\n+                    for (size_t panel = 0; panel < panels; ++panel) {\n+                        const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                        dot_packed_f32_6(packed_weights.data(), nin,\n+                            packed_x_.data() + panel * nin * 16,\n+                            Y + panel * 16 * nout + o, nout, cols);\n+                    }\n+                }\n+                for (; o < end; ++o)\n+                    for (size_t j = 0; j < nbatch; ++j)\n+                        Y[j * nout + o] = dot_f32(reinterpret_cast<const float*>(data) + o * nin,\n+                                                X + j * nin, nin);\n+            });\n+            return;\n+        }\n+\n         const size_t RB = (size_t)DOT_ROWS;\n \n         auto do_rows = [&](int w, size_t o0, size_t o1) {\n@@ -320,6 +367,77 @@\n         }\n     }\n \n+    static void pack_transpose8(const float* x, size_t stride, float* p) {\n+        const __m256 r0 = _mm256_loadu_ps(x + 0 * stride);\n+        const __m256 r1 = _mm256_loadu_ps(x + 1 * stride);\n+        const __m256 r2 = _mm256_loadu_ps(x + 2 * stride);\n+        const __m256 r3 = _mm256_loadu_ps(x + 3 * stride);\n+        const __m256 r4 = _mm256_loadu_ps(x + 4 * stride);\n+        const __m256 r5 = _mm256_loadu_ps(x + 5 * stride);\n+        const __m256 r6 = _mm256_loadu_ps(x + 6 * stride);\n+        const __m256 r7 = _mm256_loadu_ps(x + 7 * stride);\n+        const __m256 t0 = _mm256_unpacklo_ps(r0, r1);\n+        const __m256 t1 = _mm256_unpackhi_ps(r0, r1);\n+        const __m256 t2 = _mm256_unpacklo_ps(r2, r3);\n+        const __m256 t3 = _mm256_unpackhi_ps(r2, r3);\n+        const __m256 t4 = _mm256_unpacklo_ps(r4, r5);\n+        const __m256 t5 = _mm256_unpackhi_ps(r4, r5);\n+        const __m256 t6 = _mm256_unpacklo_ps(r6, r7);\n+        const __m256 t7 = _mm256_unpackhi_ps(r6, r7);\n+        const __m256 s0 = _mm256_shuffle_ps(t0, t2, 0x44);\n+        const __m256 s1 = _mm256_shuffle_ps(t0, t2, 0xee);\n+        const __m256 s2 = _mm256_shuffle_ps(t1, t3, 0x44);\n+        const __m256 s3 = _mm256_shuffle_ps(t1, t3, 0xee);\n+        const __m256 s4 = _mm256_shuffle_ps(t4, t6, 0x44);\n+        const __m256 s5 = _mm256_shuffle_ps(t4, t6, 0xee);\n+        const __m256 s6 = _mm256_shuffle_ps(t5, t7, 0x44);\n+        const __m256 s7 = _mm256_shuffle_ps(t5, t7, 0xee);\n+        _mm256_storeu_ps(p + 0 * 16, _mm256_permute2f128_ps(s0, s4, 0x20));\n+        _mm256_storeu_ps(p + 4 * 16, _mm256_permute2f128_ps(s0, s4, 0x31));\n+        _mm256_storeu_ps(p + 1 * 16, _mm256_permute2f128_ps(s1, s5, 0x20));\n+        _mm256_storeu_ps(p + 5 * 16, _mm256_permute2f128_ps(s1, s5, 0x31));\n+        _mm256_storeu_ps(p + 2 * 16, _mm256_permute2f128_ps(s2, s6, 0x20));\n+        _mm256_storeu_ps(p + 6 * 16, _mm256_permute2f128_ps(s2, s6, 0x31));\n+        _mm256_storeu_ps(p + 3 * 16, _mm256_permute2f128_ps(s3, s7, 0x20));\n+        _mm256_storeu_ps(p + 7 * 16, _mm256_permute2f128_ps(s3, s7, 0x31));\n+    }\n+\n+    static void dot_packed_f32_6(const float* rows, size_t n, const float* x,\n+                                  float* out, size_t stride, size_t columns) {\n+        __m256 a0 = _mm256_setzero_ps(), b0 = _mm256_setzero_ps();\n+        __m256 a1 = _mm256_setzero_ps(), b1 = _mm256_setzero_ps();\n+        __m256 a2 = _mm256_setzero_ps(), b2 = _mm256_setzero_ps();\n+        __m256 a3 = _mm256_setzero_ps(), b3 = _mm256_setzero_ps();\n+        __m256 a4 = _mm256_setzero_ps(), b4 = _mm256_setzero_ps();\n+        __m256 a5 = _mm256_setzero_ps(), b5 = _mm256_setzero_ps();\n+        for (size_t i = 0; i < n; ++i) {\n+            const __m256 x0 = _mm256_loadu_ps(x + i * 16);\n+            const __m256 x1 = _mm256_loadu_ps(x + i * 16 + 8);\n+            __m256 w;\n+            w = _mm256_set1_ps(rows[i * 6 + 0]);\n+            a0 = _mm256_fmadd_ps(w, x0, a0); b0 = _mm256_fmadd_ps(w, x1, b0);\n+            w = _mm256_set1_ps(rows[i * 6 + 1]);\n+            a1 = _mm256_fmadd_ps(w, x0, a1); b1 = _mm256_fmadd_ps(w, x1, b1);\n+            w = _mm256_set1_ps(rows[i * 6 + 2]);\n+            a2 = _mm256_fmadd_ps(w, x0, a2); b2 = _mm256_fmadd_ps(w, x1, b2);\n+            w = _mm256_set1_ps(rows[i * 6 + 3]);\n+            a3 = _mm256_fmadd_ps(w, x0, a3); b3 = _mm256_fmadd_ps(w, x1, b3);\n+            w = _mm256_set1_ps(rows[i * 6 + 4]);\n+            a4 = _mm256_fmadd_ps(w, x0, a4); b4 = _mm256_fmadd_ps(w, x1, b4);\n+            w = _mm256_set1_ps(rows[i * 6 + 5]);\n+            a5 = _mm256_fmadd_ps(w, x0, a5); b5 = _mm256_fmadd_ps(w, x1, b5);\n+        }\n+        alignas(32) float values[6][16];\n+        _mm256_store_ps(values[0], a0); _mm256_store_ps(values[0] + 8, b0);\n+        _mm256_store_ps(values[1], a1); _mm256_store_ps(values[1] + 8, b1);\n+        _mm256_store_ps(values[2], a2); _mm256_store_ps(values[2] + 8, b2);\n+        _mm256_store_ps(values[3], a3); _mm256_store_ps(values[3] + 8, b3);\n+        _mm256_store_ps(values[4], a4); _mm256_store_ps(values[4] + 8, b4);\n+        _mm256_store_ps(values[5], a5); _mm256_store_ps(values[5] + 8, b5);\n+        for (size_t j = 0; j < columns; ++j)\n+            for (size_t r = 0; r < 6; ++r) out[j * stride + r] = values[r][j];\n+    }\n+\n     // Four independent accumulators. With a single accumulator every FMA\n     // depends on the previous one, so the loop runs at FMA LATENCY (about 4\n     // cycles) instead of FMA throughput (about 0.5), which is most of an order\n@@ -501,6 +619,7 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<float> packed_x_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n",
+    "full": "--- 5a9518c\n+++ scratch-candidate\n@@ -136,6 +136,56 @@\n         // size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against\n         // 24.04 for a flat 4), because the knee follows the kernel width\n         // rather than the working-set size.\n+        if (f32 && nbatch >= 16) {\n+            const size_t panels = nbatch / 16;\n+            packed_x_.resize(panels * nin * 16);\n+            for (size_t panel = 0; panel < panels; ++panel) {\n+                float* packed = packed_x_.data() + panel * nin * 16;\n+                const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                size_t j = 0;\n+                for (; j + 8 <= cols; j += 8) {\n+                    size_t k = 0;\n+                    for (; k + 8 <= nin; k += 8)\n+                        pack_transpose8(X + (panel * 16 + j) * nin + k, nin, packed + k * 16 + j);\n+                    for (; k < nin; ++k)\n+                        for (size_t c = 0; c < 8; ++c) packed[k * 16 + j + c] = X[(panel * 16 + j + c) * nin + k];\n+                }\n+                for (size_t k = 0; k < nin; ++k) {\n+                    size_t c = j;\n+                    for (; c < cols; ++c) packed[k * 16 + c] = X[(panel * 16 + c) * nin + k];\n+                    for (; c < 16; ++c) packed[k * 16 + c] = 0.0f;\n+                }\n+            }\n+            const size_t groups = (nout + 5) / 6;\n+            const size_t chunk = (groups + size_t(threads_) - 1) / size_t(threads_);\n+            run_parallel([&](int w) {\n+                const size_t begin = size_t(w) * chunk * 6;\n+                const size_t end = std::min(nout, begin + chunk * 6);\n+                std::vector<float>& packed_weights = rowbuf_[size_t(w)];\n+                packed_weights.resize(nin * 6);\n+                size_t o = begin;\n+                for (; o + 6 <= end; o += 6) {\n+                    const float* rows = reinterpret_cast<const float*>(data) + o * nin;\n+                    for (size_t k = 0; k < nin; ++k)\n+                        for (size_t r = 0; r < 6; ++r) packed_weights[k * 6 + r] = rows[r * nin + k];\n+                    for (size_t panel = 0; panel < panels; ++panel) {\n+                        const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                        dot_packed_f32_6(packed_weights.data(), nin,\n+                            packed_x_.data() + panel * nin * 16,\n+                            Y + panel * 16 * nout + o, nout, cols);\n+                    }\n+                }\n+                for (; o < end; ++o)\n+                    for (size_t j = 0; j < panels * 16; ++j)\n+                        Y[j * nout + o] = dot_f32(reinterpret_cast<const float*>(data) + o * nin,\n+                                                X + j * nin, nin);\n+            });\n+            const size_t done = panels * 16;\n+            if (done < nbatch)\n+                matmul(ggml_type, data, X + done * nin, Y + done * nout, nin, nout, nbatch - done);\n+            return;\n+        }\n+\n         const size_t RB = (size_t)DOT_ROWS;\n \n         auto do_rows = [&](int w, size_t o0, size_t o1) {\n@@ -320,6 +370,77 @@\n         }\n     }\n \n+    static void pack_transpose8(const float* x, size_t stride, float* p) {\n+        const __m256 r0 = _mm256_loadu_ps(x + 0 * stride);\n+        const __m256 r1 = _mm256_loadu_ps(x + 1 * stride);\n+        const __m256 r2 = _mm256_loadu_ps(x + 2 * stride);\n+        const __m256 r3 = _mm256_loadu_ps(x + 3 * stride);\n+        const __m256 r4 = _mm256_loadu_ps(x + 4 * stride);\n+        const __m256 r5 = _mm256_loadu_ps(x + 5 * stride);\n+        const __m256 r6 = _mm256_loadu_ps(x + 6 * stride);\n+        const __m256 r7 = _mm256_loadu_ps(x + 7 * stride);\n+        const __m256 t0 = _mm256_unpacklo_ps(r0, r1);\n+        const __m256 t1 = _mm256_unpackhi_ps(r0, r1);\n+        const __m256 t2 = _mm256_unpacklo_ps(r2, r3);\n+        const __m256 t3 = _mm256_unpackhi_ps(r2, r3);\n+        const __m256 t4 = _mm256_unpacklo_ps(r4, r5);\n+        const __m256 t5 = _mm256_unpackhi_ps(r4, r5);\n+        const __m256 t6 = _mm256_unpacklo_ps(r6, r7);\n+        const __m256 t7 = _mm256_unpackhi_ps(r6, r7);\n+        const __m256 s0 = _mm256_shuffle_ps(t0, t2, 0x44);\n+        const __m256 s1 = _mm256_shuffle_ps(t0, t2, 0xee);\n+        const __m256 s2 = _mm256_shuffle_ps(t1, t3, 0x44);\n+        const __m256 s3 = _mm256_shuffle_ps(t1, t3, 0xee);\n+        const __m256 s4 = _mm256_shuffle_ps(t4, t6, 0x44);\n+        const __m256 s5 = _mm256_shuffle_ps(t4, t6, 0xee);\n+        const __m256 s6 = _mm256_shuffle_ps(t5, t7, 0x44);\n+        const __m256 s7 = _mm256_shuffle_ps(t5, t7, 0xee);\n+        _mm256_storeu_ps(p + 0 * 16, _mm256_permute2f128_ps(s0, s4, 0x20));\n+        _mm256_storeu_ps(p + 4 * 16, _mm256_permute2f128_ps(s0, s4, 0x31));\n+        _mm256_storeu_ps(p + 1 * 16, _mm256_permute2f128_ps(s1, s5, 0x20));\n+        _mm256_storeu_ps(p + 5 * 16, _mm256_permute2f128_ps(s1, s5, 0x31));\n+        _mm256_storeu_ps(p + 2 * 16, _mm256_permute2f128_ps(s2, s6, 0x20));\n+        _mm256_storeu_ps(p + 6 * 16, _mm256_permute2f128_ps(s2, s6, 0x31));\n+        _mm256_storeu_ps(p + 3 * 16, _mm256_permute2f128_ps(s3, s7, 0x20));\n+        _mm256_storeu_ps(p + 7 * 16, _mm256_permute2f128_ps(s3, s7, 0x31));\n+    }\n+\n+    static void dot_packed_f32_6(const float* rows, size_t n, const float* x,\n+                                  float* out, size_t stride, size_t columns) {\n+        __m256 a0 = _mm256_setzero_ps(), b0 = _mm256_setzero_ps();\n+        __m256 a1 = _mm256_setzero_ps(), b1 = _mm256_setzero_ps();\n+        __m256 a2 = _mm256_setzero_ps(), b2 = _mm256_setzero_ps();\n+        __m256 a3 = _mm256_setzero_ps(), b3 = _mm256_setzero_ps();\n+        __m256 a4 = _mm256_setzero_ps(), b4 = _mm256_setzero_ps();\n+        __m256 a5 = _mm256_setzero_ps(), b5 = _mm256_setzero_ps();\n+        for (size_t i = 0; i < n; ++i) {\n+            const __m256 x0 = _mm256_loadu_ps(x + i * 16);\n+            const __m256 x1 = _mm256_loadu_ps(x + i * 16 + 8);\n+            __m256 w;\n+            w = _mm256_set1_ps(rows[i * 6 + 0]);\n+            a0 = _mm256_fmadd_ps(w, x0, a0); b0 = _mm256_fmadd_ps(w, x1, b0);\n+            w = _mm256_set1_ps(rows[i * 6 + 1]);\n+            a1 = _mm256_fmadd_ps(w, x0, a1); b1 = _mm256_fmadd_ps(w, x1, b1);\n+            w = _mm256_set1_ps(rows[i * 6 + 2]);\n+            a2 = _mm256_fmadd_ps(w, x0, a2); b2 = _mm256_fmadd_ps(w, x1, b2);\n+            w = _mm256_set1_ps(rows[i * 6 + 3]);\n+            a3 = _mm256_fmadd_ps(w, x0, a3); b3 = _mm256_fmadd_ps(w, x1, b3);\n+            w = _mm256_set1_ps(rows[i * 6 + 4]);\n+            a4 = _mm256_fmadd_ps(w, x0, a4); b4 = _mm256_fmadd_ps(w, x1, b4);\n+            w = _mm256_set1_ps(rows[i * 6 + 5]);\n+            a5 = _mm256_fmadd_ps(w, x0, a5); b5 = _mm256_fmadd_ps(w, x1, b5);\n+        }\n+        alignas(32) float values[6][16];\n+        _mm256_store_ps(values[0], a0); _mm256_store_ps(values[0] + 8, b0);\n+        _mm256_store_ps(values[1], a1); _mm256_store_ps(values[1] + 8, b1);\n+        _mm256_store_ps(values[2], a2); _mm256_store_ps(values[2] + 8, b2);\n+        _mm256_store_ps(values[3], a3); _mm256_store_ps(values[3] + 8, b3);\n+        _mm256_store_ps(values[4], a4); _mm256_store_ps(values[4] + 8, b4);\n+        _mm256_store_ps(values[5], a5); _mm256_store_ps(values[5] + 8, b5);\n+        for (size_t j = 0; j < columns; ++j)\n+            for (size_t r = 0; r < 6; ++r) out[j * stride + r] = values[r][j];\n+    }\n+\n     // Four independent accumulators. With a single accumulator every FMA\n     // depends on the previous one, so the loop runs at FMA LATENCY (about 4\n     // cycles) instead of FMA throughput (about 0.5), which is most of an order\n@@ -501,6 +622,7 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<float> packed_x_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n"
+  },
+  "scripts": {
+    "build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-packed-prefill\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:candidate.exe /Fo:candidate.obj \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nexit /b %errorlevel%\n",
+    "diagnostic.py": "import hashlib,json,math,os,statistics,subprocess\nfrom pathlib import Path\nroot=Path.home()/'AppData/Local/Temp'\nout=root/'llmx-packed-prefill/diagnostic'\nout.mkdir(exist_ok=False)\narms={'base':root/'llmx-attention-values/validation/candidate-compare.exe','candidate':root/'llmx-packed-prefill/candidate.exe','mx':Path.home()/'Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe'}\nmodel=root/'Qwen3-0.6B-F32.gguf'\nids=root/'llmx-external-perf/eight-pairs/tokens.txt'\nhashes={name:hashlib.file_digest(path.open('rb'),'sha256').hexdigest() for name,path in dict(arms,model=model,tokens=ids).items()}\n(out/'hashes.json').write_text(json.dumps(hashes,indent=2))\nprint(hashes,flush=True)\nrows=[]\nfor pair in range(3):\n    order=list(arms)\n    order=order[pair%len(arms):]+order[:pair%len(arms)]\n    if pair%2: order.reverse()\n    for arm in order:\n        p=subprocess.run([str(arms[arm]),str(model),str(ids)],capture_output=True,timeout=180)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        samples=[json.loads(line) for line in p.stdout.decode().splitlines() if line]\n        assert len(samples)==2 and samples[0]['run']==0 and samples[1]['run']==1\n        row=dict(pair=pair,arm=arm,**samples[1])\n        assert row['pp_tokens']==215 and row['tg_tokens']==32 and row['top1']==4013\n        assert math.isfinite(row['logit_sum'])\n        assert all(math.isfinite(row[k]) and row[k]>0 for k in ('pp_ms','tg_ms'))\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for phase in ('pp','tg'):\n        rates=[r[phase+'_tokens']*1000/r[phase+'_ms'] for r in rows if r['arm']==arm]\n        summary[arm][phase]=dict(mean=statistics.mean(rates),median=statistics.median(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\nprint(summary,flush=True)\n",
+    "refined-diagnostic.py": "import hashlib,json,math,os,statistics,subprocess\nfrom pathlib import Path\nroot=Path.home()/'AppData/Local/Temp'\nout=root/'llmx-packed-prefill/refined-diagnostic'\nout.mkdir(exist_ok=False)\narms={'base':root/'llmx-attention-values/validation/candidate-compare.exe','transpose':root/'llmx-packed-prefill/transpose.exe','weights':root/'llmx-packed-prefill/weights.exe','full':root/'llmx-packed-prefill/full.exe','mx':Path.home()/'Desktop/Projects/llmx-ref/build/bin/Release/llmx-compare.exe'}\nmodel=root/'Qwen3-0.6B-F32.gguf'\nids=root/'llmx-external-perf/eight-pairs/tokens.txt'\nhashes={name:hashlib.file_digest(path.open('rb'),'sha256').hexdigest() for name,path in dict(arms,model=model,tokens=ids).items()}\n(out/'hashes.json').write_text(json.dumps(hashes,indent=2))\nprint(hashes,flush=True)\nrows=[]\nfor pair in range(3):\n    order=list(arms)\n    order=order[pair%len(arms):]+order[:pair%len(arms)]\n    if pair%2: order.reverse()\n    for arm in order:\n        p=subprocess.run([str(arms[arm]),str(model),str(ids)],capture_output=True,timeout=180)\n        (out/f'{pair}-{arm}.stdout').write_bytes(p.stdout)\n        (out/f'{pair}-{arm}.stderr').write_bytes(p.stderr)\n        p.check_returncode()\n        samples=[json.loads(line) for line in p.stdout.decode().splitlines() if line]\n        assert len(samples)==2 and samples[0]['run']==0 and samples[1]['run']==1\n        row=dict(pair=pair,arm=arm,**samples[1])\n        assert row['pp_tokens']==215 and row['tg_tokens']==32 and row['top1']==4013\n        assert math.isfinite(row['logit_sum'])\n        assert all(math.isfinite(row[k]) and row[k]>0 for k in ('pp_ms','tg_ms'))\n        rows.append(row)\n        (out/'results.json').write_text(json.dumps(rows,indent=2))\n        print(row,flush=True)\nsummary={}\nfor arm in arms:\n    summary[arm]={}\n    for phase in ('pp','tg'):\n        rates=[r[phase+'_tokens']*1000/r[phase+'_ms'] for r in rows if r['arm']==arm]\n        summary[arm][phase]=dict(mean=statistics.mean(rates),median=statistics.median(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2))\nprint(summary,flush=True)\n",
+    "profile.cpp": "#include <algorithm>\n#include <chrono>\n#include <cmath>\n#include <fstream>\n#include <iomanip>\n#include <iostream>\n#include <stdexcept>\n#include <vector>\n#include <map>\n#include <tuple>\n#ifdef LLMX_COMPARE_REFERENCE\n#include \"llama.h\"\n#else\n#include \"model/arch_qwen.hpp\"\n#endif\nusing Clock = std::chrono::steady_clock;\nstruct ProfileCpu : backend::CpuBackend {\n    std::map<std::tuple<size_t,size_t,size_t>,double> matrices;\n    double attention_ms=0, elementwise_ms=0;\n    bool in_attention=false;\n    void matmul(uint32_t type,const uint8_t* data,const float* X,float* Y,size_t ni,size_t no,size_t nb) override {\n        auto start=Clock::now();\n        CpuBackend::matmul(type,data,X,Y,ni,no,nb);\n        matrices[{ni,no,nb}]+=std::chrono::duration<double,std::milli>(Clock::now()-start).count();\n    }\n    void attention(const float* Q,const float* K,const float* V,float* out,int h,int hk,int d,int past,int batch) override {\n        auto start=Clock::now();in_attention=true;\n        CpuBackend::attention(Q,K,V,out,h,hk,d,past,batch);\n        in_attention=false;attention_ms+=std::chrono::duration<double,std::milli>(Clock::now()-start).count();\n    }\n    void parallel_for(int n,const std::function<void(int)>& fn) override {\n        auto start=Clock::now();CpuBackend::parallel_for(n,fn);\n        if(!in_attention) elementwise_ms+=std::chrono::duration<double,std::milli>(Clock::now()-start).count();\n    }\n    void reset_profile() {matrices.clear();attention_ms=elementwise_ms=pack_ms=0;}\n    void report(const char* phase) {\n        std::cerr<<\"packing_ms=\"<<pack_ms<<\"\\n\";\n        std::cerr<<phase<<\" attention_ms=\"<<attention_ms<<\" parallel_elementwise_ms=\"<<elementwise_ms<<\"\\n\";\n        for(const auto& item:matrices) std::cerr<<phase<<\" matmul \"<<std::get<0>(item.first)<<\" \"<<std::get<1>(item.first)<<\" \"<<std::get<2>(item.first)<<\" ms=\"<<item.second<<\"\\n\";\n    }\n};\nint main(int argc, char ** argv) {\n    if (argc != 3) {\n        std::cerr << \"usage: compare-cpu MODEL.gguf TOKEN_IDS.txt\\n\";\n        return 2;\n    }\n    std::ifstream input(argv[2]);\n    std::vector<uint32_t> ids;\n    uint32_t id;\n    while (input >> id) ids.push_back(id);\n    if (ids.size() != 247) throw std::runtime_error(\"expected 247 pinned HF tokens\");\n    const size_t np = ids.size() - 32;\n    std::vector<uint32_t> prompt(ids.begin(), ids.begin() + np);\n#ifdef LLMX_COMPARE_REFERENCE\n    llama_backend_init();\n    auto mp = llama_model_default_params();\n    mp.n_gpu_layers = 0;\n    mp.load_mode = LLAMA_LOAD_MODE_NONE;\n    auto * model = llama_model_load_from_file(argv[1], mp);\n    if (!model) return 3;\n    auto cp = llama_context_default_params();\n    cp.n_ctx = 512;\n    cp.n_batch = (uint32_t)np;\n    cp.n_ubatch = 128;\n    cp.n_threads = cp.n_threads_batch = 6;\n    cp.type_k = cp.type_v = GGML_TYPE_F32;\n    cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;\n    cp.offload_kqv = cp.op_offload = false;\n    auto * ctx = llama_init_from_model(model, cp);\n    if (!ctx) return 4;\n    const size_t nv = llama_vocab_n_tokens(llama_model_get_vocab(model));\n    std::vector<llama_token> ref_ids(ids.begin(), ids.end());\n#else\n    auto weights = gguf::read_gguf(argv[1]);\n    auto profiler=std::make_shared<ProfileCpu>();\n    infer::Model model(weights,profiler);\n    model.set_threads(6);\n    model.set_ubatch(128);\n#endif\n    for (int run = 0; run < 2; ++run) {\n#ifdef LLMX_COMPARE_REFERENCE\n        llama_memory_clear(llama_get_memory(ctx), true);\n#else\n        model.reset();\n#endif\n        profiler->reset_profile();\n        const auto start = Clock::now();\n#ifdef LLMX_COMPARE_REFERENCE\n        if (llama_decode(ctx, llama_batch_get_one(ref_ids.data(), (int32_t)np))) return 5;\n        llama_synchronize(ctx);\n#else\n        auto logits = model.prefill(prompt);\n#endif\n        const auto pp_end = Clock::now();\n        profiler->report(\"prefill\");profiler->reset_profile();\n        for (size_t i = np; i < ids.size(); ++i) {\n#ifdef LLMX_COMPARE_REFERENCE\n            if (llama_decode(ctx, llama_batch_get_one(&ref_ids[i], 1))) return 6;\n            llama_synchronize(ctx);\n#else\n            logits = model.step(ids[i]);\n#endif\n        }\n        const auto tg_end = Clock::now();\n        profiler->report(\"decode\");\n#ifdef LLMX_COMPARE_REFERENCE\n        const float * values = llama_get_logits_ith(ctx, -1);\n#else\n        const float * values = logits.data();\n        const size_t nv = logits.size();\n#endif\n        double sum = 0;\n        for (size_t i = 0; i < nv; ++i) {\n            if (!std::isfinite(values[i])) return 7;\n            sum += values[i];\n        }\n        std::cout << std::setprecision(10) << \"{\\\"run\\\":\" << run\n                  << \",\\\"pp_tokens\\\":\" << np << \",\\\"tg_tokens\\\":32,\\\"pp_ms\\\":\"\n                  << std::chrono::duration<double,std::milli>(pp_end-start).count()\n                  << \",\\\"tg_ms\\\":\" << std::chrono::duration<double,std::milli>(tg_end-pp_end).count()\n                  << \",\\\"top1\\\":\" << (std::max_element(values,values+nv)-values)\n                  << \",\\\"logit_sum\\\":\" << sum << \"}\" << std::endl;\n    }\n#ifdef LLMX_COMPARE_REFERENCE\n    llama_free(ctx);\n    llama_model_free(model);\n    llama_backend_free();\n#endif\n}\n",
+    "build-profile.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-packed-prefill\\profile\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:profile.exe /Fo:profile.obj /FA /Faprofile.asm \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-packed-prefill\\profile.cpp\"\nexit /b %errorlevel%\n"
+  },
+  "packing_profile": {
+    "stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":582.2045,\"tg_ms\":2199.9807,\"top1\":4013,\"logit_sum\":-501040.4584}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":562.8949,\"tg_ms\":2190.923,\"top1\":4013,\"logit_sum\":-501040.4584}\n",
+    "stderr": "packing_ms=19.7051\nprefill attention_ms=54.2215 parallel_elementwise_ms=14.3401\nprefill matmul 1024 1024 87 ms=27.5192\nprefill matmul 1024 1024 128 ms=35.0264\nprefill matmul 1024 2048 87 ms=25.5643\nprefill matmul 1024 2048 128 ms=36.0582\nprefill matmul 1024 3072 87 ms=83.0612\nprefill matmul 1024 3072 128 ms=99.1082\nprefill matmul 1024 151936 1 ms=17.5943\nprefill matmul 2048 1024 87 ms=27.712\nprefill matmul 2048 1024 128 ms=35.4414\nprefill matmul 3072 1024 87 ms=42.0979\nprefill matmul 3072 1024 128 ms=59.429\npacking_ms=0\ndecode attention_ms=86.7647 parallel_elementwise_ms=0\ndecode matmul 1024 1024 1 ms=217.3\ndecode matmul 1024 2048 1 ms=209.067\ndecode matmul 1024 3072 1 ms=607.941\ndecode matmul 1024 151936 1 ms=526.239\ndecode matmul 2048 1024 1 ms=208.653\ndecode matmul 3072 1024 1 ms=308.234\npacking_ms=19.2476\nprefill attention_ms=53.1179 parallel_elementwise_ms=15.4206\nprefill matmul 1024 1024 87 ms=26.8753\nprefill matmul 1024 1024 128 ms=37.6197\nprefill matmul 1024 2048 87 ms=28.2856\nprefill matmul 1024 2048 128 ms=36.7458\nprefill matmul 1024 3072 87 ms=79.177\nprefill matmul 1024 3072 128 ms=103.476\nprefill matmul 1024 151936 1 ms=16.3612\nprefill matmul 2048 1024 87 ms=25.7624\nprefill matmul 2048 1024 128 ms=35.248\nprefill matmul 3072 1024 87 ms=39.5987\nprefill matmul 3072 1024 128 ms=54.9846\npacking_ms=0\ndecode attention_ms=88.2078 parallel_elementwise_ms=0\ndecode matmul 1024 1024 1 ms=217.021\ndecode matmul 1024 2048 1 ms=209.084\ndecode matmul 1024 3072 1 ms=606.478\ndecode matmul 1024 151936 1 ms=530.798\ndecode matmul 2048 1024 1 ms=207.957\ndecode matmul 3072 1024 1 ms=304.691\n",
+    "patch": "--- 5a9518c\n+++ scratch-candidate\n@@ -1,5 +1,6 @@\n #pragma once\n #include <algorithm>\n+#include <chrono>\n #include <cmath>\n #include <thread>\n #include <mutex>\n@@ -30,6 +31,7 @@\n // Q8_0 matmuls when the host supports it, otherwise a scalar fallback.\n class CpuBackend : public Backend {\n public:\n+    double pack_ms = 0;\n     CpuBackend() {\n         unsigned hw = std::thread::hardware_concurrency();\n         threads_ = (hw > 0) ? (int)hw : 4;\n@@ -136,6 +138,50 @@\n         // size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against\n         // 24.04 for a flat 4), because the knee follows the kernel width\n         // rather than the working-set size.\n+        if (f32 && nbatch >= 16) {\n+            const auto packing_start = std::chrono::steady_clock::now();\n+            const size_t panels = (nbatch + 15) / 16;\n+            packed_x_.resize(panels * nin * 16);\n+            for (size_t panel = 0; panel < panels; ++panel) {\n+                float* packed = packed_x_.data() + panel * nin * 16;\n+                const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                size_t j = 0;\n+                for (; j + 8 <= cols; j += 8) {\n+                    size_t k = 0;\n+                    for (; k + 8 <= nin; k += 8)\n+                        pack_transpose8(X + (panel * 16 + j) * nin + k, nin, packed + k * 16 + j);\n+                    for (; k < nin; ++k)\n+                        for (size_t c = 0; c < 8; ++c) packed[k * 16 + j + c] = X[(panel * 16 + j + c) * nin + k];\n+                }\n+                for (size_t k = 0; k < nin; ++k) {\n+                    size_t c = j;\n+                    for (; c < cols; ++c) packed[k * 16 + c] = X[(panel * 16 + c) * nin + k];\n+                    for (; c < 16; ++c) packed[k * 16 + c] = 0.0f;\n+                }\n+            }\n+            pack_ms += std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now() - packing_start).count();\n+            const size_t groups = (nout + 5) / 6;\n+            const size_t chunk = (groups + size_t(threads_) - 1) / size_t(threads_);\n+            run_parallel([&](int w) {\n+                const size_t begin = size_t(w) * chunk * 6;\n+                const size_t end = std::min(nout, begin + chunk * 6);\n+                for (size_t panel = 0; panel < panels; ++panel) {\n+                    const size_t cols = std::min(size_t(16), nbatch - panel * 16);\n+                    size_t o = begin;\n+                    for (; o + 6 <= end; o += 6)\n+                        dot_packed_f32_6(reinterpret_cast<const float*>(data) + o * nin,\n+                                         nin, packed_x_.data() + panel * nin * 16,\n+                                         Y + panel * 16 * nout + o, nout, cols);\n+                    for (; o < end; ++o)\n+                        for (size_t j = 0; j < cols; ++j)\n+                            Y[(panel * 16 + j) * nout + o] = dot_f32(\n+                                reinterpret_cast<const float*>(data) + o * nin,\n+                                X + (panel * 16 + j) * nin, nin);\n+                }\n+            });\n+            return;\n+        }\n+\n         const size_t RB = (size_t)DOT_ROWS;\n \n         auto do_rows = [&](int w, size_t o0, size_t o1) {\n@@ -320,6 +366,77 @@\n         }\n     }\n \n+    static void pack_transpose8(const float* x, size_t stride, float* p) {\n+        const __m256 r0 = _mm256_loadu_ps(x + 0 * stride);\n+        const __m256 r1 = _mm256_loadu_ps(x + 1 * stride);\n+        const __m256 r2 = _mm256_loadu_ps(x + 2 * stride);\n+        const __m256 r3 = _mm256_loadu_ps(x + 3 * stride);\n+        const __m256 r4 = _mm256_loadu_ps(x + 4 * stride);\n+        const __m256 r5 = _mm256_loadu_ps(x + 5 * stride);\n+        const __m256 r6 = _mm256_loadu_ps(x + 6 * stride);\n+        const __m256 r7 = _mm256_loadu_ps(x + 7 * stride);\n+        const __m256 t0 = _mm256_unpacklo_ps(r0, r1);\n+        const __m256 t1 = _mm256_unpackhi_ps(r0, r1);\n+        const __m256 t2 = _mm256_unpacklo_ps(r2, r3);\n+        const __m256 t3 = _mm256_unpackhi_ps(r2, r3);\n+        const __m256 t4 = _mm256_unpacklo_ps(r4, r5);\n+        const __m256 t5 = _mm256_unpackhi_ps(r4, r5);\n+        const __m256 t6 = _mm256_unpacklo_ps(r6, r7);\n+        const __m256 t7 = _mm256_unpackhi_ps(r6, r7);\n+        const __m256 s0 = _mm256_shuffle_ps(t0, t2, 0x44);\n+        const __m256 s1 = _mm256_shuffle_ps(t0, t2, 0xee);\n+        const __m256 s2 = _mm256_shuffle_ps(t1, t3, 0x44);\n+        const __m256 s3 = _mm256_shuffle_ps(t1, t3, 0xee);\n+        const __m256 s4 = _mm256_shuffle_ps(t4, t6, 0x44);\n+        const __m256 s5 = _mm256_shuffle_ps(t4, t6, 0xee);\n+        const __m256 s6 = _mm256_shuffle_ps(t5, t7, 0x44);\n+        const __m256 s7 = _mm256_shuffle_ps(t5, t7, 0xee);\n+        _mm256_storeu_ps(p + 0 * 16, _mm256_permute2f128_ps(s0, s4, 0x20));\n+        _mm256_storeu_ps(p + 4 * 16, _mm256_permute2f128_ps(s0, s4, 0x31));\n+        _mm256_storeu_ps(p + 1 * 16, _mm256_permute2f128_ps(s1, s5, 0x20));\n+        _mm256_storeu_ps(p + 5 * 16, _mm256_permute2f128_ps(s1, s5, 0x31));\n+        _mm256_storeu_ps(p + 2 * 16, _mm256_permute2f128_ps(s2, s6, 0x20));\n+        _mm256_storeu_ps(p + 6 * 16, _mm256_permute2f128_ps(s2, s6, 0x31));\n+        _mm256_storeu_ps(p + 3 * 16, _mm256_permute2f128_ps(s3, s7, 0x20));\n+        _mm256_storeu_ps(p + 7 * 16, _mm256_permute2f128_ps(s3, s7, 0x31));\n+    }\n+\n+    static void dot_packed_f32_6(const float* rows, size_t n, const float* x,\n+                                  float* out, size_t stride, size_t columns) {\n+        __m256 a0 = _mm256_setzero_ps(), b0 = _mm256_setzero_ps();\n+        __m256 a1 = _mm256_setzero_ps(), b1 = _mm256_setzero_ps();\n+        __m256 a2 = _mm256_setzero_ps(), b2 = _mm256_setzero_ps();\n+        __m256 a3 = _mm256_setzero_ps(), b3 = _mm256_setzero_ps();\n+        __m256 a4 = _mm256_setzero_ps(), b4 = _mm256_setzero_ps();\n+        __m256 a5 = _mm256_setzero_ps(), b5 = _mm256_setzero_ps();\n+        for (size_t i = 0; i < n; ++i) {\n+            const __m256 x0 = _mm256_loadu_ps(x + i * 16);\n+            const __m256 x1 = _mm256_loadu_ps(x + i * 16 + 8);\n+            __m256 w;\n+            w = _mm256_set1_ps(rows[0 * n + i]);\n+            a0 = _mm256_fmadd_ps(w, x0, a0); b0 = _mm256_fmadd_ps(w, x1, b0);\n+            w = _mm256_set1_ps(rows[1 * n + i]);\n+            a1 = _mm256_fmadd_ps(w, x0, a1); b1 = _mm256_fmadd_ps(w, x1, b1);\n+            w = _mm256_set1_ps(rows[2 * n + i]);\n+            a2 = _mm256_fmadd_ps(w, x0, a2); b2 = _mm256_fmadd_ps(w, x1, b2);\n+            w = _mm256_set1_ps(rows[3 * n + i]);\n+            a3 = _mm256_fmadd_ps(w, x0, a3); b3 = _mm256_fmadd_ps(w, x1, b3);\n+            w = _mm256_set1_ps(rows[4 * n + i]);\n+            a4 = _mm256_fmadd_ps(w, x0, a4); b4 = _mm256_fmadd_ps(w, x1, b4);\n+            w = _mm256_set1_ps(rows[5 * n + i]);\n+            a5 = _mm256_fmadd_ps(w, x0, a5); b5 = _mm256_fmadd_ps(w, x1, b5);\n+        }\n+        alignas(32) float values[6][16];\n+        _mm256_store_ps(values[0], a0); _mm256_store_ps(values[0] + 8, b0);\n+        _mm256_store_ps(values[1], a1); _mm256_store_ps(values[1] + 8, b1);\n+        _mm256_store_ps(values[2], a2); _mm256_store_ps(values[2] + 8, b2);\n+        _mm256_store_ps(values[3], a3); _mm256_store_ps(values[3] + 8, b3);\n+        _mm256_store_ps(values[4], a4); _mm256_store_ps(values[4] + 8, b4);\n+        _mm256_store_ps(values[5], a5); _mm256_store_ps(values[5] + 8, b5);\n+        for (size_t j = 0; j < columns; ++j)\n+            for (size_t r = 0; r < 6; ++r) out[j * stride + r] = values[r][j];\n+    }\n+\n     // Four independent accumulators. With a single accumulator every FMA\n     // depends on the previous one, so the loop runs at FMA LATENCY (about 4\n     // cycles) instead of FMA throughput (about 0.5), which is most of an order\n@@ -501,6 +618,7 @@\n     // token; at 36 layers that is thousands of thread creations per token.\n     std::vector<std::thread> pool_;\n     // Per-worker dequantized weight-row scratch for matmul_q8_0.\n+    std::vector<float> packed_x_;\n     std::vector<std::vector<float>> rowbuf_;\n     std::vector<float> attention_scores_;\n     std::mutex m_;\n",
+    "scope": "Intrusive diagnostic; summed operation times include packing. Packing about19ms; no comparative speed claim."
+  },
+  "exponential_profile": {
+    "stdout": "{\"run\":0,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":606.8141,\"tg_ms\":2275.5097,\"top1\":4013,\"logit_sum\":-501040.0615}\n{\"run\":1,\"pp_tokens\":215,\"tg_tokens\":32,\"pp_ms\":607.7954,\"tg_ms\":2237.5014,\"top1\":4013,\"logit_sum\":-501040.0615}\n",
+    "stderr": "prefill softmax_sum_worker_ms=24.5537\nprefill attention_ms=54.461 parallel_elementwise_ms=15.0215\nprefill matmul 1024 1024 87 ms=24.8421\nprefill matmul 1024 1024 128 ms=38.319\nprefill matmul 1024 2048 87 ms=25.1897\nprefill matmul 1024 2048 128 ms=38.57\nprefill matmul 1024 3072 87 ms=77.886\nprefill matmul 1024 3072 128 ms=117.122\nprefill matmul 1024 151936 1 ms=17.3444\nprefill matmul 2048 1024 87 ms=24.979\nprefill matmul 2048 1024 128 ms=41.8854\nprefill matmul 3072 1024 87 ms=38.9473\nprefill matmul 3072 1024 128 ms=63.0518\ndecode softmax_sum_worker_ms=9.5158\ndecode attention_ms=92.9256 parallel_elementwise_ms=0\ndecode matmul 1024 1024 1 ms=223.589\ndecode matmul 1024 2048 1 ms=214.994\ndecode matmul 1024 3072 1 ms=624.092\ndecode matmul 1024 151936 1 ms=545.988\ndecode matmul 2048 1024 1 ms=215.04\ndecode matmul 3072 1024 1 ms=312.972\ndecode silu_wall_ms=7.624\nprefill softmax_sum_worker_ms=24.044\nprefill attention_ms=54.0796 parallel_elementwise_ms=15.5561\nprefill matmul 1024 1024 87 ms=29.0142\nprefill matmul 1024 1024 128 ms=38.4053\nprefill matmul 1024 2048 87 ms=26.2404\nprefill matmul 1024 2048 128 ms=43.9013\nprefill matmul 1024 3072 87 ms=76.6002\nprefill matmul 1024 3072 128 ms=120.809\nprefill matmul 1024 151936 1 ms=17.8288\nprefill matmul 2048 1024 87 ms=26.3354\nprefill matmul 2048 1024 128 ms=40.7242\nprefill matmul 3072 1024 87 ms=43.6718\nprefill matmul 3072 1024 128 ms=64.1981\ndecode softmax_sum_worker_ms=9.4184\ndecode attention_ms=91.8599 parallel_elementwise_ms=0\ndecode matmul 1024 1024 1 ms=222.083\ndecode matmul 1024 2048 1 ms=213.698\ndecode matmul 1024 3072 1 ms=621.565\ndecode matmul 1024 151936 1 ms=537.993\ndecode matmul 2048 1024 1 ms=212.45\ndecode matmul 3072 1024 1 ms=314.317\ndecode silu_wall_ms=7.4529\n",
+    "harness": "#include <algorithm>\n#include <chrono>\n#include <cmath>\n#include <fstream>\n#include <iomanip>\n#include <iostream>\n#include <stdexcept>\n#include <vector>\n#include <map>\n#include <tuple>\n#ifdef LLMX_COMPARE_REFERENCE\n#include \"llama.h\"\n#else\n#include \"model/arch_qwen.hpp\"\n#endif\nusing Clock = std::chrono::steady_clock;\nstruct ProfileCpu : backend::CpuBackend {\n    std::map<std::tuple<size_t,size_t,size_t>,double> matrices;\n    double attention_ms=0, elementwise_ms=0;\n    bool in_attention=false;\n    void matmul(uint32_t type,const uint8_t* data,const float* X,float* Y,size_t ni,size_t no,size_t nb) override {\n        auto start=Clock::now();\n        CpuBackend::matmul(type,data,X,Y,ni,no,nb);\n        matrices[{ni,no,nb}]+=std::chrono::duration<double,std::milli>(Clock::now()-start).count();\n    }\n    void attention(const float* Q,const float* K,const float* V,float* out,int h,int hk,int d,int past,int batch) override {\n        auto start=Clock::now();in_attention=true;\n        CpuBackend::attention(Q,K,V,out,h,hk,d,past,batch);\n        in_attention=false;attention_ms+=std::chrono::duration<double,std::milli>(Clock::now()-start).count();\n    }\n    void parallel_for(int n,const std::function<void(int)>& fn) override {\n        auto start=Clock::now();CpuBackend::parallel_for(n,fn);\n        if(!in_attention) elementwise_ms+=std::chrono::duration<double,std::milli>(Clock::now()-start).count();\n    }\n    void reset_profile() {matrices.clear();attention_ms=elementwise_ms=softmax_worker_ms=0;}\n    void report(const char* phase) {\n        std::cerr<<phase<<\" softmax_sum_worker_ms=\"<<softmax_worker_ms<<\"\\n\";\n        std::cerr<<phase<<\" attention_ms=\"<<attention_ms<<\" parallel_elementwise_ms=\"<<elementwise_ms<<\"\\n\";\n        for(const auto& item:matrices) std::cerr<<phase<<\" matmul \"<<std::get<0>(item.first)<<\" \"<<std::get<1>(item.first)<<\" \"<<std::get<2>(item.first)<<\" ms=\"<<item.second<<\"\\n\";\n    }\n};\nint main(int argc, char ** argv) {\n    if (argc != 3) {\n        std::cerr << \"usage: compare-cpu MODEL.gguf TOKEN_IDS.txt\\n\";\n        return 2;\n    }\n    std::ifstream input(argv[2]);\n    std::vector<uint32_t> ids;\n    uint32_t id;\n    while (input >> id) ids.push_back(id);\n    if (ids.size() != 247) throw std::runtime_error(\"expected 247 pinned HF tokens\");\n    const size_t np = ids.size() - 32;\n    std::vector<uint32_t> prompt(ids.begin(), ids.begin() + np);\n#ifdef LLMX_COMPARE_REFERENCE\n    llama_backend_init();\n    auto mp = llama_model_default_params();\n    mp.n_gpu_layers = 0;\n    mp.load_mode = LLAMA_LOAD_MODE_NONE;\n    auto * model = llama_model_load_from_file(argv[1], mp);\n    if (!model) return 3;\n    auto cp = llama_context_default_params();\n    cp.n_ctx = 512;\n    cp.n_batch = (uint32_t)np;\n    cp.n_ubatch = 128;\n    cp.n_threads = cp.n_threads_batch = 6;\n    cp.type_k = cp.type_v = GGML_TYPE_F32;\n    cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;\n    cp.offload_kqv = cp.op_offload = false;\n    auto * ctx = llama_init_from_model(model, cp);\n    if (!ctx) return 4;\n    const size_t nv = llama_vocab_n_tokens(llama_model_get_vocab(model));\n    std::vector<llama_token> ref_ids(ids.begin(), ids.end());\n#else\n    auto weights = gguf::read_gguf(argv[1]);\n    auto profiler=std::make_shared<ProfileCpu>();\n    infer::Model model(weights,profiler);\n    model.set_threads(6);\n    model.set_ubatch(128);\n#endif\n    for (int run = 0; run < 2; ++run) {\n#ifdef LLMX_COMPARE_REFERENCE\n        llama_memory_clear(llama_get_memory(ctx), true);\n#else\n        model.reset();\n#endif\n        profiler->reset_profile();\n        const auto start = Clock::now();\n#ifdef LLMX_COMPARE_REFERENCE\n        if (llama_decode(ctx, llama_batch_get_one(ref_ids.data(), (int32_t)np))) return 5;\n        llama_synchronize(ctx);\n#else\n        auto logits = model.prefill(prompt);\n#endif\n        const auto pp_end = Clock::now();\n        profiler->report(\"prefill\");profiler->reset_profile();model.silu_ms=0;\n        for (size_t i = np; i < ids.size(); ++i) {\n#ifdef LLMX_COMPARE_REFERENCE\n            if (llama_decode(ctx, llama_batch_get_one(&ref_ids[i], 1))) return 6;\n            llama_synchronize(ctx);\n#else\n            logits = model.step(ids[i]);\n#endif\n        }\n        const auto tg_end = Clock::now();\n        profiler->report(\"decode\"); std::cerr<<\"decode silu_wall_ms=\"<<model.silu_ms<<\"\\n\";\n#ifdef LLMX_COMPARE_REFERENCE\n        const float * values = llama_get_logits_ith(ctx, -1);\n#else\n        const float * values = logits.data();\n        const size_t nv = logits.size();\n#endif\n        double sum = 0;\n        for (size_t i = 0; i < nv; ++i) {\n            if (!std::isfinite(values[i])) return 7;\n            sum += values[i];\n        }\n        std::cout << std::setprecision(10) << \"{\\\"run\\\":\" << run\n                  << \",\\\"pp_tokens\\\":\" << np << \",\\\"tg_tokens\\\":32,\\\"pp_ms\\\":\"\n                  << std::chrono::duration<double,std::milli>(pp_end-start).count()\n                  << \",\\\"tg_ms\\\":\" << std::chrono::duration<double,std::milli>(tg_end-pp_end).count()\n                  << \",\\\"top1\\\":\" << (std::max_element(values,values+nv)-values)\n                  << \",\\\"logit_sum\\\":\" << sum << \"}\" << std::endl;\n    }\n#ifdef LLMX_COMPARE_REFERENCE\n    llama_free(ctx);\n    llama_model_free(model);\n    llama_backend_free();\n#endif\n}\n",
+    "backend_patch": "--- 5a9518c\n+++ scratch-candidate\n@@ -1,5 +1,6 @@\n #pragma once\n #include <algorithm>\n+#include <chrono>\n #include <cmath>\n #include <thread>\n #include <mutex>\n@@ -30,6 +31,8 @@\n // Q8_0 matmuls when the host supports it, otherwise a scalar fallback.\n class CpuBackend : public Backend {\n public:\n+    double softmax_worker_ms = 0;\n+    std::vector<double> softmax_head_ms;\n     CpuBackend() {\n         unsigned hw = std::thread::hardware_concurrency();\n         threads_ = (hw > 0) ? (int)hw : 4;\n@@ -372,6 +375,7 @@\n         const int ratio = n_head / n_head_kv;\n         const float scale = 1.0f / std::sqrt((float)head_dim);\n         attention_scores_.resize((size_t)n_head * sequence);\n+        softmax_head_ms.assign(size_t(n_head), 0);\n         parallel_for(n_head, [&](int h) {\n             const size_t kv_offset = (size_t)(h / ratio) * head_dim;\n             float* scores = attention_scores_.data() + (size_t)h * sequence;\n@@ -387,11 +391,13 @@\n                     scores[t] = score * scale;\n                     max_score = std::max(max_score, scores[t]);\n                 }\n+                const auto soft_start = std::chrono::steady_clock::now();\n                 float sum = 0.0f;\n                 for (size_t t = 0; t < end; ++t) {\n                     scores[t] = std::exp(scores[t] - max_score);\n                     sum += scores[t];\n                 }\n+                softmax_head_ms[size_t(h)] += std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-soft_start).count();\n                 float* dst = out + (size_t)b * q_stride + (size_t)h * head_dim;\n                 // Normalize once; each lane then keeps sequence order while\n                 // its partial sum stays in a register across KV rows.\n@@ -429,6 +435,7 @@\n                 }\n             }\n         });\n+        for (double v : softmax_head_ms) softmax_worker_ms += v;\n     }\n \n     void rms_norm(float* dst, const float* src, const float* w, size_t n, float eps) override {\n",
+    "model_patch": "--- \n+++ \n@@ -78,6 +78,7 @@\n \n class Model {\n public:\n+    double silu_ms = 0;\n     // Construct the model over a GGUF model, using the given backend (defaults\n     // to the CPU backend). The model owns a reference to the model data, which\n     // must outlive the Model.\n@@ -211,10 +212,12 @@\n             // model, every token.\n             matvec(tensor(pre + \"ffn_gate.weight\"), h_.data(), gate_.data(), cfg.n_embd, cfg.n_ff);\n             matvec(tensor(pre + \"ffn_up.weight\"),   h_.data(), up_.data(),   cfg.n_embd, cfg.n_ff);\n+            const auto silu_start = std::chrono::steady_clock::now();\n             for (int i = 0; i < cfg.n_ff; i++) {\n                 float g = gate_[i] / (1.0f + std::exp(-gate_[i])); // SiLU\n                 ffn_[i] = g * up_[i];\n             }\n+            silu_ms += std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-silu_start).count();\n             // down projection + residual\n             std::fill(h_.begin(), h_.end(), 0.0f);\n             matvec(tensor(pre + \"ffn_down.weight\"), ffn_.data(), h_.data(), cfg.n_ff, cfg.n_embd);\n",
+    "scope": "Intrusive diagnostic on unchanged 5a9518c arithmetic. Softmax is summed worker time, not wall time; SiLU is caller wall time. Neither is the dominant decode cost."
+  },
+  "verdict": "All packed variants rejected: slower prefill than the matched control. No runtime or fixture changes adopted. Candidates only received finite-output/top-token smoke checks, not the full HF correctness gate. Paired decode rejection recorded separately."
+}

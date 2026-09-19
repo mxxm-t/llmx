@@ -124,7 +124,9 @@ Split a single model across several backends on one machine.
 - Shared inference events: token delivery must support live CLI chat/generation
   and future server streaming. Loading progress should report completed work
   from the loader, leaving presentation to the CLI or server. Implement the
-  current CLI consumers first; avoid server-specific stubs.
+  current CLI consumers first; avoid server-specific stubs. The CLI callbacks
+  and progress display are implemented on the active feature stack; validation
+  and merge status are tracked in STATUS. Server transport remains planned.
 
 - HTTP/WS server front-end sharing read-only model weights, with independent
   sequence state and mutable KV histories (see ARCHITECTURE.md, KV state and

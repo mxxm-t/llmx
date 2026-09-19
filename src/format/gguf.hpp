@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
+#include <algorithm>
 
 #include "format/format.hpp"
 
@@ -242,9 +243,10 @@ inline void write_gguf(const GGUFModel& m, const std::string& path) {
     }
 }
 
-inline GGUFModel read_gguf(const std::string& path) {
+inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& progress = {}) {
     std::ifstream is(path, std::ios::binary);
     if (!is) throw std::runtime_error("cannot open file: " + path);
+    is.exceptions(std::ios::failbit | std::ios::badbit);
 
     GGUFModel m;
     uint32_t magic;
@@ -280,18 +282,30 @@ inline GGUFModel read_gguf(const std::string& path) {
     // Size the blob exactly, then read each tensor straight into place: no
     // per-tensor temporary and no reallocation of an 8 GB buffer.
     size_t total = 0;
+    size_t payload = 0;
     m.offsets.reserve(m.tensors.size());
     for (const auto& t : m.tensors) {
         // Odd quantized block counts must not misalign a following F32 tensor.
         total = (total + alignof(float) - 1) / alignof(float) * alignof(float);
         m.offsets.push_back(total);
         total += (size_t)t.data_size();
+        payload += (size_t)t.data_size();
     }
+    if (progress && payload) progress(0, payload);
     m.blob.resize(total);
+    size_t completed = 0;
     for (size_t i = 0; i < m.tensors.size(); i++) {
         is.seekg(data_start + m.tensors[i].offset);
-        is.read((char*)m.tensor_data(i), (std::streamsize)m.tensor_bytes(i));
+        const size_t bytes = m.tensor_bytes(i);
+        for (size_t offset = 0; offset < bytes;) {
+            const size_t chunk = std::min(bytes - offset, size_t(8 * 1024 * 1024));
+            is.read((char*)m.tensor_data(i) + offset, (std::streamsize)chunk);
+            offset += chunk;
+            completed += chunk;
+            if (progress && completed < payload) progress(completed, payload);
+        }
     }
+    if (progress) progress(completed, payload);
     return m;
 }
 
@@ -341,11 +355,11 @@ private:
 
 // Auto-detect the format from the file header and open it. Currently only GGUF
 // is implemented; the magic check is the extension point for future formats.
-inline format::ModelFormatPtr format::open(const std::string& path) {
+inline format::ModelFormatPtr format::open(const std::string& path, const LoadProgress& progress) {
     std::ifstream is(path, std::ios::binary);
     if (!is) throw std::runtime_error("cannot open file: " + path);
-    uint32_t magic;
+    uint32_t magic = 0;
     is.read((char*)&magic, 4);
-    if (magic == gguf::MAGIC) return std::make_shared<gguf::GGUFFormat>(gguf::read_gguf(path));
+    if (is && magic == gguf::MAGIC) return std::make_shared<gguf::GGUFFormat>(gguf::read_gguf(path, progress));
     return nullptr;
 }

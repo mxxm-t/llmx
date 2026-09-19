@@ -1,0 +1,481 @@
+{
+  "base": "8226e17",
+  "scope": "Synchronous loader payload progress, streamed decoded bytes and CLI presentation. No inference arithmetic or CPU kernel changes. External stack floor remains open.",
+  "validation": {
+    "windows-suite.json": {
+      "command": [
+        "python",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--require-baseline",
+        "--exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\build\\llmx.exe"
+      ],
+      "exit": 0
+    },
+    "linux.json": [
+      {
+        "name": "linux-configure",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "-S",
+          "/mnt/c/Users/Marko/Desktop/Projects/llmx",
+          "-B",
+          "/root/.cache/llmx-live-generation",
+          "-DCMAKE_BUILD_TYPE=Release"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-build",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "--build",
+          "/root/.cache/llmx-live-generation",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-native",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "ctest",
+          "--test-dir",
+          "/root/.cache/llmx-live-generation",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-suite",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "python3",
+          "/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py",
+          "--require-baseline",
+          "--exe",
+          "/root/.cache/llmx-live-generation/llmx"
+        ],
+        "exit": 0
+      }
+    ],
+    "finish.json": [
+      {
+        "name": "windows-final-build",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\build.bat"
+        ],
+        "exit": 0,
+        "expected": 0
+      },
+      {
+        "name": "windows-final-native",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\build",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "exit": 0,
+        "expected": 0
+      },
+      {
+        "name": "delayed-text-build",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\delayed-text.bat"
+        ],
+        "exit": 0,
+        "expected": 0
+      },
+      {
+        "name": "delayed-text",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\mutants\\delayed-text.exe"
+        ],
+        "exit": 1,
+        "expected": 1
+      },
+      {
+        "name": "unchecked-read-build",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\unchecked-read.bat"
+        ],
+        "exit": 0,
+        "expected": 0
+      },
+      {
+        "name": "unchecked-read",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\mutants\\unchecked-read.exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\mutants\\unchecked-read.gguf"
+        ],
+        "exit": 1,
+        "expected": 1
+      },
+      {
+        "name": "premature-completion-build",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\premature-completion.bat"
+        ],
+        "exit": 0,
+        "expected": 0
+      },
+      {
+        "name": "premature-completion",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\mutants\\premature-completion.exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\mutants\\premature-completion.gguf"
+        ],
+        "exit": 1,
+        "expected": 1
+      },
+      {
+        "name": "unflushed-text-build",
+        "command": [
+          "cmd",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\unflushed-text.bat"
+        ],
+        "exit": 0,
+        "expected": 0
+      },
+      {
+        "name": "unflushed-text",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\mutants\\unflushed-text.exe"
+        ],
+        "exit": 1,
+        "expected": 1
+      }
+    ],
+    "linux-final.json": [
+      {
+        "name": "linux-final-build",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "cmake",
+          "--build",
+          "/root/.cache/llmx-live-generation",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-final-native",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "ctest",
+          "--test-dir",
+          "/root/.cache/llmx-live-generation",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "linux-final-chat",
+        "command": [
+          "wsl",
+          "-d",
+          "Ubuntu",
+          "--",
+          "python3",
+          "-c",
+          "import sys;sys.path.insert(0,'/mnt/c/Users/Marko/Desktop/Projects/llmx/tests');import common,chat,version;common.EXE='/root/.cache/llmx-live-generation/llmx';assert chat.run() and version.run()"
+        ],
+        "exit": 0
+      }
+    ],
+    "latency.json": [
+      {
+        "round": 0,
+        "warmup": true,
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\project build\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Write a detailed explanation of how rain forms.",
+          "--threads",
+          "6",
+          "--temp",
+          "0",
+          "--think",
+          "-n",
+          "64"
+        ],
+        "first_text_seconds": 2.761867999994138,
+        "total_seconds": 2.8340396999992663,
+        "tg_tps": 30.29,
+        "text_sha256": "7e8a6c9ea32a7ecbed55b028e5b69d50ba48399b1108eb2f1d9d8a244e2b7e11"
+      },
+      {
+        "round": 0,
+        "warmup": true,
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\build\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Write a detailed explanation of how rain forms.",
+          "--threads",
+          "6",
+          "--temp",
+          "0",
+          "--think",
+          "-n",
+          "64"
+        ],
+        "first_text_seconds": 0.6353388000061386,
+        "total_seconds": 2.6452102000039304,
+        "tg_tps": 32.79,
+        "text_sha256": "7e8a6c9ea32a7ecbed55b028e5b69d50ba48399b1108eb2f1d9d8a244e2b7e11"
+      },
+      {
+        "round": 1,
+        "warmup": false,
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\build\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Write a detailed explanation of how rain forms.",
+          "--threads",
+          "6",
+          "--temp",
+          "0",
+          "--think",
+          "-n",
+          "64"
+        ],
+        "first_text_seconds": 0.5995320000001811,
+        "total_seconds": 2.6168862999984412,
+        "tg_tps": 32.69,
+        "text_sha256": "7e8a6c9ea32a7ecbed55b028e5b69d50ba48399b1108eb2f1d9d8a244e2b7e11"
+      },
+      {
+        "round": 1,
+        "warmup": false,
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\project build\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Write a detailed explanation of how rain forms.",
+          "--threads",
+          "6",
+          "--temp",
+          "0",
+          "--think",
+          "-n",
+          "64"
+        ],
+        "first_text_seconds": 2.663455399997474,
+        "total_seconds": 2.7377476999972714,
+        "tg_tps": 31.48,
+        "text_sha256": "7e8a6c9ea32a7ecbed55b028e5b69d50ba48399b1108eb2f1d9d8a244e2b7e11"
+      },
+      {
+        "round": 2,
+        "warmup": false,
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\project build\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Write a detailed explanation of how rain forms.",
+          "--threads",
+          "6",
+          "--temp",
+          "0",
+          "--think",
+          "-n",
+          "64"
+        ],
+        "first_text_seconds": 2.744493100006366,
+        "total_seconds": 2.8206026000043494,
+        "tg_tps": 30.02,
+        "text_sha256": "7e8a6c9ea32a7ecbed55b028e5b69d50ba48399b1108eb2f1d9d8a244e2b7e11"
+      },
+      {
+        "round": 2,
+        "warmup": false,
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\build\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Write a detailed explanation of how rain forms.",
+          "--threads",
+          "6",
+          "--temp",
+          "0",
+          "--think",
+          "-n",
+          "64"
+        ],
+        "first_text_seconds": 0.6640356999996584,
+        "total_seconds": 2.849694999997155,
+        "tg_tps": 30.15,
+        "text_sha256": "7e8a6c9ea32a7ecbed55b028e5b69d50ba48399b1108eb2f1d9d8a244e2b7e11"
+      },
+      {
+        "round": 3,
+        "warmup": false,
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\build\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Write a detailed explanation of how rain forms.",
+          "--threads",
+          "6",
+          "--temp",
+          "0",
+          "--think",
+          "-n",
+          "64"
+        ],
+        "first_text_seconds": 0.6620096000042395,
+        "total_seconds": 2.741368599999987,
+        "tg_tps": 31.77,
+        "text_sha256": "7e8a6c9ea32a7ecbed55b028e5b69d50ba48399b1108eb2f1d9d8a244e2b7e11"
+      },
+      {
+        "round": 3,
+        "warmup": false,
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\project build\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Write a detailed explanation of how rain forms.",
+          "--threads",
+          "6",
+          "--temp",
+          "0",
+          "--think",
+          "-n",
+          "64"
+        ],
+        "first_text_seconds": 2.5881577000036486,
+        "total_seconds": 2.657024200001615,
+        "tg_tps": 32.33,
+        "text_sha256": "7e8a6c9ea32a7ecbed55b028e5b69d50ba48399b1108eb2f1d9d8a244e2b7e11"
+      }
+    ],
+    "latency-summary.json": {
+      "before": {
+        "first_text_seconds": 2.663455399997474,
+        "total_seconds": 2.7377476999972714,
+        "tg_tps": 31.48
+      },
+      "candidate": {
+        "first_text_seconds": 0.6620096000042395,
+        "total_seconds": 2.741368599999987,
+        "tg_tps": 31.77
+      }
+    }
+  },
+  "logs": {
+    "build.log": "\ufffd\ufffdc\u0000m\u0000d\u0000 \u0000:\u0000 \u0000'\u0000v\u0000s\u0000w\u0000h\u0000e\u0000r\u0000e\u0000.\u0000e\u0000x\u0000e\u0000'\u0000 \u0000i\u0000s\u0000 \u0000n\u0000o\u0000t\u0000 \u0000r\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000z\u0000e\u0000d\u0000 \u0000a\u0000s\u0000 \u0000a\u0000n\u0000 \u0000i\u0000n\u0000t\u0000e\u0000r\u0000n\u0000a\u0000l\u0000 \u0000o\u0000r\u0000 \u0000e\u0000x\u0000t\u0000e\u0000r\u0000n\u0000a\u0000l\u0000 \u0000c\u0000o\u0000m\u0000m\u0000a\u0000n\u0000d\u0000,\u0000\n\u0000\n\u0000A\u0000t\u0000 \u0000l\u0000i\u0000n\u0000e\u0000:\u00001\u00002\u0000 \u0000c\u0000h\u0000a\u0000r\u0000:\u00001\u0000\n\u0000\n\u0000+\u0000 \u0000c\u0000m\u0000d\u0000 \u0000/\u0000c\u0000 \u0000\"\u0000$\u0000e\u0000n\u0000v\u0000:\u0000T\u0000E\u0000M\u0000P\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000l\u0000i\u0000v\u0000e\u0000-\u0000g\u0000e\u0000n\u0000e\u0000r\u0000a\u0000t\u0000i\u0000o\u0000n\u0000/\u0000b\u0000u\u0000i\u0000l\u0000d\u0000.\u0000b\u0000a\u0000t\u0000\"\u0000 \u0000>\u0000 \u0000\"\u0000$\u0000e\u0000n\u0000v\u0000:\u0000T\u0000E\u0000M\u0000P\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000l\u0000 \u0000.\u0000.\u0000.\u0000\n\u0000\n\u0000+\u0000 \u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000~\u0000\n\u0000\n\u0000 \u0000 \u0000 \u0000 \u0000+\u0000 \u0000C\u0000a\u0000t\u0000e\u0000g\u0000o\u0000r\u0000y\u0000I\u0000n\u0000f\u0000o\u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000 \u0000:\u0000 \u0000N\u0000o\u0000t\u0000S\u0000p\u0000e\u0000c\u0000i\u0000f\u0000i\u0000e\u0000d\u0000:\u0000 \u0000(\u0000'\u0000v\u0000s\u0000w\u0000h\u0000e\u0000r\u0000e\u0000.\u0000e\u0000x\u0000e\u0000'\u0000 \u0000i\u0000.\u0000.\u0000.\u0000t\u0000e\u0000r\u0000n\u0000a\u0000l\u0000 \u0000c\u0000o\u0000m\u0000m\u0000a\u0000n\u0000d\u0000,\u0000:\u0000S\u0000t\u0000r\u0000i\u0000n\u0000g\u0000)\u0000 \u0000[\u0000]\u0000,\u0000 \u0000R\u0000e\u0000m\u0000o\u0000t\u0000e\u0000E\u0000x\u0000c\u0000e\u0000p\u0000t\u0000i\u0000o\u0000n\u0000\n\u0000\n\u0000 \u0000 \u0000 \u0000 \u0000+\u0000 \u0000F\u0000u\u0000l\u0000l\u0000y\u0000Q\u0000u\u0000a\u0000l\u0000i\u0000f\u0000i\u0000e\u0000d\u0000E\u0000r\u0000r\u0000o\u0000r\u0000I\u0000d\u0000 \u0000:\u0000 \u0000N\u0000a\u0000t\u0000i\u0000v\u0000e\u0000C\u0000o\u0000m\u0000m\u0000a\u0000n\u0000d\u0000E\u0000r\u0000r\u0000o\u0000r\u0000\n\u0000\n\u0000 \u0000\n\u0000\n\u0000o\u0000p\u0000e\u0000r\u0000a\u0000b\u0000l\u0000e\u0000 \u0000p\u0000r\u0000o\u0000g\u0000r\u0000a\u0000m\u0000 \u0000o\u0000r\u0000 \u0000b\u0000a\u0000t\u0000c\u0000h\u0000 \u0000f\u0000i\u0000l\u0000e\u0000.\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000T\u0000h\u0000e\u0000 \u0000C\u0000X\u0000X\u0000 \u0000c\u0000o\u0000m\u0000p\u0000i\u0000l\u0000e\u0000r\u0000 \u0000i\u0000d\u0000e\u0000n\u0000t\u0000i\u0000f\u0000i\u0000c\u0000a\u0000t\u0000i\u0000o\u0000n\u0000 \u0000i\u0000s\u0000 \u0000M\u0000S\u0000V\u0000C\u0000 \u00001\u00009\u0000.\u00005\u00000\u0000.\u00003\u00005\u00007\u00002\u00008\u0000.\u00000\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000D\u0000e\u0000t\u0000e\u0000c\u0000t\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000c\u0000o\u0000m\u0000p\u0000i\u0000l\u0000e\u0000r\u0000 \u0000A\u0000B\u0000I\u0000 \u0000i\u0000n\u0000f\u0000o\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000D\u0000e\u0000t\u0000e\u0000c\u0000t\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000c\u0000o\u0000m\u0000p\u0000i\u0000l\u0000e\u0000r\u0000 \u0000A\u0000B\u0000I\u0000 \u0000i\u0000n\u0000f\u0000o\u0000 \u0000-\u0000 \u0000d\u0000o\u0000n\u0000e\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000C\u0000h\u0000e\u0000c\u0000k\u0000 \u0000f\u0000o\u0000r\u0000 \u0000w\u0000o\u0000r\u0000k\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000c\u0000o\u0000m\u0000p\u0000i\u0000l\u0000e\u0000r\u0000:\u0000 \u0000C\u0000:\u0000/\u0000P\u0000r\u0000o\u0000g\u0000r\u0000a\u0000m\u0000 \u0000F\u0000i\u0000l\u0000e\u0000s\u0000/\u0000M\u0000i\u0000c\u0000r\u0000o\u0000s\u0000o\u0000f\u0000t\u0000 \u0000V\u0000i\u0000s\u0000u\u0000a\u0000l\u0000 \u0000S\u0000t\u0000u\u0000d\u0000i\u0000o\u0000/\u00001\u00008\u0000/\u0000C\u0000o\u0000m\u0000m\u0000u\u0000n\u0000i\u0000t\u0000y\u0000/\u0000V\u0000C\u0000/\u0000T\u0000o\u0000o\u0000l\u0000s\u0000/\u0000M\u0000S\u0000V\u0000C\u0000/\u00001\u00004\u0000.\u00005\u00000\u0000.\u00003\u00005\u00007\u00001\u00007\u0000/\u0000b\u0000i\u0000n\u0000/\u0000H\u0000o\u0000s\u0000t\u0000x\u00006\u00004\u0000/\u0000x\u00006\u00004\u0000/\u0000c\u0000l\u0000.\u0000e\u0000x\u0000e\u0000 \u0000-\u0000 \u0000s\u0000k\u0000i\u0000p\u0000p\u0000e\u0000d\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000D\u0000e\u0000t\u0000e\u0000c\u0000t\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000c\u0000o\u0000m\u0000p\u0000i\u0000l\u0000e\u0000 \u0000f\u0000e\u0000a\u0000t\u0000u\u0000r\u0000e\u0000s\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000D\u0000e\u0000t\u0000e\u0000c\u0000t\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000c\u0000o\u0000m\u0000p\u0000i\u0000l\u0000e\u0000 \u0000f\u0000e\u0000a\u0000t\u0000u\u0000r\u0000e\u0000s\u0000 \u0000-\u0000 \u0000d\u0000o\u0000n\u0000e\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000P\u0000e\u0000r\u0000f\u0000o\u0000r\u0000m\u0000i\u0000n\u0000g\u0000 \u0000T\u0000e\u0000s\u0000t\u0000 \u0000C\u0000M\u0000A\u0000K\u0000E\u0000_\u0000H\u0000A\u0000V\u0000E\u0000_\u0000L\u0000I\u0000B\u0000C\u0000_\u0000P\u0000T\u0000H\u0000R\u0000E\u0000A\u0000D\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000P\u0000e\u0000r\u0000f\u0000o\u0000r\u0000m\u0000i\u0000n\u0000g\u0000 \u0000T\u0000e\u0000s\u0000t\u0000 \u0000C\u0000M\u0000A\u0000K\u0000E\u0000_\u0000H\u0000A\u0000V\u0000E\u0000_\u0000L\u0000I\u0000B\u0000C\u0000_\u0000P\u0000T\u0000H\u0000R\u0000E\u0000A\u0000D\u0000 \u0000-\u0000 \u0000F\u0000a\u0000i\u0000l\u0000e\u0000d\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000L\u0000o\u0000o\u0000k\u0000i\u0000n\u0000g\u0000 \u0000f\u0000o\u0000r\u0000 \u0000p\u0000t\u0000h\u0000r\u0000e\u0000a\u0000d\u0000_\u0000c\u0000r\u0000e\u0000a\u0000t\u0000e\u0000 \u0000i\u0000n\u0000 \u0000p\u0000t\u0000h\u0000r\u0000e\u0000a\u0000d\u0000s\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000L\u0000o\u0000o\u0000k\u0000i\u0000n\u0000g\u0000 \u0000f\u0000o\u0000r\u0000 \u0000p\u0000t\u0000h\u0000r\u0000e\u0000a\u0000d\u0000_\u0000c\u0000r\u0000e\u0000a\u0000t\u0000e\u0000 \u0000i\u0000n\u0000 \u0000p\u0000t\u0000h\u0000r\u0000e\u0000a\u0000d\u0000s\u0000 \u0000-\u0000 \u0000n\u0000o\u0000t\u0000 \u0000f\u0000o\u0000u\u0000n\u0000d\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000L\u0000o\u0000o\u0000k\u0000i\u0000n\u0000g\u0000 \u0000f\u0000o\u0000r\u0000 \u0000p\u0000t\u0000h\u0000r\u0000e\u0000a\u0000d\u0000_\u0000c\u0000r\u0000e\u0000a\u0000t\u0000e\u0000 \u0000i\u0000n\u0000 \u0000p\u0000t\u0000h\u0000r\u0000e\u0000a\u0000d\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000L\u0000o\u0000o\u0000k\u0000i\u0000n\u0000g\u0000 \u0000f\u0000o\u0000r\u0000 \u0000p\u0000t\u0000h\u0000r\u0000e\u0000a\u0000d\u0000_\u0000c\u0000r\u0000e\u0000a\u0000t\u0000e\u0000 \u0000i\u0000n\u0000 \u0000p\u0000t\u0000h\u0000r\u0000e\u0000a\u0000d\u0000 \u0000-\u0000 \u0000n\u0000o\u0000t\u0000 \u0000f\u0000o\u0000u\u0000n\u0000d\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000F\u0000o\u0000u\u0000n\u0000d\u0000 \u0000T\u0000h\u0000r\u0000e\u0000a\u0000d\u0000s\u0000:\u0000 \u0000T\u0000R\u0000U\u0000E\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000C\u0000o\u0000n\u0000f\u0000i\u0000g\u0000u\u0000r\u0000i\u0000n\u0000g\u0000 \u0000d\u0000o\u0000n\u0000e\u0000 \u0000(\u00001\u0000.\u00005\u0000s\u0000)\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000G\u0000e\u0000n\u0000e\u0000r\u0000a\u0000t\u0000i\u0000n\u0000g\u0000 \u0000d\u0000o\u0000n\u0000e\u0000 \u0000(\u00000\u0000.\u00002\u0000s\u0000)\u0000\n\u0000\n\u0000-\u0000-\u0000 \u0000B\u0000u\u0000i\u0000l\u0000d\u0000 \u0000f\u0000i\u0000l\u0000e\u0000s\u0000 \u0000h\u0000a\u0000v\u0000e\u0000 \u0000b\u0000e\u0000e\u0000n\u0000 \u0000w\u0000r\u0000i\u0000t\u0000t\u0000e\u0000n\u0000 \u0000t\u0000o\u0000:\u0000 \u0000C\u0000:\u0000/\u0000U\u0000s\u0000e\u0000r\u0000s\u0000/\u0000M\u0000a\u0000r\u0000k\u0000o\u0000/\u0000A\u0000p\u0000p\u0000D\u0000a\u0000t\u0000a\u0000/\u0000L\u0000o\u0000c\u0000a\u0000l\u0000/\u0000T\u0000e\u0000m\u0000p\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000l\u0000i\u0000v\u0000e\u0000-\u0000g\u0000e\u0000n\u0000e\u0000r\u0000a\u0000t\u0000i\u0000o\u0000n\u0000/\u0000b\u0000u\u0000i\u0000l\u0000d\u0000\n\u0000\n\u0000[\u0000 \u0000 \u00000\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000t\u0000 \u0000t\u0000a\u0000r\u0000g\u0000e\u0000t\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000b\u0000u\u0000i\u0000l\u0000d\u0000-\u0000i\u0000n\u0000f\u0000o\u0000\n\u0000\n\u0000[\u0000 \u0000 \u00007\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000d\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000o\u0000b\u0000j\u0000e\u0000c\u0000t\u0000 \u0000C\u0000M\u0000a\u0000k\u0000e\u0000F\u0000i\u0000l\u0000e\u0000s\u0000/\u0000l\u0000l\u0000m\u0000x\u0000.\u0000d\u0000i\u0000r\u0000/\u0000s\u0000r\u0000c\u0000/\u0000c\u0000l\u0000i\u0000/\u0000m\u0000a\u0000i\u0000n\u0000.\u0000c\u0000p\u0000p\u0000.\u0000o\u0000b\u0000j\u0000\n\u0000\n\u0000m\u0000a\u0000i\u0000n\u0000.\u0000c\u0000p\u0000p\u0000\n\u0000\n\u0000[\u0000 \u00001\u00004\u0000%\u0000]\u0000 \u0000L\u0000i\u0000n\u0000k\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000e\u0000x\u0000e\u0000c\u0000u\u0000t\u0000a\u0000b\u0000l\u0000e\u0000 \u0000l\u0000l\u0000m\u0000x\u0000.\u0000e\u0000x\u0000e\u0000\n\u0000\n\u0000[\u0000 \u00001\u00004\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000t\u0000 \u0000t\u0000a\u0000r\u0000g\u0000e\u0000t\u0000 \u0000l\u0000l\u0000m\u0000x\u0000\n\u0000\n\u0000[\u0000 \u00002\u00001\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000d\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000o\u0000b\u0000j\u0000e\u0000c\u0000t\u0000 \u0000C\u0000M\u0000a\u0000k\u0000e\u0000F\u0000i\u0000l\u0000e\u0000s\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000l\u0000o\u0000a\u0000d\u0000-\u0000p\u0000r\u0000o\u0000g\u0000r\u0000e\u0000s\u0000s\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000d\u0000i\u0000r\u0000/\u0000t\u0000e\u0000s\u0000t\u0000s\u0000/\u0000l\u0000o\u0000a\u0000d\u0000_\u0000p\u0000r\u0000o\u0000g\u0000r\u0000e\u0000s\u0000s\u0000.\u0000c\u0000p\u0000p\u0000.\u0000o\u0000b\u0000j\u0000\n\u0000\n\u0000l\u0000o\u0000a\u0000d\u0000_\u0000p\u0000r\u0000o\u0000g\u0000r\u0000e\u0000s\u0000s\u0000.\u0000c\u0000p\u0000p\u0000\n\u0000\n\u0000[\u0000 \u00002\u00008\u0000%\u0000]\u0000 \u0000L\u0000i\u0000n\u0000k\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000e\u0000x\u0000e\u0000c\u0000u\u0000t\u0000a\u0000b\u0000l\u0000e\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000l\u0000o\u0000a\u0000d\u0000-\u0000p\u0000r\u0000o\u0000g\u0000r\u0000e\u0000s\u0000s\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000e\u0000x\u0000e\u0000\n\u0000\n\u0000[\u0000 \u00002\u00008\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000t\u0000 \u0000t\u0000a\u0000r\u0000g\u0000e\u0000t\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000l\u0000o\u0000a\u0000d\u0000-\u0000p\u0000r\u0000o\u0000g\u0000r\u0000e\u0000s\u0000s\u0000-\u0000t\u0000e\u0000s\u0000t\u0000\n\u0000\n\u0000[\u0000 \u00003\u00005\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000d\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000o\u0000b\u0000j\u0000e\u0000c\u0000t\u0000 \u0000C\u0000M\u0000a\u0000k\u0000e\u0000F\u0000i\u0000l\u0000e\u0000s\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000g\u0000e\u0000n\u0000e\u0000r\u0000a\u0000t\u0000i\u0000o\u0000n\u0000-\u0000s\u0000t\u0000r\u0000e\u0000a\u0000m\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000d\u0000i\u0000r\u0000/\u0000t\u0000e\u0000s\u0000t\u0000s\u0000/\u0000g\u0000e\u0000n\u0000e\u0000r\u0000a\u0000t\u0000i\u0000o\u0000n\u0000_\u0000s\u0000t\u0000r\u0000e\u0000a\u0000m\u0000.\u0000c\u0000p\u0000p\u0000.\u0000o\u0000b\u0000j\u0000\n\u0000\n\u0000g\u0000e\u0000n\u0000e\u0000r\u0000a\u0000t\u0000i\u0000o\u0000n\u0000_\u0000s\u0000t\u0000r\u0000e\u0000a\u0000m\u0000.\u0000c\u0000p\u0000p\u0000\n\u0000\n\u0000[\u0000 \u00004\u00002\u0000%\u0000]\u0000 \u0000L\u0000i\u0000n\u0000k\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000e\u0000x\u0000e\u0000c\u0000u\u0000t\u0000a\u0000b\u0000l\u0000e\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000g\u0000e\u0000n\u0000e\u0000r\u0000a\u0000t\u0000i\u0000o\u0000n\u0000-\u0000s\u0000t\u0000r\u0000e\u0000a\u0000m\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000e\u0000x\u0000e\u0000\n\u0000\n\u0000[\u0000 \u00004\u00002\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000t\u0000 \u0000t\u0000a\u0000r\u0000g\u0000e\u0000t\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000g\u0000e\u0000n\u0000e\u0000r\u0000a\u0000t\u0000i\u0000o\u0000n\u0000-\u0000s\u0000t\u0000r\u0000e\u0000a\u0000m\u0000-\u0000t\u0000e\u0000s\u0000t\u0000\n\u0000\n\u0000[\u0000 \u00005\u00000\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000d\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000o\u0000b\u0000j\u0000e\u0000c\u0000t\u0000 \u0000C\u0000M\u0000a\u0000k\u0000e\u0000F\u0000i\u0000l\u0000e\u0000s\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000-\u0000g\u0000r\u0000o\u0000u\u0000p\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000d\u0000i\u0000r\u0000/\u0000t\u0000e\u0000s\u0000t\u0000s\u0000/\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000_\u0000g\u0000r\u0000o\u0000u\u0000p\u0000.\u0000c\u0000p\u0000p\u0000.\u0000o\u0000b\u0000j\u0000\n\u0000\n\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000_\u0000g\u0000r\u0000o\u0000u\u0000p\u0000.\u0000c\u0000p\u0000p\u0000\n\u0000\n\u0000[\u0000 \u00005\u00007\u0000%\u0000]\u0000 \u0000L\u0000i\u0000n\u0000k\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000e\u0000x\u0000e\u0000c\u0000u\u0000t\u0000a\u0000b\u0000l\u0000e\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000-\u0000g\u0000r\u0000o\u0000u\u0000p\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000e\u0000x\u0000e\u0000\n\u0000\n\u0000[\u0000 \u00005\u00007\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000t\u0000 \u0000t\u0000a\u0000r\u0000g\u0000e\u0000t\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000-\u0000g\u0000r\u0000o\u0000u\u0000p\u0000-\u0000t\u0000e\u0000s\u0000t\u0000\n\u0000\n\u0000[\u0000 \u00006\u00004\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000d\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000o\u0000b\u0000j\u0000e\u0000c\u0000t\u0000 \u0000C\u0000M\u0000a\u0000k\u0000e\u0000F\u0000i\u0000l\u0000e\u0000s\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000-\u0000e\u0000r\u0000r\u0000o\u0000r\u0000s\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000d\u0000i\u0000r\u0000/\u0000t\u0000e\u0000s\u0000t\u0000s\u0000/\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000_\u0000e\u0000r\u0000r\u0000o\u0000r\u0000s\u0000.\u0000c\u0000p\u0000p\u0000.\u0000o\u0000b\u0000j\u0000\n\u0000\n\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000_\u0000e\u0000r\u0000r\u0000o\u0000r\u0000s\u0000.\u0000c\u0000p\u0000p\u0000\n\u0000\n\u0000[\u0000 \u00007\u00001\u0000%\u0000]\u0000 \u0000L\u0000i\u0000n\u0000k\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000e\u0000x\u0000e\u0000c\u0000u\u0000t\u0000a\u0000b\u0000l\u0000e\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000-\u0000e\u0000r\u0000r\u0000o\u0000r\u0000s\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000e\u0000x\u0000e\u0000\n\u0000\n\u0000[\u0000 \u00007\u00001\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000t\u0000 \u0000t\u0000a\u0000r\u0000g\u0000e\u0000t\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000b\u0000a\u0000c\u0000k\u0000e\u0000n\u0000d\u0000-\u0000e\u0000r\u0000r\u0000o\u0000r\u0000s\u0000-\u0000t\u0000e\u0000s\u0000t\u0000\n\u0000\n\u0000[\u0000 \u00007\u00008\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000d\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000o\u0000b\u0000j\u0000e\u0000c\u0000t\u0000 \u0000C\u0000M\u0000a\u0000k\u0000e\u0000F\u0000i\u0000l\u0000e\u0000s\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000c\u0000h\u0000a\u0000t\u0000-\u0000t\u0000e\u0000m\u0000p\u0000l\u0000a\u0000t\u0000e\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000d\u0000i\u0000r\u0000/\u0000t\u0000e\u0000s\u0000t\u0000s\u0000/\u0000c\u0000h\u0000a\u0000t\u0000_\u0000t\u0000e\u0000m\u0000p\u0000l\u0000a\u0000t\u0000e\u0000.\u0000c\u0000p\u0000p\u0000.\u0000o\u0000b\u0000j\u0000\n\u0000\n\u0000c\u0000h\u0000a\u0000t\u0000_\u0000t\u0000e\u0000m\u0000p\u0000l\u0000a\u0000t\u0000e\u0000.\u0000c\u0000p\u0000p\u0000\n\u0000\n\u0000[\u0000 \u00008\u00005\u0000%\u0000]\u0000 \u0000L\u0000i\u0000n\u0000k\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000e\u0000x\u0000e\u0000c\u0000u\u0000t\u0000a\u0000b\u0000l\u0000e\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000c\u0000h\u0000a\u0000t\u0000-\u0000t\u0000e\u0000m\u0000p\u0000l\u0000a\u0000t\u0000e\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000e\u0000x\u0000e\u0000\n\u0000\n\u0000[\u0000 \u00008\u00005\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000t\u0000 \u0000t\u0000a\u0000r\u0000g\u0000e\u0000t\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000c\u0000h\u0000a\u0000t\u0000-\u0000t\u0000e\u0000m\u0000p\u0000l\u0000a\u0000t\u0000e\u0000-\u0000t\u0000e\u0000s\u0000t\u0000\n\u0000\n\u0000[\u0000 \u00009\u00002\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000d\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000o\u0000b\u0000j\u0000e\u0000c\u0000t\u0000 \u0000C\u0000M\u0000a\u0000k\u0000e\u0000F\u0000i\u0000l\u0000e\u0000s\u0000/\u0000l\u0000l\u0000m\u0000x\u0000-\u0000k\u0000v\u0000-\u0000c\u0000a\u0000c\u0000h\u0000e\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000d\u0000i\u0000r\u0000/\u0000t\u0000e\u0000s\u0000t\u0000s\u0000/\u0000k\u0000v\u0000_\u0000c\u0000a\u0000c\u0000h\u0000e\u0000.\u0000c\u0000p\u0000p\u0000.\u0000o\u0000b\u0000j\u0000\n\u0000\n\u0000k\u0000v\u0000_\u0000c\u0000a\u0000c\u0000h\u0000e\u0000.\u0000c\u0000p\u0000p\u0000\n\u0000\n\u0000[\u00001\u00000\u00000\u0000%\u0000]\u0000 \u0000L\u0000i\u0000n\u0000k\u0000i\u0000n\u0000g\u0000 \u0000C\u0000X\u0000X\u0000 \u0000e\u0000x\u0000e\u0000c\u0000u\u0000t\u0000a\u0000b\u0000l\u0000e\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000k\u0000v\u0000-\u0000c\u0000a\u0000c\u0000h\u0000e\u0000-\u0000t\u0000e\u0000s\u0000t\u0000.\u0000e\u0000x\u0000e\u0000\n\u0000\n\u0000[\u00001\u00000\u00000\u0000%\u0000]\u0000 \u0000B\u0000u\u0000i\u0000l\u0000t\u0000 \u0000t\u0000a\u0000r\u0000g\u0000e\u0000t\u0000 \u0000l\u0000l\u0000m\u0000x\u0000-\u0000k\u0000v\u0000-\u0000c\u0000a\u0000c\u0000h\u0000e\u0000-\u0000t\u0000e\u0000s\u0000t\u0000\n\u0000\n\u0000",
+    "delayed-text-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\ngeneration_stream.cpp\n",
+    "delayed-text.log": "text was not delivered before the next model step\n",
+    "linux-build.log": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/model/arch_qwen.hpp:14,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/inference/generate.hpp:9,\n                 from /mnt/c/Users/Marko/Des[ 21%] Linking CXX executable llmx-load-progress-test\n[ 21%] Built target llmx-load-progress-test\n[ 28%] Building CXX object CMakeFiles/llmx-backend-group-test.dir/tests/backend_group.cpp.o\n[ 35%] Linking CXX executable llmx-backend-group-test\n[ 35%] Built target llmx-backend-group-test\n[ 42%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 50%] Linking CXX executable llmx-generation-stream-test\n[ 50%] Built target llmx-generation-stream-test\n[ 57%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 64%] Linking CXX executable llmx-backend-errors-test\n[ 64%] Built target llmx-backend-errors-test\n[ 71%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 78%] Linking CXX executable llmx-kv-cache-test\n[ 78%] Built target llmx-kv-cache-test\n[ 85%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\n[ 92%] Linking CXX executable llmx-chat-template-test\n[ 92%] Built target llmx-chat-template-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\nguarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/model/arch_qwen.hpp:17:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_group.cpp:5:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:8:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:33:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:34:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "linux-configure.log": "-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.8s)\n-- Generating done (0.0s)\n-- Build files have been written to: /root/.cache/llmx-live-generation\n",
+    "linux-final-build.log": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/../src/cli/main.cpp:33,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/cli_output.cpp:3:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Ma[ 18%] Linking CXX executable llmx-load-progress-test\n[ 18%] Built target llmx-load-progress-test\n[ 25%] Building CXX object CMakeFiles/llmx-generation-stream-test.dir/tests/generation_stream.cpp.o\n[ 31%] Linking CXX executable llmx-generation-stream-test\n[ 31%] Built target llmx-generation-stream-test\n[ 37%] Building CXX object CMakeFiles/llmx-backend-group-test.dir/tests/backend_group.cpp.o\n[ 43%] Linking CXX executable llmx-cli-output-test\n[ 43%] Built target llmx-cli-output-test\n[ 50%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 56%] Linking CXX executable llmx-backend-group-test\n[ 56%] Built target llmx-backend-group-test\n[ 62%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 68%] Linking CXX executable llmx-backend-errors-test\n[ 68%] Built target llmx-backend-errors-test\n[ 81%] Built target llmx-kv-cache-test\n[ 87%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\n[ 93%] Linking CXX executable llmx-chat-template-test\n[ 93%] Built target llmx-chat-template-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\n\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/../src/cli/main.cpp:34:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/model/arch_qwen.hpp:14,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/inference/generate.hpp:9,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/generation_stream.cpp:2:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/model/arch_qwen.hpp:17:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_group.cpp:5:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:8:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:33:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:34:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "linux-final-chat.log": "chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nchat progress: completed loading percentages and per-turn phases stay on stderr  [ok]\nversion: release/build identifier and usage banner agree  [ok]\n",
+    "linux-final-native.log": "Internal ctest changing into directory: /root/.cache/llmx-live-generation\nTest project /root/.cache/llmx-live-generation\n    Start 1: cli-output\n1/7 Test #1: cli-output .......................   Passed    0.00 sec\n    Start 2: load-progress\n2/7 Test #2: load-progress ....................   Passed    0.06 sec\n    Start 3: generation-stream\n3/7 Test #3: generation-stream ................   Passed    0.01 sec\n    Start 4: backend-group\n4/7 Test #4: backend-group ....................   Passed    0.19 sec\n    Start 5: backend-errors\n5/7 Test #5: backend-errors ...................   Passed    0.16 sec\n    Start 6: chat-template\n6/7 Test #6: chat-template ....................   Passed    0.01 sec\n    Start 7: kv-cache\n7/7 Test #7: kv-cache .........................   Passed    0.00 sec\n\n100% tests passed, 0 tests failed out of 7\n\nTotal Test time (real) =   0.44 sec\n",
+    "linux-native.log": "Internal ctest changing into directory: /root/.cache/llmx-live-generation\nTest project /root/.cache/llmx-live-generation\n    Start 1: load-progress\n1/6 Test #1: load-progress ....................   Passed    0.06 sec\n    Start 2: generation-stream\n2/6 Test #2: generation-stream ................   Passed    0.01 sec\n    Start 3: backend-group\n3/6 Test #3: backend-group ....................   Passed    0.18 sec\n    Start 4: backend-errors\n4/6 Test #4: backend-errors ...................   Passed    0.16 sec\n    Start 5: chat-template\n5/6 Test #5: chat-template ....................   Passed    0.01 sec\n    Start 6: kv-cache\n6/6 Test #6: kv-cache .........................   Passed    0.00 sec\n\n100% tests passed, 0 tests failed out of 6\n\nTotal Test time (real) =   0.43 sec\n",
+    "linux-suite.log": "version: release/build identifier and usage banner agree  [ok]\nroundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 28.97 GFLOPS (0.290 ms), prefill 8186 tok/s, decode 7368 tok/s, rms_norm 0.002 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nchat progress: completed loading percentages and per-turn phases stay on stderr  [ok]\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6581 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  version    PASS\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS\n",
+    "premature-completion-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nload_progress.cpp\n",
+    "premature-completion.log": "completion preceded a failing trailing seek\n",
+    "unchecked-read-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nload_progress.cpp\n",
+    "unchecked-read.log": "truncated payload reported complete\n",
+    "unflushed-text-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\ncli_output.cpp\n",
+    "unflushed-text.log": "CLI did not flush each byte chunk\n",
+    "windows-final-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n-- Configuring done (0.1s)\n-- Generating done (0.5s)\n-- Build files have been written to: C:/Users/Marko/AppData/Local/Temp/llmx-live-generation/build\n[  0%] Built target llmx-build-info\n[  6%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.obj\nmain.cpp\n[ 12%] Linking CXX executable llmx.exe\n[ 12%] Built target llmx\n[ 18%] Building CXX object CMakeFiles/llmx-cli-output-test.dir/tests/cli_output.cpp.obj\ncli_output.cpp\n[ 25%] Linking CXX executable llmx-cli-output-test.exe\n[ 25%] Built target llmx-cli-output-test\n[ 31%] Building CXX object CMakeFiles/llmx-load-progress-test.dir/tests/load_progress.cpp.obj\nload_progress.cpp\n[ 37%] Linking CXX executable llmx-load-progress-test.exe\n[ 37%] Built target llmx-load-progress-test\n[ 43%] Building CXX object CMakeFiles/llmx-generation-stream-test.dir/tests/generation_stream.cpp.obj\ngeneration_stream.cpp\n[ 50%] Linking CXX executable llmx-generation-stream-test.exe\n[ 50%] Built target llmx-generation-stream-test\n[ 56%] Building CXX object CMakeFiles/llmx-backend-group-test.dir/tests/backend_group.cpp.obj\nbackend_group.cpp\n[ 62%] Linking CXX executable llmx-backend-group-test.exe\n[ 62%] Built target llmx-backend-group-test\n[ 68%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.obj\nbackend_errors.cpp\n[ 75%] Linking CXX executable llmx-backend-errors-test.exe\n[ 75%] Built target llmx-backend-errors-test\n[ 81%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.obj\nchat_template.cpp\n[ 87%] Linking CXX executable llmx-chat-template-test.exe\n[ 87%] Built target llmx-chat-template-test\n[100%] Built target llmx-kv-cache-test\n",
+    "windows-final-native.log": "Test project C:/Users/Marko/AppData/Local/Temp/llmx-live-generation/build\n    Start 1: cli-output\n1/7 Test #1: cli-output .......................   Passed    0.02 sec\n    Start 2: load-progress\n2/7 Test #2: load-progress ....................   Passed    0.07 sec\n    Start 3: generation-stream\n3/7 Test #3: generation-stream ................   Passed    0.03 sec\n    Start 4: backend-group\n4/7 Test #4: backend-group ....................   Passed    0.13 sec\n    Start 5: backend-errors\n5/7 Test #5: backend-errors ...................   Passed    1.02 sec\n    Start 6: chat-template\n6/7 Test #6: chat-template ....................   Passed    0.03 sec\n    Start 7: kv-cache\n7/7 Test #7: kv-cache .........................   Passed    0.01 sec\n\n100% tests passed, 0 tests failed out of 7\n\nTotal Test time (real) =   1.42 sec\n",
+    "windows-suite.log": "version: release/build identifier and usage banner agree  [ok]\nroundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 42.13 GFLOPS (0.199 ms), prefill 7347 tok/s, decode 7268 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nchat progress: completed loading percentages and per-turn phases stay on stderr  [ok]\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  version    PASS\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS\n"
+  },
+  "scripts": {
+    "finish.py": "from pathlib import Path\nimport subprocess,json,os,shutil\nr=Path(os.environ['TEMP'])/'llmx-live-generation';rows=[]\ndef run(name,cmd,expected=0):\n with (r/(name+'.log')).open('wb') as log:p=subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode,expected=expected));(r/'finish.json').write_text(json.dumps(rows,indent=2))\n print(name,p.returncode,flush=True)\n if p.returncode!=expected:print((r/(name+'.log')).read_text(errors='replace')[-3000:]);raise SystemExit(1)\nrun('windows-final-build',['cmd','/c',str(r/'build.bat')])\nrun('windows-final-native',['ctest','--test-dir',str(r/'build'),'-C','Release','--output-on-failure'])\nroot=r/'mutants';root.mkdir(exist_ok=True)\nshutil.copytree('src',root/'src',dirs_exist_ok=True);(root/'tests').mkdir(exist_ok=True)\nfor test in ['generation_stream','load_progress','cli_output']:shutil.copy2('tests/'+test+'.cpp',root/'tests'/ (test+'.cpp'))\nmutants=[\n ('delayed-text','inference/generate.hpp','generation_stream',[('if (emit && !buffered) emit(text);',''),('if (emit && buffered)','if (emit)')]),\n ('unchecked-read','format/gguf.hpp','load_progress',[('is.exceptions(std::ios::failbit | std::ios::badbit);','')]),\n ('premature-completion','format/gguf.hpp','load_progress',[('if (progress && completed < payload)','if (progress)'),('if (progress) progress(completed, payload);\\n    return m;','if (progress && !payload) progress(0, 0);\\n    return m;')]),\n ('unflushed-text','cli/main.cpp','cli_output',[('std::cout << text << std::flush;','std::cout << text;')])]\nfor name,header,test,patches in mutants:\n p=root/'src'/header;original=p.read_text();s=original\n for old,new in patches:\n  assert old in s,(name,old)\n  s=s.replace(old,new)\n p.write_text(s)\n bat=r/(name+'.bat');exe=root/(name+'.exe')\n bat.write_text('@echo off\\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\\nif errorlevel 1 exit /b 1\\n'+f'cl /nologo /std:c++17 /O2 /arch:AVX2 /EHsc /I\"{root / \"src\"}\" \"{root / \"tests\" / (test + \".cpp\")}\" /Fe:\"{exe}\" /Fo:\"{root / (name + \".obj\")}\"\\nexit /b %errorlevel%\\n')\n try:run(name+'-build',['cmd','/c',str(bat)])\n finally:p.write_text(original)\n cmd=[str(exe)]\n if test=='load_progress':cmd.append(str(root/(name+'.gguf')))\n run(name,cmd,1)\n",
+    "latency.py": "from pathlib import Path\nimport os,subprocess,time,re,json,hashlib,statistics\nr=Path(os.environ['TEMP'])/'llmx-live-generation'\nmodel=Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf'\nexecutables={'before':r.parent/'llmx build version final/project build/llmx.exe','candidate':r/'build/llmx.exe'}\nrows=[];reference=None\nfor round_id in range(4):\n for arm in (['before','candidate'] if round_id%2==0 else ['candidate','before']):\n  args=[str(executables[arm]),'generate',str(model),'Write a detailed explanation of how rain forms.','--threads','6','--temp','0','--think','-n','64']\n  start=time.perf_counter();p=subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0)\n  header=bytearray()\n  while not header.endswith(b'\\n'):\n   b=p.stdout.read(1)\n   assert b,'no prefill header'\n   header.extend(b)\n  first=p.stdout.read(1);visible=time.perf_counter()-start\n  rest=p.stdout.read();stderr=p.stderr.read();p.wait();elapsed=time.perf_counter()-start\n  assert p.returncode==0 and not stderr,(p.returncode,stderr)\n  data=(bytes(header)+first+rest).replace(b'\\r\\n',b'\\n')\n  match=re.search(rb'\\ntg: (\\d+) tok, ([0-9.]+) ms, ([0-9.]+) tok/s\\n$',data)\n  assert match and int(match[1])==64,data[-200:]\n  body=data[data.index(b'\\n')+1:match.start()]\n  if reference is None:reference=body\n  assert body==reference,'streaming changed output bytes'\n  (r/('latency-'+str(round_id)+'-'+arm+'.stdout')).write_bytes(data)\n  rows.append(dict(round=round_id,warmup=round_id==0,arm=arm,command=args,first_text_seconds=visible,total_seconds=elapsed,tg_tps=float(match[3]),text_sha256=hashlib.sha256(body).hexdigest()))\n  (r/'latency.json').write_text(json.dumps(rows,indent=2));print(round_id,arm,round(visible,3),round(elapsed,3),flush=True)\nsummary={arm:{key:statistics.median(x[key] for x in rows if x['arm']==arm and not x['warmup']) for key in ['first_text_seconds','total_seconds','tg_tps']} for arm in executables}\n(r/'latency-summary.json').write_text(json.dumps(summary,indent=2));print(summary)\n",
+    "linux-final.py": "from pathlib import Path\nimport subprocess,os,json\nr=Path(os.environ['TEMP'])/'llmx-live-generation';rows=[]\nfor name,args in [\n ('linux-final-build',['cmake','--build','/root/.cache/llmx-live-generation','--parallel','2']),\n ('linux-final-native',['ctest','--test-dir','/root/.cache/llmx-live-generation','--output-on-failure']),\n ('linux-final-chat',['python3','-c',\"import sys;sys.path.insert(0,'/mnt/c/Users/Marko/Desktop/Projects/llmx/tests');import common,chat,version;common.EXE='/root/.cache/llmx-live-generation/llmx';assert chat.run() and version.run()\"])\n]:\n cmd=['wsl','-d','Ubuntu','--']+args\n with (r/(name+'.log')).open('wb') as log:p=subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'linux-final.json').write_text(json.dumps(rows,indent=2))\n print(name,p.returncode,flush=True)\n if p.returncode:print((r/(name+'.log')).read_text(errors='replace')[-3000:]);raise SystemExit(p.returncode)\n",
+    "linux.py": "from pathlib import Path\nimport subprocess,json,os\nr=Path(os.environ['TEMP'])/'llmx-live-generation'\nsource='/mnt/c/Users/Marko/Desktop/Projects/llmx'\nbuild='/root/.cache/llmx-live-generation'\nrows=[]\nfor name,args in [\n ('linux-configure',['cmake','-S',source,'-B',build,'-DCMAKE_BUILD_TYPE=Release']),\n ('linux-build',['cmake','--build',build,'--parallel','2']),\n ('linux-native',['ctest','--test-dir',build,'--output-on-failure']),\n ('linux-suite',['python3',source+'/tests/run_tests.py','--require-baseline','--exe',build+'/llmx'])]:\n cmd=['wsl','-d','Ubuntu','--']+args\n with (r/(name+'.log')).open('wb') as log:p=subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'linux.json').write_text(json.dumps(rows,indent=2))\n print(name,p.returncode,flush=True)\n if p.returncode:print((r/(name+'.log')).read_text(errors='replace')[-3000:]);raise SystemExit(p.returncode)\n"
+  },
+  "source_sha256": {
+    "src/backends/backend.hpp": "5d76240be7893279a308a4c21cee074f53f1dcee5421feafadb496cae52dbcba",
+    "src/backends/cpu/cpu_backend.hpp": "f114d3b6287b2a4577bc67180738853ec1b975500ea4168cbd90ab22db70ec1a",
+    "src/cli/main.cpp": "2aafe96c4b243e73847a9c98878c5b0577a7176a816b63d879e5ee270a04e35e",
+    "src/config.hpp": "a9c8a421b6d10b3289ff9b0314415a2120c3b71e91fd6243ea437a3791f89c1c",
+    "src/core/fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+    "src/core/json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+    "src/format/format.hpp": "f476a1cc71a1f052b1da60384cf61a03ea0ea48bf3902c1db1dfdf8f74ebd1e1",
+    "src/format/gguf.hpp": "a01e250642581360b98f8ea5aad3d8cc98bd6068589b198bce4266c76fd68d57",
+    "src/inference/chat.hpp": "865051f5ef6ebe8d14330e18347daeabce6a8cd9cd3eee38f664b499883ad361",
+    "src/inference/generate.hpp": "07fe20e325f7f5f9cbf100ff7649b7ff9a410305cd305016b2cfdee7b17c8b33",
+    "src/inference/perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+    "src/inference/sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+    "src/model/arch_qwen.hpp": "83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1",
+    "src/model/host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+    "src/quant/k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+    "src/quant/quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+    "src/tokenizer/tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+    "tests/backend_errors.cpp": "473a3a4d48c2d4d84a1ff238a60418f805795222201a8027a12ce008a3d0e5a2",
+    "tests/backend_group.cpp": "7c99ac7a2813ae9d5a72301e90f9849cfaafc23fe3735f870be80f7186a0d2fb",
+    "tests/baseline.py": "6114fdca1d99e41431393b99a268e1680947a1a0432cf106f8664274e47b9eff",
+    "tests/chat.py": "f42b14a6ec1c01b9f5ca63233ebad3d57cf3ea7f9b138b431f098d7aac076123",
+    "tests/chat_template.cpp": "1fef1ece2d50f31f8a2bf05b989fb9c42be8c3b520be16179f0627f262587fcd",
+    "tests/common.py": "ca00e5df5549c44e9ea0ce38552bd8c9491a0fd4773c77a190c295b9536934bf",
+    "tests/f32.py": "2e8e7fe2fa7121d2a935d192df92096f53bfdf03f83bf24e54b390740e325b0c",
+    "tests/kv_cache.cpp": "7fde5749a745210cceec242f535168fe84aca230745651abf279fbbe4e9671af",
+    "tests/perf.py": "ad5f3d27efae5da6ca9c481a7969a67947a4ac2c22162e2ff1bb92f2bc748964",
+    "tests/perplexity.py": "2bbc18cab9d87396e2063d07137ddb62ba8f06b9b0211e38c930b5f33eb180aa",
+    "tests/roundtrip.py": "13d6d4199f91ba1424d99b2337a989e21ba87a4c6153bf6ab5464df498893228",
+    "tests/run_tests.py": "8848d599d10d4a36f6ff97bf8eace4d9ac000f3d1de1ecf64648ae635114cb8d",
+    "tests/threads.py": "0e05634361b99defeda60ee40bea3e974a7035683366e726e2c4da229525a96f",
+    "tests/tokenizer.py": "9f0c899b74f8ccdbe95783485c37d4218bd179731dfcc36795c14f3748df04c3",
+    "tests/version.py": "3b7a9799ef7427a60a87c74e2b45f6df5f7d4149d985a0f95cd6a3e915230d03",
+    "tests/load_progress.cpp": "0ab96d25593c658e7668b63d54b527ed2004d1dfa4f7d26b26330adbad4ac016",
+    "tests/generation_stream.cpp": "ae2f82c1295d7d9f281769732b8afae587f861d82307ab38f9270bc0acc44a52",
+    "tests/cli_output.cpp": "86be3d48dc4492ef7a9029cb3de1b705d8b3582077c6dd7b3964a9d30fe88e34"
+  },
+  "binary_sha256": {
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-live-generation\\build\\llmx.exe": "80a6bf2a833eb4fe935e5b7a2486ce32a0736cd456ca469c4ad7bd56fb6b7352",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\project build\\llmx.exe": "0aade7c7dfbacba97be38928041b26f9c70532a798fe901c327642f0674d5901"
+  }
+}

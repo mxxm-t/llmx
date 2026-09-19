@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -67,5 +68,28 @@ def run():
         p = subprocess.run([common.exe_path(), "chat", str(model)], input=b"a\n",
                            capture_output=True, timeout=30)
         assert p.returncode == 1 and b"empty prompt" in p.stderr, (p.returncode, p.stderr)
+        case = fixture["cases"][0]
+        spec = case["spec"]
+        f32.write_model(model, weights, spec["template"])
+        expected = b"".join(bytes(turn["reply_ids"]) + b"\n" for turn in case["turns"])
+        args = [common.exe_path(), "chat", str(model), "--system", "", "--temp", "0",
+                "-n", "1", "--threads", "1"]
+        for verbose in (False, True):
+            p = subprocess.run(args + (["--verbose"] if verbose else []),
+                               input=("\n".join(spec["inputs"]) + "\n").encode(),
+                               capture_output=True, timeout=30)
+            assert p.returncode == 0, p.stderr
+            assert p.stdout.replace(b"\r\n", b"\n") == banner + expected
+            if not verbose:
+                assert not p.stderr, p.stderr
+                continue
+            percents = [int(x) for x in re.findall(rb"Loading tensor data: (\d+)%", p.stderr)]
+            assert percents[0] == 0 and percents[-1] == 100
+            assert all(a < b for a, b in zip(percents, percents[1:])), percents
+            assert p.stderr.index(b"Reading model metadata") < p.stderr.index(b"Loading tensor data")
+            assert p.stderr.index(b"Loading tensor data: 100%") < p.stderr.index(b"Preparing model")
+            assert p.stderr.count(b"Processing ") == len(spec["inputs"])
+            assert p.stderr.count(b"Generating...") == len(spec["inputs"])
     print("chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]")
+    print("chat progress: completed loading percentages and per-turn phases stay on stderr  [ok]")
     return True

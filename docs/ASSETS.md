@@ -29,7 +29,7 @@ embeddings, matrices and norms are supported, including tied output weights.
 
 | Model                                            | Format | Status                       |
 |--------------------------------------------------|--------|------------------------------|
-| `Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf` (8.11 GB)| Q8_0   | **Usable** - the real-model gate |
+| `Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf` (8.11 GB)| Q8_0   | **Usable** - manual runtime/perf asset; independent 8B HF baseline pending |
 | `Qwen\Qwen2-0.5B-Instruct-GGUF\...fp16.gguf`     | FP16   | Not yet supported            |
 | `lmstudio-community\...\Qwen3-30B...Q4_K_M.gguf` | Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
 | `lmstudio-community\...\Qwen3-Coder...Q4_K_M.gguf`| Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
@@ -1402,3 +1402,24 @@ reviewed, links checked, and source/comments/docs normalized to ASCII. Unicode
 fixture data remains intact. Existing commit history was not rewritten; new
 commit messages follow the ASCII rule. Live token delivery and reusable loading
 progress are recorded as the next requested feature, not claimed implemented.
+
+## Live generation and reusable loading progress (2026-09-19)
+
+`benchmarks/live-generation-20260919.json` records callback/CLI changes over
+8226e17, Windows/Linux full required-HF suites, final native 7/7 checks on both
+platforms, and four deliberately broken variants rejected by the new tests.
+The late-seek completion fix was followed by final native tests and Linux
+HF-backed chat/version checks; it changes notification ordering, not tensor
+bytes or inference arithmetic. Broad model validation remains scoped as above.
+
+| Qwen3-0.6B Q8_0, 64 greedy tokens, 6 workers, stdout pipe | Before | Streaming |
+|---|---:|---:|
+| First visible text, median seconds from process start | 2.663 | 0.662 |
+| Total elapsed, median seconds | 2.738 | 2.741 |
+| CLI generation, median tok/s | 31.48 | 31.77 |
+
+Three alternating measured pairs follow one excluded warmup pair. Both arms use
+--think; every response byte is identical. The first-text measurement includes
+loading/prefill and the parent's pipe-read scheduling. This demonstrates live
+output, not an inference-kernel speedup or external performance-floor pass.
+Legacy reasoning filters remain buffered to preserve retroactive filtering.

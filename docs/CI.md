@@ -71,3 +71,10 @@ workflow does not expose the GPU rig to pull-request jobs.
 After the hosted runs succeed, the stable check names above can be
 required for `main`. Branch protection is a separate repository setting;
 adding this workflow does not enable it automatically.
+
+CTest also covers synchronous text delivery before the next model step, legacy
+filtering and split UTF-8 bytes, plus loader progress, truncated reads and
+consumer exceptions. `cli-output` observes flushing through the actual CLI
+emitter with a controlled stream buffer, without wall-clock timing assertions.
+Python chat checks keep progress on stderr and compare
+follow-up replies to the HF goldens with progress enabled and disabled.

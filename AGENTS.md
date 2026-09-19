@@ -86,7 +86,8 @@ than the spec requires, so use `llmx.exe info` as the authoritative check.
 
 ## Tests
 
-Run the native backend, chat-template and KV storage checks after a CMake build:
+Run the native backend, chat-template, KV storage, loader and streaming checks
+after a CMake build:
 ```
 ctest --test-dir build -C Release --output-on-failure
 ```
@@ -127,6 +128,10 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   `python tools/gen_chat_baseline.py`; running them needs no external libraries.
 - **Thread controls** (`tests/threads.py`): actual auto/explicit phase counts,
   restoration after prefill, follow-up chat and HF-golden replies.
+- **Loading and streaming** (CTest `load-progress`, `generation-stream`,
+  `cli-output`):
+  completed-byte reporting, truncated reads, callback failures, early text
+  delivery, split UTF-8 bytes, legacy filtering and stop/EOS accounting.
 - **KV storage** (`tests/kv_cache.cpp`, CTest `kv-cache`): distinct
   layer/head/position/lane values across growth, retained-capacity reset and
   invalid extents. This storage oracle supplements the independent HF gate.
@@ -221,6 +226,9 @@ reports the embedded value, with `unknown` for builds without Git metadata.
   `docs/ROADMAP.md`.
 
 ## Conventions
+
+- mx-llama.cpp may be inspected as a reference, but do not copy its source.
+  Implement llmx changes independently in this project's architecture and style.
 
 - Use ASCII characters in code, comments, documentation and commit messages.
   Preserve Unicode test coverage using escaped literals and fixture data.

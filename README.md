@@ -17,7 +17,9 @@ The project is early; most of that broader execution and serving work is planned
 - GGUF v3 reading/writing, including mixed Q8_0, Q4_0, Q4_1, Q4_K, Q5_K,
   Q6_K and F32 tensors. The CLI quantizes to Q8_0 or Q4_0; K-quants are read-only.
 - Byte-level BPE with Qwen2/Qwen3 pretokenization, generation and interactive
-  follow-up chat using a Jinja2-subset template renderer.
+  follow-up chat using a Jinja2-subset template renderer. Text streams as tokens
+  arrive; legacy reasoning filters retain buffering. Loading and processing
+  status appears on stderr in a terminal or with `--verbose`.
 - Batched prompt processing, a growing CPU KV cache, sampling and windowed
   perplexity. One model instance currently handles one sequence at a time.
 
@@ -104,8 +106,9 @@ small committed HF goldens run without external Python packages. Real-model
 HF checks skip when models are absent; fetch the pinned fixtures with
 `python tools/fetch_test_models.py` and add `--require-baseline` to require them.
 
-Native tests cover grouped kernels, worker failures, chat templates and KV
-storage. The Python suite covers conversion, tokenization, F32 logits,
+Native tests cover grouped kernels, worker failures, chat templates, KV
+storage, early text delivery, CLI flushing and loader progress/error handling.
+The Python suite covers conversion, tokenization, F32 logits,
 perplexity, follow-up chat, thread controls and performance guardrails.
 [CI](docs/CI.md) describes the configured platform jobs and their limits;
 shared-runner timings do not establish the external performance floor.

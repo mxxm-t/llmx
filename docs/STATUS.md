@@ -9,24 +9,21 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`feat/build-version`, based on CLI checkpoint `62223a4`. The TUI watcher on **8181** is
+`feat/live-generation`, based on version checkpoint `8226e17`. The TUI watcher on **8181** is
 restarted with its saved cursor. Root `llmx.exe` remains the validated `3a82284`
 KV build. CLI thread corrections are validated on the active branch; benchmark
-comparator code is unchanged. Automatic build identification and the README/ASCII cleanup are validated. Live generation/loading progress is the next requested feature. Gitea is reachable
+comparator code is unchanged. Automatic build identification and the README/ASCII cleanup are validated. Live generation/loading progress is validated on Windows and Linux. Gitea is reachable
 again; feature checkpoints may be backed up there, with performance gates still
 required before merging to main. GitHub publication is authorized after the
-requirements pass.
+requirements pass. GitHub stays main-only; feature branches go to Gitea.
 
-**Documentation review (2026-09-19):** reviewed all 25 tracked Markdown files
-against current CLI/source, CMake/CI configuration, tests and archived evidence.
-Corrected stale fixture dimensions, format/config claims, command coverage and
-historical/current-state wording. Runtime gaps discovered during the review
-are documented rather than changed in this documentation checkpoint.
-Earlier per-feature measurements below describe their own checkpoint; the
-CLI thread block carries the latest source change. This checkpoint rechecked
-all 25 Markdown files for impact, updated CLI/test/model/architecture coverage,
-and preserved historical experiment settings. The HF roadmap now explicitly
-requires JSON validation before safetensors integration.
+**Documentation review (2026-09-19):** all 25 tracked Markdown files were
+reviewed against current source, CLI, CMake/CI, tests and archived evidence.
+This checkpoint updates callback ownership, streaming/filter behavior, loading
+status and failure handling, native test coverage and the default token limit.
+It corrects the 8B HF coverage wording and retains historical measurements with
+their original scope. The live generation block carries the latest change;
+external performance and broader numerical-coverage gaps remain open.
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
@@ -60,7 +57,7 @@ requires JSON validation before safetensors integration.
 | CPU worker exception safety           | In Progress |
 | CLI thread settings                    | In Progress |
 | Automatic build identification          | In Progress |
-| Live generation and loading progress     | Planned |
+| Live generation and loading progress     | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
@@ -72,13 +69,39 @@ requires JSON validation before safetensors integration.
 - **Goal:** stream generated text immediately in chat/generate, show prompt
   processing before the first token, and make loader progress reusable by
   current CLI consumers and future serving (ROADMAP #7).
-- **Done:** user confirmed follow-up chat works and requested these usability
-  changes. Current generate() accumulates tokens before printing them.
-- **Left:** implement after the build-version checkpoint. Keep progress events
-  separate from terminal rendering; verify early token delivery, UTF-8 chunks,
-  stop/EOS behavior, existing output filtering and follow-up cache accounting.
-- **Gotchas:** progress must reflect completed reads; it cannot hide loader
-  errors or claim completion on a failed read. No server framework is needed.
+- **Done:** optional synchronous loader byte-progress and inference text callbacks
+  are implemented; CLI generate/chat owns terminal detection, stderr status and
+  stdout flushing. Prompt-processing status appears before prefill. Normal
+  Qwen3 output and --think stream before the next model step; legacy retroactive
+  filters retain their prior buffered behavior. Stop/EOS and follow-up cache
+  accounting remain unchanged.
+  Windows/Linux full required-HF suites pass all nine components. After review
+  tightened completion ordering, final native checks pass 7/7 on both platforms;
+  Linux follow-up chat/progress and version checks pass again. Four MSVC mutants
+  fail as intended: delayed delivery, missing flush, ignored read failures and
+  completion before a failing trailing seek. Full documentation review covers
+  all 25 Markdown files, including current capabilities, CLI defaults and test
+  scope. Evidence: `benchmarks/live-generation-20260919.json`.
+- **Left:** merge with the enclosing runtime stack only after its external
+  performance gates pass. Gitea holds feature checkpoints; GitHub remains
+  main-only. Next runtime work should profile the remaining CPU costs.
+- **Gotchas:** callbacks are synchronous and do not provide concurrent execution
+  or resumable-session recovery. Byte chunks can split UTF-8 characters. Loading
+  counts tensor payload bytes, not metadata/padding or model preparation; final
+  completion follows every read/seek. Comprehensive size/extent validation is
+  still separate work. Legacy filtering buffers text when future markers can
+  retroactively discard it; no server framework is added.
+
+| Qwen3-0.6B Q8_0, 64 greedy tokens, median of 3 pairs | Before 8226e17 | Streaming |
+|---|---:|---:|
+| First visible text from process start (s) | 2.663 | 0.662 |
+| Whole process elapsed (s) | 2.738 | 2.741 |
+| CLI generation (tok/s) | 31.48 | 31.77 |
+
+Same model/prompt, six CPU workers, stdout pipe and --think; one outer warmup
+pair excluded. Every output byte matches. Builds/tests were stopped during
+these runs. This is end-user delivery latency, including loading and prefill,
+not a kernel-speedup or external mx-llama.cpp parity claim.
 
 ### Automatic build identification
 
@@ -145,7 +168,7 @@ requires JSON validation before safetensors integration.
   eight of nine rounds despite overlapping ranges; do not dismiss that as noise.
 - **Gotchas:** dispatch recovery does not roll back partially written outputs
   or establish Model/session recovery. No concurrent submissions are supported.
-  GGUF stream/extent validation and model config/tensor validation are separate
+  Comprehensive GGUF size/extent validation and model config/tensor validation are separate
   known gaps from the same review. Control is `3a82284`; no merge. Gitea holds
   the feature checkpoint, while the public/default branch remains unchanged.
 
@@ -665,7 +688,8 @@ feature ships, delete its block and mark the row `Done` above.
   2 FMAs/cycle, so it ran at half of FMA peak no matter how the batch was
   blocked. Every win after the first came from raising the FMA:load ratio.
 - **Left:**
-  - Close the measured Q8 and F32 decode gaps against mx-llama.cpp itself.
+  - Close the remaining matched prefill/decode gaps against mx-llama.cpp;
+    the latest nine-round comparison is below the Q8 decode and F32 prefill floors.
     Q8_0 decode is memory-bandwidth bound (early thread scaling was flat:
     4/8/16 threads give 3.83/4.13/3.90 tok/s) at about 32 GB/s against
     llama.cpp's 37, so the ceiling on the whole gap is bandwidth efficiency.

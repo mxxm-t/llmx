@@ -19,7 +19,10 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellapi.h>
+#include <io.h>
 #pragma comment(lib, "shell32.lib")
+#else
+#include <unistd.h>
 #endif
 
 #include "config.hpp"
@@ -41,6 +44,33 @@
 // model/. The only code that belongs here is argument parsing and glue.
 
 namespace {
+
+bool show_progress(const infer::GenParams& gp) {
+#if defined(_WIN32)
+    return gp.show_prompt_tokens || _isatty(_fileno(stderr));
+#else
+    return gp.show_prompt_tokens || isatty(fileno(stderr));
+#endif
+}
+
+gguf::GGUFModel load_model(const std::string& path, bool visible) {
+    if (!visible) return gguf::read_gguf(path);
+    std::cerr << "Reading model metadata...\n";
+    int previous = -1;
+    auto model = gguf::read_gguf(path, [&](size_t completed, size_t total) {
+        const int percent = total ? int(100.0 * double(completed) / double(total)) : 100;
+        if (percent == previous) return;
+        previous = percent;
+        std::cerr << "\rLoading tensor data: " << percent << "%" << std::flush;
+        if (completed == total) std::cerr << "\n";
+    });
+    std::cerr << "Preparing model...\n";
+    return model;
+}
+
+void emit_text(const std::string& text) {
+    std::cout << text << std::flush;
+}
 
 // ---------------------------------------------------------------------------
 // model.json / model.bin helper structures (quantize input)
@@ -303,7 +333,8 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
 
 int cmd_generate(const std::string& model_path, const std::string& prompt,
                  const infer::GenParams& gp) {
-    gguf::GGUFModel m = gguf::read_gguf(model_path);
+    const bool progress = show_progress(gp);
+    gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
     infer::Model model(m);
     if (gp.threads > 0) model.set_threads(gp.threads);
@@ -321,6 +352,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;
     model.set_threads(tb);
     if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
+    if (progress) std::cerr << "Processing " << ids.size() << " prompt tokens...\n";
     auto t0 = std::chrono::steady_clock::now();
     std::vector<float> logits = infer::prefill(model, ids);
     model.set_threads(decode_threads);
@@ -331,8 +363,10 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
            (double)ids.size() / (pp_ms / 1e3));
 
     if (gp.show_prompt_tokens) std::cerr << "threads: decode " << model.threads_available() << "\n";
+    if (progress) std::cerr << "Generating...\n";
     t0 = std::chrono::steady_clock::now();
-    std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits);
+    std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits, emit_text);
+    std::cout << "\n";
     double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     printf("tg: %zu tok, %.0f ms, %.2f tok/s\n", gen.size(), tg_ms,
            (double)gen.size() / (tg_ms / 1e3));
@@ -404,7 +438,8 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
 
 int cmd_chat(const std::string& model_path, const std::string& system,
              const infer::GenParams& gp) {
-    gguf::GGUFModel m = gguf::read_gguf(model_path);
+    const bool progress = show_progress(gp);
+    gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
     infer::Model model(m);
     if (gp.threads > 0) model.set_threads(gp.threads);
@@ -428,7 +463,7 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     messages.push_back({ "system", system });
     std::vector<uint32_t> cached_ids;
 
-    std::cout << "Chat ready (type your message; Ctrl+C to quit)\n";
+    std::cout << "Chat ready (type your message; Ctrl+C to quit)\n" << std::flush;
     std::string line;
     while (std::getline(std::cin, line)) {
         messages.push_back({ "user", line });
@@ -446,13 +481,16 @@ int cmd_chat(const std::string& model_path, const std::string& system,
         }
         model.set_threads(gp.threads_batch > 0 ? gp.threads_batch : decode_threads);
         if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
+        if (progress) std::cerr << "Processing " << gen_ids.size() - cached_ids.size() << " prompt tokens...\n";
         std::vector<float> logits = infer::prefill(model,
             std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()));
         cached_ids = std::move(gen_ids);
 
         model.set_threads(decode_threads);
         if (gp.show_prompt_tokens) std::cerr << "threads: decode " << model.threads_available() << "\n";
-        std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits);
+        if (progress) std::cerr << "Generating...\n";
+        std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits, emit_text);
+        std::cout << "\n" << std::flush;
         // A stop match may return its final token without feeding it. EOS is
         // excluded; the next rendered turn supplies its own closing tokens.
         const size_t fed = (size_t)model.n_tokens() - cached_ids.size();
@@ -618,7 +656,7 @@ void print_usage() {
         << "           --ubatch N  prefill physical batch (default 512)\n"
         << "           -tb/--threads-batch N  threads for prefill (default: --threads)\n"
         << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
-        << "           --verbose reports prompt tokens and actual prefill/decode thread counts\n";
+        << "           --verbose reports prompt tokens, actual thread counts and loading/processing status\n";
 }
 
 } // namespace

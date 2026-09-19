@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <functional>
 
 // Pluggable model-file format abstraction. A format knows how to open a file
 // and enumerate its tensors plus metadata. GGUF (format/gguf.hpp) is the first
@@ -33,8 +34,11 @@ public:
 
 using ModelFormatPtr = std::shared_ptr<ModelFormat>;
 
+// Completed tensor payload bytes, excluding metadata and padding; called synchronously.
+using LoadProgress = std::function<void(size_t completed, size_t total)>;
+
 // Open a model file, auto-detecting the format from its header. Returns nullptr
 // if the format is not recognized.
-ModelFormatPtr open(const std::string& path);
+ModelFormatPtr open(const std::string& path, const LoadProgress& progress = {});
 
 } // namespace format

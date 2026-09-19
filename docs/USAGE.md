@@ -175,16 +175,28 @@ prompt does not allocate a full-width buffer.
 ## `llmx generate <in.gguf> "<prompt>" [flags...]`
 
 Prompt-process `prompt`, then autoregressively generate tokens until eos or
-`--max-tokens`. Prints generated text. The legacy reasoning filter recognizes
+`--max-tokens`. Streams generated text as tokens arrive. The legacy reasoning filter recognizes
 `thinking_start` / `thinking_end` token names; it does not currently recognize
-Qwen3's `<think>` / `</think>` markers. `--think` disables that filtering.
+Qwen3's `<think>` / `</think>` markers. The legacy filter also recognizes
+`answer_start` / `answer_end`; when such vocabulary markers can discard earlier
+text, output remains buffered until generation ends. `--think` disables that
+filtering and streams all generated text. Stop matching retains the matching
+token in output, including any suffix within that token, as before.
+
+Generate and chat show model-loading percentages and processing/generating
+phases on stderr when it is a terminal, or when `--verbose` is set. Loading
+percentages count completed tensor payload reads, excluding metadata and padding;
+model preparation follows. The processing message reports the prompt token
+count before prefill begins, not a token-by-token completion percentage.
+Redirected stderr stays quiet by default. Text continues to stream when stdout
+is redirected.
 
 Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 `N tok, <ms>, <tok/s>`.
 
 | Flag                    | Meaning                                              | Default |
 |-------------------------|------------------------------------------------------|---------|
-| `-n`, `--max-tokens N`  | max tokens to generate                               | 32      |
+| `-n`, `--max-tokens N`  | max tokens to generate                               | 64      |
 | `--temp F`              | sampling temperature (0 = argmax/greedy)             | 0.8     |
 | `--topk N`              | top-k truncation (0 = off)                           | 40      |
 | `--topp F`              | top-p nucleus truncation (1.0 = off)                 | 0.95    |
@@ -195,7 +207,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--think`               | disable legacy reasoning-token filtering             | off     |
-| `--verbose`             | print prompt-token count and actual phase thread counts | off   |
+| `--verbose`             | print prompt-token/thread counts and loading/processing status | off   |
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
 

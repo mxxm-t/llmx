@@ -122,6 +122,16 @@ CPU cache centralizes concrete storage operations without adding unused paging,
 scheduling or device interfaces. A contiguous CPU layout must
 not become a requirement imposed on future device backends.
 
+## Progress and text delivery
+
+The format layer reports completed tensor payload bytes through an optional
+`LoadProgress` callback. Inference reports decoded byte chunks through an
+optional generation callback. Both run synchronously on their caller, hold no
+global subscriber state, and leave terminal formatting to the CLI. Callback
+exceptions propagate; consumers must not reenter the same model. Future serving
+can adapt these callbacks without importing console code into lower layers.
+The callbacks do not provide scheduling, cancellation or concurrent sessions.
+
 ## Error handling
 
 Runtime validation throws exceptions; the CLI catches `std::exception`, prints
@@ -137,7 +147,8 @@ does not establish that a failed model/session can resume. Partial pool startup
 joins threads already created; a failed thread-count change leaves the backend
 in serial mode, from which it can be configured again.
 
-Known gaps remain: GGUF stream errors and file extents need comprehensive
+GGUF reads and seeks now throw on stream failure, including truncated payloads.
+Known gaps remain: file extents and metadata-derived sizes need comprehensive
 validation, and model configuration, tensor shapes and token IDs need validation
 before execution. The minimal JSON parser also lacks strict number/escape
 validation and complete Unicode escape decoding. A future server must define

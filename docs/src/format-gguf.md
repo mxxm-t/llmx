@@ -22,11 +22,17 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
 - Both `read_gguf` and `add_tensor_data` preserve `alignof(float)` between
   in-memory tensors. A 34-byte quantized tensor must not misalign a following
   F32 tensor when the loader removes on-disk padding.
-- `read_gguf(path)` / `write_gguf(m, path)` with the on-disk layout:
+- `read_gguf(path, progress = {})` / `write_gguf(m, path)` with the on-disk layout:
   header, metadata KVs, contiguous tensor infos, then an aligned data section
   with each tensor payload aligned to `ALIGNMENT`. Tensor infos have no
   individual padding.
 
-This is the format the CLI and the `infer::Model` layer consume. Stream failures,
-file extents and overflow in metadata-derived sizes are not comprehensively
-validated yet; successful `info` output is not a strict file-validation gate.
+This is the format the CLI and the `infer::Model` layer consume. Reads/seeks
+throw on stream failure. File extents and overflow in metadata-derived sizes
+are not comprehensively validated yet; successful `info` output is not a strict file-validation gate.
+
+The optional `format::LoadProgress` callback starts at `(0, total)` before
+payload allocation, advances after successful reads of up to 8 MiB directly
+into tensor storage, and ends at `(total, total)`. Empty models report `(0, 0)`
+once. Failed reads throw before reporting those bytes as complete. Percentages
+and console output belong to the caller; no extra tensor copy is introduced.

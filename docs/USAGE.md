@@ -87,6 +87,19 @@ each other can legitimately swap.
 
 Compute the loss-based perplexity of `text` under the model.
 
+To read text from disk instead, use `llmx perplexity <in.gguf> --file <path>`
+(`-f` is an alias). Put the input immediately after the model and any remaining
+flags after the input. Choose one source: inline text or one file.
+
+```
+llmx perplexity model.gguf --file "corpus excerpt.txt" --threads 6
+```
+
+- Files must contain UTF-8 text without a BOM. Bytes, including CRLF/LF line
+  endings, are preserved; no trimming or newline conversion is performed.
+- File input avoids the shell's command-line length limit. It still scores
+  one continuous sequence within the model's context limit; it does not split
+  a corpus into chunks or reset the KV cache automatically.
 - Requires at least 2 tokens.
 - Prints `tokens`, `mean NLL`, and `perplexity`.
 
@@ -94,6 +107,7 @@ Flags:
 
 | Flag            | Meaning                                        |
 |-----------------|------------------------------------------------|
+| `-f`, `--file <path>` | read the input text from a UTF-8 file instead of an argument |
 | `--threads N`   | worker thread count (0 = auto)                 |
 | `--ubatch N`    | prefill physical batch (default 512)           |
 

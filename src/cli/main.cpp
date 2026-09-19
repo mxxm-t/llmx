@@ -6,6 +6,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 #include <sstream>
 #include <stdexcept>
 #include <algorithm>
@@ -363,6 +364,17 @@ int cmd_logits(const std::string& model_path, const std::string& text,
     return 0;
 }
 
+std::string read_perplexity_file(const std::string& path) {
+    std::ifstream input(std::filesystem::u8path(path), std::ios::binary);
+    if (!input) throw std::runtime_error("perplexity: cannot open file: " + path);
+    std::string text;
+    char buffer[8192];
+    while (input.read(buffer, sizeof(buffer)) || input.gcount())
+        text.append(buffer, (size_t)input.gcount());
+    if (!input.eof()) throw std::runtime_error("perplexity: cannot read file: " + path);
+    return text;
+}
+
 int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const infer::GenParams& gp) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
@@ -590,6 +602,7 @@ void print_usage() {
         << "  llmx tokenize   <in.gguf> \"<text>\"\n"
         << "  llmx detokenize <in.gguf> <id1,id2,...>\n"
         << "  llmx perplexity <in.gguf> \"<text>\" [flags...]\n"
+        << "  llmx perplexity <in.gguf> -f/--file <path> [flags...]\n"
         << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N]\n"
@@ -680,16 +693,23 @@ int main(int argc, char** argv) {
         }
 
         if (cmd == "perplexity") {
-            if (argc < 4) { std::cerr << "usage: llmx perplexity <model.gguf> \"<text>\" [flags...]\n"; return 2; }
+            if (argc < 4) { std::cerr << "usage: llmx perplexity <model.gguf> (\"<text>\" | --file <path>) [flags...]\n"; return 2; }
             infer::GenParams gp;
-            for (int i = 4; i < argc; i++) {
+            const bool from_file = std::string(argv[3]) == "--file" || std::string(argv[3]) == "-f";
+            if (from_file && argc < 5) { std::cerr << "perplexity: --file requires a path\n"; return 2; }
+            for (int i = from_file ? 5 : 4; i < argc; i++) {
                 std::string a = argv[i];
+                if (a == "--file" || a == "-f") {
+                    std::cerr << "perplexity: use either inline text or one --file <path> immediately after the model\n";
+                    return 2;
+                }
                 if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
-            return cmd_perplexity(argv[2], argv[3], gp);
+            const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];
+            return cmd_perplexity(argv[2], text, gp);
         }
 
         if (cmd == "logits") {

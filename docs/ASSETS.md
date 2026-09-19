@@ -70,7 +70,9 @@ This is the wikitext-2-raw test split (4358 articles, ~1.28 MB). It is a plain
 text dump — the `@-@` split tokens are present, matching the wikitext corpus
 format expected by the path-controlled perplexity gate in `docs/ROADMAP.md`.
 
-> **Limitation:** `llmx.exe perplexity` currently takes the text as a single
-> argv element, so a ~1.28 MB file can't be passed on the command line (arg
-> length + whitespace). A `--file <path>` option to read the corpus from disk is
-> the intended follow-up; until then, run perplexity on small excerpts only.
+`llmx.exe perplexity <model.gguf> --file <excerpt.txt>` reads UTF-8 text from
+disk without the command-line length limit (`-f` is an alias). Use an excerpt
+that fits the model's context: scoring still uses one continuous sequence,
+and corpus chunking is not implemented. Passing the full wikitext file does
+not automatically divide it into context-sized chunks. Line endings are
+preserved, so use the same file bytes for both arms of a comparison.

@@ -471,7 +471,17 @@ private:
     // Uses an AVX2 fused dequant+FMA path when available, else scalar.
     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {
         if (avx2_) {
-            __m256 acc = _mm256_setzero_ps();
+            // Four independent accumulators. A single chained accumulator
+            // serialised the loop at FMA latency, which also capped how many
+            // loads could be in flight; decode is bandwidth bound, so fewer
+            // outstanding loads means less memory-level parallelism and less
+            // achieved bandwidth.
+            __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
+            __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
+            // Software prefetch of the weight stream was measured here and
+            // made no difference (4.10/4.14 against 4.12/4.12 tok/s): the
+            // hardware prefetcher already keeps up with these sequential
+            // streams. Not reinstated.
             for (size_t b = 0; b < nblocks; b++) {
                 const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
                 float d = f16_to_f32((uint16_t)(y[0] | ((uint16_t)y[1] << 8)));
@@ -485,11 +495,12 @@ private:
                 __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(c));
                 __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(c, 8)));
                 const float* xp = x + b * gguf::Q8_0_BLOCK;
-                acc = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), acc);
-                acc = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), acc);
-                acc = _mm256_fmadd_ps(_mm256_mul_ps(f2, dv), _mm256_loadu_ps(xp + 16), acc);
-                acc = _mm256_fmadd_ps(_mm256_mul_ps(f3, dv), _mm256_loadu_ps(xp + 24), acc);
+                s0 = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), s0);
+                s1 = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), s1);
+                s2 = _mm256_fmadd_ps(_mm256_mul_ps(f2, dv), _mm256_loadu_ps(xp + 16), s2);
+                s3 = _mm256_fmadd_ps(_mm256_mul_ps(f3, dv), _mm256_loadu_ps(xp + 24), s3);
             }
+            __m256 acc = _mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3));
             __m128 lo = _mm256_castps256_ps128(acc);
             __m128 hi = _mm256_extractf128_ps(acc, 1);
             __m128 s = _mm_add_ps(lo, hi);

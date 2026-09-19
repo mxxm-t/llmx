@@ -34,8 +34,30 @@ absent; the separate HF job supplies that coverage.
 The Python suite also checks reference-generator argument safeguards and that
 the requested commit, float32 dtype and eager attention reach the HF loader.
 These use standard-library test doubles; CI does not generate new HF goldens
-or download larger models. Alternate-model output does not register a new
-fixture with the default suite or change its acceptance bounds.
+or download larger models. The ordinary suite now has 11 components, including
+`reference-consumer` rejection tests for 8B fixture tampering, malformed or
+out-of-bound numerical output, wrong model identity and failed launches. These
+tests use small committed JSON fixtures and doubles, without 8B inference.
+Default real-model downloads remain the two pinned 0.6B GGUFs.
+
+The separate 8B consumer requires an existing model and a new output directory:
+
+```
+python -X utf8 tests/baseline_8b.py --exe build/llmx --model path/to/Qwen3-8B-Q8_0.gguf --output-dir hf-8b-review
+```
+
+Use `--exe build/Release/llmx.exe` for MSVC. It verifies model/fixture hashes,
+records executable identity, commands and failures in `report.json`, saves raw
+output beside it, and never downloads or skips a missing model. Frozen bounds
+require exact token IDs, top-1 agreement and top-5 overlap 5/5, with absolute NLL deltas <= 0.01
+continuous and <= 0.02 windowed. Top-10 output must be finite, sorted, unique-ID
+and within absolute magnitude 100. This optional run is outside default CI;
+see [ASSETS](ASSETS.md#optional-qwen3-8b-hf-consumer) for reference provenance,
+the verified Linux cache path and the limits of short-excerpt coverage. Local
+Windows and Linux runs each pass 37/37 checks with identical printed NLLs and
+HF deltas. The Linux ordinary suite passes 11/11 with `--no-perf-floor`.
+These local results do not establish hosted 8B coverage; the optional consumer
+is not run by the workflow.
 
 Every job checks that `--version` and the usage banner agree with the release
 version, then runs the small F32 HF fixture without downloads. Its deterministic

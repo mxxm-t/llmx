@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`feat/prefill-ordered-reduction`, based on pinned HF tooling checkpoint `ea1e727`.
+`feat/hf-8b-validation`, based on validated prefill checkpoint `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
 restarted with its saved cursor. Root `llmx.exe` was updated to validated streaming
@@ -23,10 +23,12 @@ requirements pass. GitHub stays main-only; feature branches go to Gitea.
 
 **Documentation review (2026-09-20):** rechecked all 25 tracked Markdown files
 against current source, CLI, CMake/CI and recorded evidence. Independent source
-and documentation review found no correctness blocker. This checkpoint records
-ordered prefill reductions, both separate timing sessions, exact controls and
-HF/platform validation. The parallel 8B HF reference generation is archived
-with measured memory and provenance limits; its llmx comparison remains open.
+and documentation review found no correctness blocker. The optional 8B consumer
+now records frozen bounds, strict parsing, independent fixtures and rejection
+tests without adding default CI model downloads. Its Windows and Linux real-model gates
+pass 37/37 each, and both full 11-component required-HF suites pass. Linux
+uses diagnostic-only perf timing; no new performance result is claimed. Prior
+prefill checkpoint `bf122fd` and HF generation evidence remain archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
 
@@ -48,6 +50,7 @@ External performance requirements still block main/GitHub publication.
 | Chat follow-up cache validation          | In Progress |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | In Progress |
+| Optional Qwen3-8B HF consumer             | In Progress |
 | HF fixed-excerpt PPL baseline            | Done     |
 | Performance floor vs mx-llama.cpp        | In Progress |
 | Matched CPU comparison thread selection | In Progress |
@@ -71,6 +74,63 @@ External performance requirements still block main/GitHub publication.
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### Grouped Q16 activation study
+
+- **Goal:** evaluate shared Q16 activation packing for grouped Q8 decode on the
+  current runtime, following the earlier standalone numerical/perf study.
+- **Done:** source review confirms that the historical standalone prototype
+  predates grouped projections and would leave those calls on float dots.
+  An isolated candidate from exact `bf122fd` is prepared under
+  `%TEMP%/llmx-q16-group-study`, with per-file manifests and a reviewable patch.
+  It packs once per eligible grouped input and covers standalone Q8 calls,
+  retaining float fallback for invalid input/scale/result cases. Source record:
+  `benchmarks/q16-group-preparation-20260920.json`. Independent scalar/group
+  oracle and separate model activation-witness sources are also prepared. No
+  compile, test, timing or production adoption yet. The independent 8B
+  short-reference gate passes on both platforms and is available for candidate
+  checks. All local validation and transfer jobs are terminal.
+- **Left:** compile the scratch oracle and validate integer packing and dot
+  products, then
+  prove both paths activate before isolated matched timing and HF cost gates.
+- **Gotchas:** this introduces a precision change. Preserve float fallback,
+  worker scheduling and batched matrix kernels. Final prefill vocabulary
+  projection and one-token/tail work share the standalone route and can change
+  numerically; test them too, without inventing a phase API. Do not infer parity
+  or losslessness from old results. Scratch preparation may overlap reference
+  tests, but builds and timing wait for the local validation workload to finish.
+
+
+### Optional Qwen3-8B HF consumer
+
+- **Goal:** compare the verified local Q8_0 GGUF against the independent pinned
+  8B HF tokenizer, logit and PPL goldens without adding large CI downloads.
+- **Done:** original HF generation and provenance evidence are committed in
+  `bf122fd`. Before any llmx 8B comparison, declare exact tokenizer/input IDs,
+  six exact top-1 matches and top-5 set overlap 5/5; all ten printed logits must
+  be finite, sorted, unique-token and within absolute magnitude 100. NLL delta
+  limits are 0.01 continuous and 0.02 for each windowed case, prospectively
+  reusing the existing Q8 quality budget, not calibrated from 8B results.
+  Consumer implementation and independent review are complete. Both platforms pass
+  all 37 checks: 20 tokenizer cases, six prompt-ID/ranking pairs, PPL IDs and
+  four NLL cases. Largest NLL delta is 0.002185355, under its 0.02 limit. The
+  full required-HF suite passes 11/11 on each platform, including consumer
+  rejection tests (Linux perf is diagnostic only). The official pinned GGUF is
+  downloaded and hash-verified in the Linux cache documented in ASSETS. The
+  successful Linux gate used an identical staged copy, removed only after its
+  tests finished. Interrupted mounted-file results and separate intervention
+  metadata are preserved. Copy plus verification took 59.17 seconds; direct
+  download plus verification took 486.61 seconds. These are operational I/O
+  observations, not inference measurements. Prefer an existing verified copy
+  when faster and reuse the completed Linux cache. Windows original untouched.
+  All 25 Markdown files reviewed and stale performance wording corrected.
+  Evidence: `benchmarks/hf-8b-validation-20260920.json`.
+- **Left:** merge the validated consumer with the runtime stack after its
+  external performance gates pass. Keep failures with original bounds;
+  investigate rather than relaxing thresholds to fit observations.
+- **Gotchas:** exact original GGUF conversion revision is undocumented. The
+  official model-family link and file hash do not prove identical source
+  weights. Fixed excerpt/rank checks do not cover full corpus or all logits.
 
 ### CPU ordered prefill reductions
 
@@ -121,8 +181,8 @@ External performance requirements still block main/GitHub publication.
   the owned container's 40 GiB cap including file cache (3,098 limit events,
   zero OOM/kill). Evidence: `benchmarks/hf-8b-reference-20260920.json`.
 - **Left:** merge the tooling with the runtime stack after its external gates
-  pass. Add a separate 8B consumer with predeclared model-specific bounds;
-  generated goldens alone do not validate llmx. Official GGUF metadata links
+  pass. The separate 8B consumer passes Windows and Linux checks under
+  predeclared bounds. Official GGUF metadata links
   the base model and matches the local Q8 digest, but exact original conversion
   revision is undocumented. Default CI downloads remain unchanged.
 - **Gotchas:** do not overwrite small-model goldens with another model or expand
@@ -729,12 +789,15 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Retained compute implementation:** c072af2 contains the validated KV layout
-  and worker exception fix used by these comparisons. Full runtime checkpoint
-  9cfe43f adds CLI thread controls, build identification and streaming. The latest nine-round Q8 worker comparison remains
-  below mx on decode and shows a prefill cost versus its prior control.
-  Post-reboot dispatch studies do not establish a sustained external pass;
-  retain the simpler worker fix. See the worker block for current evidence.
+- **Retained compute implementation:** `bf122fd` adds validated ordered prefill
+  reductions to the existing KV layout/worker fix (`c072af2`) and CLI controls,
+  build identification and streaming (`9cfe43f`). Its initial nine-round
+  comparison improves Q8/F32 prefill and exceeds mx in F32 prefill/decode;
+  Q8 decode remains slightly below mx. A separate Q8 follow-up exceeds mx in
+  both phases, without reproducing the initial decode dip. These sessions
+  remain separate and do not clear the broader performance gate or historical
+  8B gap. See the ordered-reduction block and ASSETS for current evidence;
+  earlier worker/dispatch measurements below retain their original scope.
 - **Earlier instruction study (no runtime change):** paired native Q8 rows regress;
   direct pointer increments and explicit row-kernel inlining do not establish
   a decode gain. Exact row/tail/fallback checks pass. Assembly confirms shared
@@ -815,7 +878,9 @@ feature ships, delete its block and mark the row `Done` above.
   blocked. Every win after the first came from raising the FMA:load ratio.
 - **Left:**
   - Close the remaining matched prefill/decode gaps against mx-llama.cpp;
-    the latest nine-round comparison is below the Q8 decode and F32 prefill floors.
+    Q8 decode remains below mx in the initial `bf122fd` session, and the latest
+    8B timings predate that prefill-only change. The separate Q8 follow-up is
+    encouraging but does not establish sustained parity across required cases.
     Q8_0 decode is memory-bandwidth bound (early thread scaling was flat:
     4/8/16 threads give 3.83/4.13/3.90 tok/s) at about 32 GB/s against
     llama.cpp's 37, so the ceiling on the whole gap is bandwidth efficiency.
@@ -824,6 +889,13 @@ feature ships, delete its block and mark the row `Done` above.
   - The integer-activation study above found a modest decode gain despite the
     earlier bandwidth prediction, but did not meet the external floor and
     introduces a precision change. Keep its measured cost visible if revisited.
+    Its standalone `matvec_q8_0` patch predates grouped projections; current
+    grouped Q8 work bypasses it through `dot_row_impl`. A concrete next scratch
+    experiment is to pack shared Q16 input once per eligible grouped dispatch,
+    retaining standalone coverage, scheduling and batched matrix kernels.
+    Final prefill projection shares the single-column route and can change
+    numerically. Prove path activation and rerun frozen HF gates plus matched
+    throughput on the current base; the historical timings cannot predict that integration's result.
   - Thread and matrix-shape diagnostics are complete (see CPU comparison
     thread scaling above). F32 matrix ranges overlap mx, while Q8 matrix
     latency still trails it. The resulting head-major KV layout is now validated.

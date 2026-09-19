@@ -150,6 +150,25 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   checks for pinned reference selection, separate alternate-model output and
   forwarding the revision/float32/eager settings to the HF loaders. Actual
   reference generation and model correctness remain separate checks.
+- **Reference consumer** (`tests/reference_consumer.py`): standard-library
+  rejection tests for changed 8B fixtures, damaged logits/PPL, wrong model
+  identity and failed launches. This is the ordinary suite's eleventh component;
+  it does not load or download the 8B model.
+
+The optional real 8B check is separate from the ordinary suite and default CI:
+
+```
+python -X utf8 tests/baseline_8b.py --exe build/Release/llmx.exe --model path/to/Qwen3-8B-Q8_0.gguf --output-dir hf-8b-review
+```
+
+Use a new output directory; on Linux use `--exe build/llmx`. The consumer
+verifies the model/fixture hashes and writes raw outputs plus `report.json`,
+including failures. It requires exact tokenizer/input IDs, six top-1 matches,
+top-5 overlap 5/5 and valid top-10 logits; absolute NLL bounds are 0.01 for the
+continuous excerpt and 0.02 per windowed case. These prospective Q8 bounds
+were frozen before the 8B comparison. See `docs/ASSETS.md` for provenance and
+scope: short rankings/excerpts do not establish full-corpus or deep-context
+correctness, and the exact original GGUF conversion revision is undocumented.
 
 The two project gates are external and are defined in `docs/ROADMAP.md` #8:
 **correctness is the HF reference**, and **performance must be at least

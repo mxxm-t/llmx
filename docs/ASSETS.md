@@ -29,7 +29,7 @@ embeddings, matrices and norms are supported, including tied output weights.
 
 | Model                                            | Format | Status                       |
 |--------------------------------------------------|--------|------------------------------|
-| `Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf` (8.11 GB)| Q8_0   | **Usable** - manual runtime/perf asset; independent 8B HF baseline pending |
+| `Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf` (8.11 GiB)| Q8_0   | **Usable** - optional independent HF checks pass on Windows and Linux |
 | `Qwen\Qwen2-0.5B-Instruct-GGUF\...fp16.gguf`     | FP16   | Not yet supported            |
 | `lmstudio-community\...\Qwen3-30B...Q4_K_M.gguf` | Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
 | `lmstudio-community\...\Qwen3-Coder...Q4_K_M.gguf`| Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
@@ -101,9 +101,9 @@ The local 8B GGUF is not an independent HF reference. On 2026-09-20, original
 `b968826d9c46dd6066d109eabc6255188de91218` were verified and used on the rig
 to generate separate CPU FP32 eager references. The official GGUF repository
 declares that base model and its Q8 LFS digest matches the local file, but its
-exact original conversion revision remains undocumented. A dedicated llmx
-consumer and predeclared model-specific bounds are still required; generation
-alone does not establish 8B llmx correctness or broaden CI downloads.
+exact original conversion revision remains undocumented. The optional consumer
+below uses predeclared bounds; reference generation alone does not establish
+8B llmx correctness or broaden CI downloads.
 
 The owned CPU-only `llmx-hf-reference` container uses six CPUs and a 40 GiB
 memory cap with no extra swap. FP32 parameters occupy 30.513 GiB. Measured
@@ -151,6 +151,86 @@ build setting changed. Full runtime Linux/native validation remains that
 checkpoint's result; this tooling change adds the targeted Linux check above.
 Commands, metadata, output hashes and comparison results are archived in
 [`benchmarks/hf-reference-tools-20260919.json`](benchmarks/hf-reference-tools-20260919.json).
+
+### Optional Qwen3-8B HF consumer
+
+`tests/baseline_8b.py` consumes the three separate goldens in
+`tests/data/qwen3-8b/`, generated from the pinned original HF revision above.
+It requires the existing Q8_0 GGUF with SHA-256
+`408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6`.
+It verifies the fixture hashes after normalizing checkout line endings to LF.
+No HF packages or network access are needed to run it.
+
+The canonical Linux copy is:
+
+```
+/root/.cache/llmx-models/Qwen/Qwen3-8B-GGUF/7c41481f57cb95916b40956ab2f0b139b296d974/Qwen3-8B-Q8_0.gguf
+```
+
+The official download at that GGUF revision was verified as 8,709,518,112
+bytes with the digest above. Its temporary staged duplicate was removed; the
+original Windows model is preserved. In this transfer session, copying the
+existing model plus verification took 59.17 seconds, versus 486.61 seconds for
+download plus verification. These are operational I/O timings, not inference
+benchmarks. Prefer an existing verified copy when it is faster, and verify the
+destination's identity before use.
+
+From the repository root, select the built executable and a new output path:
+
+```
+python -X utf8 tests/baseline_8b.py --exe build/Release/llmx.exe --model C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf --output-dir hf-8b-review
+```
+
+For Linux use `--exe build/llmx` and the local model path. Existing output
+directories are rejected. Missing/wrong models and failed commands fail the
+run; there is no download or skip. Numerical commands use six workers and
+ubatch 128. `report.json` records the executable hash/version, model/fixture
+hashes, commands, bounds and check results. Per-command stdout/stderr and the
+exact PPL excerpt remain beside it, including partial output on timeout.
+
+The bounds were declared before the first llmx 8B comparison, prospectively
+reusing the strict 0.6B Q8 budget, not calibrated from 8B results:
+
+| Check | Frozen acceptance |
+|---|---|
+| Tokenizer | All 20 cases, six logit prompt ID sequences and the PPL input IDs exact |
+| Six short-prompt rankings | Top-1 exact; top-5 set overlap 5/5 |
+| Each top-10 output | Ten unique valid IDs; finite, nonincreasing logits; absolute magnitude <= 100; exact prompt count |
+| Continuous 247-token mean NLL | Absolute HF delta <= 0.01 |
+| Each of three windowed mean NLL cases | Absolute HF delta <= 0.02 |
+| PPL accounting | Exact input/used/target/window/context counts; finite consistent NLL/PPL |
+
+The context-123 case omits its singleton tail: 246 used tokens, 244 targets
+and two windows. PPL runs the serial-step path; rankings exercise short batched
+prefill. These checks do not bound all logits or establish full-corpus,
+deep-context, lossless or performance parity. The exact original revision used
+for the GGUF conversion remains undocumented. Keep failures and investigate
+them without relaxing these bounds to fit observations.
+
+The Windows and Linux consumers each pass all 37 checks with the validated
+`bf122fd` runtime.
+This includes 20 tokenizer cases, six prompt-ID/ranking pairs, PPL input IDs
+and four numerical/counter checks. The printed NLL values and HF deltas are
+identical on both platforms. The Linux ordinary suite also passes 11/11 with
+`--no-perf-floor`; these results do not establish a hosted CI pass.
+
+| Case | Windows / Linux llmx mean NLL | HF FP32 mean NLL | Absolute delta | Limit |
+|---|---:|---:|---:|---:|
+| Continuous | 2.400160 | 2.401654413 | 0.001494413 | 0.01 |
+| Context 64, all | 3.090200 | 3.090417353 | 0.000217353 | 0.02 |
+| Context 64, two | 2.829430 | 2.829422962 | 0.000007038 | 0.02 |
+| Context 123, all | 2.667930 | 2.670115355 | 0.002185355 | 0.02 |
+
+Values reflect the CLI's printed precision. The Windows executable was reused
+after checking its hash and unchanged runtime source; its version records the
+pre-checkpoint build (`ea1e727.dirty`). No runtime path changed in this consumer
+feature, and these correctness runs are not throughput measurements.
+
+`tests/reference_consumer.py` checks fixture tampering, token mismatch,
+malformed/nonfinite/duplicate/unsorted logits, damaged PPL counters/bounds and
+failed launches using the standard library. It is the eleventh ordinary suite
+component. The real 8B run is optional and separate; `--require-baseline` and
+`tools/fetch_test_models.py` still cover only the two pinned 0.6B models.
 
 ### Fixed-excerpt HF perplexity gate
 

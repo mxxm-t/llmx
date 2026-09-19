@@ -6,6 +6,7 @@
 
 #include "core/fp16.hpp"
 #include "format/gguf.hpp"
+#include "quant/k_quants.hpp"
 
 // Q8_0 block quantization kernels, from scratch. A block holds 32 float values
 // that are compressed into a 2-byte f16 scale + 32 int8 quantized values
@@ -137,39 +138,6 @@ inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
-// Q6_K super-block of 256 values (gguf::Q6_K_TYPESIZE = 210):
-//   ql[128]  low 4 bits of each quant
-//   qh[64]   high 2 bits, packed 4 quants per byte
-//   sc[16]   int8 per-16-value scale
-//   d        f16 super-block scale
-// A quant is (low4 | high2 << 4) - 32, scaled by d * sc[group]. The layout
-// walks the block in two halves of 128, which is why the strides below are 64
-// for ql, 32 for qh and 8 for sc.
-inline void dequantize_row_q6_K(const uint8_t* src, float* dst, size_t nblocks) {
-    for (size_t b = 0; b < nblocks; b++) {
-        const uint8_t* p = src + b * gguf::Q6_K_TYPESIZE;
-        const uint8_t* ql = p;
-        const uint8_t* qh = p + 128;
-        const int8_t*  sc = (const int8_t*)(p + 192);
-        const float d = f16_to_f32((uint16_t)(p[208] | ((uint16_t)p[209] << 8)));
-        float* y = dst + b * gguf::Q6_K_BLOCK;
-        for (int n = 0; n < (int)gguf::Q6_K_BLOCK; n += 128) {
-            for (int l = 0; l < 32; l++) {
-                const int is = l / 16;
-                const int q1 = (int)((ql[l +  0] & 0xF) | (((qh[l] >> 0) & 3) << 4)) - 32;
-                const int q2 = (int)((ql[l + 32] & 0xF) | (((qh[l] >> 2) & 3) << 4)) - 32;
-                const int q3 = (int)((ql[l +  0] >>  4) | (((qh[l] >> 4) & 3) << 4)) - 32;
-                const int q4 = (int)((ql[l + 32] >>  4) | (((qh[l] >> 6) & 3) << 4)) - 32;
-                y[l +  0] = d * (float)sc[is + 0] * (float)q1;
-                y[l + 32] = d * (float)sc[is + 2] * (float)q2;
-                y[l + 64] = d * (float)sc[is + 4] * (float)q3;
-                y[l + 96] = d * (float)sc[is + 6] * (float)q4;
-            }
-            y += 128; ql += 64; qh += 32; sc += 8;
-        }
-    }
-}
-
 // Description of a quantized storage type: fixed block size, bytes per block,
 // and block-wise (de)quantize routines. Register each type with the
 // quant::Registry so consumers can look a type up by its GGML id.
@@ -217,6 +185,9 @@ inline void register_builtins() {
     // Q6_K is read-only: llama.cpp upgrades a few tensors to it inside an
     // otherwise Q4_0 file, so llmx needs to LOAD it, but nothing here produces
     // it and a quantizer would be unused code.
+    r.add(gguf::GGML_TYPE_Q4_K,
+          { "Q4_K", gguf::Q4_K_BLOCK, gguf::Q4_K_TYPESIZE,
+            nullptr, dequantize_row_q4_K });
     r.add(gguf::GGML_TYPE_Q6_K,
           { "Q6_K", gguf::Q6_K_BLOCK, gguf::Q6_K_TYPESIZE,
             nullptr, dequantize_row_q6_K });

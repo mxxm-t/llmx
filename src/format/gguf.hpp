@@ -32,7 +32,10 @@ constexpr uint32_t GGML_TYPE_F32  = 0;
 constexpr uint32_t GGML_TYPE_Q4_0 = 2;
 constexpr uint32_t GGML_TYPE_Q4_1 = 3;
 constexpr uint32_t GGML_TYPE_Q8_0 = 8;
+constexpr uint32_t GGML_TYPE_Q4_K = 12;
 constexpr uint32_t GGML_TYPE_Q6_K = 14;
+constexpr size_t   Q4_K_BLOCK    = 256;  // K-quant super-block
+constexpr size_t   Q4_K_TYPESIZE = 144;  // 2 f16 + 12 packed 6-bit + 128 nibbles
 constexpr size_t   Q4_1_BLOCK    = 32;   // values per block
 constexpr size_t   Q4_1_TYPESIZE = 20;   // f16 scale + f16 min + 32 nibbles
 constexpr size_t   Q6_K_BLOCK    = 256;  // K-quant super-block
@@ -75,6 +78,7 @@ struct TensorInfo {
         if (type == GGML_TYPE_Q8_0) return (n_elements() / Q8_0_BLOCK) * Q8_0_TYPESIZE;
         if (type == GGML_TYPE_Q4_0) return (n_elements() / Q4_0_BLOCK) * Q4_0_TYPESIZE;
         if (type == GGML_TYPE_Q4_1) return (n_elements() / Q4_1_BLOCK) * Q4_1_TYPESIZE;
+        if (type == GGML_TYPE_Q4_K) return (n_elements() / Q4_K_BLOCK) * Q4_K_TYPESIZE;
         if (type == GGML_TYPE_Q6_K) return (n_elements() / Q6_K_BLOCK) * Q6_K_TYPESIZE;
         if (type == GGML_TYPE_F32)  return n_elements() * 4;
         throw std::runtime_error("unsupported tensor type in data_size");

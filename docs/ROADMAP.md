@@ -14,11 +14,20 @@ kernels plus one registry entry, and nothing outside `quant/` and the GGUF type
 constants has to change. Note the kernels all currently live in one
 `quant/quant.hpp`, NOT a file per type; split it when the first K-quant with a
 shared sub-scale decoder lands and the file stops being readable.
-- Done: `Q8_0`, `Q4_0`, `Q4_1`, `Q6_K` (read-only). A llama.cpp "Q4_0" file is
-  mixed - Qwen3-0.6B-Q4_0 is 193 Q4_0, 113 F32, 3 Q4_1 and 1 Q6_K - so these
-  four together are the minimum to load one at all.
-- Next: `Q4_K`, `Q5_K`, `Q6_K` write, then `IQ2/IQ3/IQ4`. `Q4_K`/`Q5_K` share a
-  6-bit packed sub-scale decoder, which is where the file split pays for itself.
+- Done: `Q8_0`, `Q4_0`, `Q4_1`, plus `Q4_K` and `Q6_K` read-only. Real files
+  are MIXED: Qwen3-0.6B-Q4_0 is 193 Q4_0 / 113 F32 / 3 Q4_1 / 1 Q6_K, and
+  Qwen3-8B-Q4_K_M is 217 Q4_K / 37 Q6_K / 145 F32. A type on its own loads
+  nothing; the set is what matters.
+- K-quant kernels live in `quant/k_quants.hpp`, split out when `Q4_K` brought
+  the shared 6-bit sub-scale decoder (`get_scale_min_k4`) that `Q5_K` reuses.
+- Next: `Q5_K`, then a FUSED per-type matmul kernel. Q4_K currently takes the
+  generic dequantize-to-f32 path and runs at 2.16 tok/s against Q8_0's 4.12
+  despite the file being 5 GB against 8.1 GB - it is compute bound on
+  unpacking, not bandwidth bound.
+- `IQ2/IQ3/IQ4` are deliberately NOT next. Every quant type multiplies the
+  per-backend kernel work later (see #4b), and these are both rarer on the Hub
+  and harder to implement. Hold them until a GPU backend exists and that cost
+  is visible.
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - `TensorInfo::data_size()` still switches on type in `format/gguf.hpp` rather
   than reading the registry, because `quant/` includes `format/` and not the

@@ -1036,6 +1036,34 @@ projection profiles, matrix ranges and reproduction sources are in
 Scratch: `%TEMP%/llmx-cpu-scaling`. The measurement checkpoint does not merge
 or publish the unlanded runtime stack; external performance floors remain open.
 
+## Initial head-major KV diagnostic (2026-09-19)
+
+Scratch `%TEMP%/llmx-kv-head-major` compares control `342960a` (runtime
+`475f312`), a concrete host-cache helper with contiguous history per head,
+and the same public mx reference used above. No runtime code was adopted.
+There is an outer warmup round and a warmup sequence in every process; three
+measured rounds rotate arm order. Same pinned model, tokens, six threads,
+ubatch 128, F32 KV and inference-only timing. All samples, including the slower
+Q8 candidate decode sample, are retained.
+
+| Mean tok/s | Current | Scratch KV candidate | mx |
+|---|---:|---:|---:|
+| Q8 prefill | 423.69 | 461.67 | 289.01 |
+| Q8 decode | 47.08 | 48.51 | 50.24 |
+| F32 prefill | 403.41 | 427.26 | 430.29 |
+| F32 decode | 15.20 | 15.33 | 15.32 |
+
+Q8 prefill arm ranges are disjoint; decode ranges overlap and the candidate
+mean still trails mx. F32 ranges overlap for both phases. This short diagnostic
+does not establish the external floors. Growth/reset/mixed-history outputs
+match the control exactly across all 229,758 values, including multiple KV
+heads and tail widths. Tiny independent HF fixtures pass at maximum logit
+error 7e-7. Real-model HF, long-context and platform gates remain pending.
+The investigation is paused for the follow-up chat correctness fix.
+
+[`benchmarks/head-major-kv-initial-20260919.json`](benchmarks/head-major-kv-initial-20260919.json)
+contains all samples, hashes, prototype sources, harnesses and initial checks.
+
 ## Follow-up chat fixtures (2026-09-19)
 
 `tests/data/baseline_chat.json` uses the same deterministic untied tiny weights

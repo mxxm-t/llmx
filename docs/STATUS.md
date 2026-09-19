@@ -296,20 +296,32 @@ feature ships, delete its block and mark the row `Done` above.
 - **Goal:** make each KV head's history contiguous to improve attention reads
   while preserving arithmetic order and growing storage with used context.
 - **Done:** control is `342960a` (runtime `475f312`); profiling and matrix
-  diagnostics are archived. Scratch layout/growth headers are prepared but
-  have not been built or validated. No runtime change has been adopted.
+  diagnostics are archived. Scratch host storage helper and explicit attention
+  stride build on Windows. Growth/reset/mixed histories match all 229,758
+  control logits exactly; tiny independent HF fixtures pass (max error 7e-7).
+  Initial matched model timing is complete and archived in
+  `benchmarks/head-major-kv-initial-20260919.json`. No runtime change has been
+  adopted. Mean tok/s (three measured rounds, all outliers retained):
+
+  | Model / phase | Current | Scratch KV | mx |
+  |---|---:|---:|---:|
+  | Q8 prefill | 423.69 | 461.67 | 289.01 |
+  | Q8 decode | 47.08 | 48.51 | 50.24 |
+  | F32 prefill | 403.41 | 427.26 | 430.29 |
+  | F32 decode | 15.20 | 15.33 | 15.32 |
+
+  Q8 prefill ranges are disjoint; decode overlaps and remains below mx in
+  the mean. F32 ranges overlap. This is not proof of the external floors.
   Architecture and server roadmap now explicitly separate shared weights,
   per-sequence mutable KV, execution scratch and in-flight storage lifetime.
-- **Left:** build a scratch head-major cache with explicit head stride and
-  bounded capacity growth. Check growth, reset, mixed prefill/step histories,
-  context limits and exact full outputs, then run matched model measurements.
-  Any selected implementation needs independent HF, platform and long gates.
-  Centralize concrete CPU cache storage operations before adoption; keep
+- **Left:** resume after the chat follow-up fix: real-model full-vector and
+  independent HF checks, platform/long gates and longer matched measurements.
+  Concrete CPU storage operations are centralized in the scratch helper; keep
   logical sequence state separate from physical capacity and avoid making
   this CPU layout a requirement for future device or multi-user execution.
 - **Gotchas:** reset may retain allocated memory but must never expose stale
   tokens. Growth must preserve every layer/head's used prefix. Do not allocate
-  the model's full maximum context at startup or change reduction order.
+    the model's full maximum context at startup or change reduction order.
 
 ### Chat follow-up cache validation
 

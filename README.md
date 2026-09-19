@@ -48,7 +48,8 @@ the wikitext corpus for manual verification are documented in `docs/ASSETS.md`.
 
 ## Test
 
-All tests generate their own synthetic fixtures — no real models needed:
+Synthetic tests generate their own fixtures. HF baseline checks also run when
+their real fixture models are cached (otherwise those checks skip):
 
 ```
 python tests/run_tests.py
@@ -60,6 +61,9 @@ python tests/run_tests.py
   prefill/decode TPS, asserting generous floors so catastrophic regressions fail
   loudly without being flaky.
 - **Tokenizer**: encode/decode round-trips incl. unicode and special tokens.
+- **HF baseline**: tokenizer IDs, next-token rankings and a fixed-excerpt PPL
+  against committed reference fixtures. Running these checks needs only the
+  Python standard library; generating the reference fixtures needs HF tooling.
 
 ## Documentation
 

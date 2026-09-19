@@ -24,6 +24,7 @@ feature currently stands right now.
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Planned  |
 | Correctness baseline vs HF reference     | In Progress |
+| HF fixed-excerpt PPL baseline            | Done     |
 | Performance floor vs mx-llama.cpp        | In Progress |
 | Perplexity text-file input (-f/--file)    | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
@@ -53,6 +54,12 @@ feature ships, delete its block and mark the row `Done` above.
     that commit; the mixed fixture catches the f16 subnormal regression.
   - Local golden generation works in an isolated environment with
     numpy<2.3, torch 2.5.1+cpu and transformers 4.55.2.
+  - Pinned HF fp32 PPL golden for a 247-token wikitext excerpt: exact token
+    IDs/count and finite NLL/PPL checks, with per-quant absolute NLL bounds.
+    HF PPL 28.7974; Q8_0 28.8371 (NLL delta 0.001374 <= 0.01); mixed Q4_0
+    32.8463 (delta 0.131554 <= 0.16). Both llmx arms repeated identically at
+    printed precision. Generator, provenance and bounds are in `docs/ASSETS.md`.
+    Eight injected bad-output cases were rejected; build and full suite pass.
   - Eight bugs found and fixed via this path, all of which survived a green
     suite: attention missing 1/sqrt(head_dim); temperature cancelling in the
     sampler; RoPE read past context_length; the GPT-2 whitespace guard that
@@ -61,7 +68,9 @@ feature ships, delete its block and mark the row `Done` above.
     prompt was mangled before llmx saw it; and the pretokenizer implementing
     the GPT-2 regex instead of the Qwen2/Qwen3 one.
 - **Left:**
-  - Per-layer activation and corpus-PPL goldens, plus long-context validation.
+  - Per-layer activation and full-corpus PPL goldens, plus long-context validation.
+    The fixed excerpt is a regression gate, not full-corpus coverage; a defined
+    context-window/chunk scoring policy is still needed for longer corpora.
     The existing ranking gate does not bound full-vector numerical error.
   - Tolerance bands: F32 vs reference tight, Q8_0 vs reference needs a
     quantization-appropriate bound.

@@ -1,8 +1,11 @@
 import glob
+import hashlib
 import io
 import json
+import math
 import os
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli
@@ -22,8 +25,9 @@ GOLDEN = os.path.join(HERE, "data", "baseline_tokenizer.json")
 
 
 GOLDEN_LOGITS = os.path.join(HERE, "data", "baseline_logits.json")
+GOLDEN_PPL = os.path.join(HERE, "data", "baseline_perplexity.json")
 
-# Fixture models for the logit gate, each with the top-5 overlap it is expected
+# Fixture models for the logit/PPL gates, each with the top-5 overlap it is expected
 # to reach against the FULL-PRECISION reference. Coarser quantization reorders
 # more of the tail, so the bound is per-model and measured, not guessed.
 #
@@ -33,9 +37,11 @@ GOLDEN_LOGITS = os.path.join(HERE, "data", "baseline_logits.json")
 # Qwen3-8B), so it is structurally blind to the f16 subnormal bug class - the
 # gate passed with that bug deliberately reintroduced until this model was
 # added.
-LOGIT_MODELS = [
-    {"repo": "Qwen/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q8_0.gguf", "min_overlap": 5},
-    {"repo": "unsloth/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q4_0.gguf", "min_overlap": 4},
+BASELINE_MODELS = [
+    {"repo": "Qwen/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q8_0.gguf",
+     "min_overlap": 5, "max_nll_delta": 0.01},
+    {"repo": "unsloth/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q4_0.gguf",
+     "min_overlap": 4, "max_nll_delta": 0.16},
 ]
 
 # A correct next-token logit for these models sits around 15-25. Gross
@@ -71,8 +77,8 @@ def run_logits():
         doc = json.load(f)
 
     ran = 0
-    for spec in LOGIT_MODELS:
-        model = find_model({"gguf_repo": spec["repo"], "gguf_file": spec["file"]})
+    for spec in BASELINE_MODELS:
+        model = find_fixture(spec)
         if not model:
             continue
         ran += 1
@@ -113,6 +119,57 @@ def run_logits():
         print("baseline-logits: SKIP - no fixture model on disk")
     return True
 
+
+def run_perplexity():
+    with io.open(GOLDEN_PPL, encoding="utf-8") as f:
+        doc = json.load(f)
+    raw = doc["text"].encode("utf-8")
+    assert hashlib.sha256(raw).hexdigest() == doc["text_sha256"], "PPL fixture text changed"
+    assert len(doc["token_ids"]) == doc["n_tokens"] == doc["n_scored"] + 1
+    assert math.isfinite(doc["mean_nll"]) and math.isfinite(doc["perplexity"])
+    assert math.isclose(math.exp(doc["mean_nll"]), doc["perplexity"], rel_tol=1e-12)
+    with tempfile.TemporaryDirectory(prefix="llmx_ppl_") as directory:
+        path = os.path.join(directory, "excerpt.txt")
+        with open(path, "wb") as f:
+            f.write(raw)
+        for spec in BASELINE_MODELS:
+            model = find_fixture(spec)
+            if not model:
+                print("baseline-ppl[%s]: SKIP - fixture model not on disk" % spec["file"])
+                continue
+            rc, out = cli(["tokenize", model, doc["text"]])
+            assert rc == 0 and parse_ids(out) == doc["token_ids"], "PPL token IDs differ from HF"
+            rc, out = cli(["perplexity", model, "--file", path, "--threads", "6"])
+            assert rc == 0, "perplexity failed (exit %d): %s" % (rc, out)
+            fields = dict(line.split(":", 1) for line in out.splitlines() if ":" in line)
+            assert {"tokens", "mean NLL", "perplexity"} <= fields.keys(), "missing PPL results: " + out
+            assert int(fields["tokens"]) == doc["n_tokens"], "PPL token count differs from HF"
+            nll, ppl = float(fields["mean NLL"]), float(fields["perplexity"])
+            assert math.isfinite(nll) and math.isfinite(ppl), "non-finite PPL results: " + out
+            delta = abs(nll - doc["mean_nll"])
+            # Repeated measured deltas: Q8_0 0.00137442; mixed Q4_0 0.13155442.
+            # Bounds allow quantization error; they are not a lossless claim.
+            assert delta <= spec["max_nll_delta"], (
+                "%s mean NLL %.6f vs HF %.6f: delta %.6f exceeds %.3f"
+                % (spec["file"], nll, doc["mean_nll"], delta, spec["max_nll_delta"]))
+            # The CLI prints six significant digits, so allow decimal rounding.
+            assert math.isclose(ppl, math.exp(nll), rel_tol=2e-5), "inconsistent NLL/PPL: " + out
+            print("baseline-ppl[%s]: %d tokens, PPL %.4f vs HF %.4f, NLL delta %.6f <= %.3f  [ok]"
+                  % (spec["file"], doc["n_tokens"], ppl, doc["perplexity"], delta, spec["max_nll_delta"]))
+    return True
+
+
+def find_fixture(spec):
+    override = os.environ.get("LLMX_BASELINE_GGUF")
+    if override:
+        name = os.path.basename(override)
+        assert name in {s["file"] for s in BASELINE_MODELS}, (
+            "LLMX_BASELINE_GGUF must retain the fixture filename to select its quantization bounds")
+        if name != spec["file"]:
+            return None
+    return find_model({"gguf_repo": spec["repo"], "gguf_file": spec["file"]})
+
+
 def find_model(doc):
     env = os.environ.get("LLMX_BASELINE_GGUF")
     if env:
@@ -133,7 +190,7 @@ def parse_ids(out):
 
 
 def run():
-    return run_tokenizer() and run_logits()
+    return run_tokenizer() and run_logits() and run_perplexity()
 
 
 def run_tokenizer():

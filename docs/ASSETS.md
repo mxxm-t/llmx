@@ -48,6 +48,9 @@ llmx.exe generate C:\Users\Marko\.lmstudio\models\Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8
 
 `tests/baseline.py` looks these up in the Hugging Face cache automatically, and
 skips if they are absent. `LLMX_BASELINE_GGUF` overrides the lookup.
+Keep the fixture's original filename when using the override: it selects the
+quantization-specific logit/PPL bounds. Only that model's numerical checks run
+when an override is set; unsupported filenames are rejected.
 
 | Repo / file | Why this one |
 |---|---|
@@ -55,6 +58,32 @@ skips if they are absent. `LLMX_BASELINE_GGUF` overrides the lookup.
 | `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q4_0.gguf` | **Load-bearing.** Mixed Q4_0/Q4_1/Q6_K/F32, and its Q6_K `token_embd` has a subnormal super-block scale. The Q8_0 fixture has almost no subnormal scales (0.0061% of blocks against 5.89% in Qwen3-8B), so without this model the logit gate is blind to the f16 subnormal bug class - it passed with that bug deliberately reintroduced until this was added. |
 
 Fetch them with `huggingface_hub`; both are a few hundred MB.
+
+### Fixed-excerpt HF perplexity gate
+
+`tests/data/baseline_perplexity.json` records an HF float32 reference from
+`Qwen/Qwen3-0.6B` revision `c1899de289a04d12100db370d81485cdf75e47ca`.
+Regenerate it with `python tools/gen_baseline.py perplexity` in the isolated
+HF environment described by that script. Generation uses CPU eager attention;
+the JSON records torch/transformers versions, the exact text and its SHA-256,
+token IDs, target count, mean NLL and PPL.
+
+The text is the first 1024 Unicode characters of `wiki.test.raw`, with line
+endings normalized to LF before extraction. Its 247 tokens form one continuous
+sequence with no added BOS/EOS. Every token after the first is scored against
+the preceding tokens (246 targets); log-softmax and the reduction use float64
+on the HF float32 logits. The suite writes the stored text bytes to a temporary
+file and invokes `perplexity --file`, so checkout newline settings do not change
+the test input.
+
+The HF reference is mean NLL **3.360285580**, PPL **28.797413678**. Two repeated
+llmx measurements per quant gave Q8_0 NLL **3.36166** / PPL **28.8371** and mixed
+Q4_0 NLL **3.49184** / PPL **32.8463**. The absolute mean-NLL bounds are **0.01**
+and **0.16**, respectively (about 1.01% and 17.35% relative PPL). These bounds
+allow quantization error; they do not establish lossless inference. The gate
+also requires exact HF token IDs/count and finite, mutually consistent NLL/PPL.
+Full-corpus scoring, context-window policy and long-context validation remain
+separate work.
 
 
 ## Wiki text location

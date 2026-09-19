@@ -333,6 +333,36 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     return 0;
 }
 
+// Print the top-N next-token logits for a prompt. This exists for the
+// correctness gate: it is the only way to compare llmx against a
+// full-precision reference at the level where errors actually appear, rather
+// than through sampled text. See docs/ROADMAP.md #8.
+int cmd_logits(const std::string& model_path, const std::string& text,
+               int topn, const infer::GenParams& gp) {
+    gguf::GGUFModel m = gguf::read_gguf(model_path);
+    bpe::Tokenizer tok(m);
+    infer::Model model(m);
+    if (gp.threads > 0) model.set_threads(gp.threads);
+    model.set_ubatch(gp.ubatch);
+
+    std::vector<uint32_t> ids = tok.encode(text);
+    if (ids.empty()) throw std::runtime_error("logits: empty prompt");
+    std::vector<float> logits = infer::prefill(model, ids);
+
+    std::vector<std::pair<float, uint32_t>> ranked;
+    ranked.reserve(logits.size());
+    for (size_t i = 0; i < logits.size(); i++)
+        ranked.push_back({ logits[i], (uint32_t)i });
+    if (topn > (int)ranked.size()) topn = (int)ranked.size();
+    std::partial_sort(ranked.begin(), ranked.begin() + topn, ranked.end(),
+                      [](const auto& a, const auto& b) { return a.first > b.first; });
+
+    printf("tokens: %zu\n", ids.size());
+    for (int i = 0; i < topn; i++)
+        printf("%u %.6f\n", ranked[(size_t)i].second, ranked[(size_t)i].first);
+    return 0;
+}
+
 int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const infer::GenParams& gp) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
@@ -556,6 +586,7 @@ void print_usage() {
         << "  llmx quantize   <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n"
         << "  llmx dequantize <in.gguf> <out.json> <out.bin>\n"
         << "  llmx info       <in.gguf>\n"
+        << "  llmx logits     <in.gguf> \"<text>\" [--top N]\n"
         << "  llmx tokenize   <in.gguf> \"<text>\"\n"
         << "  llmx detokenize <in.gguf> <id1,id2,...>\n"
         << "  llmx perplexity <in.gguf> \"<text>\" [flags...]\n"
@@ -659,6 +690,21 @@ int main(int argc, char** argv) {
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             return cmd_perplexity(argv[2], argv[3], gp);
+        }
+
+        if (cmd == "logits") {
+            if (argc < 4) { std::cerr << "usage: llmx logits <model.gguf> \"<text>\" [--top N] [--threads N]\n"; return 2; }
+            infer::GenParams gp;
+            int topn = 10;
+            for (int i = 4; i < argc; i++) {
+                std::string a2 = argv[i];
+                if (a2 == "--top") topn = (i + 1 < argc) ? std::atoi(argv[++i]) : topn;
+                else if (a2 == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
+                else if (a2 == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
+                else { std::cerr << "unknown flag: " << a2 << "\n"; return 2; }
+            }
+            if (topn <= 0) topn = 10;
+            return cmd_logits(argv[2], argv[3], topn, gp);
         }
 
         if (cmd == "tokenize") {

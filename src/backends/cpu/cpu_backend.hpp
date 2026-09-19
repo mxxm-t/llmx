@@ -127,8 +127,19 @@ public:
                 for (size_t k = 0; k < nr; k++)
                     qt->dequantize(data + (o + k) * rowbytes, r + k * nin, nblocks);
                 size_t b = 0;
-                // Two activation columns at a time where the row block is
-                // full, so weight loads amortise across both.
+                // Three activation columns at a time where the row block is
+                // full, so weight loads amortise across all three.
+                for (; b + 3 <= nbatch && nr == RB; b += 3) {
+                    const float* xa = X + b * nin;
+                    const float* xb3 = X + (b + 1) * nin;
+                    const float* xc3 = X + (b + 2) * nin;
+                    float* ya = Y + b * nout + o;
+                    float* yb = Y + (b + 1) * nout + o;
+                    float* yc = Y + (b + 2) * nout + o;
+                    for (size_t k = 0; k + 4 <= nr; k += 4)
+                        dot_f32_x4x3(r + k * nin, nin, xa, xb3, xc3, nin,
+                                     ya + k, yb + k, yc + k);
+                }
                 for (; b + 2 <= nbatch && nr == RB; b += 2) {
                     const float* xa = X + b * nin;
                     const float* xb2 = X + (b + 1) * nin;
@@ -162,6 +173,51 @@ public:
     // Rows fused per activation load: the width dot_f32_x4 handles.
     static const int DOT_ROWS = 4;
 
+
+    // Four rows against THREE activation columns: 7 loads per 12 FMAs, a ratio
+    // of 0.58 against 0.75 for the two-column form. This needs 12 accumulators
+    // plus 3 activation registers, which is exactly the 16 YMM budget, so it
+    // sits on the spill boundary and is only worth keeping if measured faster.
+    static void dot_f32_x4x3(const float* r, size_t stride,
+                             const float* xa, const float* xb, const float* xc,
+                             size_t n, float* outa, float* outb, float* outc) {
+        __m256 a0 = _mm256_setzero_ps(), a1 = _mm256_setzero_ps();
+        __m256 a2 = _mm256_setzero_ps(), a3 = _mm256_setzero_ps();
+        __m256 b0 = _mm256_setzero_ps(), b1 = _mm256_setzero_ps();
+        __m256 b2 = _mm256_setzero_ps(), b3 = _mm256_setzero_ps();
+        __m256 c0 = _mm256_setzero_ps(), c1 = _mm256_setzero_ps();
+        __m256 c2 = _mm256_setzero_ps(), c3 = _mm256_setzero_ps();
+        const float* r0 = r;
+        const float* r1 = r + stride;
+        const float* r2 = r + 2 * stride;
+        const float* r3 = r + 3 * stride;
+        size_t i = 0;
+        for (; i + 8 <= n; i += 8) {
+            const __m256 xv = _mm256_loadu_ps(xa + i);
+            const __m256 yv = _mm256_loadu_ps(xb + i);
+            const __m256 zv = _mm256_loadu_ps(xc + i);
+            __m256 w = _mm256_loadu_ps(r0 + i);
+            a0 = _mm256_fmadd_ps(w, xv, a0); b0 = _mm256_fmadd_ps(w, yv, b0); c0 = _mm256_fmadd_ps(w, zv, c0);
+            w = _mm256_loadu_ps(r1 + i);
+            a1 = _mm256_fmadd_ps(w, xv, a1); b1 = _mm256_fmadd_ps(w, yv, b1); c1 = _mm256_fmadd_ps(w, zv, c1);
+            w = _mm256_loadu_ps(r2 + i);
+            a2 = _mm256_fmadd_ps(w, xv, a2); b2 = _mm256_fmadd_ps(w, yv, b2); c2 = _mm256_fmadd_ps(w, zv, c2);
+            w = _mm256_loadu_ps(r3 + i);
+            a3 = _mm256_fmadd_ps(w, xv, a3); b3 = _mm256_fmadd_ps(w, yv, b3); c3 = _mm256_fmadd_ps(w, zv, c3);
+        }
+        alignas(32) float t[8];
+        const __m256* accs[12] = { &a0, &a1, &a2, &a3, &b0, &b1, &b2, &b3, &c0, &c1, &c2, &c3 };
+        const float* xs[3] = { xa, xb, xc };
+        float* outs[3] = { outa, outb, outc };
+        for (int k = 0; k < 12; k++) {
+            _mm256_store_ps(t, *accs[k]);
+            float v = t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + t[6] + t[7];
+            const size_t row = (size_t)(k & 3);
+            const int col = k / 4;
+            for (size_t j = i; j < n; j++) v += r[row * stride + j] * xs[col][j];
+            outs[col][row] = v;
+        }
+    }
 
     // Four rows against TWO activation columns in one pass.
     // dot_f32_x4 costs 5 loads per 4 FMAs (one activation, four weights).

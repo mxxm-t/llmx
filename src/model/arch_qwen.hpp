@@ -254,11 +254,11 @@ public:
     // stays a single matvec rather than B of them.
     std::vector<float> prefill(const std::vector<uint32_t>& ids) {
         if (ids.empty()) throw std::runtime_error("inference: empty prompt");
-        ensure_batch_buffers();
+        ensure_batch_buffers(ids.size());
         std::vector<float> logits;
         size_t i = 0;
         while (i < ids.size()) {
-            const int B = (int)std::min((size_t)prefill_chunk(), ids.size() - i);
+            const int B = (int)std::min((size_t)ubatch(), ids.size() - i);
             const bool last = (i + (size_t)B == ids.size());
             forward_batch(&ids[i], B, last ? &logits : nullptr);
             i += (size_t)B;
@@ -340,22 +340,28 @@ private:
         }
     }
 
-    // Chunk size for batched prefill. Larger chunks mean fewer passes over the
-    // weights, but the activation block (B * n_embd floats) has to stay in
-    // cache or it is re-streamed for every weight row. LLMX_PREFILL_CHUNK
-    // overrides it for A/B measurement.
-    int prefill_chunk() const {
+    // Physical batch: how many tokens go through ONE forward pass of the graph.
+    // This is llama.cpp's n_ubatch (-ub), not n_batch: it sets the GEMM width
+    // and the scratch buffer sizes. llmx has no logical batch, since there is
+    // one sequence and no queue; that distinction only starts to matter with
+    // the multi-user server in ROADMAP #7, where tokens from different
+    // sequences get merged into one pass.
+    // LLMX_UBATCH overrides it for measurement; the default matches llama.cpp.
+    int ubatch() const {
         static const int v = [] {
-            const char* e = std::getenv("LLMX_PREFILL_CHUNK");
+            const char* e = std::getenv("LLMX_UBATCH");
             int n = e ? std::atoi(e) : 0;
-            return (n > 0) ? n : 128;
+            return (n > 0) ? n : 512;
         }();
         return v;
     }
 
-    void ensure_batch_buffers() {
-        if (!xb_.empty()) return;
-        const size_t B = (size_t)prefill_chunk();
+    // Sized to the largest chunk this prompt will actually use, so a short
+    // prompt does not allocate scratch for a full ubatch (at n_ff 12288 a
+    // 512-wide gate/up/ffn is about 25 MB each).
+    void ensure_batch_buffers(size_t want) {
+        const size_t B = std::min((size_t)ubatch(), std::max<size_t>(want, 1));
+        if (xb_.size() >= B * (size_t)cfg.n_embd) return;
         const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
         xb_.assign(B * cfg.n_embd, 0.0f);
         hb_.assign(B * cfg.n_embd, 0.0f);

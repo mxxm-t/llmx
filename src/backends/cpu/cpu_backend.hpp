@@ -34,6 +34,7 @@ public:
         threads_ = (hw > 0) ? (int)hw : 4;
         if (threads_ > 64) threads_ = 64;
         avx2_ = has_avx2();   // detect once, not per row dot
+        f16c_ = has_f16c();
         start_pool();
     }
 
@@ -395,6 +396,7 @@ public:
 private:
     int threads_ = 1;
     bool avx2_ = false;
+    bool f16c_ = false;
 
     // Persistent worker pool. The previous code created and joined
     // std::threads on every matvec call, which is once per matmul per layer per
@@ -448,6 +450,22 @@ private:
         }
     }
 
+    // F16C (hardware half<->float). Present on every AVX2 part in practice,
+    // but detected separately because the ISA bits are independent.
+    static bool has_f16c() {
+#if defined(_MSC_VER)
+        int info[4];
+        __cpuid(info, 1);
+        return (info[2] & (1 << 29)) != 0;   // ECX bit 29 = F16C
+#elif defined(__GNUC__) || defined(__clang__)
+        unsigned eax, ebx, ecx, edx;
+        if (!__get_cpuid(1, &eax, &ebx, &ecx, &edx)) return false;
+        return (ecx & (1u << 29)) != 0;
+#else
+        return false;
+#endif
+    }
+
     static bool has_avx2() {
 #if defined(_MSC_VER)
         int info[4];
@@ -484,8 +502,17 @@ private:
             // streams. Not reinstated.
             for (size_t b = 0; b < nblocks; b++) {
                 const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
-                float d = f16_to_f32((uint16_t)(y[0] | ((uint16_t)y[1] << 8)));
-                __m256 dv = _mm256_set1_ps(d);
+                // Hardware f16 convert. The scalar f16_to_f32 is a branchy
+                // function (zero, subnormal, inf/nan cases) called once per
+                // 34 bytes of weights, which is a lot of unpredictable control
+                // flow in a loop whose job is to keep loads in flight.
+                const uint16_t h = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
+                __m256 dv;
+                if (f16c_) {
+                    dv = _mm256_broadcastss_ps(_mm_cvtph_ps(_mm_cvtsi32_si128((int)h)));
+                } else {
+                    dv = _mm256_set1_ps(f16_to_f32(h));
+                }
                 const __m128i* p = (const __m128i*)(y + 2);
                 __m128i a = _mm_loadu_si128(p);
                 __m128i c = _mm_loadu_si128(p + 1);

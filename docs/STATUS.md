@@ -179,6 +179,25 @@ feature ships, delete its block and mark the row `Done` above.
   token 11. It may be ordinary FP accumulation order, or it may be residual
   llmx inaccuracy - the logits golden is what settles it, so this is tracked
   under the correctness baseline, not assumed benign.
+- **Batched prefill landed.** `infer::prefill` ran the prompt through `step()`
+  one token at a time, paying the whole weight stream per prompt token.
+  `Backend::matmul_q8_0` now runs a chunk of the prompt at once, rows outer and
+  batch inner, and the vocab projection stays a single matvec because only the
+  last token's logits are needed.
+  Then a second fix: the weight row was being dequantized once per batch
+  column instead of once per row.
+    - pp, 343-token prompt, -t 16:  3.89 -> 13.24 -> **15.25 tok/s** (3.9x)
+    - pp, 5-token prompt:           3.89 -> 10.79 tok/s
+    - Qwen3-0.6B pp:                about 8 -> 128 tok/s
+    - tg unchanged at 3.91, decode is still one token at a time
+- **Prefill now thread-scales, which confirms it is compute bound:** 4 threads
+  5.07, 8 threads 8.55, 16 threads 13.24 tok/s. Decode by contrast is flat.
+- **Chunk size barely matters** (12.03 at 32 up to 12.86 at 343 before the
+  dequant fix, 14.99/15.25/15.27 at 64/128/256 after). Reuse was never the
+  limit; the repeated dequant was. `LLMX_PREFILL_CHUNK` overrides it.
+- **Floor status on the same 343-token prompt, -t 16:**
+    - pp   llmx 15.25   llama.cpp 37.70 / 37.34   -> still 2.5x under
+    - tg   llmx  3.91   llama.cpp  4.99 /  5.02   -> 22% under
 - **Left:**
   - **Decode is memory-bandwidth bound, measured, not assumed.** Qwen3-8B Q8_0
     thread scaling is flat: 4 threads 3.83 tok/s, 8 threads 4.13, 16 threads
@@ -195,10 +214,12 @@ feature ships, delete its block and mark the row `Done` above.
       - pp is where the real headroom is. Prefill is compute-bound because each
         weight byte is reused across the batch, so batching is worth up to the
         full 3.1x and thread scaling there should be real.
-  - **Close the pp gap first, it is the 3.1x one.** `infer::prefill` feeds one
-    token at a time, so every prompt matvec is matrix-VECTOR where llama.cpp
-    runs matrix-matrix over the whole prompt. Batched prefill is also ROADMAP
-    #4a's item, so it serves the GPU work too.
+  - **Prefill is still 2.5x under the floor.** The remaining work is a real
+    GEMM: tile both dimensions so the activation block stays in cache, and use
+    an int8 x int8 inner product with the activations quantized to Q8_0. That
+    second part is worth doing HERE, unlike for decode, because prefill is
+    compute bound - but it is lossy, so it needs the logits golden to bound the
+    cost before it lands.
   - **Close the tg gap (16%) by layout, not by kernel.** Load tensor data as one
     contiguous region (or mmap it) instead of 399 separate heap allocations, so
     the weight stream is sequential and prefetchable. This is lossless.

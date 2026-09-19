@@ -1,0 +1,643 @@
+{
+  "base_revision": "c4436fd",
+  "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+  "compiler": "MSVC 19.50 /O2 /arch:AVX2",
+  "cpu": "Ryzen 7 5800X",
+  "threads": 6,
+  "ubatch": 128,
+  "kv_type": "f32",
+  "prompt_tokens": 215,
+  "forced_decode_tokens": 32,
+  "warmup_sequences_per_process": 1,
+  "environment": "Interactive workstation with concurrent unrelated CPU activity; no user processes modified.",
+  "verdict": "Not adopted: bounded polling has no demonstrated advantage over the atomic-only control and remains below mx.",
+  "diagnostic": {
+    "hashes": {
+      "base": "3fa6d6455b6ece959fb519d05a5f1eddc3d203bc61acefefd2446a90a5ade246",
+      "p0": "721e5c5427b063b4d3fb4cd401624197f8daa056e9dace37bf52c5cc47da8d67",
+      "p128": "27efa6ef0e12a6df823d0b5557a1d4fa10a9e18033cc76593220473c727a0daa",
+      "p512": "7a46acf98f3c8783d498a649c625bf49d1f9e408618224801ca15ca6f8acca51",
+      "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+      "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 540.7356,
+        "tg_ms": 2186.6461,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 521.1342,
+        "tg_ms": 2184.0331,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 523.029,
+        "tg_ms": 2172.1335,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "p512",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 535.2328,
+        "tg_ms": 2308.0783,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 539.3398,
+        "tg_ms": 2226.4161,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "p512",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 560.7369,
+        "tg_ms": 2160.5015,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 529.009,
+        "tg_ms": 2211.149,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 586.9996,
+        "tg_ms": 2223.2726,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 552.8343,
+        "tg_ms": 2188.1609,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "p512",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 590.2801,
+        "tg_ms": 2227.8632,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 568.9293,
+        "tg_ms": 2272.3275,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 591.2546,
+        "tg_ms": 2195.0301,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      }
+    ],
+    "summary": {
+      "base": {
+        "pp": {
+          "mean": 391.3816266007131,
+          "median": 397.606519711297,
+          "minimum": 377.9028431124922,
+          "maximum": 398.6355169783502
+        },
+        "tg": {
+          "mean": 14.363211985181307,
+          "median": 14.37287486377771,
+          "minimum": 14.08247710772325,
+          "maximum": 14.63428398404296
+        }
+      },
+      "p0": {
+        "pp": {
+          "mean": 380.82154244218304,
+          "median": 366.2694148343542,
+          "minimum": 363.6335345213382,
+          "maximum": 412.5616779708567
+        },
+        "tg": {
+          "mean": 14.54112571599007,
+          "median": 14.578387786117375,
+          "minimum": 14.39319676768382,
+          "maximum": 14.651792594169017
+        }
+      },
+      "p128": {
+        "pp": {
+          "mean": 402.1307790030483,
+          "median": 406.42030664884714,
+          "minimum": 388.90495759760205,
+          "maximum": 411.0670727626958
+        },
+        "tg": {
+          "mean": 14.609442144009458,
+          "median": 14.624153095871515,
+          "minimum": 14.472113819557164,
+          "maximum": 14.732059516599694
+        }
+      },
+      "p512": {
+        "pp": {
+          "mean": 383.1174177289506,
+          "median": 383.42402649085517,
+          "minimum": 364.2338611787862,
+          "maximum": 401.69436551721043
+        },
+        "tg": {
+          "mean": 14.34642088585361,
+          "median": 14.36353901801511,
+          "minimum": 13.864347669660946,
+          "maximum": 14.811375969884772
+        }
+      }
+    }
+  },
+  "eight-rounds": {
+    "hashes": {
+      "base": "3fa6d6455b6ece959fb519d05a5f1eddc3d203bc61acefefd2446a90a5ade246",
+      "p0": "721e5c5427b063b4d3fb4cd401624197f8daa056e9dace37bf52c5cc47da8d67",
+      "p128": "27efa6ef0e12a6df823d0b5557a1d4fa10a9e18033cc76593220473c727a0daa",
+      "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+      "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+      "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+    },
+    "results": [
+      {
+        "pair": 0,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 559.0274,
+        "tg_ms": 2176.3595,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 545.6436,
+        "tg_ms": 2189.0362,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 537.7235,
+        "tg_ms": 2168.6361,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 0,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 514.929,
+        "tg_ms": 2115.28,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 546.7826,
+        "tg_ms": 2212.0509,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 528.9467,
+        "tg_ms": 2174.4917,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 1,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 616.6654,
+        "tg_ms": 2176.6457,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 1,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 562.4046,
+        "tg_ms": 2213.6742,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 542.658,
+        "tg_ms": 2226.4794,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 535.071,
+        "tg_ms": 2166.3859,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 2,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 627.1129,
+        "tg_ms": 2303.8393,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 2,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 544.962,
+        "tg_ms": 2184.8405,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 3,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 564.3788,
+        "tg_ms": 2163.6237,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 3,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 523.4438,
+        "tg_ms": 2201.0851,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 3,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 562.456,
+        "tg_ms": 2197.6795,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 3,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 546.8307,
+        "tg_ms": 2181.8183,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 4,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 551.2448,
+        "tg_ms": 2181.1794,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 4,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 551.0421,
+        "tg_ms": 2184.1405,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 4,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 588.8,
+        "tg_ms": 2213.4024,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 4,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 560.8341,
+        "tg_ms": 2140.5623,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 5,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 551.4535,
+        "tg_ms": 2192.1953,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 5,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 524.1659,
+        "tg_ms": 2145.514,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 5,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 545.4503,
+        "tg_ms": 2224.7055,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 5,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 540.58,
+        "tg_ms": 2197.3175,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 6,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 545.1407,
+        "tg_ms": 2191.8123,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 6,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 538.1112,
+        "tg_ms": 2144.9395,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      },
+      {
+        "pair": 6,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 538.6409,
+        "tg_ms": 2237.5717,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 6,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 554.0248,
+        "tg_ms": 2186.1468,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 7,
+        "arm": "p128",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 534.1806,
+        "tg_ms": 2190.1926,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 7,
+        "arm": "p0",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 558.8695,
+        "tg_ms": 2187.3827,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 7,
+        "arm": "base",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 571.1212,
+        "tg_ms": 2254.1182,
+        "top1": 4013,
+        "logit_sum": -501040.0615
+      },
+      {
+        "pair": 7,
+        "arm": "mx",
+        "run": 1,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 545.6456,
+        "tg_ms": 2144.8039,
+        "top1": 4013,
+        "logit_sum": -501040.3761
+      }
+    ],
+    "summary": {
+      "base": {
+        "pp": {
+          "mean": 382.30116009905635,
+          "median": 387.23764045132384,
+          "minimum": 342.84097807587756,
+          "maximum": 399.1527565025233
+        },
+        "tg": {
+          "mean": 14.423249363633138,
+          "median": 14.513513063018054,
+          "minimum": 13.889857682347897,
+          "maximum": 14.703453174900561
+        }
+      },
+      "p0": {
+        "pp": {
+          "mean": 392.78083216376933,
+          "median": 392.0999606675857,
+          "minimum": 382.28705810727723,
+          "maximum": 410.74132504769375
+        },
+        "tg": {
+          "mean": 14.592479832459293,
+          "median": 14.623830715996096,
+          "minimum": 14.455605075037692,
+          "maximum": 14.65107212654131
+        }
+      },
+      "p128": {
+        "pp": {
+          "mean": 385.22866057725,
+          "median": 394.2816643943126,
+          "minimum": 348.64936479328986,
+          "maximum": 402.48560131161634
+        },
+        "tg": {
+          "mean": 14.583936357405076,
+          "median": 14.605188767330162,
+          "minimum": 14.372466235259125,
+          "maximum": 14.79000253140137
+        }
+      },
+      "mx": {
+        "pp": {
+          "mean": 400.7624228820583,
+          "median": 400.6807519504127,
+          "minimum": 383.35757401342033,
+          "maximum": 417.53329099739966
+        },
+        "tg": {
+          "mean": 14.873089124589859,
+          "median": 14.916838312663806,
+          "minimum": 14.666665872222266,
+          "maximum": 15.128020876668808
+        }
+      }
+    }
+  },
+  "poll128_patch": "--- c4436fd/cpu_backend.hpp\n+++ poll128/cpu_backend.hpp\n@@ -1,4 +1,5 @@\n #pragma once\n+#include <atomic>\n #include <algorithm>\n #include <cmath>\n #include <thread>\n@@ -89,6 +90,8 @@\n         }\n         cv_work_.notify_all();\n         fn(0);\n+        for (int spin = 0; spin < 128 && pending_.load(std::memory_order_relaxed) != 0; ++spin)\n+            _mm_pause();\n         std::unique_lock<std::mutex> lk(m_);\n         cv_done_.wait(lk, [&] { return pending_ == 0; });\n         job_ = nullptr;\n@@ -486,7 +489,7 @@\n     std::condition_variable cv_work_, cv_done_;\n     const std::function<void(int)>* job_ = nullptr;\n     unsigned epoch_ = 0;\n-    int pending_ = 0;\n+    std::atomic<int> pending_{0};\n     bool stop_ = false;\n \n     void start_pool() {\n",
+  "stress": "pool lifecycle/publication stress passed: 64000 jobs",
+  "activation_witness": "POLL WITNESS calls=15746 iterations=1562167 completed=4392 exhausted=11354",
+  "numerical_scope": "Timing runs require finite logits, matching top1 and printed sum. Stress checks publication/lifecycle. No full HF gate was run for the rejected candidate.",
+  "stress_source": "#include <iostream>\n#include <chrono>\n#include <thread>\n#include \"backends/cpu/cpu_backend.hpp\"\nint main() {\n    backend::CpuBackend b;\n    size_t jobs=0;\n    for(int round=0;round<8;++round) {\n        for(int nt:{1,2,6,16}) {\n            b.set_threads(nt);\n            std::vector<unsigned> slots(nt,0);\n            for(unsigned epoch=1;epoch<=2000;++epoch) {\n                b.run_parallel([&](int worker) {\n                    if(worker==nt-1 && epoch%127==0)\n                        std::this_thread::sleep_for(std::chrono::milliseconds(1));\n                    else if((worker+epoch)%7==0) std::this_thread::yield();\n                    slots[worker]=epoch;\n                });\n                for(unsigned value:slots) if(value!=epoch) return 2;\n                ++jobs;\n            }\n        }\n    }\n    std::cout<<\"pool lifecycle/publication stress passed: \"<<jobs<<\" jobs\\n\";\n}\n"
+}

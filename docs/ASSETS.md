@@ -343,6 +343,50 @@ pool profiling is diagnostic only: roughly 26-28 ms of the 32-token decode
 occurs after the final worker callback finishes, motivating investigation of
 bounded completion polling. It is not a validated optimization.
 
+### Bounded completion polling: not adopted
+
+Caller-side bounded polling was tested against `c4436fd`, retaining the mutex
+and condition-variable fallback. An atomic-counter-only arm separated the
+counter change from polling. The initial three-round diagnostic covered zero,
+128 and 512 pauses; the shorter budget proceeded to eight interleaved rounds:
+
+| Phase | Current mean tok/s | Atomic only | Poll 128 | mx |
+|---|---:|---:|---:|---:|
+| Prefill | 382.30 | 392.78 | 385.23 | 400.76 |
+| Decode | 14.42 | 14.59 | 14.58 | 14.87 |
+
+Ranges overlap. Polling does not establish a benefit over the atomic-only
+control and still misses both mx means. No worker-pool code was adopted.
+The workstation had unrelated interactive CPU activity; no user processes
+were changed and no timing outliers were removed. This is insufficient
+evidence for a small speedup, not proof that polling can never help.
+
+A separate instrumented build witnessed 15,746 calls: 4,392 completed within
+the polling budget and 11,354 used the blocking path. A 64,000-job stress run
+passed across changing thread counts, yields and deliberately delayed workers.
+That checks publication/lifetime behavior, not HF numerical correctness. The
+rejected candidate did not proceed to a full HF gate. Raw timings, hashes,
+the exact patch and the stress source are preserved in
+[`benchmarks/completion-polling-20260919.json`](benchmarks/completion-polling-20260919.json).
+
+### Attention query scheduling: diagnostic candidate
+
+A scratch change schedules independent head/query pairs cyclically across
+workers, with one score row per worker. Per-query arithmetic is unchanged
+in source. Three interleaved rounds against `c4436fd` show:
+
+| Phase | Current mean tok/s | Candidate | mx |
+|---|---:|---:|---:|
+| Prefill | 388.08 | 399.48 | 395.48 |
+| Decode | 14.57 | 14.46 | 14.83 |
+
+Prefill control/candidate ranges are disjoint; decode ranges overlap. This
+is a lead for the next full gate, not adopted runtime code or an external
+parity claim. Only finite outputs/top-token/printed-sum smoke checks ran.
+The exact patch and raw samples are in
+[`benchmarks/attention-scheduling-diagnostic-20260919.json`](benchmarks/attention-scheduling-diagnostic-20260919.json).
+Scratch files are under `%TEMP%/llmx-attention-balance`.
+
 ## Wiki text location
 
 The wikitext corpus used for corpus-level perplexity is committed to the test

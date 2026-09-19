@@ -1,0 +1,168 @@
+{
+  "base_revision": "c4436fd",
+  "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+  "compiler": "MSVC 19.50 /O2 /arch:AVX2",
+  "cpu": "Ryzen 7 5800X",
+  "threads": 6,
+  "ubatch": 128,
+  "kv_type": "f32",
+  "prompt_tokens": 215,
+  "forced_decode_tokens": 32,
+  "rounds": 3,
+  "warmup_sequences_per_process": 1,
+  "verdict": "Promising prefill diagnostic only; not adopted. Requires repeated timing, HF, platform and small-workload gates.",
+  "hashes": {
+    "base": "3fa6d6455b6ece959fb519d05a5f1eddc3d203bc61acefefd2446a90a5ade246",
+    "candidate": "58da93ae9bf158312dff1db71848add7b909891f8792b8ecd70f3269fb577e43",
+    "mx": "817431e81fe23c6891011bc60f25aa9a3b8c2fe75c19f2b7ff7125fa250b50c1",
+    "model": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+    "tokens": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+  },
+  "results": [
+    {
+      "pair": 0,
+      "arm": "base",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 545.8665,
+      "tg_ms": 2181.6518,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 0,
+      "arm": "candidate",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 541.9943,
+      "tg_ms": 2177.6497,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 0,
+      "arm": "mx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 527.002,
+      "tg_ms": 2184.1573,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 1,
+      "arm": "base",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 565.1715,
+      "tg_ms": 2224.4055,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 1,
+      "arm": "mx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 564.5743,
+      "tg_ms": 2155.9896,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 537.3293,
+      "tg_ms": 2267.9178,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 2,
+      "arm": "mx",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 540.6654,
+      "tg_ms": 2132.2383,
+      "top1": 4013,
+      "logit_sum": -501040.3761
+    },
+    {
+      "pair": 2,
+      "arm": "base",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 551.336,
+      "tg_ms": 2184.9699,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "run": 1,
+      "pp_tokens": 215,
+      "tg_tokens": 32,
+      "pp_ms": 535.3016,
+      "tg_ms": 2193.8848,
+      "top1": 4013,
+      "logit_sum": -501040.0615
+    }
+  ],
+  "summary": {
+    "base": {
+      "pp": {
+        "mean": 388.0821791019758,
+        "median": 389.9618381531407,
+        "minimum": 380.41550219712065,
+        "maximum": 393.8691969556659
+      },
+      "tg": {
+        "mean": 14.56638737695562,
+        "median": 14.645510677286675,
+        "minimum": 14.385866246059903,
+        "maximum": 14.667785207520282
+      }
+    },
+    "candidate": {
+      "pp": {
+        "mean": 399.484316313695,
+        "median": 400.12707291413295,
+        "minimum": 396.68313854961207,
+        "maximum": 401.6427374773399
+      },
+      "tg": {
+        "mean": 14.463532971765774,
+        "median": 14.585998316775795,
+        "minimum": 14.109858831744253,
+        "maximum": 14.694741766777273
+      }
+    },
+    "mx": {
+      "pp": {
+        "mean": 395.48137911742987,
+        "median": 397.65814494509914,
+        "minimum": 380.81790120450046,
+        "maximum": 407.96809120268995
+      },
+      "tg": {
+        "mean": 14.833678331269141,
+        "median": 14.84237215244452,
+        "minimum": 14.65095943410303,
+        "maximum": 15.007703407259873
+      }
+    }
+  },
+  "patch": "--- c4436fd/cpu_backend.hpp\n+++ attention-scheduling/cpu_backend.hpp\n@@ -371,11 +371,16 @@\n         const size_t kv_stride = (size_t)n_head_kv * head_dim;\n         const int ratio = n_head / n_head_kv;\n         const float scale = 1.0f / std::sqrt((float)head_dim);\n-        attention_scores_.resize((size_t)n_head * sequence);\n-        parallel_for(n_head, [&](int h) {\n-            const size_t kv_offset = (size_t)(h / ratio) * head_dim;\n-            float* scores = attention_scores_.data() + (size_t)h * sequence;\n-            for (int b = 0; b < nbatch; ++b) {\n+        const size_t queries = (size_t)n_head * nbatch;\n+        const int nt = (int)std::min((size_t)threads_, queries);\n+        attention_scores_.resize((size_t)nt * sequence);\n+        run_parallel([&](int worker) {\n+            if (worker >= nt) return;\n+            float* scores = attention_scores_.data() + (size_t)worker * sequence;\n+            for (size_t query = (size_t)worker; query < queries; query += nt) {\n+                const int h = (int)(query / nbatch);\n+                const int b = (int)(query % nbatch);\n+                const size_t kv_offset = (size_t)(h / ratio) * head_dim;\n                 const size_t end = (size_t)n_past + (size_t)b + 1;\n                 const float* q = Q + (size_t)b * q_stride + (size_t)h * head_dim;\n                 float max_score = -std::numeric_limits<float>::infinity();\n",
+  "numerical_scope": "Only finite outputs, top1 and printed sum smoke checks. Arithmetic inside each query is unchanged in source; no full HF or bit-identity claim yet."
+}

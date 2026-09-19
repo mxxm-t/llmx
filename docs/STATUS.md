@@ -31,6 +31,7 @@ feature currently stands right now.
 | F32 embedding/matrix inference          | In Progress |
 | CPU attention in backend (ROADMAP #4a)  | In Progress |
 | CPU row streaming / parallel prefill   | In Progress |
+| CPU attention query scheduling        | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
@@ -121,13 +122,31 @@ feature ships, delete its block and mark the row `Done` above.
   initial/final samples and validation scope.
 - **Left:** close both remaining external gaps before merge and hosted CI.
   Instrumented pool profiling finds 26-28 ms after worker callbacks finish
-  during 32 decode steps. Next test bounded completion polling against this
-  checkpoint, retaining the blocking fallback; full spinning already failed.
+  during 32 decode steps. Bounded completion polling did not establish a win
+  over its atomic-only control (eight rounds); no pool change was adopted.
+  Full spinning was already rejected. The attention query scheduling
+  experiment below is the next candidate; no new runtime change is adopted.
 - **Gotchas:** single-row dots change reduction order. Printed sums alone
   are not the numerical gate. Initial unconditional scheduling appeared above
   mx for prefill, but final guarded measurements did not; use the final run.
   The legacy bench "prefill" is repeated step(), not batched prefill, so keep
   the separate batched regression guard. Reader alignment was not adopted.
+
+### CPU attention query scheduling
+
+- **Goal:** improve CPU attention worker utilization without changing each
+  query's arithmetic (ROADMAP #4a / #8).
+- **Done:** scratch implementation distributes head/query pairs cyclically
+  and uses worker-owned score rows. Three matched diagnostic rounds against
+  `c4436fd`: prefill 388.08 -> 399.48 tok/s (disjoint ranges), decode
+  14.57 -> 14.46 (overlapping ranges). Same-run mx: 395.48 / 14.83.
+  Exact patch, hashes and samples are recorded in the attention-scheduling
+  diagnostic JSON. Runtime files are still the validated `c4436fd` source.
+- **Left:** repeat the comparison and run HF/platform/small-workload gates
+  before adopting. The performance floor remains unproven for this candidate.
+- **Gotchas:** finite logits and matching printed sums are only smoke checks.
+  Cyclic work assignment changes KV reuse among workers, including decode;
+  measure both phases and verify results rather than assuming a pure win.
 
 ### Correctness baseline vs HF reference
 

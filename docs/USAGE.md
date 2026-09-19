@@ -190,6 +190,14 @@ Interactive chat loop reading lines from stdin. Uses the model's
 Supports the same sampling flags as `generate`, plus `--system` to set the
 system message (default: `You are a helpful assistant.`).
 
+Each input line is a follow-up in the same conversation. The runtime renders
+the complete conversation with its assistant-generation header and reuses KV
+only when the cached token IDs are an exact prefix. If the template rewrites
+earlier turns (for example, removing old reasoning), it rebuilds the cache.
+The template supplies turn-ending tokens; chat does not insert an extra EOS.
+An empty rendered prompt is an error. History must fit the model context;
+automatic truncation and concurrent conversations are not implemented.
+
 ## `llmx bench [--size N] [--iters N] [--threads N] [--p N] [--n N]`
 
 Micro-benchmark of the backend hot paths, plus end-to-end TPS:

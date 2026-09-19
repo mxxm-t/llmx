@@ -56,17 +56,25 @@ def weight_hash(weights):
                                    for _, _, _, v in weights)).hexdigest()
 
 
-def write_model(path, weights):
+def write_model(path, weights, chat_template=None, eos_id=None):
     # A 34-byte Q8 tensor exposes unaligned F32 rows if the loader discards
     # file padding without preserving float alignment in its in-memory blob.
     entries = [("unused.weight", [32], 8, b"\0" * 34)]
     entries += [(name, shape, 0, struct.pack("<%df" % len(v), *v))
                 for name, _, shape, v in weights]
     with open(path, "wb") as f:
-        f.write(struct.pack("<IIQQ", 0x46554747, 3, len(entries), len(CONFIG) + 1))
+        nmeta = len(CONFIG) + 1 + (chat_template is not None) + (eos_id is not None)
+        f.write(struct.pack("<IIQQ", 0x46554747, 3, len(entries), nmeta))
         for name, value in CONFIG.items():
             w_str(f, "qwen3." + name)
             f.write(struct.pack("<II", 4, value))
+        if chat_template is not None:
+            w_str(f, "tokenizer.chat_template")
+            f.write(struct.pack("<I", 8))
+            w_str(f, chat_template)
+        if eos_id is not None:
+            w_str(f, "tokenizer.ggml.eos_token_id")
+            f.write(struct.pack("<II", 4, eos_id))
         w_str(f, "tokenizer.ggml.tokens")
         f.write(struct.pack("<IIQ", 9, 8, 257))
         for token in build_byte_vocab() + ["<|endoftext|>"]:

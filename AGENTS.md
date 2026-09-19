@@ -115,6 +115,11 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   generous floor so catastrophic slowdowns fail loudly without being flaky.
 - **Tokenizer** (`tests/tokenizer.py`): encode/decode round-trips incl. unicode
   and special tokens.
+- **Chat** (`tests/chat.py`): follow-up replies against independent HF/Jinja2
+  goldens, including changed prefixes, stop/EOS and token-limit endings.
+  CTest also runs `chat-template`, comparing the real Qwen template against
+  Jinja2-rendered conversation fixtures. Regenerate these with
+  `python tools/gen_chat_baseline.py`; running them needs no external libraries.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model.

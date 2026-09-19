@@ -1,0 +1,398 @@
+{
+  "source": "HF Qwen3ForCausalLM, full transcript recomputed each turn, Jinja2 rendering",
+  "torch_version": "2.5.1+cpu",
+  "transformers_version": "4.55.2",
+  "jinja2_version": "3.1.6",
+  "dtype": "float32",
+  "attention": "eager",
+  "config": {
+    "block_count": 2,
+    "embedding_length": 37,
+    "feed_forward_length": 19,
+    "attention.head_count": 2,
+    "attention.head_count_kv": 1,
+    "attention.key_length": 42,
+    "context_length": 16
+  },
+  "weights_sha256": "e4480d5d59f953bdb30cfcecac3d0b108295ba09d8ecb989eaa955133ffc12d2",
+  "cases": [
+    {
+      "spec": {
+        "name": "no-generation-suffix",
+        "template": "{{ messages[-1]['content'] }}",
+        "inputs": [
+          "a",
+          "ab",
+          "abc"
+        ],
+        "max_tokens": 1
+      },
+      "turns": [
+        {
+          "prompt_ids": [
+            97
+          ],
+          "reply_ids": [
+            205
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98
+          ],
+          "reply_ids": [
+            74
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98,
+            99
+          ],
+          "reply_ids": [
+            38
+          ]
+        }
+      ]
+    },
+    {
+      "spec": {
+        "name": "rewrite-longer",
+        "template": "{{ messages[-1]['content'] }}",
+        "inputs": [
+          "a",
+          "aaa"
+        ],
+        "max_tokens": 1
+      },
+      "turns": [
+        {
+          "prompt_ids": [
+            97
+          ],
+          "reply_ids": [
+            205
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            97,
+            97
+          ],
+          "reply_ids": [
+            205
+          ]
+        }
+      ]
+    },
+    {
+      "spec": {
+        "name": "append",
+        "template": "{% for message in messages %}{% if message['role'] == 'assistant' %}b{% endif %}{{ message['content'] }}{% endfor %}{% if add_generation_prompt %}b{% endif %}",
+        "inputs": [
+          "a",
+          "c",
+          "d"
+        ],
+        "max_tokens": 1
+      },
+      "turns": [
+        {
+          "prompt_ids": [
+            97,
+            98
+          ],
+          "reply_ids": [
+            74
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98,
+            74,
+            99,
+            98
+          ],
+          "reply_ids": [
+            120
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98,
+            74,
+            99,
+            98,
+            120,
+            100,
+            98
+          ],
+          "reply_ids": [
+            120
+          ]
+        }
+      ]
+    },
+    {
+      "spec": {
+        "name": "token-limit",
+        "template": "{% for message in messages %}{% if message['role'] == 'assistant' %}b{% endif %}{{ message['content'] }}{% endfor %}{% if add_generation_prompt %}b{% endif %}",
+        "inputs": [
+          "a",
+          "c"
+        ],
+        "max_tokens": 2
+      },
+      "turns": [
+        {
+          "prompt_ids": [
+            97,
+            98
+          ],
+          "reply_ids": [
+            74,
+            174
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98,
+            74,
+            174,
+            99,
+            98
+          ],
+          "reply_ids": [
+            120,
+            8
+          ]
+        }
+      ]
+    },
+    {
+      "spec": {
+        "name": "stop-before-feed",
+        "template": "{% for message in messages %}{% if message['role'] == 'assistant' %}b{% endif %}{{ message['content'] }}{% endfor %}{% if add_generation_prompt %}b{% endif %}",
+        "inputs": [
+          "a",
+          "c",
+          "d"
+        ],
+        "max_tokens": 2,
+        "stop": "J"
+      },
+      "turns": [
+        {
+          "prompt_ids": [
+            97,
+            98
+          ],
+          "reply_ids": [
+            74
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98,
+            74,
+            99,
+            98
+          ],
+          "reply_ids": [
+            120,
+            8
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98,
+            74,
+            99,
+            98,
+            120,
+            8,
+            100,
+            98
+          ],
+          "reply_ids": [
+            120,
+            48
+          ]
+        }
+      ]
+    },
+    {
+      "spec": {
+        "name": "eos",
+        "template": "{{ messages[-1]['content'] }}",
+        "inputs": [
+          "a",
+          "ab",
+          "abc"
+        ],
+        "max_tokens": 1,
+        "eos_id": 205
+      },
+      "turns": [
+        {
+          "prompt_ids": [
+            97
+          ],
+          "reply_ids": []
+        },
+        {
+          "prompt_ids": [
+            97,
+            98
+          ],
+          "reply_ids": [
+            74
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98,
+            99
+          ],
+          "reply_ids": [
+            38
+          ]
+        }
+      ]
+    },
+    {
+      "spec": {
+        "name": "rewrite-and-shorten",
+        "template": "{{ messages[-1]['content'] }}{% if add_generation_prompt %}b{% endif %}",
+        "inputs": [
+          "abc",
+          "a",
+          "c",
+          "c"
+        ],
+        "max_tokens": 1
+      },
+      "turns": [
+        {
+          "prompt_ids": [
+            97,
+            98,
+            99,
+            98
+          ],
+          "reply_ids": [
+            172
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98
+          ],
+          "reply_ids": [
+            74
+          ]
+        },
+        {
+          "prompt_ids": [
+            99,
+            98
+          ],
+          "reply_ids": [
+            172
+          ]
+        },
+        {
+          "prompt_ids": [
+            99,
+            98
+          ],
+          "reply_ids": [
+            172
+          ]
+        }
+      ]
+    },
+    {
+      "spec": {
+        "name": "identical-prompt",
+        "template": "ab",
+        "inputs": [
+          "a",
+          "c"
+        ],
+        "max_tokens": 1,
+        "eos_id": 74
+      },
+      "turns": [
+        {
+          "prompt_ids": [
+            97,
+            98
+          ],
+          "reply_ids": []
+        },
+        {
+          "prompt_ids": [
+            97,
+            98
+          ],
+          "reply_ids": []
+        }
+      ]
+    },
+    {
+      "spec": {
+        "name": "elif-else-and-trailing-text",
+        "template": "{% if messages[-1]['content'] == 'a' %}a{% elif messages[-1]['content'] == 'b' %}ab{% else %}abc{% endif %}d",
+        "inputs": [
+          "a",
+          "b",
+          "c"
+        ],
+        "max_tokens": 1
+      },
+      "turns": [
+        {
+          "prompt_ids": [
+            97,
+            100
+          ],
+          "reply_ids": [
+            171
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98,
+            100
+          ],
+          "reply_ids": [
+            171
+          ]
+        },
+        {
+          "prompt_ids": [
+            97,
+            98,
+            99,
+            100
+          ],
+          "reply_ids": [
+            38
+          ]
+        }
+      ]
+    }
+  ]
+}

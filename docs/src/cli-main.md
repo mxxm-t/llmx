@@ -17,7 +17,12 @@ Commands and their entry points:
   gate compares against a full-precision reference, since sampled text hides
   everything except argmax flips).
 - `generate`: `cmd_generate` (prefill + generate; prints `pp:`/`tg:` timings).
-- `chat`: `cmd_chat` (interactive loop using the chat template).
+- `chat`: `cmd_chat` (interactive loop using the chat template). Tracks the
+  exact IDs fed into the model separately from message text. Prefills only
+  an exact-prefix extension; resets and refills changed, shortened or identical
+  prompts to obtain valid next-token logits. A returned stop token may not yet
+  be cached, and EOS is supplied by the next rendered transcript rather than
+  appended unconditionally. These are single-sequence semantics.
 - `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS).
 
 Also holds the `build_synthetic_model` helper (an in-memory random Qwen3 model

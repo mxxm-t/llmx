@@ -36,6 +36,12 @@ if(BUILD_TESTING)
     list(APPEND LLMX_TARGETS llmx-backend-group-test)
     add_test(NAME backend-group COMMAND llmx-backend-group-test)
     set_tests_properties(backend-group PROPERTIES TIMEOUT 60)
+    add_executable(llmx-chat-template-test tests/chat_template.cpp)
+    target_include_directories(llmx-chat-template-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-chat-template-test)
+    add_test(NAME chat-template COMMAND llmx-chat-template-test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/baseline_chat_template.json)
+    set_tests_properties(chat-template PROPERTIES TIMEOUT 30)
 endif()
 
 find_package(Threads REQUIRED)

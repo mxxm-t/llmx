@@ -1,0 +1,186 @@
+{
+  "status": "validated local checkpoint; not merged; external runtime performance floors remain open",
+  "changes": "Exact chat cache prefix tracking, removal of unconditional EOS and duplicate prefill, template terminator consumption and first keyword parsing. No numerical kernel or forward-pass changes.",
+  "validation": [
+    {
+      "name": "windows-suite",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\llmx.exe",
+        "--require-baseline"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-build",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "cmake",
+        "--build",
+        "/root/.cache/llmx-xdev-ci-20260919",
+        "--parallel",
+        "2"
+      ],
+      "exit": 2
+    },
+    {
+      "name": "linux-build",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "cmake",
+        "--build",
+        "/root/.cache/llmx-xdev-ci-20260919",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-native",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "ctest",
+        "--test-dir",
+        "/root/.cache/llmx-xdev-ci-20260919",
+        "--output-on-failure"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-suite",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "python3",
+        "-u",
+        "/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py",
+        "--exe",
+        "/root/.cache/llmx-xdev-ci-20260919/llmx",
+        "--require-baseline"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "ubsan-build",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "cmake",
+        "--build",
+        "/root/.cache/llmx-f32-ubsan",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "ubsan-native",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "ctest",
+        "--test-dir",
+        "/root/.cache/llmx-f32-ubsan",
+        "--output-on-failure"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "ubsan-suite",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "env",
+        "LLMX_BASELINE_GGUF=/root/.cache/llmx-f32-missing/Qwen3-0.6B-Q8_0.gguf",
+        "python3",
+        "-u",
+        "/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py",
+        "--exe",
+        "/root/.cache/llmx-f32-ubsan/llmx",
+        "--no-perf-floor"
+      ],
+      "exit": 0
+    }
+  ],
+  "final_statuses": {
+    "windows-suite": 0,
+    "linux-build": 0,
+    "linux-native": 0,
+    "linux-suite": 0,
+    "ubsan-build": 0,
+    "ubsan-native": 0,
+    "ubsan-suite": 0
+  },
+  "windows_native_template_cases": 12,
+  "chat_scenarios": 9,
+  "chat_runs_per_platform": 54,
+  "windows_note": "Full suite passed before adding the missing cmath include; MSVC rebuilt afterward and chat plus native renderer tests passed again.",
+  "ubsan_scope": "Native and synthetic suites; real model baseline intentionally skipped.",
+  "old_binary_reproduction": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\llmx.exe",
+    "sha256": "3ae00d2890c53be47a7a0ca05d8b5eddc5263afc15e8058f990eb6b2d954349a",
+    "scenario": "no-generation-suffix",
+    "exit": 3221225477
+  },
+  "prefix_mutant": "AssertionError(('rewrite-longer', b'Chat ready (type your message; Ctrl+C to quit)\\n\\xcd\\n\\xae\\n', b'\\xcd\\n\\xcd\\n'))",
+  "sha256": {
+    "src/cli/main.cpp": "7672ec2face633fbfcf7070ed23cc19687169a43577c0d7842009e96f80830eb",
+    "src/inference/chat.hpp": "865051f5ef6ebe8d14330e18347daeabce6a8cd9cd3eee38f664b499883ad361",
+    "tests/chat.py": "412f8e1193e1044f0642e512777c3a391ccd6fb43600902a65e86afaf6611e35",
+    "tests/chat_template.cpp": "1fef1ece2d50f31f8a2bf05b989fb9c42be8c3b520be16179f0627f262587fcd",
+    "tests/f32.py": "2e8e7fe2fa7121d2a935d192df92096f53bfdf03f83bf24e54b390740e325b0c",
+    "tests/run_tests.py": "c084af442b684889ea5e5bbcb7ee47e0ce79999bd6fef051b60a23a0c44ab332",
+    "tools/gen_chat_baseline.py": "5544c20d96372919a3dd2a0da043c8cf8aea5f3bebbda7294dd9ec073c8c1ecf",
+    "tests/data/baseline_chat.json": "80417fac731ee303d6aa24173f6e1dea27247cde27fd7ae1adfa742fb077b73f",
+    "tests/data/baseline_chat_template.json": "8bc6f08f352cc7acd8c0a07aebd4c03429be4d7fa5a9275c1959bb06d3b10cbd",
+    "CMakeLists.txt": "51a744fe76cafecd878aee714db8fd04454f155c9ee6f193d1e6df0c1111ff11",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\llmx.exe": "8e43de55155a211b456b9925896c5d03a71befe63736e2fbe853a70e562e5455",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\template-test.exe": "22d68d5a0e2bdcc7bc24266e9a204a5851cf6b373286d6741178b6d1278e1279",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\prefix-mutant.exe": "7076904a77b9f0ba84fc86ae41f8e24530f22dee68aa2f152e7dedaeb50adf4a"
+  },
+  "logs": {
+    "build-mutant.log": "prefix-mutant.cpp\r\n'vswhere.exe' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+    "build-render.log": "render.cpp\r\n'vswhere.exe' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+    "build-template-test.log": "chat_template.cpp\r\n'vswhere.exe' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+    "build.log": "main.cpp\r\n'vswhere.exe' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+    "linux-build-initial-failure.log": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/chat_template.cpp:5:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/inference/chat.hpp: In member function \u2018virtual chat::jj::Value chat::jj::Binary::eval(const chat::jj::Ctx&) const\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/inference/chat.hpp:215:81:[ 83%] Linking CXX executable llmx\n[ 83%] Built target llmx\n     if (op == \"//\") return b.n == 0 ? Value::number(0) : Value::number(std::floor(a.n / b.n));\n      |                                                                                 ^~~~~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/inference/chat.hpp:216:80: error: \u2018fmod\u2019 is not a member of \u2018std\u2019\n  216 |         if (op == \"%\") return b.n == 0 ? Value::number(0) : Value::number(std::fmod(a.n, b.n));\n      |                                                                                ^~~~\ngmake[2]: *** [CMakeFiles/llmx-chat-template-test.dir/build.make:76: CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o] Error 1\ngmake[1]: *** [CMakeFiles/Makefile2:895: CMakeFiles/llmx-chat-template-test.dir/all] Error 2\ngmake[1]: *** Waiting for unfinished jobs....\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:761:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  761 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\ngmake: *** [Makefile:101: all] Error 2\n",
+    "linux-build.log": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float[ 83%] Linking CXX executable llmx-chat-template-test\n[ 83%] Built target llmx-chat-template-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\nentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:761:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  761 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "linux-native.log": "Internal ctest changing into directory: /root/.cache/llmx-xdev-ci-20260919\nTest project /root/.cache/llmx-xdev-ci-20260919\n    Start 1: backend-group\n1/2 Test #1: backend-group ....................   Passed    0.18 sec\n    Start 2: chat-template\n2/2 Test #2: chat-template ....................   Passed    0.01 sec\n\n100% tests passed, 0 tests failed out of 2\n\nTotal Test time (real) =   0.19 sec\n",
+    "linux-suite.log": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 44.32 GFLOPS (0.189 ms), prefill 8216 tok/s, decode 7957 tok/s, rms_norm 0.000 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6581 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  baseline   PASS\n",
+    "render.log": "",
+    "ubsan-build.log": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 cl[ 83%] Linking CXX executable llmx-chat-template-test\n[ 83%] Built target llmx-chat-template-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\ntop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:761:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  761 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "ubsan-native.log": "Internal ctest changing into directory: /root/.cache/llmx-f32-ubsan\nTest project /root/.cache/llmx-f32-ubsan\n    Start 1: backend-group\n1/2 Test #1: backend-group ....................   Passed    0.25 sec\n    Start 2: chat-template\n2/2 Test #2: chat-template ....................   Passed    0.01 sec\n\n100% tests passed, 0 tests failed out of 2\n\nTotal Test time (real) =   0.26 sec\n",
+    "ubsan-suite.log": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 24.00 GFLOPS (0.350 ms), prefill 4517 tok/s, decode 4312 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\nperf: hardware-specific floors disabled; timings are diagnostic only\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nbaseline: SKIP - no fixture model on disk (Qwen3-0.6B-Q8_0.gguf). Set LLMX_BASELINE_GGUF or `python tools/gen_baseline.py` deps.\nbaseline-logits: SKIP - no fixture model on disk\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf]: SKIP - fixture model not on disk\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf]: SKIP - fixture model not on disk\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  baseline   PASS\n",
+    "windows-suite.log": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\r\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\r\nperf: matmul 42.76 GFLOPS (0.196 ms), prefill 8019 tok/s, decode 7619 tok/s, rms_norm 0.000 ms, rope 0.000 ms  [ok]\r\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\r\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\r\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\r\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\r\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\r\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\r\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\r\n\r\n  roundtrip  PASS\r\n  perf       PASS\r\n  tokenizer  PASS\r\n  perplexity PASS\r\n  f32        PASS\r\n  chat       PASS\r\n  baseline   PASS\r\n"
+  },
+  "reproduction": {
+    "build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\llmx.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\llmx.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nexit /b %errorlevel%\n",
+    "build-template-test.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\template-test.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\template-test.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\chat_template.cpp\"\nexit /b %errorlevel%\n",
+    "validate.py": "from pathlib import Path\nimport os,subprocess,sys,json\nr=Path(__file__).parent;repo=Path.cwd()\ncommands=[\n ('windows-suite',[sys.executable,'-X','utf8','-u','tests/run_tests.py','--exe',str(r/'llmx.exe'),'--require-baseline']),\n ('linux-build',['wsl','-d','Ubuntu','--','cmake','--build','/root/.cache/llmx-xdev-ci-20260919','--parallel','2']),\n ('linux-native',['wsl','-d','Ubuntu','--','ctest','--test-dir','/root/.cache/llmx-xdev-ci-20260919','--output-on-failure']),\n ('linux-suite',['wsl','-d','Ubuntu','--','python3','-u','/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py','--exe','/root/.cache/llmx-xdev-ci-20260919/llmx','--require-baseline']),\n ('ubsan-build',['wsl','-d','Ubuntu','--','cmake','--build','/root/.cache/llmx-f32-ubsan','--parallel','2']),\n ('ubsan-native',['wsl','-d','Ubuntu','--','ctest','--test-dir','/root/.cache/llmx-f32-ubsan','--output-on-failure']),\n ('ubsan-suite',['wsl','-d','Ubuntu','--','env','LLMX_BASELINE_GGUF=/root/.cache/llmx-f32-missing/Qwen3-0.6B-Q8_0.gguf','python3','-u','/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py','--exe','/root/.cache/llmx-f32-ubsan/llmx','--no-perf-floor'])]\nresults=[]\nfor name,cmd in commands:\n print('START',name,flush=True)\n with (r/(name+'.log')).open('wb') as f: p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT)\n results.append(dict(name=name,command=cmd,exit=p.returncode))\n (r/'validation-results.json').write_text(json.dumps(results,indent=2))\n print('END',name,p.returncode,flush=True)\n p.check_returncode()\n",
+    "validate-remaining.py": "from pathlib import Path\nimport os,subprocess,sys,json\nr=Path(__file__).parent;repo=Path.cwd()\ncommands=[\n ('windows-suite',[sys.executable,'-X','utf8','-u','tests/run_tests.py','--exe',str(r/'llmx.exe'),'--require-baseline']),\n ('linux-build',['wsl','-d','Ubuntu','--','cmake','--build','/root/.cache/llmx-xdev-ci-20260919','--parallel','2']),\n ('linux-native',['wsl','-d','Ubuntu','--','ctest','--test-dir','/root/.cache/llmx-xdev-ci-20260919','--output-on-failure']),\n ('linux-suite',['wsl','-d','Ubuntu','--','python3','-u','/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py','--exe','/root/.cache/llmx-xdev-ci-20260919/llmx','--require-baseline']),\n ('ubsan-build',['wsl','-d','Ubuntu','--','cmake','--build','/root/.cache/llmx-f32-ubsan','--parallel','2']),\n ('ubsan-native',['wsl','-d','Ubuntu','--','ctest','--test-dir','/root/.cache/llmx-f32-ubsan','--output-on-failure']),\n ('ubsan-suite',['wsl','-d','Ubuntu','--','env','LLMX_BASELINE_GGUF=/root/.cache/llmx-f32-missing/Qwen3-0.6B-Q8_0.gguf','python3','-u','/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/run_tests.py','--exe','/root/.cache/llmx-f32-ubsan/llmx','--no-perf-floor'])]\nresults=json.loads((r/'validation-results.json').read_text())\nfor name,cmd in commands[1:]:\n print('START',name,flush=True)\n with (r/(name+'.log')).open('wb') as f: p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT)\n results.append(dict(name=name,command=cmd,exit=p.returncode))\n (r/'validation-results.json').write_text(json.dumps(results,indent=2))\n print('END',name,p.returncode,flush=True)\n p.check_returncode()\n",
+    "build-mutant.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\prefix-mutant.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\prefix-mutant.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-chat-followup\\prefix-mutant.cpp\"\nexit /b %errorlevel%\n",
+    "prefix_mutation": "Remove !std::equal(...) from the reset condition, preserving the size check; compile that main.cpp and run tests/chat.py. rewrite-longer must fail."
+  }
+}

@@ -12,6 +12,7 @@ import perf
 import tokenizer
 import perplexity
 import f32
+import chat
 import baseline
 import common
 
@@ -34,6 +35,7 @@ def main():
                      ("tokenizer", tokenizer.run),
                      ("perplexity", perplexity.run),
                      ("f32", f32.run),
+                     ("chat", chat.run),
                      ("baseline", baseline.run)]:
         try:
             ok = fn()

@@ -422,28 +422,33 @@ int cmd_chat(const std::string& model_path, const std::string& system,
 
     std::vector<chat::Message> messages;
     messages.push_back({ "system", system });
+    std::vector<uint32_t> cached_ids;
 
     std::cout << "Chat ready (type your message; Ctrl+C to quit)\n";
     std::string line;
     while (std::getline(std::cin, line)) {
         messages.push_back({ "user", line });
 
-        std::string full = chat::render(tpl, messages, false, bos, eos);
-        std::vector<uint32_t> full_ids = tok.encode(full);
-        int cur = model.n_tokens();
-        if ((int)full_ids.size() > cur)
-            infer::prefill(model, std::vector<uint32_t>(full_ids.begin() + cur, full_ids.end()));
-
         std::string gen = chat::render(tpl, messages, true, bos, eos);
         std::vector<uint32_t> gen_ids = tok.encode(gen);
-        int cur2 = model.n_tokens();
-        std::vector<float> logits;
-        if ((int)gen_ids.size() > cur2)
-            logits = infer::prefill(model, std::vector<uint32_t>(gen_ids.begin() + cur2, gen_ids.end()));
+        if (gen_ids.empty()) throw std::runtime_error("chat: template produced an empty prompt");
+        // Templates can rewrite previous turns or change token boundaries.
+        // Reuse only an exact prefix; an unchanged prompt also needs fresh
+        // logits because generate() does not retain its final distribution.
+        if (cached_ids.size() >= gen_ids.size() ||
+            !std::equal(cached_ids.begin(), cached_ids.end(), gen_ids.begin())) {
+            model.reset();
+            cached_ids.clear();
+        }
+        std::vector<float> logits = infer::prefill(model,
+            std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()));
+        cached_ids = std::move(gen_ids);
 
         std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits);
-
-        if (tok.eos_id >= 0) model.step(tok.eos_id);
+        // A stop match may return its final token without feeding it. EOS is
+        // excluded; the next rendered turn supplies its own closing tokens.
+        const size_t fed = (size_t)model.n_tokens() - cached_ids.size();
+        cached_ids.insert(cached_ids.end(), reply.begin(), reply.begin() + fed);
 
         messages.push_back({ "assistant", tok.decode(reply) });
     }

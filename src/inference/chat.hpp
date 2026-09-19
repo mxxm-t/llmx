@@ -7,6 +7,7 @@
 #include <memory>
 #include <cctype>
 #include <cstdlib>
+#include <cmath>
 
 #include "format/gguf.hpp"
 
@@ -559,13 +560,13 @@ struct ExprParser {
                 std::vector<std::shared_ptr<Expr>> args;
                 std::vector<std::pair<std::string, std::shared_ptr<Expr>>> kwargs;
                 if (cur().k != Tok::RP) {
-                    args.push_back(parse());
-                    while (cur().k == Tok::COMMA) {
-                        adv();
+                    while (true) {
                         if (cur().k == Tok::ID && p + 1 < ts.size() && ts[p + 1].k == Tok::OP && ts[p + 1].text == "=") {
                             std::string k = cur().text; adv(); adv();
                             kwargs.emplace_back(k, parse());
                         } else args.push_back(parse());
+                        if (cur().k != Tok::COMMA) break;
+                        adv();
                     }
                 }
                 adv(); // ')'
@@ -749,19 +750,16 @@ struct Parser {
         std::string term;
         node->branches.back().second = parse_body(term);
         while (term == "elif") {
-            auto et = split_tag(blk[i]);
-            i++;
+            auto et = split_tag(blk[i - 1]);
             node->branches.push_back({ parse_expr(et.second), {} });
             term = "";
             node->branches.back().second = parse_body(term);
         }
         if (term == "else") {
-            i++;
             term = "";
             node->elseBody = parse_body(term);
         }
         if (term != "endif") throw std::runtime_error("chat template: unbalanced {% if " + nt.second + " %}");
-        i++;
         return node;
     }
 
@@ -777,7 +775,6 @@ struct Parser {
         std::string term;
         node->body = parse_body(term);
         if (term != "endfor") throw std::runtime_error("chat template: unbalanced {% for " + nt.second + " %}");
-        i++;
         return node;
     }
 };

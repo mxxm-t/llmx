@@ -23,6 +23,7 @@ feature currently stands right now.
 | Multi-device split                       | Planned  |
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Planned  |
+| Chat follow-up cache validation          | In Progress |
 | Correctness baseline vs HF reference     | In Progress |
 | HF fixed-excerpt PPL baseline            | Done     |
 | Performance floor vs mx-llama.cpp        | In Progress |
@@ -309,6 +310,39 @@ feature ships, delete its block and mark the row `Done` above.
 - **Gotchas:** reset may retain allocated memory but must never expose stale
   tokens. Growth must preserve every layer/head's used prefix. Do not allocate
   the model's full maximum context at startup or change reduction order.
+
+### Chat follow-up cache validation
+
+- **Goal:** preserve correct conversation history across follow-up prompts,
+  reusing KV only when its exact token prefix matches the rendered transcript.
+- **Done:** review found that `cmd_chat` skips cached tokens by count alone,
+  renders twice per turn, and can pass empty logits to generation when the
+  template does not add a generation suffix. Generated stop tokens and the
+  unconditional EOS step also need accurate cache accounting.
+  The new HF-backed chat regression reproduced a crash on the old binary.
+  It also exposed double consumption of template block terminators, which
+  skips adjacent content and breaks nested conditionals/loops.
+  Implemented exact fed-token tracking and reset/refill for changed prefixes;
+  removed unconditional EOS insertion and the redundant prefill/render pass.
+  Fixed block terminator consumption and first keyword argument parsing. The
+  latter affected Qwen namespace state and removal of old reasoning. New
+  end-to-end HF reply fixtures pass; a token-count-only reuse mutant fails.
+  The real Qwen template matches Jinja2 across initial and follow-up histories.
+  Windows and Linux full suites with required real HF fixtures pass. MSVC
+  renderer test, Linux CTest and Linux UBSan native/synthetic suites pass.
+  Linux first exposed a missing `<cmath>` include in the standalone renderer;
+  that is fixed. Chat coverage is 54 runs of nine scenarios across thread and
+  batch settings; the real template has 12 independent Jinja2 cases. Logs,
+  fixture hashes and reproduction commands are in
+  `benchmarks/chat-followup-validation-20260919.json`.
+- **Left:** merge with a validated runtime stack and observe hosted CI. The
+  enclosing stack still needs its external performance floors; chat fixes do
+  not establish those floors. Numerical kernels and model forward paths are
+  unchanged by this fix.
+- **Gotchas:** prefill continuation tests alone do not validate chat-template
+  reuse. Keep messages separate from cached tokens; rendered text may change
+  earlier turns or retokenize their boundary. This is single-user chat, not
+  multi-user or concurrent request support.
 
 ### Correctness baseline vs HF reference
 

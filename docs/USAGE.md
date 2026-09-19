@@ -10,7 +10,9 @@ short usage summary.
 - Text arguments containing spaces must be quoted so they arrive as one argv
   element (`"The capital of France is"`).
 - Token ids in `detokenize` are comma- or space-separated integers.
-- `--threads 0` means auto (default: the CPU's hardware concurrency).
+- Inference commands use hardware concurrency when `--threads` is omitted or
+  zero. The current `bench` command instead passes zero to the backend, which
+  selects one thread; specify a positive count for benchmark comparisons.
 
 ## `llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]`
 
@@ -44,7 +46,7 @@ Convert a raw float32 model into a quantized GGUF file.
 
 ## `llmx dequantize <in.gguf> <out.json> <out.bin>`
 
-Inverse of `quantize`: read a Q8_0/F32 GGUF and write the tensors back out as
+Read a GGUF containing any supported tensor types and write the tensors as
 raw float32. Produces a `model.json`-compatible `out.json` plus the concatenated
 float32 data in `out.bin`. Useful for round-trip verification and for feeding
 data back into `quantize`.
@@ -57,7 +59,8 @@ Inspect a GGUF file without running inference. Prints:
 - every metadata key/value (typed dump)
 - the tensor list: type, name, shape, element count, and on-disk byte size
 
-Use this as the authoritative check that a model file parsed correctly.
+This inspects what the reader loaded; it does not comprehensively validate
+malformed files or tensor extents.
 
 ## `llmx tokenize <in.gguf> "<text>"`
 
@@ -78,10 +81,10 @@ through sampled text hides everything except argmax flips, so
 `tests/baseline.py` uses this to compare the ranking directly against a
 full-precision reference (`docs/ROADMAP.md` #8).
 
-Reading the output: llmx runs a quantized GGUF, so the VALUES differ from an
-fp32 reference by quantization error and are not comparable directly. The
-ranking is what is stable, and even then two tokens within about 0.01 logits of
-each other can legitimately swap.
+F32 models support direct numerical comparison under the HF fixture bounds.
+Quantized models add weight error, so comparisons need quantization-specific
+bounds on values and NLL as well as rankings. Close rankings can change;
+matching the top token alone does not establish numerical correctness.
 
 ## `llmx perplexity <in.gguf> "<text>" [flags...]`
 
@@ -129,19 +132,15 @@ identical input bytes, token IDs, window boundaries and target selection.
 
 ## Threads: generation vs prefill
 
-`--threads` is the thread count for **generation** (decode) and
+For `generate`, `--threads` is the thread count for **generation** (decode) and
 `--threads-batch` / `-tb` is the count for **prefill**, defaulting to
 `--threads`. These are llama.cpp's `-t` and `-tb`.
 
-They are separate because the two phases have different bottlenecks. Prefill is
-compute bound and scales nearly linearly: on a Ryzen 7 5800X, 4/8/16 threads
-gave 5.07/8.55/13.24 tok/s. Decode is memory-bandwidth bound and peaks BELOW
-the logical core count, because SMT adds contention rather than bandwidth: the
-same machine measured 3.11/4.39/4.42/4.23/4.12 tok/s at 2/4/6/8/16 threads.
-
-The defaults leave both at hardware concurrency. If you are tuning, raise
-`-tb` to every logical core and lower `--threads` towards the physical core
-count, then measure - the knee is machine-specific.
+Prefill and decode can favor different counts. Measure the chosen model and
+hardware; the matched thread-scaling tables in ASSETS record the tested cases.
+Set both counts explicitly when using different settings: if `--threads` stays
+zero, the current code does not restore automatic decode threads after `-tb`.
+`chat` uses `--threads` for both phases and currently ignores `-tb`.
 
 ## Physical batch (`--ubatch`)
 
@@ -206,17 +205,20 @@ Micro-benchmark of the backend hot paths, plus end-to-end TPS:
   ms and GFLOPS.
 - `rms_norm`: RMSNorm on `N` elements.
 - `rope`: rotary position embedding on `N/2` pairs.
-- End-to-end: prompt-process `--p` tokens (default 64) into a fresh KV cache and
-  report pp tok/s, then decode `--n` tokens (default 64) over the warm cache and
+- End-to-end: prompt-process `--p` tokens (default 64) into a fresh KV cache
+  by repeated single-token `step()` calls and report pp tok/s, then decode
+  `--n` tokens (default 64) over the warm cache and
   report tg tok/s.
 
-This is the command `tests/perf.py` uses as the perf-regression gate.
+This is the command `tests/perf.py` uses as the perf-regression gate. Its pp
+metric does not measure batched `Model::prefill`; use the matched real-model
+comparison below for that path.
 
 | Flag            | Meaning                                      | Default |
 |-----------------|----------------------------------------------|---------|
 | `--size N`      | hot-path vector/matrix size (multiple of 32) | 1024    |
 | `--iters N`     | repetitions for hot-path timing              | 5       |
-| `--threads N`   | worker thread count (0 = auto)               | 0       |
+| `--threads N`   | worker count (currently 0 selects one)       | 0       |
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 

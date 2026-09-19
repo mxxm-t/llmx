@@ -2,8 +2,8 @@
 
 From-scratch implementation of the GGUF file format (v3) for `Q8_0`, `Q4_0`,
 `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K` and `F32` tensors, in namespace `gguf`. Those are not an
-arbitrary set: a llama.cpp "Q4_0" file is MIXED, so all of them are needed to
-load one at all.
+arbitrary set: real GGUF files mix types. The pinned Q4_0 fixture requires
+Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
 
 - Constants: `MAGIC` (`'GGUF'`), `VERSION=3`, `ALIGNMENT=32`, GGML type ids
   (`GGML_TYPE_F32=0`, `Q4_0=2`, `Q4_1=3`, `Q8_0=8`, `Q4_K=12`, `Q5_K=13`, `Q6_K=14`) and the block
@@ -27,4 +27,6 @@ load one at all.
   with each tensor payload aligned to `ALIGNMENT`. Tensor infos have no
   individual padding.
 
-This is the format the CLI and the `infer::Model` layer consume.
+This is the format the CLI and the `infer::Model` layer consume. Stream failures,
+file extents and overflow in metadata-derived sizes are not comprehensively
+validated yet; successful `info` output is not a strict file-validation gate.

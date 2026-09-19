@@ -1,8 +1,8 @@
 # llmx — Architecture
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
-writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers on CPU (AVX2
-where available), and
+writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers
+on x86 CPU with AVX2/FMA/F16C, and
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
 
@@ -68,11 +68,12 @@ command reference.
 
 - **Backends** are the *only* compile-time concern: GPU backends pull in heavy
   SDKs, so they are opt-in via `LLMX_HAS_BACKEND_*` in `config.hpp`. CPU is
-  always on (no external deps).
+  always on (no external deps). The GPU options currently define macros only;
+  no vendor implementation is built.
 - **Model architectures** will be compiled in and selected from metadata.
   Today the model layer implements dense Qwen3 only.
-- **Split mode and node count** are runtime parameters chosen at launch, not
-  build options. See `ROADMAP.md`.
+- **Split mode and node count** are planned runtime parameters, not implemented
+  build options or CLI flags. See `ROADMAP.md`.
 
 ## KV state and concurrent execution
 
@@ -133,8 +134,9 @@ in serial mode, from which it can be configured again.
 
 Known gaps remain: GGUF stream errors and file extents need comprehensive
 validation, and model configuration, tensor shapes and token IDs need validation
-before execution. A future server must define request/session recovery rather
-than treating the CLI's process-level catch as request isolation.
+before execution. The minimal JSON parser also lacks strict number/escape
+validation and complete Unicode escape decoding. A future server must define
+request/session recovery rather than treating the CLI's process-level catch as request isolation.
 
 ## Multi-device / multi-node design notes
 

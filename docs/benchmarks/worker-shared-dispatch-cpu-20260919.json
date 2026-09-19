@@ -1,0 +1,464 @@
+{
+  "base": "c072af2",
+  "verdict": "Not adopted: exploratory prefill improvement, no decode gain; retain simpler existing implementation per user scope. Five rounds do not establish sustained external parity. No full HF/platform adoption gates run for this variant.",
+  "checks": [
+    {
+      "name": "build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "backend-errors",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\backend-errors.exe"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "backend-group",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\backend-group.exe"
+      ],
+      "exit": 0
+    }
+  ],
+  "bench": {
+    "metadata.json": {
+      "hashes": {
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control-compare.exe": "f34310ad207b7fe5b09b8047f30326df98126468b5050e111362d54a3ba1e606",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate-compare.exe": "6ca767f3fe400d28f269e229ba0465120032a9d5d6f15dd292e47c205375e004",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate-compare.exe": "38a2a67d449f6cf0cdbfe805bd34c9c3626cb5524e4256ac2170f78453b39ce2",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llmx-compare-threads.exe": "6156452d9e6e3cd63e4d184b1e8c57badfee57fece86092d23b0dc9d64f645bf",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-external-perf\\eight-pairs\\tokens.txt": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\config.hpp": "9f20e6cf3b323a66204e25ef633d26ec5c1ed845da67a5e3b4de0914cf7c3368",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\backend.hpp": "5d76240be7893279a308a4c21cee074f53f1dcee5421feafadb496cae52dbcba",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\format\\gguf.hpp": "87d4beee29a8a0adc4c0183d68e1f8f13ea30326d419dff11d9fcbfcea22e712",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\chat.hpp": "865051f5ef6ebe8d14330e18347daeabce6a8cd9cd3eee38f664b499883ad361",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\generate.hpp": "1277cbb7fd3b6d6c24bd06945ab8c562f553201a8f6893325343c04a7bf4f087",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\inference\\sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\arch_qwen.hpp": "c064955de07e4f41537a50f9e9f343affe9db2f52571bf988476f2b448bd1ff5",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\quant\\quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\tokenizer\\tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\backends\\cpu\\cpu_backend.hpp": "f114d3b6287b2a4577bc67180738853ec1b975500ea4168cbd90ab22db70ec1a",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate\\backends\\cpu\\cpu_backend.hpp": "d7bbb5776b314f66747b3ba7f36bd44d05401cd7c939c2f85fef54afb0c43cf7",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\config.hpp": "411a632de621d17c28a6fd594157d5c8ec7c1d77fc9d8cee26abf90ae567351f",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\backend.hpp": "e79f18ed28df5cfddb3e6ec0c9bcbe7a70c68d3186056e480616edcec1a453cd",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\fp16.hpp": "578b095d8e233f1d2870711c9d673a44ab845f7000a27e33b898f8bd2f9a5582",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\core\\json.hpp": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\format.hpp": "461748433588c370bc5615ed74ba443fa75b301077eb58c187d4752139f26134",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\format\\gguf.hpp": "d54df0021e2776e1123c45bb3a92beb04e2d1bc2d85641f8d55228b2cee46092",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\chat.hpp": "3bc261252f4a394d9b6fdb51cdfe942372b959e04f778242357e348ae646f65d",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\generate.hpp": "05fc7375ddbc9cd0a81d28805f5fea85091beb0d54a1e5e0cbdebe44db1603b9",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\perplexity.hpp": "c7ee22964b0e5555d2f27733d6467536907098db7ddf57f800f297165b071608",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\inference\\sampler.hpp": "4398398a746342d311693317e6a3298ec16fce0fff57304f4eff3a71c63785cf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\arch_qwen.hpp": "a3fe58109983665f713540353cefc2636941981860771d12309223949cf4a7ae",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\model\\host_kv_cache.hpp": "581c8801e0e5b06cc42fefac0f6b64895b5d2d337bc386bc2be75515da088bfc",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\k_quants.hpp": "1d0dfc64c1c1f46f753848029fe164bee0539f98bece9765050cbe8187107326",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\quant\\quant.hpp": "83a3c2540f3129002eb0a03b04db8e293124dcdafb26683baef493a9214f64de",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\tokenizer\\tokenizer.hpp": "19ca659b22d177c2e6427baa42f02dc3fdb8c63fd3d13a837c39cae0acd9672e",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\control\\src\\backends\\cpu\\cpu_backend.hpp": "fbaaef384a606f916425827741c7c42bb44a8ac0dba33d3f6ea2ef4a9c15ffea",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llama.dll": "2d007cdf70a8f0f29daf87d04c73eda7975248de6528de82bf0b7e7820f9f775",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml.dll": "f8c791dc32f4ebfce0e17ba2ebefba02d16c8f7209f74a5f0a87d0d60d69a12c",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-base.dll": "255b1d609643421a5d1dabecb1d0010076235035cbce0516f6c3988115581a08",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-cpu.dll": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2"
+      },
+      "threads": 6,
+      "ubatch": 128,
+      "prompt": 215,
+      "decode": 32,
+      "reference": "5542318e748c154b634211def405ae95da3dfaa9",
+      "rounds": 5,
+      "outer_warmup_rounds": 1,
+      "process_warmup_sequences": 1
+    },
+    "results.json": [
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 573.3379,
+        "tg_ms": 793.6466,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 607.6157,
+        "tg_ms": 804.3576,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 575.4879,
+        "tg_ms": 858.5204,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": -1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 832.3868,
+        "tg_ms": 743.7042,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 672.9414,
+        "tg_ms": 803.4183,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 596.5619,
+        "tg_ms": 792.6041,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 823.2351,
+        "tg_ms": 796.4885,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 0,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 567.4689,
+        "tg_ms": 786.8819,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 579.853,
+        "tg_ms": 778.121,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 821.0998,
+        "tg_ms": 760.2057,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 589.7896,
+        "tg_ms": 787.5623,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 1,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 589.9081,
+        "tg_ms": 768.6207,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 829.3545,
+        "tg_ms": 763.7236,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 560.8372,
+        "tg_ms": 761.9895,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 585.244,
+        "tg_ms": 735.1847,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 2,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 576.0948,
+        "tg_ms": 762.2689,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 549.553,
+        "tg_ms": 801.2494,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 583.3795,
+        "tg_ms": 746.0226,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 561.6004,
+        "tg_ms": 760.3547,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 3,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 826.9458,
+        "tg_ms": 744.6219,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "checkpoint",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 659.9772,
+        "tg_ms": 816.3945,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "candidate",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 553.0426,
+        "tg_ms": 793.1115,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "mx",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 830.089,
+        "tg_ms": 802.2287,
+        "top1": 4013,
+        "logit_sum": -495135.3053
+      },
+      {
+        "model": "Q8",
+        "round": 4,
+        "arm": "control",
+        "run": 1,
+        "threads": 6,
+        "pp_tokens": 215,
+        "tg_tokens": 32,
+        "pp_ms": 571.8462,
+        "tg_ms": 763.7326,
+        "top1": 4013,
+        "logit_sum": -492001.8287
+      }
+    ],
+    "summary.json": {
+      "Q8": {
+        "control": {
+          "pp": {
+            "mean": 378.7939782222549,
+            "minimum": 364.5367771829141,
+            "maximum": 391.22705180392063
+          },
+          "tg": {
+            "mean": 41.02619682315756,
+            "minimum": 39.93762741039182,
+            "maximum": 41.99532933196586
+          }
+        },
+        "checkpoint": {
+          "pp": {
+            "mean": 349.12713630025814,
+            "minimum": 319.4929008677427,
+            "maximum": 368.5422610839085
+          },
+          "tg": {
+            "mean": 41.41603745540274,
+            "minimum": 39.19673638173702,
+            "maximum": 43.52647708800251
+          }
+        },
+        "candidate": {
+          "pp": {
+            "mean": 375.1955072924067,
+            "minimum": 360.3984766710713,
+            "maximum": 388.758479003245
+          },
+          "tg": {
+            "mean": 41.18218586199001,
+            "minimum": 40.347416472967545,
+            "maximum": 42.085621355401635
+          }
+        },
+        "mx": {
+          "pp": {
+            "mean": 260.2495357289064,
+            "minimum": 259.0083713915014,
+            "maximum": 261.8439317607921
+          },
+          "tg": {
+            "mean": 41.40677993530179,
+            "minimum": 39.888874581525194,
+            "maximum": 42.97483058180266
+          }
+        }
+      }
+    }
+  },
+  "patch": "--- c072af2/cpu_backend.hpp\n+++ candidate/cpu_backend.hpp\n@@ -82,25 +82,7 @@\n     void run_parallel(F&& fn) {\n         if (threads_ <= 1) { fn(0); return; }\n         std::function<void(int)> job(std::ref(fn));   // ref -> no heap alloc\n-        {\n-            std::lock_guard<std::mutex> lk(m_);\n-            job_ = &job;\n-            pending_ = threads_ - 1;\n-            epoch_++;\n-        }\n-        cv_work_.notify_all();\n-        std::exception_ptr error;\n-        try { fn(0); }\n-        catch (...) { error = std::current_exception(); }\n-        std::unique_lock<std::mutex> lk(m_);\n-        cv_done_.wait(lk, [&] { return pending_ == 0; });\n-        job_ = nullptr;\n-        if (!error) error = worker_error_;\n-        worker_error_ = nullptr;\n-        lk.unlock();\n-        // The borrowed callable must stay alive until all workers finish,\n-        // including when the calling participant fails.\n-        if (error) std::rethrow_exception(error);\n+        dispatch(job);\n     }\n \n     void matmul(uint32_t ggml_type, const uint8_t* data, const float* X, float* Y,\n@@ -554,6 +536,28 @@\n     unsigned epoch_ = 0;\n     int pending_ = 0;\n     bool stop_ = false;\n+\n+    void dispatch(const std::function<void(int)>& job) {\n+        {\n+            std::lock_guard<std::mutex> lk(m_);\n+            job_ = &job;\n+            pending_ = threads_ - 1;\n+            epoch_++;\n+        }\n+        cv_work_.notify_all();\n+        std::exception_ptr error;\n+        try { job(0); }\n+        catch (...) { error = std::current_exception(); }\n+        std::unique_lock<std::mutex> lk(m_);\n+        cv_done_.wait(lk, [&] { return pending_ == 0; });\n+        job_ = nullptr;\n+        if (!error) error = worker_error_;\n+        worker_error_ = nullptr;\n+        lk.unlock();\n+        // The borrowed callable must stay alive until all workers finish,\n+        // including when the calling participant fails.\n+        if (error) std::rethrow_exception(error);\n+    }\n \n     void start_pool() {\n         try {\n",
+  "scripts": {
+    "bench-five.py": "from pathlib import Path\nimport subprocess,json,os,hashlib,statistics,math\nr=Path(os.environ['TEMP'])/'llmx-worker-dispatch';out=r/'bench-five';out.mkdir(exist_ok=False)\ntokens=Path(os.environ['TEMP'])/'llmx-external-perf/eight-pairs/tokens.txt'\nmodels={'Q8':Path.home()/'.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf','F32':Path(os.environ['TEMP'])/'Qwen3-0.6B-F32.gguf'}\nmodels.pop('F32')\nold=r.parent/'llmx-worker-errors'\narms={'control':old/'control-compare.exe','checkpoint':old/'candidate-compare.exe','candidate':r/'candidate-compare.exe','mx':Path.cwd().parent/'llmx-ref/build/bin/Release/llmx-compare-threads.exe'}\npaths=list(arms.values())+list(models.values())+[tokens]+list((Path.cwd()/'src').rglob('*.hpp'))+list((r/'candidate').rglob('*.hpp'))+list((old/'control').rglob('*.hpp'))+[arms['mx'].parent/x for x in ['llama.dll','ggml.dll','ggml-base.dll','ggml-cpu.dll']]\nhashes={}\nfor p in paths:\n with p.open('rb') as f: hashes[str(p)]=hashlib.file_digest(f,'sha256').hexdigest()\n(out/'metadata.json').write_text(json.dumps(dict(hashes=hashes,threads=6,ubatch=128,prompt=215,decode=32,reference='5542318e748c154b634211def405ae95da3dfaa9',rounds=5,outer_warmup_rounds=1,process_warmup_sequences=1),indent=2))\nrows=[]\nfor model,path in models.items():\n for round in range(-1,5):\n  order=list(arms); shift=(round+1)%len(arms); order=order[shift:]+order[:shift]\n  for arm in order:\n   p=subprocess.run([str(arms[arm]),str(path),str(tokens),'--threads','6'],capture_output=True)\n   prefix=out/f'{model}-{round}-{arm}';prefix.with_suffix('.stdout').write_bytes(p.stdout);prefix.with_suffix('.stderr').write_bytes(p.stderr)\n   p.check_returncode()\n   values=[json.loads(x) for x in p.stdout.splitlines() if x]\n   assert len(values)==2 and [x['run'] for x in values]==[0,1]\n   for x in values:\n    assert x['threads']==6 and x['pp_tokens']==215 and x['tg_tokens']==32\n    assert all(math.isfinite(x[k]) and x[k]>0 for k in ['pp_ms','tg_ms']) and math.isfinite(x['logit_sum'])\n   row=dict(model=model,round=round,arm=arm,**values[1]);rows.append(row)\n   (out/'results.json').write_text(json.dumps(rows,indent=2));print(json.dumps(row),flush=True)\nsummary={}\nfor model in models:\n summary[model]={}\n for arm in arms:\n  summary[model][arm]={}\n  for phase in ['pp','tg']:\n   rates=[x[phase+'_tokens']*1000/x[phase+'_ms'] for x in rows if x['model']==model and x['arm']==arm and x['round']>=0]\n   summary[model][arm][phase]=dict(mean=statistics.mean(rates),minimum=min(rates),maximum=max(rates))\n(out/'summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2),flush=True)\n",
+    "build-check.py": "\ufefffrom pathlib import Path\nimport os,subprocess,json\nr=Path(os.environ['TEMP'])/'llmx-worker-dispatch';rows=[]\nfor name,cmd in [('build',['cmd','/c',str(r/'build.bat')]),('backend-errors',[str(r/'backend-errors.exe')]),('backend-group',[str(r/'backend-group.exe')])]:\n with (r/(name+'.log')).open('wb') as f:p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT,timeout=120)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'initial-checks.json').write_text(json.dumps(rows,indent=2));print(name,p.returncode,flush=True)\n if p.returncode:print((r/(name+'.log')).read_text(errors='replace')[-4000:])\n p.check_returncode()\n",
+    "build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate-compare.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate-compare.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tools\\compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\backend-errors.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\backend-errors.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_errors.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\candidate\" /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\backend-group.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-dispatch\\backend-group.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_group.cpp\"\nif errorlevel 1 exit /b 1\n"
+  },
+  "logs": {
+    "backend-errors.log": "startup allocation failures: constructor=24 resize=3\nbackend errors: passed\n",
+    "backend-group.log": "grouped projections: 540 cases, 141750 outputs checked against separate calls and double dots; 253952 exact finite Q8 scale/weight cases\n",
+    "build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\ncompare_cpu.cpp\nmain.cpp\nbackend_errors.cpp\nbackend_group.cpp\n"
+  },
+  "source_sha256": "d7bbb5776b314f66747b3ba7f36bd44d05401cd7c939c2f85fef54afb0c43cf7"
+}

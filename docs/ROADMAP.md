@@ -3,7 +3,7 @@
 > **Dev status:** `docs/STATUS.md` tracks what's done / in flight / planned per
 > feature. This roadmap is the stable long-term plan; STATUS is the living
 > scratchpad. When a feature ships, its STATUS block collapses to a `Done` row
-> here — this file never carries dev noise.
+> in STATUS — this file never carries dev noise.
 
 Ordered roughly by dependency and value. Items marked **[design]** are
 specified in `docs/ARCHITECTURE.md` but not yet implemented.
@@ -54,7 +54,8 @@ directly; a second format needs integration through this seam.
 
 ## 4. Backends **[design]**
 GPU backends are the only compile-time concern (heavy SDKs); `config.hpp`
-`LLMX_HAS_BACKEND_*` gates each. The vendor targets are ROCm, CUDA, SYCL
+`LLMX_HAS_BACKEND_*` names are reserved for those gates; the existing options
+do not build GPU code yet. The vendor targets are ROCm, CUDA, SYCL
 (Intel) and Vulkan. This splits into two phases — the device
 execution model has to land before any vendor backend is worth writing.
 
@@ -132,7 +133,8 @@ Split a single model across several backends on one machine.
 ## 8. Correctness & perf gates
 Two standards, both EXTERNAL. Neither may be replaced by a self-consistency
 check: llmx passed a fully green suite while six correctness bugs were live,
-because every test compared llmx against itself.
+because every test compared llmx against itself. The subsequent bug tally
+and implemented HF coverage are recorded in STATUS.
 - **Correctness is the HF reference.** Golden fixtures are generated once with
   HF tooling (`tools/gen_baseline.py`) and committed; `tests/baseline.py`
   compares llmx against them with no torch at test time. A round-trip that a

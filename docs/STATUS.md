@@ -11,10 +11,19 @@ feature currently stands right now.
 **Resumed after explicit user authorization following the reboot.** Branch
 `fix/cpu-worker-errors`, checkpoint `c072af2`. The TUI watcher on **8181** is
 restarted with its saved cursor. Root `llmx.exe` remains the validated `3a82284`
-KV build. First investigate Q8 prefill overhead using the preserved binaries,
-then test a bounded dispatch change if evidence warrants it. Gitea is reachable
+KV build. Post-reboot dispatch studies are complete; retain the simpler worker fix.
+Localize remaining CPU costs before further hot-path changes. Gitea is reachable
 again; feature checkpoints may be backed up there, with performance gates still
-required before merging to main.
+required before merging to main. GitHub publication is authorized after the
+requirements pass.
+
+**Documentation review (2026-09-19):** reviewed all 25 tracked Markdown files
+against current CLI/source, CMake/CI configuration, tests and archived evidence.
+Corrected stale fixture dimensions, format/config claims, command coverage and
+historical/current-state wording. Runtime gaps discovered during the review
+are documented rather than changed in this documentation checkpoint.
+Earlier per-feature measurements below describe their own checkpoint; the
+worker block carries the latest active runtime state.
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
@@ -75,19 +84,20 @@ required before merging to main.
   known gaps from the same review. Control is `3a82284`; no merge. Gitea holds
   the feature checkpoint, while the public/default branch remains unchanged.
 
-- **Current experiments after reboot:** preserved binaries are remeasured before
-  any rebuild. Test a scratch-only change from `fn(0)` to the existing `job(0)`
-  inside the caller's try block, to separate task invocation from exception
-  handling in generated code. Preserve all completion/rethrow/startup behavior.
-  Compare against both `3a82284` and `c072af2`; no kernel arithmetic change.
-  Gitea now holds `fix/cpu-worker-errors` at `c072af2`; main is unchanged.
-  The longer stored-call Q8 run does not reproduce its early gain; do not adopt
-  it on the exploratory result. Next isolate successful-dispatch exception
-  bookkeeping: MSVC's exception_ptr default constructor/destructor call runtime
-  helpers even for an empty pointer. Keep exception capture/clearing on failure
-  paths, retaining the same completion/lifetime guarantees and fault tests.
-  Scratch `%TEMP%/llmx-worker-cold` passes initial MSVC allocation/task fault and
-  grouped-kernel checks; performance and full numerical/platform gates are next.
+- **Post-reboot decision:** retain the existing c072af2 implementation. The
+  stored-call variant failed its longer comparison. Failure-only exception
+  bookkeeping loses all five paired decode rounds. A shared non-template
+  dispatch body improves exploratory prefill but does not improve decode;
+  it is not adopted. No more dispatch variants are planned without profiling
+  evidence. The user explicitly asked to keep the implementation simple.
+  Full samples and source patches for the two latest scratch studies are in
+  `docs/benchmarks/worker-cold-errors-cpu-20260919.json` and
+  `docs/benchmarks/worker-shared-dispatch-cpu-20260919.json`. Both pass initial
+  MSVC allocation/task-fault and grouped-kernel checks; neither entered full
+  HF/platform adoption gates. Runtime source and root executable are unchanged.
+  Next performance work should localize the remaining cost before changing code.
+  User authorization includes merging main and publishing GitHub once the
+  requirements pass; current performance evidence does not clear that gate.
 
 Stored-call experiment is **not adopted**. Full HF, exact vectors/NLL,
 Windows/Linux suites and Linux UBSan native checks pass, but the longer run
@@ -134,9 +144,9 @@ feature ships, delete its block and mark the row `Done` above.
   prompt plus 32 greedy tokens. Measurements/provenance are in ASSETS.
 - **Left:** close the measured F32 CPU gap versus public mx-llama.cpp
   `5542318e74`, then merge and observe the expanded five-job hosted CI.
-  The latest matched F32 results are in the Q8 scale/load block below and
-  `docs/benchmarks/q8-scale-load-cpu-20260919.json`; external decode parity
-  remains unproven. Model loading is excluded and each process warms up.
+  Current F32 results are in the KV and worker-error blocks; the older
+  scale/load comparison records that earlier checkpoint. Sustained external
+  parity remains unproven. Loading is excluded and each process warms up.
 - **Findings:** activation tiling and a fully spinning worker pool did not
   establish a win. Profiling instead identifies scalar attention as roughly
   170-180 ms of prefill. Backend attention now improves prefill by 24.8%
@@ -167,8 +177,7 @@ feature ships, delete its block and mark the row `Done` above.
   Q8 synthetic guardrails pass; matmul 123.07 -> 121.80 GFLOPS, prefill
   4828 -> 4800 and decode 4522 -> 4875 tok/s, with overlapping ranges.
 - **Left:** close the remaining external CPU floor gap, then merge and run
-  hosted CI. See grouped projections below for the latest measurements;
-  its F32 decode still trails mx.
+  hosted CI. See the KV and worker-error blocks for later measurements.
   Profiling after vectorization finds prefill attention around 60-67 ms and
   decode attention around 97-100 ms; matrix operations now dominate decode.
   Sequential F32 row streaming and parallel batched elementwise work are
@@ -286,7 +295,7 @@ feature ships, delete its block and mark the row `Done` above.
   not an independent 8B HF baseline. Evidence and the full-vector control are
   in `benchmarks/grouped-projections-8b-20260919.json`.
 - **Left:** close the external decode floors before merge and hosted CI.
-  Native Q8 scale/load scheduling is the next bounded investigation below.
+  Native Q8 scale/load scheduling is implemented and validated below.
 - **Gotchas:** exact equality is scoped to tested inputs/platform, not a
   full-corpus or maximum-context proof. The legacy bench prefill uses step();
   batched prefill has a separate guard. All outliers retained; do not pool
@@ -350,18 +359,16 @@ feature ships, delete its block and mark the row `Done` above.
 - **Done:** explicit `--threads` in the comparator and runner, with requested
   counts echoed and checked. Windows llmx/mx and Linux llmx builds pass;
   invalid arguments and missing/wrong thread metadata are rejected. A real-model
-  runner smoke passes. Matched Q8/F32 scaling is complete; runtime remains
-  `475f312`.
+  runner smoke passes. Matched Q8/F32 scaling is complete; those measurements
+  used runtime `475f312`, before the KV and worker-error changes.
   Full vectors are byte-identical across all measured counts; continuous NLL
   is unchanged from the prior runtime and passes the independent HF fixture.
   Projection and matrix probes are complete. F32 matrix ranges overlap mx;
   Q8 matrix latency remains higher at the default comparison count. ASSETS and
   `benchmarks/cpu-thread-scaling-20260919.json` contain complete results.
 - **Left:** merge the tool with the validated stack once its external floor
-  is met. The next performance investigation is attention/KV locality:
-  token-major storage makes each head's history strided. Test contiguous
-  per-head storage with capacity growth, preserving arithmetic and applying
-  full-vector and independent HF gates before adopting any change.
+  is met. The resulting contiguous per-head KV change is implemented and
+  validated below; it is no longer a pending experiment.
 - **Gotchas:** use the same thread count in both arms and record it with every
   result. Keep the pinned model, tokens, reference revision, warmup and KV
   settings. Scaling diagnostics do not waive the existing external floor.
@@ -445,8 +452,9 @@ feature ships, delete its block and mark the row `Done` above.
 - **Goal:** give the suite an external ground truth. Correctness is measured
   against the HF reference, never against llmx itself (`docs/ROADMAP.md` #8).
 - **Done:**
-  - `tools/gen_baseline.py` emits golden fixtures using `tokenizers` +
-    `huggingface_hub` only (no torch, no transformers); output committed to
+  - The tokenizer mode of `tools/gen_baseline.py` emits golden fixtures using
+    `tokenizers` + `huggingface_hub`; numerical modes additionally need torch
+    and transformers. Tokenizer output is committed to
     `tests/data/baseline_tokenizer.json`.
   - `tests/baseline.py` compares llmx against the committed goldens and is
     wired into `tests/run_tests.py`. It SKIPS when no fixture model is on disk,
@@ -475,14 +483,16 @@ feature ships, delete its block and mark the row `Done` above.
     reject the preserved old encoder. Whole-wikitext file input now tokenizes
     298,938 tokens and scores the requested window limit successfully.
 - **Left:**
-  - Per-layer activation and full-corpus PPL goldens, plus long-context validation.
+  - Per-layer activation and full-corpus PPL goldens, plus maximum-context validation.
+    The 1,943-token/32-step independent F32 HF check is complete; its scope and
+    full-vector quantized diagnostics are recorded in ASSETS.
     Continuous and chunked excerpt gates are implemented, with an explicit
     disjoint-window scoring policy (`docs/USAGE.md`). They are not full-corpus
     coverage. Two-token windows show large quantized/HF deviations even under
     the unchanged old scorer; diagnostics and bounds are in `docs/ASSETS.md`.
     The existing ranking gate does not bound full-vector numerical error.
-  - Tolerance bands: F32 vs reference tight, Q8_0 vs reference needs a
-    quantization-appropriate bound.
+  - Existing tiny F32 full-vector and real-model excerpt bounds are implemented.
+    Broader Q8 full-vector and full-corpus acceptance bounds remain open.
 - **Gotchas:**
   - Round-trip and synthetic tests alone are not an external correctness gate;
     preserve the HF tokenizer/logit checks and extend their coverage.
@@ -495,6 +505,11 @@ feature ships, delete its block and mark the row `Done` above.
     see the F32 block above before merging.
   - Generation's legacy reasoning filter searches `thinking_start/end`, not
     Qwen3's actual `<think>` / `</think>` markers. Its docs now state that limit.
+  - CLI thread flags have known mismatches: chat ignores threads-batch;
+    generate does not restore auto decode after an explicit batch count; bench
+    passes zero as serial. USAGE documents these pending corrections.
+  - JSON parsing still has incomplete numeric/escape validation and Unicode
+    escape decoding; see docs/src/core-json.md.
   - Qwen3 does NOT use the GPT-2 pretokenizer regex. Read the Split pattern out
     of `tokenizer.json` before touching `pretokenize`.
 
@@ -502,11 +517,12 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Latest checkpoint:** native Q8 scale/load scheduling preserves all tested
-  output bits and improves Q8 decode on both measured model sizes. External
-  Q8 and F32 decode floors remain open. See its block and evidence JSON above
-  for current model measurements, HF gates and the tiny-prompt limitation.
-- **Latest investigation (no runtime change):** paired native Q8 rows regress;
+- **Latest checkpoint:** runtime c072af2 contains the validated KV layout and
+  worker exception fix. The latest nine-round Q8 worker comparison remains
+  below mx on decode and shows a prefill cost versus its prior control.
+  Post-reboot dispatch studies do not establish a sustained external pass;
+  retain the simpler worker fix. See the worker block for current evidence.
+- **Earlier instruction study (no runtime change):** paired native Q8 rows regress;
   direct pointer increments and explicit row-kernel inlining do not establish
   a decode gain. Exact row/tail/fallback checks pass. Assembly confirms shared
   activation loads without inner-loop spills, removal of native-loop address
@@ -596,9 +612,10 @@ feature ships, delete its block and mark the row `Done` above.
     introduces a precision change. Keep its measured cost visible if revisited.
   - Thread and matrix-shape diagnostics are complete (see CPU comparison
     thread scaling above). F32 matrix ranges overlap mx, while Q8 matrix
-    latency still trails it. Attention/KV locality is the next bounded
-    investigation, with capacity growth and independent HF gates required.
-    The larger-model diagnostic did not close the external gap.
+    latency still trails it. The resulting head-major KV layout is now validated.
+    Further changes should follow profiling of the current runtime, not repeat
+    completed instruction/dispatch studies. The larger-model diagnostic did
+    not close the external gap.
 - **Gotchas:**
   - Synthetic `bench` throughput does not establish real-model speed. Small
     projections may stay serial depending on thread count. Grouping improves

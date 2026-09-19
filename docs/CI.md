@@ -34,7 +34,11 @@ absent; the separate HF job supplies that coverage.
 Every job also runs the small F32 HF fixture without downloads. Its deterministic
 weights are generated locally; committed HF float32 logits/NLL cover tied and
 untied embeddings, matrix tails, multiple physical batches and thread counts.
-The UBSan job makes misaligned in-memory tensors a test failure.
+The UBSan job makes misaligned in-memory tensors a test failure. Every job also
+runs CTest for grouped kernels, worker failures, chat rendering and KV storage,
+plus the Python HF/Jinja2 follow-up fixtures. The five-job workflow and these
+new native checks still await a hosted run for the current unmerged stack;
+the initial four-job result above does not validate this branch.
 
 Hosted jobs pass `--no-perf-floor`: `bench` must still run and report finite,
 positive throughput, but the workstation-specific floors are disabled.

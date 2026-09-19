@@ -1,6 +1,8 @@
 # `src/backends/cpu/cpu_backend.hpp` — CPU backend (AVX2)
 
-CPU implementation of the `Backend` interface, in namespace `backend`.
+CPU implementation of the `Backend` interface, in namespace `backend`. The
+current build requires x86 AVX2/FMA/F16C; retained scalar branches do not make
+the compiled binary portable to older CPUs.
 
 - Detects AVX2 **once** in the constructor (via `__cpuid` on MSVC, `__get_cpuid`
   on GCC/Clang) and caches it — not per row.

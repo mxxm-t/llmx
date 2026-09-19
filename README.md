@@ -3,8 +3,8 @@
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
 A ground-up, **dependency-free** LLM inference runtime. It reads and writes
-GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers on CPU (AVX2 where
-available), and is
+GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers on
+x86 CPU with AVX2/FMA/F16C, and is
 structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added later without touching the core.
 
@@ -13,9 +13,9 @@ No external libraries. No CUDA, no ONNX Runtime — just C++ and your CPU.
 ## Status
 
 llmx is a young runtime. Today it runs **Qwen3-style** models on CPU, reading
-**Q8_0**, **Q4_0**, **Q4_1**, **Q4_K**, **Q5_K**, **Q6_K** and **F32** tensors - which together are
-what a real llama.cpp "Q4_0" file actually contains - with a byte-level BPE
-tokenizer implementing the Qwen2/Qwen3 pretokenizer, and a
+**Q8_0**, **Q4_0**, **Q4_1**, **Q4_K**, **Q5_K**, **Q6_K** and **F32** tensors,
+including mixed-type GGUF files. It has a byte-level BPE tokenizer implementing
+the Qwen2/Qwen3 pretokenizer and a
 Jinja2-subset chat-template renderer. See `docs/STATUS.md` for exactly what's
 done and what's in flight.
 
@@ -74,6 +74,9 @@ and runs a separate pinned HF model gate; see [CI details](docs/CI.md).
   loudly without being flaky.
 - **Tokenizer**: encode/decode round-trips incl. unicode and special tokens.
 - **Perplexity**: analytic probabilities, window boundaries, chunk limits and file input.
+- **Chat**: follow-up replies against HF/Jinja2 fixtures and cache-prefix changes.
+- **Native CTest**: grouped kernels, task/startup failures, chat templates and KV growth/reset.
+  Run `ctest --test-dir build -C Release --output-on-failure` after a CMake build.
 - **F32 reference**: full HF logits and windowed NLL for small deterministic
   models, including tied/untied weights, odd dimensions, batches and threads.
 - **HF baseline**: tokenizer IDs, next-token rankings and continuous/chunked excerpt PPL

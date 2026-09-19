@@ -2,8 +2,13 @@
 
 Where the real models and corpora used for manual verification live. These are
 environment-specific paths (this dev machine); the automated suite
-(`tests/run_tests.py`) generates its own synthetic fixtures and needs none of
-them.
+(`tests/run_tests.py`) generates its own synthetic fixtures; its real-model HF
+checks need the pinned fixtures below and otherwise skip.
+
+Dated validation/research sections preserve the source revision and state at
+that checkpoint. Their old next steps and binary revisions are historical,
+not current instructions. STATUS.md is the current branch/merge tracker; later
+sections record follow-up results without pooling separate timing sessions.
 
 > Superseded once `llmx pull` lands (`docs/ROADMAP.md` #9a): the hardcoded paths
 > below become a cache the tool manages. Until then, this file is the record of
@@ -117,15 +122,15 @@ NLL references with HF `Qwen3ForCausalLM`, float32 eager attention, torch
 2.5.1+cpu and transformers 4.55.2. No HF dependency is needed to run the tests.
 The golden file records weight hashes and configuration so fixture drift fails.
 
-Two layers, hidden width 37, FFN width 19, head width 10, GQA 2:1 and vocabulary
+Two layers, hidden width 37, FFN width 19, head width 42, GQA 2:1 and vocabulary
 257 exercise scalar tails and partial row blocks. Five prompt lengths, physical
 batches 1/2/3/5/16, threads 1/4 and tied/untied output weights cover prefill;
 continuous and four-token-window PPL cover sequential decode and resets.
 Bounds are 2e-5 absolute for every logit and 1e-5 for mean NLL. Observed maximum
 logit error for the original head-width-8 fixture was 7.2e-7 on Windows MSVC
-and Linux GCC, including UBSan. The attention refactor changes head width to
-10, exercising vector attention and its scalar tail against regenerated HF
-goldens with unchanged tolerances.
+and Linux GCC, including UBSan. Attention initially expanded head width to
+10; the value-accumulation checkpoint later expanded it to 42 to cover 32-lane,
+eight-lane and scalar tails. HF goldens were regenerated with unchanged bounds.
 A preceding 34-byte quantized tensor checks the loader's float alignment under
 UBSan; the old packed blob layout fails with a misaligned float load.
 
@@ -1180,7 +1185,7 @@ data directory:
 tests\data\wiki.test.raw
 ```
 
-This is the wikitext-2-raw test split (4358 articles, ~1.28 MB). It is a plain
+This is the wikitext-2-raw test split (~1.28 MB). It is a plain
 text dump — the `@-@` split tokens are present, matching the wikitext corpus
 format expected by the path-controlled perplexity gate in `docs/ROADMAP.md`.
 
@@ -1229,9 +1234,10 @@ Model loading/tokenization are excluded. No build/test work overlaps timing.
 | F32 decode | 13.91 | 14.06 | 13.69 | +1.10% |
 
 All candidate/control ranges overlap, but Q8 prefill loses eight of nine paired
-rounds: a performance concern that must be investigated after the user's reboot
-pause. Q8 decode remains 4.09% below mx. F32 means lead in this session; this is
-not an equivalence test or proof of all-workload parity. No merge/push, and root
+rounds: a performance concern investigated in the post-reboot studies below.
+Q8 decode remains 4.09% below mx. F32 means lead in this session; this is
+not an equivalence test or proof of all-workload parity. The feature branch is
+backed up on Gitea, but no main merge or GitHub publication has occurred; root
 `llmx.exe` stays on the previous KV build.
 
 Separate eight-pair synthetic `bench --size 2048 --iters 10 --threads 6 --p 64
@@ -1282,8 +1288,38 @@ The early five-round apparent win did not hold in the longer comparison.
 | Decode tok/s | 6441.56 | 6007.77 | 6313.81 |
 
 Synthetic ranges overlap and outliers remain in the archive. Prefill here is
-repeated step rather than batched model prefill. Next investigation moves
+repeated step rather than batched model prefill. The follow-up below moved
 exception_ptr construction/destruction off successful dispatches: the installed
 MSVC 14.50.35717 `include/exception` confirms calls to __ExceptionPtrCreate and
 __ExceptionPtrDestroy even for empty exception_ptr objects. That source fact
 identifies removable work; it does not by itself quantify performance impact.
+
+## Worker dispatch follow-up studies (2026-09-19)
+
+Two scratch variants remain unadopted. Evidence includes source patches,
+initial MSVC allocation/task-fault and grouped-kernel checks, build commands,
+hashes and all samples:
+[Failure-only bookkeeping](benchmarks/worker-cold-errors-cpu-20260919.json),
+[shared dispatch](benchmarks/worker-shared-dispatch-cpu-20260919.json).
+Neither proceeded to full HF/platform gates. Production stays at c072af2.
+
+Each study has five measured rotating four-arm rounds plus excluded outer and
+per-process warmup, matched Qwen3-0.6B Q8, 215 prompt and 32 forced tokens,
+six threads, ubatch 128, F32 KV on Ryzen 7 5800X. The reference is mx
+5542318e748c154b634211def405ae95da3dfaa9. No builds/tests overlap timing.
+Keep the separate sessions separate; all outliers remain in the artifacts.
+
+| Study / mean tok/s | Before errors (3a82284) | Existing fix (c072af2) | Variant | mx |
+|---|---:|---:|---:|---:|
+| Failure-only / Q8 prefill | 391.48 | 377.07 | 381.29 | 259.18 |
+| Failure-only / Q8 decode | 41.35 | 42.66 | 41.51 | 43.59 |
+| Shared dispatch / Q8 prefill | 378.79 | 349.13 | 375.20 | 260.25 |
+| Shared dispatch / Q8 decode | 41.03 | 41.42 | 41.18 | 41.41 |
+
+Failure-only bookkeeping loses every decode pair to c072af2. Shared dispatch
+improves exploratory prefill but shows no decode gain. Five rounds with
+variable timings do not establish sustained external parity or identify a
+compiler cause. Retain the simpler existing implementation, consistent with
+the user's request to avoid overcomplication. Further runtime changes require
+profiling evidence; no additional dispatch variants are planned. Merge and
+GitHub publication remain authorized once the project requirements pass.

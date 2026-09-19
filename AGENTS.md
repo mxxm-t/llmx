@@ -21,7 +21,7 @@ produces `llmx.exe` in the repo root.
 Cross-platform (Windows / Linux / macOS), CMake:
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake --build build --config Release
 ```
 The build dir's `generated/config.hpp` is produced from
 `cmake/llmx-config.hpp.in`; the checked-in `src/config.hpp` is the fallback used
@@ -86,7 +86,7 @@ than the spec requires, so use `llmx.exe info` as the authoritative check.
 
 ## Tests
 
-Run the backend scheduling checks after a CMake build:
+Run the native backend, chat-template and KV storage checks after a CMake build:
 ```
 ctest --test-dir build -C Release --output-on-failure
 ```
@@ -101,14 +101,10 @@ remain the external correctness gate.
 before error propagation, and exercises pool reuse and thread reconfiguration.
 It does not establish recovery of partially executed model sessions.
 
-Run the full suite (all generate their own fixtures, no real models needed):
+Run the Python suite (synthetic fixtures are generated locally; real-model HF
+checks skip when their models are absent):
 ```
 python tests/run_tests.py
-```
-
-CMake also builds native backend, chat-template and KV storage checks:
-```
-ctest --test-dir build -C Release --output-on-failure
 ```
 
 For a CMake build, pass `--exe <path-to-built-llmx>`. CI uses
@@ -200,12 +196,20 @@ commit should leave `docs/STATUS.md` accurate: `Done`/`Left` reflect reality,
 the build passes, and tests are green. A fresh agent should be able to read
 STATUS.md and resume exactly where the last commit left off.
 
+At every completed checkpoint, review all project Markdown files against the
+current code, tests, CLI, build configuration and recorded results. Correct stale
+claims and links, distinguish historical measurements from current status, and
+record the review in STATUS.md. This includes README, AGENTS, all docs/ pages
+and per-source documentation; update only what needs changing.
+
 ## Build-time vs runtime
 
 - **Backends** are the only compile-time concern (GPU SDKs are heavy). Gated by
   `LLMX_HAS_BACKEND_*` in `src/config.hpp` (see `cmake/llmx-config.hpp.in`).
-- **Model architectures** are compiled in, selected at runtime from metadata.
-- **Split mode / node count** are runtime params, not build options. See
+  The names/options exist, but GPU backends are not implemented.
+- **Model architectures** are planned to be compiled in and selected from
+  metadata; today only dense Qwen3 is implemented.
+- **Split mode / node count** are planned runtime params, not implemented flags. See
   `docs/ROADMAP.md`.
 
 ## Conventions

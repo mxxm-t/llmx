@@ -3,11 +3,12 @@
 Recursive-descent JSON parser, written from scratch (no libs), in namespace
 `jmini`.
 
-- `Value`: a tagged union (`Null/Bool/Number/String/Array/Object`) with accessors
+- `Value`: a tagged record (`Null/Bool/Number/String/Array/Object`) with accessors
   (`isObject/isArray/isString/isNumber`, `get`, `asString/asNumber/asArray`).
-- `Parser` / `parse(str)`: full document parse; throws on malformed input or
-  trailing data.
-- Handles standard JSON: objects, arrays, strings (with escapes incl. `\uXXXX`),
-  numbers, `true/false/null`.
+- `Parser` / `parse(str)`: recursive document parsing with trailing-data and
+  some syntax checks; malformed inputs are not comprehensively rejected.
+- Supports objects, arrays, strings, numbers and `true/false/null`. Number and
+  escape validation are incomplete. `\uXXXX` currently narrows to one byte;
+  Unicode escape decoding and surrogate pairs are not implemented correctly.
 
 Used by the `quantize` path to read `model.json` tensor descriptions.

@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`feat/q16-model-gates`, based on research checkpoint `d10a1e4` and
+`feat/q8-exact-reduction`, based on rejection checkpoint `a58a6bc` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -33,6 +33,10 @@ session confirms both Q8 decode means/medians remain below mx; prefill exceeds
 mx on both models. Q16 scratch passed its own integer arithmetic/witness
 checks, then failed the unchanged native double-dot accuracy contract on both
 compilers. It is rejected; HF cost and performance comparisons were not run.
+The exact Q8 epilogue candidate now passes native and required-HF suites on
+Windows/Linux, with Windows independent scalar, repeated long-vector and 8B
+HF checks passing. Its isolated external timing is still in progress; it remains
+outside production. All 25 Markdown files are reviewed at this validation checkpoint.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
@@ -86,13 +90,25 @@ External performance requirements still block main/GitHub publication.
   existing float products, four FMA chains and exact final addition order.
 - **Done:** current MSVC assembly confirms two horizontal-add instructions in
   `dot_row_impl`. An equivalent shuffle/add schedule can express the same
-  pairwise additions. No prototype, test or performance result exists yet.
+  pairwise additions. An isolated two-line candidate is prepared under
+  `%TEMP%/llmx-q8-exact-reduction`, with exact source manifests and patch.
+  Clean MSVC and GCC Release builds pass; unchanged native CTest is 7/7
+  for control and candidate on each platform. MSVC emits the intended
+  permute/add/move-high/scalar-add epilogue instead of two horizontal adds.
+  MSVC independent scalar checks pass 612,267 finite bit comparisons and
+  1,939 nonfinite classification checks; a deliberately wrong shuffle is rejected.
+  Windows and Linux required-HF suites pass 11/11 for each arm. Repeated control and
+  candidate on Windows agree on all 5,013,888 long-prompt logits and four serial NLL cases;
+  the existing HF bounds pass. Windows candidate 8B HF checks pass 37/37. Isolated
+  local perf smoke floors pass. The fixed matched control/candidate/mx timing
+  session is running after all correctness jobs finished; no verdict yet.
+  Validation evidence is archived in
+  `docs/benchmarks/q8-exact-reduction-validation-20260920.json`.
   The preceding Q16 candidate is rejected and stays outside production.
-- **Left:** prepare an isolated minimal epilogue change from `bf122fd`, inspect
-  emitted instructions, and prove byte-identical finite output against the
-  unchanged row kernel and native contracts. Only then run isolated matched
-  timing and the existing HF/PPL/long-output gates. Avoid changes to other
-  quant types or the worker pool in this experiment.
+- **Left:** finish the fixed nine-round matched control/candidate/mx timing.
+  Adopt only
+  if the exact change provides a measured benefit without regressions. Avoid
+  changes to other quant types or the worker pool in this experiment.
 - **Gotchas:** a different instruction sequence need not be faster; preserve
   addition operands/order and test signed zero, extremes and fallback behavior.
   Current Q8 decode deficits are below one percent in mean, so short or noisy

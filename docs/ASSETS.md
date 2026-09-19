@@ -1838,3 +1838,49 @@ authorize adopting a precision-changing implementation as lossless. Q16 remains
 rejected and outside production. Build commands, source/binary hashes, raw logs
 and terminal exits are in
 [`benchmarks/q16-group-native-rejection-20260920.json`](benchmarks/q16-group-native-rejection-20260920.json).
+
+## Exact Q8 reduction validation (2026-09-20)
+
+An isolated candidate replaces the two horizontal additions at the end of
+`dot_row_impl` with a shuffle/add sequence preserving the contributing
+addition order. Weights, activation precision, FMA chains, other quant types
+and worker behavior are unchanged. MSVC emits the intended different epilogue.
+The candidate remains outside production while matched timing is in progress.
+
+| Correctness check | Control | Candidate |
+|---|---:|---:|
+| Windows MSVC native CTest | 7/7 | 7/7 |
+| Linux GCC native CTest | 7/7 | 7/7 |
+| Windows required-HF suite | 11/11 | 11/11 |
+| Linux required-HF suite | 11/11 | 11/11 |
+| MSVC finite scalar/control bit comparisons | Reference | 612,267 pass |
+| MSVC nonfinite classification checks | Reference | 1,939 pass |
+| Windows 8B HF consumer | Prior validated runtime | 37/37 |
+| Windows long-prompt logits | Two identical runs | 5,013,888 bit-identical |
+| Windows serial NLL cases | Two identical runs | 4/4 exactly equal |
+
+The independent scalar oracle implements half conversion, signed-byte decoding,
+four scalar FMA chains and the original rounded addition tree. It covers all
+63,488 finite half patterns, unaligned inputs, signed zero, block tails, grouped
+and standalone dispatch, F16C/software conversion and forced scalar fallback.
+A deliberately wrong shuffle compiles and is rejected numerically. NaN payload
+identity and alternate rounding modes are outside the claim.
+
+The long comparison uses 1,943 prompt tokens and 32 forced HF continuation
+tokens at ubatch 128. All 33 full vectors match the repeated control. Q8 mean
+continuation NLL is 0.211345796380 versus HF 0.204333978960: absolute difference
+0.007011817420 is within the unchanged 0.01 bound. The four serial excerpt
+cases also pass the existing HF continuous/window bounds. This is scoped
+prompt/excerpt coverage, not a full-corpus or maximum-context claim.
+
+Windows 8B NLL differences are 0.001494412682 for the continuous excerpt and
+0.000217353359 / 0.000007038207 / 0.002185355474 for the three window cases,
+within the existing 0.01 / 0.02 bounds. The verified model files are reused.
+
+The separate local perf smoke floors pass for both arms; all samples are
+retained. They do not establish an optimization benefit. The fixed external
+comparison is still running with one discarded warmup and nine measured
+control/candidate/mx rounds on each Q8 model. No partial-result verdict or
+main/GitHub publication is justified yet. Source hashes, commands, raw logs,
+independent reviews, numerical records and limits are archived in
+[`benchmarks/q8-exact-reduction-validation-20260920.json`](benchmarks/q8-exact-reduction-validation-20260920.json).

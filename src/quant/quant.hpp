@@ -96,6 +96,80 @@ inline void dequantize_row_q4_0(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+// Q4_1 block: 2-byte f16 scale d, 2-byte f16 min m, then 16 bytes of nibbles
+// (gguf::Q4_1_TYPESIZE = 20). Unlike Q4_0 the nibble is unsigned and the block
+// carries its own offset, so the value is d*q + m rather than d*(q-8).
+inline void quantize_row_q4_1(const float* src, uint8_t* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; b++) {
+        const float* x = src + b * gguf::Q4_1_BLOCK;
+        uint8_t*      y = dst + b * gguf::Q4_1_TYPESIZE;
+        float mn = x[0], mx = x[0];
+        for (size_t j = 1; j < gguf::Q4_1_BLOCK; j++) {
+            mn = std::min(mn, x[j]);
+            mx = std::max(mx, x[j]);
+        }
+        const float d = (mx - mn) / 15.0f;
+        const float id = (d > 0.0f) ? (1.0f / d) : 0.0f;
+        const uint16_t d16 = f32_to_f16(d), m16 = f32_to_f16(mn);
+        y[0] = (uint8_t)(d16 & 0xff); y[1] = (uint8_t)(d16 >> 8);
+        y[2] = (uint8_t)(m16 & 0xff); y[3] = (uint8_t)(m16 >> 8);
+        for (size_t j = 0; j < gguf::Q4_1_BLOCK / 2; j++) {
+            int lo = (int)std::round((x[j] - mn) * id);
+            int hi = (int)std::round((x[j + gguf::Q4_1_BLOCK / 2] - mn) * id);
+            if (lo > 15) lo = 15; if (lo < 0) lo = 0;
+            if (hi > 15) hi = 15; if (hi < 0) hi = 0;
+            y[4 + j] = (uint8_t)(lo | (hi << 4));
+        }
+    }
+}
+
+inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; b++) {
+        const uint8_t* y = src + b * gguf::Q4_1_TYPESIZE;
+        float*         x = dst + b * gguf::Q4_1_BLOCK;
+        const float d = f16_to_f32((uint16_t)(y[0] | ((uint16_t)y[1] << 8)));
+        const float m = f16_to_f32((uint16_t)(y[2] | ((uint16_t)y[3] << 8)));
+        for (size_t j = 0; j < gguf::Q4_1_BLOCK / 2; j++) {
+            const uint8_t byte = y[4 + j];
+            x[j]                              = d * (float)(byte & 0x0F) + m;
+            x[j + gguf::Q4_1_BLOCK / 2]       = d * (float)(byte >> 4)   + m;
+        }
+    }
+}
+
+// Q6_K super-block of 256 values (gguf::Q6_K_TYPESIZE = 210):
+//   ql[128]  low 4 bits of each quant
+//   qh[64]   high 2 bits, packed 4 quants per byte
+//   sc[16]   int8 per-16-value scale
+//   d        f16 super-block scale
+// A quant is (low4 | high2 << 4) - 32, scaled by d * sc[group]. The layout
+// walks the block in two halves of 128, which is why the strides below are 64
+// for ql, 32 for qh and 8 for sc.
+inline void dequantize_row_q6_K(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; b++) {
+        const uint8_t* p = src + b * gguf::Q6_K_TYPESIZE;
+        const uint8_t* ql = p;
+        const uint8_t* qh = p + 128;
+        const int8_t*  sc = (const int8_t*)(p + 192);
+        const float d = f16_to_f32((uint16_t)(p[208] | ((uint16_t)p[209] << 8)));
+        float* y = dst + b * gguf::Q6_K_BLOCK;
+        for (int n = 0; n < (int)gguf::Q6_K_BLOCK; n += 128) {
+            for (int l = 0; l < 32; l++) {
+                const int is = l / 16;
+                const int q1 = (int)((ql[l +  0] & 0xF) | (((qh[l] >> 0) & 3) << 4)) - 32;
+                const int q2 = (int)((ql[l + 32] & 0xF) | (((qh[l] >> 2) & 3) << 4)) - 32;
+                const int q3 = (int)((ql[l +  0] >>  4) | (((qh[l] >> 4) & 3) << 4)) - 32;
+                const int q4 = (int)((ql[l + 32] >>  4) | (((qh[l] >> 6) & 3) << 4)) - 32;
+                y[l +  0] = d * (float)sc[is + 0] * (float)q1;
+                y[l + 32] = d * (float)sc[is + 2] * (float)q2;
+                y[l + 64] = d * (float)sc[is + 4] * (float)q3;
+                y[l + 96] = d * (float)sc[is + 6] * (float)q4;
+            }
+            y += 128; ql += 64; qh += 32; sc += 8;
+        }
+    }
+}
+
 // Description of a quantized storage type: fixed block size, bytes per block,
 // and block-wise (de)quantize routines. Register each type with the
 // quant::Registry so consumers can look a type up by its GGML id.
@@ -137,6 +211,15 @@ inline void register_builtins() {
     r.add(gguf::GGML_TYPE_Q4_0,
           { "Q4_0", gguf::Q4_0_BLOCK, gguf::Q4_0_TYPESIZE,
             quantize_row_q4_0, dequantize_row_q4_0 });
+    r.add(gguf::GGML_TYPE_Q4_1,
+          { "Q4_1", gguf::Q4_1_BLOCK, gguf::Q4_1_TYPESIZE,
+            quantize_row_q4_1, dequantize_row_q4_1 });
+    // Q6_K is read-only: llama.cpp upgrades a few tensors to it inside an
+    // otherwise Q4_0 file, so llmx needs to LOAD it, but nothing here produces
+    // it and a quantizer would be unused code.
+    r.add(gguf::GGML_TYPE_Q6_K,
+          { "Q6_K", gguf::Q6_K_BLOCK, gguf::Q6_K_TYPESIZE,
+            nullptr, dequantize_row_q6_K });
     r.add(gguf::GGML_TYPE_F32,
           { "F32", 0, 4, nullptr, nullptr });
 }

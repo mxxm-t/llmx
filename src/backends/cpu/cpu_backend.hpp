@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <functional>
 #include <vector>
+#include <cstdlib>
 
 #include "backends/backend.hpp"
 #include "core/fp16.hpp"
@@ -94,27 +95,51 @@ public:
                      size_t nblocks, size_t nout, size_t nbatch) override {
         if (nbatch == 1) { matvec_q8_0(data, X, Y, nblocks, nout); return; }
         const size_t nin = nblocks * gguf::Q8_0_BLOCK;
+        // Row blocking. Dequantizing one row and looping the batch re-reads the
+        // whole activation block for every output row, so X is streamed nout
+        // times. Dequantizing RB rows first and then walking the batch once
+        // reads each activation column once per RB rows instead of once per
+        // row, cutting that traffic by RB.
+        const size_t RB = (size_t)row_block();
         auto do_rows = [&](int w, size_t o0, size_t o1) {
             std::vector<float>& rb = rowbuf_[(size_t)w];
-            if (rb.size() < nin) rb.assign(nin, 0.0f);
+            if (rb.size() < RB * nin) rb.assign(RB * nin, 0.0f);
             float* r = rb.data();
-            for (size_t o = o0; o < o1; o++) {
-                // Dequantize the weight row ONCE and reuse it for every batch
-                // column. Doing the dequant inside the batch loop repeated it
-                // nbatch times, which is what capped batched prefill.
-                dequant_row_f32(data + o * nblocks * gguf::Q8_0_TYPESIZE, r, nblocks);
-                for (size_t b = 0; b < nbatch; b++)
-                    Y[b * nout + o] = dot_f32(r, X + b * nin, nin);
+            for (size_t o = o0; o < o1; o += RB) {
+                const size_t nr = std::min(RB, o1 - o);
+                for (size_t k = 0; k < nr; k++)
+                    dequant_row_f32(data + (o + k) * nblocks * gguf::Q8_0_TYPESIZE,
+                                    r + k * nin, nblocks);
+                for (size_t b = 0; b < nbatch; b++) {
+                    const float* x = X + b * nin;
+                    float* y = Y + b * nout + o;
+                    size_t k = 0;
+                    for (; k + 4 <= nr; k += 4)
+                        dot_f32_x4(r + k * nin, nin, x, nin, y + k);
+                    for (; k < nr; k++)
+                        y[k] = dot_f32(r + k * nin, x, nin);
+                }
             }
         };
         const int nt = threads_;
         if (nt <= 1 || nout < (size_t)nt * 4) { do_rows(0, 0, nout); return; }
-        const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
+        const size_t chunk = ((nout + (size_t)nt - 1) / (size_t)nt + RB - 1) / RB * RB;
         run_parallel([&](int w) {
             const size_t s = (size_t)w * chunk;
             const size_t e = std::min(nout, s + chunk);
             if (s < e) do_rows(w, s, e);
         });
+    }
+
+    // Rows dequantized together before walking the batch. LLMX_ROW_BLOCK
+    // overrides it for measurement.
+    static int row_block() {
+        static const int v = [] {
+            const char* e = std::getenv("LLMX_ROW_BLOCK");
+            int n = e ? std::atoi(e) : 0;
+            return (n > 0) ? n : 4;
+        }();
+        return v;
     }
 
     // Q8_0 block row -> f32, AVX2 where available.
@@ -134,15 +159,53 @@ public:
         }
     }
 
+    // Four dots against a SHARED activation vector, in one pass.
+    // Calling dot_f32 four times costs 2 loads per FMA (one weight, one
+    // activation), and Zen3 sustains 2 loads/cycle against 2 FMAs/cycle, so
+    // that kernel is load bound at half of FMA peak. Loading x once and reusing
+    // it across 4 rows costs 5 loads per 4 FMAs instead of 8.
+    static void dot_f32_x4(const float* r, size_t stride, const float* x,
+                           size_t n, float* out) {
+        __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
+        __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
+        const float* r0 = r;
+        const float* r1 = r + stride;
+        const float* r2 = r + 2 * stride;
+        const float* r3 = r + 3 * stride;
+        size_t i = 0;
+        for (; i + 8 <= n; i += 8) {
+            const __m256 xv = _mm256_loadu_ps(x + i);
+            s0 = _mm256_fmadd_ps(_mm256_loadu_ps(r0 + i), xv, s0);
+            s1 = _mm256_fmadd_ps(_mm256_loadu_ps(r1 + i), xv, s1);
+            s2 = _mm256_fmadd_ps(_mm256_loadu_ps(r2 + i), xv, s2);
+            s3 = _mm256_fmadd_ps(_mm256_loadu_ps(r3 + i), xv, s3);
+        }
+        alignas(32) float t[8];
+        const __m256* acc[4] = { &s0, &s1, &s2, &s3 };
+        for (int k = 0; k < 4; k++) {
+            _mm256_store_ps(t, *acc[k]);
+            float v = t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + t[6] + t[7];
+            for (size_t j = i; j < n; j++) v += r[(size_t)k * stride + j] * x[j];
+            out[k] = v;
+        }
+    }
+
+    // Four independent accumulators. With a single accumulator every FMA
+    // depends on the previous one, so the loop runs at FMA LATENCY (about 4
+    // cycles) instead of FMA throughput (about 0.5), which is most of an order
+    // of magnitude on this path. Splitting the chain also changes the
+    // summation order, so results differ in the last bits.
     static float dot_f32(const float* a, const float* b, size_t n) {
-        __m256 acc = _mm256_setzero_ps();
+        __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
+        __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
         size_t i = 0;
         for (; i + 32 <= n; i += 32) {
-            acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i +  0), _mm256_loadu_ps(b + i +  0), acc);
-            acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i +  8), _mm256_loadu_ps(b + i +  8), acc);
-            acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16), acc);
-            acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24), acc);
+            s0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i +  0), _mm256_loadu_ps(b + i +  0), s0);
+            s1 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i +  8), _mm256_loadu_ps(b + i +  8), s1);
+            s2 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16), s2);
+            s3 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24), s3);
         }
+        __m256 acc = _mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3));
         for (; i + 8 <= n; i += 8)
             acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i), acc);
         __m128 lo = _mm256_castps256_ps128(acc);

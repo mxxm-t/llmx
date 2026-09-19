@@ -1927,3 +1927,32 @@ independent audit and rejection scope are in
 [`benchmarks/q8-exact-reduction-performance-20260920.json`](benchmarks/q8-exact-reduction-performance-20260920.json).
 The preceding validation artifact is preserved unchanged. Main/GitHub remains
 gated on external decode performance.
+
+
+### Native Q8 block scheduling rejected at codegen gate
+
+A scratch two-block schedule retains the native float-activation arithmetic,
+original HADD reduction and odd-block tail. It changes only the block loop to
+call a captured accumulator lambda twice per iteration. No production source
+or tests are changed.
+
+| Independent oracle | MSVC | GCC |
+|---|---:|---:|
+| Finite bit comparisons | 612,267 pass | 612,267 pass |
+| Nonfinite classifications | 1,939 pass | 1,939 pass |
+
+A deliberately repeated-block mutant compiles successfully and fails the
+numerical oracle. The existing oracle includes unaligned inputs, empty/odd/even
+block counts, grouped and standalone dispatch, F16C/software-half conversion
+and scalar fallback. NaN payload bits and alternate rounding modes are outside
+its claim.
+
+MSVC comparator assembly contains eight unconditional 32-byte accumulator
+stores per two-block iteration, including on the hardware F16C path. Software
+half conversion also becomes out-of-line. The formulation fails the planned
+no-spill codegen gate and is rejected before model timing or HF validation.
+This does not establish a measured performance regression or prove that every
+possible native unrolling formulation would fail. Production remains unchanged;
+the two external decode cases remain open. Source patch, assembly, compiler
+commands, oracle source and raw results are archived in
+[`benchmarks/q8-native-block-scheduling-rejection-20260920.json`](benchmarks/q8-native-block-scheduling-rejection-20260920.json).

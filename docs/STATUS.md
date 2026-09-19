@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`feat/q8-exact-reduction`, based on rejection checkpoint `a58a6bc` and
+`feat/q8-native-block-scheduling`, based on rejection checkpoint `6b59789` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -84,6 +84,25 @@ External performance requirements still block main/GitHub publication.
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### Native Q8 block scheduling study (rejected at codegen gate)
+
+- **Goal:** expose two consecutive native Q8 blocks to compiler scheduling while
+  preserving every weight product, four FMA chains and the original reduction.
+- **Done:** isolated control/candidate comparators build with MSVC. Independent
+  scalar/control oracles pass 612,267 finite bit checks and 1,939 nonfinite
+  classifications on both MSVC and GCC. A repeated-block mutant compiles and
+  fails numerically. The two-block lambda preserves the original HADD epilogue,
+  block order and odd tail, but MSVC emits eight unconditional 32-byte
+  accumulator stack stores per two-block iteration, including the F16C path.
+  This fails the planned no-spill codegen gate; the formulation is rejected.
+- **Left:** no adoption or model timing for this formulation. Continue the
+  external decode performance work from the unchanged production kernel.
+- **Gotchas:** this is a codegen rejection, not a measured slowdown. The oracle
+  is scoped numerical evidence, not an HF/model validation claim. Prior
+  pointer, feature-specialization and integer-unroll studies remain distinct.
+  Evidence is in
+  `benchmarks/q8-native-block-scheduling-rejection-20260920.json`.
 
 ### Exact Q8 horizontal reduction study (rejected)
 
@@ -927,8 +946,10 @@ feature ships, delete its block and mark the row `Done` above.
   - The exact Q8 horizontal reduction is rejected by complete timing despite
     passing numerical gates. Read-only review also found two redundant `h_`
     clears in `Model::step`, but no evidence that their cost closes the gap.
-    Inspect native loop scheduling before proposing another measured candidate;
-    previous F16C specialization, pointer increments and row pairing are nulls.
+    The native two-block lambda is rejected at the no-spill codegen gate.
+    Further scheduling changes need a distinct, verified code-generation
+    hypothesis; prior F16C specialization, pointer increments and row pairing
+    are nulls.
   - Thread and matrix-shape diagnostics are complete (see CPU comparison
     thread scaling above). F32 matrix ranges overlap mx, while Q8 matrix
     latency still trails it. The resulting head-major KV layout is now validated.

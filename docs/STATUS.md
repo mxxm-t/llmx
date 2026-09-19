@@ -30,6 +30,7 @@ feature currently stands right now.
 | Chunked corpus perplexity               | Done     |
 | F32 embedding/matrix inference          | In Progress |
 | CPU attention in backend (ROADMAP #4a)  | In Progress |
+| CPU row streaming / parallel prefill   | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
@@ -55,11 +56,11 @@ feature ships, delete its block and mark the row `Done` above.
   `5542318e74`, then merge and observe the expanded five-job hosted CI.
   Eight alternating pairs on Ryzen 7 5800X, six threads, ubatch 128, F32 KV,
   identical 215 HF prompt tokens and 32 forced continuation tokens:
-  with backend attention, mean prefill 357.88 vs 385.64 tok/s; decode
-  13.57 vs 14.20 tok/s. Both phases remain below the external floor.
+  with attention plus row scheduling, mean prefill 383.06 vs 398.97 tok/s;
+  decode 14.68 vs 14.89 tok/s. Both remain below the external floor.
   Model loading is excluded and each process warms up before measurement.
   No external performance parity is claimed; raw timing samples and hashes
-  are committed in `docs/benchmarks/attention-cpu-20260919.json`.
+  are in `docs/benchmarks/row-scheduling-cpu-20260919.json`.
 - **Findings:** activation tiling and a fully spinning worker pool did not
   establish a win. Profiling instead identifies scalar attention as roughly
   170-180 ms of prefill. Backend attention now improves prefill by 24.8%
@@ -89,14 +90,44 @@ feature ships, delete its block and mark the row `Done` above.
   decode 13.34 -> 13.57 tok/s (small change with overlapping ranges).
   Q8 synthetic guardrails pass; matmul 123.07 -> 121.80 GFLOPS, prefill
   4828 -> 4800 and decode 4522 -> 4875 tok/s, with overlapping ranges.
-- **Left:** close the remaining external CPU floor gap (mx reference 385.64
-  prefill / 14.20 decode in the same F32 run), then merge and run hosted CI.
-  Next investigation: profile the remaining CPU time after vectorized
-  attention and measure changes against these preserved binaries.
+- **Left:** close the remaining external CPU floor gap, then merge and run
+  hosted CI. The row-scheduling work below improves the next matched F32
+  run to 383.06 / 14.68 vs mx 398.97 / 14.89 tok/s (prefill / decode).
+  Profiling after vectorization finds prefill attention around 60-67 ms and
+  decode attention around 97-100 ms; matrix operations now dominate decode.
+  Sequential F32 row streaming and parallel batched elementwise work are
+  implemented on the next feature branch; see its validation block below.
 - **Gotchas:** SIMD dot reductions change summation order. A matching top token
   or logit sum is not a numerical gate. This step does not implement device
   buffers, resident activations or async execution, which remain prerequisites
   for GPU backends.
+
+### CPU row streaming / parallel prefill
+
+- **Goal:** close the F32 CPU performance gap without changing weights or
+  weakening the HF numerical gate (ROADMAP #8).
+- **Done:** contiguous single-row F32 decode and parallel batched
+  norm/RoPE/SiLU work, guarded to keep fewer than two rows per worker serial.
+  Final eight interleaved rounds: prefill 371.65 -> 383.06 tok/s (+3.1%,
+  overlapping ranges), decode 13.87 -> 14.68 (+5.8%, disjoint ranges).
+  Same-run mx is 398.97 / 14.89: both floors remain open (-4.0% / -1.4%).
+  Windows and Linux full suites pass with required Q8/Q4 HF fixtures; UBSan
+  synthetic suite passes. Real F32 HF logits/excerpt/chunked NLL pass.
+  Long-prompt full logits have maximum error 0.00012636 under 0.001, with
+  all greedy IDs matching HF. Q8 step guard passes with overlapping ranges.
+  The batched guard caught tiny-prompt scheduling regressions; after the
+  serial guard, small-batch ranges overlap the control and B=64 retains a
+  17% latency improvement. ASSETS and the row-scheduling JSON contain all
+  initial/final samples and validation scope.
+- **Left:** close both remaining external gaps before merge and hosted CI.
+  Instrumented pool profiling finds 26-28 ms after worker callbacks finish
+  during 32 decode steps. Next test bounded completion polling against this
+  checkpoint, retaining the blocking fallback; full spinning already failed.
+- **Gotchas:** single-row dots change reduction order. Printed sums alone
+  are not the numerical gate. Initial unconditional scheduling appeared above
+  mx for prefill, but final guarded measurements did not; use the final run.
+  The legacy bench "prefill" is repeated step(), not batched prefill, so keep
+  the separate batched regression guard. Reader alignment was not adopted.
 
 ### Correctness baseline vs HF reference
 

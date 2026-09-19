@@ -139,6 +139,13 @@ public:
         const size_t RB = (size_t)DOT_ROWS;
 
         auto do_rows = [&](int w, size_t o0, size_t o1) {
+            if (f32 && nbatch == 1) {
+                // Decode streams each resident row contiguously; prefill keeps
+                // the fused kernels that reuse weights across batch columns.
+                for (size_t o = o0; o < o1; ++o)
+                    Y[o] = dot_f32((const float*)(data + o * rowbytes), X, nin);
+                return;
+            }
             std::vector<float>& buf = rowbuf_[(size_t)w];
             if (!f32 && buf.size() < RB * nin) buf.assign(RB * nin, 0.0f);
             for (size_t o = o0; o < o1; o += RB) {

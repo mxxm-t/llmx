@@ -23,6 +23,11 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   - `reset()`: clear KV cache / internal state.
   - Both forward paths call `Backend::attention` over the KV cache; score
     scratch, causal masking and head scheduling belong to the backend.
+  - Batched norms, per-head norm/RoPE, and SiLU use the backend worker pool
+    across independent token rows. Each row keeps the same arithmetic; the
+    operations finish before dependent matrix operations or KV writes begin.
+    Batches with fewer than two rows per worker stay on the calling thread
+    to avoid dispatch overhead; a single-thread backend also stays serial.
   - `matvec` / `dequant_row`: per-tensor matmul helpers that dispatch on the
     tensor's type via `quant::Registry`. Q8_0 uses the backend's fused AVX2
     matvec; Q4_K has a fused decode dot; other supported quants use a

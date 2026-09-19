@@ -319,6 +319,16 @@ private:
                                      std::to_string(cfg.context_length) + " tokens)");
         const int E = cfg.n_embd, HD = cfg.head_dim, half = HD / 2;
         const size_t KV = (size_t)cfg.n_head_kv * HD;
+        const int nt = b_->threads_available();
+        // Avoid dispatching short elementwise stages when there are fewer
+        // than two rows per worker; small-batch timing regressed without this.
+        const auto for_rows = [&](const auto& fn) {
+            if (nt <= 1 || B / nt < 2) {
+                for (int b = 0; b < B; ++b) fn(b);
+            } else {
+                b_->parallel_for(B, fn);
+            }
+        };
 
         for (int b = 0; b < B; b++)
             dequant_row(tensor("token_embd.weight"), ids[b], xb_.data() + (size_t)b * E);
@@ -327,8 +337,9 @@ private:
             const std::string pre = "blk." + std::to_string(l) + ".";
 
             const float* anorm = (const float*)tensor_data(pre + "attn_norm.weight");
-            for (int b = 0; b < B; b++)
+            for_rows([&](int b) {
                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, anorm, E, cfg.rms_eps);
+            });
 
             matmul(tensor(pre + "attn_q.weight"), hb_.data(), qb_.data(), E, (size_t)q_dim_, B);
             matmul(tensor(pre + "attn_k.weight"), hb_.data(), kb_.data(), E, KV, B);
@@ -336,7 +347,7 @@ private:
 
             const float* qn = (const float*)tensor_data(pre + "attn_q_norm.weight");
             const float* kn = (const float*)tensor_data(pre + "attn_k_norm.weight");
-            for (int b = 0; b < B; b++) {
+            for_rows([&](int b) {
                 float* q = qb_.data() + (size_t)b * q_dim_;
                 float* k = kb_.data() + (size_t)b * KV;
                 for (int h = 0; h < cfg.n_head; h++)
@@ -347,7 +358,7 @@ private:
                 const float* sn = rope_sin_.data() + (size_t)(pos0 + b) * half;
                 for (int h = 0; h < cfg.n_head; h++)    b_->rope(q + h * HD, cs, sn, half);
                 for (int h = 0; h < cfg.n_head_kv; h++) b_->rope(k + h * HD, cs, sn, half);
-            }
+            });
 
             k_cache_[l].insert(k_cache_[l].end(), kb_.begin(), kb_.begin() + (size_t)B * KV);
             v_cache_[l].insert(v_cache_[l].end(), vb_.begin(), vb_.begin() + (size_t)B * KV);
@@ -361,15 +372,19 @@ private:
             for (size_t j = 0; j < (size_t)B * E; j++) xb_[j] += hb_[j];
 
             const float* fnorm = (const float*)tensor_data(pre + "ffn_norm.weight");
-            for (int b = 0; b < B; b++)
+            for_rows([&](int b) {
                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, fnorm, E, cfg.rms_eps);
+            });
 
             matmul(tensor(pre + "ffn_gate.weight"), hb_.data(), gateb_.data(), E, cfg.n_ff, B);
             matmul(tensor(pre + "ffn_up.weight"),   hb_.data(), upb_.data(),   E, cfg.n_ff, B);
-            for (size_t j = 0; j < (size_t)B * cfg.n_ff; j++) {
-                const float g = gateb_[j] / (1.0f + std::exp(-gateb_[j])); // SiLU
-                ffnb_[j] = g * upb_[j];
-            }
+            for_rows([&](int b) {
+                const size_t end = (size_t)(b + 1) * cfg.n_ff;
+                for (size_t j = (size_t)b * cfg.n_ff; j < end; j++) {
+                    const float g = gateb_[j] / (1.0f + std::exp(-gateb_[j]));
+                    ffnb_[j] = g * upb_[j];
+                }
+            });
             matmul(tensor(pre + "ffn_down.weight"), ffnb_.data(), hb_.data(), cfg.n_ff, E, B);
             for (size_t j = 0; j < (size_t)B * E; j++) xb_[j] += hb_[j];
         }

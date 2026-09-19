@@ -23,6 +23,8 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
 - F32 matrices use those same float dot kernels directly on resident host
   weights, without a dequantization buffer or row copy. Quantized inputs retain
   the existing row staging and fused decode paths.
+  Single-column F32 uses `dot_f32` one row at a time for contiguous weight
+  access; this has a different reduction order from the fused four-row dot.
 - `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
   budget was measured instead and was worse at every size (see
   `docs/STATUS.md`).

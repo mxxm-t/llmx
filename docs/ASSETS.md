@@ -282,6 +282,67 @@ lengthened to resolve that concern. Raw timings, hashes and the normalized
 source hashes for the candidate are in
 [`benchmarks/attention-cpu-20260919.json`](benchmarks/attention-cpu-20260919.json).
 
+### CPU row streaming and parallel prefill
+
+Single-column F32 matrices now use contiguous `dot_f32` rows; batched matrices
+retain fused row/column kernels. Independent batched norm, per-head norm/RoPE
+and SiLU rows use the existing pool when there are at least two rows per
+worker. Smaller batches and single-thread execution stay serial. Weights and
+quantized decode kernels are unchanged. F32 dot reductions change order.
+
+The final guarded build passed Windows/MSVC and Linux/GCC full suites with
+required real Q8/Q4 HF fixtures, plus Linux UBSan's synthetic suite (real models
+intentionally skipped in that sanitizer run). Real F32 HF logits, excerpt and
+chunked NLL pass under the existing bounds. Against the pinned long-prompt HF
+reference above, all 5,013,888 logits are finite, maximum error is 0.00012636
+and RMS error 0.00001616 under 0.001; all 32 greedy IDs match. Guarded and
+initial-candidate long outputs are byte-identical. This is bounded agreement
+at that depth, not maximum-context coverage or bit identity with HF.
+
+Eight final interleaved rounds on the same F32 model, tokens and settings,
+with `637bbdd` as the before arm:
+
+| Phase | Before mean / median tok/s | Guarded mean / median tok/s | mx mean / median tok/s | Guarded vs mx mean |
+|---|---:|---:|---:|---:|
+| Prefill | 371.65 / 372.48 | 383.06 / 386.48 | 398.97 / 400.67 | -4.0% |
+| Decode | 13.87 / 13.96 | 14.68 / 14.70 | 14.89 / 14.90 | -1.4% |
+
+Versus the control, mean prefill improves 3.1% with overlapping ranges, so
+this is not a strong prefill speedup claim. Decode improves 5.8% with disjoint
+control/candidate ranges. Both external floors remain unmet; main is unchanged.
+These final measurements supersede the initial unconditional candidate's run,
+which had appeared above mx for prefill. The runs are not pooled, and neither
+code changes nor reference drift are inferred from cross-run absolute rates.
+
+The batched Q8 guard calls `Model::prefill()` on the existing deterministic
+2-layer synthetic model (E=256, FF=1024, H=8, HK=2, D=32, vocab=512, seed=12345).
+It covers 1/2/4/8/16/64 tokens and 1/6 threads, ten warmups and 100 timed
+resets/prefills per cell, across four alternating pairs. Unconditional
+parallel dispatch regressed B=2/4 latency by 19%/17%, motivating the guard.
+After the fix, small-batch and one-thread ranges overlap the control; B=64
+retains disjoint ranges:
+
+| Batch, six threads | Before mean ms | Guarded mean ms |
+|---|---:|---:|
+| 2 | 0.279 | 0.284 |
+| 4 | 0.283 | 0.283 |
+| 64 | 1.302 | 1.075 |
+
+Printed full-vector sums match in every cell; HF checks separately gate
+numerics. The legacy `bench` prefill label measures repeated `Model::step()`,
+so it does not cover this batched path. Its eight-pair Q8 regression guard
+passes with overlapping ranges: mean matmul 128.55 -> 123.45 GFLOPS, reported
+prefill 5120 -> 5108 tok/s and decode 5027 -> 5112 tok/s.
+
+Raw timings, artifact/source hashes, diagnostic selection, the rejected
+unconditional small-batch result, activation witnesses and HF errors are in
+[`benchmarks/row-scheduling-cpu-20260919.json`](benchmarks/row-scheduling-cpu-20260919.json).
+Scratch harnesses and logs are under `%TEMP%/llmx-cpu-gap`, with final artifacts
+under `guarded/`. Reader alignment was not adopted. Subsequent instrumented
+pool profiling is diagnostic only: roughly 26-28 ms of the 32-token decode
+occurs after the final worker callback finishes, motivating investigation of
+bounded completion polling. It is not a validated optimization.
+
 ## Wiki text location
 
 The wikitext corpus used for corpus-level perplexity is committed to the test

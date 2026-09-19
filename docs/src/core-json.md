@@ -1,4 +1,4 @@
-# `src/core/json.hpp` — minimal JSON parser
+# `src/core/json.hpp` - minimal JSON parser
 
 Recursive-descent JSON parser, written from scratch (no libs), in namespace
 `jmini`.

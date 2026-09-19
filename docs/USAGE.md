@@ -1,8 +1,17 @@
-# llmx — Usage
+# llmx - Usage
 
 Command-line reference for the `llmx` binary. All commands take the form
 `llmx <command> [args...] [flags...]`. Run `llmx` with no arguments to print a
 short usage summary.
+
+## `llmx --version`
+
+Print the release and build identifier, for example `llmx 0.1.0+g0123456789ab`.
+Tracked changes add `.dirty`; untracked files are excluded. CMake and the plain
+Windows build refresh this identifier on each build, including after commits
+without reconfiguration. A source archive or unavailable Git reports `+unknown`.
+The usage banner shows the same version. Builds do not create commits/tags,
+change the release number, or embed timestamps.
 
 ## Global conventions
 
@@ -28,7 +37,7 @@ Convert a raw float32 model into a quantized GGUF file.
 - The output is a GGUF v3 file with all tensors quantized to the chosen type.
 
 > Note: Q4_0 inference is currently correct-but-slow (a generic dequant-to-f32
-> matmul path, not a fused kernel) — see `docs/src/quant-quant.md`.
+> matmul path, not a fused kernel) - see `docs/src/quant-quant.md`.
 
 `model.json` schema:
 
@@ -202,6 +211,16 @@ earlier turns (for example, removing old reasoning), it rebuilds the cache.
 The template supplies turn-ending tokens; chat does not insert an extra EOS.
 An empty rendered prompt is an error. History must fit the model context;
 automatic truncation and concurrent conversations are not implemented.
+
+For a quick follow-up check, keep one chat process open:
+
+```powershell
+.\llmx.exe chat "model.gguf" --threads 6 --temp 0 -n 256
+```
+
+Enter `My name is Marko. Remember it.`, wait for the reply, then enter
+`What is my name?`. Each line continues the same conversation; starting a new
+process starts a new history. Press Ctrl+C to exit.
 
 ## `llmx bench [--size N] [--iters N] [--threads N] [--p N] [--n N]`
 

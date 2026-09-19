@@ -7,7 +7,7 @@ from common import run as cli
 
 # Perf-regression gate: run the `bench` command and assert the hot paths beat a
 # generous floor, so catastrophic slowdowns fail loudly without being flaky.
-# This is a smoke gate, not a benchmark harness — the printed numbers are what
+# This is a smoke gate, not a benchmark harness - the printed numbers are what
 # you compare across commits when changing a hot path.
 
 # matmul matvec on 2048x2048 must beat this. Dev machine (Ryzen 7 5800X, 8

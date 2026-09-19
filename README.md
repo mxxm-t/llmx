@@ -2,111 +2,124 @@
 
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
-A ground-up, **dependency-free** LLM inference runtime. It reads and writes
-GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers on
-x86 CPU with AVX2/FMA/F16C, and is
-structured so more formats, quantizations, backends, and even multi-device /
-multi-node serving can be added later without touching the core.
+A ground-up C++ LLM inference runtime, built to control the full stack from
+model files and tokenization to compute kernels and serving.
 
-No external libraries. No CUDA, no ONNX Runtime — just C++ and your CPU.
+The goal is a dependency-free core with hand-written CPU and GPU kernels,
+multiple model architectures, and execution across devices and machines.
+Hugging Face integration is part of that direction: downloading pinned models,
+reading native Hub formats, and validating inference against HF references.
+The project is early; most of that broader execution and serving work is planned.
 
-## Status
+## Works today
 
-llmx is a young runtime. Today it runs **Qwen3-style** models on CPU, reading
-**Q8_0**, **Q4_0**, **Q4_1**, **Q4_K**, **Q5_K**, **Q6_K** and **F32** tensors,
-including mixed-type GGUF files. It has a byte-level BPE tokenizer implementing
-the Qwen2/Qwen3 pretokenizer and a
-Jinja2-subset chat-template renderer. See `docs/STATUS.md` for exactly what's
-done and what's in flight.
+- Dense **Qwen3** inference on x86 CPU with **AVX2/FMA/F16C**.
+- GGUF v3 reading/writing, including mixed Q8_0, Q4_0, Q4_1, Q4_K, Q5_K,
+  Q6_K and F32 tensors. The CLI quantizes to Q8_0 or Q4_0; K-quants are read-only.
+- Byte-level BPE with Qwen2/Qwen3 pretokenization, generation and interactive
+  follow-up chat using a Jinja2-subset template renderer.
+- Batched prompt processing, a growing CPU KV cache, sampling and windowed
+  perplexity. One model instance currently handles one sequence at a time.
 
-F32 inference supports both separate output weights and tied token embeddings.
-A small HF reference fixture runs on every platform without downloading a model.
+ARM, GPU execution, additional model architectures, a multi-user server and
+`llmx pull` are not implemented yet. Some validated development checkpoints
+remain on feature branches while their performance gates are open; see
+[development status](docs/STATUS.md) for the current state.
+
+## Direction
+
+| Area | Planned work |
+|---|---|
+| Model coverage | Llama, Mistral, Gemma and Phi; additional quantizations |
+| Hugging Face | Pinned downloads/cache, sharded GGUF, safetensors, BF16/F16 tensors, HF tokenizer/config files |
+| Device execution | Backend-owned buffers, resident activations and asynchronous submission |
+| GPU backends | ROCm as a first-class target; CUDA and SYCL; Vulkan for portability |
+| Multiple devices/nodes | Model splitting across devices and cluster nodes |
+| Serving | Shared read-only weights, independent request/KV state, continuous batching and streaming |
+| Hub kernels | Optional later work: port suitable kernel source or distribute llmx kernels through the Hub |
+
+Device execution must be refactored before useful GPU backends can be added.
+The existing synchronous host-pointer backend interface is a starting point.
+CPU worker parallelism does not make a model instance safe for concurrent users.
+
+The runtime has no external libraries today. Planned GPU SDKs are a deliberate
+build dependency; vendor math libraries are outside the design. HF download
+support is planned through system HTTPS tooling. Direct loading of PyTorch Hub
+kernel extensions would introduce PyTorch/Python dependencies and is not planned.
+See the [roadmap](docs/ROADMAP.md) for dependencies, priorities and scope.
+
+## Quality gates
+
+**Correctness is measured against independent Hugging Face references.** Tests
+include tokenizer IDs, logits, NLL and chat replies. Equality with an earlier
+llmx build supplements those checks; it cannot replace them.
+
+**Performance must meet mx-llama.cpp** on the same model, quantization, prompt
+and hardware, for both prefill and decode. This is the project target, not an
+achieved universal parity claim. Current gaps and comparison tables are in
+[STATUS](docs/STATUS.md); scopes, limitations and reproducible evidence are in
+[ASSETS](docs/ASSETS.md).
 
 ## Build
 
-Windows (MSVC):
+Windows with Visual Studio's C++ tools:
 
-```
+```bat
 build.bat
 ```
 
-produces `llmx.exe` in the repo root.
+This produces `llmx.exe` in the repository root. For Windows, Linux and Intel
+macOS through CMake:
 
-Cross-platform (Windows / Linux / macOS), CMake:
-
-The current backend/build targets x86 with AVX2/FMA/F16C; ARM and a portable
-scalar build are not implemented yet.
-
-```
+```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
-## Quick start
+Current builds require x86 AVX2/FMA/F16C. Git-enabled builds identify themselves
+as `0.1.0+g<commit>`, with `.dirty` for tracked changes. Source archives without
+Git metadata report `0.1.0+unknown`; no timestamp or automatic release bump is used.
 
-```
-llmx.exe generate model.gguf "The capital of France is" -n 64
-llmx.exe chat      model.gguf --system "You are a terse assistant."
-llmx.exe perplexity model.gguf "The quick brown fox jumps over the lazy dog."
+## Use
+
+```sh
+llmx --version
+llmx generate model.gguf "The capital of France is" -n 64
+llmx chat model.gguf --system "You are a terse assistant."
+llmx perplexity model.gguf --file corpus.txt --ctx-size 512
 ```
 
-Run `llmx.exe` with no arguments for the full command list, or see
-`docs/USAGE.md` for the complete command reference. A real Q8_0 Qwen3 model and
-the wikitext corpus for manual verification are documented in `docs/ASSETS.md`.
+Use `llmx.exe` on Windows. See [USAGE](docs/USAGE.md) for all commands and flags.
 
 ## Test
 
-Synthetic tests generate their own fixtures. HF baseline checks also run when
-their real fixture models are cached (otherwise those checks skip):
-
-```
-python tests/run_tests.py
+```sh
+ctest --test-dir build -C Release --output-on-failure
+python tests/run_tests.py --exe build/llmx
 ```
 
-For CMake builds, pass `--exe build/llmx` (Linux/Intel macOS) or
-`--exe build/Release/llmx.exe` (MSVC). GitHub CI builds on those three OSes
-and runs a separate pinned HF model gate; see [CI details](docs/CI.md).
+For MSVC CMake builds, use `--exe build/Release/llmx.exe`; the plain Windows
+build is selected by default when `--exe` is omitted. Synthetic fixtures and
+small committed HF goldens run without external Python packages. Real-model
+HF checks skip when models are absent; fetch the pinned fixtures with
+`python tools/fetch_test_models.py` and add `--require-baseline` to require them.
 
-- **Round-trip**: quantize / dequantize a random Q8_0 model, assert max error
-  within a Q8_0-appropriate bound.
-- **Perf**: time the Q8_0 matmul / RMSNorm / RoPE hot paths and end-to-end
-  prefill/decode TPS, asserting generous floors so catastrophic regressions fail
-  loudly without being flaky.
-- **Tokenizer**: encode/decode round-trips incl. unicode and special tokens.
-- **Perplexity**: analytic probabilities, window boundaries, chunk limits and file input.
-- **Chat**: follow-up replies against HF/Jinja2 fixtures and cache-prefix changes.
-- **Thread controls**: automatic/explicit worker counts and restoration after prefill.
-- **Native CTest**: grouped kernels, task/startup failures, chat templates and KV growth/reset.
-  Run `ctest --test-dir build -C Release --output-on-failure` after a CMake build.
-- **F32 reference**: full HF logits and windowed NLL for small deterministic
-  models, including tied/untied weights, odd dimensions, batches and threads.
-- **HF baseline**: tokenizer IDs, next-token rankings and continuous/chunked excerpt PPL
-  against committed reference fixtures. Running these checks needs only the
-  Python standard library; generating the reference fixtures needs HF tooling.
+Native tests cover grouped kernels, worker failures, chat templates and KV
+storage. The Python suite covers conversion, tokenization, F32 logits,
+perplexity, follow-up chat, thread controls and performance guardrails.
+[CI](docs/CI.md) describes the configured platform jobs and their limits;
+shared-runner timings do not establish the external performance floor.
 
-## Documentation
+## Project guide
 
-| File                        | What it is                                    |
-|-----------------------------|-----------------------------------------------|
-| `docs/ARCHITECTURE.md`      | Layer diagram and dependency rules            |
-| `docs/USAGE.md`             | Full command reference                        |
-| `docs/ASSETS.md`            | Real models and corpora for manual verification|
-| `docs/ROADMAP.md`           | The stable long-term plan                     |
-| `docs/STATUS.md`            | Living tracker of what's done / in flight     |
-| `docs/CI.md`                | Automated builds, tests and coverage limits   |
-| `docs/src/`                 | Per-file docs, linked from ARCHITECTURE       |
-| `AGENTS.md`                 | Guidance for AI agents working in this repo   |
+- [Architecture](docs/ARCHITECTURE.md): layer boundaries and execution design.
+- [Roadmap](docs/ROADMAP.md): planned features and prerequisites.
+- [Status](docs/STATUS.md): current checkpoints, validation and remaining work.
+- [Source documentation](docs/src/): responsibilities of individual files.
+- [Contributor guidance](AGENTS.md): build, test and checkpoint rules.
 
-## Design at a glance
-
-```
-cli > inference > model > backends > tokenizer > format > quant > core
-```
-
-Each layer depends only on the layers below it — nothing below the model layer
-knows what the model is, nothing below the format layer knows what a file is.
-That's what keeps every dimension (formats, quantizations, backends, devices)
-independently replaceable. See `docs/ARCHITECTURE.md`.
-
-An existing layering exception is the quant registry's import of GGUF type
-constants. Resolving that coupling belongs with the next format.
+The intended dependency direction is
+`cli > inference > model > backends > tokenizer > format > quant > core`.
+Some current code still couples directly to GGUF, including quant type constants;
+further formats and device execution need integration work rather than just a
+registry entry. Keep changes small, complete and supported by measurements.

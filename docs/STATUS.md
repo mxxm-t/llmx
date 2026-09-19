@@ -1,20 +1,18 @@
-# llmx — Development Status
+# llmx - Development Status
 
 Living tracker. This is the disposable file: notes here are only useful while
 work is in progress. When a feature ships, delete its block below and mark the
 row `Done` in the table. Read it together with `docs/ROADMAP.md` (the stable
-plan) and `docs/ARCHITECTURE.md` (the layer rules) — STATUS carries where each
+plan) and `docs/ARCHITECTURE.md` (the layer rules) - STATUS carries where each
 feature currently stands right now.
 
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`fix/cli-thread-settings`, based on worker checkpoint `c072af2` and documentation
-checkpoint `05fce2c`. The TUI watcher on **8181** is
+`feat/build-version`, based on CLI checkpoint `62223a4`. The TUI watcher on **8181** is
 restarted with its saved cursor. Root `llmx.exe` remains the validated `3a82284`
 KV build. CLI thread corrections are validated on the active branch; benchmark
-comparator code is unchanged. Automatic build identification is the next
-user-requested feature. Gitea is reachable
+comparator code is unchanged. Automatic build identification and the README/ASCII cleanup are validated. Live generation/loading progress is the next requested feature. Gitea is reachable
 again; feature checkpoints may be backed up there, with performance gates still
 required before merging to main. GitHub publication is authorized after the
 requirements pass.
@@ -61,11 +59,50 @@ requires JSON validation before safetensors integration.
 | Head-major CPU KV storage             | In Progress |
 | CPU worker exception safety           | In Progress |
 | CLI thread settings                    | In Progress |
+| Automatic build identification          | In Progress |
+| Live generation and loading progress     | Planned |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### Live generation and loading progress
+
+- **Goal:** stream generated text immediately in chat/generate, show prompt
+  processing before the first token, and make loader progress reusable by
+  current CLI consumers and future serving (ROADMAP #7).
+- **Done:** user confirmed follow-up chat works and requested these usability
+  changes. Current generate() accumulates tokens before printing them.
+- **Left:** implement after the build-version checkpoint. Keep progress events
+  separate from terminal rendering; verify early token delivery, UTF-8 chunks,
+  stop/EOS behavior, existing output filtering and follow-up cache accounting.
+- **Gotchas:** progress must reflect completed reads; it cannot hide loader
+  errors or claim completion on a failed read. No server framework is needed.
+
+### Automatic build identification
+
+- **Goal:** identify each CMake/plain MSVC build by release version plus Git
+  revision, with a dirty marker for tracked changes and a clear archive fallback.
+- **Done:** CMake refreshes build revision on each build, without rewriting an
+  unchanged header. Plain build.bat emits the same metadata. --version and the
+  usage banner show release plus Git revision and tracked-dirty state, with
+  unknown fallback outside a checkout. Windows plain/CMake clean, dirty,
+  new-commit, archive and no-op cases pass in a path containing spaces; Linux
+  clean/dirty/new-commit rebuilds and version smoke pass. The current project
+  build also reports its actual HEAD plus dirty state. Windows full required-HF suite passes with
+  the new version regression. The Windows for/f equals-sign parsing issue was
+  caught and fixed before the passing rerun.
+  README now separates implemented CPU capabilities from future execution,
+  serving and HF goals. All source/comments/docs and new messages use ASCII;
+  Unicode fixture data is preserved. The requirement is recorded in AGENTS.
+- **Left:** merge with the validated stack after its external gates pass. Next
+  development work is live generation/progress. Full evidence is in
+  `benchmarks/build-version-20260919.json`; all 25 Markdown files were reviewed
+  for current capabilities, future goals, build behavior and ASCII compliance.
+- **Gotchas:** untracked files do not mark a build dirty. Source archives report
+  unknown even when nested in another repo. No timestamps, automatic release
+  increments, commits/tags or new build/runtime dependencies are introduced.
 
 ### CLI thread settings
 
@@ -655,4 +692,4 @@ feature ships, delete its block and mark the row `Done` above.
     343-token prompt is the SAME computation - do not read noise as signal.
 
 Nothing else is in flight. When you start a feature, open a block above
-before writing code — see `AGENTS.md` → "Starting a feature".
+before writing code - see `AGENTS.md` -> "Starting a feature".

@@ -1,4 +1,4 @@
-# `src/model/host_kv_cache.hpp` — CPU KV storage
+# `src/model/host_kv_cache.hpp` - CPU KV storage
 
 `infer::HostKVCache` owns F32 keys and values for one CPU sequence, arranged
 per layer and then per head, with contiguous positions within each head.

@@ -1,4 +1,4 @@
-# `src/config.hpp` — build configuration
+# `src/config.hpp` - build configuration
 
 Single place for compile-time build knobs.
 
@@ -15,7 +15,12 @@ Single place for compile-time build knobs.
 
 Defines:
 
-- `LLMX_VERSION_MAJOR/MINOR/PATCH` and `LLMX_VERSION_STRING`
+- `LLMX_VERSION_MAJOR/MINOR/PATCH` and `LLMX_RELEASE_VERSION` identify the release.
+- `LLMX_BUILD_REVISION` is generated at build time: `g<commit>[.dirty]`, or
+  `unknown` without usable Git metadata. `LLMX_VERSION_STRING` combines both.
+  CMake refreshes metadata every build and rewrites the header only when it
+  changes. Plain `build.bat` writes the same header before compiling.
+  Direct compiler builds without that header retain the `unknown` fallback.
 - `LLMX_HAS_BACKEND_CPU/ROCM/CUDA/SYCL/VULKAN`
 - `LLMX_DEFAULT_THREADS` is declared but not consumed by the CPU backend.
   Actual thread control uses CLI flags and backend hardware concurrency.

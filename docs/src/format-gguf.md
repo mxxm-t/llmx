@@ -1,4 +1,4 @@
-# `src/format/gguf.hpp` — GGUF v3 reader/writer
+# `src/format/gguf.hpp` - GGUF v3 reader/writer
 
 From-scratch implementation of the GGUF file format (v3) for `Q8_0`, `Q4_0`,
 `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K` and `F32` tensors, in namespace `gguf`. Those are not an

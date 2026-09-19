@@ -1,11 +1,11 @@
-# `src/backends/cpu/cpu_backend.hpp` — CPU backend (AVX2)
+# `src/backends/cpu/cpu_backend.hpp` - CPU backend (AVX2)
 
 CPU implementation of the `Backend` interface, in namespace `backend`. The
 current build requires x86 AVX2/FMA/F16C; retained scalar branches do not make
 the compiled binary portable to older CPUs.
 
 - Detects AVX2 **once** in the constructor (via `__cpuid` on MSVC, `__get_cpuid`
-  on GCC/Clang) and caches it — not per row.
+  on GCC/Clang) and caches it - not per row.
 - Persistent worker pool, started once. `matvec_q8_0` and attention both
   run through it; previously each created and joined `std::thread`s per call,
   which on Qwen3-8B was thousands of thread creations per token.

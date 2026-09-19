@@ -1,10 +1,12 @@
-# `src/cli/main.cpp` — CLI dispatcher
+# `src/cli/main.cpp` - CLI dispatcher
 
 Thin command-line entry point. Only argument parsing and glue live here; format
 logic is in `format/`, quantization in `quant/`, inference in `inference/`, and
 the model in `model/`.
 
 Commands and their entry points:
+
+- `--version`: release version plus the build revision, without loading a model.
 
 - `quantize` / `dequantize`: `cmd_quantize` / `cmd_dequantize` (Q8_0/Q4_0
   writing and supported-type dequantization via `model.json`/`model.bin`).

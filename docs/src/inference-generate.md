@@ -1,4 +1,4 @@
-# `src/inference/generate.hpp` — high-level inference drivers
+# `src/inference/generate.hpp` - high-level inference drivers
 
 High-level drivers built on the model + tokenizer. Namespace `infer`.
 

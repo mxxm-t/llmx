@@ -1,4 +1,4 @@
-# `src/inference/sampler.hpp` — sampling + generation params
+# `src/inference/sampler.hpp` - sampling + generation params
 
 Sampling logic and generation parameters, split out of the CLI so the same
 sampler drives generate and chat. Perplexity reuses thread parameters only. Namespace `infer`.

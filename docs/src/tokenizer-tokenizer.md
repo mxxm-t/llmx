@@ -1,4 +1,4 @@
-# `src/tokenizer/tokenizer.hpp` — GPT-2 byte-level BPE
+# `src/tokenizer/tokenizer.hpp` - GPT-2 byte-level BPE
 
 From-scratch GPT-2 style byte-level BPE tokenizer in namespace `bpe`.
 

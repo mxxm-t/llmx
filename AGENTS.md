@@ -5,7 +5,7 @@ making changes.
 
 ## What this is
 
-**llmx** — a ground-up, dependency-free LLM inference runtime. It reads/writes
+**llmx** - a ground-up, dependency-free LLM inference runtime. It reads/writes
 GGUF v3, runs quantized or F32 Qwen3-style transformers on CPU (AVX2 where available),
 and is structured so formats, quantizations, backends, and multi-device / cluster
 serving can be added later without touching the core.
@@ -160,7 +160,7 @@ wikitext test set) are documented in `docs/ASSETS.md`.
 ## Architecture
 
 See `docs/ARCHITECTURE.md` for the layer diagram and rules. The rule that
-matters: **each layer depends only on the layers below it** —
+matters: **each layer depends only on the layers below it** -
 `cli > inference > model > backends > tokenizer > format > quant > core`.
 
 | Directory    | Contents                                        |
@@ -177,22 +177,22 @@ matters: **each layer depends only on the layers below it** —
 ## Starting a feature
 
 A fresh agent (or human) can jump straight into a feature by reading, in order:
-1. `AGENTS.md` — this file: what the project is, how to build and verify.
-2. `docs/ARCHITECTURE.md` — the layers and the dependency rule.
-3. `docs/ROADMAP.md` — the stable plan; pick or confirm the feature there.
-4. `docs/STATUS.md` — what is already in flight and where each feature stands.
+1. `AGENTS.md` - this file: what the project is, how to build and verify.
+2. `docs/ARCHITECTURE.md` - the layers and the dependency rule.
+3. `docs/ROADMAP.md` - the stable plan; pick or confirm the feature there.
+4. `docs/STATUS.md` - what is already in flight and where each feature stands.
 
 When you start (or pick up) a feature:
 - Open a new per-feature block in `docs/STATUS.md` (or update the existing one)
   **before** writing code: **Goal / Done / Left / Gotchas**. That block is what
   lets the next agent pick the feature back up with a "continue feature X"
   prompt, so keep it current.
-- Don't invent new directions — follow the roadmap. When the feature ships,
+- Don't invent new directions - follow the roadmap. When the feature ships,
   delete its block and mark the row `Done` in the STATUS table.
 
 ## Checkpoints
 
-Update `docs/STATUS.md` and commit at each meaningful checkpoint — at minimum
+Update `docs/STATUS.md` and commit at each meaningful checkpoint - at minimum
 when a feature, a milestone, or a discrete chunk of work is complete. Each
 commit should leave `docs/STATUS.md` accurate: `Done`/`Left` reflect reality,
 the build passes, and tests are green. A fresh agent should be able to read
@@ -203,6 +203,12 @@ current code, tests, CLI, build configuration and recorded results. Correct stal
 claims and links, distinguish historical measurements from current status, and
 record the review in STATUS.md. This includes README, AGENTS, all docs/ pages
 and per-source documentation; update only what needs changing.
+
+Build identification is automatic: both supported build paths combine the
+explicit release version with Git revision and tracked-dirty state. Update
+CMake's project version and the fallback config together for a release; do not
+increment versions or create tags merely because a build ran. `--version`
+reports the embedded value, with `unknown` for builds without Git metadata.
 
 ## Build-time vs runtime
 
@@ -215,6 +221,9 @@ and per-source documentation; update only what needs changing.
   `docs/ROADMAP.md`.
 
 ## Conventions
+
+- Use ASCII characters in code, comments, documentation and commit messages.
+  Preserve Unicode test coverage using escaped literals and fixture data.
 
 - Header-only for now (everything is `#pragma once` + `inline`), compiled via
   `src/cli/main.cpp`. If we add `.cpp` files later, keep one TU per logical unit.
@@ -235,7 +244,7 @@ pull` plus reading what the Hub actually hosts). Follow the roadmap before
 inventing new directions.
 
 GPU backends are **not** drop-in the way a quant type is. They require the
-device execution model refactor in `docs/ROADMAP.md` #4a — device buffers,
-resident activations, attention moved into the backend, async submit/sync —
+device execution model refactor in `docs/ROADMAP.md` #4a - device buffers,
+resident activations, attention moved into the backend, async submit/sync -
 before any vendor backend is worth writing. Don't pick up "add the ROCm
 backend" expecting the "one file + one registry entry" experience Q4_0 had.

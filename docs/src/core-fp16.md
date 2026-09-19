@@ -1,4 +1,4 @@
-# `src/core/fp16.hpp` — IEEE 754 binary16 conversion
+# `src/core/fp16.hpp` - IEEE 754 binary16 conversion
 
 From-scratch half <-> float conversion, no libraries.
 

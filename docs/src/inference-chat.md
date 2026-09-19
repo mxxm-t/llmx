@@ -1,4 +1,4 @@
-# `src/inference/chat.hpp` — Jinja2-subset chat template renderer
+# `src/inference/chat.hpp` - Jinja2-subset chat template renderer
 
 Minimal Jinja2-subset renderer for GGUF `tokenizer.chat_template` strings, in
 namespace `chat` (with a `chat::jj` value/render core).

@@ -1,4 +1,4 @@
-# llmx — Test assets
+# llmx - Test assets
 
 Where the real models and corpora used for manual verification live. These are
 environment-specific paths (this dev machine); the automated suite
@@ -29,7 +29,7 @@ embeddings, matrices and norms are supported, including tied output weights.
 
 | Model                                            | Format | Status                       |
 |--------------------------------------------------|--------|------------------------------|
-| `Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf` (8.11 GB)| Q8_0   | **Usable** — the real-model gate |
+| `Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf` (8.11 GB)| Q8_0   | **Usable** - the real-model gate |
 | `Qwen\Qwen2-0.5B-Instruct-GGUF\...fp16.gguf`     | FP16   | Not yet supported            |
 | `lmstudio-community\...\Qwen3-30B...Q4_K_M.gguf` | Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
 | `lmstudio-community\...\Qwen3-Coder...Q4_K_M.gguf`| Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
@@ -40,7 +40,7 @@ These assets exercise both tensor-format coverage and architecture support
 (`docs/ROADMAP.md` #1-3). Check both before selecting a validation model.
 
 Use the Qwen3-8B Q8_0 model for the manual real-model checks that the suite
-can't cover — e.g. the lossless correctness gate (path-controlled perplexity)
+can't cover - e.g. the lossless correctness gate (path-controlled perplexity)
 and real throughput:
 
 ```
@@ -1186,7 +1186,7 @@ tests\data\wiki.test.raw
 ```
 
 This is the wikitext-2-raw test split (~1.28 MB). It is a plain
-text dump — the `@-@` split tokens are present, matching the wikitext corpus
+text dump - the `@-@` split tokens are present, matching the wikitext corpus
 format expected by the path-controlled perplexity gate in `docs/ROADMAP.md`.
 
 `llmx.exe perplexity <model.gguf> --file tests/data/wiki.test.raw --ctx-size 512`
@@ -1367,3 +1367,38 @@ The rebuilt matched-model comparator has identical .text SHA-256 to c072af2:
 `5ed1addb00f9038153f958f38340a6d9b0acde23ca0f5a3c26fce1dcb6eb19d7`.
 Thus the prior external comparisons remain the evidence for that unchanged
 benchmark path; the CLI fix does not close the existing external floor.
+
+## Build identification and documentation checkpoint (2026-09-19)
+
+Evidence: [build-version-20260919.json](benchmarks/build-version-20260919.json).
+Base is 62223a4. Builds now report release plus Git revision, with tracked-dirty
+state and an unknown fallback. Build identifiers are refreshed by CMake's
+build dependency and by the plain Windows build; the runtime has no Git call.
+Integration fixtures use isolated repositories, including directories with
+spaces. Their test commit IDs are fixture provenance, not llmx release commits.
+
+| Integration case | Windows build.bat | Windows CMake | Linux CMake |
+|---|---|---|---|
+| Clean checkout, including ignored untracked files | Pass | Pass | Pass |
+| Tracked change produces dirty marker | Pass | Pass | Pass |
+| Commit refresh without reconfiguration | Pass | Pass | Pass |
+| Archive nested inside another repo stays unknown | Pass | Pass | Not repeated |
+| No-op rebuild avoids recompilation | Always compiles | Pass | Not repeated |
+
+The separate CMake metadata script also passes with Git discovery disabled.
+The actual project build reports `62223a4d81ce.dirty` before this checkpoint's
+commit. A first Windows trial exposed for/f splitting an unquoted --short=12;
+quoting the argument fixed it, and the complete isolated matrix then passed.
+The failed trial is retained in the evidence rather than omitted.
+
+Windows full required-HF suite passes all nine components, including the new
+--version/banner check, thread controls, chat and real Q8/Q4 fixtures. Linux
+build and the version check pass; unchanged inference checks retain the prior
+CLI checkpoint's evidence. No new arithmetic or throughput claim is made.
+
+README was reviewed against the roadmap and now separates current CPU support
+from planned GPU/device/cluster/server/HF work. All 25 Markdown files were
+reviewed, links checked, and source/comments/docs normalized to ASCII. Unicode
+fixture data remains intact. Existing commit history was not rewritten; new
+commit messages follow the ASCII rule. Live token delivery and reusable loading
+progress are recorded as the next requested feature, not claimed implemented.

@@ -28,6 +28,16 @@ configure_file(
     @ONLY
 )
 
+add_custom_target(llmx-build-info
+    COMMAND ${CMAKE_COMMAND}
+        "-DSOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/build-info.cmake"
+    BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp"
+    VERBATIM
+)
+add_dependencies(llmx llmx-build-info)
+
 include(CTest)
 set(LLMX_TARGETS llmx)
 if(BUILD_TESTING)

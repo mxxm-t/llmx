@@ -1,4 +1,4 @@
-# `src/model/arch_qwen.hpp` — Qwen3 forward pass
+# `src/model/arch_qwen.hpp` - Qwen3 forward pass
 
 Qwen3-style transformer forward pass, from scratch, in namespace `infer`. The
 compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a

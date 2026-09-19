@@ -1,9 +1,9 @@
-# llmx — Roadmap
+# llmx - Roadmap
 
 > **Dev status:** `docs/STATUS.md` tracks what's done / in flight / planned per
 > feature. This roadmap is the stable long-term plan; STATUS is the living
 > scratchpad. When a feature ships, its STATUS block collapses to a `Done` row
-> in STATUS — this file never carries dev noise.
+> in STATUS - this file never carries dev noise.
 
 Ordered roughly by dependency and value. Items marked **[design]** are
 specified in `docs/ARCHITECTURE.md` but not yet implemented.
@@ -56,7 +56,7 @@ directly; a second format needs integration through this seam.
 GPU backends are the only compile-time concern (heavy SDKs); `config.hpp`
 `LLMX_HAS_BACKEND_*` names are reserved for those gates; the existing options
 do not build GPU code yet. The vendor targets are ROCm, CUDA, SYCL
-(Intel) and Vulkan. This splits into two phases — the device
+(Intel) and Vulkan. This splits into two phases - the device
 execution model has to land before any vendor backend is worth writing.
 
 ### 4a. Device execution model (prerequisite, backend-agnostic)
@@ -121,6 +121,11 @@ Split a single model across several backends on one machine.
 - Split mode + node count chosen at launch (CLI flags), not compile time
 
 ## 7. Multi-user server **[design]**
+- Shared inference events: token delivery must support live CLI chat/generation
+  and future server streaming. Loading progress should report completed work
+  from the loader, leaving presentation to the CLI or server. Implement the
+  current CLI consumers first; avoid server-specific stubs.
+
 - HTTP/WS server front-end sharing read-only model weights, with independent
   sequence state and mutable KV histories (see ARCHITECTURE.md, KV state and
   concurrent execution). Prefix reuse shares immutable KV only, with explicit
@@ -128,7 +133,7 @@ Split a single model across several backends on one machine.
 - Continuous batching, generation queues, `/generate` streaming
 - Separate execution scratch ownership and safe backend scheduling; internal
   worker parallelism does not make the current `Model` concurrently callable.
-- `server/` directory is the planned home (not yet created — avoid empty stubs)
+- `server/` directory is the planned home (not yet created - avoid empty stubs)
 
 ## 8. Correctness & perf gates
 Two standards, both EXTERNAL. Neither may be replaced by a self-consistency
@@ -156,7 +161,7 @@ bar. Two halves with different dependencies: the download + format-coverage half
 is gated on nothing and can start immediately; only the kernel half is gated (on
 #4a). The position in this list is by dependency, not by priority.
 
-### 9a. `llmx pull` — model download
+### 9a. `llmx pull` - model download
 - Hub REST: `GET /api/models/{repo}` for the file list and metadata,
   `GET /{repo}/resolve/{rev}/{file}` for bytes
 - Pin a commit SHA rather than `main`, so a pull is reproducible
@@ -164,7 +169,7 @@ is gated on nothing and can start immediately; only the kernel half is gated (on
 - A local cache with a documented layout; `llmx pull <repo>:<quant>` resolves a
   quant variant to a concrete file
 - **Sharded GGUF**: the Hub splits large models into `-0000N-of-0000M.gguf`.
-  `gguf::read_gguf` assumes a single file — a real gap, not a detail
+  `gguf::read_gguf` assumes a single file - a real gap, not a detail
 - **TLS is the dependency problem.** There is no HTTPS in the C++ stdlib, and
   this is the second carve-out from "dependency-free" after GPU SDKs. Shelling
   out to `curl` (present on Win10+, Linux and macOS) adds zero link-time deps
@@ -174,7 +179,7 @@ is gated on nothing and can start immediately; only the kernel half is gated (on
 ### 9b. Reading what the Hub actually hosts
 `docs/ASSETS.md` records local model coverage. Quant support alone does not
 make a model usable: its architecture and tokenizer must also be implemented.
-- **K-quants** (`Q4_K_M` and friends): the dominant GGUF quant on the Hub — #1
+- **K-quants** (`Q4_K_M` and friends): the dominant GGUF quant on the Hub - #1
 - **safetensors**: HF-native: u64 header length + JSON header + raw tensor
   bytes. Reuse `core/json.hpp` after fixing its validation/Unicode gaps; validate
   tensor extents and dtypes before exposing data. No new dependency; see #3.
@@ -196,11 +201,11 @@ and `<torch/library.h>`, register ops through `TORCH_LIBRARY_EXPAND` into
 `torch.ops`, are loaded by the `kernels` Python package, and are built per
 (torch version x CUDA version x C++ ABI x Python version). Consuming them would
 mean libtorch plus a Python runtime. Their *source* is ordinary HIP/CUDA and can
-be read and ported by hand — that is the only supported use of them here.
+be read and ported by hand - that is the only supported use of them here.
 
 What would work instead, if this is ever picked up:
 - llmx defines its own kernel repo layout on the Hub and ships kernel *source*
-- `hiprtc` / `nvrtc` compile at first use — both already ship in the SDK that a
+- `hiprtc` / `nvrtc` compile at first use - both already ship in the SDK that a
   GPU backend needs, so this adds no new dependency
 - Cache the result content-addressed by (source hash, GPU arch, driver version)
 - Vulkan skips runtime compilation entirely by shipping precompiled `.spv`
@@ -209,4 +214,4 @@ What would work instead, if this is ever picked up:
 
 ## Non-goals (for now)
 - Training / fine-tuning in-tree
-- Dependencies — keep the "no external libs" property as long as practical
+- Dependencies - keep the "no external libs" property as long as practical

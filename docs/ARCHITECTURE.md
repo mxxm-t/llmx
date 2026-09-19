@@ -1,4 +1,4 @@
-# llmx — Architecture
+# llmx - Architecture
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
 writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers
@@ -59,7 +59,7 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
 
-Per-file documentation lives in `docs/src/` — one page per source file, covering
+Per-file documentation lives in `docs/src/` - one page per source file, covering
 what each header does, its public surface, and its place in the layering. See
 `docs/src/cli-main.md` for the CLI entry points and `docs/USAGE.md` for the
 command reference.
@@ -145,13 +145,13 @@ request/session recovery rather than treating the CLI's process-level catch as r
 
 ## Multi-device / multi-node design notes
 
-The `backend::Backend` interface is device-agnostic in *shape* — nothing in it
-names a vendor — but it is host-pointer based today: every call takes raw host
+The `backend::Backend` interface is device-agnostic in *shape* - nothing in it
+names a vendor - but it is host-pointer based today: every call takes raw host
 pointers and returns synchronously, so a backend cannot own device memory or
 keep activations resident. That is a prerequisite, not a detail. See
 `ROADMAP.md` #4a (device execution model), which has to land before any GPU
 backend is worth writing.
 
-Once it has, a model can be split across several Backends — one per device, or
-per cluster node — using strategies at the model layer (per-layer, per-tensor,
+Once it has, a model can be split across several Backends - one per device, or
+per cluster node - using strategies at the model layer (per-layer, per-tensor,
 per-row). None of that is implemented yet. See `ROADMAP.md` for the plan.

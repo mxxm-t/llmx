@@ -1,0 +1,673 @@
+{
+  "base": "62223a4",
+  "scope": "Build metadata, version command, README alignment and ASCII cleanup. No inference arithmetic change.",
+  "validation": [
+    {
+      "name": "git-0",
+      "command": [
+        "git",
+        "init"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "git-1",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "Version test"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "git-2",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "version@example.invalid"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "git-3",
+      "command": [
+        "git",
+        "config",
+        "core.autocrlf",
+        "false"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "git-4",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "exit": 0
+    },
+    {
+      "name": "git-5",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "Initial version fixture"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "git-6",
+      "command": [
+        "git",
+        "rev-parse",
+        "--short=12",
+        "HEAD"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "plain-clean-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "plain-clean",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\llmx.exe",
+        "--version"
+      ],
+      "exit": 0,
+      "expected": "llmx 0.1.0+gd0308584937b",
+      "actual": "llmx 0.1.0+gd0308584937b"
+    },
+    {
+      "name": "cmake-configure",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake-configure.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "cmake-clean-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake-clean-build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "cmake-clean",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake windows\\llmx.exe",
+        "--version"
+      ],
+      "exit": 0,
+      "expected": "llmx 0.1.0+gd0308584937b",
+      "actual": "llmx 0.1.0+gd0308584937b"
+    },
+    {
+      "name": "cmake-noop",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake-noop.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "cmake-dirty-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake-dirty-build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "cmake-dirty",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake windows\\llmx.exe",
+        "--version"
+      ],
+      "exit": 0,
+      "expected": "llmx 0.1.0+gd0308584937b.dirty",
+      "actual": "llmx 0.1.0+gd0308584937b.dirty"
+    },
+    {
+      "name": "plain-dirty-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "plain-dirty",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\llmx.exe",
+        "--version"
+      ],
+      "exit": 0,
+      "expected": "llmx 0.1.0+gd0308584937b.dirty",
+      "actual": "llmx 0.1.0+gd0308584937b.dirty"
+    },
+    {
+      "name": "git-17",
+      "command": [
+        "git",
+        "add",
+        "README.md"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "git-18",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "New revision fixture"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "git-19",
+      "command": [
+        "git",
+        "rev-parse",
+        "--short=12",
+        "HEAD"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "cmake-new-commit-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake-new-commit-build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "cmake-new-commit",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake windows\\llmx.exe",
+        "--version"
+      ],
+      "exit": 0,
+      "expected": "llmx 0.1.0+g8f60c75cd0b7",
+      "actual": "llmx 0.1.0+g8f60c75cd0b7"
+    },
+    {
+      "name": "plain-new-commit-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "plain-new-commit",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\llmx.exe",
+        "--version"
+      ],
+      "exit": 0,
+      "expected": "llmx 0.1.0+g8f60c75cd0b7",
+      "actual": "llmx 0.1.0+g8f60c75cd0b7"
+    },
+    {
+      "name": "plain-archive-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\archive\\build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "plain-archive",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\archive\\llmx.exe",
+        "--version"
+      ],
+      "exit": 0,
+      "expected": "llmx 0.1.0+unknown",
+      "actual": "llmx 0.1.0+unknown"
+    },
+    {
+      "name": "cmake-archive-configure",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake-archive-configure.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "cmake-archive-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake-archive-build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "cmake-archive",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\archive build\\llmx.exe",
+        "--version"
+      ],
+      "exit": 0,
+      "expected": "llmx 0.1.0+unknown",
+      "actual": "llmx 0.1.0+unknown"
+    }
+  ],
+  "finish": [
+    {
+      "name": "source-sha",
+      "command": [
+        "git",
+        "-C",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source",
+        "rev-parse",
+        "--short=12",
+        "HEAD"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-version-configure",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "cmake",
+        "-S",
+        "/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source",
+        "-B",
+        "/root/.cache/llmx-build-version",
+        "-DBUILD_TESTING=OFF",
+        "-DCMAKE_BUILD_TYPE=Release"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-version-build",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "cmake",
+        "--build",
+        "/root/.cache/llmx-build-version",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-version",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "/root/.cache/llmx-build-version/llmx",
+        "--version"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-version-smoke",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "python3",
+        "-c",
+        "import sys;sys.path.insert(0,'/mnt/c/Users/Marko/Desktop/Projects/llmx/tests');import common,version;common.EXE='/root/.cache/llmx-build-version/llmx';version.run()"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "windows-version-suite",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake windows\\llmx.exe",
+        "--require-baseline"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "no-git-script",
+      "command": [
+        "cmake",
+        "-DCMAKE_DISABLE_FIND_PACKAGE_Git=TRUE",
+        "-DSOURCE_ROOT=C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source",
+        "-DOUTPUT_FILE=C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\no-git.hpp",
+        "-P",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\cmake\\build-info.cmake"
+      ],
+      "exit": 0
+    }
+  ],
+  "refresh": [
+    {
+      "name": "linux-before-sha",
+      "command": [
+        "git",
+        "-C",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source",
+        "rev-parse",
+        "--short=12",
+        "HEAD"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-dirty-build",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "cmake",
+        "--build",
+        "/root/.cache/llmx-build-version",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-dirty",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "/root/.cache/llmx-build-version/llmx",
+        "--version"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-new-fixture-commit",
+      "command": [
+        "git",
+        "-C",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source",
+        "commit",
+        "-am",
+        "Linux refresh fixture"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-after-sha",
+      "command": [
+        "git",
+        "-C",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source",
+        "rev-parse",
+        "--short=12",
+        "HEAD"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-new-build",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "cmake",
+        "--build",
+        "/root/.cache/llmx-build-version",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-new",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "/root/.cache/llmx-build-version/llmx",
+        "--version"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "project-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\project-build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "project-dirty-version",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\project build\\llmx.exe",
+        "--version"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "project-sha",
+      "command": [
+        "git",
+        "rev-parse",
+        "--short=12",
+        "HEAD"
+      ],
+      "exit": 0
+    }
+  ],
+  "logs": {
+    "cmake-archive-build.log": "[  0%] Built target llmx-build-info\n[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.obj\nmain.cpp\n[100%] Linking CXX executable llmx.exe\n[100%] Built target llmx\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "cmake-archive-configure.log": "-- The CXX compiler identification is MSVC 19.50.35728.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed\n-- Looking for pthread_create in pthreads\n-- Looking for pthread_create in pthreads - not found\n-- Looking for pthread_create in pthread\n-- Looking for pthread_create in pthread - not found\n-- Found Threads: TRUE\n-- Configuring done (2.6s)\n-- Generating done (0.0s)\n-- Build files have been written to: C:/Users/Marko/AppData/Local/Temp/llmx build version final/archive build\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "cmake-archive.log": "llmx 0.1.0+unknown\n",
+    "cmake-clean-build.log": "[  0%] Built target llmx-build-info\n[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.obj\nmain.cpp\n[100%] Linking CXX executable llmx.exe\n[100%] Built target llmx\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "cmake-clean.log": "llmx 0.1.0+gd0308584937b\n",
+    "cmake-configure.log": "-- The CXX compiler identification is MSVC 19.50.35728.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed\n-- Looking for pthread_create in pthreads\n-- Looking for pthread_create in pthreads - not found\n-- Looking for pthread_create in pthread\n-- Looking for pthread_create in pthread - not found\n-- Found Threads: TRUE\n-- Configuring done (2.0s)\n-- Generating done (0.0s)\n-- Build files have been written to: C:/Users/Marko/AppData/Local/Temp/llmx build version final/cmake windows\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "cmake-dirty-build.log": "[  0%] Built target llmx-build-info\n[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.obj\nmain.cpp\n[100%] Linking CXX executable llmx.exe\n[100%] Built target llmx\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "cmake-dirty.log": "llmx 0.1.0+gd0308584937b.dirty\n",
+    "cmake-new-commit-build.log": "[  0%] Built target llmx-build-info\n[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.obj\nmain.cpp\n[100%] Linking CXX executable llmx.exe\n[100%] Built target llmx\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "cmake-new-commit.log": "llmx 0.1.0+g8f60c75cd0b7\n",
+    "cmake-noop.log": "[  0%] Built target llmx-build-info\n[100%] Built target llmx\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "git-0.log": "Initialized empty Git repository in C:/Users/Marko/AppData/Local/Temp/llmx build version final/source/.git/\n",
+    "git-1.log": "",
+    "git-17.log": "",
+    "git-18.log": "[master 8f60c75] New revision fixture\n 1 file changed, 1 insertion(+), 1 deletion(-)\n",
+    "git-19.log": "8f60c75cd0b7\n",
+    "git-2.log": "",
+    "git-3.log": "",
+    "git-4.log": "",
+    "git-5.log": "[master (root-commit) d030858] Initial version fixture\n 23 files changed, 4802 insertions(+)\n create mode 100644 .gitignore\n create mode 100644 CMakeLists.txt\n create mode 100644 README.md\n create mode 100644 build.bat\n create mode 100644 cmake/build-info.cmake\n create mode 100644 cmake/llmx-config.hpp.in\n create mode 100644 src/backends/backend.hpp\n create mode 100644 src/backends/cpu/cpu_backend.hpp\n create mode 100644 src/cli/main.cpp\n create mode 100644 src/config.hpp\n create mode 100644 src/core/fp16.hpp\n create mode 100644 src/core/json.hpp\n create mode 100644 src/format/format.hpp\n create mode 100644 src/format/gguf.hpp\n create mode 100644 src/inference/chat.hpp\n create mode 100644 src/inference/generate.hpp\n create mode 100644 src/inference/perplexity.hpp\n create mode 100644 src/inference/sampler.hpp\n create mode 100644 src/model/arch_qwen.hpp\n create mode 100644 src/model/host_kv_cache.hpp\n create mode 100644 src/quant/k_quants.hpp\n create mode 100644 src/quant/quant.hpp\n create mode 100644 src/tokenizer/tokenizer.hpp\n",
+    "git-6.log": "d0308584937b\n",
+    "linux-after-sha.log": "e09f26773020\n",
+    "linux-before-sha.log": "8f60c75cd0b7\n",
+    "linux-dirty-build.log": "[  0%] Built target llmx-build-info\n[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "linux-dirty.log": "llmx 0.1.0+g8f60c75cd0b7.dirty\n",
+    "linux-new-build.log": "[  0%] Built target llmx-build-info\n[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "linux-new-fixture-commit.log": "[master e09f267] Linux refresh fixture\n 1 file changed, 1 insertion(+), 1 deletion(-)\n",
+    "linux-new.log": "llmx 0.1.0+ge09f26773020\n",
+    "linux-version-build.log": "[  0%] Built target llmx-build-info\n[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx build version final/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "linux-version-configure.log": "-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.2s)\n-- Generating done (0.0s)\n-- Build files have been written to: /root/.cache/llmx-build-version\n",
+    "linux-version-smoke.log": "version: release/build identifier and usage banner agree  [ok]\n",
+    "linux-version.log": "llmx 0.1.0+g8f60c75cd0b7\n",
+    "no-git-script.log": "",
+    "plain-archive-build.log": "main.cpp\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "plain-archive.log": "llmx 0.1.0+unknown\n",
+    "plain-clean-build.log": "main.cpp\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "plain-clean.log": "llmx 0.1.0+gd0308584937b\n",
+    "plain-dirty-build.log": "main.cpp\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "plain-dirty.log": "llmx 0.1.0+gd0308584937b.dirty\n",
+    "plain-new-commit-build.log": "main.cpp\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "plain-new-commit.log": "llmx 0.1.0+g8f60c75cd0b7\n",
+    "project-build.log": "-- The CXX compiler identification is MSVC 19.50.35728.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed\n-- Looking for pthread_create in pthreads\n-- Looking for pthread_create in pthreads - not found\n-- Looking for pthread_create in pthread\n-- Looking for pthread_create in pthread - not found\n-- Found Threads: TRUE\n-- Configuring done (1.2s)\n-- Generating done (0.0s)\n-- Build files have been written to: C:/Users/Marko/AppData/Local/Temp/llmx build version final/project build\n[  0%] Built target llmx-build-info\n[ 50%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.obj\nmain.cpp\n[100%] Linking CXX executable llmx.exe\n[100%] Built target llmx\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+    "project-dirty-version.log": "llmx 0.1.0+g62223a4d81ce.dirty\n",
+    "project-sha.log": "62223a4d81ce\n",
+    "source-sha.log": "8f60c75cd0b7\n",
+    "windows-version-suite.log": "version: release/build identifier and usage banner agree  [ok]\nroundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 37.28 GFLOPS (0.225 ms), prefill 7540 tok/s, decode 6904 tok/s, rms_norm 0.000 ms, rope 0.001 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  version    PASS\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS\n"
+  },
+  "scripts": {
+    "archive.py": "\ufefffrom pathlib import Path\nimport os,json,subprocess,hashlib,re\nr=Path(os.environ['TEMP'])/'llmx build version final';repo=Path.cwd()\np=Path('docs/STATUS.md');s=p.read_text();s=s.replace('  builds and version smoke pass. Windows full required-HF suite passes with','  clean/dirty/new-commit rebuilds and version smoke pass. The current project\\n  build also reports its actual HEAD plus dirty state. Windows full required-HF suite passes with')\ns=s.replace('- **Left:** finish the current-repo and Linux refresh checks, archive evidence,\\n  review every Markdown file and commit. Then start live generation/progress.','- **Left:** merge with the validated stack after its external gates pass. Next\\n  development work is live generation/progress. Full evidence is in\\n  `benchmarks/build-version-20260919.json`; all 25 Markdown files were reviewed\\n  for current capabilities, future goals, build behavior and ASCII compliance.')\ns=s.replace('Automatic build identification and the README/ASCII cleanup are in final\\nvalidation.','Automatic build identification and the README/ASCII cleanup are validated.')\np.write_text(s)\np=Path('docs/ASSETS.md');s=p.read_text();s+='''\n## Build identification and documentation checkpoint (2026-09-19)\n\nEvidence: [build-version-20260919.json](benchmarks/build-version-20260919.json).\nBase is 62223a4. Builds now report release plus Git revision, with tracked-dirty\nstate and an unknown fallback. Build identifiers are refreshed by CMake's\nbuild dependency and by the plain Windows build; the runtime has no Git call.\nIntegration fixtures use isolated repositories, including directories with\nspaces. Their test commit IDs are fixture provenance, not llmx release commits.\n\n| Integration case | Windows build.bat | Windows CMake | Linux CMake |\n|---|---|---|---|\n| Clean checkout, including ignored untracked files | Pass | Pass | Pass |\n| Tracked change produces dirty marker | Pass | Pass | Pass |\n| Commit refresh without reconfiguration | Pass | Pass | Pass |\n| Archive nested inside another repo stays unknown | Pass | Pass | Not repeated |\n| No-op rebuild avoids recompilation | Always compiles | Pass | Not repeated |\n\nThe separate CMake metadata script also passes with Git discovery disabled.\nThe actual project build reports `62223a4d81ce.dirty` before this checkpoint's\ncommit. A first Windows trial exposed for/f splitting an unquoted --short=12;\nquoting the argument fixed it, and the complete isolated matrix then passed.\nThe failed trial is retained in the evidence rather than omitted.\n\nWindows full required-HF suite passes all nine components, including the new\n--version/banner check, thread controls, chat and real Q8/Q4 fixtures. Linux\nbuild and the version check pass; unchanged inference checks retain the prior\nCLI checkpoint's evidence. No new arithmetic or throughput claim is made.\n\nREADME was reviewed against the roadmap and now separates current CPU support\nfrom planned GPU/device/cluster/server/HF work. All 25 Markdown files were\nreviewed, links checked, and source/comments/docs normalized to ASCII. Unicode\nfixture data remains intact. Existing commit history was not rewritten; new\ncommit messages follow the ASCII rule. Live token delivery and reusable loading\nprogress are recorded as the next requested feature, not claimed implemented.\n''';p.write_text(s)\nreview=[]\nfor name in subprocess.check_output(['git','ls-files','*.md'],text=True).splitlines():\n p=Path(name);txt=p.read_text();assert txt.isascii(),name\n for target in re.findall(r'\\]\\(([^)]+)\\)',txt):\n  if '://' in target or target.startswith('#'):continue\n  dest=target.split('#')[0]\n  if dest and not (p.parent/dest).exists():assert dest=='benchmarks/build-version-20260919.json',(name,dest)\n review.append(dict(path=name,sha256=hashlib.sha256(p.read_bytes()).hexdigest()))\nassert len(review)==25\nfailed=r.parent/'llmx build version'\ndoc=dict(base='62223a4',scope='Build metadata, version command, README alignment and ASCII cleanup. No inference arithmetic change.',validation=json.loads((r/'validation.json').read_text()),finish=json.loads((r/'finish.json').read_text()),refresh=json.loads((r/'refresh.json').read_text()),logs={p.name:p.read_text(errors='replace') for p in r.glob('*.log')},scripts={p.name:p.read_text(errors='replace') for p in r.iterdir() if p.suffix in ['.py','.bat']},first_failed_trial=dict(logs={n:(failed/n).read_text(errors='replace') for n in ['plain-clean-build.log','plain-clean.log']},verdict='Expected clean Git identifier but got unknown; fixed quoting of --short=12 in batch for/f command.'),diff=subprocess.check_output(['git','diff','--','src','CMakeLists.txt','build.bat','cmake','tests'],text=True),new_sources={n:Path(n).read_text() for n in ['cmake/build-info.cmake','tests/version.py']},docs_review=review)\n(repo/'docs/benchmarks/build-version-20260919.json').write_text(json.dumps(doc,indent=2)+'\\n')\nfor name in subprocess.check_output(['git','ls-files'],text=True).splitlines()+['cmake/build-info.cmake','tests/version.py','docs/benchmarks/build-version-20260919.json']:\n p=Path(name)\n if p.is_file() and (name.startswith('docs/') or p.suffix in ['.md','.py','.hpp','.cpp','.cmake','.bat','.yml','.txt','.in']):assert p.read_bytes().isascii(),name\nprint('Archive, full documentation review and ASCII checks pass.')\n",
+    "cmake-archive-build.bat": "@echo off\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncmake --build \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\archive build\"\nexit /b %errorlevel%\n",
+    "cmake-archive-configure.bat": "@echo off\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncmake -S \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\\archive\" -B \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\archive build\" -G \"NMake Makefiles\" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF\nexit /b %errorlevel%\n",
+    "cmake-clean-build.bat": "@echo off\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncmake --build \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake windows\"\nexit /b %errorlevel%\n",
+    "cmake-configure.bat": "@echo off\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncmake -S \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\source\" -B \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake windows\" -G \"NMake Makefiles\" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF\nexit /b %errorlevel%\n",
+    "cmake-dirty-build.bat": "@echo off\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncmake --build \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake windows\"\nexit /b %errorlevel%\n",
+    "cmake-new-commit-build.bat": "@echo off\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncmake --build \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake windows\"\nexit /b %errorlevel%\n",
+    "cmake-noop.bat": "@echo off\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncmake --build \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\cmake windows\"\nexit /b %errorlevel%\n",
+    "finish.py": "from pathlib import Path\nimport subprocess,json,sys\nr=Path(__file__).parent;src=r/'source'\nw='/mnt/c/'+str(src)[3:].replace('\\\\','/')\nrows=[]\ndef run(name,cmd):\n print('START',name,flush=True)\n p=subprocess.run(cmd,capture_output=True);(r/(name+'.log')).write_bytes(p.stdout+p.stderr)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'finish.json').write_text(json.dumps(rows,indent=2))\n if p.returncode: print(p.stdout.decode(errors='replace')[-2500:],p.stderr.decode(errors='replace')[-1000:])\n p.check_returncode();print('END',name,flush=True);return p.stdout.decode(errors='replace').strip()\nsha=run('source-sha',['git','-C',str(src),'rev-parse','--short=12','HEAD'])\nrun('linux-version-configure',['wsl','-d','Ubuntu','--','cmake','-S',w,'-B','/root/.cache/llmx-build-version','-DBUILD_TESTING=OFF','-DCMAKE_BUILD_TYPE=Release'])\nrun('linux-version-build',['wsl','-d','Ubuntu','--','cmake','--build','/root/.cache/llmx-build-version','--parallel','2'])\nvalue=run('linux-version',['wsl','-d','Ubuntu','--','/root/.cache/llmx-build-version/llmx','--version']);assert value=='llmx 0.1.0+g'+sha,value\nrun('linux-version-smoke',['wsl','-d','Ubuntu','--','python3','-c',\"import sys;sys.path.insert(0,'/mnt/c/Users/Marko/Desktop/Projects/llmx/tests');import common,version;common.EXE='/root/.cache/llmx-build-version/llmx';version.run()\"])\nrun('windows-version-suite',[sys.executable,'-X','utf8','-u','tests/run_tests.py','--exe',str(r/'cmake windows/llmx.exe'),'--require-baseline'])\nrun('no-git-script',['cmake','-DCMAKE_DISABLE_FIND_PACKAGE_Git=TRUE','-DSOURCE_ROOT='+str(src),'-DOUTPUT_FILE='+str(r/'no-git.hpp'),'-P',str(src/'cmake/build-info.cmake')])\nassert '\"unknown\"' in (r/'no-git.hpp').read_text()\nprint('Finish validation passed.',flush=True)\n",
+    "project-build.bat": "@echo off\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncmake -S \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\" -B \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\project build\" -G \"NMake Makefiles\" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF\nif errorlevel 1 exit /b 1\ncmake --build \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx build version final\\project build\"\nexit /b %errorlevel%\n",
+    "refresh.py": "\ufefffrom pathlib import Path\nimport os,subprocess,json\nr=Path(os.environ['TEMP'])/'llmx build version final';src=r/'source';rows=[]\ndef run(name,cmd):\n p=subprocess.run(cmd,capture_output=True);(r/(name+'.log')).write_bytes(p.stdout+p.stderr);p.check_returncode();rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'refresh.json').write_text(json.dumps(rows,indent=2));return p.stdout.decode(errors='replace').strip()\nold=run('linux-before-sha',['git','-C',str(src),'rev-parse','--short=12','HEAD'])\n(src/'README.md').write_text('Linux refresh fixture.\\n')\nrun('linux-dirty-build',['wsl','-d','Ubuntu','--','cmake','--build','/root/.cache/llmx-build-version','--parallel','2'])\nactual=run('linux-dirty',['wsl','-d','Ubuntu','--','/root/.cache/llmx-build-version/llmx','--version']);assert actual=='llmx 0.1.0+g'+old+'.dirty',actual\nrun('linux-new-fixture-commit',['git','-C',str(src),'commit','-am','Linux refresh fixture'])\nnew=run('linux-after-sha',['git','-C',str(src),'rev-parse','--short=12','HEAD'])\nrun('linux-new-build',['wsl','-d','Ubuntu','--','cmake','--build','/root/.cache/llmx-build-version','--parallel','2'])\nactual=run('linux-new',['wsl','-d','Ubuntu','--','/root/.cache/llmx-build-version/llmx','--version']);assert actual=='llmx 0.1.0+g'+new,actual\nprint('Linux dirty and commit refresh pass.',flush=True)\nrepo=Path.cwd();build=r/'project build';bat=r/'project-build.bat'\nbat.write_text('@echo off\\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\\nif errorlevel 1 exit /b 1\\n'+f'cmake -S \"{repo}\" -B \"{build}\" -G \"NMake Makefiles\" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF\\nif errorlevel 1 exit /b 1\\ncmake --build \"{build}\"\\nexit /b %errorlevel%\\n')\nrun('project-build',['cmd','/c',str(bat)])\nactual=run('project-dirty-version',[str(build/'llmx.exe'),'--version']);sha=run('project-sha',['git','rev-parse','--short=12','HEAD']);assert actual=='llmx 0.1.0+g'+sha+'.dirty',actual\nprint(actual,flush=True)\n",
+    "validate.py": "from pathlib import Path\nimport subprocess,json,shutil,hashlib\nr=Path(__file__).parent;src=r/'source';rows=[]\ndef run(name,cmd,cwd=src):\n p=subprocess.run(cmd,cwd=cwd,capture_output=True)\n (r/(name+'.log')).write_bytes(p.stdout+p.stderr)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'validation.json').write_text(json.dumps(rows,indent=2))\n if p.returncode:print(p.stdout.decode(errors='replace')[-3000:],p.stderr.decode(errors='replace')[-1000:])\n p.check_returncode();return p.stdout.decode(errors='replace').strip()\ndef git(*args):return run('git-'+str(len(rows)),['git',*args])\ndef version(name,exe,expected):\n actual=run(name,[str(exe),'--version']);assert actual==expected,(name,actual,expected)\n print(name,actual,flush=True)\n rows[-1]['expected']=expected;rows[-1]['actual']=actual;(r/'validation.json').write_text(json.dumps(rows,indent=2))\ndef cmake(name,command):\n bat=r/(name+'.bat');bat.write_text('@echo off\\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\\nif errorlevel 1 exit /b 1\\n'+command+'\\nexit /b %errorlevel%\\n')\n run(name,['cmd','/c',str(bat)])\ngit('init');git('config','user.name','Version test');git('config','user.email','version@example.invalid');git('config','core.autocrlf','false');git('add','.');git('commit','-m','Initial version fixture')\nrev=git('rev-parse','--short=12','HEAD');expected='llmx 0.1.0+g'+rev\n(src/'untracked.txt').write_text('Untracked files do not mark builds dirty.\\n')\nrun('plain-clean-build',['cmd','/c',str(src/'build.bat')]);version('plain-clean',src/'llmx.exe',expected)\nbuild=r/'cmake windows'\ncmake('cmake-configure',f'cmake -S \"{src}\" -B \"{build}\" -G \"NMake Makefiles\" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF')\ncmake('cmake-clean-build',f'cmake --build \"{build}\"');version('cmake-clean',build/'llmx.exe',expected)\nmtime=(build/'llmx.exe').stat().st_mtime_ns\ncmake('cmake-noop',f'cmake --build \"{build}\"');assert (build/'llmx.exe').stat().st_mtime_ns==mtime,'unchanged build recompiled'\n(src/'README.md').write_text('Tracked change.\\n')\ncmake('cmake-dirty-build',f'cmake --build \"{build}\"');version('cmake-dirty',build/'llmx.exe',expected+'.dirty')\nrun('plain-dirty-build',['cmd','/c',str(src/'build.bat')]);version('plain-dirty',src/'llmx.exe',expected+'.dirty')\ngit('add','README.md');git('commit','-m','New revision fixture');rev=git('rev-parse','--short=12','HEAD');expected='llmx 0.1.0+g'+rev\ncmake('cmake-new-commit-build',f'cmake --build \"{build}\"');version('cmake-new-commit',build/'llmx.exe',expected)\nrun('plain-new-commit-build',['cmd','/c',str(src/'build.bat')]);version('plain-new-commit',src/'llmx.exe',expected)\narchive=src/'archive';archive.mkdir()\nfor name in ['src','cmake']:shutil.copytree(src/name,archive/name)\nfor name in ['CMakeLists.txt','build.bat','.gitignore']:shutil.copy2(src/name,archive/name)\n# Nested inside another repository: must not inherit its revision.\nrun('plain-archive-build',['cmd','/c',str(archive/'build.bat')],archive);version('plain-archive',archive/'llmx.exe','llmx 0.1.0+unknown')\nab=r/'archive build'\ncmake('cmake-archive-configure',f'cmake -S \"{archive}\" -B \"{ab}\" -G \"NMake Makefiles\" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF')\ncmake('cmake-archive-build',f'cmake --build \"{ab}\"');version('cmake-archive',ab/'llmx.exe','llmx 0.1.0+unknown')\nprint('All version integration cases pass.',flush=True)\n"
+  },
+  "first_failed_trial": {
+    "logs": {
+      "plain-clean-build.log": "main.cpp\n'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\n",
+      "plain-clean.log": "llmx 0.1.0+unknown\n"
+    },
+    "verdict": "Expected clean Git identifier but got unknown; fixed quoting of --short=12 in batch for/f command."
+  },
+  "diff": "diff --git a/CMakeLists.txt b/CMakeLists.txt\nindex bb81829..5dcb24b 100644\n--- a/CMakeLists.txt\n+++ b/CMakeLists.txt\n@@ -28,6 +28,16 @@ configure_file(\n     @ONLY\n )\n \n+add_custom_target(llmx-build-info\n+    COMMAND ${CMAKE_COMMAND}\n+        \"-DSOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}\"\n+        \"-DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp\"\n+        -P \"${CMAKE_CURRENT_SOURCE_DIR}/cmake/build-info.cmake\"\n+    BYPRODUCTS \"${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp\"\n+    VERBATIM\n+)\n+add_dependencies(llmx llmx-build-info)\n+\n include(CTest)\n set(LLMX_TARGETS llmx)\n if(BUILD_TESTING)\ndiff --git a/build.bat b/build.bat\nindex 23415c3..e2b804c 100644\n--- a/build.bat\n+++ b/build.bat\n@@ -1,6 +1,26 @@\n @echo off\n setlocal\n+pushd \"%~dp0\"\n call \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\n if errorlevel 1 ( echo [build] vcvars64 failed & exit /b 1 )\n-cl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I src /Fe:llmx.exe src\\cli\\main.cpp\n-exit /b %errorlevel%\n+set \"LLMX_BUILD_ID=unknown\"\n+set \"LLMX_GIT_ROOT=\"\n+for /f \"delims=\" %%R in ('git rev-parse --show-toplevel 2^>nul') do set \"LLMX_GIT_ROOT=%%R\"\n+set \"LLMX_GIT_ROOT=%LLMX_GIT_ROOT:/=\\%\"\n+if /I not \"%LLMX_GIT_ROOT%\"==\"%CD%\" goto version_ready\n+for /f \"delims=\" %%R in ('git rev-parse \"--short=12\" HEAD 2^>nul') do set \"LLMX_BUILD_ID=g%%R\"\n+if \"%LLMX_BUILD_ID%\"==\"unknown\" goto version_ready\n+git diff --quiet HEAD --\n+if errorlevel 2 (\n+    set \"LLMX_BUILD_ID=unknown\"\n+) else if errorlevel 1 (\n+    set \"LLMX_BUILD_ID=%LLMX_BUILD_ID%.dirty\"\n+)\n+:version_ready\n+if not exist build\\plain-generated mkdir build\\plain-generated\n+>build\\plain-generated\\llmx-build-info.hpp echo #pragma once\n+>>build\\plain-generated\\llmx-build-info.hpp echo #define LLMX_BUILD_REVISION \"%LLMX_BUILD_ID%\"\n+cl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I build\\plain-generated /I src /Fe:llmx.exe src\\cli\\main.cpp\n+set \"LLMX_BUILD_EXIT=%errorlevel%\"\n+popd\n+exit /b %LLMX_BUILD_EXIT%\ndiff --git a/cmake/llmx-config.hpp.in b/cmake/llmx-config.hpp.in\nindex 5613d4f..014f60e 100644\n--- a/cmake/llmx-config.hpp.in\n+++ b/cmake/llmx-config.hpp.in\n@@ -5,7 +5,14 @@\n #define LLMX_VERSION_MAJOR @PROJECT_VERSION_MAJOR@\n #define LLMX_VERSION_MINOR @PROJECT_VERSION_MINOR@\n #define LLMX_VERSION_PATCH @PROJECT_VERSION_PATCH@\n-#define LLMX_VERSION_STRING \"@PROJECT_VERSION@\"\n+#define LLMX_RELEASE_VERSION \"@PROJECT_VERSION@\"\n+#if __has_include(\"llmx-build-info.hpp\")\n+#include \"llmx-build-info.hpp\"\n+#endif\n+#ifndef LLMX_BUILD_REVISION\n+#define LLMX_BUILD_REVISION \"unknown\"\n+#endif\n+#define LLMX_VERSION_STRING LLMX_RELEASE_VERSION \"+\" LLMX_BUILD_REVISION\n \n // Backends compiled in. CPU is mandatory and has no SDK dependency. GPU\n // backends are opt-in and require their SDK at build time.\ndiff --git a/src/cli/main.cpp b/src/cli/main.cpp\nindex b0d3af9..787ac7a 100644\n--- a/src/cli/main.cpp\n+++ b/src/cli/main.cpp\n@@ -600,6 +600,7 @@ void print_usage() {\n         << \"llmx \" << LLMX_VERSION_STRING << \" - ground-up GGUF Q8_0 CLI (no external libs)\\n\"\n         << \"\\n\"\n         << \"Usage:\\n\"\n+        << \"  llmx --version  print release version and build revision\\n\"\n         << \"  llmx quantize   <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\\n\"\n         << \"  llmx dequantize <in.gguf> <out.json> <out.bin>\\n\"\n         << \"  llmx info       <in.gguf>\\n\"\n@@ -663,6 +664,11 @@ int main(int argc, char** argv) {\n         quant::register_builtins();\n         if (argc < 2) { print_usage(); return 1; }\n         std::string cmd = argv[1];\n+        if (cmd == \"--version\") {\n+            std::cout << \"llmx \" << LLMX_VERSION_STRING << \"\\n\";\n+            return 0;\n+        }\n+\n \n         if (cmd == \"generate\" || cmd == \"chat\") {\n             if (argc < 3) {\ndiff --git a/src/config.hpp b/src/config.hpp\nindex 9199a93..35c0ace 100644\n--- a/src/config.hpp\n+++ b/src/config.hpp\n@@ -16,7 +16,14 @@\n #define LLMX_VERSION_MAJOR 0\n #define LLMX_VERSION_MINOR 1\n #define LLMX_VERSION_PATCH 0\n-#define LLMX_VERSION_STRING \"0.1.0\"\n+#define LLMX_RELEASE_VERSION \"0.1.0\"\n+#if __has_include(\"llmx-build-info.hpp\")\n+#include \"llmx-build-info.hpp\"\n+#endif\n+#ifndef LLMX_BUILD_REVISION\n+#define LLMX_BUILD_REVISION \"unknown\"\n+#endif\n+#define LLMX_VERSION_STRING LLMX_RELEASE_VERSION \"+\" LLMX_BUILD_REVISION\n \n // Backends compiled in. CPU is mandatory and has no SDK dependency. GPU\n // backends are opt-in and require their SDK at build time.\ndiff --git a/tests/perf.py b/tests/perf.py\nindex eac2f56..b45555d 100644\n--- a/tests/perf.py\n+++ b/tests/perf.py\n@@ -7,7 +7,7 @@ from common import run as cli\n \n # Perf-regression gate: run the `bench` command and assert the hot paths beat a\n # generous floor, so catastrophic slowdowns fail loudly without being flaky.\n-# This is a smoke gate, not a benchmark harness \u2014 the printed numbers are what\n+# This is a smoke gate, not a benchmark harness - the printed numbers are what\n # you compare across commits when changing a hot path.\n \n # matmul matvec on 2048x2048 must beat this. Dev machine (Ryzen 7 5800X, 8\ndiff --git a/tests/run_tests.py b/tests/run_tests.py\nindex b91e101..93ba383 100644\n--- a/tests/run_tests.py\n+++ b/tests/run_tests.py\n@@ -14,6 +14,7 @@ import perplexity\n import f32\n import chat\n import threads\n+import version\n import baseline\n import common\n \n@@ -31,7 +32,8 @@ def main():\n         if missing:\n             parser.error(\"missing required HF fixtures: \" + \", \".join(missing))\n     results = []\n-    for name, fn in [(\"roundtrip\", roundtrip.run),\n+    for name, fn in [(\"version\", version.run),\n+                     (\"roundtrip\", roundtrip.run),\n                      (\"perf\", lambda: perf.run(enforce_floor=not args.no_perf_floor)),\n                      (\"tokenizer\", tokenizer.run),\n                      (\"perplexity\", perplexity.run),\n",
+  "new_sources": {
+    "cmake/build-info.cmake": "set(revision \"unknown\")\nfind_package(Git QUIET)\nif(GIT_FOUND)\n    execute_process(COMMAND \"${GIT_EXECUTABLE}\" -C \"${SOURCE_ROOT}\" rev-parse --show-toplevel\n        OUTPUT_VARIABLE git_root OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)\n    get_filename_component(source_root \"${SOURCE_ROOT}\" REALPATH)\n    get_filename_component(git_root \"${git_root}\" REALPATH)\n    if(WIN32)\n        string(TOLOWER \"${source_root}\" source_root)\n        string(TOLOWER \"${git_root}\" git_root)\n    endif()\n    if(git_root STREQUAL source_root)\n        execute_process(COMMAND \"${GIT_EXECUTABLE}\" -C \"${SOURCE_ROOT}\" rev-parse --short=12 HEAD\n            OUTPUT_VARIABLE commit OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET\n            RESULT_VARIABLE commit_result)\n        if(commit_result EQUAL 0 AND commit MATCHES \"^[0-9a-f]+$\")\n            execute_process(COMMAND \"${GIT_EXECUTABLE}\" -C \"${SOURCE_ROOT}\" diff --quiet HEAD --\n                RESULT_VARIABLE dirty ERROR_QUIET)\n            if(dirty EQUAL 0)\n                set(revision \"g${commit}\")\n            elseif(dirty EQUAL 1)\n                set(revision \"g${commit}.dirty\")\n            endif()\n        endif()\n    endif()\nendif()\n\nset(content \"#pragma once\\n#define LLMX_BUILD_REVISION \\\"${revision}\\\"\\n\")\nif(EXISTS \"${OUTPUT_FILE}\")\n    file(READ \"${OUTPUT_FILE}\" previous)\n    if(previous STREQUAL content)\n        return()\n    endif()\nendif()\nget_filename_component(output_dir \"${OUTPUT_FILE}\" DIRECTORY)\nfile(MAKE_DIRECTORY \"${output_dir}\")\nfile(WRITE \"${OUTPUT_FILE}\" \"${content}\")\n",
+    "tests/version.py": "from pathlib import Path\nimport re\nimport subprocess\n\nimport common\n\n\ndef run():\n    p = subprocess.run([common.exe_path(), \"--version\"], capture_output=True, timeout=10)\n    assert p.returncode == 0 and not p.stderr, (p.returncode, p.stderr)\n    output = p.stdout.decode(\"ascii\").strip()\n    match = re.fullmatch(r\"llmx (\\d+\\.\\d+\\.\\d+)\\+(unknown|g[0-9a-f]{12,40}(?:\\.dirty)?)\", output)\n    assert match, output\n    config = (Path(common.ROOT) / \"CMakeLists.txt\").read_text(encoding=\"ascii\")\n    release = re.search(r\"project\\(llmx VERSION ([0-9.]+)\", config)\n    assert release and match[1] == release[1], (output, config)\n    usage = subprocess.run([common.exe_path()], capture_output=True, timeout=10)\n    assert usage.returncode == 1 and usage.stdout.startswith(p.stdout.rstrip() + b\" - \"), usage.stdout\n    print(\"version: release/build identifier and usage banner agree  [ok]\")\n    return True\n"
+  },
+  "docs_review": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "f20b6e93289a5b28919b22c6bda4cd71ddf6def0f0ec7c0af45b3fc1fe4ea3c8"
+    },
+    {
+      "path": "README.md",
+      "sha256": "da00b05d4c419f42056b80191ef8dd944ae9b343b18e5458f3b669bfae12540b"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "d69e8d648251cacec3b121104987af66f290fbab0985b9d01aa3ea69dc90e75d"
+    },
+    {
+      "path": "docs/ASSETS.md",
+      "sha256": "974db8b26b0e655ea0480ece1a7d2d5e166714dcb75e1951275db746af15ec03"
+    },
+    {
+      "path": "docs/CI.md",
+      "sha256": "30cd0fb53cc38dccd7d03bbdec2642e04bdcacd69367b792449f417145677ee2"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "sha256": "b7b75e1d36daef8f3655ad0d73248b0d0af8bad3dd2aac3486a4c86993bc68ae"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "sha256": "5c62a5091f94d666f68d08e774fc549a379e2f5dcbfcb976ff2b3ec98dc9e7e1"
+    },
+    {
+      "path": "docs/USAGE.md",
+      "sha256": "6f6aebe1d5d33e75f35ba867241fe1fcf5f75df08c90ce69535d264779f0eebe"
+    },
+    {
+      "path": "docs/src/backends-backend.md",
+      "sha256": "3e32bfe879237a916f4f3ae51902fe084c45cbc4688de13ea9c5c56df1f2e5d6"
+    },
+    {
+      "path": "docs/src/backends-cpu.md",
+      "sha256": "16782fb7f833f31bdda4a39a3220656d35fec7b9e2b8c556a8d34756660b10bc"
+    },
+    {
+      "path": "docs/src/cli-main.md",
+      "sha256": "2f97e0dec33aca6fc4853651ca8041201c4bde49e8bf13b9d41e1e4ccec794f7"
+    },
+    {
+      "path": "docs/src/config.md",
+      "sha256": "d2e72b7ea54d1cfb934f1a826e6dad8dbab99800526c901024a4418e53e69624"
+    },
+    {
+      "path": "docs/src/core-fp16.md",
+      "sha256": "8daeffa5bd5d081ffeda88e4be2a835cc343e80a21bbdf9f28632499ea55b3fa"
+    },
+    {
+      "path": "docs/src/core-json.md",
+      "sha256": "9c866faa6b1aa15bf3cc8b3f2ad0b3b686080ecc45aa0ae9ba06e22578a11ea5"
+    },
+    {
+      "path": "docs/src/format-format.md",
+      "sha256": "05fff6b05a83a87f7263ca34a6538b287a4efae169819a08a4aed0ec2a847c6b"
+    },
+    {
+      "path": "docs/src/format-gguf.md",
+      "sha256": "9f38f02a85a773b7163cc8db8fe2b8497cf5e4cd95a572f5768705fe2b5d2fbb"
+    },
+    {
+      "path": "docs/src/inference-chat.md",
+      "sha256": "9c1e6ed2a251aae5790f05bf2f92f04039d581cc8b7b92a4da6c9327261d2a9c"
+    },
+    {
+      "path": "docs/src/inference-generate.md",
+      "sha256": "7038b9d1320157a8fb488e203763916a0031958c8970d18f8cc7fbf1d52373da"
+    },
+    {
+      "path": "docs/src/inference-perplexity.md",
+      "sha256": "9b5949c09f319fe13e91fc6ee88ba40f2b0142592ceeec91b5d8df883fe72efc"
+    },
+    {
+      "path": "docs/src/inference-sampler.md",
+      "sha256": "3cffbc0236f926218d3b7918a971b0aa57da89379ee5db2369408011589278f5"
+    },
+    {
+      "path": "docs/src/model-arch_qwen.md",
+      "sha256": "0e316812f5249ef6b7f5b2c09ed7c81877e18ee380100085b209e6c5afc48081"
+    },
+    {
+      "path": "docs/src/model-host_kv_cache.md",
+      "sha256": "601346653a4d20270564fc4f735299c0502ef4a30249732f8d47a43099c206c7"
+    },
+    {
+      "path": "docs/src/quant-k_quants.md",
+      "sha256": "bdd96fe86e9cead5bc225f36e8e547058b44be0eb66800a5ba36be856a7890a2"
+    },
+    {
+      "path": "docs/src/quant-quant.md",
+      "sha256": "1741a3cb4c9cb85c38a7c1597286ba4b6ca44264cf03c7df71f2071f8e551995"
+    },
+    {
+      "path": "docs/src/tokenizer-tokenizer.md",
+      "sha256": "609aed5ded18bb621cfd14615c393ca6ae1181f3c52fad1251c97058f9a1453d"
+    }
+  ]
+}

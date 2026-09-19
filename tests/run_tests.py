@@ -14,6 +14,7 @@ import perplexity
 import f32
 import chat
 import threads
+import version
 import baseline
 import common
 
@@ -31,7 +32,8 @@ def main():
         if missing:
             parser.error("missing required HF fixtures: " + ", ".join(missing))
     results = []
-    for name, fn in [("roundtrip", roundtrip.run),
+    for name, fn in [("version", version.run),
+                     ("roundtrip", roundtrip.run),
                      ("perf", lambda: perf.run(enforce_floor=not args.no_perf_floor)),
                      ("tokenizer", tokenizer.run),
                      ("perplexity", perplexity.run),

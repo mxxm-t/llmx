@@ -600,6 +600,7 @@ void print_usage() {
         << "llmx " << LLMX_VERSION_STRING << " - ground-up GGUF Q8_0 CLI (no external libs)\n"
         << "\n"
         << "Usage:\n"
+        << "  llmx --version  print release version and build revision\n"
         << "  llmx quantize   <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n"
         << "  llmx dequantize <in.gguf> <out.json> <out.bin>\n"
         << "  llmx info       <in.gguf>\n"
@@ -663,6 +664,11 @@ int main(int argc, char** argv) {
         quant::register_builtins();
         if (argc < 2) { print_usage(); return 1; }
         std::string cmd = argv[1];
+        if (cmd == "--version") {
+            std::cout << "llmx " << LLMX_VERSION_STRING << "\n";
+            return 0;
+        }
+
 
         if (cmd == "generate" || cmd == "chat") {
             if (argc < 3) {

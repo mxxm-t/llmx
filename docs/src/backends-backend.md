@@ -1,4 +1,4 @@
-# `src/backends/backend.hpp` — compute backend interface
+# `src/backends/backend.hpp` - compute backend interface
 
 Device-agnostic compute abstraction in namespace `backend`. The inference graph
 runs its primitive ops through a `Backend` so the same model code can target CPU

@@ -102,6 +102,24 @@ public:
             matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
             return;
         }
+        if (nbatch == 1 && ggml_type == gguf::GGML_TYPE_Q4_K) {
+            const size_t nb = nin / gguf::Q4_K_BLOCK;
+            const size_t rowbytes = nb * gguf::Q4_K_TYPESIZE;
+            const int nt = threads_;
+            if (nt <= 1 || nout < (size_t)nt * 8) {
+                for (size_t o = 0; o < nout; o++)
+                    Y[o] = dot_row_q4_K(data + o * rowbytes, X, nb);
+                return;
+            }
+            const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
+            run_parallel([&](int w) {
+                const size_t s0 = (size_t)w * chunk;
+                const size_t e0 = std::min(nout, s0 + chunk);
+                for (size_t o = s0; o < e0; o++)
+                    Y[o] = dot_row_q4_K(data + o * rowbytes, X, nb);
+            });
+            return;
+        }
         const quant::QuantType* qt = quant::Registry::instance().get(ggml_type);
         if (!qt || !qt->dequantize || qt->block_size == 0)
             throw std::runtime_error("backend: no dequantizer for tensor type");
@@ -487,6 +505,96 @@ private:
 
     // Dot product of one Q8_0 row (nblocks blocks, nin = nblocks*32) with x.
     // Uses an AVX2 fused dequant+FMA path when available, else scalar.
+    // Fused Q4_K row dot. The generic path dequantizes a whole row into f32
+    // scratch and then dots it, which is why Q4_K decoded at half the speed of
+    // Q8_0 despite a smaller file: it is compute bound on unpacking, not
+    // bandwidth bound.
+    //
+    // No dequantized value is ever materialised here. A Q4_K sub-block value is
+    // d*q - m with q a 4-bit unsigned nibble, so its contribution to the dot is
+    //     sum_l (d*q_l - m) * x_l  =  d * sum_l(q_l * x_l)  -  m * sum_l(x_l)
+    // and the two sums are plain FMA reductions over the nibbles and over x.
+    float dot_row_q4_K(const uint8_t* row, const float* x, size_t nblocks) {
+        float acc = 0.0f;
+        for (size_t b = 0; b < nblocks; b++) {
+            const uint8_t* p = row + b * gguf::Q4_K_TYPESIZE;
+            const float d    = half_to_float((uint16_t)(p[0] | ((uint16_t)p[1] << 8)));
+            const float dmin = half_to_float((uint16_t)(p[2] | ((uint16_t)p[3] << 8)));
+            const uint8_t* sc = p + 4;
+            const uint8_t* qs = p + 16;
+            const float* xp = x + b * gguf::Q4_K_BLOCK;
+
+            int is = 0;
+            for (int j = 0; j < (int)gguf::Q4_K_BLOCK; j += 64) {
+                uint8_t s, mm;
+                quant::get_scale_min_k4(is + 0, sc, &s, &mm);
+                const float d1 = d * (float)s, m1 = dmin * (float)mm;
+                quant::get_scale_min_k4(is + 1, sc, &s, &mm);
+                const float d2 = d * (float)s, m2 = dmin * (float)mm;
+
+                if (avx2_) {
+                    const __m128i lo_mask = _mm_set1_epi8(0x0F);
+                    __m128i raw0 = _mm_loadu_si128((const __m128i*)(qs +  0));
+                    __m128i raw1 = _mm_loadu_si128((const __m128i*)(qs + 16));
+                    // low nibbles -> first 32 values, high nibbles -> next 32
+                    __m128i lo0 = _mm_and_si128(raw0, lo_mask);
+                    __m128i lo1 = _mm_and_si128(raw1, lo_mask);
+                    __m128i hi0 = _mm_and_si128(_mm_srli_epi16(raw0, 4), lo_mask);
+                    __m128i hi1 = _mm_and_si128(_mm_srli_epi16(raw1, 4), lo_mask);
+
+                    __m256 qx_lo = _mm256_setzero_ps(), sx_lo = _mm256_setzero_ps();
+                    __m256 qx_hi = _mm256_setzero_ps(), sx_hi = _mm256_setzero_ps();
+                    const __m128i* lohalves[2] = { &lo0, &lo1 };
+                    const __m128i* hihalves[2] = { &hi0, &hi1 };
+                    for (int h = 0; h < 2; h++) {
+                        const __m128i L = *lohalves[h];
+                        const __m128i H = *hihalves[h];
+                        for (int q = 0; q < 2; q++) {
+                            const __m128i Lp = q ? _mm_srli_si128(L, 8) : L;
+                            const __m128i Hp = q ? _mm_srli_si128(H, 8) : H;
+                            const __m256 fl = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Lp));
+                            const __m256 fh = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Hp));
+                            const __m256 xl = _mm256_loadu_ps(xp + h * 16 + q * 8);
+                            const __m256 xh = _mm256_loadu_ps(xp + 32 + h * 16 + q * 8);
+                            qx_lo = _mm256_fmadd_ps(fl, xl, qx_lo);
+                            sx_lo = _mm256_add_ps(xl, sx_lo);
+                            qx_hi = _mm256_fmadd_ps(fh, xh, qx_hi);
+                            sx_hi = _mm256_add_ps(xh, sx_hi);
+                        }
+                    }
+                    acc += d1 * hsum256(qx_lo) - m1 * hsum256(sx_lo);
+                    acc += d2 * hsum256(qx_hi) - m2 * hsum256(sx_hi);
+                } else {
+                    float qx1 = 0, sx1 = 0, qx2 = 0, sx2 = 0;
+                    for (int l = 0; l < 32; l++) {
+                        const float xa = xp[l], xb = xp[l + 32];
+                        qx1 += (float)(qs[l] & 0xF) * xa; sx1 += xa;
+                        qx2 += (float)(qs[l] >> 4)  * xb; sx2 += xb;
+                    }
+                    acc += d1 * qx1 - m1 * sx1;
+                    acc += d2 * qx2 - m2 * sx2;
+                }
+                xp += 64; qs += 32; is += 2;
+            }
+        }
+        return acc;
+    }
+
+    static float hsum256(__m256 v) {
+        __m128 lo = _mm256_castps256_ps128(v);
+        __m128 hi = _mm256_extractf128_ps(v, 1);
+        __m128 s = _mm_add_ps(lo, hi);
+        s = _mm_hadd_ps(s, s);
+        s = _mm_hadd_ps(s, s);
+        return _mm_cvtss_f32(s);
+    }
+
+    // f16 -> f32 using hardware F16C where present.
+    float half_to_float(uint16_t h) const {
+        if (f16c_) return _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128((int)h)));
+        return f16_to_f32(h);
+    }
+
     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {
         if (avx2_) {
             // Four independent accumulators. A single chained accumulator

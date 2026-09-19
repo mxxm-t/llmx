@@ -75,6 +75,11 @@ command reference.
 - **Split mode and node count** are planned runtime parameters, not implemented
   build options or CLI flags. See `ROADMAP.md`.
 
+`--threads` and `--threads-batch` select CPU workers for decode and prefill.
+Future GPU backends must keep that meaning for applicable CPU work; GPU launch
+dimensions belong to the backend. `--ubatch` is the number of prompt tokens
+per forward pass and remains relevant to device execution.
+
 ## KV state and concurrent execution
 
 Today `Model` combines a reference to model weights, one sequence's KV cache

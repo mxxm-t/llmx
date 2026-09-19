@@ -9,10 +9,12 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`fix/cpu-worker-errors`, checkpoint `c072af2`. The TUI watcher on **8181** is
+`fix/cli-thread-settings`, based on worker checkpoint `c072af2` and documentation
+checkpoint `05fce2c`. The TUI watcher on **8181** is
 restarted with its saved cursor. Root `llmx.exe` remains the validated `3a82284`
-KV build. Post-reboot dispatch studies are complete; retain the simpler worker fix.
-Localize remaining CPU costs before further hot-path changes. Gitea is reachable
+KV build. CLI thread corrections are validated on the active branch; benchmark
+comparator code is unchanged. Automatic build identification is the next
+user-requested feature. Gitea is reachable
 again; feature checkpoints may be backed up there, with performance gates still
 required before merging to main. GitHub publication is authorized after the
 requirements pass.
@@ -23,7 +25,10 @@ Corrected stale fixture dimensions, format/config claims, command coverage and
 historical/current-state wording. Runtime gaps discovered during the review
 are documented rather than changed in this documentation checkpoint.
 Earlier per-feature measurements below describe their own checkpoint; the
-worker block carries the latest active runtime state.
+CLI thread block carries the latest source change. This checkpoint rechecked
+all 25 Markdown files for impact, updated CLI/test/model/architecture coverage,
+and preserved historical experiment settings. The HF roadmap now explicitly
+requires JSON validation before safetensors integration.
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
@@ -55,11 +60,34 @@ worker block carries the latest active runtime state.
 | CPU Q8 scale / load scheduling       | In Progress |
 | Head-major CPU KV storage             | In Progress |
 | CPU worker exception safety           | In Progress |
+| CLI thread settings                    | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### CLI thread settings
+
+- **Goal:** make existing auto, decode and prefill thread flags work consistently
+  for generate, follow-up chat and bench without changing kernel arithmetic.
+- **Done:** generate/chat capture the resolved decode count, apply the prefill
+  count and restore decode for every turn. Bench keeps auto selection; actual
+  phase counts are visible through verbose/benchmark output. The new regression
+  covers 32 generation/chat configurations and four bench cases per platform,
+  with 64 HF-golden replies, and rejects all three reintroduced bug mutants.
+  Windows full required-HF suite passes. Linux native tests and every correctness
+  component pass; its initial automatic-thread synthetic floor fails. Pinning
+  that test to its original one-worker conditions passes on both platforms,
+  without changing floors. Logs retain the initial failure and the targeted
+  reruns. Kernel/model comparator code is byte-identical to c072af2.
+- **Left:** merge with the enclosing validated runtime stack once its external
+  performance gates pass. Evidence: `benchmarks/cli-threads-20260919.json`.
+- **Gotchas:** changing phase counts recreates the CPU pool. Automatic counts
+  can be slower for tiny synthetic jobs, particularly under WSL; do not compare
+  old serial-default benchmark results with new auto-default results. GPU
+  backends will retain CPU-worker meaning for these flags; ubatch remains
+  prompt tokens per forward pass. No GPU execution interface was introduced.
 
 ### CPU worker exception safety
 
@@ -505,9 +533,8 @@ feature ships, delete its block and mark the row `Done` above.
     see the F32 block above before merging.
   - Generation's legacy reasoning filter searches `thinking_start/end`, not
     Qwen3's actual `<think>` / `</think>` markers. Its docs now state that limit.
-  - CLI thread flags have known mismatches: chat ignores threads-batch;
-    generate does not restore auto decode after an explicit batch count; bench
-    passes zero as serial. USAGE documents these pending corrections.
+  - The CLI thread-settings block records the validated auto/prefill/decode
+    corrections found during the documentation review.
   - JSON parsing still has incomplete numeric/escape validation and Unicode
     escape decoding; see docs/src/core-json.md.
   - Qwen3 does NOT use the GPT-2 pretokenizer regex. Read the Split pattern out

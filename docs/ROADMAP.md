@@ -175,9 +175,9 @@ is gated on nothing and can start immediately; only the kernel half is gated (on
 `docs/ASSETS.md` records local model coverage. Quant support alone does not
 make a model usable: its architecture and tokenizer must also be implemented.
 - **K-quants** (`Q4_K_M` and friends): the dominant GGUF quant on the Hub — #1
-- **safetensors**: HF-native, and trivial to read — u64 header length + JSON
-  header + raw tensor bytes. No new dependency; `core/json.hpp` already parses
-  the header — #3
+- **safetensors**: HF-native: u64 header length + JSON header + raw tensor
+  bytes. Reuse `core/json.hpp` after fixing its validation/Unicode gaps; validate
+  tensor extents and dtypes before exposing data. No new dependency; see #3.
 - **BF16 / F16 tensors**: most HF safetensors are BF16. `core/fp16.hpp` covers
   f16 <-> f32, but there is no bf16 path and no F16 case in
   `gguf::TensorInfo::data_size()`

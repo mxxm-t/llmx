@@ -125,6 +125,8 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   CTest also runs `chat-template`, comparing the real Qwen template against
   Jinja2-rendered conversation fixtures. Regenerate these with
   `python tools/gen_chat_baseline.py`; running them needs no external libraries.
+- **Thread controls** (`tests/threads.py`): actual auto/explicit phase counts,
+  restoration after prefill, follow-up chat and HF-golden replies.
 - **KV storage** (`tests/kv_cache.cpp`, CTest `kv-cache`): distinct
   layer/head/position/lane values across growth, retained-capacity reset and
   invalid extents. This storage oracle supplements the independent HF gate.

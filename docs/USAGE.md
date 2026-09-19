@@ -10,9 +10,9 @@ short usage summary.
 - Text arguments containing spaces must be quoted so they arrive as one argv
   element (`"The capital of France is"`).
 - Token ids in `detokenize` are comma- or space-separated integers.
-- Inference commands use hardware concurrency when `--threads` is omitted or
-  zero. The current `bench` command instead passes zero to the backend, which
-  selects one thread; specify a positive count for benchmark comparisons.
+- `--threads` omitted or zero keeps the CPU backend's automatic hardware
+  thread count, including in `bench`. Specify a positive count for matched
+  performance comparisons.
 
 ## `llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]`
 
@@ -132,15 +132,21 @@ identical input bytes, token IDs, window boundaries and target selection.
 
 ## Threads: generation vs prefill
 
-For `generate`, `--threads` is the thread count for **generation** (decode) and
+For `generate` and `chat`, `--threads` is the CPU worker count for **decode** and
 `--threads-batch` / `-tb` is the count for **prefill**, defaulting to
 `--threads`. These are llama.cpp's `-t` and `-tb`.
 
 Prefill and decode can favor different counts. Measure the chosen model and
 hardware; the matched thread-scaling tables in ASSETS record the tested cases.
-Set both counts explicitly when using different settings: if `--threads` stays
-zero, the current code does not restore automatic decode threads after `-tb`.
-`chat` uses `--threads` for both phases and currently ignores `-tb`.
+An omitted or zero `-tb` uses the resolved decode count. After every prefill,
+the runtime restores that count, including automatic selection and follow-up
+chat turns. `--verbose` reports each phase's actual count on stderr; `bench`
+prints its resolved count on stdout. Changing counts recreates the CPU pool.
+
+For planned GPU backends these flags retain their CPU-worker meaning; they
+will not select GPU workgroup sizes or launch dimensions. `--ubatch` controls
+prompt tokens per forward pass across backends. Device selection and GPU
+execution are separate ROADMAP #4 work, not implemented flags today.
 
 ## Physical batch (`--ubatch`)
 
@@ -180,7 +186,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--think`               | disable legacy reasoning-token filtering             | off     |
-| `--verbose`             | print prompt-token count                             | off     |
+| `--verbose`             | print prompt-token count and actual phase thread counts | off   |
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
 
@@ -218,7 +224,7 @@ comparison below for that path.
 |-----------------|----------------------------------------------|---------|
 | `--size N`      | hot-path vector/matrix size (multiple of 32) | 1024    |
 | `--iters N`     | repetitions for hot-path timing              | 5       |
-| `--threads N`   | worker count (currently 0 selects one)       | 0       |
+| `--threads N`   | CPU worker count (0 = auto)                  | 0       |
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 

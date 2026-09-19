@@ -1,0 +1,1025 @@
+{
+  "base": "05fce2c",
+  "scope": "CLI CPU thread selection and visibility; kernels unchanged. External stack floor remains open.",
+  "validation": [
+    {
+      "name": "windows-build",
+      "command": [
+        "cmd",
+        "/c",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\build.bat"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "windows-suite",
+      "command": [
+        "python",
+        "-X",
+        "utf8",
+        "-u",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "--require-baseline"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-configure",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "cmake",
+        "-S",
+        "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source",
+        "-B",
+        "/root/.cache/llmx-cli-threads-release",
+        "-DCMAKE_BUILD_TYPE=Release"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-build",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "cmake",
+        "--build",
+        "/root/.cache/llmx-cli-threads-release",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-native",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "ctest",
+        "--test-dir",
+        "/root/.cache/llmx-cli-threads-release",
+        "--output-on-failure"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-suite",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "python3",
+        "-u",
+        "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/tests/run_tests.py",
+        "--exe",
+        "/root/.cache/llmx-cli-threads-release/llmx",
+        "--require-baseline"
+      ],
+      "exit": 1
+    }
+  ],
+  "fixed_perf": [
+    {
+      "name": "windows-perf-fixed",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-c",
+        "import sys;sys.path.insert(0,'tests');import common,perf;common.EXE=sys.argv[1];perf.run()",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "linux-perf-fixed",
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "--",
+        "python3",
+        "-c",
+        "import sys;sys.path.insert(0,'/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/tests');import common,perf;common.EXE='/root/.cache/llmx-cli-threads-release/llmx';perf.run()"
+      ],
+      "exit": 0
+    }
+  ],
+  "mutants": [
+    {
+      "name": "generate-restore",
+      "exit": 1,
+      "detected": true
+    },
+    {
+      "name": "chat-batch",
+      "exit": 1,
+      "detected": true
+    },
+    {
+      "name": "bench-auto",
+      "exit": 1,
+      "detected": true
+    }
+  ],
+  "comparator": {
+    "checkpoint": "5ed1addb00f9038153f958f38340a6d9b0acde23ca0f5a3c26fce1dcb6eb19d7",
+    "candidate": "5ed1addb00f9038153f958f38340a6d9b0acde23ca0f5a3c26fce1dcb6eb19d7",
+    "identical": true
+  },
+  "bench_samples": [
+    {
+      "threads": 1,
+      "round": -1,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.213,
+      "matmul_gflops": 39.45,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.07,
+      "prefill_tps": 7930.2,
+      "decode_ms": 8.391,
+      "decode_tps": 7627.6
+    },
+    {
+      "threads": 1,
+      "round": -1,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.224,
+      "matmul_gflops": 37.47,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.665,
+      "prefill_tps": 7385.8,
+      "decode_ms": 8.53,
+      "decode_tps": 7503.1
+    },
+    {
+      "threads": 1,
+      "round": 0,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.268,
+      "matmul_gflops": 31.31,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.3,
+      "prefill_tps": 7710.8,
+      "decode_ms": 8.622,
+      "decode_tps": 7422.9
+    },
+    {
+      "threads": 1,
+      "round": 0,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.196,
+      "matmul_gflops": 42.82,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.15,
+      "prefill_tps": 7852.6,
+      "decode_ms": 8.543,
+      "decode_tps": 7491.6
+    },
+    {
+      "threads": 1,
+      "round": 1,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.189,
+      "matmul_gflops": 44.43,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.109,
+      "prefill_tps": 7892.4,
+      "decode_ms": 8.546,
+      "decode_tps": 7489.2
+    },
+    {
+      "threads": 1,
+      "round": 1,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.196,
+      "matmul_gflops": 42.71,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.149,
+      "prefill_tps": 7853.5,
+      "decode_ms": 8.62,
+      "decode_tps": 7424.9
+    },
+    {
+      "threads": 1,
+      "round": 2,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.196,
+      "matmul_gflops": 42.78,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.165,
+      "prefill_tps": 7838.2,
+      "decode_ms": 8.593,
+      "decode_tps": 7448.0
+    },
+    {
+      "threads": 1,
+      "round": 2,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.191,
+      "matmul_gflops": 43.86,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.069,
+      "prefill_tps": 7931.1,
+      "decode_ms": 8.508,
+      "decode_tps": 7522.6
+    },
+    {
+      "threads": 1,
+      "round": 3,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.241,
+      "matmul_gflops": 34.77,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.273,
+      "prefill_tps": 7735.6,
+      "decode_ms": 8.575,
+      "decode_tps": 7463.6
+    },
+    {
+      "threads": 1,
+      "round": 3,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.225,
+      "matmul_gflops": 37.21,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.172,
+      "prefill_tps": 7832.0,
+      "decode_ms": 8.497,
+      "decode_tps": 7532.0
+    },
+    {
+      "threads": 1,
+      "round": 4,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.209,
+      "matmul_gflops": 40.09,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.139,
+      "prefill_tps": 7863.7,
+      "decode_ms": 9.059,
+      "decode_tps": 7064.9
+    },
+    {
+      "threads": 1,
+      "round": 4,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "1",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.201,
+      "matmul_gflops": 41.65,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 8.093,
+      "prefill_tps": 7908.1,
+      "decode_ms": 8.716,
+      "decode_tps": 7342.6
+    },
+    {
+      "threads": 6,
+      "round": -1,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.075,
+      "matmul_gflops": 111.58,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 11.298,
+      "prefill_tps": 5664.8,
+      "decode_ms": 11.04,
+      "decode_tps": 5796.9
+    },
+    {
+      "threads": 6,
+      "round": -1,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.073,
+      "matmul_gflops": 114.57,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 10.504,
+      "prefill_tps": 6093.0,
+      "decode_ms": 9.455,
+      "decode_tps": 6768.8
+    },
+    {
+      "threads": 6,
+      "round": 0,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.087,
+      "matmul_gflops": 96.27,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 10.062,
+      "prefill_tps": 6360.6,
+      "decode_ms": 9.631,
+      "decode_tps": 6645.5
+    },
+    {
+      "threads": 6,
+      "round": 0,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.106,
+      "matmul_gflops": 79.46,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 10.151,
+      "prefill_tps": 6304.9,
+      "decode_ms": 9.721,
+      "decode_tps": 6583.8
+    },
+    {
+      "threads": 6,
+      "round": 1,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.07,
+      "matmul_gflops": 119.09,
+      "rms_norm_ms": 0.0,
+      "rope_ms": 0.0,
+      "prefill_ms": 10.784,
+      "prefill_tps": 5934.8,
+      "decode_ms": 11.161,
+      "decode_tps": 5734.2
+    },
+    {
+      "threads": 6,
+      "round": 1,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.067,
+      "matmul_gflops": 125.77,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 10.214,
+      "prefill_tps": 6266.0,
+      "decode_ms": 9.992,
+      "decode_tps": 6404.9
+    },
+    {
+      "threads": 6,
+      "round": 2,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.065,
+      "matmul_gflops": 128.38,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 9.914,
+      "prefill_tps": 6455.3,
+      "decode_ms": 9.589,
+      "decode_tps": 6674.3
+    },
+    {
+      "threads": 6,
+      "round": 2,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.068,
+      "matmul_gflops": 123.96,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 10.164,
+      "prefill_tps": 6296.7,
+      "decode_ms": 10.166,
+      "decode_tps": 6295.2
+    },
+    {
+      "threads": 6,
+      "round": 3,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.064,
+      "matmul_gflops": 132.08,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 11.604,
+      "prefill_tps": 5515.2,
+      "decode_ms": 12.926,
+      "decode_tps": 4951.3
+    },
+    {
+      "threads": 6,
+      "round": 3,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.091,
+      "matmul_gflops": 91.88,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 9.567,
+      "prefill_tps": 6689.5,
+      "decode_ms": 9.544,
+      "decode_tps": 6705.6
+    },
+    {
+      "threads": 6,
+      "round": 4,
+      "arm": "candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.069,
+      "matmul_gflops": 121.45,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 9.796,
+      "prefill_tps": 6533.2,
+      "decode_ms": 10.049,
+      "decode_tps": 6369.0
+    },
+    {
+      "threads": 6,
+      "round": 4,
+      "arm": "checkpoint",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-worker-errors\\candidate.exe",
+        "bench",
+        "--size",
+        "2048",
+        "--iters",
+        "10",
+        "--threads",
+        "6",
+        "--p",
+        "64",
+        "--n",
+        "64"
+      ],
+      "matmul_ms": 0.093,
+      "matmul_gflops": 90.34,
+      "rms_norm_ms": 0.001,
+      "rope_ms": 0.0,
+      "prefill_ms": 9.966,
+      "prefill_tps": 6421.8,
+      "decode_ms": 10.408,
+      "decode_tps": 6149.1
+    }
+  ],
+  "bench_summary": {
+    "1": {
+      "checkpoint": {
+        "matmul_gflops": {
+          "mean": 41.506,
+          "minimum": 34.77,
+          "maximum": 44.43
+        },
+        "prefill_tps": {
+          "mean": 7863.96,
+          "minimum": 7735.6,
+          "maximum": 7931.1
+        },
+        "decode_tps": {
+          "mean": 7461.92,
+          "minimum": 7342.6,
+          "maximum": 7522.6
+        }
+      },
+      "candidate": {
+        "matmul_gflops": {
+          "mean": 38.82,
+          "minimum": 31.31,
+          "maximum": 42.78
+        },
+        "prefill_tps": {
+          "mean": 7819.64,
+          "minimum": 7710.8,
+          "maximum": 7863.7
+        },
+        "decode_tps": {
+          "mean": 7378.54,
+          "minimum": 7064.9,
+          "maximum": 7532.0
+        }
+      }
+    },
+    "6": {
+      "checkpoint": {
+        "matmul_gflops": {
+          "mean": 108.986,
+          "minimum": 79.46,
+          "maximum": 132.08
+        },
+        "prefill_tps": {
+          "mean": 6094.68,
+          "minimum": 5515.2,
+          "maximum": 6421.8
+        },
+        "decode_tps": {
+          "mean": 5942.72,
+          "minimum": 4951.3,
+          "maximum": 6583.8
+        }
+      },
+      "candidate": {
+        "matmul_gflops": {
+          "mean": 112.75,
+          "minimum": 91.88,
+          "maximum": 128.38
+        },
+        "prefill_tps": {
+          "mean": 6460.92,
+          "minimum": 6266.0,
+          "maximum": 6689.5
+        },
+        "decode_tps": {
+          "mean": 6559.86,
+          "minimum": 6369.0,
+          "maximum": 6705.6
+        }
+      }
+    }
+  },
+  "logs": {
+    "bench-1--1-candidate.log": "bench: threads 1\nbench: matmul 2048x2048     0.224 ms     37.47 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.665 ms    7385.8 tok/s\nbench: decode   64 tok     8.530 ms    7503.1 tok/s\n",
+    "bench-1--1-checkpoint.log": "bench: matmul 2048x2048     0.213 ms     39.45 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.070 ms    7930.2 tok/s\nbench: decode   64 tok     8.391 ms    7627.6 tok/s\n",
+    "bench-1-0-candidate.log": "bench: threads 1\nbench: matmul 2048x2048     0.268 ms     31.31 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.300 ms    7710.8 tok/s\nbench: decode   64 tok     8.622 ms    7422.9 tok/s\n",
+    "bench-1-0-checkpoint.log": "bench: matmul 2048x2048     0.196 ms     42.82 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.150 ms    7852.6 tok/s\nbench: decode   64 tok     8.543 ms    7491.6 tok/s\n",
+    "bench-1-1-candidate.log": "bench: threads 1\nbench: matmul 2048x2048     0.196 ms     42.71 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.149 ms    7853.5 tok/s\nbench: decode   64 tok     8.620 ms    7424.9 tok/s\n",
+    "bench-1-1-checkpoint.log": "bench: matmul 2048x2048     0.189 ms     44.43 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.109 ms    7892.4 tok/s\nbench: decode   64 tok     8.546 ms    7489.2 tok/s\n",
+    "bench-1-2-candidate.log": "bench: threads 1\nbench: matmul 2048x2048     0.196 ms     42.78 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.165 ms    7838.2 tok/s\nbench: decode   64 tok     8.593 ms    7448.0 tok/s\n",
+    "bench-1-2-checkpoint.log": "bench: matmul 2048x2048     0.191 ms     43.86 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.069 ms    7931.1 tok/s\nbench: decode   64 tok     8.508 ms    7522.6 tok/s\n",
+    "bench-1-3-candidate.log": "bench: threads 1\nbench: matmul 2048x2048     0.225 ms     37.21 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.172 ms    7832.0 tok/s\nbench: decode   64 tok     8.497 ms    7532.0 tok/s\n",
+    "bench-1-3-checkpoint.log": "bench: matmul 2048x2048     0.241 ms     34.77 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.273 ms    7735.6 tok/s\nbench: decode   64 tok     8.575 ms    7463.6 tok/s\n",
+    "bench-1-4-candidate.log": "bench: threads 1\nbench: matmul 2048x2048     0.209 ms     40.09 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.139 ms    7863.7 tok/s\nbench: decode   64 tok     9.059 ms    7064.9 tok/s\n",
+    "bench-1-4-checkpoint.log": "bench: matmul 2048x2048     0.201 ms     41.65 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     8.093 ms    7908.1 tok/s\nbench: decode   64 tok     8.716 ms    7342.6 tok/s\n",
+    "bench-6--1-candidate.log": "bench: threads 6\nbench: matmul 2048x2048     0.073 ms    114.57 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok    10.504 ms    6093.0 tok/s\nbench: decode   64 tok     9.455 ms    6768.8 tok/s\n",
+    "bench-6--1-checkpoint.log": "bench: matmul 2048x2048     0.075 ms    111.58 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok    11.298 ms    5664.8 tok/s\nbench: decode   64 tok    11.040 ms    5796.9 tok/s\n",
+    "bench-6-0-candidate.log": "bench: threads 6\nbench: matmul 2048x2048     0.087 ms     96.27 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok    10.062 ms    6360.6 tok/s\nbench: decode   64 tok     9.631 ms    6645.5 tok/s\n",
+    "bench-6-0-checkpoint.log": "bench: matmul 2048x2048     0.106 ms     79.46 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok    10.151 ms    6304.9 tok/s\nbench: decode   64 tok     9.721 ms    6583.8 tok/s\n",
+    "bench-6-1-candidate.log": "bench: threads 6\nbench: matmul 2048x2048     0.067 ms    125.77 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok    10.214 ms    6266.0 tok/s\nbench: decode   64 tok     9.992 ms    6404.9 tok/s\n",
+    "bench-6-1-checkpoint.log": "bench: matmul 2048x2048     0.070 ms    119.09 GFLOPS\nbench: rms_norm n=2048     0.000 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok    10.784 ms    5934.8 tok/s\nbench: decode   64 tok    11.161 ms    5734.2 tok/s\n",
+    "bench-6-2-candidate.log": "bench: threads 6\nbench: matmul 2048x2048     0.065 ms    128.38 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     9.914 ms    6455.3 tok/s\nbench: decode   64 tok     9.589 ms    6674.3 tok/s\n",
+    "bench-6-2-checkpoint.log": "bench: matmul 2048x2048     0.068 ms    123.96 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok    10.164 ms    6296.7 tok/s\nbench: decode   64 tok    10.166 ms    6295.2 tok/s\n",
+    "bench-6-3-candidate.log": "bench: threads 6\nbench: matmul 2048x2048     0.091 ms     91.88 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     9.567 ms    6689.5 tok/s\nbench: decode   64 tok     9.544 ms    6705.6 tok/s\n",
+    "bench-6-3-checkpoint.log": "bench: matmul 2048x2048     0.064 ms    132.08 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok    11.604 ms    5515.2 tok/s\nbench: decode   64 tok    12.926 ms    4951.3 tok/s\n",
+    "bench-6-4-candidate.log": "bench: threads 6\nbench: matmul 2048x2048     0.069 ms    121.45 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     9.796 ms    6533.2 tok/s\nbench: decode   64 tok    10.049 ms    6369.0 tok/s\n",
+    "bench-6-4-checkpoint.log": "bench: matmul 2048x2048     0.093 ms     90.34 GFLOPS\nbench: rms_norm n=2048     0.001 ms\nbench: rope     n=2048     0.000 ms\nbench: prefill  64 tok     9.966 ms    6421.8 tok/s\nbench: decode   64 tok    10.408 ms    6149.1 tok/s\n",
+    "bench-auto.log": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\threads.py\", line 65, in run\n    assert counts == expected, (command, count, batch, counts, expected)\nAssertionError: ('generate', None, None, [(b'prefill', b'16'), (b'decode', b'16')], [(b'prefill', b'1'), (b'decode', b'1')])\n",
+    "chat-batch.log": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\threads.py\", line 65, in run\n    assert counts == expected, (command, count, batch, counts, expected)\nAssertionError: ('chat', None, 1, [(b'prefill', b'16'), (b'decode', b'16'), (b'prefill', b'16'), (b'decode', b'16'), (b'prefill', b'16'), (b'decode', b'16')], [(b'prefill', b'1'), (b'decode', b'16'), (b'prefill', b'1'), (b'decode', b'16'), (b'prefill', b'1'), (b'decode', b'16')])\n",
+    "generate-restore.log": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\threads.py\", line 65, in run\n    assert counts == expected, (command, count, batch, counts, expected)\nAssertionError: ('generate', None, 1, [(b'prefill', b'1'), (b'decode', b'1')], [(b'prefill', b'1'), (b'decode', b'16')])\n",
+    "linux-build.log": "In file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Ma[ 30%] Linking CXX executable llmx-backend-group-test\n[ 30%] Built target llmx-backend-group-test\n[ 40%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 50%] Linking CXX executable llmx-backend-errors-test\n[ 50%] Built target llmx-backend-errors-test\n[ 60%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 70%] Linking CXX executable llmx-chat-template-test\n[ 70%] Built target llmx-chat-template-test\n[ 80%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 90%] Linking CXX executable llmx\n[ 90%] Built target llmx\n[100%] Linking CXX executable llmx-kv-cache-test\n[100%] Built target llmx-kv-cache-test\nlo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/cli/main.cpp:30:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/cli/main.cpp:31:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/tests/backend_errors.cpp:8:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/src/backends/cpu/cpu_backend.hpp:782:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  782 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n",
+    "linux-configure.log": "-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.7s)\n-- Generating done (0.0s)\n-- Build files have been written to: /root/.cache/llmx-cli-threads-release\n",
+    "linux-native.log": "Internal ctest changing into directory: /root/.cache/llmx-cli-threads-release\nTest project /root/.cache/llmx-cli-threads-release\n    Start 1: backend-group\n1/4 Test #1: backend-group ....................   Passed    0.18 sec\n    Start 2: backend-errors\n2/4 Test #2: backend-errors ...................   Passed    0.15 sec\n    Start 3: chat-template\n3/4 Test #3: chat-template ....................   Passed    0.02 sec\n    Start 4: kv-cache\n4/4 Test #4: kv-cache .........................   Passed    0.01 sec\n\n100% tests passed, 0 tests failed out of 4\n\nTotal Test time (real) =   0.36 sec\n",
+    "linux-perf-fixed.log": "perf: matmul 37.30 GFLOPS (0.225 ms), prefill 8241 tok/s, decode 7821 tok/s, rms_norm 0.000 ms, rope 0.000 ms  [ok]\n",
+    "linux-suite.log": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\n  error: prefill 777.7 tok/s below floor 1000.0\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6581 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       FAIL\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS\n",
+    "mutant-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\ngenerate-restore.cpp\nchat-batch.cpp\nbench-auto.cpp\n",
+    "windows-build.log": "'vswhere.exe' is not recognized as an internal or external command,\noperable program or batch file.\nmain.cpp\ncompare_cpu.cpp\n",
+    "windows-perf-fixed.log": "perf: matmul 34.76 GFLOPS (0.241 ms), prefill 7851 tok/s, decode 7473 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\n",
+    "windows-suite.log": "roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 83.85 GFLOPS (0.100 ms), prefill 2971 tok/s, decode 2946 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS\n"
+  },
+  "scripts": {
+    "archive.py": "\ufefffrom pathlib import Path\nimport os,json,subprocess,hashlib,re\nr=Path(os.environ['TEMP'])/'llmx-cli-threads';repo=Path.cwd()\np=Path('docs/STATUS.md');s=p.read_text(encoding='utf-8')\na=s.index('- **Done:** source review confirms chat ignores threads_batch,');b=s.index('\\n### CPU worker exception safety',a)\ns=s[:a]+'''- **Done:** generate/chat capture the resolved decode count, apply the prefill\n  count and restore decode for every turn. Bench keeps auto selection; actual\n  phase counts are visible through verbose/benchmark output. The new regression\n  covers 32 generation/chat configurations and four bench cases per platform,\n  with 64 HF-golden replies, and rejects all three reintroduced bug mutants.\n  Windows full required-HF suite passes. Linux native tests and every correctness\n  component pass; its initial automatic-thread synthetic floor fails. Pinning\n  that test to its original one-worker conditions passes on both platforms,\n  without changing floors. Logs retain the initial failure and the targeted\n  reruns. Kernel/model comparator code is byte-identical to c072af2.\n- **Left:** merge with the enclosing validated runtime stack once its external\n  performance gates pass. Evidence: `benchmarks/cli-threads-20260919.json`.\n- **Gotchas:** changing phase counts recreates the CPU pool. Automatic counts\n  can be slower for tiny synthetic jobs, particularly under WSL; do not compare\n  old serial-default benchmark results with new auto-default results. GPU\n  backends will retain CPU-worker meaning for these flags; ubatch remains\n  prompt tokens per forward pass. No GPU execution interface was introduced.\n''' +s[b:]\ns=s.replace('KV build. Post-reboot dispatch studies are complete; retain the simpler worker fix.\\nLocalize remaining CPU costs before further hot-path changes. Gitea is reachable','KV build. CLI thread corrections are validated on the active branch; benchmark\\ncomparator code is unchanged. Automatic build identification is the next\\nuser-requested feature. Gitea is reachable')\ns=s.replace('worker block carries the latest active runtime state.','CLI thread block carries the latest source change. This checkpoint rechecked\\nall 25 Markdown files for impact, updated CLI/test/model/architecture coverage,\\nand preserved historical experiment settings. The HF roadmap now explicitly\\nrequires JSON validation before safetensors integration.')\ns=s.replace('  - The CLI thread-settings block tracks correction of the auto/prefill/decode\\n    mismatches found during the documentation review.','  - The CLI thread-settings block records the validated auto/prefill/decode\\n    corrections found during the documentation review.')\np.write_text(s,encoding='utf-8')\np=Path('docs/ASSETS.md');s=p.read_text(encoding='utf-8');s+='''\n## CLI thread controls checkpoint (2026-09-19)\n\nEvidence: [cli-threads-20260919.json](benchmarks/cli-threads-20260919.json).\nSource base is 05fce2c (runtime c072af2). Generate/chat now restore the resolved\nCPU decode count after prefill, including auto selection and follow-up turns;\nbench zero/omitted threads preserves backend auto selection. Verbose output\nreports actual phase counts. Kernel arithmetic and the worker pool are unchanged.\n\n| Validation | Windows MSVC | Linux GCC |\n|---|---:|---:|\n| Generation/chat thread configurations | 32 pass | 32 pass |\n| Benchmark thread settings | 4 pass | 4 pass |\n| HF-golden replies in thread checks | 64 match | 64 match |\n| Tiny HF maximum logit error (bound 0.00002) | 0.00000070 | 0.00000070 |\n| Required real Q8/Q4 HF checks | Pass | Pass |\n| Native CTest | Unchanged; prior checkpoint evidence | 4/4 pass |\n\nThree MSVC mutants reintroduce missing auto-decode restoration, ignored chat\nbatch count and serial bench auto; all fail the new actual-count assertions.\nWindows full suite passes. Linux's first suite fails only the synthetic prefill\nfloor: 777.7 tok/s against 1000 with auto threads. The previous benchmark default\nsilently used one worker. `tests/perf.py` now explicitly uses one worker to\npreserve its established workload and unchanged floors; targeted reruns pass\non both platforms (7851/8241 prefill tok/s respectively). Other Linux suite\ncomponents passed before this test-command correction and were not repeated.\nNo new sanitizer run or hosted CI run is claimed for this CLI-only checkpoint.\n\nSeparate five-round alternating synthetic pairs use explicit counts, size 2048,\n10 iterations, 64 step-prefill/64 decode tokens and one excluded warmup pair.\nAll samples remain; no builds/tests overlap timing. These are not batched real\nmodel measurements and do not establish external performance parity.\n\n| Mean metric | Before, 1 thread | After, 1 thread | Before, 6 threads | After, 6 threads |\n|---|---:|---:|---:|---:|\n| Matmul GFLOPS | 41.51 | 38.82 | 108.99 | 112.75 |\n| Step-prefill tok/s | 7863.96 | 7819.64 | 6094.68 | 6460.92 |\n| Decode tok/s | 7461.92 | 7378.54 | 5942.72 | 6559.86 |\n\nAll respective ranges overlap; no speedup or universal non-regression is claimed.\nThe rebuilt matched-model comparator has identical .text SHA-256 to c072af2:\n`5ed1addb00f9038153f958f38340a6d9b0acde23ca0f5a3c26fce1dcb6eb19d7`.\nThus the prior external comparisons remain the evidence for that unchanged\nbenchmark path; the CLI fix does not close the existing external floor.\n''';p.write_text(s,encoding='utf-8')\nreview=[]\nfor name in subprocess.check_output(['git','ls-files','*.md'],text=True).splitlines():\n p=Path(name);text=p.read_text(encoding='utf-8')\n for target in re.findall(r'\\]\\(([^)]+)\\)',text):\n  if '://' in target or target.startswith('#'):continue\n  dest=target.split('#')[0]\n  if dest and not (p.parent/dest).exists():assert dest=='benchmarks/cli-threads-20260919.json',(name,dest)\n review.append(dict(path=name,sha256=hashlib.sha256(p.read_bytes()).hexdigest()))\nassert len(review)==25\npaths=[r/'candidate.exe',r/'candidate-compare.exe',repo/'src/cli/main.cpp',repo/'src/model/arch_qwen.hpp',repo/'tests/threads.py',repo/'tests/perf.py']\ndoc=dict(base='05fce2c',scope='CLI CPU thread selection and visibility; kernels unchanged. External stack floor remains open.',validation=json.loads((r/'validation.json').read_text()),fixed_perf=json.loads((r/'fixed-perf.json').read_text()),mutants=json.loads((r/'mutants.json').read_text()),comparator=json.loads((r/'comparator-code.json').read_text()),bench_samples=json.loads((r/'bench-results.json').read_text()),bench_summary=json.loads((r/'bench-summary.json').read_text()),logs={p.name:p.read_text(errors='replace') for p in r.glob('*.log')},scripts={p.name:p.read_text(errors='replace') for p in r.iterdir() if p.suffix in ['.py','.bat','.cpp']},source_diff=subprocess.check_output(['git','diff','--','src','tests'],text=True),thread_test=(repo/'tests/threads.py').read_text(),hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths},docs_review=review)\n(repo/'docs/benchmarks/cli-threads-20260919.json').write_text(json.dumps(doc,indent=2)+'\\n')\nprint('Archive and all-document review complete.')\n",
+    "bench-auto.cpp": "#include <cstdint>\n#include <cstdio>\n#include <cstring>\n#include <cmath>\n#include <string>\n#include <vector>\n#include <iostream>\n#include <fstream>\n#include <filesystem>\n#include <sstream>\n#include <stdexcept>\n#include <algorithm>\n#include <chrono>\n#include <random>\n#include <limits>\n\n#if defined(_WIN32)\n#define NOMINMAX\n#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include <shellapi.h>\n#pragma comment(lib, \"shell32.lib\")\n#endif\n\n#include \"config.hpp\"\n#include \"core/fp16.hpp\"\n#include \"core/json.hpp\"\n#include \"format/gguf.hpp\"\n#include \"format/format.hpp\"\n#include \"quant/quant.hpp\"\n#include \"backends/cpu/cpu_backend.hpp\"\n#include \"tokenizer/tokenizer.hpp\"\n#include \"inference/sampler.hpp\"\n#include \"inference/generate.hpp\"\n#include \"inference/perplexity.hpp\"\n#include \"inference/chat.hpp\"\n#include \"model/arch_qwen.hpp\"\n\n// llmx CLI. This file is intentionally a thin dispatcher: format logic lives in\n// format/, quantization in quant/, inference in inference/, and the model in\n// model/. The only code that belongs here is argument parsing and glue.\n\nnamespace {\n\n// ---------------------------------------------------------------------------\n// model.json / model.bin helper structures (quantize input)\n// ---------------------------------------------------------------------------\n\nstruct JsonTensor {\n    std::string name;\n    std::vector<uint64_t> shape; // shape[0] -> ne[0] (fastest dim)\n};\n\nstd::vector<JsonTensor> parse_model_json(const jmini::Value& root) {\n    std::vector<JsonTensor> out;\n    const jmini::Value* tensors = root.get(\"tensors\");\n    if (!tensors || !tensors->isArray())\n        throw std::runtime_error(\"model.json: missing \\\"tensors\\\" array\");\n    for (const auto& t : tensors->asArray()) {\n        JsonTensor jt;\n        const jmini::Value* name = t.get(\"name\");\n        if (!name || !name->isString())\n            throw std::runtime_error(\"model.json: tensor missing \\\"name\\\" string\");\n        jt.name = name->asString();\n        const jmini::Value* shape = t.get(\"shape\");\n        if (!shape || !shape->isArray())\n            throw std::runtime_error(\"model.json: tensor missing \\\"shape\\\" array: \" + jt.name);\n        for (const auto& d : shape->asArray()) {\n            if (!d.isNumber())\n                throw std::runtime_error(\"model.json: shape dim is not a number: \" + jt.name);\n            uint64_t v = (uint64_t)d.asNumber();\n            if (v == 0) throw std::runtime_error(\"model.json: zero dimension in: \" + jt.name);\n            jt.shape.push_back(v);\n        }\n        out.push_back(std::move(jt));\n    }\n    return out;\n}\n\nuint64_t num_elements(const JsonTensor& t) {\n    uint64_t n = 1;\n    for (auto d : t.shape) n *= d;\n    return n;\n}\n\n// ---------------------------------------------------------------------------\n// commands\n// ---------------------------------------------------------------------------\n\nint cmd_quantize(const std::string& json_path, const std::string& bin_path,\n                 const std::string& out_path, const std::string& type_arg) {\n    uint32_t type;\n    size_t block, typesize;\n    void (*quantize)(const float*, uint8_t*, size_t);\n    if (type_arg == \"q4_0\") {\n        type = gguf::GGML_TYPE_Q4_0; block = gguf::Q4_0_BLOCK;\n        typesize = gguf::Q4_0_TYPESIZE; quantize = quant::quantize_row_q4_0;\n    } else { // default q8_0\n        type = gguf::GGML_TYPE_Q8_0; block = gguf::Q8_0_BLOCK;\n        typesize = gguf::Q8_0_TYPESIZE; quantize = quant::quantize_row_q8_0;\n    }\n    std::ifstream jf(json_path);\n    if (!jf) throw std::runtime_error(\"cannot open \" + json_path);\n    std::stringstream jss;\n    jss << jf.rdbuf();\n    jmini::Value root = jmini::parse(jss.str());\n    std::vector<JsonTensor> tensors = parse_model_json(root);\n\n    std::ifstream bf(bin_path, std::ios::binary);\n    if (!bf) throw std::runtime_error(\"cannot open \" + bin_path);\n    bf.seekg(0, std::ios::end);\n    std::streampos sz = bf.tellg();\n    bf.seekg(0, std::ios::beg);\n    std::vector<uint8_t> bytes(sz);\n    if (sz > 0) bf.read((char*)bytes.data(), sz);\n\n    uint64_t need = 0;\n    for (auto& t : tensors) {\n        if (num_elements(t) % block != 0)\n            throw std::runtime_error(\"tensor has elements not divisible by \" +\n                std::to_string(block) + \" (\" + type_arg + \" block): \" + t.name);\n        need += num_elements(t) * 4;\n    }\n    if ((uint64_t)bytes.size() != need)\n        throw std::runtime_error(\"model.bin size does not match model.json tensor shapes\");\n\n    const float* fptr = (const float*)bytes.data();\n    gguf::GGUFModel m;\n\n    const jmini::Value* name = root.get(\"name\");\n    std::string model_name = (name && name->isString()) ? name->asString() : \"custom\";\n\n    gguf::MetaValue mv_name; mv_name.vtype = gguf::V_STRING; mv_name.s = model_name;\n    gguf::MetaValue mv_arch; mv_arch.vtype = gguf::V_STRING; mv_arch.s = \"custom\";\n    gguf::MetaValue mv_qver; mv_qver.vtype = gguf::V_UINT32; mv_qver.u = 2;   // quantization_version\n    gguf::MetaValue mv_ft;   mv_ft.vtype   = gguf::V_UINT32;\n    mv_ft.u = (type == gguf::GGML_TYPE_Q8_0) ? 7 : 2;   // 7 = MOSTLY_Q8_0, 2 = MOSTLY_Q4_0\n    m.kv.emplace_back(\"general.name\", mv_name);\n    m.kv.emplace_back(\"general.architecture\", mv_arch);\n    m.kv.emplace_back(\"general.quantization_version\", mv_qver);\n    m.kv.emplace_back(\"general.file_type\", mv_ft);\n\n    for (auto& t : tensors) {\n        gguf::TensorInfo ti;\n        ti.name = t.name;\n        ti.ne = t.shape;\n        ti.type = type;\n\n        size_t nblocks = (size_t)(num_elements(t) / block);\n        std::vector<uint8_t> q(nblocks * typesize);\n        quantize(fptr, q.data(), nblocks);\n        fptr += num_elements(t);\n\n        m.tensors.push_back(std::move(ti));\n        m.add_tensor_data(q);\n    }\n\n    gguf::write_gguf(m, out_path);\n    std::cout << \"wrote \" << out_path << \" (\" << m.tensors.size() << \" tensors, \"\n              << type_arg << \")\\n\";\n    return 0;\n}\n\nint cmd_dequantize(const std::string& in_path, const std::string& out_json,\n                   const std::string& out_bin) {\n    gguf::GGUFModel m = gguf::read_gguf(in_path);\n\n    std::stringstream js;\n    js << \"{\\n\";\n    js << \"  \\\"name\\\": \\\"\" << in_path << \"\\\",\\n\";\n    js << \"  \\\"tensors\\\": [\\n\";\n    for (size_t i = 0; i < m.tensors.size(); i++) {\n        const auto& t = m.tensors[i];\n        js << \"    {\\\"name\\\": \\\"\" << t.name << \"\\\", \\\"shape\\\": [\";\n        for (size_t d = 0; d < t.ne.size(); d++) {\n            if (d) js << \", \";\n            js << t.ne[d];\n        }\n        js << \"]}\";\n        if (i + 1 < m.tensors.size()) js << \",\";\n        js << \"\\n\";\n    }\n    js << \"  ]\\n}\\n\";\n\n    std::vector<uint8_t> out;\n    for (size_t i = 0; i < m.tensors.size(); i++) {\n        const auto& t = m.tensors[i];\n        const uint8_t* raw = m.tensor_data(i);\n        size_t n = (size_t)t.n_elements();\n        std::vector<float> f(n);\n        if (t.type == gguf::GGML_TYPE_F32) {\n            std::memcpy(f.data(), raw, n * 4);\n        } else {\n            const quant::QuantType* qt = quant::Registry::instance().get(t.type);\n            if (!qt || !qt->dequantize)\n                throw std::runtime_error(\"unsupported tensor type in dequantize: \" + t.name);\n            qt->dequantize(raw, f.data(), n / qt->block_size);\n        }\n        out.resize(out.size() + n * 4);\n        std::memcpy(out.data() + (out.size() - n * 4), f.data(), n * 4);\n    }\n\n    std::ofstream oj(out_json);\n    if (!oj) throw std::runtime_error(\"cannot open \" + out_json);\n    oj << js.str();\n\n    std::ofstream ob(out_bin, std::ios::binary);\n    if (!ob) throw std::runtime_error(\"cannot open \" + out_bin);\n    ob.write((const char*)out.data(), (std::streamsize)out.size());\n\n    std::cout << \"wrote \" << out_json << \" and \" << out_bin << \"\\n\";\n    return 0;\n}\n\n// Type names come from the quant registry, so a new quant type shows up in\n// `info` without touching the CLI.\nconst char* type_name(uint32_t t) {\n    if (t == gguf::GGML_TYPE_F32) return \"F32\";\n    const quant::QuantType* qt = quant::Registry::instance().get(t);\n    return qt ? qt->name : \"?\";\n}\n\nvoid dump_value(const gguf::MetaValue& v) {\n    switch (v.vtype) {\n        case gguf::V_UINT8:  std::cout << v.u; break;\n        case gguf::V_INT8:   std::cout << v.i; break;\n        case gguf::V_UINT16: std::cout << v.u; break;\n        case gguf::V_INT16:  std::cout << v.i; break;\n        case gguf::V_UINT32: std::cout << v.u; break;\n        case gguf::V_INT32:  std::cout << v.i; break;\n        case gguf::V_FLOAT32:{ float x; std::memcpy(&x, &v.fb, 4); std::cout << x; break; }\n        case gguf::V_BOOL:   std::cout << (v.b ? \"true\" : \"false\"); break;\n        case gguf::V_STRING: std::cout << '\"' << v.s << '\"'; break;\n        case gguf::V_ARRAY: {\n            std::cout << \"[\";\n            for (size_t i = 0; i < v.arr.size(); i++) {\n                if (i) std::cout << \", \";\n                dump_value(v.arr[i]);\n            }\n            std::cout << \"]\";\n            break;\n        }\n        case gguf::V_UINT64:  std::cout << v.u; break;\n        case gguf::V_INT64:   std::cout << v.i; break;\n        case gguf::V_FLOAT64: std::cout << v.f64; break;\n    }\n}\n\nint cmd_info(const std::string& in_path) {\n    gguf::GGUFModel m = gguf::read_gguf(in_path);\n    std::cout << \"File: \" << in_path << \"\\n\";\n    std::cout << \"Tensors: \" << m.tensors.size() << \"\\n\";\n    std::cout << \"Metadata: \" << m.kv.size() << \" entries\\n\";\n    for (const auto& kv : m.kv) {\n        std::cout << \"  \" << kv.first << \" = \";\n        dump_value(kv.second);\n        std::cout << \"\\n\";\n    }\n    std::cout << \"Tensor list:\\n\";\n    for (const auto& t : m.tensors) {\n        std::cout << \"  \" << type_name(t.type) << \" \" << t.name << \" shape=[\";\n        for (size_t d = 0; d < t.ne.size(); d++) {\n            if (d) std::cout << \", \";\n            std::cout << t.ne[d];\n        }\n        std::cout << \"] elements=\" << t.n_elements()\n                  << \" bytes=\" << t.data_size() << \"\\n\";\n    }\n    return 0;\n}\n\nstd::vector<uint32_t> parse_token_ids(const std::string& s) {\n    std::vector<uint32_t> ids;\n    std::string cur;\n    for (char c : s) {\n        if (c == ',' || c == ' ') {\n            if (!cur.empty()) { ids.push_back((uint32_t)std::stoull(cur)); cur.clear(); }\n        } else cur += c;\n    }\n    if (!cur.empty()) ids.push_back((uint32_t)std::stoull(cur));\n    return ids;\n}\n\nint cmd_tokenize(const std::string& model_path, const std::string& text) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer t(m);\n    std::vector<uint32_t> ids = t.encode(text);\n    for (size_t i = 0; i < ids.size(); i++) {\n        if (i) std::cout << \", \";\n        std::cout << ids[i];\n    }\n    std::cout << \"\\n\";\n    return 0;\n}\n\nint cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer t(m);\n    std::vector<uint32_t> ids = parse_token_ids(ids_arg);\n    std::cout << t.decode(ids) << \"\\n\";\n    return 0;\n}\n\nint cmd_generate(const std::string& model_path, const std::string& prompt,\n                 const infer::GenParams& gp) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    const int decode_threads = model.threads_available();\n    model.set_ubatch(gp.ubatch);\n    infer::RNG rng;\n    if (gp.seed) rng.seed(gp.seed);\n\n    std::vector<uint32_t> ids = tok.encode(prompt);\n    if (ids.empty()) throw std::runtime_error(\"generate: empty prompt\");\n\n    // Prefill is compute bound and wants every thread; decode is memory\n    // bandwidth bound and usually peaks well below the logical core count,\n    // so the two phases get their own thread counts (llama.cpp's -t / -tb).\n    const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;\n    model.set_threads(tb);\n    if (gp.show_prompt_tokens) std::cerr << \"threads: prefill \" << model.threads_available() << \"\\n\";\n    auto t0 = std::chrono::steady_clock::now();\n    std::vector<float> logits = infer::prefill(model, ids);\n    model.set_threads(decode_threads);\n    double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();\n    if (gp.show_prompt_tokens) std::cout << \"prompt tokens: \" << ids.size() << \"\\n\";\n    // Two decimals: at a few tok/s an integer print rounds a 20% change away.\n    printf(\"pp: %zu tok, %.0f ms, %.2f tok/s\\n\", ids.size(), pp_ms,\n           (double)ids.size() / (pp_ms / 1e3));\n\n    if (gp.show_prompt_tokens) std::cerr << \"threads: decode \" << model.threads_available() << \"\\n\";\n    t0 = std::chrono::steady_clock::now();\n    std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits);\n    double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();\n    printf(\"tg: %zu tok, %.0f ms, %.2f tok/s\\n\", gen.size(), tg_ms,\n           (double)gen.size() / (tg_ms / 1e3));\n    return 0;\n}\n\n// Print the top-N next-token logits for a prompt. This exists for the\n// correctness gate: it is the only way to compare llmx against a\n// full-precision reference at the level where errors actually appear, rather\n// than through sampled text. See docs/ROADMAP.md #8.\nint cmd_logits(const std::string& model_path, const std::string& text,\n               int topn, const infer::GenParams& gp) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    model.set_ubatch(gp.ubatch);\n\n    std::vector<uint32_t> ids = tok.encode(text);\n    if (ids.empty()) throw std::runtime_error(\"logits: empty prompt\");\n    std::vector<float> logits = infer::prefill(model, ids);\n\n    std::vector<std::pair<float, uint32_t>> ranked;\n    ranked.reserve(logits.size());\n    for (size_t i = 0; i < logits.size(); i++)\n        ranked.push_back({ logits[i], (uint32_t)i });\n    if (topn > (int)ranked.size()) topn = (int)ranked.size();\n    std::partial_sort(ranked.begin(), ranked.begin() + topn, ranked.end(),\n                      [](const auto& a, const auto& b) { return a.first > b.first; });\n\n    printf(\"tokens: %zu\\n\", ids.size());\n    for (int i = 0; i < topn; i++)\n        printf(\"%u %.6f\\n\", ranked[(size_t)i].second, ranked[(size_t)i].first);\n    return 0;\n}\n\nstd::string read_perplexity_file(const std::string& path) {\n    std::ifstream input(std::filesystem::u8path(path), std::ios::binary);\n    if (!input) throw std::runtime_error(\"perplexity: cannot open file: \" + path);\n    std::string text;\n    char buffer[8192];\n    while (input.read(buffer, sizeof(buffer)) || input.gcount())\n        text.append(buffer, (size_t)input.gcount());\n    if (!input.eof()) throw std::runtime_error(\"perplexity: cannot read file: \" + path);\n    return text;\n}\n\nint cmd_perplexity(const std::string& model_path, const std::string& text,\n                   const infer::GenParams& gp, int context_size, int chunks) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    model.set_ubatch(gp.ubatch);\n\n    std::vector<uint32_t> ids = tok.encode(text);\n    const auto result = infer::perplexity(model, ids, context_size, chunks);\n    double mean_nll = result.mean_nll();\n    double ppl = std::exp(mean_nll);\n    std::cout << \"tokens: \" << ids.size() << \"\\n\";\n    std::cout << \"used tokens: \" << result.used_tokens << \"\\n\";\n    std::cout << \"scored tokens: \" << result.scored_tokens << \"\\n\";\n    std::cout << \"chunks: \" << result.chunks << \"\\n\";\n    std::cout << \"context size: \" << (context_size ? context_size : model.context_length()) << \"\\n\";\n    std::cout << \"mean NLL: \" << mean_nll << \"\\n\";\n    std::cout << \"perplexity: \" << ppl << \"\\n\";\n    return 0;\n}\n\nint cmd_chat(const std::string& model_path, const std::string& system,\n             const infer::GenParams& gp) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    const int decode_threads = model.threads_available();\n    model.set_ubatch(gp.ubatch);\n    infer::RNG rng;\n    if (gp.seed) rng.seed(gp.seed);\n\n    std::string tpl = chat::get_chat_template(m);\n    if (tpl.empty()) {\n        tpl = \"{% for message in messages %}<|im_start|>{{ message['role'] }}\\n\"\n              \"{{ message['content'] }}<|im_end|>\\n{% endfor %}\"\n              \"{% if add_generation_prompt %}<|im_start|>assistant\\n{% endif %}\";\n    }\n    std::string bos = (tok.bos_id >= 0 && (size_t)tok.bos_id < tok.vocab.size())\n                          ? tok.vocab[tok.bos_id] : \"\";\n    std::string eos = (tok.eos_id >= 0 && (size_t)tok.eos_id < tok.vocab.size())\n                          ? tok.vocab[tok.eos_id] : \"\";\n\n    std::vector<chat::Message> messages;\n    messages.push_back({ \"system\", system });\n    std::vector<uint32_t> cached_ids;\n\n    std::cout << \"Chat ready (type your message; Ctrl+C to quit)\\n\";\n    std::string line;\n    while (std::getline(std::cin, line)) {\n        messages.push_back({ \"user\", line });\n\n        std::string gen = chat::render(tpl, messages, true, bos, eos);\n        std::vector<uint32_t> gen_ids = tok.encode(gen);\n        if (gen_ids.empty()) throw std::runtime_error(\"chat: template produced an empty prompt\");\n        // Templates can rewrite previous turns or change token boundaries.\n        // Reuse only an exact prefix; an unchanged prompt also needs fresh\n        // logits because generate() does not retain its final distribution.\n        if (cached_ids.size() >= gen_ids.size() ||\n            !std::equal(cached_ids.begin(), cached_ids.end(), gen_ids.begin())) {\n            model.reset();\n            cached_ids.clear();\n        }\n        model.set_threads(gp.threads_batch > 0 ? gp.threads_batch : decode_threads);\n        if (gp.show_prompt_tokens) std::cerr << \"threads: prefill \" << model.threads_available() << \"\\n\";\n        std::vector<float> logits = infer::prefill(model,\n            std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()));\n        cached_ids = std::move(gen_ids);\n\n        model.set_threads(decode_threads);\n        if (gp.show_prompt_tokens) std::cerr << \"threads: decode \" << model.threads_available() << \"\\n\";\n        std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits);\n        // A stop match may return its final token without feeding it. EOS is\n        // excluded; the next rendered turn supplies its own closing tokens.\n        const size_t fed = (size_t)model.n_tokens() - cached_ids.size();\n        cached_ids.insert(cached_ids.end(), reply.begin(), reply.begin() + fed);\n\n        messages.push_back({ \"assistant\", tok.decode(reply) });\n    }\n    return 0;\n}\n\n// Build a small random Qwen3 model in memory for end-to-end prefill/decode TPS\n// measurement. Matrices are Q8_0, norms F32 (matching what infer::Model expects).\ngguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,\n                                      int n_head, int n_head_kv, int head_dim,\n                                      int n_vocab, uint32_t seed) {\n    gguf::GGUFModel m;\n    auto u32 = [&](const std::string& k, uint64_t v) {\n        gguf::MetaValue mv; mv.vtype = gguf::V_UINT32; mv.u = v;\n        m.kv.emplace_back(k, mv);\n    };\n    u32(\"qwen3.block_count\", (uint64_t)n_layer);\n    u32(\"qwen3.embedding_length\", (uint64_t)n_embd);\n    u32(\"qwen3.feed_forward_length\", (uint64_t)n_ff);\n    u32(\"qwen3.attention.head_count\", (uint64_t)n_head);\n    u32(\"qwen3.attention.head_count_kv\", (uint64_t)n_head_kv);\n    u32(\"qwen3.attention.key_length\", (uint64_t)head_dim);\n    u32(\"qwen3.context_length\", 2048);\n\n    std::mt19937 rng(seed);\n    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);\n\n    // ne = [nin, nout]; f32 tensors are stored raw, others quantized to Q8_0.\n    auto add_tensor = [&](const std::string& name, size_t nin, size_t nout, bool f32) {\n        gguf::TensorInfo t;\n        t.name = name;\n        t.ne = { (uint64_t)nin, (uint64_t)nout };\n        t.type = f32 ? gguf::GGML_TYPE_F32 : gguf::GGML_TYPE_Q8_0;\n        t.offset = 0;\n        if (f32) {\n            std::vector<uint8_t> buf(nin * nout * 4);\n            float* p = (float*)buf.data();\n            for (size_t o = 0; o < nout; o++)\n                for (size_t i = 0; i < nin; i++) *p++ = dist(rng);\n            m.tensors.push_back(std::move(t));\n            m.add_tensor_data(buf);\n        } else {\n            size_t nblocks = nin / gguf::Q8_0_BLOCK;\n            std::vector<uint8_t> buf(nout * nblocks * gguf::Q8_0_TYPESIZE);\n            std::vector<float> row(nin);\n            for (size_t o = 0; o < nout; o++) {\n                for (size_t i = 0; i < nin; i++) row[i] = dist(rng);\n                quant::quantize_row_q8_0(row.data(), buf.data() + o * nblocks * gguf::Q8_0_TYPESIZE, nblocks);\n            }\n            m.tensors.push_back(std::move(t));\n            m.add_tensor_data(buf);\n        }\n    };\n\n    size_t kv_dim = (size_t)n_head_kv * head_dim;\n    add_tensor(\"token_embd.weight\", n_embd, n_vocab, false);\n    add_tensor(\"output.weight\", n_embd, n_vocab, false);\n    add_tensor(\"output_norm.weight\", n_embd, 1, true);\n    for (int l = 0; l < n_layer; l++) {\n        std::string pre = \"blk.\" + std::to_string(l) + \".\";\n        add_tensor(pre + \"attn_norm.weight\", n_embd, 1, true);\n        add_tensor(pre + \"attn_q.weight\", n_embd, n_embd, false);\n        add_tensor(pre + \"attn_k.weight\", n_embd, kv_dim, false);\n        add_tensor(pre + \"attn_v.weight\", n_embd, kv_dim, false);\n        add_tensor(pre + \"attn_output.weight\", n_embd, n_embd, false);\n        add_tensor(pre + \"attn_q_norm.weight\", head_dim, 1, true);\n        add_tensor(pre + \"attn_k_norm.weight\", head_dim, 1, true);\n        add_tensor(pre + \"ffn_norm.weight\", n_embd, 1, true);\n        add_tensor(pre + \"ffn_gate.weight\", n_embd, n_ff, false);\n        add_tensor(pre + \"ffn_up.weight\", n_embd, n_ff, false);\n        add_tensor(pre + \"ffn_down.weight\", n_ff, n_embd, false);\n    }\n    return m;\n}\n\n// Micro-benchmark of the backend hot paths (matmul, RMSNorm, RoPE) plus\n// end-to-end prefill/decode TPS on a synthetic Qwen3 model. Used by\n// tests/perf.py as the perf-regression gate for hot-path changes.\nint cmd_bench(int size, int iters, int threads, int prefill, int decode) {\n    auto b = backend::make_cpu_backend();\n    b->set_threads(threads);\n    std::cout << \"bench: threads \" << b->threads_available() << \"\\n\";\n\n    // Square matmul: mat is [nin, nout] = [size, size]. x is the input\n    // (length nin), out the result (length nout). nout rows, each nin/32 blocks.\n    const size_t nblocks = (size_t)size / gguf::Q8_0_BLOCK;\n    std::vector<float> x(size, 0.5f);\n    std::vector<uint8_t> mat((size_t)size * nblocks * gguf::Q8_0_TYPESIZE);\n    std::vector<float> src(size), w(size), dst(size);\n    for (int i = 0; i < size; i++) { src[i] = std::sin((float)i * 0.01f); w[i] = 0.1f; }\n    std::vector<float> cos(size / 2), sin(size / 2);\n    for (int i = 0; i < size / 2; i++) { cos[i] = std::cos(0.1f); sin[i] = std::sin(0.1f); }\n\n    using clock = std::chrono::steady_clock;\n    auto t0 = clock::now();\n    for (int it = 0; it < iters; it++)\n        b->matvec_q8_0(mat.data(), x.data(), dst.data(), nblocks, (size_t)size);\n    double mm_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;\n\n    t0 = clock::now();\n    for (int it = 0; it < iters; it++)\n        b->rms_norm(dst.data(), src.data(), w.data(), (size_t)size, 1e-6f);\n    double rn_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;\n\n    t0 = clock::now();\n    for (int it = 0; it < iters; it++)\n        b->rope(dst.data(), cos.data(), sin.data(), size / 2);\n    double rp_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;\n\n    double mm_gflops = 2.0 * (double)size * (double)size / (mm_ms * 1e6);\n    printf(\"bench: matmul %dx%d  %8.3f ms  %8.2f GFLOPS\\n\", size, size, mm_ms, mm_gflops);\n    printf(\"bench: rms_norm n=%d  %8.3f ms\\n\", size, rn_ms);\n    printf(\"bench: rope     n=%d  %8.3f ms\\n\", size, rp_ms);\n\n    // End-to-end TPS on a small synthetic Qwen3 model (2 layers, 256 embd).\n    {\n        const int nl = 2, ne = 256, nf = 1024, nh = 8, nk = 2, hd = 32, nv = 512;\n        gguf::GGUFModel sm = build_synthetic_model(nl, ne, nf, nh, nk, hd, nv, 12345u);\n        infer::Model model(sm, b);\n\n        const int P = prefill, G = decode;\n        model.reset();\n        t0 = clock::now();\n        for (int i = 0; i < P; i++) model.step(i % nv);\n        double pre_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();\n        double pre_tps = (double)P / (pre_ms / 1e3);\n\n        t0 = clock::now();\n        for (int i = 0; i < G; i++) model.step((P + i) % nv);\n        double dec_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();\n        double dec_tps = (double)G / (dec_ms / 1e3);\n\n        printf(\"bench: prefill %3d tok  %8.3f ms  %8.1f tok/s\\n\", P, pre_ms, pre_tps);\n        printf(\"bench: decode  %3d tok  %8.3f ms  %8.1f tok/s\\n\", G, dec_ms, dec_tps);\n    }\n    return 0;\n}\n\nvoid print_usage() {\n    std::cout\n        << \"llmx \" << LLMX_VERSION_STRING << \" - ground-up GGUF Q8_0 CLI (no external libs)\\n\"\n        << \"\\n\"\n        << \"Usage:\\n\"\n        << \"  llmx quantize   <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\\n\"\n        << \"  llmx dequantize <in.gguf> <out.json> <out.bin>\\n\"\n        << \"  llmx info       <in.gguf>\\n\"\n        << \"  llmx logits     <in.gguf> \\\"<text>\\\" [--top N]\\n\"\n        << \"  llmx tokenize   <in.gguf> \\\"<text>\\\"\\n\"\n        << \"  llmx detokenize <in.gguf> <id1,id2,...>\\n\"\n        << \"  llmx perplexity <in.gguf> \\\"<text>\\\" [flags...]\\n\"\n        << \"  llmx perplexity <in.gguf> -f/--file <path> [flags...]\\n\"\n        << \"    perplexity flags: -c/--ctx-size N  window tokens (default: model context)\\n\"\n        << \"                      --chunks N  maximum windows (default: all)\\n\"\n        << \"  llmx generate   <in.gguf> \\\"<prompt>\\\" [flags...]\\n\"\n        << \"  llmx chat       <in.gguf> [--system \\\"<text>\\\"] [flags...]\\n\"\n        << \"  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N]\\n\"\n        << \"    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\\n\"\n        << \"           --ubatch N  prefill physical batch (default 512)\\n\"\n        << \"           -tb/--threads-batch N  threads for prefill (default: --threads)\\n\"\n        << \"           --seed N  --stop \\\"<text>\\\"  --think (show reasoning)  --verbose\\n\"\n        << \"           --verbose reports prompt tokens and actual prefill/decode thread counts\\n\";\n}\n\n} // namespace\n\n#if defined(_WIN32)\n// On Windows argv arrives in the system ANSI codepage, which cannot represent\n// most non-ASCII text -- a Japanese or Cyrillic prompt is mangled before it\n// reaches us. Re-read the command line as UTF-16 and convert to UTF-8 so text\n// arguments survive. Storage is owned by the caller and must outlive argv.\nstatic bool utf8_argv(int& argc, char**& argv,\n                      std::vector<std::string>& store, std::vector<char*>& ptrs) {\n    int wargc = 0;\n    LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);\n    if (!wargv) return false;\n    store.reserve((size_t)wargc);\n    for (int i = 0; i < wargc; i++) {\n        int n = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, nullptr, 0, nullptr, nullptr);\n        std::string s(n > 0 ? (size_t)(n - 1) : 0, '\\0');\n        if (n > 1) WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, &s[0], n, nullptr, nullptr);\n        store.push_back(std::move(s));\n    }\n    LocalFree(wargv);\n    ptrs.reserve(store.size() + 1);\n    for (auto& s : store) ptrs.push_back(&s[0]);\n    ptrs.push_back(nullptr);\n    argc = wargc;\n    argv = ptrs.data();\n    return true;\n}\n#endif\n\nint main(int argc, char** argv) {\n#if defined(_WIN32)\n    std::vector<std::string> argv_store;\n    std::vector<char*> argv_ptrs;\n    utf8_argv(argc, argv, argv_store, argv_ptrs);\n    SetConsoleOutputCP(CP_UTF8);\n#endif\n    try {\n        // Populate the quant registry once, here, rather than relying on a\n        // Model being constructed. info and dequantize never build one, so\n        // they used to run against an empty registry.\n        quant::register_builtins();\n        if (argc < 2) { print_usage(); return 1; }\n        std::string cmd = argv[1];\n\n        if (cmd == \"generate\" || cmd == \"chat\") {\n            if (argc < 3) {\n                std::cerr << \"usage: llmx \" << cmd << \" <model.gguf> [--system \\\"<text>\\\"] [flags...]\\n\";\n                std::cerr << \"       llmx generate <model.gguf> \\\"<prompt>\\\" [flags...]\\n\";\n                return 2;\n            }\n            infer::GenParams gp;\n            std::string system = \"You are a helpful assistant.\";\n            std::string prompt;\n            bool have_prompt = false;\n            for (int i = 3; i < argc; i++) {\n                std::string a = argv[i];\n                if (a == \"-n\" || a == \"--max-tokens\") gp.max_tokens = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.max_tokens;\n                else if (a == \"--temp\") gp.temp = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.temp;\n                else if (a == \"--topk\") gp.top_k = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.top_k;\n                else if (a == \"--topp\") gp.top_p = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.top_p;\n                else if (a == \"--penalty\") gp.penalty = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.penalty;\n                else if (a == \"--seed\") gp.seed = (i + 1 < argc) ? std::strtoull(argv[++i], nullptr, 0) : gp.seed;\n                else if (a == \"--stop\") gp.stop = (i + 1 < argc) ? argv[++i] : gp.stop;\n                else if (a == \"--threads\") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;\n                else if (a == \"--ubatch\") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;\n                else if (a == \"--threads-batch\" || a == \"-tb\") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;\n                else if (a == \"--system\") system = (i + 1 < argc) ? argv[++i] : system;\n                else if (a == \"--verbose\") gp.show_prompt_tokens = true;\n                else if (a == \"--think\") gp.show_thinking = true;\n                else if (!a.empty() && a[0] == '-') { std::cerr << \"unknown flag: \" << a << \"\\n\"; return 2; }\n                else { prompt = a; have_prompt = true; }\n            }\n            if (gp.max_tokens <= 0) gp.max_tokens = 32;\n            if (cmd == \"generate\") {\n                if (!have_prompt) { std::cerr << \"generate requires a prompt\\n\"; return 2; }\n                return cmd_generate(argv[2], prompt, gp);\n            }\n            return cmd_chat(argv[2], system, gp);\n        }\n\n        if (cmd == \"perplexity\") {\n            if (argc < 4) { std::cerr << \"usage: llmx perplexity <model.gguf> (\\\"<text>\\\" | --file <path>) [flags...]\\n\"; return 2; }\n            infer::GenParams gp;\n            int context_size = 0, chunks = 0;\n            const bool from_file = std::string(argv[3]) == \"--file\" || std::string(argv[3]) == \"-f\";\n            if (from_file && argc < 5) { std::cerr << \"perplexity: --file requires a path\\n\"; return 2; }\n            for (int i = from_file ? 5 : 4; i < argc; i++) {\n                std::string a = argv[i];\n                if (a == \"--file\" || a == \"-f\") {\n                    std::cerr << \"perplexity: use either inline text or one --file <path> immediately after the model\\n\";\n                    return 2;\n                }\n                if (a == \"--ctx-size\" || a == \"-c\" || a == \"--chunks\") {\n                    if (i + 1 >= argc) { std::cerr << a << \" requires a positive integer\\n\"; return 2; }\n                    const std::string value = argv[++i];\n                    unsigned long long n = 0;\n                    for (char c : value) {\n                        if (c < '0' || c > '9' || n > (unsigned long long)std::numeric_limits<int>::max() / 10) {\n                            std::cerr << a << \" requires a positive integer\\n\"; return 2;\n                        }\n                        n = n * 10 + (unsigned)(c - '0');\n                    }\n                    if (n == 0 || n > (unsigned long long)std::numeric_limits<int>::max()) {\n                        std::cerr << a << \" requires a positive integer\\n\"; return 2;\n                    }\n                    if (a == \"--chunks\") chunks = (int)n;\n                    else context_size = (int)n;\n                }\n                else if (a == \"--threads\") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;\n                else if (a == \"--ubatch\") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;\n                else if (a == \"--threads-batch\" || a == \"-tb\") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;\n                else { std::cerr << \"unknown flag: \" << a << \"\\n\"; return 2; }\n            }\n            const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];\n            return cmd_perplexity(argv[2], text, gp, context_size, chunks);\n        }\n\n        if (cmd == \"logits\") {\n            if (argc < 4) { std::cerr << \"usage: llmx logits <model.gguf> \\\"<text>\\\" [--top N] [--threads N]\\n\"; return 2; }\n            infer::GenParams gp;\n            int topn = 10;\n            for (int i = 4; i < argc; i++) {\n                std::string a2 = argv[i];\n                if (a2 == \"--top\") topn = (i + 1 < argc) ? std::atoi(argv[++i]) : topn;\n                else if (a2 == \"--threads\") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;\n                else if (a2 == \"--ubatch\") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;\n                else { std::cerr << \"unknown flag: \" << a2 << \"\\n\"; return 2; }\n            }\n            if (topn <= 0) topn = 10;\n            return cmd_logits(argv[2], argv[3], topn, gp);\n        }\n\n        if (cmd == \"tokenize\") {\n            if (argc != 4) { std::cerr << \"usage: llmx tokenize <model.gguf> \\\"<text>\\\"\\n\"; return 2; }\n            return cmd_tokenize(argv[2], argv[3]);\n        }\n        if (cmd == \"detokenize\") {\n            if (argc != 4) { std::cerr << \"usage: llmx detokenize <model.gguf> <id1,id2,...>\\n\"; return 2; }\n            return cmd_detokenize(argv[2], argv[3]);\n        }\n\n        if (cmd == \"quantize\") {\n            if (argc < 5 || argc > 6) { std::cerr << \"usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\\n\"; return 2; }\n            std::string type = (argc == 6) ? argv[5] : \"q8_0\";\n            if (type != \"q8_0\" && type != \"q4_0\") { std::cerr << \"unknown quant type: \" << type << \" (expected q8_0 or q4_0)\\n\"; return 2; }\n            return cmd_quantize(argv[2], argv[3], argv[4], type);\n        }\n        if (cmd == \"dequantize\") {\n            if (argc != 5) { std::cerr << \"usage: llmx dequantize <in.gguf> <out.json> <out.bin>\\n\"; return 2; }\n            return cmd_dequantize(argv[2], argv[3], argv[4]);\n        }\n        if (cmd == \"info\") {\n            if (argc != 3) { std::cerr << \"usage: llmx info <in.gguf>\\n\"; return 2; }\n            return cmd_info(argv[2]);\n        }\n        if (cmd == \"bench\") {\n            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64;\n            for (int i = 2; i < argc; i++) {\n                std::string a = argv[i];\n                if (a == \"--size\") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;\n                else if (a == \"--iters\") iters = (i + 1 < argc) ? std::atoi(argv[++i]) : iters;\n                else if (a == \"--threads\") threads = (i + 1 < argc) ? std::atoi(argv[++i]) : threads;\n                else if (a == \"--p\") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;\n                else if (a == \"--n\") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;\n                else { std::cerr << \"unknown flag: \" << a << \"\\n\"; return 2; }\n            }\n            if (size <= 0 || size % 32 != 0) { std::cerr << \"bench: --size must be positive and a multiple of 32\\n\"; return 2; }\n            return cmd_bench(size, iters, threads, prefill, decode);\n        }\n        print_usage();\n        return 1;\n    } catch (const std::exception& e) {\n        std::cerr << \"error: \" << e.what() << \"\\n\";\n        return 1;\n    }\n}\n",
+    "bench.py": "from pathlib import Path\nimport subprocess,json,statistics,sys\nsys.path.insert(0,'tests')\nimport perf\nr=Path(__file__).parent\narms={'checkpoint':r.parent/'llmx-worker-errors/candidate.exe','candidate':r/'candidate.exe'}\nrows=[]\nfor threads in [1,6]:\n for round in range(-1,5):\n  order=list(arms) if round%2 else list(reversed(arms))\n  for name in order:\n   cmd=[str(arms[name]),'bench','--size','2048','--iters','10','--threads',str(threads),'--p','64','--n','64']\n   p=subprocess.run(cmd,capture_output=True);p.check_returncode()\n   (r/f'bench-{threads}-{round}-{name}.log').write_bytes(p.stdout+p.stderr)\n   row=dict(threads=threads,round=round,arm=name,command=cmd,**perf.parse(p.stdout.decode().splitlines()));rows.append(row)\n   (r/'bench-results.json').write_text(json.dumps(rows,indent=2))\nsummary={}\nfor threads in [1,6]:\n summary[threads]={}\n for name in arms:\n  summary[threads][name]={}\n  for key in ['matmul_gflops','prefill_tps','decode_tps']:\n   vals=[x[key] for x in rows if x['threads']==threads and x['arm']==name and x['round']>=0]\n   summary[threads][name][key]=dict(mean=statistics.mean(vals),minimum=min(vals),maximum=max(vals))\n(r/'bench-summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2))\n",
+    "build.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx/src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/candidate.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/candidate.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx/src/cli/main.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx/src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/candidate-compare.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/candidate-compare.obj\" \"C:\\Users\\Marko\\Desktop\\Projects\\llmx/tools/compare_cpu.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "chat-batch.cpp": "#include <cstdint>\n#include <cstdio>\n#include <cstring>\n#include <cmath>\n#include <string>\n#include <vector>\n#include <iostream>\n#include <fstream>\n#include <filesystem>\n#include <sstream>\n#include <stdexcept>\n#include <algorithm>\n#include <chrono>\n#include <random>\n#include <limits>\n\n#if defined(_WIN32)\n#define NOMINMAX\n#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include <shellapi.h>\n#pragma comment(lib, \"shell32.lib\")\n#endif\n\n#include \"config.hpp\"\n#include \"core/fp16.hpp\"\n#include \"core/json.hpp\"\n#include \"format/gguf.hpp\"\n#include \"format/format.hpp\"\n#include \"quant/quant.hpp\"\n#include \"backends/cpu/cpu_backend.hpp\"\n#include \"tokenizer/tokenizer.hpp\"\n#include \"inference/sampler.hpp\"\n#include \"inference/generate.hpp\"\n#include \"inference/perplexity.hpp\"\n#include \"inference/chat.hpp\"\n#include \"model/arch_qwen.hpp\"\n\n// llmx CLI. This file is intentionally a thin dispatcher: format logic lives in\n// format/, quantization in quant/, inference in inference/, and the model in\n// model/. The only code that belongs here is argument parsing and glue.\n\nnamespace {\n\n// ---------------------------------------------------------------------------\n// model.json / model.bin helper structures (quantize input)\n// ---------------------------------------------------------------------------\n\nstruct JsonTensor {\n    std::string name;\n    std::vector<uint64_t> shape; // shape[0] -> ne[0] (fastest dim)\n};\n\nstd::vector<JsonTensor> parse_model_json(const jmini::Value& root) {\n    std::vector<JsonTensor> out;\n    const jmini::Value* tensors = root.get(\"tensors\");\n    if (!tensors || !tensors->isArray())\n        throw std::runtime_error(\"model.json: missing \\\"tensors\\\" array\");\n    for (const auto& t : tensors->asArray()) {\n        JsonTensor jt;\n        const jmini::Value* name = t.get(\"name\");\n        if (!name || !name->isString())\n            throw std::runtime_error(\"model.json: tensor missing \\\"name\\\" string\");\n        jt.name = name->asString();\n        const jmini::Value* shape = t.get(\"shape\");\n        if (!shape || !shape->isArray())\n            throw std::runtime_error(\"model.json: tensor missing \\\"shape\\\" array: \" + jt.name);\n        for (const auto& d : shape->asArray()) {\n            if (!d.isNumber())\n                throw std::runtime_error(\"model.json: shape dim is not a number: \" + jt.name);\n            uint64_t v = (uint64_t)d.asNumber();\n            if (v == 0) throw std::runtime_error(\"model.json: zero dimension in: \" + jt.name);\n            jt.shape.push_back(v);\n        }\n        out.push_back(std::move(jt));\n    }\n    return out;\n}\n\nuint64_t num_elements(const JsonTensor& t) {\n    uint64_t n = 1;\n    for (auto d : t.shape) n *= d;\n    return n;\n}\n\n// ---------------------------------------------------------------------------\n// commands\n// ---------------------------------------------------------------------------\n\nint cmd_quantize(const std::string& json_path, const std::string& bin_path,\n                 const std::string& out_path, const std::string& type_arg) {\n    uint32_t type;\n    size_t block, typesize;\n    void (*quantize)(const float*, uint8_t*, size_t);\n    if (type_arg == \"q4_0\") {\n        type = gguf::GGML_TYPE_Q4_0; block = gguf::Q4_0_BLOCK;\n        typesize = gguf::Q4_0_TYPESIZE; quantize = quant::quantize_row_q4_0;\n    } else { // default q8_0\n        type = gguf::GGML_TYPE_Q8_0; block = gguf::Q8_0_BLOCK;\n        typesize = gguf::Q8_0_TYPESIZE; quantize = quant::quantize_row_q8_0;\n    }\n    std::ifstream jf(json_path);\n    if (!jf) throw std::runtime_error(\"cannot open \" + json_path);\n    std::stringstream jss;\n    jss << jf.rdbuf();\n    jmini::Value root = jmini::parse(jss.str());\n    std::vector<JsonTensor> tensors = parse_model_json(root);\n\n    std::ifstream bf(bin_path, std::ios::binary);\n    if (!bf) throw std::runtime_error(\"cannot open \" + bin_path);\n    bf.seekg(0, std::ios::end);\n    std::streampos sz = bf.tellg();\n    bf.seekg(0, std::ios::beg);\n    std::vector<uint8_t> bytes(sz);\n    if (sz > 0) bf.read((char*)bytes.data(), sz);\n\n    uint64_t need = 0;\n    for (auto& t : tensors) {\n        if (num_elements(t) % block != 0)\n            throw std::runtime_error(\"tensor has elements not divisible by \" +\n                std::to_string(block) + \" (\" + type_arg + \" block): \" + t.name);\n        need += num_elements(t) * 4;\n    }\n    if ((uint64_t)bytes.size() != need)\n        throw std::runtime_error(\"model.bin size does not match model.json tensor shapes\");\n\n    const float* fptr = (const float*)bytes.data();\n    gguf::GGUFModel m;\n\n    const jmini::Value* name = root.get(\"name\");\n    std::string model_name = (name && name->isString()) ? name->asString() : \"custom\";\n\n    gguf::MetaValue mv_name; mv_name.vtype = gguf::V_STRING; mv_name.s = model_name;\n    gguf::MetaValue mv_arch; mv_arch.vtype = gguf::V_STRING; mv_arch.s = \"custom\";\n    gguf::MetaValue mv_qver; mv_qver.vtype = gguf::V_UINT32; mv_qver.u = 2;   // quantization_version\n    gguf::MetaValue mv_ft;   mv_ft.vtype   = gguf::V_UINT32;\n    mv_ft.u = (type == gguf::GGML_TYPE_Q8_0) ? 7 : 2;   // 7 = MOSTLY_Q8_0, 2 = MOSTLY_Q4_0\n    m.kv.emplace_back(\"general.name\", mv_name);\n    m.kv.emplace_back(\"general.architecture\", mv_arch);\n    m.kv.emplace_back(\"general.quantization_version\", mv_qver);\n    m.kv.emplace_back(\"general.file_type\", mv_ft);\n\n    for (auto& t : tensors) {\n        gguf::TensorInfo ti;\n        ti.name = t.name;\n        ti.ne = t.shape;\n        ti.type = type;\n\n        size_t nblocks = (size_t)(num_elements(t) / block);\n        std::vector<uint8_t> q(nblocks * typesize);\n        quantize(fptr, q.data(), nblocks);\n        fptr += num_elements(t);\n\n        m.tensors.push_back(std::move(ti));\n        m.add_tensor_data(q);\n    }\n\n    gguf::write_gguf(m, out_path);\n    std::cout << \"wrote \" << out_path << \" (\" << m.tensors.size() << \" tensors, \"\n              << type_arg << \")\\n\";\n    return 0;\n}\n\nint cmd_dequantize(const std::string& in_path, const std::string& out_json,\n                   const std::string& out_bin) {\n    gguf::GGUFModel m = gguf::read_gguf(in_path);\n\n    std::stringstream js;\n    js << \"{\\n\";\n    js << \"  \\\"name\\\": \\\"\" << in_path << \"\\\",\\n\";\n    js << \"  \\\"tensors\\\": [\\n\";\n    for (size_t i = 0; i < m.tensors.size(); i++) {\n        const auto& t = m.tensors[i];\n        js << \"    {\\\"name\\\": \\\"\" << t.name << \"\\\", \\\"shape\\\": [\";\n        for (size_t d = 0; d < t.ne.size(); d++) {\n            if (d) js << \", \";\n            js << t.ne[d];\n        }\n        js << \"]}\";\n        if (i + 1 < m.tensors.size()) js << \",\";\n        js << \"\\n\";\n    }\n    js << \"  ]\\n}\\n\";\n\n    std::vector<uint8_t> out;\n    for (size_t i = 0; i < m.tensors.size(); i++) {\n        const auto& t = m.tensors[i];\n        const uint8_t* raw = m.tensor_data(i);\n        size_t n = (size_t)t.n_elements();\n        std::vector<float> f(n);\n        if (t.type == gguf::GGML_TYPE_F32) {\n            std::memcpy(f.data(), raw, n * 4);\n        } else {\n            const quant::QuantType* qt = quant::Registry::instance().get(t.type);\n            if (!qt || !qt->dequantize)\n                throw std::runtime_error(\"unsupported tensor type in dequantize: \" + t.name);\n            qt->dequantize(raw, f.data(), n / qt->block_size);\n        }\n        out.resize(out.size() + n * 4);\n        std::memcpy(out.data() + (out.size() - n * 4), f.data(), n * 4);\n    }\n\n    std::ofstream oj(out_json);\n    if (!oj) throw std::runtime_error(\"cannot open \" + out_json);\n    oj << js.str();\n\n    std::ofstream ob(out_bin, std::ios::binary);\n    if (!ob) throw std::runtime_error(\"cannot open \" + out_bin);\n    ob.write((const char*)out.data(), (std::streamsize)out.size());\n\n    std::cout << \"wrote \" << out_json << \" and \" << out_bin << \"\\n\";\n    return 0;\n}\n\n// Type names come from the quant registry, so a new quant type shows up in\n// `info` without touching the CLI.\nconst char* type_name(uint32_t t) {\n    if (t == gguf::GGML_TYPE_F32) return \"F32\";\n    const quant::QuantType* qt = quant::Registry::instance().get(t);\n    return qt ? qt->name : \"?\";\n}\n\nvoid dump_value(const gguf::MetaValue& v) {\n    switch (v.vtype) {\n        case gguf::V_UINT8:  std::cout << v.u; break;\n        case gguf::V_INT8:   std::cout << v.i; break;\n        case gguf::V_UINT16: std::cout << v.u; break;\n        case gguf::V_INT16:  std::cout << v.i; break;\n        case gguf::V_UINT32: std::cout << v.u; break;\n        case gguf::V_INT32:  std::cout << v.i; break;\n        case gguf::V_FLOAT32:{ float x; std::memcpy(&x, &v.fb, 4); std::cout << x; break; }\n        case gguf::V_BOOL:   std::cout << (v.b ? \"true\" : \"false\"); break;\n        case gguf::V_STRING: std::cout << '\"' << v.s << '\"'; break;\n        case gguf::V_ARRAY: {\n            std::cout << \"[\";\n            for (size_t i = 0; i < v.arr.size(); i++) {\n                if (i) std::cout << \", \";\n                dump_value(v.arr[i]);\n            }\n            std::cout << \"]\";\n            break;\n        }\n        case gguf::V_UINT64:  std::cout << v.u; break;\n        case gguf::V_INT64:   std::cout << v.i; break;\n        case gguf::V_FLOAT64: std::cout << v.f64; break;\n    }\n}\n\nint cmd_info(const std::string& in_path) {\n    gguf::GGUFModel m = gguf::read_gguf(in_path);\n    std::cout << \"File: \" << in_path << \"\\n\";\n    std::cout << \"Tensors: \" << m.tensors.size() << \"\\n\";\n    std::cout << \"Metadata: \" << m.kv.size() << \" entries\\n\";\n    for (const auto& kv : m.kv) {\n        std::cout << \"  \" << kv.first << \" = \";\n        dump_value(kv.second);\n        std::cout << \"\\n\";\n    }\n    std::cout << \"Tensor list:\\n\";\n    for (const auto& t : m.tensors) {\n        std::cout << \"  \" << type_name(t.type) << \" \" << t.name << \" shape=[\";\n        for (size_t d = 0; d < t.ne.size(); d++) {\n            if (d) std::cout << \", \";\n            std::cout << t.ne[d];\n        }\n        std::cout << \"] elements=\" << t.n_elements()\n                  << \" bytes=\" << t.data_size() << \"\\n\";\n    }\n    return 0;\n}\n\nstd::vector<uint32_t> parse_token_ids(const std::string& s) {\n    std::vector<uint32_t> ids;\n    std::string cur;\n    for (char c : s) {\n        if (c == ',' || c == ' ') {\n            if (!cur.empty()) { ids.push_back((uint32_t)std::stoull(cur)); cur.clear(); }\n        } else cur += c;\n    }\n    if (!cur.empty()) ids.push_back((uint32_t)std::stoull(cur));\n    return ids;\n}\n\nint cmd_tokenize(const std::string& model_path, const std::string& text) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer t(m);\n    std::vector<uint32_t> ids = t.encode(text);\n    for (size_t i = 0; i < ids.size(); i++) {\n        if (i) std::cout << \", \";\n        std::cout << ids[i];\n    }\n    std::cout << \"\\n\";\n    return 0;\n}\n\nint cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer t(m);\n    std::vector<uint32_t> ids = parse_token_ids(ids_arg);\n    std::cout << t.decode(ids) << \"\\n\";\n    return 0;\n}\n\nint cmd_generate(const std::string& model_path, const std::string& prompt,\n                 const infer::GenParams& gp) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    const int decode_threads = model.threads_available();\n    model.set_ubatch(gp.ubatch);\n    infer::RNG rng;\n    if (gp.seed) rng.seed(gp.seed);\n\n    std::vector<uint32_t> ids = tok.encode(prompt);\n    if (ids.empty()) throw std::runtime_error(\"generate: empty prompt\");\n\n    // Prefill is compute bound and wants every thread; decode is memory\n    // bandwidth bound and usually peaks well below the logical core count,\n    // so the two phases get their own thread counts (llama.cpp's -t / -tb).\n    const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;\n    model.set_threads(tb);\n    if (gp.show_prompt_tokens) std::cerr << \"threads: prefill \" << model.threads_available() << \"\\n\";\n    auto t0 = std::chrono::steady_clock::now();\n    std::vector<float> logits = infer::prefill(model, ids);\n    model.set_threads(decode_threads);\n    double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();\n    if (gp.show_prompt_tokens) std::cout << \"prompt tokens: \" << ids.size() << \"\\n\";\n    // Two decimals: at a few tok/s an integer print rounds a 20% change away.\n    printf(\"pp: %zu tok, %.0f ms, %.2f tok/s\\n\", ids.size(), pp_ms,\n           (double)ids.size() / (pp_ms / 1e3));\n\n    if (gp.show_prompt_tokens) std::cerr << \"threads: decode \" << model.threads_available() << \"\\n\";\n    t0 = std::chrono::steady_clock::now();\n    std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits);\n    double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();\n    printf(\"tg: %zu tok, %.0f ms, %.2f tok/s\\n\", gen.size(), tg_ms,\n           (double)gen.size() / (tg_ms / 1e3));\n    return 0;\n}\n\n// Print the top-N next-token logits for a prompt. This exists for the\n// correctness gate: it is the only way to compare llmx against a\n// full-precision reference at the level where errors actually appear, rather\n// than through sampled text. See docs/ROADMAP.md #8.\nint cmd_logits(const std::string& model_path, const std::string& text,\n               int topn, const infer::GenParams& gp) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    model.set_ubatch(gp.ubatch);\n\n    std::vector<uint32_t> ids = tok.encode(text);\n    if (ids.empty()) throw std::runtime_error(\"logits: empty prompt\");\n    std::vector<float> logits = infer::prefill(model, ids);\n\n    std::vector<std::pair<float, uint32_t>> ranked;\n    ranked.reserve(logits.size());\n    for (size_t i = 0; i < logits.size(); i++)\n        ranked.push_back({ logits[i], (uint32_t)i });\n    if (topn > (int)ranked.size()) topn = (int)ranked.size();\n    std::partial_sort(ranked.begin(), ranked.begin() + topn, ranked.end(),\n                      [](const auto& a, const auto& b) { return a.first > b.first; });\n\n    printf(\"tokens: %zu\\n\", ids.size());\n    for (int i = 0; i < topn; i++)\n        printf(\"%u %.6f\\n\", ranked[(size_t)i].second, ranked[(size_t)i].first);\n    return 0;\n}\n\nstd::string read_perplexity_file(const std::string& path) {\n    std::ifstream input(std::filesystem::u8path(path), std::ios::binary);\n    if (!input) throw std::runtime_error(\"perplexity: cannot open file: \" + path);\n    std::string text;\n    char buffer[8192];\n    while (input.read(buffer, sizeof(buffer)) || input.gcount())\n        text.append(buffer, (size_t)input.gcount());\n    if (!input.eof()) throw std::runtime_error(\"perplexity: cannot read file: \" + path);\n    return text;\n}\n\nint cmd_perplexity(const std::string& model_path, const std::string& text,\n                   const infer::GenParams& gp, int context_size, int chunks) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    model.set_ubatch(gp.ubatch);\n\n    std::vector<uint32_t> ids = tok.encode(text);\n    const auto result = infer::perplexity(model, ids, context_size, chunks);\n    double mean_nll = result.mean_nll();\n    double ppl = std::exp(mean_nll);\n    std::cout << \"tokens: \" << ids.size() << \"\\n\";\n    std::cout << \"used tokens: \" << result.used_tokens << \"\\n\";\n    std::cout << \"scored tokens: \" << result.scored_tokens << \"\\n\";\n    std::cout << \"chunks: \" << result.chunks << \"\\n\";\n    std::cout << \"context size: \" << (context_size ? context_size : model.context_length()) << \"\\n\";\n    std::cout << \"mean NLL: \" << mean_nll << \"\\n\";\n    std::cout << \"perplexity: \" << ppl << \"\\n\";\n    return 0;\n}\n\nint cmd_chat(const std::string& model_path, const std::string& system,\n             const infer::GenParams& gp) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    const int decode_threads = model.threads_available();\n    model.set_ubatch(gp.ubatch);\n    infer::RNG rng;\n    if (gp.seed) rng.seed(gp.seed);\n\n    std::string tpl = chat::get_chat_template(m);\n    if (tpl.empty()) {\n        tpl = \"{% for message in messages %}<|im_start|>{{ message['role'] }}\\n\"\n              \"{{ message['content'] }}<|im_end|>\\n{% endfor %}\"\n              \"{% if add_generation_prompt %}<|im_start|>assistant\\n{% endif %}\";\n    }\n    std::string bos = (tok.bos_id >= 0 && (size_t)tok.bos_id < tok.vocab.size())\n                          ? tok.vocab[tok.bos_id] : \"\";\n    std::string eos = (tok.eos_id >= 0 && (size_t)tok.eos_id < tok.vocab.size())\n                          ? tok.vocab[tok.eos_id] : \"\";\n\n    std::vector<chat::Message> messages;\n    messages.push_back({ \"system\", system });\n    std::vector<uint32_t> cached_ids;\n\n    std::cout << \"Chat ready (type your message; Ctrl+C to quit)\\n\";\n    std::string line;\n    while (std::getline(std::cin, line)) {\n        messages.push_back({ \"user\", line });\n\n        std::string gen = chat::render(tpl, messages, true, bos, eos);\n        std::vector<uint32_t> gen_ids = tok.encode(gen);\n        if (gen_ids.empty()) throw std::runtime_error(\"chat: template produced an empty prompt\");\n        // Templates can rewrite previous turns or change token boundaries.\n        // Reuse only an exact prefix; an unchanged prompt also needs fresh\n        // logits because generate() does not retain its final distribution.\n        if (cached_ids.size() >= gen_ids.size() ||\n            !std::equal(cached_ids.begin(), cached_ids.end(), gen_ids.begin())) {\n            model.reset();\n            cached_ids.clear();\n        }\n\n        if (gp.show_prompt_tokens) std::cerr << \"threads: prefill \" << model.threads_available() << \"\\n\";\n        std::vector<float> logits = infer::prefill(model,\n            std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()));\n        cached_ids = std::move(gen_ids);\n\n        model.set_threads(decode_threads);\n        if (gp.show_prompt_tokens) std::cerr << \"threads: decode \" << model.threads_available() << \"\\n\";\n        std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits);\n        // A stop match may return its final token without feeding it. EOS is\n        // excluded; the next rendered turn supplies its own closing tokens.\n        const size_t fed = (size_t)model.n_tokens() - cached_ids.size();\n        cached_ids.insert(cached_ids.end(), reply.begin(), reply.begin() + fed);\n\n        messages.push_back({ \"assistant\", tok.decode(reply) });\n    }\n    return 0;\n}\n\n// Build a small random Qwen3 model in memory for end-to-end prefill/decode TPS\n// measurement. Matrices are Q8_0, norms F32 (matching what infer::Model expects).\ngguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,\n                                      int n_head, int n_head_kv, int head_dim,\n                                      int n_vocab, uint32_t seed) {\n    gguf::GGUFModel m;\n    auto u32 = [&](const std::string& k, uint64_t v) {\n        gguf::MetaValue mv; mv.vtype = gguf::V_UINT32; mv.u = v;\n        m.kv.emplace_back(k, mv);\n    };\n    u32(\"qwen3.block_count\", (uint64_t)n_layer);\n    u32(\"qwen3.embedding_length\", (uint64_t)n_embd);\n    u32(\"qwen3.feed_forward_length\", (uint64_t)n_ff);\n    u32(\"qwen3.attention.head_count\", (uint64_t)n_head);\n    u32(\"qwen3.attention.head_count_kv\", (uint64_t)n_head_kv);\n    u32(\"qwen3.attention.key_length\", (uint64_t)head_dim);\n    u32(\"qwen3.context_length\", 2048);\n\n    std::mt19937 rng(seed);\n    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);\n\n    // ne = [nin, nout]; f32 tensors are stored raw, others quantized to Q8_0.\n    auto add_tensor = [&](const std::string& name, size_t nin, size_t nout, bool f32) {\n        gguf::TensorInfo t;\n        t.name = name;\n        t.ne = { (uint64_t)nin, (uint64_t)nout };\n        t.type = f32 ? gguf::GGML_TYPE_F32 : gguf::GGML_TYPE_Q8_0;\n        t.offset = 0;\n        if (f32) {\n            std::vector<uint8_t> buf(nin * nout * 4);\n            float* p = (float*)buf.data();\n            for (size_t o = 0; o < nout; o++)\n                for (size_t i = 0; i < nin; i++) *p++ = dist(rng);\n            m.tensors.push_back(std::move(t));\n            m.add_tensor_data(buf);\n        } else {\n            size_t nblocks = nin / gguf::Q8_0_BLOCK;\n            std::vector<uint8_t> buf(nout * nblocks * gguf::Q8_0_TYPESIZE);\n            std::vector<float> row(nin);\n            for (size_t o = 0; o < nout; o++) {\n                for (size_t i = 0; i < nin; i++) row[i] = dist(rng);\n                quant::quantize_row_q8_0(row.data(), buf.data() + o * nblocks * gguf::Q8_0_TYPESIZE, nblocks);\n            }\n            m.tensors.push_back(std::move(t));\n            m.add_tensor_data(buf);\n        }\n    };\n\n    size_t kv_dim = (size_t)n_head_kv * head_dim;\n    add_tensor(\"token_embd.weight\", n_embd, n_vocab, false);\n    add_tensor(\"output.weight\", n_embd, n_vocab, false);\n    add_tensor(\"output_norm.weight\", n_embd, 1, true);\n    for (int l = 0; l < n_layer; l++) {\n        std::string pre = \"blk.\" + std::to_string(l) + \".\";\n        add_tensor(pre + \"attn_norm.weight\", n_embd, 1, true);\n        add_tensor(pre + \"attn_q.weight\", n_embd, n_embd, false);\n        add_tensor(pre + \"attn_k.weight\", n_embd, kv_dim, false);\n        add_tensor(pre + \"attn_v.weight\", n_embd, kv_dim, false);\n        add_tensor(pre + \"attn_output.weight\", n_embd, n_embd, false);\n        add_tensor(pre + \"attn_q_norm.weight\", head_dim, 1, true);\n        add_tensor(pre + \"attn_k_norm.weight\", head_dim, 1, true);\n        add_tensor(pre + \"ffn_norm.weight\", n_embd, 1, true);\n        add_tensor(pre + \"ffn_gate.weight\", n_embd, n_ff, false);\n        add_tensor(pre + \"ffn_up.weight\", n_embd, n_ff, false);\n        add_tensor(pre + \"ffn_down.weight\", n_ff, n_embd, false);\n    }\n    return m;\n}\n\n// Micro-benchmark of the backend hot paths (matmul, RMSNorm, RoPE) plus\n// end-to-end prefill/decode TPS on a synthetic Qwen3 model. Used by\n// tests/perf.py as the perf-regression gate for hot-path changes.\nint cmd_bench(int size, int iters, int threads, int prefill, int decode) {\n    auto b = backend::make_cpu_backend();\n    if (threads > 0) b->set_threads(threads);\n    std::cout << \"bench: threads \" << b->threads_available() << \"\\n\";\n\n    // Square matmul: mat is [nin, nout] = [size, size]. x is the input\n    // (length nin), out the result (length nout). nout rows, each nin/32 blocks.\n    const size_t nblocks = (size_t)size / gguf::Q8_0_BLOCK;\n    std::vector<float> x(size, 0.5f);\n    std::vector<uint8_t> mat((size_t)size * nblocks * gguf::Q8_0_TYPESIZE);\n    std::vector<float> src(size), w(size), dst(size);\n    for (int i = 0; i < size; i++) { src[i] = std::sin((float)i * 0.01f); w[i] = 0.1f; }\n    std::vector<float> cos(size / 2), sin(size / 2);\n    for (int i = 0; i < size / 2; i++) { cos[i] = std::cos(0.1f); sin[i] = std::sin(0.1f); }\n\n    using clock = std::chrono::steady_clock;\n    auto t0 = clock::now();\n    for (int it = 0; it < iters; it++)\n        b->matvec_q8_0(mat.data(), x.data(), dst.data(), nblocks, (size_t)size);\n    double mm_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;\n\n    t0 = clock::now();\n    for (int it = 0; it < iters; it++)\n        b->rms_norm(dst.data(), src.data(), w.data(), (size_t)size, 1e-6f);\n    double rn_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;\n\n    t0 = clock::now();\n    for (int it = 0; it < iters; it++)\n        b->rope(dst.data(), cos.data(), sin.data(), size / 2);\n    double rp_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;\n\n    double mm_gflops = 2.0 * (double)size * (double)size / (mm_ms * 1e6);\n    printf(\"bench: matmul %dx%d  %8.3f ms  %8.2f GFLOPS\\n\", size, size, mm_ms, mm_gflops);\n    printf(\"bench: rms_norm n=%d  %8.3f ms\\n\", size, rn_ms);\n    printf(\"bench: rope     n=%d  %8.3f ms\\n\", size, rp_ms);\n\n    // End-to-end TPS on a small synthetic Qwen3 model (2 layers, 256 embd).\n    {\n        const int nl = 2, ne = 256, nf = 1024, nh = 8, nk = 2, hd = 32, nv = 512;\n        gguf::GGUFModel sm = build_synthetic_model(nl, ne, nf, nh, nk, hd, nv, 12345u);\n        infer::Model model(sm, b);\n\n        const int P = prefill, G = decode;\n        model.reset();\n        t0 = clock::now();\n        for (int i = 0; i < P; i++) model.step(i % nv);\n        double pre_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();\n        double pre_tps = (double)P / (pre_ms / 1e3);\n\n        t0 = clock::now();\n        for (int i = 0; i < G; i++) model.step((P + i) % nv);\n        double dec_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();\n        double dec_tps = (double)G / (dec_ms / 1e3);\n\n        printf(\"bench: prefill %3d tok  %8.3f ms  %8.1f tok/s\\n\", P, pre_ms, pre_tps);\n        printf(\"bench: decode  %3d tok  %8.3f ms  %8.1f tok/s\\n\", G, dec_ms, dec_tps);\n    }\n    return 0;\n}\n\nvoid print_usage() {\n    std::cout\n        << \"llmx \" << LLMX_VERSION_STRING << \" - ground-up GGUF Q8_0 CLI (no external libs)\\n\"\n        << \"\\n\"\n        << \"Usage:\\n\"\n        << \"  llmx quantize   <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\\n\"\n        << \"  llmx dequantize <in.gguf> <out.json> <out.bin>\\n\"\n        << \"  llmx info       <in.gguf>\\n\"\n        << \"  llmx logits     <in.gguf> \\\"<text>\\\" [--top N]\\n\"\n        << \"  llmx tokenize   <in.gguf> \\\"<text>\\\"\\n\"\n        << \"  llmx detokenize <in.gguf> <id1,id2,...>\\n\"\n        << \"  llmx perplexity <in.gguf> \\\"<text>\\\" [flags...]\\n\"\n        << \"  llmx perplexity <in.gguf> -f/--file <path> [flags...]\\n\"\n        << \"    perplexity flags: -c/--ctx-size N  window tokens (default: model context)\\n\"\n        << \"                      --chunks N  maximum windows (default: all)\\n\"\n        << \"  llmx generate   <in.gguf> \\\"<prompt>\\\" [flags...]\\n\"\n        << \"  llmx chat       <in.gguf> [--system \\\"<text>\\\"] [flags...]\\n\"\n        << \"  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N]\\n\"\n        << \"    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\\n\"\n        << \"           --ubatch N  prefill physical batch (default 512)\\n\"\n        << \"           -tb/--threads-batch N  threads for prefill (default: --threads)\\n\"\n        << \"           --seed N  --stop \\\"<text>\\\"  --think (show reasoning)  --verbose\\n\"\n        << \"           --verbose reports prompt tokens and actual prefill/decode thread counts\\n\";\n}\n\n} // namespace\n\n#if defined(_WIN32)\n// On Windows argv arrives in the system ANSI codepage, which cannot represent\n// most non-ASCII text -- a Japanese or Cyrillic prompt is mangled before it\n// reaches us. Re-read the command line as UTF-16 and convert to UTF-8 so text\n// arguments survive. Storage is owned by the caller and must outlive argv.\nstatic bool utf8_argv(int& argc, char**& argv,\n                      std::vector<std::string>& store, std::vector<char*>& ptrs) {\n    int wargc = 0;\n    LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);\n    if (!wargv) return false;\n    store.reserve((size_t)wargc);\n    for (int i = 0; i < wargc; i++) {\n        int n = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, nullptr, 0, nullptr, nullptr);\n        std::string s(n > 0 ? (size_t)(n - 1) : 0, '\\0');\n        if (n > 1) WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, &s[0], n, nullptr, nullptr);\n        store.push_back(std::move(s));\n    }\n    LocalFree(wargv);\n    ptrs.reserve(store.size() + 1);\n    for (auto& s : store) ptrs.push_back(&s[0]);\n    ptrs.push_back(nullptr);\n    argc = wargc;\n    argv = ptrs.data();\n    return true;\n}\n#endif\n\nint main(int argc, char** argv) {\n#if defined(_WIN32)\n    std::vector<std::string> argv_store;\n    std::vector<char*> argv_ptrs;\n    utf8_argv(argc, argv, argv_store, argv_ptrs);\n    SetConsoleOutputCP(CP_UTF8);\n#endif\n    try {\n        // Populate the quant registry once, here, rather than relying on a\n        // Model being constructed. info and dequantize never build one, so\n        // they used to run against an empty registry.\n        quant::register_builtins();\n        if (argc < 2) { print_usage(); return 1; }\n        std::string cmd = argv[1];\n\n        if (cmd == \"generate\" || cmd == \"chat\") {\n            if (argc < 3) {\n                std::cerr << \"usage: llmx \" << cmd << \" <model.gguf> [--system \\\"<text>\\\"] [flags...]\\n\";\n                std::cerr << \"       llmx generate <model.gguf> \\\"<prompt>\\\" [flags...]\\n\";\n                return 2;\n            }\n            infer::GenParams gp;\n            std::string system = \"You are a helpful assistant.\";\n            std::string prompt;\n            bool have_prompt = false;\n            for (int i = 3; i < argc; i++) {\n                std::string a = argv[i];\n                if (a == \"-n\" || a == \"--max-tokens\") gp.max_tokens = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.max_tokens;\n                else if (a == \"--temp\") gp.temp = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.temp;\n                else if (a == \"--topk\") gp.top_k = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.top_k;\n                else if (a == \"--topp\") gp.top_p = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.top_p;\n                else if (a == \"--penalty\") gp.penalty = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.penalty;\n                else if (a == \"--seed\") gp.seed = (i + 1 < argc) ? std::strtoull(argv[++i], nullptr, 0) : gp.seed;\n                else if (a == \"--stop\") gp.stop = (i + 1 < argc) ? argv[++i] : gp.stop;\n                else if (a == \"--threads\") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;\n                else if (a == \"--ubatch\") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;\n                else if (a == \"--threads-batch\" || a == \"-tb\") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;\n                else if (a == \"--system\") system = (i + 1 < argc) ? argv[++i] : system;\n                else if (a == \"--verbose\") gp.show_prompt_tokens = true;\n                else if (a == \"--think\") gp.show_thinking = true;\n                else if (!a.empty() && a[0] == '-') { std::cerr << \"unknown flag: \" << a << \"\\n\"; return 2; }\n                else { prompt = a; have_prompt = true; }\n            }\n            if (gp.max_tokens <= 0) gp.max_tokens = 32;\n            if (cmd == \"generate\") {\n                if (!have_prompt) { std::cerr << \"generate requires a prompt\\n\"; return 2; }\n                return cmd_generate(argv[2], prompt, gp);\n            }\n            return cmd_chat(argv[2], system, gp);\n        }\n\n        if (cmd == \"perplexity\") {\n            if (argc < 4) { std::cerr << \"usage: llmx perplexity <model.gguf> (\\\"<text>\\\" | --file <path>) [flags...]\\n\"; return 2; }\n            infer::GenParams gp;\n            int context_size = 0, chunks = 0;\n            const bool from_file = std::string(argv[3]) == \"--file\" || std::string(argv[3]) == \"-f\";\n            if (from_file && argc < 5) { std::cerr << \"perplexity: --file requires a path\\n\"; return 2; }\n            for (int i = from_file ? 5 : 4; i < argc; i++) {\n                std::string a = argv[i];\n                if (a == \"--file\" || a == \"-f\") {\n                    std::cerr << \"perplexity: use either inline text or one --file <path> immediately after the model\\n\";\n                    return 2;\n                }\n                if (a == \"--ctx-size\" || a == \"-c\" || a == \"--chunks\") {\n                    if (i + 1 >= argc) { std::cerr << a << \" requires a positive integer\\n\"; return 2; }\n                    const std::string value = argv[++i];\n                    unsigned long long n = 0;\n                    for (char c : value) {\n                        if (c < '0' || c > '9' || n > (unsigned long long)std::numeric_limits<int>::max() / 10) {\n                            std::cerr << a << \" requires a positive integer\\n\"; return 2;\n                        }\n                        n = n * 10 + (unsigned)(c - '0');\n                    }\n                    if (n == 0 || n > (unsigned long long)std::numeric_limits<int>::max()) {\n                        std::cerr << a << \" requires a positive integer\\n\"; return 2;\n                    }\n                    if (a == \"--chunks\") chunks = (int)n;\n                    else context_size = (int)n;\n                }\n                else if (a == \"--threads\") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;\n                else if (a == \"--ubatch\") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;\n                else if (a == \"--threads-batch\" || a == \"-tb\") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;\n                else { std::cerr << \"unknown flag: \" << a << \"\\n\"; return 2; }\n            }\n            const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];\n            return cmd_perplexity(argv[2], text, gp, context_size, chunks);\n        }\n\n        if (cmd == \"logits\") {\n            if (argc < 4) { std::cerr << \"usage: llmx logits <model.gguf> \\\"<text>\\\" [--top N] [--threads N]\\n\"; return 2; }\n            infer::GenParams gp;\n            int topn = 10;\n            for (int i = 4; i < argc; i++) {\n                std::string a2 = argv[i];\n                if (a2 == \"--top\") topn = (i + 1 < argc) ? std::atoi(argv[++i]) : topn;\n                else if (a2 == \"--threads\") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;\n                else if (a2 == \"--ubatch\") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;\n                else { std::cerr << \"unknown flag: \" << a2 << \"\\n\"; return 2; }\n            }\n            if (topn <= 0) topn = 10;\n            return cmd_logits(argv[2], argv[3], topn, gp);\n        }\n\n        if (cmd == \"tokenize\") {\n            if (argc != 4) { std::cerr << \"usage: llmx tokenize <model.gguf> \\\"<text>\\\"\\n\"; return 2; }\n            return cmd_tokenize(argv[2], argv[3]);\n        }\n        if (cmd == \"detokenize\") {\n            if (argc != 4) { std::cerr << \"usage: llmx detokenize <model.gguf> <id1,id2,...>\\n\"; return 2; }\n            return cmd_detokenize(argv[2], argv[3]);\n        }\n\n        if (cmd == \"quantize\") {\n            if (argc < 5 || argc > 6) { std::cerr << \"usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\\n\"; return 2; }\n            std::string type = (argc == 6) ? argv[5] : \"q8_0\";\n            if (type != \"q8_0\" && type != \"q4_0\") { std::cerr << \"unknown quant type: \" << type << \" (expected q8_0 or q4_0)\\n\"; return 2; }\n            return cmd_quantize(argv[2], argv[3], argv[4], type);\n        }\n        if (cmd == \"dequantize\") {\n            if (argc != 5) { std::cerr << \"usage: llmx dequantize <in.gguf> <out.json> <out.bin>\\n\"; return 2; }\n            return cmd_dequantize(argv[2], argv[3], argv[4]);\n        }\n        if (cmd == \"info\") {\n            if (argc != 3) { std::cerr << \"usage: llmx info <in.gguf>\\n\"; return 2; }\n            return cmd_info(argv[2]);\n        }\n        if (cmd == \"bench\") {\n            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64;\n            for (int i = 2; i < argc; i++) {\n                std::string a = argv[i];\n                if (a == \"--size\") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;\n                else if (a == \"--iters\") iters = (i + 1 < argc) ? std::atoi(argv[++i]) : iters;\n                else if (a == \"--threads\") threads = (i + 1 < argc) ? std::atoi(argv[++i]) : threads;\n                else if (a == \"--p\") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;\n                else if (a == \"--n\") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;\n                else { std::cerr << \"unknown flag: \" << a << \"\\n\"; return 2; }\n            }\n            if (size <= 0 || size % 32 != 0) { std::cerr << \"bench: --size must be positive and a multiple of 32\\n\"; return 2; }\n            return cmd_bench(size, iters, threads, prefill, decode);\n        }\n        print_usage();\n        return 1;\n    } catch (const std::exception& e) {\n        std::cerr << \"error: \" << e.what() << \"\\n\";\n        return 1;\n    }\n}\n",
+    "fixed-perf.py": "\ufefffrom pathlib import Path\nimport os,sys,subprocess,shutil,json\nr=Path(os.environ['TEMP'])/'llmx-cli-threads';shutil.copy2('tests/perf.py',r/'source/tests/perf.py')\ncommands=[('windows-perf-fixed',[sys.executable,'-X','utf8','-c',\"import sys;sys.path.insert(0,'tests');import common,perf;common.EXE=sys.argv[1];perf.run()\",str(r/'candidate.exe')]),('linux-perf-fixed',['wsl','-d','Ubuntu','--','python3','-c',\"import sys;sys.path.insert(0,'/mnt/c/Users/Marko/AppData/Local/Temp/llmx-cli-threads/source/tests');import common,perf;common.EXE='/root/.cache/llmx-cli-threads-release/llmx';perf.run()\"])]\nrows=[]\nfor name,cmd in commands:\n p=subprocess.run(cmd,capture_output=True);(r/(name+'.log')).write_bytes(p.stdout+p.stderr);print(name,p.returncode,p.stdout.decode(errors='replace'));p.check_returncode();rows.append(dict(name=name,command=cmd,exit=p.returncode))\n(r/'fixed-perf.json').write_text(json.dumps(rows,indent=2))\n",
+    "generate-restore.cpp": "#include <cstdint>\n#include <cstdio>\n#include <cstring>\n#include <cmath>\n#include <string>\n#include <vector>\n#include <iostream>\n#include <fstream>\n#include <filesystem>\n#include <sstream>\n#include <stdexcept>\n#include <algorithm>\n#include <chrono>\n#include <random>\n#include <limits>\n\n#if defined(_WIN32)\n#define NOMINMAX\n#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include <shellapi.h>\n#pragma comment(lib, \"shell32.lib\")\n#endif\n\n#include \"config.hpp\"\n#include \"core/fp16.hpp\"\n#include \"core/json.hpp\"\n#include \"format/gguf.hpp\"\n#include \"format/format.hpp\"\n#include \"quant/quant.hpp\"\n#include \"backends/cpu/cpu_backend.hpp\"\n#include \"tokenizer/tokenizer.hpp\"\n#include \"inference/sampler.hpp\"\n#include \"inference/generate.hpp\"\n#include \"inference/perplexity.hpp\"\n#include \"inference/chat.hpp\"\n#include \"model/arch_qwen.hpp\"\n\n// llmx CLI. This file is intentionally a thin dispatcher: format logic lives in\n// format/, quantization in quant/, inference in inference/, and the model in\n// model/. The only code that belongs here is argument parsing and glue.\n\nnamespace {\n\n// ---------------------------------------------------------------------------\n// model.json / model.bin helper structures (quantize input)\n// ---------------------------------------------------------------------------\n\nstruct JsonTensor {\n    std::string name;\n    std::vector<uint64_t> shape; // shape[0] -> ne[0] (fastest dim)\n};\n\nstd::vector<JsonTensor> parse_model_json(const jmini::Value& root) {\n    std::vector<JsonTensor> out;\n    const jmini::Value* tensors = root.get(\"tensors\");\n    if (!tensors || !tensors->isArray())\n        throw std::runtime_error(\"model.json: missing \\\"tensors\\\" array\");\n    for (const auto& t : tensors->asArray()) {\n        JsonTensor jt;\n        const jmini::Value* name = t.get(\"name\");\n        if (!name || !name->isString())\n            throw std::runtime_error(\"model.json: tensor missing \\\"name\\\" string\");\n        jt.name = name->asString();\n        const jmini::Value* shape = t.get(\"shape\");\n        if (!shape || !shape->isArray())\n            throw std::runtime_error(\"model.json: tensor missing \\\"shape\\\" array: \" + jt.name);\n        for (const auto& d : shape->asArray()) {\n            if (!d.isNumber())\n                throw std::runtime_error(\"model.json: shape dim is not a number: \" + jt.name);\n            uint64_t v = (uint64_t)d.asNumber();\n            if (v == 0) throw std::runtime_error(\"model.json: zero dimension in: \" + jt.name);\n            jt.shape.push_back(v);\n        }\n        out.push_back(std::move(jt));\n    }\n    return out;\n}\n\nuint64_t num_elements(const JsonTensor& t) {\n    uint64_t n = 1;\n    for (auto d : t.shape) n *= d;\n    return n;\n}\n\n// ---------------------------------------------------------------------------\n// commands\n// ---------------------------------------------------------------------------\n\nint cmd_quantize(const std::string& json_path, const std::string& bin_path,\n                 const std::string& out_path, const std::string& type_arg) {\n    uint32_t type;\n    size_t block, typesize;\n    void (*quantize)(const float*, uint8_t*, size_t);\n    if (type_arg == \"q4_0\") {\n        type = gguf::GGML_TYPE_Q4_0; block = gguf::Q4_0_BLOCK;\n        typesize = gguf::Q4_0_TYPESIZE; quantize = quant::quantize_row_q4_0;\n    } else { // default q8_0\n        type = gguf::GGML_TYPE_Q8_0; block = gguf::Q8_0_BLOCK;\n        typesize = gguf::Q8_0_TYPESIZE; quantize = quant::quantize_row_q8_0;\n    }\n    std::ifstream jf(json_path);\n    if (!jf) throw std::runtime_error(\"cannot open \" + json_path);\n    std::stringstream jss;\n    jss << jf.rdbuf();\n    jmini::Value root = jmini::parse(jss.str());\n    std::vector<JsonTensor> tensors = parse_model_json(root);\n\n    std::ifstream bf(bin_path, std::ios::binary);\n    if (!bf) throw std::runtime_error(\"cannot open \" + bin_path);\n    bf.seekg(0, std::ios::end);\n    std::streampos sz = bf.tellg();\n    bf.seekg(0, std::ios::beg);\n    std::vector<uint8_t> bytes(sz);\n    if (sz > 0) bf.read((char*)bytes.data(), sz);\n\n    uint64_t need = 0;\n    for (auto& t : tensors) {\n        if (num_elements(t) % block != 0)\n            throw std::runtime_error(\"tensor has elements not divisible by \" +\n                std::to_string(block) + \" (\" + type_arg + \" block): \" + t.name);\n        need += num_elements(t) * 4;\n    }\n    if ((uint64_t)bytes.size() != need)\n        throw std::runtime_error(\"model.bin size does not match model.json tensor shapes\");\n\n    const float* fptr = (const float*)bytes.data();\n    gguf::GGUFModel m;\n\n    const jmini::Value* name = root.get(\"name\");\n    std::string model_name = (name && name->isString()) ? name->asString() : \"custom\";\n\n    gguf::MetaValue mv_name; mv_name.vtype = gguf::V_STRING; mv_name.s = model_name;\n    gguf::MetaValue mv_arch; mv_arch.vtype = gguf::V_STRING; mv_arch.s = \"custom\";\n    gguf::MetaValue mv_qver; mv_qver.vtype = gguf::V_UINT32; mv_qver.u = 2;   // quantization_version\n    gguf::MetaValue mv_ft;   mv_ft.vtype   = gguf::V_UINT32;\n    mv_ft.u = (type == gguf::GGML_TYPE_Q8_0) ? 7 : 2;   // 7 = MOSTLY_Q8_0, 2 = MOSTLY_Q4_0\n    m.kv.emplace_back(\"general.name\", mv_name);\n    m.kv.emplace_back(\"general.architecture\", mv_arch);\n    m.kv.emplace_back(\"general.quantization_version\", mv_qver);\n    m.kv.emplace_back(\"general.file_type\", mv_ft);\n\n    for (auto& t : tensors) {\n        gguf::TensorInfo ti;\n        ti.name = t.name;\n        ti.ne = t.shape;\n        ti.type = type;\n\n        size_t nblocks = (size_t)(num_elements(t) / block);\n        std::vector<uint8_t> q(nblocks * typesize);\n        quantize(fptr, q.data(), nblocks);\n        fptr += num_elements(t);\n\n        m.tensors.push_back(std::move(ti));\n        m.add_tensor_data(q);\n    }\n\n    gguf::write_gguf(m, out_path);\n    std::cout << \"wrote \" << out_path << \" (\" << m.tensors.size() << \" tensors, \"\n              << type_arg << \")\\n\";\n    return 0;\n}\n\nint cmd_dequantize(const std::string& in_path, const std::string& out_json,\n                   const std::string& out_bin) {\n    gguf::GGUFModel m = gguf::read_gguf(in_path);\n\n    std::stringstream js;\n    js << \"{\\n\";\n    js << \"  \\\"name\\\": \\\"\" << in_path << \"\\\",\\n\";\n    js << \"  \\\"tensors\\\": [\\n\";\n    for (size_t i = 0; i < m.tensors.size(); i++) {\n        const auto& t = m.tensors[i];\n        js << \"    {\\\"name\\\": \\\"\" << t.name << \"\\\", \\\"shape\\\": [\";\n        for (size_t d = 0; d < t.ne.size(); d++) {\n            if (d) js << \", \";\n            js << t.ne[d];\n        }\n        js << \"]}\";\n        if (i + 1 < m.tensors.size()) js << \",\";\n        js << \"\\n\";\n    }\n    js << \"  ]\\n}\\n\";\n\n    std::vector<uint8_t> out;\n    for (size_t i = 0; i < m.tensors.size(); i++) {\n        const auto& t = m.tensors[i];\n        const uint8_t* raw = m.tensor_data(i);\n        size_t n = (size_t)t.n_elements();\n        std::vector<float> f(n);\n        if (t.type == gguf::GGML_TYPE_F32) {\n            std::memcpy(f.data(), raw, n * 4);\n        } else {\n            const quant::QuantType* qt = quant::Registry::instance().get(t.type);\n            if (!qt || !qt->dequantize)\n                throw std::runtime_error(\"unsupported tensor type in dequantize: \" + t.name);\n            qt->dequantize(raw, f.data(), n / qt->block_size);\n        }\n        out.resize(out.size() + n * 4);\n        std::memcpy(out.data() + (out.size() - n * 4), f.data(), n * 4);\n    }\n\n    std::ofstream oj(out_json);\n    if (!oj) throw std::runtime_error(\"cannot open \" + out_json);\n    oj << js.str();\n\n    std::ofstream ob(out_bin, std::ios::binary);\n    if (!ob) throw std::runtime_error(\"cannot open \" + out_bin);\n    ob.write((const char*)out.data(), (std::streamsize)out.size());\n\n    std::cout << \"wrote \" << out_json << \" and \" << out_bin << \"\\n\";\n    return 0;\n}\n\n// Type names come from the quant registry, so a new quant type shows up in\n// `info` without touching the CLI.\nconst char* type_name(uint32_t t) {\n    if (t == gguf::GGML_TYPE_F32) return \"F32\";\n    const quant::QuantType* qt = quant::Registry::instance().get(t);\n    return qt ? qt->name : \"?\";\n}\n\nvoid dump_value(const gguf::MetaValue& v) {\n    switch (v.vtype) {\n        case gguf::V_UINT8:  std::cout << v.u; break;\n        case gguf::V_INT8:   std::cout << v.i; break;\n        case gguf::V_UINT16: std::cout << v.u; break;\n        case gguf::V_INT16:  std::cout << v.i; break;\n        case gguf::V_UINT32: std::cout << v.u; break;\n        case gguf::V_INT32:  std::cout << v.i; break;\n        case gguf::V_FLOAT32:{ float x; std::memcpy(&x, &v.fb, 4); std::cout << x; break; }\n        case gguf::V_BOOL:   std::cout << (v.b ? \"true\" : \"false\"); break;\n        case gguf::V_STRING: std::cout << '\"' << v.s << '\"'; break;\n        case gguf::V_ARRAY: {\n            std::cout << \"[\";\n            for (size_t i = 0; i < v.arr.size(); i++) {\n                if (i) std::cout << \", \";\n                dump_value(v.arr[i]);\n            }\n            std::cout << \"]\";\n            break;\n        }\n        case gguf::V_UINT64:  std::cout << v.u; break;\n        case gguf::V_INT64:   std::cout << v.i; break;\n        case gguf::V_FLOAT64: std::cout << v.f64; break;\n    }\n}\n\nint cmd_info(const std::string& in_path) {\n    gguf::GGUFModel m = gguf::read_gguf(in_path);\n    std::cout << \"File: \" << in_path << \"\\n\";\n    std::cout << \"Tensors: \" << m.tensors.size() << \"\\n\";\n    std::cout << \"Metadata: \" << m.kv.size() << \" entries\\n\";\n    for (const auto& kv : m.kv) {\n        std::cout << \"  \" << kv.first << \" = \";\n        dump_value(kv.second);\n        std::cout << \"\\n\";\n    }\n    std::cout << \"Tensor list:\\n\";\n    for (const auto& t : m.tensors) {\n        std::cout << \"  \" << type_name(t.type) << \" \" << t.name << \" shape=[\";\n        for (size_t d = 0; d < t.ne.size(); d++) {\n            if (d) std::cout << \", \";\n            std::cout << t.ne[d];\n        }\n        std::cout << \"] elements=\" << t.n_elements()\n                  << \" bytes=\" << t.data_size() << \"\\n\";\n    }\n    return 0;\n}\n\nstd::vector<uint32_t> parse_token_ids(const std::string& s) {\n    std::vector<uint32_t> ids;\n    std::string cur;\n    for (char c : s) {\n        if (c == ',' || c == ' ') {\n            if (!cur.empty()) { ids.push_back((uint32_t)std::stoull(cur)); cur.clear(); }\n        } else cur += c;\n    }\n    if (!cur.empty()) ids.push_back((uint32_t)std::stoull(cur));\n    return ids;\n}\n\nint cmd_tokenize(const std::string& model_path, const std::string& text) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer t(m);\n    std::vector<uint32_t> ids = t.encode(text);\n    for (size_t i = 0; i < ids.size(); i++) {\n        if (i) std::cout << \", \";\n        std::cout << ids[i];\n    }\n    std::cout << \"\\n\";\n    return 0;\n}\n\nint cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer t(m);\n    std::vector<uint32_t> ids = parse_token_ids(ids_arg);\n    std::cout << t.decode(ids) << \"\\n\";\n    return 0;\n}\n\nint cmd_generate(const std::string& model_path, const std::string& prompt,\n                 const infer::GenParams& gp) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    const int decode_threads = model.threads_available();\n    model.set_ubatch(gp.ubatch);\n    infer::RNG rng;\n    if (gp.seed) rng.seed(gp.seed);\n\n    std::vector<uint32_t> ids = tok.encode(prompt);\n    if (ids.empty()) throw std::runtime_error(\"generate: empty prompt\");\n\n    // Prefill is compute bound and wants every thread; decode is memory\n    // bandwidth bound and usually peaks well below the logical core count,\n    // so the two phases get their own thread counts (llama.cpp's -t / -tb).\n    const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;\n    model.set_threads(tb);\n    if (gp.show_prompt_tokens) std::cerr << \"threads: prefill \" << model.threads_available() << \"\\n\";\n    auto t0 = std::chrono::steady_clock::now();\n    std::vector<float> logits = infer::prefill(model, ids);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();\n    if (gp.show_prompt_tokens) std::cout << \"prompt tokens: \" << ids.size() << \"\\n\";\n    // Two decimals: at a few tok/s an integer print rounds a 20% change away.\n    printf(\"pp: %zu tok, %.0f ms, %.2f tok/s\\n\", ids.size(), pp_ms,\n           (double)ids.size() / (pp_ms / 1e3));\n\n    if (gp.show_prompt_tokens) std::cerr << \"threads: decode \" << model.threads_available() << \"\\n\";\n    t0 = std::chrono::steady_clock::now();\n    std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits);\n    double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();\n    printf(\"tg: %zu tok, %.0f ms, %.2f tok/s\\n\", gen.size(), tg_ms,\n           (double)gen.size() / (tg_ms / 1e3));\n    return 0;\n}\n\n// Print the top-N next-token logits for a prompt. This exists for the\n// correctness gate: it is the only way to compare llmx against a\n// full-precision reference at the level where errors actually appear, rather\n// than through sampled text. See docs/ROADMAP.md #8.\nint cmd_logits(const std::string& model_path, const std::string& text,\n               int topn, const infer::GenParams& gp) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    model.set_ubatch(gp.ubatch);\n\n    std::vector<uint32_t> ids = tok.encode(text);\n    if (ids.empty()) throw std::runtime_error(\"logits: empty prompt\");\n    std::vector<float> logits = infer::prefill(model, ids);\n\n    std::vector<std::pair<float, uint32_t>> ranked;\n    ranked.reserve(logits.size());\n    for (size_t i = 0; i < logits.size(); i++)\n        ranked.push_back({ logits[i], (uint32_t)i });\n    if (topn > (int)ranked.size()) topn = (int)ranked.size();\n    std::partial_sort(ranked.begin(), ranked.begin() + topn, ranked.end(),\n                      [](const auto& a, const auto& b) { return a.first > b.first; });\n\n    printf(\"tokens: %zu\\n\", ids.size());\n    for (int i = 0; i < topn; i++)\n        printf(\"%u %.6f\\n\", ranked[(size_t)i].second, ranked[(size_t)i].first);\n    return 0;\n}\n\nstd::string read_perplexity_file(const std::string& path) {\n    std::ifstream input(std::filesystem::u8path(path), std::ios::binary);\n    if (!input) throw std::runtime_error(\"perplexity: cannot open file: \" + path);\n    std::string text;\n    char buffer[8192];\n    while (input.read(buffer, sizeof(buffer)) || input.gcount())\n        text.append(buffer, (size_t)input.gcount());\n    if (!input.eof()) throw std::runtime_error(\"perplexity: cannot read file: \" + path);\n    return text;\n}\n\nint cmd_perplexity(const std::string& model_path, const std::string& text,\n                   const infer::GenParams& gp, int context_size, int chunks) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    model.set_ubatch(gp.ubatch);\n\n    std::vector<uint32_t> ids = tok.encode(text);\n    const auto result = infer::perplexity(model, ids, context_size, chunks);\n    double mean_nll = result.mean_nll();\n    double ppl = std::exp(mean_nll);\n    std::cout << \"tokens: \" << ids.size() << \"\\n\";\n    std::cout << \"used tokens: \" << result.used_tokens << \"\\n\";\n    std::cout << \"scored tokens: \" << result.scored_tokens << \"\\n\";\n    std::cout << \"chunks: \" << result.chunks << \"\\n\";\n    std::cout << \"context size: \" << (context_size ? context_size : model.context_length()) << \"\\n\";\n    std::cout << \"mean NLL: \" << mean_nll << \"\\n\";\n    std::cout << \"perplexity: \" << ppl << \"\\n\";\n    return 0;\n}\n\nint cmd_chat(const std::string& model_path, const std::string& system,\n             const infer::GenParams& gp) {\n    gguf::GGUFModel m = gguf::read_gguf(model_path);\n    bpe::Tokenizer tok(m);\n    infer::Model model(m);\n    if (gp.threads > 0) model.set_threads(gp.threads);\n    const int decode_threads = model.threads_available();\n    model.set_ubatch(gp.ubatch);\n    infer::RNG rng;\n    if (gp.seed) rng.seed(gp.seed);\n\n    std::string tpl = chat::get_chat_template(m);\n    if (tpl.empty()) {\n        tpl = \"{% for message in messages %}<|im_start|>{{ message['role'] }}\\n\"\n              \"{{ message['content'] }}<|im_end|>\\n{% endfor %}\"\n              \"{% if add_generation_prompt %}<|im_start|>assistant\\n{% endif %}\";\n    }\n    std::string bos = (tok.bos_id >= 0 && (size_t)tok.bos_id < tok.vocab.size())\n                          ? tok.vocab[tok.bos_id] : \"\";\n    std::string eos = (tok.eos_id >= 0 && (size_t)tok.eos_id < tok.vocab.size())\n                          ? tok.vocab[tok.eos_id] : \"\";\n\n    std::vector<chat::Message> messages;\n    messages.push_back({ \"system\", system });\n    std::vector<uint32_t> cached_ids;\n\n    std::cout << \"Chat ready (type your message; Ctrl+C to quit)\\n\";\n    std::string line;\n    while (std::getline(std::cin, line)) {\n        messages.push_back({ \"user\", line });\n\n        std::string gen = chat::render(tpl, messages, true, bos, eos);\n        std::vector<uint32_t> gen_ids = tok.encode(gen);\n        if (gen_ids.empty()) throw std::runtime_error(\"chat: template produced an empty prompt\");\n        // Templates can rewrite previous turns or change token boundaries.\n        // Reuse only an exact prefix; an unchanged prompt also needs fresh\n        // logits because generate() does not retain its final distribution.\n        if (cached_ids.size() >= gen_ids.size() ||\n            !std::equal(cached_ids.begin(), cached_ids.end(), gen_ids.begin())) {\n            model.reset();\n            cached_ids.clear();\n        }\n        model.set_threads(gp.threads_batch > 0 ? gp.threads_batch : decode_threads);\n        if (gp.show_prompt_tokens) std::cerr << \"threads: prefill \" << model.threads_available() << \"\\n\";\n        std::vector<float> logits = infer::prefill(model,\n            std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()));\n        cached_ids = std::move(gen_ids);\n\n        model.set_threads(decode_threads);\n        if (gp.show_prompt_tokens) std::cerr << \"threads: decode \" << model.threads_available() << \"\\n\";\n        std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits);\n        // A stop match may return its final token without feeding it. EOS is\n        // excluded; the next rendered turn supplies its own closing tokens.\n        const size_t fed = (size_t)model.n_tokens() - cached_ids.size();\n        cached_ids.insert(cached_ids.end(), reply.begin(), reply.begin() + fed);\n\n        messages.push_back({ \"assistant\", tok.decode(reply) });\n    }\n    return 0;\n}\n\n// Build a small random Qwen3 model in memory for end-to-end prefill/decode TPS\n// measurement. Matrices are Q8_0, norms F32 (matching what infer::Model expects).\ngguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,\n                                      int n_head, int n_head_kv, int head_dim,\n                                      int n_vocab, uint32_t seed) {\n    gguf::GGUFModel m;\n    auto u32 = [&](const std::string& k, uint64_t v) {\n        gguf::MetaValue mv; mv.vtype = gguf::V_UINT32; mv.u = v;\n        m.kv.emplace_back(k, mv);\n    };\n    u32(\"qwen3.block_count\", (uint64_t)n_layer);\n    u32(\"qwen3.embedding_length\", (uint64_t)n_embd);\n    u32(\"qwen3.feed_forward_length\", (uint64_t)n_ff);\n    u32(\"qwen3.attention.head_count\", (uint64_t)n_head);\n    u32(\"qwen3.attention.head_count_kv\", (uint64_t)n_head_kv);\n    u32(\"qwen3.attention.key_length\", (uint64_t)head_dim);\n    u32(\"qwen3.context_length\", 2048);\n\n    std::mt19937 rng(seed);\n    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);\n\n    // ne = [nin, nout]; f32 tensors are stored raw, others quantized to Q8_0.\n    auto add_tensor = [&](const std::string& name, size_t nin, size_t nout, bool f32) {\n        gguf::TensorInfo t;\n        t.name = name;\n        t.ne = { (uint64_t)nin, (uint64_t)nout };\n        t.type = f32 ? gguf::GGML_TYPE_F32 : gguf::GGML_TYPE_Q8_0;\n        t.offset = 0;\n        if (f32) {\n            std::vector<uint8_t> buf(nin * nout * 4);\n            float* p = (float*)buf.data();\n            for (size_t o = 0; o < nout; o++)\n                for (size_t i = 0; i < nin; i++) *p++ = dist(rng);\n            m.tensors.push_back(std::move(t));\n            m.add_tensor_data(buf);\n        } else {\n            size_t nblocks = nin / gguf::Q8_0_BLOCK;\n            std::vector<uint8_t> buf(nout * nblocks * gguf::Q8_0_TYPESIZE);\n            std::vector<float> row(nin);\n            for (size_t o = 0; o < nout; o++) {\n                for (size_t i = 0; i < nin; i++) row[i] = dist(rng);\n                quant::quantize_row_q8_0(row.data(), buf.data() + o * nblocks * gguf::Q8_0_TYPESIZE, nblocks);\n            }\n            m.tensors.push_back(std::move(t));\n            m.add_tensor_data(buf);\n        }\n    };\n\n    size_t kv_dim = (size_t)n_head_kv * head_dim;\n    add_tensor(\"token_embd.weight\", n_embd, n_vocab, false);\n    add_tensor(\"output.weight\", n_embd, n_vocab, false);\n    add_tensor(\"output_norm.weight\", n_embd, 1, true);\n    for (int l = 0; l < n_layer; l++) {\n        std::string pre = \"blk.\" + std::to_string(l) + \".\";\n        add_tensor(pre + \"attn_norm.weight\", n_embd, 1, true);\n        add_tensor(pre + \"attn_q.weight\", n_embd, n_embd, false);\n        add_tensor(pre + \"attn_k.weight\", n_embd, kv_dim, false);\n        add_tensor(pre + \"attn_v.weight\", n_embd, kv_dim, false);\n        add_tensor(pre + \"attn_output.weight\", n_embd, n_embd, false);\n        add_tensor(pre + \"attn_q_norm.weight\", head_dim, 1, true);\n        add_tensor(pre + \"attn_k_norm.weight\", head_dim, 1, true);\n        add_tensor(pre + \"ffn_norm.weight\", n_embd, 1, true);\n        add_tensor(pre + \"ffn_gate.weight\", n_embd, n_ff, false);\n        add_tensor(pre + \"ffn_up.weight\", n_embd, n_ff, false);\n        add_tensor(pre + \"ffn_down.weight\", n_ff, n_embd, false);\n    }\n    return m;\n}\n\n// Micro-benchmark of the backend hot paths (matmul, RMSNorm, RoPE) plus\n// end-to-end prefill/decode TPS on a synthetic Qwen3 model. Used by\n// tests/perf.py as the perf-regression gate for hot-path changes.\nint cmd_bench(int size, int iters, int threads, int prefill, int decode) {\n    auto b = backend::make_cpu_backend();\n    if (threads > 0) b->set_threads(threads);\n    std::cout << \"bench: threads \" << b->threads_available() << \"\\n\";\n\n    // Square matmul: mat is [nin, nout] = [size, size]. x is the input\n    // (length nin), out the result (length nout). nout rows, each nin/32 blocks.\n    const size_t nblocks = (size_t)size / gguf::Q8_0_BLOCK;\n    std::vector<float> x(size, 0.5f);\n    std::vector<uint8_t> mat((size_t)size * nblocks * gguf::Q8_0_TYPESIZE);\n    std::vector<float> src(size), w(size), dst(size);\n    for (int i = 0; i < size; i++) { src[i] = std::sin((float)i * 0.01f); w[i] = 0.1f; }\n    std::vector<float> cos(size / 2), sin(size / 2);\n    for (int i = 0; i < size / 2; i++) { cos[i] = std::cos(0.1f); sin[i] = std::sin(0.1f); }\n\n    using clock = std::chrono::steady_clock;\n    auto t0 = clock::now();\n    for (int it = 0; it < iters; it++)\n        b->matvec_q8_0(mat.data(), x.data(), dst.data(), nblocks, (size_t)size);\n    double mm_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;\n\n    t0 = clock::now();\n    for (int it = 0; it < iters; it++)\n        b->rms_norm(dst.data(), src.data(), w.data(), (size_t)size, 1e-6f);\n    double rn_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;\n\n    t0 = clock::now();\n    for (int it = 0; it < iters; it++)\n        b->rope(dst.data(), cos.data(), sin.data(), size / 2);\n    double rp_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;\n\n    double mm_gflops = 2.0 * (double)size * (double)size / (mm_ms * 1e6);\n    printf(\"bench: matmul %dx%d  %8.3f ms  %8.2f GFLOPS\\n\", size, size, mm_ms, mm_gflops);\n    printf(\"bench: rms_norm n=%d  %8.3f ms\\n\", size, rn_ms);\n    printf(\"bench: rope     n=%d  %8.3f ms\\n\", size, rp_ms);\n\n    // End-to-end TPS on a small synthetic Qwen3 model (2 layers, 256 embd).\n    {\n        const int nl = 2, ne = 256, nf = 1024, nh = 8, nk = 2, hd = 32, nv = 512;\n        gguf::GGUFModel sm = build_synthetic_model(nl, ne, nf, nh, nk, hd, nv, 12345u);\n        infer::Model model(sm, b);\n\n        const int P = prefill, G = decode;\n        model.reset();\n        t0 = clock::now();\n        for (int i = 0; i < P; i++) model.step(i % nv);\n        double pre_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();\n        double pre_tps = (double)P / (pre_ms / 1e3);\n\n        t0 = clock::now();\n        for (int i = 0; i < G; i++) model.step((P + i) % nv);\n        double dec_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();\n        double dec_tps = (double)G / (dec_ms / 1e3);\n\n        printf(\"bench: prefill %3d tok  %8.3f ms  %8.1f tok/s\\n\", P, pre_ms, pre_tps);\n        printf(\"bench: decode  %3d tok  %8.3f ms  %8.1f tok/s\\n\", G, dec_ms, dec_tps);\n    }\n    return 0;\n}\n\nvoid print_usage() {\n    std::cout\n        << \"llmx \" << LLMX_VERSION_STRING << \" - ground-up GGUF Q8_0 CLI (no external libs)\\n\"\n        << \"\\n\"\n        << \"Usage:\\n\"\n        << \"  llmx quantize   <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\\n\"\n        << \"  llmx dequantize <in.gguf> <out.json> <out.bin>\\n\"\n        << \"  llmx info       <in.gguf>\\n\"\n        << \"  llmx logits     <in.gguf> \\\"<text>\\\" [--top N]\\n\"\n        << \"  llmx tokenize   <in.gguf> \\\"<text>\\\"\\n\"\n        << \"  llmx detokenize <in.gguf> <id1,id2,...>\\n\"\n        << \"  llmx perplexity <in.gguf> \\\"<text>\\\" [flags...]\\n\"\n        << \"  llmx perplexity <in.gguf> -f/--file <path> [flags...]\\n\"\n        << \"    perplexity flags: -c/--ctx-size N  window tokens (default: model context)\\n\"\n        << \"                      --chunks N  maximum windows (default: all)\\n\"\n        << \"  llmx generate   <in.gguf> \\\"<prompt>\\\" [flags...]\\n\"\n        << \"  llmx chat       <in.gguf> [--system \\\"<text>\\\"] [flags...]\\n\"\n        << \"  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N]\\n\"\n        << \"    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\\n\"\n        << \"           --ubatch N  prefill physical batch (default 512)\\n\"\n        << \"           -tb/--threads-batch N  threads for prefill (default: --threads)\\n\"\n        << \"           --seed N  --stop \\\"<text>\\\"  --think (show reasoning)  --verbose\\n\"\n        << \"           --verbose reports prompt tokens and actual prefill/decode thread counts\\n\";\n}\n\n} // namespace\n\n#if defined(_WIN32)\n// On Windows argv arrives in the system ANSI codepage, which cannot represent\n// most non-ASCII text -- a Japanese or Cyrillic prompt is mangled before it\n// reaches us. Re-read the command line as UTF-16 and convert to UTF-8 so text\n// arguments survive. Storage is owned by the caller and must outlive argv.\nstatic bool utf8_argv(int& argc, char**& argv,\n                      std::vector<std::string>& store, std::vector<char*>& ptrs) {\n    int wargc = 0;\n    LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);\n    if (!wargv) return false;\n    store.reserve((size_t)wargc);\n    for (int i = 0; i < wargc; i++) {\n        int n = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, nullptr, 0, nullptr, nullptr);\n        std::string s(n > 0 ? (size_t)(n - 1) : 0, '\\0');\n        if (n > 1) WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, &s[0], n, nullptr, nullptr);\n        store.push_back(std::move(s));\n    }\n    LocalFree(wargv);\n    ptrs.reserve(store.size() + 1);\n    for (auto& s : store) ptrs.push_back(&s[0]);\n    ptrs.push_back(nullptr);\n    argc = wargc;\n    argv = ptrs.data();\n    return true;\n}\n#endif\n\nint main(int argc, char** argv) {\n#if defined(_WIN32)\n    std::vector<std::string> argv_store;\n    std::vector<char*> argv_ptrs;\n    utf8_argv(argc, argv, argv_store, argv_ptrs);\n    SetConsoleOutputCP(CP_UTF8);\n#endif\n    try {\n        // Populate the quant registry once, here, rather than relying on a\n        // Model being constructed. info and dequantize never build one, so\n        // they used to run against an empty registry.\n        quant::register_builtins();\n        if (argc < 2) { print_usage(); return 1; }\n        std::string cmd = argv[1];\n\n        if (cmd == \"generate\" || cmd == \"chat\") {\n            if (argc < 3) {\n                std::cerr << \"usage: llmx \" << cmd << \" <model.gguf> [--system \\\"<text>\\\"] [flags...]\\n\";\n                std::cerr << \"       llmx generate <model.gguf> \\\"<prompt>\\\" [flags...]\\n\";\n                return 2;\n            }\n            infer::GenParams gp;\n            std::string system = \"You are a helpful assistant.\";\n            std::string prompt;\n            bool have_prompt = false;\n            for (int i = 3; i < argc; i++) {\n                std::string a = argv[i];\n                if (a == \"-n\" || a == \"--max-tokens\") gp.max_tokens = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.max_tokens;\n                else if (a == \"--temp\") gp.temp = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.temp;\n                else if (a == \"--topk\") gp.top_k = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.top_k;\n                else if (a == \"--topp\") gp.top_p = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.top_p;\n                else if (a == \"--penalty\") gp.penalty = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.penalty;\n                else if (a == \"--seed\") gp.seed = (i + 1 < argc) ? std::strtoull(argv[++i], nullptr, 0) : gp.seed;\n                else if (a == \"--stop\") gp.stop = (i + 1 < argc) ? argv[++i] : gp.stop;\n                else if (a == \"--threads\") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;\n                else if (a == \"--ubatch\") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;\n                else if (a == \"--threads-batch\" || a == \"-tb\") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;\n                else if (a == \"--system\") system = (i + 1 < argc) ? argv[++i] : system;\n                else if (a == \"--verbose\") gp.show_prompt_tokens = true;\n                else if (a == \"--think\") gp.show_thinking = true;\n                else if (!a.empty() && a[0] == '-') { std::cerr << \"unknown flag: \" << a << \"\\n\"; return 2; }\n                else { prompt = a; have_prompt = true; }\n            }\n            if (gp.max_tokens <= 0) gp.max_tokens = 32;\n            if (cmd == \"generate\") {\n                if (!have_prompt) { std::cerr << \"generate requires a prompt\\n\"; return 2; }\n                return cmd_generate(argv[2], prompt, gp);\n            }\n            return cmd_chat(argv[2], system, gp);\n        }\n\n        if (cmd == \"perplexity\") {\n            if (argc < 4) { std::cerr << \"usage: llmx perplexity <model.gguf> (\\\"<text>\\\" | --file <path>) [flags...]\\n\"; return 2; }\n            infer::GenParams gp;\n            int context_size = 0, chunks = 0;\n            const bool from_file = std::string(argv[3]) == \"--file\" || std::string(argv[3]) == \"-f\";\n            if (from_file && argc < 5) { std::cerr << \"perplexity: --file requires a path\\n\"; return 2; }\n            for (int i = from_file ? 5 : 4; i < argc; i++) {\n                std::string a = argv[i];\n                if (a == \"--file\" || a == \"-f\") {\n                    std::cerr << \"perplexity: use either inline text or one --file <path> immediately after the model\\n\";\n                    return 2;\n                }\n                if (a == \"--ctx-size\" || a == \"-c\" || a == \"--chunks\") {\n                    if (i + 1 >= argc) { std::cerr << a << \" requires a positive integer\\n\"; return 2; }\n                    const std::string value = argv[++i];\n                    unsigned long long n = 0;\n                    for (char c : value) {\n                        if (c < '0' || c > '9' || n > (unsigned long long)std::numeric_limits<int>::max() / 10) {\n                            std::cerr << a << \" requires a positive integer\\n\"; return 2;\n                        }\n                        n = n * 10 + (unsigned)(c - '0');\n                    }\n                    if (n == 0 || n > (unsigned long long)std::numeric_limits<int>::max()) {\n                        std::cerr << a << \" requires a positive integer\\n\"; return 2;\n                    }\n                    if (a == \"--chunks\") chunks = (int)n;\n                    else context_size = (int)n;\n                }\n                else if (a == \"--threads\") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;\n                else if (a == \"--ubatch\") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;\n                else if (a == \"--threads-batch\" || a == \"-tb\") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;\n                else { std::cerr << \"unknown flag: \" << a << \"\\n\"; return 2; }\n            }\n            const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];\n            return cmd_perplexity(argv[2], text, gp, context_size, chunks);\n        }\n\n        if (cmd == \"logits\") {\n            if (argc < 4) { std::cerr << \"usage: llmx logits <model.gguf> \\\"<text>\\\" [--top N] [--threads N]\\n\"; return 2; }\n            infer::GenParams gp;\n            int topn = 10;\n            for (int i = 4; i < argc; i++) {\n                std::string a2 = argv[i];\n                if (a2 == \"--top\") topn = (i + 1 < argc) ? std::atoi(argv[++i]) : topn;\n                else if (a2 == \"--threads\") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;\n                else if (a2 == \"--ubatch\") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;\n                else { std::cerr << \"unknown flag: \" << a2 << \"\\n\"; return 2; }\n            }\n            if (topn <= 0) topn = 10;\n            return cmd_logits(argv[2], argv[3], topn, gp);\n        }\n\n        if (cmd == \"tokenize\") {\n            if (argc != 4) { std::cerr << \"usage: llmx tokenize <model.gguf> \\\"<text>\\\"\\n\"; return 2; }\n            return cmd_tokenize(argv[2], argv[3]);\n        }\n        if (cmd == \"detokenize\") {\n            if (argc != 4) { std::cerr << \"usage: llmx detokenize <model.gguf> <id1,id2,...>\\n\"; return 2; }\n            return cmd_detokenize(argv[2], argv[3]);\n        }\n\n        if (cmd == \"quantize\") {\n            if (argc < 5 || argc > 6) { std::cerr << \"usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\\n\"; return 2; }\n            std::string type = (argc == 6) ? argv[5] : \"q8_0\";\n            if (type != \"q8_0\" && type != \"q4_0\") { std::cerr << \"unknown quant type: \" << type << \" (expected q8_0 or q4_0)\\n\"; return 2; }\n            return cmd_quantize(argv[2], argv[3], argv[4], type);\n        }\n        if (cmd == \"dequantize\") {\n            if (argc != 5) { std::cerr << \"usage: llmx dequantize <in.gguf> <out.json> <out.bin>\\n\"; return 2; }\n            return cmd_dequantize(argv[2], argv[3], argv[4]);\n        }\n        if (cmd == \"info\") {\n            if (argc != 3) { std::cerr << \"usage: llmx info <in.gguf>\\n\"; return 2; }\n            return cmd_info(argv[2]);\n        }\n        if (cmd == \"bench\") {\n            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64;\n            for (int i = 2; i < argc; i++) {\n                std::string a = argv[i];\n                if (a == \"--size\") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;\n                else if (a == \"--iters\") iters = (i + 1 < argc) ? std::atoi(argv[++i]) : iters;\n                else if (a == \"--threads\") threads = (i + 1 < argc) ? std::atoi(argv[++i]) : threads;\n                else if (a == \"--p\") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;\n                else if (a == \"--n\") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;\n                else { std::cerr << \"unknown flag: \" << a << \"\\n\"; return 2; }\n            }\n            if (size <= 0 || size % 32 != 0) { std::cerr << \"bench: --size must be positive and a multiple of 32\\n\"; return 2; }\n            return cmd_bench(size, iters, threads, prefill, decode);\n        }\n        print_usage();\n        return 1;\n    } catch (const std::exception& e) {\n        std::cerr << \"error: \" << e.what() << \"\\n\";\n        return 1;\n    }\n}\n",
+    "mutants.bat": "@echo off\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx/src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/generate-restore.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/generate-restore.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/generate-restore.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx/src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/chat-batch.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/chat-batch.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/chat-batch.cpp\"\nif errorlevel 1 exit /b 1\ncl /nologo /O2 /EHsc /W4 /arch:AVX2 /std:c++17 /I \"C:\\Users\\Marko\\Desktop\\Projects\\llmx/src\" /Fe:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/bench-auto.exe\" /Fo:\"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/bench-auto.obj\" \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads/bench-auto.cpp\"\nif errorlevel 1 exit /b 1\n",
+    "mutants.py": "from pathlib import Path\nimport subprocess,json,sys\nr=Path(__file__).parent\nwith (r/'mutant-build.log').open('wb') as f:p=subprocess.run(['cmd','/c',str(r/'mutants.bat')],stdout=f,stderr=subprocess.STDOUT)\np.check_returncode()\nrows=[]\nfor name in ['generate-restore','chat-batch','bench-auto']:\n source=\"import sys;sys.path.insert(0,'tests');import common,threads;common.EXE=sys.argv[1];threads.run()\"\n p=subprocess.run([sys.executable,'-X','utf8','-c',source,str(r/(name+'.exe'))],capture_output=True)\n (r/(name+'.log')).write_bytes(p.stdout+p.stderr)\n assert p.returncode!=0 and b'AssertionError' in p.stderr,(name,p.returncode,p.stderr)\n rows.append(dict(name=name,exit=p.returncode,detected=True));print(name,'detected',flush=True)\n(r/'mutants.json').write_text(json.dumps(rows,indent=2))\n",
+    "validate.py": "from pathlib import Path\nimport subprocess,json\nr=Path(__file__).parent\nrows=[]\nfor name,cmd in json.loads((r/'commands.json').read_text()):\n print('START',name,flush=True)\n with (r/(name+'.log')).open('wb') as f:p=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT)\n rows.append(dict(name=name,command=cmd,exit=p.returncode));(r/'validation.json').write_text(json.dumps(rows,indent=2));print('END',name,p.returncode,flush=True)\n if p.returncode:print((r/(name+'.log')).read_text(errors='replace')[-5000:])\n p.check_returncode()\n"
+  },
+  "source_diff": "diff --git a/src/cli/main.cpp b/src/cli/main.cpp\nindex 0b11d5e..b0d3af9 100644\n--- a/src/cli/main.cpp\n+++ b/src/cli/main.cpp\n@@ -307,6 +307,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,\n     bpe::Tokenizer tok(m);\n     infer::Model model(m);\n     if (gp.threads > 0) model.set_threads(gp.threads);\n+    const int decode_threads = model.threads_available();\n     model.set_ubatch(gp.ubatch);\n     infer::RNG rng;\n     if (gp.seed) rng.seed(gp.seed);\n@@ -317,17 +318,19 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,\n     // Prefill is compute bound and wants every thread; decode is memory\n     // bandwidth bound and usually peaks well below the logical core count,\n     // so the two phases get their own thread counts (llama.cpp's -t / -tb).\n-    const int tb = (gp.threads_batch > 0) ? gp.threads_batch : gp.threads;\n-    if (tb > 0) model.set_threads(tb);\n+    const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;\n+    model.set_threads(tb);\n+    if (gp.show_prompt_tokens) std::cerr << \"threads: prefill \" << model.threads_available() << \"\\n\";\n     auto t0 = std::chrono::steady_clock::now();\n     std::vector<float> logits = infer::prefill(model, ids);\n-    if (gp.threads > 0) model.set_threads(gp.threads);\n+    model.set_threads(decode_threads);\n     double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();\n     if (gp.show_prompt_tokens) std::cout << \"prompt tokens: \" << ids.size() << \"\\n\";\n     // Two decimals: at a few tok/s an integer print rounds a 20% change away.\n     printf(\"pp: %zu tok, %.0f ms, %.2f tok/s\\n\", ids.size(), pp_ms,\n            (double)ids.size() / (pp_ms / 1e3));\n \n+    if (gp.show_prompt_tokens) std::cerr << \"threads: decode \" << model.threads_available() << \"\\n\";\n     t0 = std::chrono::steady_clock::now();\n     std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits);\n     double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();\n@@ -405,6 +408,7 @@ int cmd_chat(const std::string& model_path, const std::string& system,\n     bpe::Tokenizer tok(m);\n     infer::Model model(m);\n     if (gp.threads > 0) model.set_threads(gp.threads);\n+    const int decode_threads = model.threads_available();\n     model.set_ubatch(gp.ubatch);\n     infer::RNG rng;\n     if (gp.seed) rng.seed(gp.seed);\n@@ -440,10 +444,14 @@ int cmd_chat(const std::string& model_path, const std::string& system,\n             model.reset();\n             cached_ids.clear();\n         }\n+        model.set_threads(gp.threads_batch > 0 ? gp.threads_batch : decode_threads);\n+        if (gp.show_prompt_tokens) std::cerr << \"threads: prefill \" << model.threads_available() << \"\\n\";\n         std::vector<float> logits = infer::prefill(model,\n             std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()));\n         cached_ids = std::move(gen_ids);\n \n+        model.set_threads(decode_threads);\n+        if (gp.show_prompt_tokens) std::cerr << \"threads: decode \" << model.threads_available() << \"\\n\";\n         std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits);\n         // A stop match may return its final token without feeding it. EOS is\n         // excluded; the next rendered turn supplies its own closing tokens.\n@@ -529,7 +537,8 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,\n // tests/perf.py as the perf-regression gate for hot-path changes.\n int cmd_bench(int size, int iters, int threads, int prefill, int decode) {\n     auto b = backend::make_cpu_backend();\n-    b->set_threads(threads);\n+    if (threads > 0) b->set_threads(threads);\n+    std::cout << \"bench: threads \" << b->threads_available() << \"\\n\";\n \n     // Square matmul: mat is [nin, nout] = [size, size]. x is the input\n     // (length nin), out the result (length nout). nout rows, each nin/32 blocks.\n@@ -567,7 +576,6 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode) {\n         const int nl = 2, ne = 256, nf = 1024, nh = 8, nk = 2, hd = 32, nv = 512;\n         gguf::GGUFModel sm = build_synthetic_model(nl, ne, nf, nh, nk, hd, nv, 12345u);\n         infer::Model model(sm, b);\n-        model.set_threads(threads);\n \n         const int P = prefill, G = decode;\n         model.reset();\n@@ -608,7 +616,8 @@ void print_usage() {\n         << \"    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\\n\"\n         << \"           --ubatch N  prefill physical batch (default 512)\\n\"\n         << \"           -tb/--threads-batch N  threads for prefill (default: --threads)\\n\"\n-        << \"           --seed N  --stop \\\"<text>\\\"  --think (show reasoning)  --verbose\\n\";\n+        << \"           --seed N  --stop \\\"<text>\\\"  --think (show reasoning)  --verbose\\n\"\n+        << \"           --verbose reports prompt tokens and actual prefill/decode thread counts\\n\";\n }\n \n } // namespace\ndiff --git a/src/model/arch_qwen.hpp b/src/model/arch_qwen.hpp\nindex 20f0abd..73c902b 100644\n--- a/src/model/arch_qwen.hpp\n+++ b/src/model/arch_qwen.hpp\n@@ -131,6 +131,7 @@ public:\n     }\n \n     void set_threads(int n) { b_->set_threads(n); }\n+    int threads_available() const { return b_->threads_available(); }\n     // 0 keeps the default. Changing it invalidates the scratch buffers.\n     void set_ubatch(int n) { if (n > 0 && n != ubatch_) { ubatch_ = n; xb_.clear(); } }\n \ndiff --git a/tests/perf.py b/tests/perf.py\nindex c311b06..eac2f56 100644\n--- a/tests/perf.py\n+++ b/tests/perf.py\n@@ -43,7 +43,8 @@ def parse(lines):\n \n \n def run(enforce_floor=True):\n-    rc, out = cli([\"bench\", \"--size\", \"2048\", \"--iters\", \"5\"])\n+    # These floors were established with one worker; keep the workload fixed.\n+    rc, out = cli([\"bench\", \"--size\", \"2048\", \"--iters\", \"5\", \"--threads\", \"1\"])\n     assert rc == 0, \"bench command failed\"\n     res = parse(out.splitlines())\n     assert \"matmul_gflops\" in res, \"bench output missing matmul line:\\n\" + out\ndiff --git a/tests/run_tests.py b/tests/run_tests.py\nindex 4154e4e..b91e101 100644\n--- a/tests/run_tests.py\n+++ b/tests/run_tests.py\n@@ -13,6 +13,7 @@ import tokenizer\n import perplexity\n import f32\n import chat\n+import threads\n import baseline\n import common\n \n@@ -36,6 +37,7 @@ def main():\n                      (\"perplexity\", perplexity.run),\n                      (\"f32\", f32.run),\n                      (\"chat\", chat.run),\n+                     (\"threads\", threads.run),\n                      (\"baseline\", baseline.run)]:\n         try:\n             ok = fn()\n",
+  "thread_test": "import json\nfrom pathlib import Path\nimport re\nimport subprocess\nimport tempfile\n\nimport common\nimport f32\n\n\ndef invoke(args, data=None):\n    p = subprocess.run([common.exe_path()] + args, input=data,\n                       capture_output=True, timeout=30)\n    assert p.returncode == 0, (args, p.returncode, p.stderr)\n    return p.stdout.replace(b\"\\r\\n\", b\"\\n\"), p.stderr\n\n\ndef run():\n    bench = [\"bench\", \"--size\", \"32\", \"--iters\", \"1\", \"--p\", \"1\", \"--n\", \"1\"]\n    automatic = None\n    for count in (None, 0, 1, 4):\n        flags = [] if count is None else [\"--threads\", str(count)]\n        out, _ = invoke(bench + flags)\n        match = re.search(rb\"^bench: threads (\\d+)$\", out, re.M)\n        assert match, out\n        actual = int(match[1])\n        if count is None:\n            automatic = actual\n            assert 1 <= automatic <= 64, automatic\n        assert actual == (count or automatic), (count, actual, automatic)\n\n    fixture = json.loads((Path(__file__).parent / \"data/baseline_chat.json\").read_text())\n    case = fixture[\"cases\"][0]\n    spec = case[\"spec\"]\n    weights = f32.tensors(False)\n    assert fixture[\"weights_sha256\"] == f32.weight_hash(weights)\n    assert fixture[\"config\"] == f32.CONFIG\n    assert spec[\"template\"] == \"{{ messages[-1]['content'] }}\"\n    assert spec[\"max_tokens\"] == 1\n    with tempfile.TemporaryDirectory(prefix=\"llmx_threads_\") as directory:\n        model = Path(directory) / \"threads.gguf\"\n        f32.write_model(model, weights, spec[\"template\"])\n        for count in (None, 0, 1, 4):\n            for batch in (None, 0, 1, 3):\n                flags = [\"--temp\", \"0\", \"-n\", \"1\", \"--verbose\", \"--ubatch\", \"3\"]\n                if count is not None:\n                    flags += [\"--threads\", str(count)]\n                if batch is not None:\n                    flags += [\"--threads-batch\", str(batch)]\n                decode = count or automatic\n                prefill = batch or decode\n                for command in (\"generate\", \"chat\"):\n                    args = [command, str(model)]\n                    if command == \"generate\":\n                        args += [spec[\"inputs\"][0]]\n                        data, turns = None, 1\n                    else:\n                        args += [\"--system\", \"\"]\n                        data = (\"\\n\".join(spec[\"inputs\"]) + \"\\n\").encode()\n                        turns = len(spec[\"inputs\"])\n                    out, err = invoke(args + flags, data)\n                    counts = re.findall(rb\"^threads: (prefill|decode) (\\d+)\\r?$\", err, re.M)\n                    expected = [(b\"prefill\", str(prefill).encode()),\n                                (b\"decode\", str(decode).encode())] * turns\n                    assert counts == expected, (command, count, batch, counts, expected)\n                    replies = b\"\".join(bytes(t[\"reply_ids\"]) + b\"\\n\" for t in case[\"turns\"][:turns])\n                    if command == \"chat\":\n                        assert out == b\"Chat ready (type your message; Ctrl+C to quit)\\n\" + replies, out\n                    else:\n                        generated = re.search(rb\"^pp: [^\\n]*\\n(.*?)^tg: \", out, re.M | re.S)\n                        assert generated and generated[1] == replies, out\n    print(\"threads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\")\n    return True\n",
+  "hashes": {
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate.exe": "335db48c44643559bfadc0c842444c399a14d6fff18b3372dc6e5b1ca36c40c9",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cli-threads\\candidate-compare.exe": "c74ecf277c0b4d7b7f78d1531b1d020b232dbb22b9f3a358111b5252ac2b605e",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\cli\\main.cpp": "1fcdd4de2251e9f7c17da8bb91073ed1541dee6ceb67f6cf2fcf619d38d68541",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\src\\model\\arch_qwen.hpp": "83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\threads.py": "0e05634361b99defeda60ee40bea3e974a7035683366e726e2c4da229525a96f",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\perf.py": "9694b99df13e0382bdd37f5d069560001dfde5357eee3bc172556dea926175b0"
+  },
+  "docs_review": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "6b62d7880a849b11930f0afefd4babd2e586d536963a97a080ec2ddffd95c6a0"
+    },
+    {
+      "path": "README.md",
+      "sha256": "1d22e623a21249ca04c5c05afe2851e8a3d2c9fa9bdd3bdece2e83d825b2058a"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "74fd492aa502aacb798b1414fe426467d162e586ee1dc9c803756b6162f589af"
+    },
+    {
+      "path": "docs/ASSETS.md",
+      "sha256": "96c9071989004b8335a18951648717f9c975f9d4930fa2ce2f9d97d384d5f9c7"
+    },
+    {
+      "path": "docs/CI.md",
+      "sha256": "53b84c76d1949b2ba5d7b16439a9596c723eecf0b12a59d1b7e30c4d530654b4"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "sha256": "53e4e033429d0f020e666aa5b1ff0026aa864b48fe41b05065d5efd0714ac082"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "sha256": "a46d6077d431f31b90cf4971d922e0713e1dd56dd93708d46675baf9a4471c8f"
+    },
+    {
+      "path": "docs/USAGE.md",
+      "sha256": "1f10d9e37c0a355a72b6b49012d11d4996e7d00f2cd58757dd780ce734745166"
+    },
+    {
+      "path": "docs/src/backends-backend.md",
+      "sha256": "64be9c1ddd78bf7ed64eee06198f4a98205e1a7fe7986a774c2be46931b6bbaf"
+    },
+    {
+      "path": "docs/src/backends-cpu.md",
+      "sha256": "aa707c8904c44b35abab848d447f3da239ba568a8ad9e7607e226ca903af08e2"
+    },
+    {
+      "path": "docs/src/cli-main.md",
+      "sha256": "cb502f793afdb55958298240c152851ec1e05b34af9d4c4801441bfcccb2f979"
+    },
+    {
+      "path": "docs/src/config.md",
+      "sha256": "45476aac638cc9edde1e0ec140a2f80ea134ca1ef6a656e8dcf83331c57b7e7f"
+    },
+    {
+      "path": "docs/src/core-fp16.md",
+      "sha256": "c647ebadc464e9e70b6d22cb78efddfc793e3d7a7a968d67eca35c145077d6da"
+    },
+    {
+      "path": "docs/src/core-json.md",
+      "sha256": "4011355613019ed00fc0659152f73394a5c15d42fc83a419752ae9f7b8798f20"
+    },
+    {
+      "path": "docs/src/format-format.md",
+      "sha256": "191f63d07f87c14645b949aae607b48d52d4d6ce6a64fef8b46801c06275b060"
+    },
+    {
+      "path": "docs/src/format-gguf.md",
+      "sha256": "07c033e1a79df75ab78e239737e8f0a556553a2f180a344ff64592fd61ae0c3c"
+    },
+    {
+      "path": "docs/src/inference-chat.md",
+      "sha256": "4b8a44ee5d2a53c2c1b49dbd98aa596ce1dad8b491543fde13892d53875c09da"
+    },
+    {
+      "path": "docs/src/inference-generate.md",
+      "sha256": "698af5b4b11981a8b9bb63ea6dc4b8b45556e511d5520583214701062a604ba6"
+    },
+    {
+      "path": "docs/src/inference-perplexity.md",
+      "sha256": "9b5949c09f319fe13e91fc6ee88ba40f2b0142592ceeec91b5d8df883fe72efc"
+    },
+    {
+      "path": "docs/src/inference-sampler.md",
+      "sha256": "39849cb14aa65a6be86e914bd24ab1ae98909e86182bc198a09d913c2c4dbbd1"
+    },
+    {
+      "path": "docs/src/model-arch_qwen.md",
+      "sha256": "7b1a54ac8a8726abb8569a7e8c6e29ee908afda1285e7e8d9a5919b6e135294f"
+    },
+    {
+      "path": "docs/src/model-host_kv_cache.md",
+      "sha256": "f1b87fc4e8b8485e476481245e797eed335dc297568b94b473ad814a70496397"
+    },
+    {
+      "path": "docs/src/quant-k_quants.md",
+      "sha256": "bdd96fe86e9cead5bc225f36e8e547058b44be0eb66800a5ba36be856a7890a2"
+    },
+    {
+      "path": "docs/src/quant-quant.md",
+      "sha256": "97d46323c1b9bc5bda00819390312b57522e4ddc3354d94ab38b9ec43e095505"
+    },
+    {
+      "path": "docs/src/tokenizer-tokenizer.md",
+      "sha256": "ffb4611284c7803fa3ea1b42026cb289614c9b7b113dd0725a820fde1e863286"
+    }
+  ]
+}

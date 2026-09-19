@@ -10,7 +10,9 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   `rms_eps`).
 - `Model`: loads tensors from a `GGUFModel`, owns one sequence's logical token
   count and a `HostKVCache` for physical CPU storage.
-  - `set_threads(n)`, `n_tokens()`, `head_dim()`, `context_length()`.
+  - `set_threads(n)`, `threads_available()`, `n_tokens()`, `head_dim()`,
+    `context_length()`. The thread getter reports the resolved backend count,
+    allowing the CLI to restore automatic decode settings after prefill.
   - `step(token_id) -> logits`: run one token through the full forward pass
     (embedding, per-block attention + FFN, output norm + head), updating the KV
     cache. This is the decode path.

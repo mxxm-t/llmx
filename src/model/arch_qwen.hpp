@@ -131,6 +131,7 @@ public:
     }
 
     void set_threads(int n) { b_->set_threads(n); }
+    int threads_available() const { return b_->threads_available(); }
     // 0 keeps the default. Changing it invalidates the scratch buffers.
     void set_ubatch(int n) { if (n > 0 && n != ubatch_) { ubatch_ = n; xb_.clear(); } }
 

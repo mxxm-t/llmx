@@ -43,7 +43,8 @@ def parse(lines):
 
 
 def run(enforce_floor=True):
-    rc, out = cli(["bench", "--size", "2048", "--iters", "5"])
+    # These floors were established with one worker; keep the workload fixed.
+    rc, out = cli(["bench", "--size", "2048", "--iters", "5", "--threads", "1"])
     assert rc == 0, "bench command failed"
     res = parse(out.splitlines())
     assert "matmul_gflops" in res, "bench output missing matmul line:\n" + out

@@ -13,6 +13,7 @@ import tokenizer
 import perplexity
 import f32
 import chat
+import threads
 import baseline
 import common
 
@@ -36,6 +37,7 @@ def main():
                      ("perplexity", perplexity.run),
                      ("f32", f32.run),
                      ("chat", chat.run),
+                     ("threads", threads.run),
                      ("baseline", baseline.run)]:
         try:
             ok = fn()

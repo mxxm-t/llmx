@@ -75,6 +75,7 @@ and runs a separate pinned HF model gate; see [CI details](docs/CI.md).
 - **Tokenizer**: encode/decode round-trips incl. unicode and special tokens.
 - **Perplexity**: analytic probabilities, window boundaries, chunk limits and file input.
 - **Chat**: follow-up replies against HF/Jinja2 fixtures and cache-prefix changes.
+- **Thread controls**: automatic/explicit worker counts and restoration after prefill.
 - **Native CTest**: grouped kernels, task/startup failures, chat templates and KV growth/reset.
   Run `ctest --test-dir build -C Release --output-on-failure` after a CMake build.
 - **F32 reference**: full HF logits and windowed NLL for small deterministic

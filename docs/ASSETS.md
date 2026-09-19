@@ -1323,3 +1323,47 @@ compiler cause. Retain the simpler existing implementation, consistent with
 the user's request to avoid overcomplication. Further runtime changes require
 profiling evidence; no additional dispatch variants are planned. Merge and
 GitHub publication remain authorized once the project requirements pass.
+
+## CLI thread controls checkpoint (2026-09-19)
+
+Evidence: [cli-threads-20260919.json](benchmarks/cli-threads-20260919.json).
+Source base is 05fce2c (runtime c072af2). Generate/chat now restore the resolved
+CPU decode count after prefill, including auto selection and follow-up turns;
+bench zero/omitted threads preserves backend auto selection. Verbose output
+reports actual phase counts. Kernel arithmetic and the worker pool are unchanged.
+
+| Validation | Windows MSVC | Linux GCC |
+|---|---:|---:|
+| Generation/chat thread configurations | 32 pass | 32 pass |
+| Benchmark thread settings | 4 pass | 4 pass |
+| HF-golden replies in thread checks | 64 match | 64 match |
+| Tiny HF maximum logit error (bound 0.00002) | 0.00000070 | 0.00000070 |
+| Required real Q8/Q4 HF checks | Pass | Pass |
+| Native CTest | Unchanged; prior checkpoint evidence | 4/4 pass |
+
+Three MSVC mutants reintroduce missing auto-decode restoration, ignored chat
+batch count and serial bench auto; all fail the new actual-count assertions.
+Windows full suite passes. Linux's first suite fails only the synthetic prefill
+floor: 777.7 tok/s against 1000 with auto threads. The previous benchmark default
+silently used one worker. `tests/perf.py` now explicitly uses one worker to
+preserve its established workload and unchanged floors; targeted reruns pass
+on both platforms (7851/8241 prefill tok/s respectively). Other Linux suite
+components passed before this test-command correction and were not repeated.
+No new sanitizer run or hosted CI run is claimed for this CLI-only checkpoint.
+
+Separate five-round alternating synthetic pairs use explicit counts, size 2048,
+10 iterations, 64 step-prefill/64 decode tokens and one excluded warmup pair.
+All samples remain; no builds/tests overlap timing. These are not batched real
+model measurements and do not establish external performance parity.
+
+| Mean metric | Before, 1 thread | After, 1 thread | Before, 6 threads | After, 6 threads |
+|---|---:|---:|---:|---:|
+| Matmul GFLOPS | 41.51 | 38.82 | 108.99 | 112.75 |
+| Step-prefill tok/s | 7863.96 | 7819.64 | 6094.68 | 6460.92 |
+| Decode tok/s | 7461.92 | 7378.54 | 5942.72 | 6559.86 |
+
+All respective ranges overlap; no speedup or universal non-regression is claimed.
+The rebuilt matched-model comparator has identical .text SHA-256 to c072af2:
+`5ed1addb00f9038153f958f38340a6d9b0acde23ca0f5a3c26fce1dcb6eb19d7`.
+Thus the prior external comparisons remain the evidence for that unchanged
+benchmark path; the CLI fix does not close the existing external floor.

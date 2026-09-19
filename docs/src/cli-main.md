@@ -25,6 +25,11 @@ Commands and their entry points:
   appended unconditionally. These are single-sequence semantics.
 - `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS).
 
+`generate` and each `chat` turn apply the prefill worker count and restore the
+resolved decode count, including automatic selection. Existing `--verbose`
+reports the actual counts on stderr. `bench` retains the backend's automatic
+count for zero/omitted threads and prints that resolved count on stdout.
+
 Also holds the `build_synthetic_model` helper (an in-memory random Qwen3 model
 for the end-to-end TPS measurement) and `print_usage`. See `docs/USAGE.md` for
 the full command reference.

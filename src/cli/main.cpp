@@ -307,6 +307,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     bpe::Tokenizer tok(m);
     infer::Model model(m);
     if (gp.threads > 0) model.set_threads(gp.threads);
+    const int decode_threads = model.threads_available();
     model.set_ubatch(gp.ubatch);
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
@@ -317,17 +318,19 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     // Prefill is compute bound and wants every thread; decode is memory
     // bandwidth bound and usually peaks well below the logical core count,
     // so the two phases get their own thread counts (llama.cpp's -t / -tb).
-    const int tb = (gp.threads_batch > 0) ? gp.threads_batch : gp.threads;
-    if (tb > 0) model.set_threads(tb);
+    const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;
+    model.set_threads(tb);
+    if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
     auto t0 = std::chrono::steady_clock::now();
     std::vector<float> logits = infer::prefill(model, ids);
-    if (gp.threads > 0) model.set_threads(gp.threads);
+    model.set_threads(decode_threads);
     double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (gp.show_prompt_tokens) std::cout << "prompt tokens: " << ids.size() << "\n";
     // Two decimals: at a few tok/s an integer print rounds a 20% change away.
     printf("pp: %zu tok, %.0f ms, %.2f tok/s\n", ids.size(), pp_ms,
            (double)ids.size() / (pp_ms / 1e3));
 
+    if (gp.show_prompt_tokens) std::cerr << "threads: decode " << model.threads_available() << "\n";
     t0 = std::chrono::steady_clock::now();
     std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits);
     double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -405,6 +408,7 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     bpe::Tokenizer tok(m);
     infer::Model model(m);
     if (gp.threads > 0) model.set_threads(gp.threads);
+    const int decode_threads = model.threads_available();
     model.set_ubatch(gp.ubatch);
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
@@ -440,10 +444,14 @@ int cmd_chat(const std::string& model_path, const std::string& system,
             model.reset();
             cached_ids.clear();
         }
+        model.set_threads(gp.threads_batch > 0 ? gp.threads_batch : decode_threads);
+        if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
         std::vector<float> logits = infer::prefill(model,
             std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()));
         cached_ids = std::move(gen_ids);
 
+        model.set_threads(decode_threads);
+        if (gp.show_prompt_tokens) std::cerr << "threads: decode " << model.threads_available() << "\n";
         std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits);
         // A stop match may return its final token without feeding it. EOS is
         // excluded; the next rendered turn supplies its own closing tokens.
@@ -529,7 +537,8 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
 // tests/perf.py as the perf-regression gate for hot-path changes.
 int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
     auto b = backend::make_cpu_backend();
-    b->set_threads(threads);
+    if (threads > 0) b->set_threads(threads);
+    std::cout << "bench: threads " << b->threads_available() << "\n";
 
     // Square matmul: mat is [nin, nout] = [size, size]. x is the input
     // (length nin), out the result (length nout). nout rows, each nin/32 blocks.
@@ -567,7 +576,6 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
         const int nl = 2, ne = 256, nf = 1024, nh = 8, nk = 2, hd = 32, nv = 512;
         gguf::GGUFModel sm = build_synthetic_model(nl, ne, nf, nh, nk, hd, nv, 12345u);
         infer::Model model(sm, b);
-        model.set_threads(threads);
 
         const int P = prefill, G = decode;
         model.reset();
@@ -608,7 +616,8 @@ void print_usage() {
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
         << "           --ubatch N  prefill physical batch (default 512)\n"
         << "           -tb/--threads-batch N  threads for prefill (default: --threads)\n"
-        << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n";
+        << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
+        << "           --verbose reports prompt tokens and actual prefill/decode thread counts\n";
 }
 
 } // namespace

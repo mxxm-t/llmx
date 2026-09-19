@@ -36,12 +36,15 @@ weights are generated locally; committed HF float32 logits/NLL cover tied and
 untied embeddings, matrix tails, multiple physical batches and thread counts.
 The UBSan job makes misaligned in-memory tensors a test failure. Every job also
 runs CTest for grouped kernels, worker failures, chat rendering and KV storage,
-plus the Python HF/Jinja2 follow-up fixtures. The five-job workflow and these
+plus the Python HF/Jinja2 follow-up fixtures and CLI thread-control checks.
+The five-job workflow and these
 new native checks still await a hosted run for the current unmerged stack;
 the initial four-job result above does not validate this branch.
 
 Hosted jobs pass `--no-perf-floor`: `bench` must still run and report finite,
 positive throughput, but the workstation-specific floors are disabled.
+The synthetic regression test pins one CPU worker to preserve the workload
+used to establish its local floors; automatic counts are tested separately.
 Hosted timings are diagnostic. The performance gate against mx-llama.cpp
 still requires matched hardware, model, quant and workload; see ROADMAP #8.
 

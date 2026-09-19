@@ -15,7 +15,7 @@ feature currently stands right now.
 | Test suite (roundtrip / perf / tokenizer)| Done     |
 | Perf `bench` command                     | Done     |
 | CPU backend optimization                 | In Progress |
-| More quant formats (Q4_0, Q4_1, ...)     | In Progress |
+| More quant formats (Q4_0/Q4_1/Q6_K read) | Done     |
 | More model architectures (Llama, ...)    | Planned  |
 | More formats (safetensors, ...)          | Planned  |
 | Device execution model (GPU prerequisite) | Planned |
@@ -151,89 +151,42 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
   quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
-- **Done:**
-  - Removed both per-call thread-spawn sites. `matvec_q8_0` now uses a
-    persistent pool, and `attend_heads` goes through `Backend::parallel_for`
-    instead of owning threads in the model layer.
-  - Qwen3-8B Q8_0, this workstation, 24 tokens greedy, default threads,
-    interleaved A/B/A/B each time:
-      - spawn-per-call baseline:  8277 ms decode
-      - pooled matvec:            6913 ms  (-16.5%)
-      - pooled attention too:     6372 ms  (-23% cumulative, 2.90 -> 3.77 tok/s)
-  - Greedy output byte-identical across every arm on both 8B and 0.6B.
-  - `generate` now prints tok/s with two decimals; the integer print was
-    rounding a 20% change away.
-- **Floor measured 2026-09-19.** Reference is the CPU AVX2 llama.cpp that ships
-  with LM Studio (`llama.cpp-win-x86_64-avx2-2.28.2`), stock `llama-server` on
-  this same workstation and CPU, so no build was needed and no rig time was
-  used. The mx fork's changes are gfx906/GPU-specific, so its CPU path is
-  upstream; this is a fair stand-in and is labelled as one.
-  Qwen3-8B Q8_0, prompt "The capital of France is", 24 tokens greedy, `-t 16`
-  on both, `cache_prompt` off, two runs each:
-    - tg  llmx 3.81 / 3.96   llama.cpp 4.61 / 4.60   -> llmx 15.7% SLOWER
-    - pp  llmx 3.68 / 4.10   llama.cpp 12.20 / 11.84 -> llmx 3.1x SLOWER
-  llmx is under the floor on both arms.
-- **Output divergence to settle.** At temp 0 on the same weights both emit
-  " Paris. The capital of Italy is Rome. The capital of" and then split: llmx
-  continues "Spain is", llama.cpp "Germany is". That is an argmax flip around
-  token 11. It may be ordinary FP accumulation order, or it may be residual
-  llmx inaccuracy - the logits golden is what settles it, so this is tracked
-  under the correctness baseline, not assumed benign.
-- **Batched prefill landed.** `infer::prefill` ran the prompt through `step()`
-  one token at a time, paying the whole weight stream per prompt token.
-  `Backend::matmul_q8_0` now runs a chunk of the prompt at once, rows outer and
-  batch inner, and the vocab projection stays a single matvec because only the
-  last token's logits are needed.
-  Then a second fix: the weight row was being dequantized once per batch
-  column instead of once per row.
-    - pp, 343-token prompt, -t 16:  3.89 -> 13.24 -> **15.25 tok/s** (3.9x)
-    - pp, 5-token prompt:           3.89 -> 10.79 tok/s
-    - Qwen3-0.6B pp:                about 8 -> 128 tok/s
-    - tg unchanged at 3.91, decode is still one token at a time
-- **Prefill now thread-scales, which confirms it is compute bound:** 4 threads
-  5.07, 8 threads 8.55, 16 threads 13.24 tok/s. Decode by contrast is flat.
-- **Chunk size barely matters** (12.03 at 32 up to 12.86 at 343 before the
-  dequant fix, 14.99/15.25/15.27 at 64/128/256 after). Reuse was never the
-  limit; the repeated dequant was. `LLMX_PREFILL_CHUNK` overrides it.
-- **Floor status on the same 343-token prompt, -t 16:**
-    - pp   llmx 15.25   llama.cpp 37.70 / 37.34   -> still 2.5x under
-    - tg   llmx  3.91   llama.cpp  4.99 /  5.02   -> 22% under
+- **Status: prefill is AT the floor. Decode is 22% under it.**
+  Qwen3-8B Q8_0, 343-token wikitext prompt, -t 16, this workstation. Reference
+  is the CPU AVX2 llama.cpp shipped with LM Studio, stock `llama-server`, same
+  machine, so no rig time was used.
+    - pp   llmx 37.23 / 37.86   llama.cpp 37.70 / 37.34   -> parity
+    - tg   llmx  3.91           llama.cpp  4.99 / 5.02    -> 22% under
+- **How prefill got there, 3.89 -> 37.5 tok/s (9.6x), each step A/B measured:**
+  - persistent worker pool instead of spawning threads per call (decode -23%)
+  - attention through `Backend::parallel_for` instead of its own threads
+  - batched prefill: matrix-matrix instead of one token at a time (3.89 -> 13.2)
+  - dequantize each weight row once per batch, not once per column (-> 15.3)
+  - four independent accumulators in the f32 dot (-> 17.0)
+  - fused 4-row kernel sharing one activation load (-> 24.0)
+  - two activation columns per four rows, 0.75 loads/FMA (-> 33.7)
+  - three activation columns per four rows, 0.58 loads/FMA (-> 37.5)
+- **The lesson worth keeping:** the kernel was LOAD bound, not FMA bound. Each
+  naive dot needs 2 loads per FMA and Zen3 sustains about 2 loads/cycle against
+  2 FMAs/cycle, so it ran at half of FMA peak no matter how the batch was
+  blocked. Every win after the first came from raising the FMA:load ratio.
 - **Left:**
-  - **Decode is memory-bandwidth bound, measured, not assumed.** Qwen3-8B Q8_0
-    thread scaling is flat: 4 threads 3.83 tok/s, 8 threads 4.13, 16 threads
-    3.90. At 8.1 GB of weights streamed per token that is about 31.6 GB/s,
-    close to practical DDR4 dual-channel on this 5800X.
-    Consequences, which redirect the remaining work:
-      - An int8 x int8 dot kernel (quantizing the activation, as llama.cpp
-        does) would NOT help tg. Saving ALU work does nothing while stalled on
-        RAM, and it would cost numerics for no gain. NOT worth doing here.
-      - tg headroom is bounded: llama.cpp reaches about 37 GB/s, so the ceiling
-        on the whole 16% gap is bandwidth EFFICIENCY. The suspect is layout,
-        llmx holds tensor data in 399 separate heap allocations while llama.cpp
-        mmaps one contiguous file-backed region.
-      - pp is where the real headroom is. Prefill is compute-bound because each
-        weight byte is reused across the batch, so batching is worth up to the
-        full 3.1x and thread scaling there should be real.
-  - **Prefill is still 2.5x under the floor.** The remaining work is a real
-    GEMM: tile both dimensions so the activation block stays in cache, and use
-    an int8 x int8 inner product with the activations quantized to Q8_0. That
-    second part is worth doing HERE, unlike for decode, because prefill is
-    compute bound - but it is lossy, so it needs the logits golden to bound the
-    cost before it lands.
-  - **Close the tg gap (16%) by layout, not by kernel.** Load tensor data as one
-    contiguous region (or mmap it) instead of 399 separate heap allocations, so
-    the weight stream is sequential and prefetchable. This is lossless.
-  - Remaining known costs, in likely order: `Model::step` heap-allocates
-    gate/up/ffn every layer every token and `attend_head` allocates a scores
-    vector per head; `read_gguf` loads the whole file with no mmap, so every
-    invocation pays a full 8 GB read and double resident memory; prefill feeds
-    one token at a time so there is no matrix-matrix work.
+  - Decode, 22% under. It is memory-bandwidth bound (thread scaling is flat:
+    4/8/16 threads give 3.83/4.13/3.90 tok/s) at about 32 GB/s against
+    llama.cpp's 37, so the ceiling on the whole gap is bandwidth efficiency.
+    Allocation churn and layout fragmentation are both measured NULL, so what
+    remains is prefetch behaviour and possibly mmap.
+  - An int8 x int8 inner product is NOT worth it for decode (saving ALU work
+    buys nothing while stalled on RAM) but may still help prefill. It is lossy,
+    so it needs the logits golden to bound the cost first.
 - **Gotchas:**
-  - The synthetic `bench` model (2 layers, 256 embd) does NOT show these wins:
-    its matvecs are small enough to take the single-threaded fast path. Real
-    gains only appear on a real model, so measure there and say so.
-  - Compare like with like and state it: same quant, thread count, prompt
-    length. A single number with no configuration is not a measurement.
+  - The synthetic `bench` model (2 layers, 256 embd) shows NONE of these wins:
+    its matvecs take the single-threaded fast path. Measure on a real model.
+  - Do not tune the row block as a byte budget. Measured worse at every size
+    (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 against 24.04 for a flat
+    4); the knee follows the fused kernel width, so it is `DOT_ROWS`.
+  - ubatch barely matters once the kernel is right, and 343 vs 512 on a
+    343-token prompt is the SAME computation - do not read noise as signal.
 
 Nothing else is in flight. When you start a feature, open a block above
 before writing code — see `AGENTS.md` → "Starting a feature".

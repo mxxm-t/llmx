@@ -185,14 +185,13 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
         const uint8_t* raw = m.tensor_data(i);
         size_t n = (size_t)t.n_elements();
         std::vector<float> f(n);
-        if (t.type == gguf::GGML_TYPE_Q8_0) {
-            quant::dequantize_row_q8_0(raw, f.data(), n / gguf::Q8_0_BLOCK);
-        } else if (t.type == gguf::GGML_TYPE_Q4_0) {
-            quant::dequantize_row_q4_0(raw, f.data(), n / gguf::Q4_0_BLOCK);
-        } else if (t.type == gguf::GGML_TYPE_F32) {
+        if (t.type == gguf::GGML_TYPE_F32) {
             std::memcpy(f.data(), raw, n * 4);
         } else {
-            throw std::runtime_error("unsupported tensor type in dequantize: " + t.name);
+            const quant::QuantType* qt = quant::Registry::instance().get(t.type);
+            if (!qt || !qt->dequantize)
+                throw std::runtime_error("unsupported tensor type in dequantize: " + t.name);
+            qt->dequantize(raw, f.data(), n / qt->block_size);
         }
         out.resize(out.size() + n * 4);
         std::memcpy(out.data() + (out.size() - n * 4), f.data(), n * 4);
@@ -210,13 +209,12 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
     return 0;
 }
 
+// Type names come from the quant registry, so a new quant type shows up in
+// `info` without touching the CLI.
 const char* type_name(uint32_t t) {
-    switch (t) {
-        case gguf::GGML_TYPE_F32:  return "F32";
-        case gguf::GGML_TYPE_Q4_0: return "Q4_0";
-        case gguf::GGML_TYPE_Q8_0: return "Q8_0";
-        default: return "?";
-    }
+    if (t == gguf::GGML_TYPE_F32) return "F32";
+    const quant::QuantType* qt = quant::Registry::instance().get(t);
+    return qt ? qt->name : "?";
 }
 
 void dump_value(const gguf::MetaValue& v) {
@@ -596,6 +594,10 @@ int main(int argc, char** argv) {
     SetConsoleOutputCP(CP_UTF8);
 #endif
     try {
+        // Populate the quant registry once, here, rather than relying on a
+        // Model being constructed. info and dequantize never build one, so
+        // they used to run against an empty registry.
+        quant::register_builtins();
         if (argc < 2) { print_usage(); return 1; }
         std::string cmd = argv[1];
 

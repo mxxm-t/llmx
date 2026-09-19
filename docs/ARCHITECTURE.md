@@ -27,7 +27,8 @@ backends/      Backend interface (type-generic matmul / RMSNorm / RoPE /
 tokenizer/     byte-level BPE, Qwen2/Qwen3 pretokenizer (encode / decode)
    |
    v
-format/        GGUF reader/writer; ModelFormat interface not wired in yet
+format/        GGUF reader/writer + ModelFormat adapter/open;
+               CLI/model still consume GGUFModel directly
    |
    v
 quant/         QuantType registry; Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K kernels

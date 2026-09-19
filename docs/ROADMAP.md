@@ -45,10 +45,11 @@ registry keyed by `general.architecture`:
 - Each arch = a forward-graph file under `model/`, selected at load from metadata
 
 ## 3. More formats
-`format::ModelFormat` is a declared, unused seam. CLI/model code currently
-consumes `gguf::GGUFModel` directly.
+`format::ModelFormat` has a GGUF adapter and a magic-sniffing `format::open()`
+implemented in `gguf.hpp`. CLI/model code currently consumes `gguf::GGUFModel`
+directly; a second format needs integration through this seam.
 - safetensors, raw `.bin`+`.json`, ONNX export path
-- Implement the declaration-only `format::open()` to sniff magic and dispatch
+- Extend `format::open()` beyond its current GGUF magic check
 - safetensors is HF-native and unlocks most of the Hub; see #9b
 
 ## 4. Backends **[design]**

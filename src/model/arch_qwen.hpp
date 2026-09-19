@@ -477,17 +477,12 @@ private:
         }
     }
 
-    // Batched form of matvec. Q8_0 uses the backend's batched kernel; other
-    // types fall back to one matvec per row, correct but with no reuse gain.
+    // Batched matmul. The backend dispatches on the quant type, so every
+    // block format takes the same path; there is no per-type branch here.
     void matmul(const gguf::TensorInfo& t, const float* X, float* Y,
                 size_t nin, size_t nout, int nbatch) {
-        if (t.type == gguf::GGML_TYPE_Q8_0) {
-            b_->matmul_q8_0(m_->tensor_data(tindex_.at(t.name)), X, Y,
-                            nin / gguf::Q8_0_BLOCK, nout, (size_t)nbatch);
-            return;
-        }
-        for (int b = 0; b < nbatch; b++)
-            matvec(t, X + (size_t)b * nin, Y + (size_t)b * nout, nin, nout);
+        b_->matmul(t.type, m_->tensor_data(tindex_.at(t.name)), X, Y,
+                   nin, nout, (size_t)nbatch);
     }
 
     // Dequantize row `r` of a quantized matrix (nin fastest) into `out`,
@@ -501,28 +496,14 @@ private:
         qt->dequantize(base, out, nin / qt->block_size);
     }
 
-    // out = W^T x for quantized W [nin, nout] (row o at o*nin/blk*tsz).
-    // Q8_0 uses the backend's fused AVX2 matvec; other types use a correct
-    // generic path: dequantize each row to f32 then f32 dot. The generic path
-    // is slow-but-correct; a fused kernel per type is a follow-up.
-    void matvec(const gguf::TensorInfo& t, const float* x, float* out, size_t nin, size_t nout) {
-        const uint8_t* data = m_->tensor_data(tindex_.at(t.name));
-        if (t.type == gguf::GGML_TYPE_Q8_0) {
-            size_t nblocks = nin / gguf::Q8_0_BLOCK;
-            b_->matvec_q8_0(data, x, out, nblocks, nout);
-            return;
-        }
-        const quant::QuantType* qt = quant::Registry::instance().get(t.type);
-        if (!qt || !qt->dequantize) throw std::runtime_error("unsupported tensor type in matvec");
-        std::vector<float> row(nin);
-        for (size_t o = 0; o < nout; o++) {
-            qt->dequantize(data + o * (nin / qt->block_size) * qt->type_size,
-                           row.data(), nin / qt->block_size);
-            float acc = 0.0f;
-            for (size_t i = 0; i < nin; i++) acc += row[i] * x[i];
-            out[o] = acc;
-        }
+    // out = W^T x for a single column. Same backend entry point as the
+    // batched form, so there is one dispatch path and one place that knows
+    // about quant types.
+    void matvec(const gguf::TensorInfo& t, const float* x, float* out,
+                size_t nin, size_t nout) {
+        b_->matmul(t.type, m_->tensor_data(tindex_.at(t.name)), x, out, nin, nout, 1);
     }
+
 };
 
 } // namespace infer

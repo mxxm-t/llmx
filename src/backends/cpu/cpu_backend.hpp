@@ -11,6 +11,7 @@
 #include "backends/backend.hpp"
 #include "core/fp16.hpp"
 #include "format/gguf.hpp"
+#include "quant/quant.hpp"
 
 // Platform-agnostic intrinsics headers. MSVC uses <intrin.h> for __cpuid;
 // GCC/Clang use <cpuid.h> (for __get_cpuid) and <immintrin.h> for AVX2.
@@ -91,25 +92,41 @@ public:
         job_ = nullptr;
     }
 
-    void matmul_q8_0(const uint8_t* data, const float* X, float* Y,
-                     size_t nblocks, size_t nout, size_t nbatch) override {
-        if (nbatch == 1) { matvec_q8_0(data, X, Y, nblocks, nout); return; }
-        const size_t nin = nblocks * gguf::Q8_0_BLOCK;
-        // Row blocking. Dequantizing one row and looping the batch re-reads the
-        // whole activation block for every output row, so X is streamed nout
-        // times. Dequantizing RB rows first and then walking the batch once
-        // reads each activation column once per RB rows instead of once per
-        // row, cutting that traffic by RB.
-        const size_t RB = (size_t)row_block();
+    void matmul(uint32_t ggml_type, const uint8_t* data, const float* X, float* Y,
+                size_t nin, size_t nout, size_t nbatch) override {
+        // Q8_0 keeps its fused dequant+FMA row dot for the single-column case,
+        // which is the decode path and is bandwidth bound rather than load
+        // bound, so the extra dequant buffer would buy nothing there.
+        if (nbatch == 1 && ggml_type == gguf::GGML_TYPE_Q8_0) {
+            matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
+            return;
+        }
+        const quant::QuantType* qt = quant::Registry::instance().get(ggml_type);
+        if (!qt || !qt->dequantize || qt->block_size == 0)
+            throw std::runtime_error("backend: no dequantizer for tensor type");
+        const size_t blk = qt->block_size;
+        const size_t nblocks = nin / blk;
+        const size_t rowbytes = nblocks * qt->type_size;
+
+        // Rows dequantized together before walking the batch. This is the
+        // fused kernel's row width, not a tuning constant: dot_f32_x4 shares
+        // one activation load across exactly 4 rows, and grouping more buys
+        // nothing while enlarging the dequantized working set.
+        // A cache-BYTE budget was tried instead and measured worse at every
+        // size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against
+        // 24.04 for a flat 4), because the knee follows the kernel width
+        // rather than the working-set size.
+        size_t RB = (size_t)row_block();
+        if (RB < 1) RB = 1;
+
         auto do_rows = [&](int w, size_t o0, size_t o1) {
-            std::vector<float>& rb = rowbuf_[(size_t)w];
-            if (rb.size() < RB * nin) rb.assign(RB * nin, 0.0f);
-            float* r = rb.data();
+            std::vector<float>& buf = rowbuf_[(size_t)w];
+            if (buf.size() < RB * nin) buf.assign(RB * nin, 0.0f);
+            float* r = buf.data();
             for (size_t o = o0; o < o1; o += RB) {
                 const size_t nr = std::min(RB, o1 - o);
                 for (size_t k = 0; k < nr; k++)
-                    dequant_row_f32(data + (o + k) * nblocks * gguf::Q8_0_TYPESIZE,
-                                    r + k * nin, nblocks);
+                    qt->dequantize(data + (o + k) * rowbytes, r + k * nin, nblocks);
                 for (size_t b = 0; b < nbatch; b++) {
                     const float* x = X + b * nin;
                     float* y = Y + b * nout + o;
@@ -123,7 +140,8 @@ public:
         };
         const int nt = threads_;
         if (nt <= 1 || nout < (size_t)nt * 4) { do_rows(0, 0, nout); return; }
-        const size_t chunk = ((nout + (size_t)nt - 1) / (size_t)nt + RB - 1) / RB * RB;
+        const size_t per = (nout + (size_t)nt - 1) / (size_t)nt;
+        const size_t chunk = (per + RB - 1) / RB * RB;
         run_parallel([&](int w) {
             const size_t s = (size_t)w * chunk;
             const size_t e = std::min(nout, s + chunk);
@@ -131,32 +149,16 @@ public:
         });
     }
 
-    // Rows dequantized together before walking the batch. LLMX_ROW_BLOCK
-    // overrides it for measurement.
+    // Rows fused per activation load. Defaults to DOT_ROWS, the width
+    // dot_f32_x4 handles. LLMX_ROW_BLOCK overrides it for measurement.
+    static const int DOT_ROWS = 4;
     static int row_block() {
         static const int v = [] {
             const char* e = std::getenv("LLMX_ROW_BLOCK");
             int n = e ? std::atoi(e) : 0;
-            return (n > 0) ? n : 4;
+            return (n > 0) ? n : DOT_ROWS;
         }();
         return v;
-    }
-
-    // Q8_0 block row -> f32, AVX2 where available.
-    static void dequant_row_f32(const uint8_t* row, float* dst, size_t nblocks) {
-        for (size_t b = 0; b < nblocks; b++) {
-            const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
-            const float d = f16_to_f32((uint16_t)(y[0] | ((uint16_t)y[1] << 8)));
-            float* o = dst + b * gguf::Q8_0_BLOCK;
-            const __m256 dv = _mm256_set1_ps(d);
-            const __m128i* p = (const __m128i*)(y + 2);
-            __m128i a = _mm_loadu_si128(p);
-            __m128i c = _mm_loadu_si128(p + 1);
-            _mm256_storeu_ps(o +  0, _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(a)), dv));
-            _mm256_storeu_ps(o +  8, _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(a, 8))), dv));
-            _mm256_storeu_ps(o + 16, _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(c)), dv));
-            _mm256_storeu_ps(o + 24, _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(c, 8))), dv));
-        }
     }
 
     // Four dots against a SHARED activation vector, in one pass.

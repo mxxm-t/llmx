@@ -41,11 +41,11 @@ public:
 
     // Y[b*nout + o] = dot(row_o, X + b*nin), for all b in [0,nbatch) and o in
     // [0,nout). X and Y are row-major with nbatch rows.
-    // Rows are iterated outer and the batch inner, so each weight row is read
-    // once and reused across the whole batch. That is what makes prefill
-    // compute bound instead of paying the full weight stream per token.
-    virtual void matmul_q8_0(const uint8_t* data, const float* X, float* Y,
-                             size_t nblocks, size_t nout, size_t nbatch) = 0;
+    // Type-generic: the quant type is looked up in quant::Registry, so every
+    // block format gets the batched path, not just Q8_0. Rows are iterated
+    // outer and the batch inner so each weight row is read once per block.
+    virtual void matmul(uint32_t ggml_type, const uint8_t* data, const float* X,
+                        float* Y, size_t nin, size_t nout, size_t nbatch) = 0;
 
     // Run fn(i) for i in [0, n) across the backend's workers. The model layer
     // uses this for work it owns (attention heads) instead of creating threads

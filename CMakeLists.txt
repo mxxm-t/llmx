@@ -7,6 +7,7 @@ project(llmx VERSION 0.1.0 LANGUAGES CXX)
 
 option(LLMX_HAS_BACKEND_ROCM   "Build the ROCm (HIP) backend"   OFF)
 option(LLMX_HAS_BACKEND_CUDA   "Build the CUDA backend"         OFF)
+option(LLMX_HAS_BACKEND_SYCL   "Build the SYCL (Intel oneAPI) backend" OFF)
 option(LLMX_HAS_BACKEND_VULKAN "Build the Vulkan backend"       OFF)
 set(LLMX_DEFAULT_THREADS 0 CACHE STRING "Default worker threads for CPU (0 = auto)")
 

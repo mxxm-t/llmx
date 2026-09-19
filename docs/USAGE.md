@@ -68,6 +68,21 @@ comma-separated list on one line.
 
 Decode a comma- or space-separated list of token ids back into text and print it.
 
+## `llmx logits <in.gguf> "<text>" [--top N] [--threads N] [--ubatch N]`
+
+Print the top-N next-token logits for `text`, one `id value` pair per line
+after a `tokens:` header. `--top` defaults to 10.
+
+This exists for the correctness gate. Comparing llmx against a reference
+through sampled text hides everything except argmax flips, so
+`tests/baseline.py` uses this to compare the ranking directly against a
+full-precision reference (`docs/ROADMAP.md` #8).
+
+Reading the output: llmx runs a quantized GGUF, so the VALUES differ from an
+fp32 reference by quantization error and are not comparable directly. The
+ranking is what is stable, and even then two tokens within about 0.01 logits of
+each other can legitimately swap.
+
 ## `llmx perplexity <in.gguf> "<text>" [flags...]`
 
 Compute the loss-based perplexity of `text` under the model.

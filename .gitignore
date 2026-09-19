@@ -13,3 +13,9 @@ __pycache__/
 # Editor
 .vs/
 .vscode/
+
+# CLI debug dumps produced while investigating; never source
+err.txt
+stdout.txt
+stderr.txt
+info_out.txt

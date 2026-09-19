@@ -9,12 +9,21 @@ Ordered roughly by dependency and value. Items marked **[design]** are
 specified in `docs/ARCHITECTURE.md` but not yet implemented.
 
 ## 1. More quantization formats
-The `quant::Registry` makes new types drop-in: one file + one registry entry.
-- `Q4_0`, `Q4_1`, `Q6_K`, `Q5_K`, `IQ2/IQ3/IQ4` blocks
-- K-quant support (shared second scale)
-- Type-aware `data_size()` already reads from the registry rather than a switch
-- Extend `make_test.py` / `verify_gguf.py` to round-trip each new type
-- K-quants are what most GGUF on the HF Hub actually uses; see #9b
+`quant::Registry` is the only integration point: a new type is a pair of block
+kernels plus one registry entry, and nothing outside `quant/` and the GGUF type
+constants has to change. Note the kernels all currently live in one
+`quant/quant.hpp`, NOT a file per type; split it when the first K-quant with a
+shared sub-scale decoder lands and the file stops being readable.
+- Done: `Q8_0`, `Q4_0`, `Q4_1`, `Q6_K` (read-only). A llama.cpp "Q4_0" file is
+  mixed - Qwen3-0.6B-Q4_0 is 193 Q4_0, 113 F32, 3 Q4_1 and 1 Q6_K - so these
+  four together are the minimum to load one at all.
+- Next: `Q4_K`, `Q5_K`, `Q6_K` write, then `IQ2/IQ3/IQ4`. `Q4_K`/`Q5_K` share a
+  6-bit packed sub-scale decoder, which is where the file split pays for itself.
+- K-quants are what most GGUF on the Hub actually uses; see #9b
+- `TensorInfo::data_size()` still switches on type in `format/gguf.hpp` rather
+  than reading the registry, because `quant/` includes `format/` and not the
+  other way round. Adding a type means touching both.
+- Extend `tests/roundtrip.py` to cover each new type that has a quantizer
 
 ## 2. More model architectures
 The `infer::Model` layer is Qwen3-specific today. Generalize to an architecture
@@ -31,7 +40,8 @@ registry keyed by `general.architecture`:
 
 ## 4. Backends **[design]**
 GPU backends are the only compile-time concern (heavy SDKs); `config.hpp`
-`LLMX_HAS_BACKEND_*` gates each. This splits into two phases — the device
+`LLMX_HAS_BACKEND_*` gates each. The vendor targets are ROCm, CUDA, SYCL
+(Intel) and Vulkan. This splits into two phases — the device
 execution model has to land before any vendor backend is worth writing.
 
 ### 4a. Device execution model (prerequisite, backend-agnostic)
@@ -58,21 +68,28 @@ The CPU backend stays correct and fast through this refactor: it is the A/B
 reference for every GPU claim (see #8).
 
 ### 4b. Vendor backends
+Four vendor targets. Each is opt-in at build time because its SDK is heavy, and
+each is gated by its own `LLMX_HAS_BACKEND_*` in `config.hpp`.
 - **ROCm (HIP)**: first-class target, matches the MI50 (gfx906) rig.
   `LLMX_HAS_BACKEND_ROCM`
-- **Vulkan**: portability backend, explicitly *not* first-class. One set of
-  compute shaders covering NVIDIA, Intel, and AMD as a fallback. Lower peak
-  throughput than HIP on the rig — the point is breadth, not speed. Developed
-  and validated on the MI50 (gfx906 supports Vulkan), so it needs no new
-  hardware; NVIDIA and Intel stay listed as *untested* until that hardware
-  exists. `LLMX_HAS_BACKEND_VULKAN`
-- **CUDA**: only if Vulkan proves insufficient on NVIDIA. Three vendor paths is
-  more surface than this project should carry (`AGENTS.md` — no bloat)
-- **oneAPI / SYCL**: dropped. Vulkan is the Intel answer
-- Runtime device selection: `--device rocm:0`, `--device vulkan:0`
-- Kernels are hand-written — no cuBLAS / rocBLAS / CLBlast. The SDK is the
-  dependency exception `config.hpp` already carves out; vendor math libraries
-  are not
+- **CUDA**: NVIDIA. `LLMX_HAS_BACKEND_CUDA`
+- **SYCL**: Intel, through oneAPI/DPC++ over Level Zero. This is what llama.cpp
+  calls its SYCL backend. `LLMX_HAS_BACKEND_SYCL`
+- **Vulkan**: the portability backend, explicitly *not* first-class. One set of
+  compute shaders that runs anywhere, used as the fallback where no vendor
+  backend is built or available. Lower peak throughput than a vendor path -
+  the point is breadth, not speed. It can be developed and validated on the
+  MI50 (gfx906 supports Vulkan), so it needs no new hardware.
+  `LLMX_HAS_BACKEND_VULKAN`
+- Hardware availability sets what can be *claimed*, not what can be written:
+  only AMD gfx906 is testable here today, so any NVIDIA or Intel result stays
+  marked **untested** until that hardware exists. Do not claim a backend works
+  on hardware nobody has run it on.
+- Runtime device selection: `--device rocm:0`, `--device cuda:0`,
+  `--device sycl:0`, `--device vulkan:0`.
+- Kernels are hand-written - no cuBLAS / rocBLAS / oneMKL / CLBlast. The SDK is
+  the dependency exception `config.hpp` already carves out; vendor math
+  libraries are not.
 
 ## 5. Multi-device split **[design]**
 Split a single model across several backends on one machine.

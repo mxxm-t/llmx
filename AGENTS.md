@@ -128,11 +128,11 @@ matters: **each layer depends only on the layers below it** —
 | Directory    | Contents                                        |
 |--------------|-------------------------------------------------|
 | `core/`      | fp16 <-> f32, JSON parser, common types         |
-| `quant/`     | QuantType registry + Q8_0 kernels              |
+| `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q6_K kernels |
 | `format/`    | ModelFormat interface + GGUF v3 impl           |
-| `tokenizer/` | GPT-2 byte-level BPE                           |
+| `tokenizer/` | byte-level BPE, Qwen2/Qwen3 pretokenizer       |
 | `model/`     | Qwen3 config + forward pass, KV cache          |
-| `backends/`  | Backend interface + cpu/ (AVX2) impl           |
+| `backends/`  | Backend interface + cpu/ (AVX2) impl; one worker pool |
 | `inference/` | sampler, generate, chat template renderer      |
 | `cli/`       | thin argument parsing + dispatch               |
 

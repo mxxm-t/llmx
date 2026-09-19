@@ -1,7 +1,8 @@
 # llmx
 
 A ground-up, **dependency-free** LLM inference runtime. It reads and writes
-GGUF v3, runs Q8_0 / F32 transformers on CPU (AVX2 where available), and is
+GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q6_K / F32 transformers on CPU (AVX2 where
+available), and is
 structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added later without touching the core.
 
@@ -9,8 +10,10 @@ No external libraries. No CUDA, no ONNX Runtime — just C++ and your CPU.
 
 ## Status
 
-llmx is a young runtime. Today it runs **Qwen3-style** models quantized to
-**Q8_0** (plus F32) on CPU, with a GPT-2 byte-level BPE tokenizer and a
+llmx is a young runtime. Today it runs **Qwen3-style** models on CPU, reading
+**Q8_0**, **Q4_0**, **Q4_1**, **Q6_K** and **F32** tensors - which together are
+what a real llama.cpp "Q4_0" file actually contains - with a byte-level BPE
+tokenizer implementing the Qwen2/Qwen3 pretokenizer, and a
 Jinja2-subset chat-template renderer. See `docs/STATUS.md` for exactly what's
 done and what's in flight.
 

@@ -23,6 +23,7 @@
 #define LLMX_HAS_BACKEND_CPU    1
 #define LLMX_HAS_BACKEND_ROCM   0
 #define LLMX_HAS_BACKEND_CUDA   0
+#define LLMX_HAS_BACKEND_SYCL   0
 #define LLMX_HAS_BACKEND_VULKAN 0
 
 // Default worker-thread hint for CPU backends. 0 = auto (hardware_concurrency).

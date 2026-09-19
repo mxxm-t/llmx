@@ -17,8 +17,11 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx currently loads **Q8_0 / F32** GGUF only (see `docs/src/format-gguf.md`).
-Of the models on this machine, exactly one is usable today:
+llmx loads **Q8_0 / Q4_0 / Q4_1 / Q6_K / F32** tensors (see
+`docs/src/format-gguf.md`). Those four quant types together are what a real
+llama.cpp "Q4_0" file contains, so Q4_0 models load as well as Q8_0 ones.
+K-quants (`Q4_K`, `Q5_K`) are not supported yet, which is what still excludes
+most of the Hub.
 
 | Model                                            | Format | Status                       |
 |--------------------------------------------------|--------|------------------------------|
@@ -40,6 +43,19 @@ and real throughput:
 ```
 llmx.exe generate C:\Users\Marko\.lmstudio\models\Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf "The capital of France is" -n 32
 ```
+
+## Gate fixture models (HF cache)
+
+`tests/baseline.py` looks these up in the Hugging Face cache automatically, and
+skips if they are absent. `LLMX_BASELINE_GGUF` overrides the lookup.
+
+| Repo / file | Why this one |
+|---|---|
+| `Qwen/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q8_0.gguf` | Small enough to gate on, and the tokenizer golden's model |
+| `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q4_0.gguf` | **Load-bearing.** Mixed Q4_0/Q4_1/Q6_K/F32, and its Q6_K `token_embd` has a subnormal super-block scale. The Q8_0 fixture has almost no subnormal scales (0.0061% of blocks against 5.89% in Qwen3-8B), so without this model the logit gate is blind to the f16 subnormal bug class - it passed with that bug deliberately reintroduced until this was added. |
+
+Fetch them with `huggingface_hub`; both are a few hundred MB.
+
 
 ## Wiki text location
 

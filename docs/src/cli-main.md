@@ -11,6 +11,9 @@ Commands and their entry points:
 - `info`: `cmd_info` (dump metadata + tensor list).
 - `tokenize` / `detokenize`: `cmd_tokenize` / `cmd_detokenize`.
 - `perplexity`: `cmd_perplexity` (loss-based PPL).
+- `logits`: `cmd_logits` (top-N next-token logits; this is what the correctness
+  gate compares against a full-precision reference, since sampled text hides
+  everything except argmax flips).
 - `generate`: `cmd_generate` (prefill + generate; prints `pp:`/`tg:` timings).
 - `chat`: `cmd_chat` (interactive loop using the chat template).
 - `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS).

@@ -1,5 +1,7 @@
 # llmx
 
+[![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
+
 A ground-up, **dependency-free** LLM inference runtime. It reads and writes
 GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K with F32 norms transformers on CPU (AVX2 where
 available), and is

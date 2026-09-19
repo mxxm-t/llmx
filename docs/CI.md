@@ -10,6 +10,11 @@ dispatch. It contains four independent checks:
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | HF reference (CPU) | Linux build plus both pinned real models: tokenizer, logits, continuous/chunked PPL |
 
+All four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
+at `ec74308`. Local Windows MSVC and WSL Linux GCC CMake builds also passed
+the suite with both HF fixtures required. Workflow lint and negative checks
+for corrupt downloads, missing fixtures and invalid throughput passed.
+
 The CPU backend currently uses x86 intrinsics, and CMake enables AVX2/FMA/F16C.
 Runtime checks inside some kernels do not make that binary safe on older CPUs.
 Intel macOS is intentional; ARM and a portable scalar build are not covered.
@@ -50,5 +55,4 @@ workflow does not expose the GPU rig to pull-request jobs.
 
 After the first hosted run succeeds, the four stable check names above can be
 required for `main`. Branch protection is a separate repository setting;
-adding this workflow does not enable it automatically. Hosted macOS results
-must be observed before claiming that platform passed.
+adding this workflow does not enable it automatically.

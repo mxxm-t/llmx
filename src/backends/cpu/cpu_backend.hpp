@@ -94,21 +94,65 @@ public:
                      size_t nblocks, size_t nout, size_t nbatch) override {
         if (nbatch == 1) { matvec_q8_0(data, X, Y, nblocks, nout); return; }
         const size_t nin = nblocks * gguf::Q8_0_BLOCK;
-        auto do_rows = [&](size_t o0, size_t o1) {
+        auto do_rows = [&](int w, size_t o0, size_t o1) {
+            std::vector<float>& rb = rowbuf_[(size_t)w];
+            if (rb.size() < nin) rb.assign(nin, 0.0f);
+            float* r = rb.data();
             for (size_t o = o0; o < o1; o++) {
-                const uint8_t* row = data + o * nblocks * gguf::Q8_0_TYPESIZE;
+                // Dequantize the weight row ONCE and reuse it for every batch
+                // column. Doing the dequant inside the batch loop repeated it
+                // nbatch times, which is what capped batched prefill.
+                dequant_row_f32(data + o * nblocks * gguf::Q8_0_TYPESIZE, r, nblocks);
                 for (size_t b = 0; b < nbatch; b++)
-                    Y[b * nout + o] = dot_row_impl(row, X + b * nin, nblocks);
+                    Y[b * nout + o] = dot_f32(r, X + b * nin, nin);
             }
         };
         const int nt = threads_;
-        if (nt <= 1 || nout < (size_t)nt * 4) { do_rows(0, nout); return; }
+        if (nt <= 1 || nout < (size_t)nt * 4) { do_rows(0, 0, nout); return; }
         const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
         run_parallel([&](int w) {
             const size_t s = (size_t)w * chunk;
             const size_t e = std::min(nout, s + chunk);
-            if (s < e) do_rows(s, e);
+            if (s < e) do_rows(w, s, e);
         });
+    }
+
+    // Q8_0 block row -> f32, AVX2 where available.
+    static void dequant_row_f32(const uint8_t* row, float* dst, size_t nblocks) {
+        for (size_t b = 0; b < nblocks; b++) {
+            const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
+            const float d = f16_to_f32((uint16_t)(y[0] | ((uint16_t)y[1] << 8)));
+            float* o = dst + b * gguf::Q8_0_BLOCK;
+            const __m256 dv = _mm256_set1_ps(d);
+            const __m128i* p = (const __m128i*)(y + 2);
+            __m128i a = _mm_loadu_si128(p);
+            __m128i c = _mm_loadu_si128(p + 1);
+            _mm256_storeu_ps(o +  0, _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(a)), dv));
+            _mm256_storeu_ps(o +  8, _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(a, 8))), dv));
+            _mm256_storeu_ps(o + 16, _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(c)), dv));
+            _mm256_storeu_ps(o + 24, _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(c, 8))), dv));
+        }
+    }
+
+    static float dot_f32(const float* a, const float* b, size_t n) {
+        __m256 acc = _mm256_setzero_ps();
+        size_t i = 0;
+        for (; i + 32 <= n; i += 32) {
+            acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i +  0), _mm256_loadu_ps(b + i +  0), acc);
+            acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i +  8), _mm256_loadu_ps(b + i +  8), acc);
+            acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16), acc);
+            acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24), acc);
+        }
+        for (; i + 8 <= n; i += 8)
+            acc = _mm256_fmadd_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i), acc);
+        __m128 lo = _mm256_castps256_ps128(acc);
+        __m128 hi = _mm256_extractf128_ps(acc, 1);
+        __m128 s = _mm_add_ps(lo, hi);
+        s = _mm_hadd_ps(s, s);
+        s = _mm_hadd_ps(s, s);
+        float out = _mm_cvtss_f32(s);
+        for (; i < n; i++) out += a[i] * b[i];
+        return out;
     }
 
     void parallel_for(int n, const std::function<void(int)>& fn) override {
@@ -191,6 +235,8 @@ private:
     // std::threads on every matvec call, which is once per matmul per layer per
     // token; at 36 layers that is thousands of thread creations per token.
     std::vector<std::thread> pool_;
+    // Per-worker dequantized weight-row scratch for matmul_q8_0.
+    std::vector<std::vector<float>> rowbuf_;
     std::mutex m_;
     std::condition_variable cv_work_, cv_done_;
     const std::function<void(int)>* job_ = nullptr;
@@ -199,6 +245,7 @@ private:
     bool stop_ = false;
 
     void start_pool() {
+        rowbuf_.assign((size_t)(threads_ > 0 ? threads_ : 1), std::vector<float>());
         stop_ = false;
         epoch_ = 0;
         pending_ = 0;

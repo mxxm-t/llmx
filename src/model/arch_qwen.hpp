@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -257,7 +258,7 @@ public:
         std::vector<float> logits;
         size_t i = 0;
         while (i < ids.size()) {
-            const int B = (int)std::min((size_t)PREFILL_CHUNK, ids.size() - i);
+            const int B = (int)std::min((size_t)prefill_chunk(), ids.size() - i);
             const bool last = (i + (size_t)B == ids.size());
             forward_batch(&ids[i], B, last ? &logits : nullptr);
             i += (size_t)B;
@@ -339,13 +340,22 @@ private:
         }
     }
 
-    // Chunk size for batched prefill. Bounds the scratch buffers: at n_ff
-    // 12288 each of gate/up/ffn is B*n_ff floats, so 128 costs about 6 MB each.
-    static const int PREFILL_CHUNK = 128;
+    // Chunk size for batched prefill. Larger chunks mean fewer passes over the
+    // weights, but the activation block (B * n_embd floats) has to stay in
+    // cache or it is re-streamed for every weight row. LLMX_PREFILL_CHUNK
+    // overrides it for A/B measurement.
+    int prefill_chunk() const {
+        static const int v = [] {
+            const char* e = std::getenv("LLMX_PREFILL_CHUNK");
+            int n = e ? std::atoi(e) : 0;
+            return (n > 0) ? n : 128;
+        }();
+        return v;
+    }
 
     void ensure_batch_buffers() {
         if (!xb_.empty()) return;
-        const size_t B = (size_t)PREFILL_CHUNK;
+        const size_t B = (size_t)prefill_chunk();
         const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
         xb_.assign(B * cfg.n_embd, 0.0f);
         hb_.assign(B * cfg.n_embd, 0.0f);

@@ -1,0 +1,648 @@
+{
+  "date": "2026-09-20",
+  "decision": "Reject grouped Q16 candidate for production: violates existing unchanged native accuracy contract on MSVC and GCC. Do not widen tolerance or fit a new acceptance bound.",
+  "production_runtime": "bf122fd00440366a704b81c36d4d7c8884384e2b",
+  "candidate_sha256": "2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234",
+  "candidate_source_artifact": "q16-group-preparation-20260920.json",
+  "prior_synthetic_artifact": "q16-group-validation-20260920.json",
+  "frozen_research_bounds": {
+    "status": "frozen before grouped-Q16 model numerical comparisons",
+    "control_repeat": "two runs per compared path; exact fields and vector bytes",
+    "hf_q8_continuous_abs_nll": 0.01,
+    "hf_q8_window_abs_nll": 0.02,
+    "hf_q8_long_continuation_abs_nll": 0.01,
+    "added_abs_mean_nll_per_case": 0.0001,
+    "long_max_abs_logit_change_per_vector": 0.005,
+    "long_rms_logit_change_per_vector": 0.001,
+    "long_top1_matches_per_path": 33,
+    "long_ubatches": [
+      128,
+      2
+    ],
+    "long_prompt_tokens": 1943,
+    "long_forced_hf_tokens": 32,
+    "threads": 6,
+    "hf_requirement": "Both control and candidate must meet unchanged HF budgets. Report full double/17-digit NLL. Six short prompt ranks use existing top1/top5 bounds; exact tokenizer/input IDs and counters.",
+    "scope": "Research cost gate, not lossless certification or automatic adoption. 8B independent HF goldens cover short prompts and serial excerpts only. Existing rank cases have no one-token prompt; fresh one-token HF numerical coverage is still missing.",
+    "basis": "Prospective additional-cost caps based on prior standalone-Q16 study: max logit change0.002213, aggregate RMS0.000263, max serial NLL change0.00003155. New caps are not fitted to this grouped candidate. Per-vector RMS prevents dilution.",
+    "adoption_constraint": "AGENTS asks for lossless optimizations; this candidate changes activation precision. Passing bounded-cost research does not redefine lossless or automatically authorize production adoption."
+  },
+  "source_manifest": {
+    "control/CMakeLists.txt": "8494f74b5011ada9512e16e685ab8124d5b0020700e7959e4b54c31372baf93b",
+    "control/cmake/build-info.cmake": "eb2ac2f0b719041a6c7e79e128190bbb4d2c59d3c4aacdc68f143502d799f5d1",
+    "control/cmake/llmx-config.hpp.in": "3e079e0dc3dac64c0f5869c540d8a3a19882a953d81f7b93003c4127c02f7674",
+    "control/src/config.hpp": "a9c8a421b6d10b3289ff9b0314415a2120c3b71e91fd6243ea437a3791f89c1c",
+    "control/tests/backend_errors.cpp": "473a3a4d48c2d4d84a1ff238a60418f805795222201a8027a12ce008a3d0e5a2",
+    "control/tests/backend_group.cpp": "08bc4a56c19735fe5a62b5e04920ee410787faf5934e65c0fc41ac366ba14670",
+    "control/tests/baseline.py": "6114fdca1d99e41431393b99a268e1680947a1a0432cf106f8664274e47b9eff",
+    "control/tests/baseline_8b.py": "ecddb40df22bb05b00b4c92d2c3ee7a2cb50b0812bf5f7f0a8f7b7d229dd73e7",
+    "control/tests/chat.py": "f42b14a6ec1c01b9f5ca63233ebad3d57cf3ea7f9b138b431f098d7aac076123",
+    "control/tests/chat_template.cpp": "1fef1ece2d50f31f8a2bf05b989fb9c42be8c3b520be16179f0627f262587fcd",
+    "control/tests/cli_output.cpp": "86be3d48dc4492ef7a9029cb3de1b705d8b3582077c6dd7b3964a9d30fe88e34",
+    "control/tests/common.py": "ca00e5df5549c44e9ea0ce38552bd8c9491a0fd4773c77a190c295b9536934bf",
+    "control/tests/f32.py": "2e8e7fe2fa7121d2a935d192df92096f53bfdf03f83bf24e54b390740e325b0c",
+    "control/tests/generation_stream.cpp": "ae2f82c1295d7d9f281769732b8afae587f861d82307ab38f9270bc0acc44a52",
+    "control/tests/kv_cache.cpp": "7fde5749a745210cceec242f535168fe84aca230745651abf279fbbe4e9671af",
+    "control/tests/load_progress.cpp": "0ab96d25593c658e7668b63d54b527ed2004d1dfa4f7d26b26330adbad4ac016",
+    "control/tests/perf.py": "ad5f3d27efae5da6ca9c481a7969a67947a4ac2c22162e2ff1bb92f2bc748964",
+    "control/tests/perplexity.py": "2bbc18cab9d87396e2063d07137ddb62ba8f06b9b0211e38c930b5f33eb180aa",
+    "control/tests/reference_consumer.py": "1f3e62ee159b7953625d1ee6ce3cd91678d549cdc7e2e48a39df478e5f7c091a",
+    "control/tests/reference_generator.py": "4e3c9e469869c50553331da9ee9bfc586db6741c419cef2574efb9bb7f6d048c",
+    "control/tests/roundtrip.py": "13d6d4199f91ba1424d99b2337a989e21ba87a4c6153bf6ab5464df498893228",
+    "control/tests/run_tests.py": "6343781adc52c1e108e1fd159667fe59c04b23a6958c1aa72e01c90f1c56b238",
+    "control/tests/threads.py": "0e05634361b99defeda60ee40bea3e974a7035683366e726e2c4da229525a96f",
+    "control/tests/tokenizer.py": "9f0c899b74f8ccdbe95783485c37d4218bd179731dfcc36795c14f3748df04c3",
+    "control/tests/version.py": "3b7a9799ef7427a60a87c74e2b45f6df5f7d4149d985a0f95cd6a3e915230d03",
+    "control/src/backends/backend.hpp": "7c41adeacd8314cf2cb1aca8f100a738375ff1b29fe3a96b4b9315df513fd0e6",
+    "control/src/cli/main.cpp": "2aafe96c4b243e73847a9c98878c5b0577a7176a816b63d879e5ee270a04e35e",
+    "control/src/core/fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+    "control/src/core/json.hpp": "cc722edcd5e1369edaa903c8597fddbd6ff2b2e97e59705d8f1fde83cc95dd76",
+    "control/src/format/format.hpp": "35810614c9500734202ccf588551f9934cecd8c5a0c0f04cb71709ceeef279c1",
+    "control/src/format/gguf.hpp": "eec138f1768f42c921ed7baecd6d3294562c63a581b6c3b1536673c7c3e4710d",
+    "control/src/inference/chat.hpp": "0cc035ae26396ee36489724940517b6905e55b7b1e29c6ea6fc2e4f13fb63cc2",
+    "control/src/inference/generate.hpp": "bc09e574d0e9c5db561c4c589595ad1330674f9e66c582c59b86a696b2eb6f15",
+    "control/src/inference/perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+    "control/src/inference/sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+    "control/src/model/arch_qwen.hpp": "83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1",
+    "control/src/model/host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+    "control/src/quant/k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+    "control/src/quant/quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+    "control/src/tokenizer/tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+    "control/src/backends/cpu/cpu_backend.hpp": "ff57a618d58839e750c518e2c6fc229b5f1f0fd7acc95eb0cce4dcafbed79211",
+    "control/tests/data/baseline_chat.json": "80417fac731ee303d6aa24173f6e1dea27247cde27fd7ae1adfa742fb077b73f",
+    "control/tests/data/baseline_chat_template.json": "8bc6f08f352cc7acd8c0a07aebd4c03429be4d7fa5a9275c1959bb06d3b10cbd",
+    "control/tests/data/baseline_f32.json": "42caa7b77f4ee09ea30b51bab28ef872286986396536c1d1966c9d805fa2cd29",
+    "control/tests/data/baseline_logits.json": "0711f4e38bfe33262cbf7ae5a2b8299b6d99bd8fc02f8d8deef66cab65c676f2",
+    "control/tests/data/baseline_perplexity.json": "7a7a310054bbcd6e4a558adea4f06f007fc0cee80766b6edacd14542cecef15c",
+    "control/tests/data/baseline_tokenizer.json": "ff3732350004f244df10a1cbd66a6305319557c643f7bfc6a5ec08afb85878c6",
+    "control/tests/data/wiki.test.raw": "4f3e427e4aff23acff917a8a51aeae21bf12832256e26914c8fc250dcef4103c",
+    "control/tests/data/qwen3-8b/baseline_logits.json": "e3eb726e06ff3bd9d5ecd69712c324a9842ccd58ec33fda4bb19dc4476f9680e",
+    "control/tests/data/qwen3-8b/baseline_perplexity.json": "c6e84d0d0661e07b285c7882ac0dd9d128dd45ad7215c2d83a345f3e84f71178",
+    "control/tests/data/qwen3-8b/baseline_tokenizer.json": "9f8cdedcd91e89e388ac6081c6e496ea7e2f95d2565664cc5117144e29b1fe2a",
+    "candidate/CMakeLists.txt": "8494f74b5011ada9512e16e685ab8124d5b0020700e7959e4b54c31372baf93b",
+    "candidate/cmake/build-info.cmake": "eb2ac2f0b719041a6c7e79e128190bbb4d2c59d3c4aacdc68f143502d799f5d1",
+    "candidate/cmake/llmx-config.hpp.in": "3e079e0dc3dac64c0f5869c540d8a3a19882a953d81f7b93003c4127c02f7674",
+    "candidate/src/config.hpp": "a9c8a421b6d10b3289ff9b0314415a2120c3b71e91fd6243ea437a3791f89c1c",
+    "candidate/tests/backend_errors.cpp": "473a3a4d48c2d4d84a1ff238a60418f805795222201a8027a12ce008a3d0e5a2",
+    "candidate/tests/backend_group.cpp": "08bc4a56c19735fe5a62b5e04920ee410787faf5934e65c0fc41ac366ba14670",
+    "candidate/tests/baseline.py": "6114fdca1d99e41431393b99a268e1680947a1a0432cf106f8664274e47b9eff",
+    "candidate/tests/baseline_8b.py": "ecddb40df22bb05b00b4c92d2c3ee7a2cb50b0812bf5f7f0a8f7b7d229dd73e7",
+    "candidate/tests/chat.py": "f42b14a6ec1c01b9f5ca63233ebad3d57cf3ea7f9b138b431f098d7aac076123",
+    "candidate/tests/chat_template.cpp": "1fef1ece2d50f31f8a2bf05b989fb9c42be8c3b520be16179f0627f262587fcd",
+    "candidate/tests/cli_output.cpp": "86be3d48dc4492ef7a9029cb3de1b705d8b3582077c6dd7b3964a9d30fe88e34",
+    "candidate/tests/common.py": "ca00e5df5549c44e9ea0ce38552bd8c9491a0fd4773c77a190c295b9536934bf",
+    "candidate/tests/f32.py": "2e8e7fe2fa7121d2a935d192df92096f53bfdf03f83bf24e54b390740e325b0c",
+    "candidate/tests/generation_stream.cpp": "ae2f82c1295d7d9f281769732b8afae587f861d82307ab38f9270bc0acc44a52",
+    "candidate/tests/kv_cache.cpp": "7fde5749a745210cceec242f535168fe84aca230745651abf279fbbe4e9671af",
+    "candidate/tests/load_progress.cpp": "0ab96d25593c658e7668b63d54b527ed2004d1dfa4f7d26b26330adbad4ac016",
+    "candidate/tests/perf.py": "ad5f3d27efae5da6ca9c481a7969a67947a4ac2c22162e2ff1bb92f2bc748964",
+    "candidate/tests/perplexity.py": "2bbc18cab9d87396e2063d07137ddb62ba8f06b9b0211e38c930b5f33eb180aa",
+    "candidate/tests/reference_consumer.py": "1f3e62ee159b7953625d1ee6ce3cd91678d549cdc7e2e48a39df478e5f7c091a",
+    "candidate/tests/reference_generator.py": "4e3c9e469869c50553331da9ee9bfc586db6741c419cef2574efb9bb7f6d048c",
+    "candidate/tests/roundtrip.py": "13d6d4199f91ba1424d99b2337a989e21ba87a4c6153bf6ab5464df498893228",
+    "candidate/tests/run_tests.py": "6343781adc52c1e108e1fd159667fe59c04b23a6958c1aa72e01c90f1c56b238",
+    "candidate/tests/threads.py": "0e05634361b99defeda60ee40bea3e974a7035683366e726e2c4da229525a96f",
+    "candidate/tests/tokenizer.py": "9f0c899b74f8ccdbe95783485c37d4218bd179731dfcc36795c14f3748df04c3",
+    "candidate/tests/version.py": "3b7a9799ef7427a60a87c74e2b45f6df5f7d4149d985a0f95cd6a3e915230d03",
+    "candidate/src/backends/backend.hpp": "7c41adeacd8314cf2cb1aca8f100a738375ff1b29fe3a96b4b9315df513fd0e6",
+    "candidate/src/cli/main.cpp": "2aafe96c4b243e73847a9c98878c5b0577a7176a816b63d879e5ee270a04e35e",
+    "candidate/src/core/fp16.hpp": "bebe8e901a383cadb546ff2cee69fe7f7acc88fffb59244eec9b340f3dfeda4d",
+    "candidate/src/core/json.hpp": "cc722edcd5e1369edaa903c8597fddbd6ff2b2e97e59705d8f1fde83cc95dd76",
+    "candidate/src/format/format.hpp": "35810614c9500734202ccf588551f9934cecd8c5a0c0f04cb71709ceeef279c1",
+    "candidate/src/format/gguf.hpp": "eec138f1768f42c921ed7baecd6d3294562c63a581b6c3b1536673c7c3e4710d",
+    "candidate/src/inference/chat.hpp": "0cc035ae26396ee36489724940517b6905e55b7b1e29c6ea6fc2e4f13fb63cc2",
+    "candidate/src/inference/generate.hpp": "bc09e574d0e9c5db561c4c589595ad1330674f9e66c582c59b86a696b2eb6f15",
+    "candidate/src/inference/perplexity.hpp": "76b152e5e83654c1eb6a8fb0ce277fed9cb0829fb5093f204cf637e8a0f6d2f1",
+    "candidate/src/inference/sampler.hpp": "a5556bc55700f88f2c7b35c8f60631c46279d01d0a07726752cfc6e86eab3859",
+    "candidate/src/model/arch_qwen.hpp": "83111ab3b4a222f62a3579ee72158b207dfaa1853e5d09d743df959e489763e1",
+    "candidate/src/model/host_kv_cache.hpp": "2dc1963fffe7d062fb29ae8402c66cbd144aeb3c01104df9ce62e3dde60f1b64",
+    "candidate/src/quant/k_quants.hpp": "60538dcf65e1059e6ca1b0f5e51c5f440d042a5c1ab0c3449ba310ed9ba95a92",
+    "candidate/src/quant/quant.hpp": "28d54bc1f6294d856f74cd35e84ff15f24164f799f5a7aaa59a491f889a5fd53",
+    "candidate/src/tokenizer/tokenizer.hpp": "181c0ee329f541ea8974232e1c87d5be17a4b3cf7f76d5c849a4cf46cf9fa885",
+    "candidate/src/backends/cpu/cpu_backend.hpp": "2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234",
+    "candidate/tests/data/baseline_chat.json": "80417fac731ee303d6aa24173f6e1dea27247cde27fd7ae1adfa742fb077b73f",
+    "candidate/tests/data/baseline_chat_template.json": "8bc6f08f352cc7acd8c0a07aebd4c03429be4d7fa5a9275c1959bb06d3b10cbd",
+    "candidate/tests/data/baseline_f32.json": "42caa7b77f4ee09ea30b51bab28ef872286986396536c1d1966c9d805fa2cd29",
+    "candidate/tests/data/baseline_logits.json": "0711f4e38bfe33262cbf7ae5a2b8299b6d99bd8fc02f8d8deef66cab65c676f2",
+    "candidate/tests/data/baseline_perplexity.json": "7a7a310054bbcd6e4a558adea4f06f007fc0cee80766b6edacd14542cecef15c",
+    "candidate/tests/data/baseline_tokenizer.json": "ff3732350004f244df10a1cbd66a6305319557c643f7bfc6a5ec08afb85878c6",
+    "candidate/tests/data/wiki.test.raw": "4f3e427e4aff23acff917a8a51aeae21bf12832256e26914c8fc250dcef4103c",
+    "candidate/tests/data/qwen3-8b/baseline_logits.json": "e3eb726e06ff3bd9d5ecd69712c324a9842ccd58ec33fda4bb19dc4476f9680e",
+    "candidate/tests/data/qwen3-8b/baseline_perplexity.json": "c6e84d0d0661e07b285c7882ac0dd9d128dd45ad7215c2d83a345f3e84f71178",
+    "candidate/tests/data/qwen3-8b/baseline_tokenizer.json": "9f8cdedcd91e89e388ac6081c6e496ea7e2f95d2565664cc5117144e29b1fe2a"
+  },
+  "windows_build": {
+    "command": [
+      "cmd.exe",
+      "/d",
+      "/c",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\build-windows.bat"
+    ],
+    "returncode": 0,
+    "completed": "2026-09-19T22:44:32.599777+00:00"
+  },
+  "windows_native": {
+    "status": "fail",
+    "commands": [
+      {
+        "arm": "control",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\control-build",
+          "--output-on-failure"
+        ],
+        "returncode": 0,
+        "completed": "2026-09-19T22:45:04.819093+00:00"
+      },
+      {
+        "arm": "candidate",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\candidate-build",
+          "--output-on-failure"
+        ],
+        "returncode": 8,
+        "completed": "2026-09-19T22:45:06.344995+00:00"
+      }
+    ],
+    "binaries": {
+      "control-build\\llmx-backend-errors-test.exe": "a02d6613e87ba1cb6767c365b8ba227c039b49c10ba19d48bc544083b3553655",
+      "control-build\\llmx-backend-group-test.exe": "7df8ef1a924c30825099d0e30368034ead958b79e411d49684bbf8dcca7478ef",
+      "control-build\\llmx-chat-template-test.exe": "d83854483531846f36c44e717dec26c8f3d88e724fa5ed1092e4c724ae60ed66",
+      "control-build\\llmx-cli-output-test.exe": "331079e8509cc030717b73643b06b63f7285367d6af86ad1af86d7febecf7480",
+      "control-build\\llmx-generation-stream-test.exe": "68c1e2c9763d7a39b50609a50a1d2b73c07904bb61c1c2503ab1e5879bad3325",
+      "control-build\\llmx-kv-cache-test.exe": "095975f493465ec852ed5d7a28c2bb6543e7cacba54902663a16a8cc64e23324",
+      "control-build\\llmx-load-progress-test.exe": "2d1b5998e91711475409bc93d94383a3eaf3ad00db60b9eed6d5de7edb33e224",
+      "control-build\\llmx.exe": "ca0574ba27e383d409673fd3aafda3e7a7d3b6f45c819702fda8053b77d9bd82",
+      "candidate-build\\llmx-backend-errors-test.exe": "fe262ce3160e62be54538ff2c77b4142242494b2f3d49f0d9797785e78b68232",
+      "candidate-build\\llmx-backend-group-test.exe": "6effa220f3005c39775b991eeba87a1facfc6f17bf64fffb0d27f6264959846a",
+      "candidate-build\\llmx-chat-template-test.exe": "e8ffeebb646ac556ab9d4362bc6bd54fc304cdb8badf8579feb6e964d485845f",
+      "candidate-build\\llmx-cli-output-test.exe": "e77435a3bfe90bf05b51237e3a77d04221804832bb86b63062d2ccc7ef49ef26",
+      "candidate-build\\llmx-generation-stream-test.exe": "6d0e761aea78530178d5ae1e5b7fce6f58852c9494c9037a0b89a2f47acf7cb6",
+      "candidate-build\\llmx-kv-cache-test.exe": "27f71953989350ec7ccf71ed243cb6bed3f829f61981c7eb121b8d4fda7f4a28",
+      "candidate-build\\llmx-load-progress-test.exe": "d4f8f8c45bb4c294c91bf2ce34739a739d6e4fede4b36e399d8282c95f32764c",
+      "candidate-build\\llmx.exe": "0e4a4aea540d14e3bc4f50c5cc942ee1f4d357f4c8266590052f5f80bc1137ec"
+    }
+  },
+  "linux_native": {
+    "status": "fail",
+    "scope": "Unchanged control/candidate GCC Release CTest; no model or performance gates",
+    "root": "/root/.cache/llmx-q16-model-gates-20260920",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "commands": [
+      {
+        "name": "compiler",
+        "command": [
+          "g++",
+          "--version"
+        ],
+        "cwd": "/root/.cache/llmx-q16-model-gates-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:45:44Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:45:44Z"
+      },
+      {
+        "name": "cmake",
+        "command": [
+          "cmake",
+          "--version"
+        ],
+        "cwd": "/root/.cache/llmx-q16-model-gates-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:45:44Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:45:45Z"
+      },
+      {
+        "name": "control-configure",
+        "command": [
+          "cmake",
+          "-S",
+          "control",
+          "-B",
+          "control-build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DBUILD_TESTING=ON"
+        ],
+        "cwd": "/root/.cache/llmx-q16-model-gates-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:45:45Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:45:46Z"
+      },
+      {
+        "name": "control-build",
+        "command": [
+          "cmake",
+          "--build",
+          "control-build",
+          "--parallel",
+          "2"
+        ],
+        "cwd": "/root/.cache/llmx-q16-model-gates-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:45:46Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:46:06Z"
+      },
+      {
+        "name": "candidate-configure",
+        "command": [
+          "cmake",
+          "-S",
+          "candidate",
+          "-B",
+          "candidate-build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DBUILD_TESTING=ON"
+        ],
+        "cwd": "/root/.cache/llmx-q16-model-gates-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:46:06Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:46:07Z"
+      },
+      {
+        "name": "candidate-build",
+        "command": [
+          "cmake",
+          "--build",
+          "candidate-build",
+          "--parallel",
+          "2"
+        ],
+        "cwd": "/root/.cache/llmx-q16-model-gates-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:46:07Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:46:27Z"
+      },
+      {
+        "name": "control-ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "control-build",
+          "--output-on-failure"
+        ],
+        "cwd": "/root/.cache/llmx-q16-model-gates-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:46:27Z",
+        "exit_code": 0,
+        "finished_utc": "2026-09-19T22:46:28Z"
+      },
+      {
+        "name": "candidate-ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "candidate-build",
+          "--output-on-failure"
+        ],
+        "cwd": "/root/.cache/llmx-q16-model-gates-20260920",
+        "status": "exited",
+        "started_utc": "2026-09-19T22:46:28Z",
+        "exit_code": 8,
+        "finished_utc": "2026-09-19T22:46:28Z"
+      }
+    ],
+    "verified_source_files": 102,
+    "input_hashes": {
+      "source-manifest.json": "2a2d8aad0e5e12f74551bd9f8d0a3c2442c05585441ea4be7af1390906fb3e74",
+      "frozen-bounds.json": "6bd4f7d9e8caf45fa27f3068299f4c8279492a8a14d7bce78a1f3b0432014c67"
+    },
+    "compiler": {
+      "path": "/usr/bin/x86_64-linux-gnu-g++-13",
+      "sha256": "1353e9bdd29a7295c7226bf6c63abccce056d8cac31f112e5cdbecc3f28c2769"
+    },
+    "error": "candidate-ctest failed; stop without changing tests/candidate/tolerances",
+    "binary_hashes": {
+      "control-build/llmx-generation-stream-test": "8652690896fba448d6989ad841348bb73f30f0da6144414580e5bb415c23574f",
+      "control-build/llmx-chat-template-test": "b1dd1589f1625a74677a33719e7c9af2ad6660b19553e39673bfd6a2e7d54089",
+      "control-build/llmx": "05448bf5a69a49a6d8ec2a83a53a228d01a422d6184a63225dde445eecd85c79",
+      "control-build/llmx-backend-errors-test": "e3f1bf3cbd2842bf55814ee472955cdea15c79d50ea5cd7320ff0e717258195b",
+      "control-build/llmx-kv-cache-test": "bfb42585a645f0e3634e73f3eacc591bf06f7b8e5a23dc022c7621e007a4a03a",
+      "control-build/llmx-cli-output-test": "4679805b6808726210e944c51d7af9ba01acceb8ac3530a401b959988335698e",
+      "control-build/llmx-backend-group-test": "a5860c94b11c916bd5761d08202dd011755e96b627466f16f276f678fbf9abef",
+      "control-build/llmx-load-progress-test": "7dd929670ceabc785aa0b18d317d1f859925421e6ddae269b92b30dab42f8577",
+      "candidate-build/llmx-generation-stream-test": "82f2fcef6bc8bd1f6845e7bd49a8cabc8d6eb665fda8d1e76af7fd28ce1101c1",
+      "candidate-build/llmx-chat-template-test": "b1dd1589f1625a74677a33719e7c9af2ad6660b19553e39673bfd6a2e7d54089",
+      "candidate-build/llmx": "da3fc2599cef69a4cb12ecdaa4e6f1618a95b7031c534ceeb6b5f167b00c3b1e",
+      "candidate-build/llmx-backend-errors-test": "5afe6c77f2c38ea575bba831d493ddc1c11aad17dbcea9a564c8348e61dc2c55",
+      "candidate-build/llmx-kv-cache-test": "bfb42585a645f0e3634e73f3eacc591bf06f7b8e5a23dc022c7621e007a4a03a",
+      "candidate-build/llmx-cli-output-test": "4e59672b5f7cf6694b8bb6b41c63b80095770508544e82ef538fbfc0a847b66a",
+      "candidate-build/llmx-backend-group-test": "7997e2d904a76cec33423fa9f8cafc26ba34fc7534119ea1c66179eea7c7e90e",
+      "candidate-build/llmx-load-progress-test": "7dd929670ceabc785aa0b18d317d1f859925421e6ddae269b92b30dab42f8577"
+    }
+  },
+  "diagnostic": {
+    "status": "native-contract-failure-characterized",
+    "scope": "Characterize first unchanged native-contract failure; no tolerance or candidate change.",
+    "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\backend_group.cpp",
+    "source_sha256": "08bc4a56c19735fe5a62b5e04920ee410787faf5934e65c0fc41ac366ba14670",
+    "candidate_sha256_before": "2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234",
+    "manifest_sha256_before": "e9a9f3d78322ed5e0efd4364cdd8c16bc527a38c23292d5a15b431009d0e0340",
+    "compile_command": "cl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\candidate\\src\" /Fe:diagnostic.exe /Fo:diagnostic.obj backend_group.cpp",
+    "compile_invocation": [
+      "cmd.exe",
+      "/d",
+      "/c",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\native-contract-diagnostic\\build.bat"
+    ],
+    "assertion_unchanged": "                require(std::isfinite(actual) && std::abs(actual - expected) <= 2e-6 * (1 + magnitude),\n                        \"output differs from double-precision dot oracle\");",
+    "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\native-contract-diagnostic",
+    "compile_exit": 0,
+    "run_command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\native-contract-diagnostic\\diagnostic.exe"
+    ],
+    "run_exit": 1,
+    "stdout": "",
+    "stderr": "first_failure {\"width\":256,\"base_rows\":47,\"matrix_rows\":47,\"batch\":1,\"batch_index\":0,\"threads\":1,\"type\":8,\"matrix_index\":0,\"row\":13,\"actual\":1.092775821685791,\"expected\":1.0925567150115967,\"magnitude\":102.09000205993652,\"absolute_error\":0.00021910667419433594,\"limit\":0.00020618000411987304,\"error_over_limit\":1.0626960414015092}\r\noutput differs from double-precision dot oracle\r\n",
+    "first_failure": {
+      "width": 256,
+      "base_rows": 47,
+      "matrix_rows": 47,
+      "batch": 1,
+      "batch_index": 0,
+      "threads": 1,
+      "type": 8,
+      "matrix_index": 0,
+      "row": 13,
+      "actual": 1.092775821685791,
+      "expected": 1.0925567150115967,
+      "magnitude": 102.09000205993652,
+      "absolute_error": 0.00021910667419433594,
+      "limit": 0.00020618000411987304,
+      "error_over_limit": 1.0626960414015092
+    },
+    "candidate_sha256_after": "2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234",
+    "manifest_sha256_after": "e9a9f3d78322ed5e0efd4364cdd8c16bc527a38c23292d5a15b431009d0e0340",
+    "protected_unchanged": true,
+    "files": {
+      "backend_group.cpp": {
+        "sha256": "8cb5f3b75729bb54a1ab50ed8f328e9e2855fc4fae196462657344dcaa92e2c6",
+        "bytes": 10093
+      },
+      "build.bat": {
+        "sha256": "92bfad968966570d1d82f084b348136d396c90896c88d8df66e1693715cfff02",
+        "bytes": 366
+      },
+      "build.stderr": {
+        "sha256": "75d3e58f4c46b05d475f17af73b0f6367b079763dccd729f6dfba5bf46a1f888",
+        "bytes": 1202
+      },
+      "build.stdout": {
+        "sha256": "b98fa63d12f988c23b6fdff6a49e5b7b6d35d718f5ac225e44bc50ba78a03e96",
+        "bytes": 19
+      },
+      "diagnostic.exe": {
+        "sha256": "aaa69fe1ac72754ea90f94cdb2b6c1a971800ce6d7b853c2ddd209f1f9b91472",
+        "bytes": 345600
+      },
+      "diagnostic.obj": {
+        "sha256": "eb3d26d922a716187835990a42a84393ee2ce0f2acc249ec91d870f3734f9a9a",
+        "bytes": 771637
+      },
+      "diagnostic.patch": {
+        "sha256": "c3bc355f0cf5368275d71dbd6a04e24670f087f9881c7eba381b059aeec67cf0",
+        "bytes": 1649
+      },
+      "run.py": {
+        "sha256": "fceb186268f617a50d629aea62ae69a33ddb2c159d8dcc76672dcdf59541e24f",
+        "bytes": 5226
+      },
+      "run.stderr": {
+        "sha256": "37cecf30dd935588a20db80700f3777b8bc06c7272f2ffe8d89a28845ee9aed7",
+        "bytes": 380
+      },
+      "run.stdout": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    }
+  },
+  "stopped_hf_draft": {
+    "status": "Stopped at source-only incomplete snapshot after mandatory native backend-group contract failed.",
+    "executed": false,
+    "compiled": false,
+    "inputs_manifest_created": false,
+    "scope": "Draft runner and adapted ppl/forced helpers only. No inputs.json or clean build commands were finalized. Do not execute.",
+    "gate_design": "Prospective bounded-cost research, not losslessness or adoption approval. Both arms HF budgets, repeated exact controls, per-vector caps, ubatch 128 and 2.",
+    "known_remaining_review": "Draft validates long control HF budgets after candidate execution; stop-before-candidate behavior would need tightening before any future use.",
+    "files": {
+      "forced.cpp": {
+        "bytes": 3110,
+        "sha256": "2bf6be6dfaf9d2ab0e1f09469819ef1fe698e3f8f13f6e185543f3282c11ccf6"
+      },
+      "ppl.cpp": {
+        "bytes": 1679,
+        "sha256": "0449ff4705a7cc1e6ab1e18932698b9f1b6c9423fa6af8bc3698537c86b17a27"
+      },
+      "run.py": {
+        "bytes": 11853,
+        "sha256": "5c7f9f2d319bfb64213fc8c3755f4ace5904738dd8cbb9cad12a896529b7a26c"
+      }
+    }
+  },
+  "raw": {
+    "model-gates-20260920/build-windows.bat": {
+      "bytes": 1070,
+      "sha256": "395b3df4ae230635be11bd1ea916dd4771e2dba4dbc7916c846bb8e3087e005c",
+      "text": "@echo off\r\nset \"PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer;%PATH%\"\r\ncall \"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat\" >nul\r\nif errorlevel 1 exit /b 1\r\ncmake -S \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\control\" -B \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\control-build\" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON\r\nif errorlevel 1 exit /b 1\r\ncmake --build \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\control-build\" --parallel 2\r\nif errorlevel 1 exit /b 1\r\ncmake -S \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\candidate\" -B \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\candidate-build\" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON\r\nif errorlevel 1 exit /b 1\r\ncmake --build \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\candidate-build\" --parallel 2\r\nif errorlevel 1 exit /b 1\r\nexit /b 0\r\n"
+    },
+    "model-gates-20260920/candidate-native.stderr": {
+      "bytes": 27,
+      "sha256": "18e00877dc1071c85cd4f479d451bebeef8309022e46cf8c63b0bed5151984a4",
+      "text": "Errors while running CTest\n"
+    },
+    "model-gates-20260920/candidate-native.stdout": {
+      "bytes": 962,
+      "sha256": "c867b971b5f89f70835857a8bbe2c0a14b841d15bda018e4d2245cbb85dbe451",
+      "text": "Test project C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/candidate-build\n    Start 1: cli-output\n1/7 Test #1: cli-output .......................   Passed    0.02 sec\n    Start 2: load-progress\n2/7 Test #2: load-progress ....................   Passed    0.07 sec\n    Start 3: generation-stream\n3/7 Test #3: generation-stream ................   Passed    0.03 sec\n    Start 4: backend-group\n4/7 Test #4: backend-group ....................***Failed    0.03 sec\noutput differs from double-precision dot oracle\n\n    Start 5: backend-errors\n5/7 Test #5: backend-errors ...................   Passed    1.02 sec\n    Start 6: chat-template\n6/7 Test #6: chat-template ....................   Passed    0.02 sec\n    Start 7: kv-cache\n7/7 Test #7: kv-cache .........................   Passed    0.02 sec\n\n86% tests passed, 1 tests failed out of 7\n\nTotal Test time (real) =   1.23 sec\n\nThe following tests FAILED:\n\t  4 - backend-group (Failed)\n"
+    },
+    "model-gates-20260920/control-native.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "model-gates-20260920/control-native.stdout": {
+      "bytes": 853,
+      "sha256": "f8b9282791cdf2474a6b1d0282e6ca758fa19b523a70861a4f810f9abfccecb7",
+      "text": "Test project C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/control-build\n    Start 1: cli-output\n1/7 Test #1: cli-output .......................   Passed    0.02 sec\n    Start 2: load-progress\n2/7 Test #2: load-progress ....................   Passed    0.07 sec\n    Start 3: generation-stream\n3/7 Test #3: generation-stream ................   Passed    0.03 sec\n    Start 4: backend-group\n4/7 Test #4: backend-group ....................   Passed    0.12 sec\n    Start 5: backend-errors\n5/7 Test #5: backend-errors ...................   Passed    1.02 sec\n    Start 6: chat-template\n6/7 Test #6: chat-template ....................   Passed    0.03 sec\n    Start 7: kv-cache\n7/7 Test #7: kv-cache .........................   Passed    0.02 sec\n\n100% tests passed, 0 tests failed out of 7\n\nTotal Test time (real) =   1.32 sec\n"
+    },
+    "model-gates-20260920/windows-build.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "model-gates-20260920/windows-build.stdout": {
+      "bytes": 5232,
+      "sha256": "579b9364d74597882858bc9a0fc2e715cbed2c660fd1c3dbf49b4794fee440de",
+      "text": "-- The CXX compiler identification is MSVC 19.50.35728.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed\n-- Looking for pthread_create in pthreads\n-- Looking for pthread_create in pthreads - not found\n-- Looking for pthread_create in pthread\n-- Looking for pthread_create in pthread - not found\n-- Found Threads: TRUE\n-- Configuring done (1.5s)\n-- Generating done (0.0s)\n-- Build files have been written to: C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/control-build\n[1/17] C:\\Windows\\system32\\cmd.exe /C \"cd /D C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\control-build && C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\bin\\cmake.exe -DSOURCE_ROOT=C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/control -DOUTPUT_FILE=C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/control-build/generated/llmx-build-info.hpp -P C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/control/cmake/build-info.cmake\"\r\n[2/17] Building CXX object CMakeFiles\\llmx-cli-output-test.dir\\tests\\cli_output.cpp.obj\r\n[3/17] Building CXX object CMakeFiles\\llmx.dir\\src\\cli\\main.cpp.obj\r\n[4/17] Building CXX object CMakeFiles\\llmx-load-progress-test.dir\\tests\\load_progress.cpp.obj\r\n[5/17] Building CXX object CMakeFiles\\llmx-backend-group-test.dir\\tests\\backend_group.cpp.obj\r\n[6/17] Building CXX object CMakeFiles\\llmx-generation-stream-test.dir\\tests\\generation_stream.cpp.obj\r\n[7/17] Building CXX object CMakeFiles\\llmx-backend-errors-test.dir\\tests\\backend_errors.cpp.obj\r\n[8/17] Building CXX object CMakeFiles\\llmx-kv-cache-test.dir\\tests\\kv_cache.cpp.obj\r\n[9/17] Linking CXX executable llmx.exe\r\n[10/17] Linking CXX executable llmx-cli-output-test.exe\r\n[11/17] Linking CXX executable llmx-load-progress-test.exe\r\n[12/17] Building CXX object CMakeFiles\\llmx-chat-template-test.dir\\tests\\chat_template.cpp.obj\r\n[13/17] Linking CXX executable llmx-generation-stream-test.exe\r\n[14/17] Linking CXX executable llmx-backend-group-test.exe\r\n[15/17] Linking CXX executable llmx-backend-errors-test.exe\r\n[16/17] Linking CXX executable llmx-chat-template-test.exe\r\n[17/17] Linking CXX executable llmx-kv-cache-test.exe\r\n-- The CXX compiler identification is MSVC 19.50.35728.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed\n-- Looking for pthread_create in pthreads\n-- Looking for pthread_create in pthreads - not found\n-- Looking for pthread_create in pthread\n-- Looking for pthread_create in pthread - not found\n-- Found Threads: TRUE\n-- Configuring done (1.1s)\n-- Generating done (0.0s)\n-- Build files have been written to: C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/candidate-build\n[1/17] C:\\Windows\\system32\\cmd.exe /C \"cd /D C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\model-gates-20260920\\candidate-build && C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\bin\\cmake.exe -DSOURCE_ROOT=C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/candidate -DOUTPUT_FILE=C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/candidate-build/generated/llmx-build-info.hpp -P C:/Users/Marko/AppData/Local/Temp/llmx-q16-group-study/model-gates-20260920/candidate/cmake/build-info.cmake\"\r\n[2/17] Building CXX object CMakeFiles\\llmx-cli-output-test.dir\\tests\\cli_output.cpp.obj\r\n[3/17] Building CXX object CMakeFiles\\llmx.dir\\src\\cli\\main.cpp.obj\r\n[4/17] Building CXX object CMakeFiles\\llmx-load-progress-test.dir\\tests\\load_progress.cpp.obj\r\n[5/17] Building CXX object CMakeFiles\\llmx-backend-group-test.dir\\tests\\backend_group.cpp.obj\r\n[6/17] Building CXX object CMakeFiles\\llmx-generation-stream-test.dir\\tests\\generation_stream.cpp.obj\r\n[7/17] Building CXX object CMakeFiles\\llmx-backend-errors-test.dir\\tests\\backend_errors.cpp.obj\r\n[8/17] Building CXX object CMakeFiles\\llmx-kv-cache-test.dir\\tests\\kv_cache.cpp.obj\r\n[9/17] Linking CXX executable llmx.exe\r\n[10/17] Linking CXX executable llmx-cli-output-test.exe\r\n[11/17] Linking CXX executable llmx-load-progress-test.exe\r\n[12/17] Building CXX object CMakeFiles\\llmx-chat-template-test.dir\\tests\\chat_template.cpp.obj\r\n[13/17] Linking CXX executable llmx-generation-stream-test.exe\r\n[14/17] Linking CXX executable llmx-backend-group-test.exe\r\n[15/17] Linking CXX executable llmx-backend-errors-test.exe\r\n[16/17] Linking CXX executable llmx-chat-template-test.exe\r\n[17/17] Linking CXX executable llmx-kv-cache-test.exe\r\n"
+    },
+    "model-gates-20260920/linux-native/logs/candidate-build.stderr": {
+      "bytes": 16312,
+      "sha256": "7862a049c2bc9cd550ea78e24461c5d6699eda34b31cff1291fa783522a64209",
+      "text": "In file included from /root/.cache/llmx-q16-model-gates-20260920/candidate/tests/../src/cli/main.cpp:33,\n                 from /root/.cache/llmx-q16-model-gates-20260920/candidate/tests/cli_output.cpp:3:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/candidate/tests/../src/cli/main.cpp:34:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp:870:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  870 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/candidate/src/model/arch_qwen.hpp:14,\n                 from /root/.cache/llmx-q16-model-gates-20260920/candidate/src/inference/generate.hpp:9,\n                 from /root/.cache/llmx-q16-model-gates-20260920/candidate/tests/generation_stream.cpp:2:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/candidate/src/model/arch_qwen.hpp:17:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp:870:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  870 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp:16,\n                 from /root/.cache/llmx-q16-model-gates-20260920/candidate/tests/backend_group.cpp:5:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp:870:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  870 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp:16,\n                 from /root/.cache/llmx-q16-model-gates-20260920/candidate/tests/backend_errors.cpp:8:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp:870:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  870 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/candidate/src/cli/main.cpp:33:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/candidate/src/cli/main.cpp:34:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/candidate/src/backends/cpu/cpu_backend.hpp:870:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  870 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n"
+    },
+    "model-gates-20260920/linux-native/logs/candidate-build.stdout": {
+      "bytes": 1480,
+      "sha256": "41ebcbb225553d9011e4bb91c085be2aecb33498add112bb255537b15ae5777f",
+      "text": "[  6%] Building CXX object CMakeFiles/llmx-cli-output-test.dir/tests/cli_output.cpp.o\n[  6%] Built target llmx-build-info\n[ 12%] Building CXX object CMakeFiles/llmx-load-progress-test.dir/tests/load_progress.cpp.o\n[ 18%] Linking CXX executable llmx-load-progress-test\n[ 18%] Built target llmx-load-progress-test\n[ 25%] Building CXX object CMakeFiles/llmx-generation-stream-test.dir/tests/generation_stream.cpp.o\n[ 31%] Linking CXX executable llmx-generation-stream-test\n[ 31%] Built target llmx-generation-stream-test\n[ 37%] Building CXX object CMakeFiles/llmx-backend-group-test.dir/tests/backend_group.cpp.o\n[ 43%] Linking CXX executable llmx-cli-output-test\n[ 43%] Built target llmx-cli-output-test\n[ 50%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 56%] Linking CXX executable llmx-backend-group-test\n[ 56%] Built target llmx-backend-group-test\n[ 62%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 68%] Linking CXX executable llmx-backend-errors-test\n[ 68%] Built target llmx-backend-errors-test\n[ 75%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 81%] Linking CXX executable llmx-kv-cache-test\n[ 81%] Built target llmx-kv-cache-test\n[ 87%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\n[ 93%] Linking CXX executable llmx-chat-template-test\n[ 93%] Built target llmx-chat-template-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\n"
+    },
+    "model-gates-20260920/linux-native/logs/candidate-configure.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "model-gates-20260920/linux-native/logs/candidate-configure.stdout": {
+      "bytes": 529,
+      "sha256": "340d905e631e15b4707fc88e277c375513b172d76d84891b3151cb596ec0d1e4",
+      "text": "-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.5s)\n-- Generating done (0.0s)\n-- Build files have been written to: /root/.cache/llmx-q16-model-gates-20260920/candidate-build\n"
+    },
+    "model-gates-20260920/linux-native/logs/candidate-ctest.stderr": {
+      "bytes": 27,
+      "sha256": "18e00877dc1071c85cd4f479d451bebeef8309022e46cf8c63b0bed5151984a4",
+      "text": "Errors while running CTest\n"
+    },
+    "model-gates-20260920/linux-native/logs/candidate-ctest.stdout": {
+      "bytes": 1028,
+      "sha256": "83d89dbaeff4a47710e61a125d1f825b5064c55516db2669af4662414a5d5200",
+      "text": "Internal ctest changing into directory: /root/.cache/llmx-q16-model-gates-20260920/candidate-build\nTest project /root/.cache/llmx-q16-model-gates-20260920/candidate-build\n    Start 1: cli-output\n1/7 Test #1: cli-output .......................   Passed    0.00 sec\n    Start 2: load-progress\n2/7 Test #2: load-progress ....................   Passed    0.06 sec\n    Start 3: generation-stream\n3/7 Test #3: generation-stream ................   Passed    0.01 sec\n    Start 4: backend-group\n4/7 Test #4: backend-group ....................***Failed    0.01 sec\noutput differs from double-precision dot oracle\n\n    Start 5: backend-errors\n5/7 Test #5: backend-errors ...................   Passed    0.16 sec\n    Start 6: chat-template\n6/7 Test #6: chat-template ....................   Passed    0.00 sec\n    Start 7: kv-cache\n7/7 Test #7: kv-cache .........................   Passed    0.00 sec\n\n86% tests passed, 1 tests failed out of 7\n\nTotal Test time (real) =   0.25 sec\n\nThe following tests FAILED:\n\t  4 - backend-group (Failed)\n"
+    },
+    "model-gates-20260920/linux-native/logs/cmake.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "model-gates-20260920/linux-native/logs/cmake.stdout": {
+      "bytes": 91,
+      "sha256": "d3d5b682f3f5ef5b24a79ed8cf4b8c5868fc950dad48cab1be0e3c060a77f8ee",
+      "text": "cmake version 3.28.3\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).\n"
+    },
+    "model-gates-20260920/linux-native/logs/compiler.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "model-gates-20260920/linux-native/logs/compiler.stdout": {
+      "bytes": 246,
+      "sha256": "59d1cbef41d4ae78d5063d525b7aa13d18dc0493ea00537efc19b2ee398cb5a8",
+      "text": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
+    },
+    "model-gates-20260920/linux-native/logs/control-build.stderr": {
+      "bytes": 16166,
+      "sha256": "b52fecad38418fc844df7d3ee5b68e4e257abf26b2633954f74d6d3cb353df38",
+      "text": "In file included from /root/.cache/llmx-q16-model-gates-20260920/control/tests/../src/cli/main.cpp:33,\n                 from /root/.cache/llmx-q16-model-gates-20260920/control/tests/cli_output.cpp:3:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/control/tests/../src/cli/main.cpp:34:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/control/src/model/arch_qwen.hpp:14,\n                 from /root/.cache/llmx-q16-model-gates-20260920/control/src/inference/generate.hpp:9,\n                 from /root/.cache/llmx-q16-model-gates-20260920/control/tests/generation_stream.cpp:2:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/control/src/model/arch_qwen.hpp:17:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp:16,\n                 from /root/.cache/llmx-q16-model-gates-20260920/control/tests/backend_group.cpp:5:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp:16,\n                 from /root/.cache/llmx-q16-model-gates-20260920/control/tests/backend_errors.cpp:8:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/control/src/cli/main.cpp:33:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/root/.cache/llmx-q16-model-gates-20260920/control/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /root/.cache/llmx-q16-model-gates-20260920/control/src/cli/main.cpp:34:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/root/.cache/llmx-q16-model-gates-20260920/control/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n"
+    },
+    "model-gates-20260920/linux-native/logs/control-build.stdout": {
+      "bytes": 1480,
+      "sha256": "41ebcbb225553d9011e4bb91c085be2aecb33498add112bb255537b15ae5777f",
+      "text": "[  6%] Building CXX object CMakeFiles/llmx-cli-output-test.dir/tests/cli_output.cpp.o\n[  6%] Built target llmx-build-info\n[ 12%] Building CXX object CMakeFiles/llmx-load-progress-test.dir/tests/load_progress.cpp.o\n[ 18%] Linking CXX executable llmx-load-progress-test\n[ 18%] Built target llmx-load-progress-test\n[ 25%] Building CXX object CMakeFiles/llmx-generation-stream-test.dir/tests/generation_stream.cpp.o\n[ 31%] Linking CXX executable llmx-generation-stream-test\n[ 31%] Built target llmx-generation-stream-test\n[ 37%] Building CXX object CMakeFiles/llmx-backend-group-test.dir/tests/backend_group.cpp.o\n[ 43%] Linking CXX executable llmx-cli-output-test\n[ 43%] Built target llmx-cli-output-test\n[ 50%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 56%] Linking CXX executable llmx-backend-group-test\n[ 56%] Built target llmx-backend-group-test\n[ 62%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 68%] Linking CXX executable llmx-backend-errors-test\n[ 68%] Built target llmx-backend-errors-test\n[ 75%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 81%] Linking CXX executable llmx-kv-cache-test\n[ 81%] Built target llmx-kv-cache-test\n[ 87%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\n[ 93%] Linking CXX executable llmx-chat-template-test\n[ 93%] Built target llmx-chat-template-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\n"
+    },
+    "model-gates-20260920/linux-native/logs/control-configure.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "model-gates-20260920/linux-native/logs/control-configure.stdout": {
+      "bytes": 527,
+      "sha256": "3f538b53c3dde1c3c8a6e72af39ef366c26a4581f853de5017e541f2e3672364",
+      "text": "-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.6s)\n-- Generating done (0.0s)\n-- Build files have been written to: /root/.cache/llmx-q16-model-gates-20260920/control-build\n"
+    },
+    "model-gates-20260920/linux-native/logs/control-ctest.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "model-gates-20260920/linux-native/logs/control-ctest.stdout": {
+      "bytes": 917,
+      "sha256": "57167fa03b1a3dc7a9d911821f70342063a3dc4015dd0df692e8aa3456bacea3",
+      "text": "Internal ctest changing into directory: /root/.cache/llmx-q16-model-gates-20260920/control-build\nTest project /root/.cache/llmx-q16-model-gates-20260920/control-build\n    Start 1: cli-output\n1/7 Test #1: cli-output .......................   Passed    0.00 sec\n    Start 2: load-progress\n2/7 Test #2: load-progress ....................   Passed    0.06 sec\n    Start 3: generation-stream\n3/7 Test #3: generation-stream ................   Passed    0.01 sec\n    Start 4: backend-group\n4/7 Test #4: backend-group ....................   Passed    0.18 sec\n    Start 5: backend-errors\n5/7 Test #5: backend-errors ...................   Passed    0.16 sec\n    Start 6: chat-template\n6/7 Test #6: chat-template ....................   Passed    0.00 sec\n    Start 7: kv-cache\n7/7 Test #7: kv-cache .........................   Passed    0.00 sec\n\n100% tests passed, 0 tests failed out of 7\n\nTotal Test time (real) =   0.42 sec\n"
+    },
+    "native-contract-diagnostic/build.bat": {
+      "bytes": 366,
+      "sha256": "92bfad968966570d1d82f084b348136d396c90896c88d8df66e1693715cfff02",
+      "text": "@echo off\r\nsetlocal\r\ncd /d \"%~dp0\"\r\ncall \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat\" >nul\r\nif errorlevel 1 exit /b 1\r\ncl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q16-group-study\\candidate\\src\" /Fe:diagnostic.exe /Fo:diagnostic.obj backend_group.cpp\r\nexit /b %errorlevel%\r\n"
+    },
+    "native-contract-diagnostic/build.stderr": {
+      "bytes": 1202,
+      "sha256": "75d3e58f4c46b05d475f17af73b0f6367b079763dccd729f6dfba5bf46a1f888",
+      "text": "'vswhere.exe' is not recognized as an internal or external command,\r\noperable program or batch file.\r\nCompiler Passes:\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\cl.exe:        Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c1.dll:        Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c1xx.dll:      Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c2.dll:        Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\c1xx.dll:      Version 19.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe:      Version 14.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\mspdb140.dll:  Version 14.50.35728.0\r\n C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\1033\\clui.dll: Version 19.50.35728.0\r\n\r\n"
+    },
+    "native-contract-diagnostic/build.stdout": {
+      "bytes": 19,
+      "sha256": "b98fa63d12f988c23b6fdff6a49e5b7b6d35d718f5ac225e44bc50ba78a03e96",
+      "text": "backend_group.cpp\r\n"
+    },
+    "native-contract-diagnostic/diagnostic.patch": {
+      "bytes": 1649,
+      "sha256": "c3bc355f0cf5368275d71dbd6a04e24670f087f9881c7eba381b059aeec67cf0",
+      "text": "--- original/tests/backend_group.cpp\r\n+++ diagnostic/backend_group.cpp\r\n@@ -1,6 +1,7 @@\r\n #include <array>\r\n #include <cstring>\r\n #include <iostream>\r\n+#include <iomanip>\r\n #include <stdexcept>\r\n #include \"backends/cpu/cpu_backend.hpp\"\r\n \r\n@@ -139,6 +140,19 @@\r\n                     magnitude += std::abs(product);\r\n                 }\r\n                 const float actual = m.grouped[1 + b * m.rows + o];\r\n+                if (!(std::isfinite(actual) && std::abs(actual - expected) <= 2e-6 * (1 + magnitude))) {\r\n+                    std::cerr << std::setprecision(17)\r\n+                        << \"first_failure {\\\"width\\\":\" << width << \",\\\"base_rows\\\":\" << rows\r\n+                        << \",\\\"matrix_rows\\\":\" << m.rows << \",\\\"batch\\\":\" << batch\r\n+                        << \",\\\"batch_index\\\":\" << b << \",\\\"threads\\\":\" << cpu.threads_available()\r\n+                        << \",\\\"type\\\":\" << m.type << \",\\\"matrix_index\\\":\" << (&m - matrices.data())\r\n+                        << \",\\\"row\\\":\" << o << \",\\\"actual\\\":\" << actual\r\n+                        << \",\\\"expected\\\":\" << expected << \",\\\"magnitude\\\":\" << magnitude\r\n+                        << \",\\\"absolute_error\\\":\" << std::abs(actual - expected)\r\n+                        << \",\\\"limit\\\":\" << 2e-6 * (1 + magnitude)\r\n+                        << \",\\\"error_over_limit\\\":\" << std::abs(actual - expected) / (2e-6 * (1 + magnitude))\r\n+                        << \"}\\n\";\r\n+                }\r\n                 require(std::isfinite(actual) && std::abs(actual - expected) <= 2e-6 * (1 + magnitude),\r\n                         \"output differs from double-precision dot oracle\");\r\n                 ++count;\r\n"
+    },
+    "native-contract-diagnostic/run.py": {
+      "bytes": 5226,
+      "sha256": "fceb186268f617a50d629aea62ae69a33ddb2c159d8dcc76672dcdf59541e24f",
+      "text": "from pathlib import Path\nimport difflib\nimport hashlib\nimport json\nimport subprocess\n\nroot = Path(__file__).resolve().parent\nstudy = root.parent\nrepo = Path(r'C:\\Users\\Marko\\Desktop\\Projects\\llmx')\nsource_path = repo / 'tests/backend_group.cpp'\ncandidate = study / 'candidate/src/backends/cpu/cpu_backend.hpp'\n\n\ndef sha(path):\n    return hashlib.sha256(path.read_bytes()).hexdigest()\n\n\nassert not (root / 'report.json').exists(), 'Refuse to rerun this diagnostic'\noriginal = source_path.read_text()\nassert sha(candidate) == '2887fed6b3c6e8fca7960a44bf74370b2a713b8f78a3250925ea8c1d24fc5234'\ncondition = 'std::isfinite(actual) && std::abs(actual - expected) <= 2e-6 * (1 + magnitude)'\nassert original.count(condition) == 1\nneedle = '                require(' + condition + ',\\n                        \"output differs from double-precision dot oracle\");'\nassert original.count(needle) == 1\ndiagnostic = '''                if (!(std::isfinite(actual) && std::abs(actual - expected) <= 2e-6 * (1 + magnitude))) {\n                    std::cerr << std::setprecision(17)\n                        << \"first_failure {\\\\\"width\\\\\":\" << width << \",\\\\\"base_rows\\\\\":\" << rows\n                        << \",\\\\\"matrix_rows\\\\\":\" << m.rows << \",\\\\\"batch\\\\\":\" << batch\n                        << \",\\\\\"batch_index\\\\\":\" << b << \",\\\\\"threads\\\\\":\" << cpu.threads_available()\n                        << \",\\\\\"type\\\\\":\" << m.type << \",\\\\\"matrix_index\\\\\":\" << (&m - matrices.data())\n                        << \",\\\\\"row\\\\\":\" << o << \",\\\\\"actual\\\\\":\" << actual\n                        << \",\\\\\"expected\\\\\":\" << expected << \",\\\\\"magnitude\\\\\":\" << magnitude\n                        << \",\\\\\"absolute_error\\\\\":\" << std::abs(actual - expected)\n                        << \",\\\\\"limit\\\\\":\" << 2e-6 * (1 + magnitude)\n                        << \",\\\\\"error_over_limit\\\\\":\" << std::abs(actual - expected) / (2e-6 * (1 + magnitude))\n                        << \"}\\\\n\";\n                }\n'''\nmodified = original.replace('#include <iostream>', '#include <iostream>\\n#include <iomanip>')\nmodified = modified.replace(needle, diagnostic + needle)\nassert needle in modified\n(root / 'backend_group.cpp').write_text(modified, encoding='ascii', newline='\\n')\n(root / 'diagnostic.patch').write_text(''.join(difflib.unified_diff(\n    original.splitlines(True), modified.splitlines(True),\n    fromfile='original/tests/backend_group.cpp', tofile='diagnostic/backend_group.cpp')), encoding='ascii')\ncommand = 'cl /nologo /Bv /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I \"' + str(study / 'candidate/src') + '\" /Fe:diagnostic.exe /Fo:diagnostic.obj backend_group.cpp'\n(root / 'build.bat').write_text('@echo off\\nsetlocal\\ncd /d \"%~dp0\"\\ncall \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\" >nul\\nif errorlevel 1 exit /b 1\\n' + command + '\\nexit /b %errorlevel%\\n', encoding='ascii', newline='\\r\\n')\nreport = {'status': 'prepared', 'scope': 'Characterize first unchanged native-contract failure; no tolerance or candidate change.',\n          'source': str(source_path), 'source_sha256': sha(source_path),\n          'candidate_sha256_before': sha(candidate), 'manifest_sha256_before': sha(study / 'validation-manifest.json'),\n          'compile_command': command, 'compile_invocation': ['cmd.exe', '/d', '/c', str(root / 'build.bat')],\n          'assertion_unchanged': needle, 'cwd': str(root)}\n\n\ndef save():\n    (root / 'report.json').write_text(json.dumps(report, indent=2, ensure_ascii=True) + '\\n', encoding='ascii')\n\n\nsave()\nbuilt = subprocess.run(report['compile_invocation'], cwd=root, capture_output=True)\n(root / 'build.stdout').write_bytes(built.stdout)\n(root / 'build.stderr').write_bytes(built.stderr)\nreport['compile_exit'] = built.returncode\nsave()\nif built.returncode == 0:\n    report['run_command'] = [str(root / 'diagnostic.exe')]\n    ran = subprocess.run(report['run_command'], cwd=root, capture_output=True)\n    (root / 'run.stdout').write_bytes(ran.stdout)\n    (root / 'run.stderr').write_bytes(ran.stderr)\n    report['run_exit'] = ran.returncode\n    report['stdout'] = ran.stdout.decode('utf-8', errors='replace')\n    report['stderr'] = ran.stderr.decode('utf-8', errors='replace')\n    for line in report['stderr'].splitlines():\n        if line.startswith('first_failure '):\n            report['first_failure'] = json.loads(line[len('first_failure '):])\n    report['status'] = 'native-contract-failure-characterized' if ran.returncode != 0 and 'first_failure' in report else 'unexpected-result'\nelse:\n    report['status'] = 'compile-failed'\nreport['candidate_sha256_after'] = sha(candidate)\nreport['manifest_sha256_after'] = sha(study / 'validation-manifest.json')\nreport['protected_unchanged'] = (report['candidate_sha256_before'] == report['candidate_sha256_after']\n    and report['manifest_sha256_before'] == report['manifest_sha256_after'] and report['source_sha256'] == sha(source_path))\nreport['files'] = {p.name: {'sha256': sha(p), 'bytes': p.stat().st_size} for p in root.iterdir() if p.is_file() and p.name != 'report.json'}\nsave()\nprint(json.dumps({'status': report['status'], 'first_failure': report.get('first_failure'),\n                  'report': str(root / 'report.json'), 'sha256': sha(root / 'report.json')}))\n"
+    },
+    "native-contract-diagnostic/run.stderr": {
+      "bytes": 380,
+      "sha256": "37cecf30dd935588a20db80700f3777b8bc06c7272f2ffe8d89a28845ee9aed7",
+      "text": "first_failure {\"width\":256,\"base_rows\":47,\"matrix_rows\":47,\"batch\":1,\"batch_index\":0,\"threads\":1,\"type\":8,\"matrix_index\":0,\"row\":13,\"actual\":1.092775821685791,\"expected\":1.0925567150115967,\"magnitude\":102.09000205993652,\"absolute_error\":0.00021910667419433594,\"limit\":0.00020618000411987304,\"error_over_limit\":1.0626960414015092}\r\noutput differs from double-precision dot oracle\r\n"
+    },
+    "native-contract-diagnostic/run.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    }
+  },
+  "scope": [
+    "Both clean builds succeed. Control CTest7/7 on each platform; candidate6/7, backend-group double-dot accuracy failure, CTest exit8.",
+    "First diagnosed case: Q8_0 width256,47rows,batch1,one thread,row13. Error0.000219106674 exceeds unchanged bound0.000206180004.",
+    "Prior scalar/integer and activation witness passes remain valid for their own algorithm/route scope, not the unchanged floating-point accuracy contract.",
+    "Grouped-candidate HF numerical cost, long-vector and performance comparisons were not run after the mandatory native failure.",
+    "Model files, production source and repository tests/tolerances are unchanged."
+  ],
+  "next": "Investigate an exact Q8 horizontal reduction instruction schedule while preserving all FMA/addition order. No prototype or speed claim yet.",
+  "next_study_evidence": {
+    "source_assembly": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-prefill-reduction\\candidate-compare.asm",
+    "assembly_sha256": "ebb666498562002f1a55f7a776fa9164f225abf8582b482ef0ed5426eb47379f",
+    "excerpt": "?dot_row_impl@CpuBackend@backend@@AEAAMPEBEPEBM_K@Z PROC ; backend::CpuBackend::dot_row_impl, COMDAT\n  0015c\tc5 cc 58 c5\t vaddps\t ymm0, ymm6, ymm5\n  00160\tc5 f8 28 74 24\n\t20\t\t vmovaps xmm6, XMMWORD PTR [rsp+32]\n  00166\tc5 f4 58 d8\t vaddps\t ymm3, ymm1, ymm0\n  0016a\tc4 e3 7d 19 da\n\t01\t\t vextractf128 xmm2, ymm3, 1\n  00170\tc5 e8 58 c3\t vaddps\t xmm0, xmm2, xmm3\n  00174\tc5 fb 7c c8\t vhaddps xmm1, xmm0, xmm0\n  00178\tc5 f3 7c c1\t vhaddps xmm0, xmm1, xmm1\n\n; 800  :     }\n\n  0017c\tc5 f8 77\t vzeroupper\n  0017f\t48 8b 5c 24 40\t mov\t rbx, QWORD PTR [rsp+64]",
+    "status": "instruction hypothesis only; no prototype or speed claim"
+  },
+  "documentation": {
+    "reviewed": [
+      "AGENTS.md",
+      "README.md",
+      "docs/ARCHITECTURE.md",
+      "docs/ASSETS.md",
+      "docs/CI.md",
+      "docs/ROADMAP.md",
+      "docs/STATUS.md",
+      "docs/USAGE.md",
+      "docs/src/backends-backend.md",
+      "docs/src/backends-cpu.md",
+      "docs/src/cli-main.md",
+      "docs/src/config.md",
+      "docs/src/core-fp16.md",
+      "docs/src/core-json.md",
+      "docs/src/format-format.md",
+      "docs/src/format-gguf.md",
+      "docs/src/inference-chat.md",
+      "docs/src/inference-generate.md",
+      "docs/src/inference-perplexity.md",
+      "docs/src/inference-sampler.md",
+      "docs/src/model-arch_qwen.md",
+      "docs/src/model-host_kv_cache.md",
+      "docs/src/quant-k_quants.md",
+      "docs/src/quant-quant.md",
+      "docs/src/tokenizer-tokenizer.md"
+    ],
+    "ascii": "pass",
+    "local_links_checked": 45,
+    "scope": "Full 25-file review; corrected stale current 8B and Q16-next-study claims in STATUS. Production/API docs unchanged."
+  }
+}

@@ -1814,3 +1814,27 @@ fallback rows. These checks do not establish HF numerical cost, losslessness
 or performance, and no Q16 code is adopted.
 Evidence is tracked in
 [`benchmarks/q16-group-validation-20260920.json`](benchmarks/q16-group-validation-20260920.json).
+
+### Grouped Q16 rejected by the existing native accuracy contract
+
+The unchanged native suite rejects this candidate on both platforms:
+
+| Release native CTest | Control | Q16 candidate | Failing check |
+|---|---:|---:|---|
+| Windows MSVC | 7/7 pass | 6/7 pass | `backend-group` double-precision dot oracle |
+| Linux GCC | 7/7 pass | 6/7 pass | `backend-group` double-precision dot oracle |
+
+Both candidate builds succeed, but `backend-group` reports
+`output differs from double-precision dot oracle`. Tests, tolerances and
+candidate source remain unchanged. The earlier 611,192-output oracle passes
+check the proposed integer arithmetic, including its fallbacks; they do not
+establish compliance with the existing float-activation accuracy contract.
+The route witnesses likewise establish activation, not numerical acceptance.
+
+No model/HF numerical-cost or performance comparison was run for this grouped
+candidate; validation stopped at the mandatory native failure. Prepared bounds
+are unexecuted research criteria; they neither override the failed contract nor
+authorize adopting a precision-changing implementation as lossless. Q16 remains
+rejected and outside production. Build commands, source/binary hashes, raw logs
+and terminal exits are in
+[`benchmarks/q16-group-native-rejection-20260920.json`](benchmarks/q16-group-native-rejection-20260920.json).

@@ -4,7 +4,7 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
 
 - Detects AVX2 **once** in the constructor (via `__cpuid` on MSVC, `__get_cpuid`
   on GCC/Clang) and caches it — not per row.
-- Persistent worker pool, started once. `matvec_q8_0` and the model layer both
+- Persistent worker pool, started once. `matvec_q8_0` and attention both
   run through it; previously each created and joined `std::thread`s per call,
   which on Qwen3-8B was thousands of thread creations per token.
 - `matvec_q8_0`: fused dequant+FMA AVX2 row dot, kept for the single-column
@@ -29,6 +29,12 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
 - `dot_row_impl`: AVX2 fused dequant (f16 scale broadcast) + FMA accumulation
   over int8 blocks, with a scalar fallback.
 - `rms_norm`, `rope`: AVX2 vectorized with scalar tails for non-multiples of 8.
+- `attention`: causal GQA over the host KV cache. Heads use the persistent
+  worker pool and separate score rows, reused across queries. The backend
+  grows scratch to the sequence being processed, rather than reserving the
+  model's full context. AVX2 dots and weighted value accumulation have scalar
+  tails; a scalar branch is retained for the runtime AVX2 check.
+  Vectorized dot reductions change summation order and require the HF gate.
 - `make_cpu_backend()` factory.
 
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a

@@ -16,7 +16,7 @@
 #include "backends/cpu/cpu_backend.hpp"
 
 // Qwen3-style transformer forward pass, from scratch. The compute primitives
-// (quantized matmul, RMSNorm, RoPE) are delegated to a backend::Backend, so the
+// (matmul, attention, RMSNorm, RoPE) are delegated to a backend::Backend, so the
 // same model code runs on CPU now and other backends later.
 // Dense matrices use supported block quants or F32; normalization weights are F32.
 // Tensor ne[0] is the input dimension, with each output row contiguous.
@@ -88,7 +88,6 @@ public:
         cfg = load_config(m);
         if (cfg.n_layer <= 0 || cfg.n_embd <= 0) throw std::runtime_error("inference: incomplete Qwen3 config in metadata");
         if (cfg.n_head_kv <= 0) cfg.n_head_kv = cfg.n_head;
-        ratio_ = cfg.n_head / cfg.n_head_kv;
         // The attention projection width is n_head*head_dim, which only equals
         // n_embd by coincidence on some models (Qwen3-8B: 32*128 == 4096).
         // Qwen3-0.6B/1.7B/4B have head_dim 128 with a smaller n_embd.
@@ -113,7 +112,6 @@ public:
         gate_.assign(cfg.n_ff, 0.0f);
         up_.assign(cfg.n_ff, 0.0f);
         ffn_.assign(cfg.n_ff, 0.0f);
-        scores_.assign((size_t)cfg.n_head * (size_t)cfg.context_length, 0.0f);
 
         k_cache_.resize(cfg.n_layer);
         v_cache_.resize(cfg.n_layer);
@@ -195,7 +193,8 @@ public:
             // can be processed in parallel.
             const float* kcache = k_cache_[l].data();
             const float* vcache = v_cache_[l].data();
-            attend_heads(kcache, vcache);
+            b_->attention(q_.data(), kcache, vcache, attn_.data(),
+                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos, 1);
 
             // attn_output projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
@@ -266,14 +265,13 @@ private:
     const gguf::GGUFModel* m_;
     backend::BackendPtr b_;
     QwenConfig cfg;
-    int ratio_ = 1;
     int q_dim_ = 0;
     int ubatch_ = 512;   // default matches llama.cpp
     std::string out_name_;
     std::unordered_map<std::string, size_t> tindex_;
 
     std::vector<float> x_, h_, q_, kv_, v_, attn_;
-    std::vector<float> gate_, up_, ffn_, scores_;
+    std::vector<float> gate_, up_, ffn_;
     std::vector<float> xb_, hb_, qb_, kb_, vb_, attnb_, gateb_, upb_, ffnb_;
     std::vector<std::vector<float>> k_cache_, v_cache_;
     std::vector<float> rope_cos_, rope_sin_;
@@ -286,48 +284,6 @@ private:
     }
     const uint8_t* tensor_data(const std::string& name) const {
         return m_->tensor_data(tindex_.at(name));
-    }
-
-    // Attention across all q-heads. Each head reads its group's k/v cache and
-    // writes only its own attn_ slice, so heads are independent. Dispatched
-    // through the backend's pool rather than creating threads per token.
-    void attend_heads(const float* kcache, const float* vcache) {
-        b_->parallel_for(cfg.n_head, [&](int hq) {
-            attend_head(hq, kcache, vcache);
-        });
-    }
-
-    // Attention for one q-head. Reads q_ (head hq), the KV cache for its group,
-    // writes only attn_[hq*head_dim ..]. Thread-safe (no shared writes).
-    void attend_head(int hq, const float* kcache, const float* vcache) {
-        int hk = hq / ratio_;
-        const float* qh = q_.data() + hq * cfg.head_dim;
-        int seq = n_tokens_ + 1;
-        int stride = cfg.n_head_kv * cfg.head_dim;
-        // Per-head scratch, preallocated to the context length. Heads run
-        // concurrently, so each owns its own row and nothing is shared.
-        float* scores = scores_.data() + (size_t)hq * (size_t)cfg.context_length;
-        // softmax(QK^T / sqrt(head_dim)) -- without this the scores are
-        // sqrt(head_dim)x too large and the softmax collapses to near one-hot.
-        const float scale = 1.0f / std::sqrt((float)cfg.head_dim);
-        float maxs = -1e30f;
-        for (int t = 0; t < seq; t++) {
-            const float* kt = kcache + (size_t)t * stride + (size_t)hk * cfg.head_dim;
-            float s = 0.0f;
-            for (int d = 0; d < cfg.head_dim; d++) s += qh[d] * kt[d];
-            s *= scale;
-            scores[t] = s;
-            if (s > maxs) maxs = s;
-        }
-        float sum = 0.0f;
-        for (int t = 0; t < seq; t++) { scores[t] = std::exp(scores[t] - maxs); sum += scores[t]; }
-        float* oh = attn_.data() + hq * cfg.head_dim;
-        std::fill(oh, oh + cfg.head_dim, 0.0f);
-        for (int t = 0; t < seq; t++) {
-            const float* vt = vcache + (size_t)t * stride + (size_t)hk * cfg.head_dim;
-            float w = scores[t] / sum;
-            for (int d = 0; d < cfg.head_dim; d++) oh[d] += w * vt[d];
-        }
     }
 
     // Physical batch: how many tokens go through ONE forward pass of the
@@ -398,9 +354,8 @@ private:
 
             const float* kc = k_cache_[l].data();
             const float* vc = v_cache_[l].data();
-            b_->parallel_for(cfg.n_head, [&](int hq) {
-                for (int b = 0; b < B; b++) attend_head_batch(hq, b, pos0 + b, kc, vc);
-            });
+            b_->attention(qb_.data(), kc, vc, attnb_.data(),
+                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos0, B);
 
             matmul(tensor(pre + "attn_output.weight"), attnb_.data(), hb_.data(), (size_t)q_dim_, E, B);
             for (size_t j = 0; j < (size_t)B * E; j++) xb_[j] += hb_[j];
@@ -428,34 +383,6 @@ private:
             const size_t n_vocab = (size_t)ot.ne[1];
             out_logits->assign(n_vocab, 0.0f);
             matvec(ot, h_.data(), out_logits->data(), (size_t)E, n_vocab);
-        }
-    }
-
-    // Attention for one q-head of one batch row, causal over [0, pos].
-    void attend_head_batch(int hq, int b, int pos, const float* kc, const float* vc) {
-        const int hk = hq / ratio_, HD = cfg.head_dim;
-        const int seq = pos + 1;
-        const int stride = cfg.n_head_kv * HD;
-        const float* qh = qb_.data() + (size_t)b * q_dim_ + (size_t)hq * HD;
-        float* scores = scores_.data() + (size_t)hq * (size_t)cfg.context_length;
-        const float scale = 1.0f / std::sqrt((float)HD);
-        float maxs = -1e30f;
-        for (int t = 0; t < seq; t++) {
-            const float* kt = kc + (size_t)t * stride + (size_t)hk * HD;
-            float s = 0.0f;
-            for (int d = 0; d < HD; d++) s += qh[d] * kt[d];
-            s *= scale;
-            scores[t] = s;
-            if (s > maxs) maxs = s;
-        }
-        float sum = 0.0f;
-        for (int t = 0; t < seq; t++) { scores[t] = std::exp(scores[t] - maxs); sum += scores[t]; }
-        float* oh = attnb_.data() + (size_t)b * q_dim_ + (size_t)hq * HD;
-        std::fill(oh, oh + HD, 0.0f);
-        for (int t = 0; t < seq; t++) {
-            const float* vt = vc + (size_t)t * stride + (size_t)hk * HD;
-            const float w = scores[t] / sum;
-            for (int d = 0; d < HD; d++) oh[d] += w * vt[d];
         }
     }
 

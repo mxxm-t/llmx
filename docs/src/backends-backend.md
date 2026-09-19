@@ -13,12 +13,16 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
   gets the batched path and a new type needs no backend change. `nbatch == 1`
   is the single-column case that `Model::matvec` uses, so there is one dispatch
   path rather than two.
-- `parallel_for(n, fn)`: run `fn(i)` across the backend's workers. The model
-  layer uses it for attention heads instead of creating threads of its own, so
-  there is exactly one pool in the process.
+- `attention(Q, K, V, out, n_head, n_head_kv, head_dim, n_past, nbatch)`:
+  causal GQA, shared by decode and prefill. Queries/output have shape
+  `[nbatch, n_head, head_dim]`; K/V contain the prefix and current batch,
+  `[n_past + nbatch, n_head_kv, head_dim]`. Query `b` sees positions through
+  `n_past + b`. The backend owns temporary score storage.
+- `parallel_for(n, fn)`: run `fn(i)` across the backend's workers.
 - `rms_norm(dst, src, w, n, eps)`: RMS norm.
 - `rope(x, cos, sin, half)`: rotary position embedding.
 - `BackendPtr` / factory (`make_cpu_backend`).
 
 Multi-device placement is planned. Device buffers, resident activations,
-backend attention and asynchronous execution require interface changes.
+and asynchronous execution still require interface changes. Attention is a
+backend operation now, but still takes synchronous host pointers.

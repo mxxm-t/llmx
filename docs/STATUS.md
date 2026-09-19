@@ -55,15 +55,17 @@ feature ships, delete its block and mark the row `Done` above.
   `5542318e74`, then merge and observe the expanded five-job hosted CI.
   Eight alternating pairs on Ryzen 7 5800X, six threads, ubatch 128, F32 KV,
   identical 215 HF prompt tokens and 32 forced continuation tokens:
-  mean prefill 275.95 vs 391.85 tok/s; decode 13.08 vs 14.49 tok/s.
+  with backend attention, mean prefill 357.88 vs 385.64 tok/s; decode
+  13.57 vs 14.20 tok/s. Both phases remain below the external floor.
   Model loading is excluded and each process warms up before measurement.
   No external performance parity is claimed; raw timing samples and hashes
-  are committed in `docs/benchmarks/f32-cpu-20260919.json`.
+  are committed in `docs/benchmarks/attention-cpu-20260919.json`.
 - **Findings:** activation tiling and a fully spinning worker pool did not
   establish a win. Profiling instead identifies scalar attention as roughly
-  170-180 ms of prefill; an initial vectorized diagnostic is promising but
-  changes summation order. Next: move attention into the CPU backend per
-  ROADMAP #4a, validate against HF and repeat the external comparison.
+  170-180 ms of prefill. Backend attention now improves prefill by 24.8%
+  against its interleaved control and passes HF bounds, while changing
+  summation order. Remaining work is the CPU performance gap, not numerical
+  validation of this attention implementation.
   `tools/compare_cpu.cpp` / `.py` preserve the matched measurement procedure;
   commands and limitations are in ASSETS.
 - **Gotchas:** do not treat success on quantized weights widened to F32 as
@@ -74,11 +76,23 @@ feature ships, delete its block and mark the row `Done` above.
 - **Goal:** move causal GQA attention out of the model and into the backend
   (ROADMAP #4a), sharing the decode and prefill implementation and improving
   CPU throughput with measured, numerically bounded vectorization.
-- **Done:** profiled the unchanged F32 path and ran an isolated AVX2 diagnostic.
-  No attention implementation has changed in the repository yet.
-- **Left:** implement the backend operation; cover batches, GQA, causal
-  positions and vector tails; run HF numerical, quantized regression and
-  long-context checks; repeat matched prefill/decode measurements.
+- **Done:** `Backend::attention` now handles both forward paths, with CPU-owned
+  score scratch, causal GQA, AVX2 dots and value accumulation, and scalar tails.
+  Deleted duplicate model-layer attention loops. Regenerated the tiny HF
+  fixture at head width 10 to cover vector tails. Windows and Linux full
+  suites pass, including real Q8/Q4 HF checks; Linux UBSan synthetic suite
+  passes. Tiny maximum HF logit error is 6.2e-7. A future-token attention
+  mutant fails with error 0.03787. Real F32 excerpt/window NLL differs from HF
+  by at most 4.5e-6. At 1,943 prompt tokens plus 32 generated tokens, greedy
+  output matches HF and all 5,013,888 logits are within 0.001 (max 0.0001252).
+  Eight interleaved rounds give F32 prefill 286.84 -> 357.88 tok/s (+24.8%);
+  decode 13.34 -> 13.57 tok/s (small change with overlapping ranges).
+  Q8 synthetic guardrails pass; matmul 123.07 -> 121.80 GFLOPS, prefill
+  4828 -> 4800 and decode 4522 -> 4875 tok/s, with overlapping ranges.
+- **Left:** close the remaining external CPU floor gap (mx reference 385.64
+  prefill / 14.20 decode in the same F32 run), then merge and run hosted CI.
+  Next investigation: profile the remaining CPU time after vectorized
+  attention and measure changes against these preserved binaries.
 - **Gotchas:** SIMD dot reductions change summation order. A matching top token
   or logit sum is not a numerical gate. This step does not implement device
   buffers, resident activations or async execution, which remain prerequisites

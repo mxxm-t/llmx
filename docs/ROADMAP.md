@@ -68,8 +68,10 @@ call. Before any GPU work:
 - **Resident activations**: the elementwise work in `Model::step` (SiLU, the two
   residual adds, per-head q/k norms) must run device-side, or every layer pays a
   host round trip. Either add ops to `Backend` or move the graph down a layer.
-- **Attention in the backend**: `attend_head` is scalar CPU code in the model
-  layer; on GPU it is a large share of decode time at depth.
+- **Attention in the backend (CPU implementation in progress)**: causal GQA
+  now goes through `Backend::attention` for both decode and prefill. The CPU
+  backend owns score scratch and vectorized computation; model code still
+  owns the host KV cache. A GPU implementation needs device buffers below it.
 - **Async**: a submit / sync concept. `dot_q8_0` returning `float` by value is a
   per-row kernel launch.
 - **Type-generic matmul (done for supported quants)**: dispatch through

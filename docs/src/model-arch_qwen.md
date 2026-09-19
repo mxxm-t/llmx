@@ -1,7 +1,7 @@
 # `src/model/arch_qwen.hpp` — Qwen3 forward pass
 
 Qwen3-style transformer forward pass, from scratch, in namespace `infer`. The
-compute primitives (quantized matmul, RMSNorm, RoPE) are delegated to a
+compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
 `backend::Backend`.
 
 - `QwenConfig` + `load_config(GGUFModel)`: reads Qwen3 metadata
@@ -21,7 +21,8 @@ compute primitives (quantized matmul, RMSNorm, RoPE) are delegated to a
   - `set_ubatch(n)` / `ubatch()`: physical batch, llama.cpp's `n_ubatch`, set
     by `--ubatch`. llmx has no logical batch; see `docs/USAGE.md`.
   - `reset()`: clear KV cache / internal state.
-  - `attend_heads` / `attend_head`: (parallel) attention over the KV cache.
+  - Both forward paths call `Backend::attention` over the KV cache; score
+    scratch, causal masking and head scheduling belong to the backend.
   - `matvec` / `dequant_row`: per-tensor matmul helpers that dispatch on the
     tensor's type via `quant::Registry`. Q8_0 uses the backend's fused AVX2
     matvec; Q4_K has a fused decode dot; other supported quants use a

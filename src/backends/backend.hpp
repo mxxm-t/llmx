@@ -5,7 +5,7 @@
 #include <functional>
 
 // Compute backend abstraction. The inference graph runs its primitive ops
-// (quantized matmul, RMSNorm, RoPE) through a Backend so the same model code
+// (matmul, attention, RMSNorm, RoPE) through a Backend so the same model code
 // can target CPU now and ROCm / Vulkan later.
 //
 // This interface is device-agnostic in shape, but host-pointer based: every
@@ -47,9 +47,13 @@ public:
     virtual void matmul(uint32_t ggml_type, const uint8_t* data, const float* X,
                         float* Y, size_t nin, size_t nout, size_t nbatch) = 0;
 
-    // Run fn(i) for i in [0, n) across the backend's workers. The model layer
-    // uses this for work it owns (attention heads) instead of creating threads
-    // of its own, so there is exactly one pool in the process.
+    // Causal GQA: Q/out are [nbatch, n_head, head_dim], K/V are
+    // [n_past + nbatch, n_head_kv, head_dim]. Query b attends through n_past+b.
+    virtual void attention(const float* Q, const float* K, const float* V, float* out,
+                           int n_head, int n_head_kv, int head_dim,
+                           int n_past, int nbatch) = 0;
+
+    // Run fn(i) for i in [0, n) across the backend's workers.
     virtual void parallel_for(int n, const std::function<void(int)>& fn) = 0;
 
     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm).

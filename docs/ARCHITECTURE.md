@@ -20,7 +20,7 @@ model/         Qwen3 Model + KV cache; architecture registry planned,
                Qwen3 forward graph (arch_qwen)
    |
    v
-backends/      Backend interface (type-generic matmul / RMSNorm / RoPE /
+backends/      Backend interface (type-generic matmul / attention / RMSNorm / RoPE /
                parallel_for), cpu/ impl
    |
    v

@@ -5,6 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <limits>
 #include <vector>
 #include <cstdlib>
 
@@ -352,6 +353,56 @@ public:
         });
     }
 
+    void attention(const float* Q, const float* K, const float* V, float* out,
+                   int n_head, int n_head_kv, int head_dim,
+                   int n_past, int nbatch) override {
+        if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 ||
+            head_dim <= 0 || n_past < 0 || nbatch <= 0)
+            throw std::runtime_error("backend: invalid attention dimensions");
+        const size_t sequence = (size_t)n_past + (size_t)nbatch;
+        const size_t q_stride = (size_t)n_head * head_dim;
+        const size_t kv_stride = (size_t)n_head_kv * head_dim;
+        const int ratio = n_head / n_head_kv;
+        const float scale = 1.0f / std::sqrt((float)head_dim);
+        attention_scores_.resize((size_t)n_head * sequence);
+        parallel_for(n_head, [&](int h) {
+            const size_t kv_offset = (size_t)(h / ratio) * head_dim;
+            float* scores = attention_scores_.data() + (size_t)h * sequence;
+            for (int b = 0; b < nbatch; ++b) {
+                const size_t end = (size_t)n_past + (size_t)b + 1;
+                const float* q = Q + (size_t)b * q_stride + (size_t)h * head_dim;
+                float max_score = -std::numeric_limits<float>::infinity();
+                for (size_t t = 0; t < end; ++t) {
+                    const float* k = K + t * kv_stride + kv_offset;
+                    float score = 0.0f;
+                    if (avx2_) score = dot_f32(q, k, (size_t)head_dim);
+                    else for (int d = 0; d < head_dim; ++d) score += q[d] * k[d];
+                    scores[t] = score * scale;
+                    max_score = std::max(max_score, scores[t]);
+                }
+                float sum = 0.0f;
+                for (size_t t = 0; t < end; ++t) {
+                    scores[t] = std::exp(scores[t] - max_score);
+                    sum += scores[t];
+                }
+                float* dst = out + (size_t)b * q_stride + (size_t)h * head_dim;
+                std::fill(dst, dst + head_dim, 0.0f);
+                for (size_t t = 0; t < end; ++t) {
+                    const float* v = V + t * kv_stride + kv_offset;
+                    const float weight = scores[t] / sum;
+                    int d = 0;
+                    if (avx2_) {
+                        const __m256 w = _mm256_set1_ps(weight);
+                        for (; d + 8 <= head_dim; d += 8)
+                            _mm256_storeu_ps(dst + d, _mm256_add_ps(_mm256_loadu_ps(dst + d),
+                                _mm256_mul_ps(w, _mm256_loadu_ps(v + d))));
+                    }
+                    for (; d < head_dim; ++d) dst[d] += weight * v[d];
+                }
+            }
+        });
+    }
+
     void rms_norm(float* dst, const float* src, const float* w, size_t n, float eps) override {
         if (avx2_) {
             // Sum of squares (vectorized), then a vectorized weighted scale.
@@ -423,6 +474,7 @@ private:
     std::vector<std::thread> pool_;
     // Per-worker dequantized weight-row scratch for matmul_q8_0.
     std::vector<std::vector<float>> rowbuf_;
+    std::vector<float> attention_scores_;
     std::mutex m_;
     std::condition_variable cv_work_, cv_done_;
     const std::function<void(int)>* job_ = nullptr;

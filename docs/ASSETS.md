@@ -117,12 +117,15 @@ NLL references with HF `Qwen3ForCausalLM`, float32 eager attention, torch
 2.5.1+cpu and transformers 4.55.2. No HF dependency is needed to run the tests.
 The golden file records weight hashes and configuration so fixture drift fails.
 
-Two layers, hidden width 37, FFN width 19, head width 8, GQA 2:1 and vocabulary
+Two layers, hidden width 37, FFN width 19, head width 10, GQA 2:1 and vocabulary
 257 exercise scalar tails and partial row blocks. Five prompt lengths, physical
 batches 1/2/3/5/16, threads 1/4 and tied/untied output weights cover prefill;
 continuous and four-token-window PPL cover sequential decode and resets.
 Bounds are 2e-5 absolute for every logit and 1e-5 for mean NLL. Observed maximum
-logit error was 7.2e-7 on Windows MSVC and Linux GCC, including UBSan.
+logit error for the original head-width-8 fixture was 7.2e-7 on Windows MSVC
+and Linux GCC, including UBSan. The attention refactor changes head width to
+10, exercising vector attention and its scalar tail against regenerated HF
+goldens with unchanged tolerances.
 A preceding 34-byte quantized tensor checks the loader's float alignment under
 UBSan; the old packed blob layout fails with a misaligned float load.
 
@@ -224,6 +227,60 @@ Use a new output directory for each run. The reference executable lives beside
 its DLLs, which the driver also hashes on Windows. Record the actual source
 revision and build flags when changing either build; the revision argument
 is provenance supplied by the caller, not a source-to-binary verification.
+
+### CPU attention validation
+
+The CPU attention refactor shares decode and prefill behind
+`Backend::attention`, with backend-owned scratch and AVX2 dots/value sums.
+The new dot reduction is not bit-identical to the old scalar attention.
+Windows/MSVC and Linux/GCC full suites passed with required real Q8_0 and
+mixed Q4_0 fixtures. Linux UBSan passed the synthetic suite, including the
+head-width-10 HF fixture; the largest tiny-model logit error was 6.2e-7.
+Changing the causal limit to include future batch tokens in a temporary build
+made this fixture fail with error 0.03787 under its unchanged 2e-5 bound.
+Real Qwen3-0.6B F32 excerpt and chunked NLL checks stayed within 4.5e-6 of HF
+under the existing 1e-4 bound.
+
+A separate HF float32/eager check used the first 8,192 normalized Unicode
+characters of `wiki.test.raw`, followed by
+`\nSummarize the main topics above.\n`. The UTF-8 prompt SHA-256 is
+`b6b45b11937fb5a556ba2b29545100d2cbdc8749e3f60ad40de54830d26b9b22`;
+both tokenizers produce 1,943 tokens without added special tokens. The same
+pinned HF snapshot and exact F32 GGUF described above were used, with six
+threads and llmx ubatch 128. HF ran `use_cache=True, logits_to_keep=1` for
+prefill and then 32 greedy one-token steps. Binary float32 logits from both
+paths were compared after prefill and each step: all 5,013,888 values were
+finite, maximum absolute error 0.00012517, RMS error 0.00001581, under a
+preselected 0.001 absolute bound. All 32 greedy tokens matched exactly.
+This validates that depth and these inputs; it does not cover maximum context,
+full-corpus perplexity or bit-identical arithmetic. Scratch outputs and the
+reference scripts are under `%TEMP%/llmx-attention-long` and
+`%TEMP%/llmx-attention-hf-long.py` on the validation workstation.
+The prompt provenance, generated IDs and error summary are committed in
+[`benchmarks/attention-hf-20260919.json`](benchmarks/attention-hf-20260919.json).
+
+Eight interleaved before/after/mx rounds, each with a warmup sequence, using
+the same 215+32-token F32 benchmark and settings above:
+
+| Phase | Before mean / median tok/s | After mean / median tok/s | mx mean / median tok/s |
+|---|---:|---:|---:|
+| Prefill | 286.84 / 286.84 | 357.88 / 356.79 | 385.64 / 395.13 |
+| Decode | 13.34 / 13.35 | 13.57 / 13.63 | 14.20 / 14.30 |
+
+Prefill improves 24.8%; its before/after ranges do not overlap. Decode's mean
+change is 1.7%, but ranges overlap, so it is not a strong speedup claim.
+The candidate remains 7.2% below the reference mean for prefill and 4.4%
+below for decode. Neither F32 nor attention is merged to main yet.
+
+Q8 synthetic guardrails used eight alternating pairs after a warmup pair,
+`bench --size 2048 --iters 2000 --threads 6`. Mean/median matmul GFLOPS were
+123.07/125.29 -> 121.80/121.80; prefill 4828/4808 -> 4800/4755 tok/s;
+decode 4522/4511 -> 4875/4868 tok/s. All ranges overlap; this is a regression
+guard, not proof of a quantized-model speedup. An initial 20-iteration
+matmul sample had wide 90.96-140.95 GFLOPS variation, so the matrix run was
+lengthened to resolve that concern. Raw timings, hashes and the normalized
+source hashes for the candidate are in
+[`benchmarks/attention-cpu-20260919.json`](benchmarks/attention-cpu-20260919.json).
 
 ## Wiki text location
 

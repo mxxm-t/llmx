@@ -3,7 +3,7 @@
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
 A ground-up, **dependency-free** LLM inference runtime. It reads and writes
-GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K with F32 norms transformers on CPU (AVX2 where
+GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers on CPU (AVX2 where
 available), and is
 structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added later without touching the core.
@@ -19,8 +19,8 @@ tokenizer implementing the Qwen2/Qwen3 pretokenizer, and a
 Jinja2-subset chat-template renderer. See `docs/STATUS.md` for exactly what's
 done and what's in flight.
 
-F32 norms work; F32 embeddings and matrix multiplication remain unsupported,
-so all-F32 inference is an open gap.
+F32 inference supports both separate output weights and tied token embeddings.
+A small HF reference fixture runs on every platform without downloading a model.
 
 ## Build
 
@@ -74,6 +74,8 @@ and runs a separate pinned HF model gate; see [CI details](docs/CI.md).
   loudly without being flaky.
 - **Tokenizer**: encode/decode round-trips incl. unicode and special tokens.
 - **Perplexity**: analytic probabilities, window boundaries, chunk limits and file input.
+- **F32 reference**: full HF logits and windowed NLL for small deterministic
+  models, including tied/untied weights, odd dimensions, batches and threads.
 - **HF baseline**: tokenizer IDs, next-token rankings and continuous/chunked excerpt PPL
   against committed reference fixtures. Running these checks needs only the
   Python standard library; generating the reference fixtures needs HF tooling.

@@ -1,7 +1,7 @@
 # llmx — Architecture
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
-writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K with F32 norms transformers on CPU (AVX2
+writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers on CPU (AVX2
 where available), and
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
@@ -43,8 +43,8 @@ what a file is. That is what makes each dimension independently replaceable.
 
 This is the intended dependency rule. The current quant registry imports GGUF
 type constants from `format/gguf.hpp`; this existing exception needs resolving
-when adding another format. F32 norms work, but F32 embeddings and matrix
-multiplication are not yet supported by inference.
+when adding another format. Dense F32 and supported block-quant matrices
+share the CPU float dot kernels; F32 rows need no dequantization buffer.
 
 ## What lives where
 

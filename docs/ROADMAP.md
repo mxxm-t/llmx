@@ -73,7 +73,7 @@ call. Before any GPU work:
 - **Async**: a submit / sync concept. `dot_q8_0` returning `float` by value is a
   per-row kernel launch.
 - **Type-generic matmul (done for supported quants)**: dispatch through
-  `Backend::matmul` and `quant::Registry`. F32 matrices remain a gap.
+  `Backend::matmul` and `quant::Registry`; F32 matrices use direct rows.
 - **Batched prefill (done on CPU)**: `Model::prefill` batches tokens with
   `--ubatch`. Device-resident execution still needs the refactor above.
 

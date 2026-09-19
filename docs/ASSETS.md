@@ -19,8 +19,8 @@ C:\Users\Marko\.lmstudio\models\
 
 llmx reads **Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32** tensors (see
 `docs/src/format-gguf.md`). Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;
-support for their tensor encodings does not add new architectures. F32 norms
-work, but F32 embeddings/matrix operations remain an inference gap.
+support for their tensor encodings does not add new architectures. Dense F32
+embeddings, matrices and norms are supported, including tied output weights.
 
 | Model                                            | Format | Status                       |
 |--------------------------------------------------|--------|------------------------------|
@@ -108,6 +108,66 @@ context handling is tested separately using mathematically known, nonuniform
 probabilities in `tests/perplexity.py`. These short excerpts do not establish
 full-corpus or long-context numerical correctness.
 
+
+## F32 reference coverage
+
+`tests/f32.py` creates a small dense Qwen3 fixture using deterministic binary
+fractions. `tools/gen_baseline.py f32` generates its committed full-logit and
+NLL references with HF `Qwen3ForCausalLM`, float32 eager attention, torch
+2.5.1+cpu and transformers 4.55.2. No HF dependency is needed to run the tests.
+The golden file records weight hashes and configuration so fixture drift fails.
+
+Two layers, hidden width 37, FFN width 19, head width 8, GQA 2:1 and vocabulary
+257 exercise scalar tails and partial row blocks. Five prompt lengths, physical
+batches 1/2/3/5/16, threads 1/4 and tied/untied output weights cover prefill;
+continuous and four-token-window PPL cover sequential decode and resets.
+Bounds are 2e-5 absolute for every logit and 1e-5 for mean NLL. Observed maximum
+logit error was 7.2e-7 on Windows MSVC and Linux GCC, including UBSan.
+A preceding 34-byte quantized tensor checks the loader's float alignment under
+UBSan; the old packed blob layout fails with a misaligned float load.
+
+For a real-model check, Qwen3-0.6B revision
+`c1899de289a04d12100db370d81485cdf75e47ca` was converted with llama.cpp
+`convert_hf_to_gguf.py --outtype f32` at converter commit
+`407d0bb1f12eaa49882d2714a93fe774eb6806f2`. This converter is an external
+fixture-generation tool, not a runtime dependency. It also required
+sentencepiece 0.2.2 in the isolated reference environment.
+
+The resulting `Qwen3-0.6B-F32.gguf` is 3,012,480,832 bytes, SHA-256
+`41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265`.
+All 311 tensor arrays were compared to the original safetensors: each is an
+exact BF16-to-F32 widening, with no quantization. On the workstation it is at
+`%TEMP%/Qwen3-0.6B-F32.gguf`; regenerate rather than relying on this scratch path.
+
+It passed all 20 tokenizer and six logit-ranking reference cases. The existing
+247-token excerpt gave PPL 28.7974; all three chunked cases also matched HF
+within 1e-4 mean NLL (largest printed delta 4.5e-6). This is bounded agreement,
+not bit-identical arithmetic with HF or full-corpus validation.
+
+A control that copies F32 rows before calling the same float kernels produced
+identical matrix output hashes to direct access. For a 1,943-token wikitext
+prompt plus 32 greedy tokens, both paths also produced identical token IDs and
+all-logit hash `11549319204765092529` (64-bit FNV-1a). This checks the storage
+access change at that depth, not the model's maximum context.
+
+F32 1024x1024 microbenchmarks on Ryzen 5800X, MSVC /O2 /arch:AVX2, with one
+warmup followed by eight alternating process pairs:
+
+| Threads / columns | Copy rows: mean / median ms | Direct rows: mean / median ms |
+|---|---:|---:|
+| 1 / 1 | 0.07901 / 0.07834 | 0.04327 / 0.04091 |
+| 1 / 3 | 0.10408 / 0.10278 | 0.06024 / 0.05969 |
+| 1 / 128 | 2.47139 / 2.46553 | 2.36848 / 2.35731 |
+| 6 / 1 | 0.03640 / 0.03720 | 0.03101 / 0.03052 |
+| 6 / 3 | 0.04454 / 0.04486 | 0.03300 / 0.03303 |
+| 6 / 128 | 0.73990 / 0.73273 | 0.71517 / 0.68938 |
+
+The six-thread, 128-column ranges overlap substantially; no end-to-end speedup
+or mx-llama.cpp parity is inferred. The previous runtime rejected F32 weights,
+so the comparison above is against a working copy-buffer control. Existing Q8
+bench mean throughput was 114.53 -> 114.44 GFLOPS, synthetic prefill
+4108 -> 4250 tok/s and decode 4126 -> 4141 tok/s under the same eight-pair
+measurement; these guardrails do not establish a quantized-path speedup.
 
 ## Wiki text location
 

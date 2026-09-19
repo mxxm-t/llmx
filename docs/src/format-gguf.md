@@ -19,6 +19,9 @@ load one at all.
   all tensor data with per-tensor `offsets`; `tensor_data(i)` / `tensor_bytes(i)`
   address it. `read_gguf` sizes the blob exactly and reads each tensor straight
   into place.
+- Both `read_gguf` and `add_tensor_data` preserve `alignof(float)` between
+  in-memory tensors. A 34-byte quantized tensor must not misalign a following
+  F32 tensor when the loader removes on-disk padding.
 - `read_gguf(path)` / `write_gguf(m, path)` with the on-disk layout:
   header, metadata KVs, contiguous tensor infos, then an aligned data section
   with each tensor payload aligned to `ALIGNMENT`. Tensor infos have no

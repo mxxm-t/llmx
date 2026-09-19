@@ -1,16 +1,17 @@
 # Continuous integration
 
 `.github/workflows/ci.yml` runs on pull requests, pushes to `main`, and manual
-dispatch. It contains four independent checks:
+dispatch. It contains five independent checks:
 
 | Check | Coverage |
 |---|---|
 | CPU (ubuntu-24.04) | GCC, CMake Release, synthetic tests and benchmark smoke |
 | CPU (windows-2022) | MSVC, CMake Release, synthetic tests and benchmark smoke |
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
+| CPU (Linux UBSan) | GCC undefined-behavior checks, including mixed-tensor float alignment |
 | HF reference (CPU) | Linux build plus both pinned real models: tokenizer, logits, continuous/chunked PPL |
 
-All four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
+The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
 at `ec74308`. Local Windows MSVC and WSL Linux GCC CMake builds also passed
 the suite with both HF fixtures required. Workflow lint and negative checks
 for corrupt downloads, missing fixtures and invalid throughput passed.
@@ -29,6 +30,11 @@ missing fixtures fatal, preventing a green numerical job made entirely of
 skips. Test execution does not install torch, transformers or HF packages.
 The ordinary CPU jobs can skip real-model checks because their fixtures are
 absent; the separate HF job supplies that coverage.
+
+Every job also runs the small F32 HF fixture without downloads. Its deterministic
+weights are generated locally; committed HF float32 logits/NLL cover tied and
+untied embeddings, matrix tails, multiple physical batches and thread counts.
+The UBSan job makes misaligned in-memory tensors a test failure.
 
 Hosted jobs pass `--no-perf-floor`: `bench` must still run and report finite,
 positive throughput, but the workstation-specific floors are disabled.
@@ -53,6 +59,6 @@ Actions are pinned to commit SHAs, checkout credentials are not persisted,
 and workflow permissions are read-only. Jobs run on hosted machines; this
 workflow does not expose the GPU rig to pull-request jobs.
 
-After the first hosted run succeeds, the four stable check names above can be
+After the hosted runs succeed, the stable check names above can be
 required for `main`. Branch protection is a separate repository setting;
 adding this workflow does not enable it automatically.

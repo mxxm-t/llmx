@@ -121,11 +121,11 @@ public:
             return;
         }
         const quant::QuantType* qt = quant::Registry::instance().get(ggml_type);
-        if (!qt || !qt->dequantize || qt->block_size == 0)
+        const bool f32 = ggml_type == gguf::GGML_TYPE_F32;
+        if (!f32 && (!qt || !qt->dequantize || qt->block_size == 0))
             throw std::runtime_error("backend: no dequantizer for tensor type");
-        const size_t blk = qt->block_size;
-        const size_t nblocks = nin / blk;
-        const size_t rowbytes = nblocks * qt->type_size;
+        const size_t nblocks = f32 ? 0 : nin / qt->block_size;
+        const size_t rowbytes = f32 ? nin * sizeof(float) : nblocks * qt->type_size;
 
         // Rows dequantized together before walking the batch. This is the
         // fused kernel's row width, not a tuning constant: dot_f32_x4 shares
@@ -139,12 +139,13 @@ public:
 
         auto do_rows = [&](int w, size_t o0, size_t o1) {
             std::vector<float>& buf = rowbuf_[(size_t)w];
-            if (buf.size() < RB * nin) buf.assign(RB * nin, 0.0f);
-            float* r = buf.data();
+            if (!f32 && buf.size() < RB * nin) buf.assign(RB * nin, 0.0f);
             for (size_t o = o0; o < o1; o += RB) {
                 const size_t nr = std::min(RB, o1 - o);
-                for (size_t k = 0; k < nr; k++)
-                    qt->dequantize(data + (o + k) * rowbytes, r + k * nin, nblocks);
+                const float* r = f32 ? (const float*)(data + o * rowbytes) : buf.data();
+                if (!f32)
+                    for (size_t k = 0; k < nr; k++)
+                        qt->dequantize(data + (o + k) * rowbytes, buf.data() + k * nin, nblocks);
                 size_t b = 0;
                 // Three activation columns at a time where the row block is
                 // full, so weight loads amortise across all three.

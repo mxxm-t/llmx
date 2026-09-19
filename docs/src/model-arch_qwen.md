@@ -30,5 +30,6 @@ compute primitives (quantized matmul, RMSNorm, RoPE) are delegated to a
     quant registry is populated before any tensor is processed.
 
 Supports dense Qwen3 with Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K weights
-and F32 norms. F32 embeddings/matrices are currently rejected. Missing
+and F32 embeddings/matrices/norms. F32 embedding rows are copied directly;
+F32 matmul reads weight rows without staging. Missing
 `output.weight` selects tied token embeddings for the output projection.

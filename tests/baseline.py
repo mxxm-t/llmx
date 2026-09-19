@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli
 
 # Correctness baseline: compare llmx against golden fixtures generated once
-# from the HF reference tokenizer (tools/gen_baseline.py). This is the only
-# test in the suite with an EXTERNAL ground truth -- roundtrip checks the quant
+# from the HF reference tokenizer (tools/gen_baseline.py). This real-model
+# gate and f32.py have EXTERNAL ground truth -- roundtrip checks the quant
 # kernels against themselves, and the tokenizer test is a self-consistency
 # round-trip that a consistently-wrong encoder passes happily.
 #

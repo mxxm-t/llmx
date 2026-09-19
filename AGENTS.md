@@ -6,7 +6,7 @@ making changes.
 ## What this is
 
 **llmx** — a ground-up, dependency-free LLM inference runtime. It reads/writes
-GGUF v3, runs quantized Qwen3-style transformers with F32 norms on CPU (AVX2 where available),
+GGUF v3, runs quantized or F32 Qwen3-style transformers on CPU (AVX2 where available),
 and is structured so formats, quantizations, backends, and multi-device / cluster
 serving can be added later without touching the core.
 
@@ -104,8 +104,11 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   generous floor so catastrophic slowdowns fail loudly without being flaky.
 - **Tokenizer** (`tests/tokenizer.py`): encode/decode round-trips incl. unicode
   and special tokens.
-- **Baseline** (`tests/baseline.py`): the only test with an EXTERNAL ground
-  truth. Compares llmx against golden fixtures generated once from the HF
+- **F32** (`tests/f32.py`): deterministic small-model weights with full logits
+  and windowed NLL generated independently by HF. Covers tied/untied weights,
+  odd dimensions, batch tails and threads without downloading a model.
+- **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
+  Compares llmx against golden fixtures generated once from the HF
   reference by `tools/gen_baseline.py` and committed to `tests/data/`. Needs a
   real model, so it SKIPS when none is on disk; point it at one with
   `LLMX_BASELINE_GGUF`. Regenerating fixtures needs `tokenizers` and

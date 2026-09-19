@@ -20,6 +20,9 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
   loop runs at FMA latency rather than throughput.
 - `dot_f32_x4x3` reuses four weight rows across three activation columns in
   batched prefill; remaining columns/rows use the smaller kernels.
+- F32 matrices use those same float dot kernels directly on resident host
+  weights, without a dequantization buffer or row copy. Quantized inputs retain
+  the existing row staging and fused decode paths.
 - `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
   budget was measured instead and was worse at every size (see
   `docs/STATUS.md`).

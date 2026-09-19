@@ -105,6 +105,7 @@ struct GGUFModel {
     // Append one tensor's bytes. Callers that know the total should reserve
     // blob first; read_gguf sizes it exactly and reads in place instead.
     void add_tensor_data(const std::vector<uint8_t>& bytes) {
+        blob.resize((blob.size() + alignof(float) - 1) / alignof(float) * alignof(float));
         offsets.push_back(blob.size());
         blob.insert(blob.end(), bytes.begin(), bytes.end());
     }
@@ -280,7 +281,12 @@ inline GGUFModel read_gguf(const std::string& path) {
     // per-tensor temporary and no reallocation of an 8 GB buffer.
     size_t total = 0;
     m.offsets.reserve(m.tensors.size());
-    for (const auto& t : m.tensors) { m.offsets.push_back(total); total += (size_t)t.data_size(); }
+    for (const auto& t : m.tensors) {
+        // Odd quantized block counts must not misalign a following F32 tensor.
+        total = (total + alignof(float) - 1) / alignof(float) * alignof(float);
+        m.offsets.push_back(total);
+        total += (size_t)t.data_size();
+    }
     m.blob.resize(total);
     for (size_t i = 0; i < m.tensors.size(); i++) {
         is.seekg(data_start + m.tensors[i].offset);

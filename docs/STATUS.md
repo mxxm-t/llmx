@@ -28,7 +28,7 @@ feature currently stands right now.
 | Performance floor vs mx-llama.cpp        | In Progress |
 | Perplexity text-file input (-f/--file)    | Done     |
 | Chunked corpus perplexity               | Done     |
-| F32 embedding/matrix inference          | Planned  |
+| F32 embedding/matrix inference          | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
@@ -38,6 +38,23 @@ feature currently stands right now.
 One block per in-flight feature. A block is what lets a fresh agent pick a
 feature back up with a "continue feature X" prompt, so keep it current. When the
 feature ships, delete its block and mark the row `Done` above.
+
+### F32 embedding/matrix inference
+
+- **Goal:** load and run F32 embeddings and matrices in dense Qwen3, with
+  external HF numerical validation and measured CPU performance (ROADMAP #8).
+- **Done:** direct F32 rows, float-aligned tensor blobs, deterministic HF
+  full-logit/NLL fixtures (tied/untied, odd widths, batches, threads). Windows
+  and Linux full suites pass; UBSan passes and catches the pre-fix alignment
+  fault. New sanitizer CI job passes workflow lint. All 311 real Qwen3-0.6B
+  F32 tensors verified against original HF weights; all real HF checks pass.
+  Copy/direct controls match matrix hashes and all logits over a 1,943-token
+  prompt plus 32 greedy tokens. Measurements/provenance are in ASSETS.
+- **Left:** establish matched external CPU performance versus mx-llama.cpp;
+  then merge and observe the expanded five-job hosted CI. No external perf
+  parity is claimed from the copy-buffer comparison.
+- **Gotchas:** do not treat success on quantized weights widened to F32 as
+  parity with the original HF weights. Validate tied/untied output and prefill.
 
 ### Correctness baseline vs HF reference
 

@@ -18,24 +18,10 @@
 // Qwen3-style transformer forward pass, from scratch. The compute primitives
 // (quantized matmul, RMSNorm, RoPE) are delegated to a backend::Backend, so the
 // same model code runs on CPU now and other backends later.
-// Supports dense Q8_0 / F32 tensors only:
-//   token_embd.weight        Q8_0 [n_embd, n_vocab]
-//   output.weight            Q8_0 [n_embd, n_vocab]
-//   output_norm.weight       F32  [n_embd]
-//   per layer l:
-//     blk.l.attn_norm.weight F32  [n_embd]
-//     blk.l.attn_q.weight    Q8_0 [n_embd, n_embd]
-//     blk.l.attn_k.weight    Q8_0 [n_embd, n_embd*n_head_kv/n_head]
-//     blk.l.attn_v.weight    Q8_0 [n_embd, n_embd*n_head_kv/n_head]
-//     blk.l.attn_output      Q8_0 [n_embd, n_embd]
-//     blk.l.attn_q_norm      F32  [head_dim]
-//     blk.l.attn_k_norm      F32  [head_dim]
-//     blk.l.ffn_norm         F32  [n_embd]
-//     blk.l.ffn_gate         Q8_0 [n_embd, n_ff]
-//     blk.l.ffn_up           Q8_0 [n_embd, n_ff]
-//     blk.l.ffn_down         Q8_0 [n_ff, n_embd]
-// Matrices are stored with ne[0] = input dim fastest: row o occupies bytes
-// [o*nin/32*34, (o+1)*nin/32*34).
+// Dense matrices use supported block quants or F32; normalization weights are F32.
+// Tensor ne[0] is the input dimension, with each output row contiguous.
+// Attention projection width is n_head*head_dim and need not equal n_embd.
+// An absent output.weight ties the output projection to token_embd.weight.
 
 namespace infer {
 
@@ -485,6 +471,10 @@ private:
     // dispatching on the tensor's type via the quant registry.
     void dequant_row(const gguf::TensorInfo& t, size_t r, float* out) const {
         size_t nin = (size_t)t.ne[0];
+        if (t.type == gguf::GGML_TYPE_F32) {
+            std::memcpy(out, m_->tensor_data(tindex_.at(t.name)) + r * nin * sizeof(float), nin * sizeof(float));
+            return;
+        }
         const quant::QuantType* qt = quant::Registry::instance().get(t.type);
         if (!qt || !qt->dequantize) throw std::runtime_error("unsupported tensor type in dequant_row");
         const uint8_t* base = m_->tensor_data(tindex_.at(t.name)) +

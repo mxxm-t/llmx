@@ -11,6 +11,7 @@ import roundtrip
 import perf
 import tokenizer
 import perplexity
+import f32
 import baseline
 import common
 
@@ -32,6 +33,7 @@ def main():
                      ("perf", lambda: perf.run(enforce_floor=not args.no_perf_floor)),
                      ("tokenizer", tokenizer.run),
                      ("perplexity", perplexity.run),
+                     ("f32", f32.run),
                      ("baseline", baseline.run)]:
         try:
             ok = fn()

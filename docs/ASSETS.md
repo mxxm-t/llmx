@@ -178,12 +178,18 @@ measurement; these guardrails do not establish a quantized-path speedup.
 C API. `tools/compare_cpu.py` feeds both binaries the committed HF token IDs:
 215 prompt tokens followed by 32 forced continuation tokens. This measures
 model execution, with loading, tokenization and sampling excluded. It is not
-a greedy-generation or numerical-correctness test. Both arms use six threads,
+a greedy-generation or numerical-correctness test. Both arms default to six threads,
 ubatch 128, F32 KV and causal attention; the reference disables GPU offload and
 flash attention. Each process runs one warmup sequence and one measured
 sequence with cleared KV state. The driver alternates arm order, rejects
 failed runs and invalid timings, and saves raw stdout/stderr, hashes and
 mean/median/range summaries. The default is eight process pairs.
+
+Pass `--threads N` to the Python driver to set the same positive thread count
+in both arms (up to 64). The C++ wrapper accepts the same optional flag after
+the model and token-file arguments. Both wrappers report the requested count
+with each sequence, and the driver rejects a missing or mismatched count.
+Rebuild both wrappers when updating this tool; older wrappers are rejected.
 
 The reference is public mx-llama.cpp
 `5542318e748c154b634211def405ae95da3dfaa9`, built in a clean detached worktree.
@@ -905,6 +911,130 @@ Do not combine absolute rates across these separate sessions. Evidence is in
 [`benchmarks/q8-row-instructions-20260919.json`](benchmarks/q8-row-instructions-20260919.json),
 including patches, assembly extracts, source/binary hashes, raw samples and
 reproduction scripts. Scratch: `%TEMP%/llmx-q8-paired`. Runtime remains `475f312`.
+
+## Matched thread scaling and projection shapes (2026-09-19)
+
+The shared comparator and runner now accept `--threads`; both arms use the
+requested value for prefill and decode, report it per sequence, and the runner
+rejects missing or mismatched values. The default is unchanged. Windows llmx
+and mx wrappers build, as does the Linux llmx wrapper. Invalid argument checks,
+thread-metadata rejection checks and a real-model runner smoke pass. Both
+runtime sources are unchanged; llmx remains `475f312`, with the same pinned mx
+revision and model/token hashes used above.
+
+| Measurement setting | Value |
+|---|---:|
+| Default threads | 6 |
+| Accepted thread range | 1-64 |
+| Measured rounds per model/count/arm | 3 |
+| Discarded outer warmups per setting | 1 |
+| Per-process warmup sequences | 1 |
+| Prompt / forced decode tokens | 215 / 32 |
+| Ubatch | 128 |
+
+Both models use F32 KV and the prior reference flags. Arm order alternates and
+thread-setting order rotates. Default C++ argument handling is exercised in
+outer warmups at the default count. All samples, including the slower F32
+samples, are retained. These are scaling diagnostics, not a universal parity
+claim or a reason to discard the established external floor.
+
+| Qwen3-0.6B Q8_0, mean tok/s | llmx prefill | mx prefill | llmx decode | mx decode |
+|---|---:|---:|---:|---:|
+| Threads 1 | 105.54 | 83.95 | 25.82 | 29.87 |
+| Threads 2 | 189.88 | 161.61 | 39.93 | 44.53 |
+| Threads 4 | 311.32 | 249.15 | 47.47 | 47.92 |
+| Threads 6 | 423.46 | 274.01 | 45.84 | 48.65 |
+| Threads 8 | 428.27 | 328.42 | 46.50 | 48.04 |
+| Threads 16 | 513.28 | 453.54 | 45.15 | 43.46 |
+
+| Qwen3-0.6B F32, mean tok/s | llmx prefill | mx prefill | llmx decode | mx decode |
+|---|---:|---:|---:|---:|
+| Threads 1 | 102.51 | 106.38 | 12.28 | 12.22 |
+| Threads 2 | 189.22 | 202.10 | 14.93 | 14.95 |
+| Threads 4 | 301.86 | 321.55 | 14.61 | 15.33 |
+| Threads 6 | 383.07 | 390.20 | 13.99 | 14.63 |
+| Threads 8 | 371.79 | 430.43 | 14.10 | 14.15 |
+| Threads 16 | 496.01 | 497.88 | 13.99 | 13.73 |
+
+Decode saturates earlier than prefill, and the best observed count differs
+between workloads. Selecting a favorable setting does not establish the floor
+at other counts. Runtime defaults and scheduling have not changed.
+
+Correctness was checked separately from timing using the same prompt and
+forced continuation. Every full output vector matches the default-count
+control byte for byte. Continuous-excerpt NLL is exactly unchanged from the
+prior validated runtime and passes the independently generated HF fixture.
+
+| Numerical check | F32 | Q8_0 |
+|---|---:|---:|
+| Thread settings checked | 6 | 6 |
+| Counts checked | 1, 2, 4, 6, 8, 16 | 1, 2, 4, 6, 8, 16 |
+| Full vectors per setting | 33 | 33 |
+| Finite values per setting | 5,013,888 | 5,013,888 |
+| Added error across counts | 0 | 0 |
+| HF excerpt NLL absolute error | 0.000000078466 | 0.001378187469 |
+| Existing HF NLL bound | 0.0001 | 0.010 |
+
+These full-precision NLL errors differ slightly from older CLI-rounded
+summaries. The HF check here is excerpt NLL; vector equality across thread
+counts is a separate consistency check. Earlier independent long F32 HF
+validation remains documented above. No full-corpus, maximum-context or new
+independent larger-model correctness claim is made.
+
+Instrumented projections and attention use the existing runtime backend,
+with timing around each top-level operation. Nested fallback calls are not
+double-counted. These timings include pool dispatch/wait within an operation;
+total time also includes instrumentation and is excluded from benchmark data.
+
+| Instrumented decode, mean ms, 6 threads | F32 | Q8_0 |
+|---|---:|---:|
+| Attention | 87.86 | 76.22 |
+| Q/K/V projections | 408.31 | 115.93 |
+| FFN gate/up | 600.66 | 169.35 |
+| Attention output projection | 210.91 | 63.52 |
+| FFN down | 308.13 | 89.06 |
+| Vocabulary output | 534.59 | 138.06 |
+| Total including instrumentation | 2172.73 | 673.69 |
+
+The matrix probes cycle through each layer's actual weights with fixed
+synthetic activations. Q/K/V and gate/up use grouped projections in llmx and
+a shared CPU graph in mx. The reference uses a persistent threadpool and
+preallocated tensor outputs/workspace; Q8 activation conversion is timed.
+Loading and graph construction are excluded. These probes isolate kernel and
+dispatch costs, not full-model quality or throughput.
+
+| Matrix/group, mean ms, 6 threads | F32 llmx | F32 mx | Q8 llmx | Q8 mx |
+|---|---:|---:|---:|---:|
+| Q/K/V | 0.45645 | 0.45001 | 0.12258 | 0.10952 |
+| Attention output | 0.22749 | 0.22488 | 0.05409 | 0.04372 |
+| FFN gate/up | 0.67401 | 0.67320 | 0.18083 | 0.17291 |
+| FFN down | 0.33850 | 0.34063 | 0.08395 | 0.07811 |
+| Vocabulary output | 16.30322 | 16.98024 | 4.16707 | 3.99393 |
+
+| Matrix-probe scope | Value |
+|---|---:|
+| Thread counts | 1, 4, 6, 16 |
+| Interleaved process pairs per model/count | 3 |
+| Warmup cycles per matrix case | 4 |
+| Timed cycles per matrix case | 64 |
+| Layer jobs per cycle | 28 |
+| Vocabulary-output jobs per cycle | 1 |
+
+At the recorded default count, F32 arm ranges overlap for every matrix case;
+Q8 llmx is slower with disjoint ranges. This makes more F32 dot-instruction
+changes a lower-priority hypothesis. Attention still has measurable cost in
+both models. Source inspection shows token-major K/V storage makes successive
+positions of a head strided across token records. A contiguous per-head cache
+is the next bounded layout experiment; this is a hypothesis, not a measured
+win. Capacity must grow with used context rather than allocating the model's
+full maximum context up front. Preserve arithmetic order and validate growth,
+reset, batched prefill, full vectors and independent HF outputs before adoption.
+
+Raw samples, wrapper/DLL/model hashes, exact-vector hashes, HF checks,
+projection profiles, matrix ranges and reproduction sources are in
+[`benchmarks/cpu-thread-scaling-20260919.json`](benchmarks/cpu-thread-scaling-20260919.json).
+Scratch: `%TEMP%/llmx-cpu-scaling`. The measurement checkpoint does not merge
+or publish the unlanded runtime stack; external performance floors remain open.
 
 ## Wiki text location
 

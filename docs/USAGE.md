@@ -211,3 +211,11 @@ This is the command `tests/perf.py` uses as the perf-regression gate.
 | `--threads N`   | worker thread count (0 = auto)               | 0       |
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
+
+For matched real-model measurements against mx-llama.cpp, use
+`tools/compare_cpu.py --llmx PATH --reference PATH --reference-revision SHA
+--model MODEL.gguf --output NEW_DIRECTORY [--threads N] [--rounds N]`.
+The driver sets the same thread count for prefill and decode in both arms,
+records it, and rejects mismatched results. The default is six threads; the
+accepted range is 1-64. See [ASSETS.md](ASSETS.md#matched-external-cpu-benchmark)
+for wrapper builds, pinned inputs and measurement scope.

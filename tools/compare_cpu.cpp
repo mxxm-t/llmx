@@ -1,10 +1,12 @@
 #include <algorithm>
 #include <chrono>
+#include <charconv>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
+#include <string_view>
 #include <vector>
 #ifdef LLMX_COMPARE_REFERENCE
 #include "llama.h"
@@ -13,8 +15,18 @@
 #endif
 using Clock = std::chrono::steady_clock;
 int main(int argc, char ** argv) {
-    if (argc != 3) {
-        std::cerr << "usage: compare-cpu MODEL.gguf TOKEN_IDS.txt\n";
+    int threads = 6;
+    if (argc == 5 && std::string_view(argv[3]) == "--threads") {
+        const std::string_view value(argv[4]);
+        const auto result = std::from_chars(value.data(), value.data() + value.size(), threads);
+        if (result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+            threads < 1 || threads > 64) {
+            std::cerr << "--threads must be an integer from 1 to 64\n";
+            return 2;
+        }
+    } else if (argc != 3) {
+        std::cerr << "usage: compare-cpu MODEL.gguf TOKEN_IDS.txt [--threads N]\n"
+                  << "  --threads: 1-64, default 6 (both prefill and decode)\n";
         return 2;
     }
     std::ifstream input(argv[2]);
@@ -35,7 +47,7 @@ int main(int argc, char ** argv) {
     cp.n_ctx = 512;
     cp.n_batch = (uint32_t)np;
     cp.n_ubatch = 128;
-    cp.n_threads = cp.n_threads_batch = 6;
+    cp.n_threads = cp.n_threads_batch = threads;
     cp.type_k = cp.type_v = GGML_TYPE_F32;
     cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
     cp.offload_kqv = cp.op_offload = false;
@@ -46,7 +58,7 @@ int main(int argc, char ** argv) {
 #else
     auto weights = gguf::read_gguf(argv[1]);
     infer::Model model(weights);
-    model.set_threads(6);
+    model.set_threads(threads);
     model.set_ubatch(128);
 #endif
     for (int run = 0; run < 2; ++run) {
@@ -84,6 +96,7 @@ int main(int argc, char ** argv) {
             sum += values[i];
         }
         std::cout << std::setprecision(10) << "{\"run\":" << run
+                  << ",\"threads\":" << threads
                   << ",\"pp_tokens\":" << np << ",\"tg_tokens\":32,\"pp_ms\":"
                   << std::chrono::duration<double,std::milli>(pp_end-start).count()
                   << ",\"tg_ms\":" << std::chrono::duration<double,std::milli>(tg_end-pp_end).count()

@@ -22,9 +22,12 @@ def main():
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--rounds", type=int, default=8)
+    parser.add_argument("--threads", type=int, default=6, help="threads in both arms (1-64; default: 6)")
     args = parser.parse_args()
     if args.rounds < 1:
         parser.error("--rounds must be positive")
+    if not 1 <= args.threads <= 64:
+        parser.error("--threads must be from 1 to 64")
     arms = {"llmx": args.llmx.resolve(), "reference": args.reference.resolve()}
     model = args.model.resolve()
     fixture_path = Path(__file__).resolve().parents[1] / "tests/data/baseline_perplexity.json"
@@ -44,7 +47,7 @@ def main():
     metadata = {
         "sha256": artifacts,
         "reference_revision": args.reference_revision,
-        "threads": 6, "ubatch": 128, "kv_type": "f32",
+        "threads": args.threads, "ubatch": 128, "kv_type": "f32",
         "prompt_tokens": 215, "forced_decode_tokens": 32,
         "warmup_sequences_per_process": 1,
         "rounds": args.rounds,
@@ -55,7 +58,7 @@ def main():
     for pair in range(args.rounds):
         order = ("llmx", "reference") if pair % 2 == 0 else ("reference", "llmx")
         for arm in order:
-            command = [str(arms[arm]), str(model), str(tokens)]
+            command = [str(arms[arm]), str(model), str(tokens), "--threads", str(args.threads)]
             proc = subprocess.run(command, capture_output=True, timeout=300)
             prefix = output / ("%02d-%s" % (pair, arm))
             prefix.with_suffix(".stdout").write_bytes(proc.stdout)
@@ -65,6 +68,8 @@ def main():
             if len(samples) != 2 or [s["run"] for s in samples] != [0, 1]:
                 raise ValueError("missing warmup or measured sequence: " + str(prefix))
             for sample in samples:
+                if sample.get("threads") != args.threads:
+                    raise ValueError("mismatched thread count: " + str(prefix))
                 if sample["pp_tokens"] != 215 or sample["tg_tokens"] != 32:
                     raise ValueError("mismatched workload: " + str(prefix))
                 if not all(math.isfinite(sample[k]) and sample[k] > 0 for k in ("pp_ms", "tg_ms")):

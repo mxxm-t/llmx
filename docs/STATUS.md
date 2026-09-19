@@ -26,6 +26,7 @@ feature currently stands right now.
 | Correctness baseline vs HF reference     | In Progress |
 | HF fixed-excerpt PPL baseline            | Done     |
 | Performance floor vs mx-llama.cpp        | In Progress |
+| Matched CPU comparison thread selection | In Progress |
 | Perplexity text-file input (-f/--file)    | Done     |
 | Chunked corpus perplexity               | Done     |
 | F32 embedding/matrix inference          | In Progress |
@@ -266,6 +267,29 @@ feature ships, delete its block and mark the row `Done` above.
   is against previous llmx, not an independent HF 8B reference. All samples
   are retained; no external parity claim.
 
+### CPU comparison thread scaling
+
+- **Goal:** locate the remaining CPU performance gap using matched thread
+  counts and matrix-shape measurements, following ROADMAP #8.
+- **Done:** explicit `--threads` in the comparator and runner, with requested
+  counts echoed and checked. Windows llmx/mx and Linux llmx builds pass;
+  invalid arguments and missing/wrong thread metadata are rejected. A real-model
+  runner smoke passes. Matched Q8/F32 scaling is complete; runtime remains
+  `475f312`.
+  Full vectors are byte-identical across all measured counts; continuous NLL
+  is unchanged from the prior runtime and passes the independent HF fixture.
+  Projection and matrix probes are complete. F32 matrix ranges overlap mx;
+  Q8 matrix latency remains higher at the default comparison count. ASSETS and
+  `benchmarks/cpu-thread-scaling-20260919.json` contain complete results.
+- **Left:** merge the tool with the validated stack once its external floor
+  is met. The next performance investigation is attention/KV locality:
+  token-major storage makes each head's history strided. Test contiguous
+  per-head storage with capacity growth, preserving arithmetic and applying
+  full-vector and independent HF gates before adopting any change.
+- **Gotchas:** use the same thread count in both arms and record it with every
+  result. Keep the pinned model, tokens, reference revision, warmup and KV
+  settings. Scaling diagnostics do not waive the existing external floor.
+
 ### Correctness baseline vs HF reference
 
 - **Goal:** give the suite an external ground truth. Correctness is measured
@@ -420,10 +444,11 @@ feature ships, delete its block and mark the row `Done` above.
   - The integer-activation study above found a modest decode gain despite the
     earlier bandwidth prediction, but did not meet the external floor and
     introduces a precision change. Keep its measured cost visible if revisited.
-  - Investigate the remaining matrix-operation cost after grouped dispatch
-    and native Q8 scale/load scheduling (latest results in its block above).
-    The larger-model diagnostic did not close the gap. Keep float arithmetic
-    unchanged where possible and apply independent HF gates to any change.
+  - Thread and matrix-shape diagnostics are complete (see CPU comparison
+    thread scaling above). F32 matrix ranges overlap mx, while Q8 matrix
+    latency still trails it. Attention/KV locality is the next bounded
+    investigation, with capacity growth and independent HF gates required.
+    The larger-model diagnostic did not close the external gap.
 - **Gotchas:**
   - Synthetic `bench` throughput does not establish real-model speed. Small
     projections may stay serial depending on thread count. Grouping improves

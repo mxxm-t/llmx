@@ -39,6 +39,10 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
 - `rms_norm`, `rope`: AVX2 vectorized with scalar tails for non-multiples of 8.
 - `attention`: causal GQA over the host KV cache. Heads use the persistent
   worker pool and separate score rows, reused across queries. The backend
+  reads contiguous per-head histories with an explicit head stride in floats;
+  physical capacity does not extend the causal sequence. The layout change
+  preserves dot and value-reduction arithmetic order.
+  The backend
   grows scratch to the sequence being processed, rather than reserving the
   model's full context. AVX2 dots and weighted value accumulation have scalar
   tails; a scalar branch is retained for the runtime AVX2 check.

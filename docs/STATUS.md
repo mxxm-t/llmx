@@ -36,6 +36,7 @@ feature currently stands right now.
 | CPU attention value accumulation      | In Progress |
 | CPU grouped projections              | In Progress |
 | CPU Q8 scale / load scheduling       | In Progress |
+| Head-major CPU KV storage             | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
@@ -291,37 +292,46 @@ feature ships, delete its block and mark the row `Done` above.
   result. Keep the pinned model, tokens, reference revision, warmup and KV
   settings. Scaling diagnostics do not waive the existing external floor.
 
-### Head-major KV locality investigation
+### Head-major CPU KV storage
 
-- **Goal:** make each KV head's history contiguous to improve attention reads
-  while preserving arithmetic order and growing storage with used context.
-- **Done:** control is `342960a` (runtime `475f312`); profiling and matrix
-  diagnostics are archived. Scratch host storage helper and explicit attention
-  stride build on Windows. Growth/reset/mixed histories match all 229,758
-  control logits exactly; tiny independent HF fixtures pass (max error 7e-7).
-  Initial matched model timing is complete and archived in
-  `benchmarks/head-major-kv-initial-20260919.json`. No runtime change has been
-  adopted. Mean tok/s (three measured rounds, all outliers retained):
+- **Goal:** make each KV head's history contiguous to improve attention reads,
+  preserve arithmetic order, and separate concrete CPU storage from logical
+  sequence state without adding speculative device/server interfaces.
+- **Done:** `HostKVCache` owns bounded growth and token-major projection writes;
+  `Model` owns valid length/reset; backend attention receives an explicit head
+  stride. Promoted the exact validated headers from the scratch candidate.
+  Growth/reset/mixed histories match all 229,758 control values on Windows
+  and Linux (the latter with nonrecovering UBSan). The direct storage oracle
+  is in CTest and rejects a wrong-head relocation mutant.
+  Real F32 HF logits and continuous/window NLL pass; long HF error is at most
+  0.00012636185 under 0.001, with all 32 greedy IDs matching. F32 and Q8 each
+  retain all 5,013,888 long-history logits and four full-precision NLL cases
+  exactly versus `475f312`. Windows/Linux full suites with required real HF
+  fixtures and Linux UBSan native/synthetic suites pass. Integrated MSVC code
+  has the same `.text` hash as the validated candidate; final native CTest
+  integration passes on Linux and UBSan.
+  Nine interleaved matched rounds, all outliers retained:
 
-  | Model / phase | Current | Scratch KV | mx |
-  |---|---:|---:|---:|
-  | Q8 prefill | 423.69 | 461.67 | 289.01 |
-  | Q8 decode | 47.08 | 48.51 | 50.24 |
-  | F32 prefill | 403.41 | 427.26 | 430.29 |
-  | F32 decode | 15.20 | 15.33 | 15.32 |
+  | Mean tok/s | Control | Head-major KV | mx | Gap vs mx |
+  |---|---:|---:|---:|---:|
+  | Q8 prefill | 366.46 | 416.37 | 262.34 | +58.72% |
+  | Q8 decode | 42.36 | 44.41 | 45.51 | -2.42% |
+  | F32 prefill | 345.42 | 361.38 | 362.44 | -0.29% |
+  | F32 decode | 13.06 | 13.47 | 13.27 | +1.55% |
 
-  Q8 prefill ranges are disjoint; decode overlaps and remains below mx in
-  the mean. F32 ranges overlap. This is not proof of the external floors.
-  Architecture and server roadmap now explicitly separate shared weights,
-  per-sequence mutable KV, execution scratch and in-flight storage lifetime.
-- **Left:** resume after the chat follow-up fix: real-model full-vector and
-  independent HF checks, platform/long gates and longer matched measurements.
-  Concrete CPU storage operations are centralized in the scratch helper; keep
-  logical sequence state separate from physical capacity and avoid making
-  this CPU layout a requirement for future device or multi-user execution.
-- **Gotchas:** reset may retain allocated memory but must never expose stale
-  tokens. Growth must preserve every layer/head's used prefix. Do not allocate
-    the model's full maximum context at startup or change reduction order.
+  Candidate/control ranges overlap; paired candidate wins are 9/9, 7/9,
+  7/9 and 8/9 respectively. These results support an incremental selection,
+  not a claim that the external floors are closed. The separate tiny synthetic
+  decode mean declines 2.88% with overlapping ranges; that remains a recorded
+  limitation. ASSETS and `benchmarks/head-major-kv-cpu-20260919.json` preserve
+  all samples, hashes, scopes and reproduction sources. Earlier short-run
+  diagnostics remain in `head-major-kv-initial-20260919.json`.
+- **Left:** close the remaining external Q8 decode and F32 prefill gaps, then
+  merge the validated stack and observe hosted CI. No merge or publish yet.
+- **Gotchas:** reset retains allocation but must not expose stale tokens.
+  Growth temporarily holds old and replacement storage together; future
+  multi-user memory budgets must account for that peak. A CPU head-major layout
+  is not a requirement for future device buffers, paging or shared prefixes.
 
 ### Chat follow-up cache validation
 

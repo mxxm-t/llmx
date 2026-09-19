@@ -395,18 +395,20 @@ public:
 
     void attention(const float* Q, const float* K, const float* V, float* out,
                    int n_head, int n_head_kv, int head_dim,
-                   int n_past, int nbatch) override {
+                   int n_past, int nbatch, size_t kv_head_stride) override {
         if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 ||
             head_dim <= 0 || n_past < 0 || nbatch <= 0)
             throw std::runtime_error("backend: invalid attention dimensions");
         const size_t sequence = (size_t)n_past + (size_t)nbatch;
+        if (kv_head_stride < sequence * (size_t)head_dim)
+            throw std::runtime_error("backend: invalid KV head stride");
         const size_t q_stride = (size_t)n_head * head_dim;
-        const size_t kv_stride = (size_t)n_head_kv * head_dim;
+        const size_t kv_stride = (size_t)head_dim;
         const int ratio = n_head / n_head_kv;
         const float scale = 1.0f / std::sqrt((float)head_dim);
         attention_scores_.resize((size_t)n_head * sequence);
         parallel_for(n_head, [&](int h) {
-            const size_t kv_offset = (size_t)(h / ratio) * head_dim;
+            const size_t kv_offset = (size_t)(h / ratio) * kv_head_stride;
             float* scores = attention_scores_.data() + (size_t)h * sequence;
             for (int b = 0; b < nbatch; ++b) {
                 const size_t end = (size_t)n_past + (size_t)b + 1;

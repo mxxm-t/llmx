@@ -13,6 +13,7 @@
 #include "core/fp16.hpp"
 #include "quant/quant.hpp"
 #include "backends/backend.hpp"
+#include "model/host_kv_cache.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 
 // Qwen3-style transformer forward pass, from scratch. The compute primitives
@@ -113,8 +114,7 @@ public:
         up_.assign(cfg.n_ff, 0.0f);
         ffn_.assign(cfg.n_ff, 0.0f);
 
-        k_cache_.resize(cfg.n_layer);
-        v_cache_.resize(cfg.n_layer);
+        cache_ = HostKVCache(cfg.n_layer, cfg.n_head_kv, cfg.head_dim, cfg.context_length);
 
         // Precompute the RoPE cos/sin table for every position up to the
         // context length. Indexed as [pos*(head_dim/2) + i].
@@ -147,6 +147,8 @@ public:
         if (pos >= cfg.context_length)
             throw std::runtime_error("inference: context length exceeded (" +
                                      std::to_string(cfg.context_length) + " tokens)");
+
+        cache_.reserve((size_t)pos + 1, (size_t)n_tokens_);
 
         // embedding
         dequant_row(tensor("token_embd.weight"), token_id, x_.data());
@@ -187,15 +189,14 @@ public:
             }
 
             // store k,v in cache
-            k_cache_[l].insert(k_cache_[l].end(), kv_.begin(), kv_.end());
-            v_cache_[l].insert(v_cache_[l].end(), v_.begin(), v_.end());
+            cache_.write(l, kv_.data(), v_.data(), (size_t)pos, 1);
 
             // attention: each q-head writes only its own attn_ slice, so heads
             // can be processed in parallel.
-            const float* kcache = k_cache_[l].data();
-            const float* vcache = v_cache_[l].data();
+            const float* kcache = cache_.keys(l);
+            const float* vcache = cache_.values(l);
             b_->attention(q_.data(), kcache, vcache, attn_.data(),
-                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos, 1);
+                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos, 1, cache_.head_stride());
 
             // attn_output projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
@@ -259,8 +260,7 @@ public:
     // Clear the KV cache (start a new conversation).
     void reset() {
         n_tokens_ = 0;
-        for (auto& c : k_cache_) c.clear();
-        for (auto& c : v_cache_) c.clear();
+
     }
 
 private:
@@ -275,10 +275,9 @@ private:
     std::vector<float> x_, h_, q_, kv_, v_, attn_;
     std::vector<float> gate_, up_, ffn_;
     std::vector<float> xb_, hb_, qb_, kb_, vb_, attnb_, gateb_, upb_, ffnb_;
-    std::vector<std::vector<float>> k_cache_, v_cache_;
+    HostKVCache cache_;
     std::vector<float> rope_cos_, rope_sin_;
     int n_tokens_ = 0;
-
     const gguf::TensorInfo& tensor(const std::string& name) const {
         auto it = tindex_.find(name);
         if (it == tindex_.end()) throw std::runtime_error("inference: missing tensor " + name);
@@ -319,6 +318,7 @@ private:
         if (pos0 + B > cfg.context_length)
             throw std::runtime_error("inference: context length exceeded (" +
                                      std::to_string(cfg.context_length) + " tokens)");
+        cache_.reserve((size_t)pos0 + (size_t)B, (size_t)n_tokens_);
         const int E = cfg.n_embd, HD = cfg.head_dim, half = HD / 2;
         const size_t KV = (size_t)cfg.n_head_kv * HD;
         const int nt = b_->threads_available();
@@ -362,13 +362,12 @@ private:
                 for (int h = 0; h < cfg.n_head_kv; h++) b_->rope(k + h * HD, cs, sn, half);
             });
 
-            k_cache_[l].insert(k_cache_[l].end(), kb_.begin(), kb_.begin() + (size_t)B * KV);
-            v_cache_[l].insert(v_cache_[l].end(), vb_.begin(), vb_.begin() + (size_t)B * KV);
+            cache_.write(l, kb_.data(), vb_.data(), (size_t)pos0, (size_t)B);
 
-            const float* kc = k_cache_[l].data();
-            const float* vc = v_cache_[l].data();
+            const float* kc = cache_.keys(l);
+            const float* vc = cache_.values(l);
             b_->attention(qb_.data(), kc, vc, attnb_.data(),
-                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos0, B);
+                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos0, B, cache_.head_stride());
 
             matmul(tensor(pre + "attn_output.weight"), attnb_.data(), hb_.data(), (size_t)q_dim_, E, B);
             for (size_t j = 0; j < (size_t)B * E; j++) xb_[j] += hb_[j];

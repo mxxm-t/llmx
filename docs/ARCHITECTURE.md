@@ -54,7 +54,7 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants)                       |
 | `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3)            |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3 pretokenizer)             |
-| `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass, KV cache)               |
+| `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass), `host_kv_cache.hpp` (CPU KV storage) |
 | `backends/`     | `backend.hpp` (interface), `cpu/cpu_backend.hpp` (AVX2 impl)          |
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
@@ -82,6 +82,11 @@ at a time. Parallel work inside a forward pass does not make concurrent calls
 to the same `Model` safe. Backend worker dispatch and attention scratch also
 need explicit ownership before concurrent submissions can be supported.
 
+`HostKVCache` centralizes CPU storage, growth and writes. Each head's history
+is contiguous; the backend receives its physical stride separately from the
+valid sequence length. `Model` retains logical position and reset ownership.
+This is a concrete host implementation, not the future device-memory interface.
+
 The planned device and server work (ROADMAP #4a and #7) must preserve these
 boundaries:
 
@@ -107,8 +112,8 @@ boundaries:
   private, and shared blocks remain alive until all users and operations finish.
 
 These are design constraints, not implemented server features. The current
-CPU cache work should centralize concrete storage operations without adding
-unused paging, scheduling or device interfaces. A contiguous CPU layout must
+CPU cache centralizes concrete storage operations without adding unused paging,
+scheduling or device interfaces. A contiguous CPU layout must
 not become a requirement imposed on future device backends.
 
 ## Multi-device / multi-node design notes

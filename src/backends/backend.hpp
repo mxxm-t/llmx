@@ -63,11 +63,12 @@ public:
             matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);
     }
 
-    // Causal GQA: Q/out are [nbatch, n_head, head_dim], K/V are
-    // [n_past + nbatch, n_head_kv, head_dim]. Query b attends through n_past+b.
+    // Causal GQA: Q/out are [nbatch, n_head, head_dim]. K/V histories
+    // are contiguous per head, separated by kv_head_stride floats.
+    // Query b attends through n_past+b.
     virtual void attention(const float* Q, const float* K, const float* V, float* out,
                            int n_head, int n_head_kv, int head_dim,
-                           int n_past, int nbatch) = 0;
+                           int n_past, int nbatch, size_t kv_head_stride) = 0;
 
     // Run fn(i) for i in [0, n) across the backend's workers.
     virtual void parallel_for(int n, const std::function<void(int)>& fn) = 0;

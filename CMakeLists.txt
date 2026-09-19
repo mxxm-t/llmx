@@ -42,6 +42,11 @@ if(BUILD_TESTING)
     add_test(NAME chat-template COMMAND llmx-chat-template-test
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/baseline_chat_template.json)
     set_tests_properties(chat-template PROPERTIES TIMEOUT 30)
+    add_executable(llmx-kv-cache-test tests/kv_cache.cpp)
+    target_include_directories(llmx-kv-cache-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-kv-cache-test)
+    add_test(NAME kv-cache COMMAND llmx-kv-cache-test)
+    set_tests_properties(kv-cache PROPERTIES TIMEOUT 30)
 endif()
 
 find_package(Threads REQUIRED)

@@ -8,7 +8,8 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   (`block_count`, `embedding_length`, `feed_forward_length`,
   `attention.head_count[_kv]`, `key_length`, `context_length`, `rope_theta`,
   `rms_eps`).
-- `Model`: loads tensors from a `GGUFModel`, owns the KV cache.
+- `Model`: loads tensors from a `GGUFModel`, owns one sequence's logical token
+  count and a `HostKVCache` for physical CPU storage.
   - `set_threads(n)`, `n_tokens()`, `head_dim()`, `context_length()`.
   - `step(token_id) -> logits`: run one token through the full forward pass
     (embedding, per-block attention + FFN, output norm + head), updating the KV
@@ -20,9 +21,13 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
     compute bound, unlike decode.
   - `set_ubatch(n)` / `ubatch()`: physical batch, llama.cpp's `n_ubatch`, set
     by `--ubatch`. llmx has no logical batch; see `docs/USAGE.md`.
-  - `reset()`: clear KV cache / internal state.
+  - `reset()`: reset logical history while retaining allocated KV capacity.
+    Future attention sees only the newly written sequence extent.
   - Both forward paths call `Backend::attention` over the KV cache; score
     scratch, causal masking and head scheduling belong to the backend.
+    Storage grows before the forward pass, preserving the used prefix of
+    every head and layer. Projected token-major K/V rows are written into
+    contiguous per-head histories, with an explicit head stride for attention.
   - Q/K/V and FFN gate/up share activations and use `matmul_group` in both
     forward paths. CPU groups eligible decode projections; batched prefill
     retains sequential matrix calls through the backend fallback.

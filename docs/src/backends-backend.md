@@ -17,11 +17,12 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
   activations. Each descriptor gives type, weights, output and row count.
   Outputs must be disjoint from one another, inputs and weights. The default
   calls `matmul` sequentially; all outputs are ready when the call returns.
-- `attention(Q, K, V, out, n_head, n_head_kv, head_dim, n_past, nbatch)`:
+- `attention(Q, K, V, out, n_head, n_head_kv, head_dim, n_past, nbatch, kv_head_stride)`:
   causal GQA, shared by decode and prefill. Queries/output have shape
-  `[nbatch, n_head, head_dim]`; K/V contain the prefix and current batch,
-  `[n_past + nbatch, n_head_kv, head_dim]`. Query `b` sees positions through
-  `n_past + b`. The backend owns temporary score storage.
+  `[nbatch, n_head, head_dim]`. K/V positions are contiguous within each head;
+  `kv_head_stride` is the distance between heads in floats, including unused
+  capacity. It must hold at least `n_past + nbatch` positions. Query `b` sees
+  only positions through `n_past + b`. The backend owns temporary score storage.
 - `parallel_for(n, fn)`: run `fn(i)` across the backend's workers.
 - `rms_norm(dst, src, w, n, eps)`: RMS norm.
 - `rope(x, cos, sin, half)`: rotary position embedding.

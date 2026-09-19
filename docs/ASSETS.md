@@ -1040,7 +1040,8 @@ or publish the unlanded runtime stack; external performance floors remain open.
 
 Scratch `%TEMP%/llmx-kv-head-major` compares control `342960a` (runtime
 `475f312`), a concrete host-cache helper with contiguous history per head,
-and the same public mx reference used above. No runtime code was adopted.
+and the same public mx reference used above. No runtime code was adopted at
+that initial checkpoint.
 There is an outer warmup round and a warmup sequence in every process; three
 measured rounds rotate arm order. Same pinned model, tokens, six threads,
 ubatch 128, F32 KV and inference-only timing. All samples, including the slower
@@ -1059,10 +1060,79 @@ does not establish the external floors. Growth/reset/mixed-history outputs
 match the control exactly across all 229,758 values, including multiple KV
 heads and tail widths. Tiny independent HF fixtures pass at maximum logit
 error 7e-7. Real-model HF, long-context and platform gates remain pending.
-The investigation is paused for the follow-up chat correctness fix.
+The investigation paused for the follow-up chat correctness fix, then resumed
+with the validation and selection recorded below.
 
 [`benchmarks/head-major-kv-initial-20260919.json`](benchmarks/head-major-kv-initial-20260919.json)
 contains all samples, hashes, prototype sources, harnesses and initial checks.
+
+## Head-major KV validation and selection (2026-09-19)
+
+The selected layout centralizes CPU storage in `model/host_kv_cache.hpp` and
+passes an explicit head stride to backend attention. It grows with used
+context, preserving each layer/head prefix, and retains capacity across resets.
+The logical sequence length remains in `Model`. No arithmetic order changes.
+The source headers adopted into the repository are byte-identical to the
+validated candidate; the final MSVC build also has the same `.text` hash.
+
+The longer matched run uses the same pinned weights, token IDs, public mx
+revision and CPU settings as the initial run: six threads, ubatch 128, F32 KV,
+prompt 215 plus 32 forced continuation IDs. Nine measured rounds rotate the
+three arms, with an outer warmup round and a warmup sequence in each process.
+Loading, tokenization and sampling are excluded. No validation/build work
+overlaps timing, and all outliers are retained. These sessions are not pooled
+with the earlier short run.
+
+| Mean tok/s | Control 475f312 | Head-major KV | mx | Change vs control | Gap vs mx |
+|---|---:|---:|---:|---:|---:|
+| Q8 prefill | 366.46 | 416.37 | 262.34 | +13.62% | +58.72% |
+| Q8 decode | 42.36 | 44.41 | 45.51 | +4.82% | -2.42% |
+| F32 prefill | 345.42 | 361.38 | 362.44 | +4.62% | -0.29% |
+| F32 decode | 13.06 | 13.47 | 13.27 | +3.16% | +1.55% |
+
+Control/candidate ranges overlap. Paired candidate wins are respectively
+9/9, 7/9, 7/9 and 8/9. Q8 decode and F32 prefill still trail mx in the means;
+selection is an incremental improvement, not closure of the external floor.
+The previous table remains a separate diagnostic, not a substitute for these
+longer-run results.
+
+A separate eight-pair synthetic comparison uses `bench --size 2048 --iters 10
+--threads 6 --p 64 --n 64`, with an outer warmup pair. Its legacy prefill
+metric is repeated `step()`, not batched prefill. All ranges overlap, and
+the lower candidate decode mean remains a limitation rather than evidence
+of universal non-regression.
+
+| Synthetic mean | Control | Head-major KV |
+|---|---:|---:|
+| Matmul GFLOPS | 116.34 | 117.22 |
+| Step-prefill tok/s | 5994.64 | 6005.85 |
+| Decode tok/s | 6314.19 | 6132.35 |
+
+| Correctness / integration | Result | Scope |
+|---|---:|---|
+| F32 long logits byte-identical to control | 5,013,888 | Prompt 1943 + 32 decode steps |
+| Q8 long logits byte-identical to control | 5,013,888 | Same prompt + forced HF continuation |
+| NLL cases identical, per format | 4 / 4 | Continuous and disjoint windows |
+| F32 maximum error vs independent HF | 0.00012636185 | Bound 0.001 |
+| F32 greedy IDs matching HF | 32 / 32 | Long prompt |
+| Mixed-history values identical, per platform | 229,758 | Windows / Linux, distinct KV heads |
+| Direct storage relocation mutant | Rejected | Wrong head copied on growth |
+
+Windows/Linux full suites pass with required real-model HF fixtures. Linux
+UBSan native/synthetic suites pass, and the separate Linux mixed-history
+harness uses nonrecovering UBSan. The final CTest integration includes the
+direct `kv-cache` oracle alongside backend and chat-template tests. All pass;
+the Windows oracle also passes. The long gate is not a full-corpus or
+maximum-context claim. Growth keeps old and replacement allocations alive
+together until successful completion, so future memory budgets must account
+for that temporary peak.
+
+All samples, ranges, hashes, compiler commands, platform logs, exact-vector
+hashes and reproduction harnesses are in
+[`benchmarks/head-major-kv-cpu-20260919.json`](benchmarks/head-major-kv-cpu-20260919.json).
+Scratch lives at `%TEMP%/llmx-kv-head-major`, including `validation/` and
+`bench-nine/`. The validated runtime stack remains unmerged until its external
+performance requirements are met.
 
 ## Follow-up chat fixtures (2026-09-19)
 

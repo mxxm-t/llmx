@@ -7,6 +7,7 @@
 #include <sstream>
 #include <locale>
 #include <cmath>
+#include <limits>
 
 // Minimal recursive-descent JSON parser, written from scratch (no libs).
 
@@ -209,7 +210,9 @@ class Parser {
         std::istringstream input(s.substr(start, i - start));
         input.imbue(std::locale::classic());
         input >> v.num;
-        if (input.fail() || !input.eof() || !std::isfinite(v.num))
+        // Some standard libraries set failbit for representable subnormals or values rounded up to minimum normal.
+        const bool tiny = v.num != 0 && std::abs(v.num) <= std::numeric_limits<double>::min();
+        if (input.bad() || !input.eof() || !std::isfinite(v.num) || (input.fail() && !tiny))
             throw std::runtime_error("json: number outside double range");
         if (v.num == 0) {
             for (size_t n = start; n < i && s[n] != 'e' && s[n] != 'E'; ++n)

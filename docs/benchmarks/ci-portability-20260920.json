@@ -1,0 +1,34 @@
+{
+  "base": "08351b0d40f30138e02cf6e35443babbd0a3bb43",
+  "initial_hosted_run": 35512421834,
+  "initial_hosted": {
+    "Ubuntu": "pass",
+    "required_HF": "pass",
+    "Windows": "reference-generator path spelling",
+    "Linux_UBSan": "backend-group scalar-tail exact oracle",
+    "macOS": "JSON representable subnormal rejected"
+  },
+  "files_sha256": {
+    "CMakeLists.txt": "d10b30a43a2d3274ec85ebc62886be797a249d0fc457ef0f8aa8eb627c61b96c",
+    "src/core/json.hpp": "afe7eca7597548b1fdacf877a21a00959607d15d5033e646f90b60895981d873",
+    "tests/json.cpp": "29e62380771778a08c693e01dc090c47d30dd6c46466de4b8a22e5f08581edfa",
+    "tests/reference_generator.py": "8c0c219f8a9922a922d99b4148379b3f7c8ea2c6a0f26cf4da6e5e587db561db"
+  },
+  "local_validation": {
+    "UBSan_native": "10/10, controlled contraction",
+    "UBSan_python": "11/11 including both real HF models; CLI built before JSON patch",
+    "final_json": {
+      "MSVC": "1051 pass",
+      "GCC_UBSan": "1051 pass",
+      "Clang18_libcxx": "1051 pass; original implementation reproduced failure"
+    },
+    "Windows_reference_generator": "3/3, real short-path alias, old assertion mutant rejected"
+  },
+  "scope": [
+    "Exact reduction comparison and all numerical bounds retained.",
+    "Implicit contraction disabled only in backend-group test, not CLI.",
+    "Runtime JSON conversion accepts finite nonzero tiny results with failbit; overflow and underflow-to-zero remain errors.",
+    "No inference kernel changes or new performance claim."
+  ],
+  "review": "Independent source review accepted; complete Markdown checkpoint reviewed."
+}

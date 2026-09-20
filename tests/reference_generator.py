@@ -41,8 +41,25 @@ class ReferenceGenerator(unittest.TestCase):
             selected = generator.parse_args(alternate + ["--output-dir", directory,
                 "--gguf-repo", "Qwen/Qwen3-8B-GGUF", "--gguf-file", "Qwen3-8B-Q8_0.gguf"])
             self.assertEqual(selected.repo, "Qwen/Qwen3-8B")
-            self.assertEqual(selected.output_dir, str(Path(directory).resolve()))
+            self.assertTrue(Path(selected.output_dir).is_absolute())
+            self.assertTrue(Path(selected.output_dir).samefile(directory))
             self.assertEqual(selected.gguf_file, "Qwen3-8B-Q8_0.gguf")
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows short-path aliases")
+    def test_short_windows_output_directory(self):
+        import ctypes
+        short_path = ctypes.windll.kernel32.GetShortPathNameW
+        short_path.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+        short_path.restype = ctypes.c_uint
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_short_path_") as directory:
+            resolved = str(Path(directory).resolve())
+            buffer = ctypes.create_unicode_buffer(32768)
+            length = short_path(resolved, buffer, len(buffer))
+            self.assertTrue(0 < length < len(buffer))
+            if buffer.value == resolved:
+                self.skipTest("Filesystem does not provide a short-path alias")
+            with patch.object(tempfile, "tempdir", buffer.value):
+                self.test_defaults_and_invalid_selection()
 
     def test_logits_passes_reference_identity_to_loaders(self):
         with tempfile.TemporaryDirectory(prefix="llmx_reference_logits_") as directory:

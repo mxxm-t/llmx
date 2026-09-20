@@ -65,11 +65,19 @@ void numbers() {
              {"1.7976931348623157e308", std::numeric_limits<double>::max()},
              {"2.2250738585072014e-308", std::numeric_limits<double>::min()},
              {"4.9406564584124654e-324", std::numeric_limits<double>::denorm_min()},
-             {"-4.9406564584124654e-324", -std::numeric_limits<double>::denorm_min()}})
+             {"-4.9406564584124654e-324", -std::numeric_limits<double>::denorm_min()},
+             {"1e-308", 1e-308}, {"-1e-308", -1e-308},
+             {"2.2250738585072009e-308", std::nextafter(std::numeric_limits<double>::min(), 0.0)},
+             {"-2.2250738585072009e-308", -std::nextafter(std::numeric_limits<double>::min(), 0.0)},
+             {"2.2250738585072012e-308", std::numeric_limits<double>::min()},
+             {"-2.2250738585072012e-308", -std::numeric_limits<double>::min()},
+             {"2.4703282292062328e-324", std::numeric_limits<double>::denorm_min()},
+             {"-2.4703282292062328e-324", -std::numeric_limits<double>::denorm_min()}})
         number(entry.first, entry.second);
     for (const char* input : {"+1", ".5", "-.5", "1.", "01", "-01", "00", "0x10",
                               "1e", "1e+", "1e-", "1E--2", "1e+-2", "--1", "-", "1+2",
                               "1-2", "1.2.3", "1e2e3", "nan", "NaN", "Infinity", "-inf",
+                              "2.4703282292062327e-324", "-2.4703282292062327e-324",
                               "1e309", "-1e309", "1e-324", "-1e-999", "1.7976931348623159e308"})
         rejects(input);
 }

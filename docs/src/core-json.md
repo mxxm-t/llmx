@@ -38,3 +38,8 @@ tensor schemas, dimension ranges, extent arithmetic or binary payloads. The
 `quantize` command checks these conversion requirements after parsing, using
 the stored double values; it does not recover the exact decimal spelling.
 Safetensors and HF tokenizer/config loading remain future work.
+
+Some standard libraries set a range-error flag for representable subnormals,
+including values rounded up to minimum normal. The parser accepts that flag
+only for a fully consumed finite nonzero result whose absolute magnitude is at or below minimum normal.
+Overflow, malformed numbers and nonzero numbers rounded to zero stay errors.

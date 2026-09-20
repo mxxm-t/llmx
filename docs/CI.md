@@ -91,8 +91,12 @@ and required tensor/storage layouts,
 grouped kernels, worker
 failures, chat rendering and KV storage,
 plus the Python HF/Jinja2 follow-up fixtures and CLI thread-control checks.
-The combined five-job workflow runs when this runtime release reaches main;
-the initial four-job result above does not validate the larger runtime tree.
+The combined five-job workflow first ran on published runtime `08351b0`.
+[Run 35512421834](https://github.com/mxxm-t/llmx/actions/runs/35512421834)
+passed ordinary Ubuntu and required HF, but exposed three portability issues:
+Windows short-path spelling in a test, UBSan scalar-tail contraction in an
+exact oracle, and macOS subnormal-number conversion in the JSON parser.
+The initial four-job result above does not validate this larger runtime tree.
 The reconciled tree passes all ten native tests, all fifteen downloader cases
 and all eleven required-HF Python components on Windows MSVC and WSL GCC 13.3.
 
@@ -143,6 +147,25 @@ passed all four jobs, including fixture downloads and required HF checks.
 
 The independent build-identification release at `9511a4a` also passed its
 [four-job hosted run](https://github.com/mxxm-t/llmx/actions/runs/35511296680).
-These public releases are merged here without removing the pending runtime
-stack's native, HF or UBSan checks. All five jobs run the offline downloader
+These public releases are merged into the published runtime without removing
+its native, HF or UBSan checks. All five jobs run the offline downloader
 checks.
+
+## Exact reduction test compilation
+
+The `backend-group` test disables implicit floating-point contraction on
+GCC/Clang, including AppleClang. Its explicit SIMD FMA and `std::fma` calls
+remain fused. This fixes scalar-tail rounding for the bitwise ordered oracle:
+UBSan can otherwise make the compiler fuse one multiply/add expression and
+leave the identical expression in the other path unfused. Equality and
+numerical bounds are unchanged. The option applies only to this test target,
+not the CLI or performance tools. It proves ordered reduction under controlled
+contraction; the CLI HF checks separately exercise the normal runtime flags.
+
+The reference-generator path test checks an absolute path and filesystem
+identity, so Windows short names such as `RUNNER~1` and their long names are
+accepted as aliases. A real short-name regression checks this when available.
+JSON parsing accepts a fully consumed finite nonzero result with absolute magnitude at or below
+minimum normal even when the standard library sets failbit for underflow.
+Malformed input, overflow and underflow to zero still fail; boundary cases run
+in the native JSON test on every platform.

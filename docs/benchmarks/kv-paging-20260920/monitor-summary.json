@@ -1,0 +1,14 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-paging-20260920",
+ "note": "16 logical CPUs; one busy thread is 6.25%; a six-thread benchmark is about 37.5%",
+ "runs": {
+  "monitor.json": {
+   "samples": 66,
+   "system_cpu_mean": 12.7,
+   "system_cpu_max": 17.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-paging-20260920\\monitor.json",
+   "bytes": 7434018,
+   "sha256": "83b797e4a2fdbd34b34779ac8cfd04ab1906a329c78cd9ebb568b9dfab5514f2"
+  }
+ }
+}

@@ -1,0 +1,22 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-mx-20260920",
+ "note": "16 logical CPUs; one busy thread is 6.25%; a six-thread benchmark is about 37.5%",
+ "runs": {
+  "monitor-06.jsonl": {
+   "samples": 58,
+   "system_cpu_mean": 54.7,
+   "system_cpu_max": 88.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-mx-20260920\\monitor-06.jsonl",
+   "bytes": 6003419,
+   "sha256": "629982401b865605064eae372cb8f19bd78025d433b2161dcfa19605ce6cf1fb"
+  },
+  "monitor-8b.jsonl": {
+   "samples": 632,
+   "system_cpu_mean": 55.4,
+   "system_cpu_max": 97.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-mx-20260920\\monitor-8b.jsonl",
+   "bytes": 64917113,
+   "sha256": "d2ed35291f5dc46a3df88abacd6dba187e043c64c36c61efa75c13dc0b2f1110"
+  }
+ }
+}

@@ -1,0 +1,38 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\mx-harness-aa-20260921",
+ "note": "16 logical CPUs; one busy thread is 6.25%; a six-thread benchmark is about 37.5%",
+ "runs": {
+  "monitor-06.jsonl": {
+   "samples": 45,
+   "system_cpu_mean": 38.3,
+   "system_cpu_max": 60.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\mx-harness-aa-20260921\\monitor-06.jsonl",
+   "bytes": 4782596,
+   "sha256": "2974d5009bf64a2235734038e1f3d3f17e2db72e069541661129e6fd84cfbead"
+  },
+  "monitor-8b.jsonl": {
+   "samples": 492,
+   "system_cpu_mean": 35.7,
+   "system_cpu_max": 51.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\mx-harness-aa-20260921\\monitor-8b.jsonl",
+   "bytes": 52671175,
+   "sha256": "0a0d2cd844e0b08751677fbc79fe09d9955144e10dd72f61568719cbfa7e086d"
+  },
+  "monitor-mx-06.jsonl": {
+   "samples": 56,
+   "system_cpu_mean": 39.2,
+   "system_cpu_max": 53.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\mx-harness-aa-20260921\\monitor-mx-06.jsonl",
+   "bytes": 6000319,
+   "sha256": "3cfe20bf5db238d347f5c1e8d141e8adb53af69ebb214bd75bc8e2400947c2bd"
+  },
+  "monitor-mx-8b.jsonl": {
+   "samples": 298,
+   "system_cpu_mean": 40.1,
+   "system_cpu_max": 55.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\mx-harness-aa-20260921\\monitor-mx-8b.jsonl",
+   "bytes": 31911294,
+   "sha256": "c42c7c611a2a7b2b782a1f9b8d5f0c300642bfcc506452af28541b1b90677d4f"
+  }
+ }
+}

@@ -132,6 +132,25 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
     return c;
 }
 
+// A weight resolved once at load: type, storage and dimensions. Resolving per
+// call meant rebuilding "blk.N." and hashing a tensor name for every
+// projection of every layer of every token; the forward pass indexes layers_
+// instead. It is also what lets a device backend recognize a weight across
+// calls, which is the prerequisite for residency (docs/DEVICE-EXECUTION.md).
+struct Weight {
+    uint32_t type = 0;
+    const uint8_t* data = nullptr;
+    size_t nin = 0, nout = 0;
+    // Normalization weights are F32 by validation, so this is the whole row.
+    const float* f32() const { return reinterpret_cast<const float*>(data); }
+};
+
+struct LayerWeights {
+    Weight attn_norm, attn_q_norm, attn_k_norm;
+    Weight attn_q, attn_k, attn_v, attn_output;
+    Weight ffn_norm, ffn_gate, ffn_up, ffn_down;
+};
+
 class Model {
 public:
     // Construct the model over a GGUF model, using the given backend (defaults
@@ -166,7 +185,7 @@ public:
         // token_embd.weight as the output projection (same [n_embd, n_vocab]
         // layout), so the head is just a matvec against the embedding matrix.
         out_name_ = tindex_.count("output.weight") ? "output.weight" : "token_embd.weight";
-        validate_tensors();
+        resolve_tensors();
 
         // buffers
         x_.assign(cfg.n_embd, 0.0f);
@@ -217,25 +236,23 @@ public:
         cache_.reserve((size_t)pos + 1, (size_t)n_tokens_);
 
         // embedding
-        dequant_row(tensor("token_embd.weight"), token_id, x_.data());
+        dequant_row(token_embd_, token_id, x_.data());
 
         for (int l = 0; l < cfg.n_layer; l++) {
-            const std::string pre = "blk." + std::to_string(l) + ".";
+            const LayerWeights& w = layers_[l];
 
             // attn norm
-            b_->rms_norm(h_.data(), x_.data(),
-                         (const float*)tensor_data(pre + "attn_norm.weight"),
-                         cfg.n_embd, cfg.rms_eps);
+            b_->rms_norm(h_.data(), x_.data(), w.attn_norm.f32(), cfg.n_embd, cfg.rms_eps);
 
             // q,k,v projections
-            b_->matmul_group({projection(pre + "attn_q.weight", q_.data(), size_t(q_dim_)),
-                              projection(pre + "attn_k.weight", kv_.data(), size_t(cfg.n_head_kv * cfg.head_dim)),
-                              projection(pre + "attn_v.weight", v_.data(), size_t(cfg.n_head_kv * cfg.head_dim))},
+            b_->matmul_group({projection(w.attn_q, q_.data()),
+                              projection(w.attn_k, kv_.data()),
+                              projection(w.attn_v, v_.data())},
                              h_.data(), cfg.n_embd, 1);
 
             // per-head q/k norms
-            const float* qnorm = (const float*)tensor_data(pre + "attn_q_norm.weight");
-            const float* knorm = (const float*)tensor_data(pre + "attn_k_norm.weight");
+            const float* qnorm = w.attn_q_norm.f32();
+            const float* knorm = w.attn_k_norm.f32();
             for (int h = 0; h < cfg.n_head; h++)
                 b_->rms_norm(q_.data() + h * cfg.head_dim, q_.data() + h * cfg.head_dim, qnorm, cfg.head_dim, cfg.rms_eps);
             for (int h = 0; h < cfg.n_head_kv; h++)
@@ -266,19 +283,17 @@ public:
 
             // attn_output projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
-            matvec(tensor(pre + "attn_output.weight"), attn_.data(), h_.data(), (size_t)q_dim_, cfg.n_embd);
+            matvec(w.attn_output, attn_.data(), h_.data());
             for (int i = 0; i < cfg.n_embd; i++) x_[i] += h_[i];
 
             // ffn norm
-            b_->rms_norm(h_.data(), x_.data(),
-                         (const float*)tensor_data(pre + "ffn_norm.weight"),
-                         cfg.n_embd, cfg.rms_eps);
+            b_->rms_norm(h_.data(), x_.data(), w.ffn_norm.f32(), cfg.n_embd, cfg.rms_eps);
 
             // gate/up (SwiGLU). Buffers are members: allocating these per layer
             // per token cost 108 heap allocations of n_ff floats on a 36-layer
             // model, every token.
-            b_->matmul_group({projection(pre + "ffn_gate.weight", gate_.data(), cfg.n_ff),
-                              projection(pre + "ffn_up.weight", up_.data(), cfg.n_ff)},
+            b_->matmul_group({projection(w.ffn_gate, gate_.data()),
+                              projection(w.ffn_up, up_.data())},
                              h_.data(), cfg.n_embd, 1);
             for (int i = 0; i < cfg.n_ff; i++) {
                 float g = gate_[i] / (1.0f + std::exp(-gate_[i])); // SiLU
@@ -286,18 +301,14 @@ public:
             }
             // down projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
-            matvec(tensor(pre + "ffn_down.weight"), ffn_.data(), h_.data(), cfg.n_ff, cfg.n_embd);
+            matvec(w.ffn_down, ffn_.data(), h_.data());
             for (int i = 0; i < cfg.n_embd; i++) x_[i] += h_[i];
         }
 
         // final norm + output projection
-        b_->rms_norm(h_.data(), x_.data(),
-                     (const float*)tensor_data("output_norm.weight"),
-                     cfg.n_embd, cfg.rms_eps);
-        const gguf::TensorInfo& out_t = tensor(out_name_);
-        size_t n_vocab = out_t.ne[1];
-        std::vector<float> logits(n_vocab);
-        matvec(out_t, h_.data(), logits.data(), cfg.n_embd, n_vocab);
+        b_->rms_norm(h_.data(), x_.data(), output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
+        std::vector<float> logits(output_.nout);
+        matvec(output_, h_.data(), logits.data());
 
         n_tokens_++;
         return logits;
@@ -340,6 +351,8 @@ private:
     int ubatch_ = 512;   // default matches llama.cpp
     std::string out_name_;
     std::unordered_map<std::string, size_t> tindex_;
+    std::vector<LayerWeights> layers_;
+    Weight token_embd_, output_norm_, output_;
 
     std::vector<float> x_, h_, q_, kv_, v_, attn_;
     std::vector<float> gate_, up_, ffn_;
@@ -356,13 +369,17 @@ private:
         return m_->tensor_data(tindex_.at(name));
     }
 
-    void validate_tensors() const {
+    // Validate every tensor this architecture needs and resolve it to a
+    // Weight in the same pass, so a resolved handle is well-formed by
+    // construction and the forward pass never looks a tensor up by name.
+    void resolve_tensors() {
         const auto& embedding = tensor("token_embd.weight");
         if (embedding.ne.size() < 2 || !embedding.ne[1] ||
             embedding.ne[1] > uint64_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: invalid vocabulary dimension");
         const uint64_t vocab = embedding.ne[1];
-        auto check = [&](const std::string& name, uint64_t input, uint64_t output, bool norm = false) {
+        auto check = [&](const std::string& name, uint64_t input, uint64_t output,
+                         bool norm = false) -> Weight {
             const auto& t = tensor(name);
             bool valid = !t.ne.empty() && t.ne[0] == input;
             if (norm) {
@@ -372,24 +389,28 @@ private:
             }
             for (size_t d = norm ? 1 : 2; d < t.ne.size(); ++d) valid = valid && t.ne[d] == 1;
             if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + name);
+            return Weight{t.type, m_->tensor_data(tindex_.at(t.name)),
+                          (size_t)input, (size_t)output};
         };
-        check("token_embd.weight", cfg.n_embd, vocab);
-        check(out_name_, cfg.n_embd, vocab);
-        check("output_norm.weight", cfg.n_embd, 1, true);
+        token_embd_ = check("token_embd.weight", cfg.n_embd, vocab);
+        output_ = check(out_name_, cfg.n_embd, vocab);
+        output_norm_ = check("output_norm.weight", cfg.n_embd, 1, true);
         const uint64_t kv_width = uint64_t(cfg.n_head_kv) * cfg.head_dim;
+        layers_.resize(cfg.n_layer);
         for (int l = 0; l < cfg.n_layer; ++l) {
             const std::string pre = "blk." + std::to_string(l) + ".";
-            check(pre + "attn_norm.weight", cfg.n_embd, 1, true);
-            check(pre + "attn_q_norm.weight", cfg.head_dim, 1, true);
-            check(pre + "attn_k_norm.weight", cfg.head_dim, 1, true);
-            check(pre + "attn_q.weight", cfg.n_embd, q_dim_);
-            check(pre + "attn_k.weight", cfg.n_embd, kv_width);
-            check(pre + "attn_v.weight", cfg.n_embd, kv_width);
-            check(pre + "attn_output.weight", q_dim_, cfg.n_embd);
-            check(pre + "ffn_norm.weight", cfg.n_embd, 1, true);
-            check(pre + "ffn_gate.weight", cfg.n_embd, cfg.n_ff);
-            check(pre + "ffn_up.weight", cfg.n_embd, cfg.n_ff);
-            check(pre + "ffn_down.weight", cfg.n_ff, cfg.n_embd);
+            LayerWeights& w = layers_[l];
+            w.attn_norm   = check(pre + "attn_norm.weight", cfg.n_embd, 1, true);
+            w.attn_q_norm = check(pre + "attn_q_norm.weight", cfg.head_dim, 1, true);
+            w.attn_k_norm = check(pre + "attn_k_norm.weight", cfg.head_dim, 1, true);
+            w.attn_q      = check(pre + "attn_q.weight", cfg.n_embd, q_dim_);
+            w.attn_k      = check(pre + "attn_k.weight", cfg.n_embd, kv_width);
+            w.attn_v      = check(pre + "attn_v.weight", cfg.n_embd, kv_width);
+            w.attn_output = check(pre + "attn_output.weight", q_dim_, cfg.n_embd);
+            w.ffn_norm    = check(pre + "ffn_norm.weight", cfg.n_embd, 1, true);
+            w.ffn_gate    = check(pre + "ffn_gate.weight", cfg.n_embd, cfg.n_ff);
+            w.ffn_up      = check(pre + "ffn_up.weight", cfg.n_embd, cfg.n_ff);
+            w.ffn_down    = check(pre + "ffn_down.weight", cfg.n_ff, cfg.n_embd);
         }
     }
 
@@ -439,22 +460,22 @@ private:
         };
 
         for (int b = 0; b < B; b++)
-            dequant_row(tensor("token_embd.weight"), ids[b], xb_.data() + (size_t)b * E);
+            dequant_row(token_embd_, ids[b], xb_.data() + (size_t)b * E);
 
         for (int l = 0; l < cfg.n_layer; l++) {
-            const std::string pre = "blk." + std::to_string(l) + ".";
+            const LayerWeights& w = layers_[l];
 
-            const float* anorm = (const float*)tensor_data(pre + "attn_norm.weight");
+            const float* anorm = w.attn_norm.f32();
             for_rows([&](int b) {
                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, anorm, E, cfg.rms_eps);
             });
 
-            b_->matmul_group({projection(pre + "attn_q.weight", qb_.data(), size_t(q_dim_)),
-                              projection(pre + "attn_k.weight", kb_.data(), KV),
-                              projection(pre + "attn_v.weight", vb_.data(), KV)}, hb_.data(), E, B);
+            b_->matmul_group({projection(w.attn_q, qb_.data()),
+                              projection(w.attn_k, kb_.data()),
+                              projection(w.attn_v, vb_.data())}, hb_.data(), E, B);
 
-            const float* qn = (const float*)tensor_data(pre + "attn_q_norm.weight");
-            const float* kn = (const float*)tensor_data(pre + "attn_k_norm.weight");
+            const float* qn = w.attn_q_norm.f32();
+            const float* kn = w.attn_k_norm.f32();
             for_rows([&](int b) {
                 float* q = qb_.data() + (size_t)b * q_dim_;
                 float* k = kb_.data() + (size_t)b * KV;
@@ -475,16 +496,16 @@ private:
             b_->attention(qb_.data(), kc, vc, attnb_.data(),
                           cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos0, B, cache_.head_stride());
 
-            matmul(tensor(pre + "attn_output.weight"), attnb_.data(), hb_.data(), (size_t)q_dim_, E, B);
+            matmul(w.attn_output, attnb_.data(), hb_.data(), B);
             for (size_t j = 0; j < (size_t)B * E; j++) xb_[j] += hb_[j];
 
-            const float* fnorm = (const float*)tensor_data(pre + "ffn_norm.weight");
+            const float* fnorm = w.ffn_norm.f32();
             for_rows([&](int b) {
                 b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, fnorm, E, cfg.rms_eps);
             });
 
-            b_->matmul_group({projection(pre + "ffn_gate.weight", gateb_.data(), cfg.n_ff),
-                              projection(pre + "ffn_up.weight", upb_.data(), cfg.n_ff)}, hb_.data(), E, B);
+            b_->matmul_group({projection(w.ffn_gate, gateb_.data()),
+                              projection(w.ffn_up, upb_.data())}, hb_.data(), E, B);
             for_rows([&](int b) {
                 const size_t end = (size_t)(b + 1) * cfg.n_ff;
                 for (size_t j = (size_t)b * cfg.n_ff; j < end; j++) {
@@ -492,7 +513,7 @@ private:
                     ffnb_[j] = g * upb_[j];
                 }
             });
-            matmul(tensor(pre + "ffn_down.weight"), ffnb_.data(), hb_.data(), cfg.n_ff, E, B);
+            matmul(w.ffn_down, ffnb_.data(), hb_.data(), B);
             for (size_t j = 0; j < (size_t)B * E; j++) xb_[j] += hb_[j];
         }
 
@@ -500,48 +521,40 @@ private:
 
         if (out_logits) {
             b_->rms_norm(h_.data(), xb_.data() + (size_t)(B - 1) * E,
-                         (const float*)tensor_data("output_norm.weight"), E, cfg.rms_eps);
-            const gguf::TensorInfo& ot = tensor(out_name_);
-            const size_t n_vocab = (size_t)ot.ne[1];
-            out_logits->assign(n_vocab, 0.0f);
-            matvec(ot, h_.data(), out_logits->data(), (size_t)E, n_vocab);
+                         output_norm_.f32(), E, cfg.rms_eps);
+            out_logits->assign(output_.nout, 0.0f);
+            matvec(output_, h_.data(), out_logits->data());
         }
     }
 
-    backend::Projection projection(const std::string& name, float* out, size_t rows) const {
-        const auto& t = tensor(name);
-        return {t.type, m_->tensor_data(tindex_.at(t.name)), out, rows};
+    static backend::Projection projection(const Weight& w, float* out) {
+        return {w.type, w.data, out, w.nout};
     }
 
     // Batched matmul. The backend dispatches on the quant type, so every
     // block format takes the same path; there is no per-type branch here.
-    void matmul(const gguf::TensorInfo& t, const float* X, float* Y,
-                size_t nin, size_t nout, int nbatch) {
-        b_->matmul(t.type, m_->tensor_data(tindex_.at(t.name)), X, Y,
-                   nin, nout, (size_t)nbatch);
-    }
-
-    // Dequantize row `r` of a quantized matrix (nin fastest) into `out`,
-    // dispatching on the tensor's type via the quant registry.
-    void dequant_row(const gguf::TensorInfo& t, size_t r, float* out) const {
-        size_t nin = (size_t)t.ne[0];
-        if (t.type == gguf::GGML_TYPE_F32) {
-            std::memcpy(out, m_->tensor_data(tindex_.at(t.name)) + r * nin * sizeof(float), nin * sizeof(float));
-            return;
-        }
-        const quant::QuantType* qt = quant::Registry::instance().get(t.type);
-        if (!qt || !qt->dequantize) throw std::runtime_error("unsupported tensor type in dequant_row");
-        const uint8_t* base = m_->tensor_data(tindex_.at(t.name)) +
-            r * (nin / qt->block_size) * qt->type_size;
-        qt->dequantize(base, out, nin / qt->block_size);
+    void matmul(const Weight& w, const float* X, float* Y, int nbatch) {
+        b_->matmul(w.type, w.data, X, Y, w.nin, w.nout, (size_t)nbatch);
     }
 
     // out = W^T x for a single column. Same backend entry point as the
     // batched form, so there is one dispatch path and one place that knows
     // about quant types.
-    void matvec(const gguf::TensorInfo& t, const float* x, float* out,
-                size_t nin, size_t nout) {
-        b_->matmul(t.type, m_->tensor_data(tindex_.at(t.name)), x, out, nin, nout, 1);
+    void matvec(const Weight& w, const float* x, float* out) {
+        b_->matmul(w.type, w.data, x, out, w.nin, w.nout, 1);
+    }
+
+    // Dequantize row `r` of a quantized matrix (nin fastest) into `out`,
+    // dispatching on the tensor's type via the quant registry.
+    void dequant_row(const Weight& w, size_t r, float* out) const {
+        if (w.type == gguf::GGML_TYPE_F32) {
+            std::memcpy(out, w.data + r * w.nin * sizeof(float), w.nin * sizeof(float));
+            return;
+        }
+        const quant::QuantType* qt = quant::Registry::instance().get(w.type);
+        if (!qt || !qt->dequantize) throw std::runtime_error("unsupported tensor type in dequant_row");
+        qt->dequantize(w.data + r * (w.nin / qt->block_size) * qt->type_size,
+                       out, w.nin / qt->block_size);
     }
 
 };

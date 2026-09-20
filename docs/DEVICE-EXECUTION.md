@@ -115,16 +115,23 @@ struct LayerWeights {
 std::vector<LayerWeights> layers_;
 ```
 
-This is worth doing on its own merits, before any device exists. The current
-forward pass builds `"blk." + std::to_string(l) + "."` and then does ~10 string
-concatenations and ~10 `unordered_map` lookups **per layer, per token**. On a
-36-layer model that is ~360 string constructions and ~360 hash lookups per
-decoded token, on the critical path of a workload that is already 18% under its
-throughput floor. Pre-resolution deletes all of it.
+The current forward pass builds `"blk." + std::to_string(l) + "."` and then
+does ~10 string concatenations and ~10 `unordered_map` lookups **per layer, per
+token** - ~280 of each per decoded token on a 28-layer model. Pre-resolution
+deletes all of it.
 
-It is also the only way to express residency: after this change the backend
-receives the same `Buffer` for `blk.7.ffn_up.weight` on every token, so it can
-keep it on the device.
+**Measured effect on CPU decode: none.** Interleaved A/B on Qwen3-0.6B-Q8_0,
+10 pairs, gave mean 25.32 tok/s both before and after (best +0.8%, inside
+noise). The lookups are real but they are a few thousand per second against
+matmuls streaming hundreds of MB per second; they were never the bottleneck.
+This step is justified as a *prerequisite*, not an optimization: it is the only
+way to express residency, since the backend must receive the same handle for
+`blk.7.ffn_up.weight` on every token to keep it on the device. It also removes
+a per-token heap allocation (the string build) and is less code than what it
+replaces.
+
+Do not expect the rest of the migration to pay for itself on CPU either. The
+honest claim is that it is CPU-neutral and GPU-enabling.
 
 ### Activation arena
 
@@ -211,16 +218,18 @@ benchmarkable against the floor.
 
 | # | Step | CPU effect |
 |---|---|---|
-| 1 | Pre-resolve tensors into `LayerWeights` | **Win** - deletes per-token string building and hash lookups |
-| 2 | Batched elementwise ops (`rms_norm_rows`, `rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` | **Win** - deletes the per-head virtual-call storm, fuses SwiGLU |
+| 1 | Pre-resolve tensors into `LayerWeights` | **Measured neutral** (mean 25.32 -> 25.32 tok/s, 10 interleaved pairs) |
+| 2 | Batched elementwise ops (`rms_norm_rows`, `rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` | Expected neutral on decode; `silu_mul` may help prefill, which reads and writes three `n_ff * B` streams |
 | 3 | `Buffer`, `alloc`/`adopt`/`read`/`write`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` | Neutral - CPU buffers wrap host memory, zero-copy |
 | 4 | Activation arena; op signatures take buffer + offset | Neutral to slight win (one allocation, better locality) |
 | 5 | KV cache on buffers via `copy` | Neutral - same `memcpy` |
 | 6 | `sync()` and the enqueue contract | Neutral - no-op on CPU |
 
-Steps 1 and 2 are pure CPU optimizations that happen to be prerequisites. They
-should land first and be measured independently: if the refactor's first half
-pays for itself on the CPU floor, the rest carries much less risk.
+The bar for each step is therefore **no measured regression**, not a win. Each
+must be A/B'd against the previous binary interleaved, never sequentially: on a
+loaded workstation, sequential sampling drifts enough to invent a 7% change in
+either direction. The CPU backend is the floor for every GPU claim, so a step
+that costs throughput is not acceptable even though the destination is a device.
 
 A vendor backend (#4b) is only writable after step 6.
 

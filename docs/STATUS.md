@@ -70,7 +70,7 @@ under the documented tradeoff policy. Optional placement integration is not a
 prerequisite to assessing completed runtime work. Independently validated CI
 retry/cache repair is now on main at `b266650` with all four hosted jobs green;
 automatic build identification is on main at `9511a4a`, with local Windows/Linux
-validation and hosted CI being observed. These release slices do not publish
+validation and all four hosted CI jobs passing. These release slices do not publish
 this branch's runtime kernels or its broader README/ASCII cleanup.
 
 | Feature                                  | Status   |

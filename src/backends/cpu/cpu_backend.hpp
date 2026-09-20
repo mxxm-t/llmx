@@ -703,17 +703,23 @@ private:
     // within a few hundred nanoseconds. The count is bounded so an idle pool
     // still parks instead of burning a core.
     static const int SPIN_LIMIT = 2048;
+    // epoch_ and stop_ are read by the spin loops WITHOUT the mutex, so they
+    // must be atomic. Writers still modify them under it; the atomics exist
+    // for the unsynchronized readers. Leaving them plain is a data race, and
+    // not only a formal one: nothing in a spin body writes them and
+    // _mm_pause() is no barrier against another thread, so a compiler may
+    // hoist the loads out of the loop and spin forever.
     const std::function<void(int)>* job_ = nullptr;
     std::exception_ptr worker_error_;
-    unsigned epoch_ = 0;
+    std::atomic<unsigned> epoch_{0};
     std::atomic<int> pending_{0};
-    bool stop_ = false;
+    std::atomic<bool> stop_{false};
 
     void start_pool() {
         try {
             rowbuf_.assign((size_t)(threads_ > 0 ? threads_ : 1), std::vector<float>());
-            stop_ = false;
-            epoch_ = 0;
+            stop_.store(false);
+            epoch_.store(0);
             pending_.store(0);
             for (int i = 1; i < threads_; i++)
                 pool_.emplace_back([this, i] { worker(i); });

@@ -440,7 +440,10 @@ public:
         return out;
     }
 
-    void parallel_for(int n, const std::function<void(int)>& fn) override {
+    // CPU-only: a host callback across host threads has no device analogue, so
+    // this is not on the Backend interface. The batched ops above are how the
+    // model gets parallelism; this stays public for the backend's own tests.
+    void parallel_for(int n, const std::function<void(int)>& fn) {
         if (n <= 0) return;
         const int nt = std::min(threads_, n);
         if (nt <= 1) { for (int i = 0; i < n; i++) fn(i); return; }
@@ -585,7 +588,78 @@ public:
         }
     }
 
+    void rms_norm_rows(float* dst, const float* src, const float* w,
+                       size_t rows, size_t n, size_t stride, float eps) override {
+        spread(rows, [&](size_t r) {
+            rms_norm(dst + r * stride, src + r * stride, w, n, eps);
+        });
+    }
+
+    void norm_rope_rows(float* x, size_t rows, size_t stride, size_t heads,
+                        const float* w, float eps, const float* cos,
+                        const float* sin, size_t half) override {
+        const size_t head_dim = half * 2;
+        spread(rows, [&](size_t r) {
+            float* row = x + r * stride;
+            const float* c = cos + r * half;
+            const float* s = sin + r * half;
+            for (size_t h = 0; h < heads; h++) {
+                float* head = row + h * head_dim;
+                rms_norm(head, head, w, head_dim, eps);
+                rope(head, c, s, (int)half);
+            }
+        });
+    }
+
+    void silu_mul(float* dst, const float* gate, const float* up, size_t n) override {
+        // std::exp per element, matching the scalar form this replaced: a
+        // vectorized approximation would shift logits and is a separate
+        // change with its own correctness gate.
+        chunk(n, [&](size_t begin, size_t end) {
+            for (size_t i = begin; i < end; i++)
+                dst[i] = gate[i] / (1.0f + std::exp(-gate[i])) * up[i];
+        });
+    }
+
+    void add(float* dst, const float* src, size_t n) override {
+        chunk(n, [&](size_t begin, size_t end) {
+            size_t i = begin;
+            if (avx2_) {
+                for (; i + 8 <= end; i += 8)
+                    _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(dst + i),
+                                                            _mm256_loadu_ps(src + i)));
+            }
+            for (; i < end; i++) dst[i] += src[i];
+        });
+    }
+
 private:
+    // Row-wise dispatch. Below two rows per worker the dispatch costs more
+    // than it saves -- small-batch timing regressed without this bound when
+    // the same rule lived in the model layer.
+    template <typename Fn>
+    void spread(size_t rows, const Fn& fn) {
+        if (threads_ <= 1 || rows < (size_t)threads_ * 2) {
+            for (size_t r = 0; r < rows; r++) fn(r);
+            return;
+        }
+        parallel_for((int)rows, [&](int r) { fn((size_t)r); });
+    }
+
+    // Element-wise dispatch over contiguous spans. The threshold keeps decode
+    // (where n is a few thousand) on the calling thread.
+    template <typename Fn>
+    void chunk(size_t n, const Fn& fn) {
+        const size_t kMinParallel = 1u << 15;
+        if (threads_ <= 1 || n < kMinParallel) { fn(0, n); return; }
+        const size_t nt = std::min((size_t)threads_, n);
+        const size_t span = (n + nt - 1) / nt;
+        parallel_for((int)nt, [&](int w) {
+            const size_t begin = (size_t)w * span;
+            fn(begin, std::min(n, begin + span));
+        });
+    }
+
     int threads_ = 1;
     bool avx2_ = false;
     bool f16c_ = false;

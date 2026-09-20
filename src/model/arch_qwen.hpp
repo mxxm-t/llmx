@@ -250,25 +250,15 @@ public:
                               projection(w.attn_v, v_.data())},
                              h_.data(), cfg.n_embd, 1);
 
-            // per-head q/k norms
-            const float* qnorm = w.attn_q_norm.f32();
-            const float* knorm = w.attn_k_norm.f32();
-            for (int h = 0; h < cfg.n_head; h++)
-                b_->rms_norm(q_.data() + h * cfg.head_dim, q_.data() + h * cfg.head_dim, qnorm, cfg.head_dim, cfg.rms_eps);
-            for (int h = 0; h < cfg.n_head_kv; h++)
-                b_->rms_norm(kv_.data() + h * cfg.head_dim, kv_.data() + h * cfg.head_dim, knorm, cfg.head_dim, cfg.rms_eps);
-
-            // rope
+            // per-head q/k norms + rope
             {
-                int half = cfg.head_dim / 2;
-                for (int h = 0; h < cfg.n_head; h++)
-                    b_->rope(q_.data() + h * cfg.head_dim,
-                             rope_cos_.data() + (size_t)pos * half,
-                             rope_sin_.data() + (size_t)pos * half, half);
-                for (int h = 0; h < cfg.n_head_kv; h++)
-                    b_->rope(kv_.data() + h * cfg.head_dim,
-                             rope_cos_.data() + (size_t)pos * half,
-                             rope_sin_.data() + (size_t)pos * half, half);
+                const size_t half = cfg.head_dim / 2;
+                const float* cs = rope_cos_.data() + (size_t)pos * half;
+                const float* sn = rope_sin_.data() + (size_t)pos * half;
+                b_->norm_rope_rows(q_.data(), 1, 0, cfg.n_head,
+                                   w.attn_q_norm.f32(), cfg.rms_eps, cs, sn, half);
+                b_->norm_rope_rows(kv_.data(), 1, 0, cfg.n_head_kv,
+                                   w.attn_k_norm.f32(), cfg.rms_eps, cs, sn, half);
             }
 
             // store k,v in cache
@@ -284,7 +274,7 @@ public:
             // attn_output projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
             matvec(w.attn_output, attn_.data(), h_.data());
-            for (int i = 0; i < cfg.n_embd; i++) x_[i] += h_[i];
+            b_->add(x_.data(), h_.data(), cfg.n_embd);
 
             // ffn norm
             b_->rms_norm(h_.data(), x_.data(), w.ffn_norm.f32(), cfg.n_embd, cfg.rms_eps);
@@ -295,14 +285,11 @@ public:
             b_->matmul_group({projection(w.ffn_gate, gate_.data()),
                               projection(w.ffn_up, up_.data())},
                              h_.data(), cfg.n_embd, 1);
-            for (int i = 0; i < cfg.n_ff; i++) {
-                float g = gate_[i] / (1.0f + std::exp(-gate_[i])); // SiLU
-                ffn_[i] = g * up_[i];
-            }
+            b_->silu_mul(ffn_.data(), gate_.data(), up_.data(), cfg.n_ff);
             // down projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
             matvec(w.ffn_down, ffn_.data(), h_.data());
-            for (int i = 0; i < cfg.n_embd; i++) x_[i] += h_[i];
+            b_->add(x_.data(), h_.data(), cfg.n_embd);
         }
 
         // final norm + output projection
@@ -446,18 +433,9 @@ private:
             throw std::runtime_error("inference: context length exceeded (" +
                                      std::to_string(cfg.context_length) + " tokens)");
         cache_.reserve((size_t)pos0 + (size_t)B, (size_t)n_tokens_);
-        const int E = cfg.n_embd, HD = cfg.head_dim, half = HD / 2;
+        const int E = cfg.n_embd, HD = cfg.head_dim;
+        const size_t half = (size_t)HD / 2;
         const size_t KV = (size_t)cfg.n_head_kv * HD;
-        const int nt = b_->threads_available();
-        // Avoid dispatching short elementwise stages when there are fewer
-        // than two rows per worker; small-batch timing regressed without this.
-        const auto for_rows = [&](const auto& fn) {
-            if (nt <= 1 || B / nt < 2) {
-                for (int b = 0; b < B; ++b) fn(b);
-            } else {
-                b_->parallel_for(B, fn);
-            }
-        };
 
         for (int b = 0; b < B; b++)
             dequant_row(token_embd_, ids[b], xb_.data() + (size_t)b * E);
@@ -465,29 +443,19 @@ private:
         for (int l = 0; l < cfg.n_layer; l++) {
             const LayerWeights& w = layers_[l];
 
-            const float* anorm = w.attn_norm.f32();
-            for_rows([&](int b) {
-                b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, anorm, E, cfg.rms_eps);
-            });
+            b_->rms_norm_rows(hb_.data(), xb_.data(), w.attn_norm.f32(),
+                              (size_t)B, (size_t)E, (size_t)E, cfg.rms_eps);
 
             b_->matmul_group({projection(w.attn_q, qb_.data()),
                               projection(w.attn_k, kb_.data()),
                               projection(w.attn_v, vb_.data())}, hb_.data(), E, B);
 
-            const float* qn = w.attn_q_norm.f32();
-            const float* kn = w.attn_k_norm.f32();
-            for_rows([&](int b) {
-                float* q = qb_.data() + (size_t)b * q_dim_;
-                float* k = kb_.data() + (size_t)b * KV;
-                for (int h = 0; h < cfg.n_head; h++)
-                    b_->rms_norm(q + h * HD, q + h * HD, qn, HD, cfg.rms_eps);
-                for (int h = 0; h < cfg.n_head_kv; h++)
-                    b_->rms_norm(k + h * HD, k + h * HD, kn, HD, cfg.rms_eps);
-                const float* cs = rope_cos_.data() + (size_t)(pos0 + b) * half;
-                const float* sn = rope_sin_.data() + (size_t)(pos0 + b) * half;
-                for (int h = 0; h < cfg.n_head; h++)    b_->rope(q + h * HD, cs, sn, half);
-                for (int h = 0; h < cfg.n_head_kv; h++) b_->rope(k + h * HD, cs, sn, half);
-            });
+            const float* cs = rope_cos_.data() + (size_t)pos0 * half;
+            const float* sn = rope_sin_.data() + (size_t)pos0 * half;
+            b_->norm_rope_rows(qb_.data(), (size_t)B, (size_t)q_dim_, cfg.n_head,
+                               w.attn_q_norm.f32(), cfg.rms_eps, cs, sn, half);
+            b_->norm_rope_rows(kb_.data(), (size_t)B, KV, cfg.n_head_kv,
+                               w.attn_k_norm.f32(), cfg.rms_eps, cs, sn, half);
 
             cache_.write(l, kb_.data(), vb_.data(), (size_t)pos0, (size_t)B);
 
@@ -497,24 +465,16 @@ private:
                           cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos0, B, cache_.head_stride());
 
             matmul(w.attn_output, attnb_.data(), hb_.data(), B);
-            for (size_t j = 0; j < (size_t)B * E; j++) xb_[j] += hb_[j];
+            b_->add(xb_.data(), hb_.data(), (size_t)B * E);
 
-            const float* fnorm = w.ffn_norm.f32();
-            for_rows([&](int b) {
-                b_->rms_norm(hb_.data() + (size_t)b * E, xb_.data() + (size_t)b * E, fnorm, E, cfg.rms_eps);
-            });
+            b_->rms_norm_rows(hb_.data(), xb_.data(), w.ffn_norm.f32(),
+                              (size_t)B, (size_t)E, (size_t)E, cfg.rms_eps);
 
             b_->matmul_group({projection(w.ffn_gate, gateb_.data()),
                               projection(w.ffn_up, upb_.data())}, hb_.data(), E, B);
-            for_rows([&](int b) {
-                const size_t end = (size_t)(b + 1) * cfg.n_ff;
-                for (size_t j = (size_t)b * cfg.n_ff; j < end; j++) {
-                    const float g = gateb_[j] / (1.0f + std::exp(-gateb_[j]));
-                    ffnb_[j] = g * upb_[j];
-                }
-            });
+            b_->silu_mul(ffnb_.data(), gateb_.data(), upb_.data(), (size_t)B * cfg.n_ff);
             matmul(w.ffn_down, ffnb_.data(), hb_.data(), B);
-            for (size_t j = 0; j < (size_t)B * E; j++) xb_[j] += hb_[j];
+            b_->add(xb_.data(), hb_.data(), (size_t)B * E);
         }
 
         n_tokens_ += B;

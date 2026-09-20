@@ -1,0 +1,79 @@
+{
+  "study": "Cost of the fused-dot finiteness guard: below measurement resolution",
+  "date": "2026-09-20",
+  "branch": "main",
+  "production_changed": false,
+  "scope": "Isolated Q5_K matvec, nout=16000, nin=1024, six threads, 60 iterations per sample, six alternating pairs per session. tools/kernel_bench.cpp.",
+  "sessions": [
+    {
+      "n": 1,
+      "arms": "no guard vs guard (inlined fallback)",
+      "no_guard": [
+        15.0,
+        18.08,
+        16.79,
+        16.67,
+        17.27,
+        16.61
+      ],
+      "guard": [
+        14.47,
+        16.54,
+        15.19,
+        15.31,
+        13.93,
+        16.44
+      ],
+      "mean_delta_percent": -8.5,
+      "guard_wins": "0/6"
+    },
+    {
+      "n": 2,
+      "arms": "no guard vs guard (noinline fallback)",
+      "no_guard": [
+        14.11,
+        13.47,
+        14.61,
+        12.09,
+        15.09,
+        12.74
+      ],
+      "guard": [
+        13.86,
+        13.25,
+        12.67,
+        13.82,
+        13.17,
+        13.51
+      ],
+      "mean_delta_percent": -2.23,
+      "guard_wins": "2/6"
+    },
+    {
+      "n": 3,
+      "arms": "guard inlined vs guard noinline, direct",
+      "inline": [
+        17.66,
+        16.93,
+        17.89,
+        16.83,
+        15.75,
+        17.59
+      ],
+      "noinline": [
+        15.35,
+        17.33,
+        17.64,
+        16.21,
+        16.17,
+        18.57
+      ],
+      "mean_delta_percent": -1.34,
+      "noinline_wins": "3/6"
+    }
+  ],
+  "finding": "The three sessions are mutually inconsistent. Session 1 put the guard at -8.50% with a clean 0/6 sweep, which looked decisive. Session 3 then showed inlined and noinline forms are indistinguishable at 3/6, and session 2 put the noinline form at only -2.23%. If inline and noinline are the same, session 1 and session 2 cannot both be right. Absolute rates also moved between sessions (16.74, 13.69, 17.11 for comparable arms), so the instrument drifts more than the effect being measured.",
+  "conclusion": "The guard's cost is below this instrument's resolution at this shape: somewhere between zero and a few percent, not the 8.5% that a single 6/6 sweep suggested. A 0/6 or 6/6 result is not sufficient evidence when between-session drift exceeds the effect.",
+  "action": "The noinline attribute was reverted. It earned nothing measurable and added platform-specific ifdefs, which AGENTS' lean rule does not support. The guard itself stays: it is a correctness requirement, not an optimization, and its cost is within noise either way.",
+  "limits": "One quant type, one shape, one machine, one thread count. Between-session variance was not separately characterised with an A/A at this shape, which is what would be needed to state a real bound rather than 'below resolution'."
+}

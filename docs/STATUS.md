@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/cpu-prefill-callback`, based on research checkpoint `731dd5c` and
+`research/cpu-decode-caller-cost`, based on research checkpoint `4be2872` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -98,6 +98,46 @@ External performance requirements still block main/GitHub publication.
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### Current decode caller-cost attribution (diagnostic complete)
+
+- **Goal:** separate caller work from the previously mixed dispatch residual
+  before selecting another optimization. No placement study is reopened.
+- **Done:** unchanged production, legacy worker probes and added caller probes
+  complete all 12 fixed 8B invocations in session 21493, exit 0. Six threads,
+  ubatch 128, F32 KV, 215 prompt plus 32 forced tokens; one outer triplet and
+  each process's first iteration are prospective warmups. All 24 full vectors
+  are finite and byte-identical to the pinned unchanged-runtime vector. All 93
+  frozen identities recheck unchanged. Each of four attributed traces has 32
+  steps, 5,792 dispatches and 37,152 caller events, with zero accounting gap.
+  Builds, native grouped/error checks, active-probe error/reuse, synthetic
+  accounting and independent malformed-trace checks pass. Native Windows
+  sampling resolves 6,205 of 6,221 samples to two named C++ test functions
+  using local PDBs; no model sampling or memory-stall diagnosis is claimed.
+- **Finding:** observed means are 217.602291 ms/token in dispatch, 1.972685
+  model-side, 0.080984 backend caller work, 0.015842 harness and 0.067954
+  explicit caller-observer brackets, plus 0.000014 outer timer fringe.
+  Model-side includes serial backend norms/RoPE. SwiGLU is 1.157311 ms/token
+  within the model-side total. Attributed decode elapsed is 2.140880% above
+  plain and 1.863856% above legacy spans; paired differences against spans
+  change sign. Perturbation/variation is comparable to or larger than the
+  individual residual regions. Explicit brackets do not capture all observer
+  effects, and standalone calibration is not subtracted from model timings.
+- **Decision:** no recoverable production saving is proved. Stop the
+  outside-kernel optimization direction without probe tuning, a repeat timing
+  screen or runtime implementation. Keep all samples. Native function sampling
+  is available as a separate future investigation; no model sampling selected
+  or run in this study. External HF/mx requirements remain open.
+- **Left:** the existing external decode performance gaps remain open. Any
+  future native model sampling needs its own fixed plan, output checks and
+  unprofiled control. No production implementation follows this diagnostic.
+  Independent terminal audit rechecks all 93 identities, 24 vectors and
+  148,608 caller events, reproducing every integer time partition.
+- **Gotchas:** the old 2.010823 ms/token residual is historical motivation,
+  not a current serial-cost estimate. Region times are instrumented intervals,
+  not production savings; exact final vectors are not an external HF gate.
+  Production source, tests, build/CI and root executable remain unchanged.
+  Full evidence: [`cpu-decode-caller-cost-20260920.json`](benchmarks/cpu-decode-caller-cost-20260920.json).
 
 ### Synchronous CPU prefill placement (scratch integration screened out)
 

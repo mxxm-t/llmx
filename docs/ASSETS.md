@@ -2634,3 +2634,100 @@ Independent timing/archive audit and the full 25-file Markdown review are
 complete. Rebuild sources, recipes, logs, all timing results, six model/workload
 full-vector groups with witness/timing aliases and independent reviews are preserved in
 [`benchmarks/cpu-prefill-callback-20260920.json`](benchmarks/cpu-prefill-callback-20260920.json).
+
+
+### Current decode caller attribution and native sampling capability (2026-09-20)
+
+This scratch diagnostic starts at research checkpoint `4be2872`, with runtime
+source unchanged from `bf122fd`. It follows the stopped placement studies.
+The previous 2.010823 ms/token residual mixed model work, backend preparation
+and observation; it was not an isolated serial cost or a recoverable saving.
+
+The three fresh arms are unchanged production, archived worker-span observers,
+and those same worker observers plus caller attribution. Legacy probes cover
+measured prefill and decode in both probed arms. Added caller markers cover
+only measured decode; warmup is untraced. No arithmetic, weight layout, worker
+protocol, affinity, public API or production source is changed.
+
+The fixed plan runs 12 processes: one discarded outer triplet, then three
+rotated measured triplets. Each process has an internal warmup and measured
+iteration. The pinned Qwen3-8B Q8_0 model uses six workers, ubatch 128, F32 KV,
+215 prompt IDs and 32 forced decode IDs. All samples are retained. Model loading
+and output-file writes are outside clocks. The original
+`logits = model.step(...)` assignment remains inside the decode clock.
+
+Session 21493 terminates with exit 0 and all 12 invocations passing. All 93
+frozen source/binary/plan identities recheck unchanged. All 24 warmup/measured
+full vectors are finite, 151,936 floats each, and byte-identical to the pinned
+unchanged-runtime vector. Each of four attributed traces records exactly 32
+step envelopes, 5,792 outer primitive/dispatch pairs and 37,152 caller events.
+Per-step interleaved marker/primitive order, one observer per dispatch,
+publication after probe setup and all nesting/worker boundaries are checked.
+
+| 8B phase, mean elapsed ms | Plain | Legacy spans | Added caller attribution |
+|---|---:|---:|---:|
+| Prefill, 215 tokens | 6957.927567 | 6839.615500 | 6915.812233 |
+| Decode, 32 tokens | 6884.288267 | 6903.010467 | 7031.672633 |
+
+Decode elapsed changes are +0.271955% for legacy spans versus plain,
++2.140880% for added attribution versus plain and +1.863856% for added
+attribution versus legacy spans. The last comparison's paired changes are
++4.207462%, +2.092283% and -0.676599%; all are retained. These are elapsed-time
+ratios in one diagnostic session, not performance gains or an mx comparison.
+
+| Added attribution, observed ms/token | Mean | Median |
+|---|---:|---:|
+| Gross dispatch intervals | 217.602291 | 216.097138 |
+| Model-side work | 1.972685 | 1.897919 |
+| Backend caller preparation/return | 0.080984 | 0.079369 |
+| Harness remainder | 0.015842 | 0.003122 |
+| Explicit caller-observer brackets | 0.067954 | 0.067009 |
+
+The integer partition is exact before rounding. Outer timer fringe is reported
+separately (mean 0.000014 ms/token); inner partition plus fringe equals the full
+outer decode interval. Dispatch includes worker observation. Model-side means
+outside selected dispatch-bearing primitive envelopes and includes serial
+backend norms/RoPE. It is not exclusive C++ model-layer instruction time.
+Within that model-side total, SwiGLU is 1.157311 ms/token mean and 1.140116
+median; it is not an additional row to sum into total elapsed time.
+
+Timestamp/store brackets cannot enclose all observer effects, including code
+layout, register pressure, cache changes and scheduling. One prospective
+10,000 clock-pair then 10,000 empty-marker calibration reports mean 18.15 ns
+per clock pair and 36.32 ns outer elapsed per marker. Median adjacent clock
+and bracket durations are zero at this timer's resolution. Calibration is
+retained, never subtracted as a correction to production timing. In this
+session total perturbation/variation is comparable to or larger than residual
+regions. No recoverable production cost is proved: stop this outside-kernel
+optimization direction without tuning the probe, repeating the screen or
+selecting an implementation. No external HF/mx gate is closed.
+
+Validation includes successful MSVC builds, unchanged backend-group checks
+(540 cases, 141,750 outputs, 253,952 exact finite Q8 scale/weight cases and
+1,824 ordered reductions), unchanged backend-error checks, and six active-probe
+exception/reuse dispatches. Pure accounting checks cover three exact partitions,
+14 malformed interval rejections and overflow; independent Python checks cover
+250 interval trials and five adversarial malformed traces. Final-vector equality
+is a diagnostic regression check, not an independent HF correctness claim.
+
+Separately, installed Visual Studio CPU sampling is usable without elevating
+this owned test process. The first collector call reports an error despite
+exit code 0 and creates no session; the minimal Base-config call explicitly
+reports Running then Stopped and produces a recording. A Python smoke yields
+6,605 target samples. A native optimized smoke with local PDBs yields 6,221:
+3,393 resolve to `sample_integer_mix`, 2,812 to `sample_rotate_mix`, and 16 are
+other target-attributed locations. This proves function sampling capability,
+not model hotspots, complete call stacks, memory-stall causes or model
+elapsed-time costs. No model was sampled. Only owned-target sampled events are archived;
+raw ETL/system dumps stay local. xperf text uses the local Windows ANSI code
+page 1257; the extraction script decodes that format before retaining ASCII
+owned-target rows.
+
+Independent terminal audit rehashes all 93 identities, verifies all 12 raw
+process results and 24 vectors, and reproduces all 148,608 caller events with
+an independent interval sweep. Every category, region and timer fringe agrees.
+
+Production source, tests, build/CI and root executable remain unchanged. Main
+and GitHub remain unchanged. Rebuild sources, commands, raw diagnostics, shared
+full-vector payload, target-only sampled events and reviews are preserved in
+[`benchmarks/cpu-decode-caller-cost-20260920.json`](benchmarks/cpu-decode-caller-cost-20260920.json).

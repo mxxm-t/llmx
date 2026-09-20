@@ -30,17 +30,39 @@ from pathlib import Path
 TOOLS = Path(__file__).resolve().parent
 RATE = re.compile(r"^(pp|tg): .*?, ([0-9.]+) tok/s", re.M)
 
-# Frozen before any timing. A step advances only if neither phase regresses by
-# more than NOISE, and the baseline does not win a majority of pairs.
+# Frozen before any timing. A step advances unless a phase shows a real
+# regression: mean or median below the noise band, or a baseline win count that
+# is itself unlikely by chance.
+#
+# The win count needs a significance threshold, not a majority. Under no real
+# difference the count is Binomial(pairs, 0.5), so "baseline wins no more than
+# half" rejects a genuinely neutral change about half the time -- with 9 pairs,
+# P(wins <= 4) is exactly 256/512. A criterion that fails a coin flip is not a
+# gate. The threshold below is the smallest count whose one-sided tail is at
+# most 5%, so a neutral change passes about 95% of the time and a consistent
+# regression still fails.
 ADVANCE = {
     "noise_fraction": 0.01,
+    "alpha": 0.05,
     "rule": "For each phase: candidate mean and median are at least "
-            "(1 - noise_fraction) x baseline, AND baseline paired wins are not "
-            "more than half the pairs. Otherwise the step does not advance.",
+            "(1 - noise_fraction) x baseline, AND baseline paired wins are "
+            "below the smallest count whose one-sided binomial tail under "
+            "p=0.5 is at most alpha. Otherwise the step does not advance.",
     "contamination": "A pair is flagged when either arm's whole-run CPU exceeds "
                      "the session median by 25%. Flags are reported, never used "
                      "to drop, replace or re-run a pair.",
 }
+
+
+def win_threshold(pairs, alpha):
+    """Smallest baseline-win count whose one-sided tail under p=0.5 is <= alpha."""
+    from math import comb
+    total = 2 ** pairs
+    for k in range(pairs, -1, -1):
+        tail = sum(comb(pairs, i) for i in range(k, pairs + 1))
+        if tail / total > alpha:
+            return k + 1
+    return 0
 
 
 def sha256(path):
@@ -145,6 +167,57 @@ def cmd_run(args):
     print(f"wrote {out / 'samples.json'} ({len(samples)} samples, none dropped)")
 
 
+def cmd_report(args):
+    """Apply the frozen rule to collected samples. The verdict is computed
+    here, from the plan's own criteria, so it is reproducible rather than
+    recomputed by hand each time."""
+    import statistics as st
+    out = Path(args.out)
+    plan = json.loads((out / "plan.json").read_text(encoding="ascii"))
+    samples = json.loads((out / "samples.json").read_text(encoding="ascii"))
+    adv = plan["advance"]
+    # A run is scored by the rule frozen with it, never by a newer one. A plan
+    # missing a criterion predates that criterion, and rescoring it under the
+    # current rule would be choosing the test after seeing the data.
+    missing = [k for k in ("noise_fraction", "alpha") if k not in adv]
+    if missing:
+        sys.exit(f"plan predates {', '.join(missing)}; it must be scored by the "
+                 f"rule frozen with it. Re-measure under a new plan instead.")
+    measured = [s for s in samples if s["measured"]]
+    rounds = sorted({s["round"] for s in measured})
+    pick = lambda r, a, ph: next(s[ph] for s in measured
+                                 if s["round"] == r and s["arm"] == a)
+    limit = win_threshold(len(rounds), adv["alpha"])
+    verdict, phases = True, {}
+    for ph, name in (("pp", "prefill"), ("tg", "decode")):
+        b = [pick(r, "base", ph) for r in rounds]
+        c = [pick(r, "cand", ph) for r in rounds]
+        wins = sum(1 for i in range(len(b)) if b[i] > c[i])
+        keep = 1 - adv["noise_fraction"]
+        ok = (st.mean(c) >= keep * st.mean(b)
+              and st.median(c) >= keep * st.median(b)
+              and wins < limit)
+        verdict &= ok
+        phases[name] = {
+            "base_mean": st.mean(b), "cand_mean": st.mean(c),
+            "base_median": st.median(b), "cand_median": st.median(c),
+            "mean_change_percent": (st.mean(c) / st.mean(b) - 1) * 100,
+            "median_change_percent": (st.median(c) / st.median(b) - 1) * 100,
+            "baseline_wins": wins, "pairs": len(b), "fail_at_wins": limit,
+            "paired_change_percent": [(c[i] / b[i] - 1) * 100
+                                      for i in range(len(b))],
+            "advance": "pass" if ok else "fail"}
+        print(f"{name}: mean {phases[name]['mean_change_percent']:+.2f}% "
+              f"median {phases[name]['median_change_percent']:+.2f}% "
+              f"baseline wins {wins}/{len(b)} (fail at >= {limit}) "
+              f"-> {'PASS' if ok else 'FAIL'}")
+    print("ADVANCE:", "pass" if verdict else "fail")
+    (out / "report.json").write_text(json.dumps(
+        {"advance": "pass" if verdict else "fail", "phases": phases,
+         "plan_sha256": (out / "plan.sha256").read_text(encoding="ascii").strip()},
+        indent=2), encoding="ascii")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -162,6 +235,9 @@ def main():
     r = sub.add_parser("run")
     r.add_argument("--out", required=True)
     r.set_defaults(func=cmd_run)
+    rep = sub.add_parser("report")
+    rep.add_argument("--out", required=True)
+    rep.set_defaults(func=cmd_report)
     args = p.parse_args()
     args.func(args)
 

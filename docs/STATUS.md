@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`feat/q8-native-block-scheduling`, based on rejection checkpoint `6b59789` and
+`research/worker-operation-attribution`, based on rejection checkpoint `77192a1` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -95,9 +95,9 @@ External performance requirements still block main/GitHub publication.
   unchanged; the extra instruction reloads the feature flag inside the loop.
   No second-block work moves before the first block's final FMA/exit check.
   This fails the useful-scheduling gate; no numerical/model/timing runs follow.
-- **Left:** stop this unrolling exploration. Resume current-runtime cost
-  attribution, including the unresolved operation labels in the worker span
-  profile, before selecting another hot-path change.
+- **Left:** stop this unrolling exploration. Historical whole-operation labels
+  are now resolved below; current-source 8B and within-group attribution remain
+  pending before selecting another hot-path change.
 - **Gotchas:** instruction counts are not micro-op counts or measured latency.
   No hints, forced inlining, feature specialization or duplicated kernel bodies
   were used. Production remains unchanged. Evidence:
@@ -246,6 +246,26 @@ External performance requirements still block main/GitHub publication.
   The tooling-only checkpoint changed no hot path and ran after worker timing.
   The parallel 8B HF work ran on the separate rig; it is not a performance gate.
 
+### Archived decode operation attribution
+
+- **Goal:** label the existing 0.6B decode worker spans by operation, using the
+  exact archived model/backend source and shapes to prove dispatch order.
+- **Done:** all 12 traces and 54,144 decode records map to 141 dispatches per
+  token: five per layer across 28 layers, then vocabulary projection. Archived
+  source, guards and shapes prove the order. Exact last-finisher decomposition
+  passes per operation and sums back to the original dispatch totals. In the
+  historical instrumented current Q8 arm, gate/up accounts for 26.07% and
+  vocabulary projection for 21.90% of dispatch time. Each of the five layer
+  operations changes its control/current delta sign across three pairs.
+- **Left:** within-group Q/K/V and gate/up member timing remains unresolved.
+  Do not rewrite workers on this evidence. A current-source 8B plain/spans
+  comparison is the next scoped diagnostic; none has been prepared or run.
+- **Gotchas:** archived current is `9cfe43f`, not a fresh `bf122fd` measurement.
+  Model and decode paths are unchanged, but prefill source/compiler layout
+  differs. Instrumentation perturbs timings; these are neither external-floor
+  results nor evidence of a causal regression. Evidence:
+  `benchmarks/worker-decode-operation-attribution-20260920.json`.
+
 ### CPU worker cost profile
 
 - **Goal:** localize the remaining prefill/decode costs before selecting another
@@ -266,9 +286,10 @@ External performance requirements still block main/GitHub publication.
   mode; all traces have 673 prefill and 4512 decode dispatches with ordered
   timestamps. The instrumented current failure/drain/reuse check passes.
   Evidence: `benchmarks/cpu-worker-spans-20260919.json`.
-- **Left:** attribution within individual grouped operations remains unresolved:
-  the span probe has phase labels but no operation labels, and instrumentation
-  changes the comparison materially. No production runtime change is selected.
+- **Left:** whole decode operations are now labeled by the verified archived
+  dispatch order (see attribution block above). Individual projections inside
+  grouped callbacks remain unresolved, and instrumentation changes timing
+  materially. No production runtime change is selected.
   Keep the existing worker implementation and the external performance gate;
   do not repeat rejected dispatch variants on this evidence.
 - **Gotchas:** instrumentation changes timing. The three-process comparison

@@ -1691,8 +1691,9 @@ These are instrumentation controls; independent HF, maximum-context and corpus
 gates were not rerun. No competing agent build/test/timing ran, and every
 before/after user llmx.exe check was empty; OS background work is not excluded.
 
-The probe does not classify individual operations, so the earlier grouped-cost
-attribution remains unresolved. Retain the current implementation; this evidence
+The original probe did not label operations. The offline analysis below now
+resolves whole decode-operation labels; members inside groups remain unresolved.
+Retain the current implementation; this evidence
 does not justify another rejected dispatch variant or establish a stable worker
 regression. Complete process distributions, per-participant timing summaries,
 decompositions, source patches, scripts, build logs, tokens, artifact hashes and
@@ -1981,3 +1982,50 @@ performance runs were performed for the follow-up, and no production code was
 changed. The earlier lambda oracle passes do not validate this new source.
 Commands, source manifest, exact patch, assembly and independent review are in
 [`benchmarks/q8-bounded-inner-loop-rejection-20260920.json`](benchmarks/q8-bounded-inner-loop-rejection-20260920.json).
+
+
+### Archived decode worker spans labeled by operation
+
+The saved worker-span session can be decoded without rerunning its workloads.
+For its 0.6B models and six workers, each step dispatches QKV, attention,
+attention output, gate/up and FFN down for each of 28 layers, then vocabulary
+output. Source, matrix shapes and guards establish 141 records per token.
+All 12 traces contain 4,512 ordered records for 32 decode steps: 54,144 total.
+The original traces and binaries match the committed archive.
+
+| Historical Q8 instrumented current, ms/token | Last-finisher entry | Callback | Final completion | Dispatch total |
+|---|---:|---:|---:|---:|
+| QKV | 0.30118 | 3.85901 | 0.12856 | 4.28875 |
+| Attention | 0.27566 | 2.08291 | 0.13509 | 2.49366 |
+| Attention output | 0.30408 | 1.86238 | 0.11660 | 2.28306 |
+| Gate/up | 0.28816 | 5.75930 | 0.12129 | 6.16876 |
+| FFN down | 0.31246 | 2.82346 | 0.11390 | 3.24982 |
+| Vocabulary output | 0.01143 | 5.16518 | 0.00578 | 5.18239 |
+
+Values are three-run means across all layers per token. Each dispatch is
+partitioned using its last-finishing participant: time from publication to that
+participant's entry, its callback, then time to return. The parts sum exactly
+before display rounding; overlapping participant spans are not added together.
+The 737 tied last-exit timestamps use the lowest participant index. Entry can
+include time overlapping other workers' computation; callback intervals can
+include descheduling, so neither isolates scheduler cost or kernel compute.
+Dispatches total 23.66644 ms/token within 24.47431 ms/token instrumented phase
+time. The remaining 0.80787 ms/token is outside the recorded dispatch spans.
+These parts are descriptive and are not all necessarily recoverable overhead.
+
+Gate/up and vocabulary output are 26.07% and 21.90% of dispatch time. All five
+layer-operation control/current differences change sign across the three
+pairs. Vocabulary output is slower in all three current-arm pairs, but this
+instrumented comparison does not isolate its cause. Original plain/spans
+ordering reversals remain relevant; no worker change is justified by this
+analysis alone.
+
+This is historical `3a82284`/`9cfe43f` data, not a fresh `bf122fd` performance
+measurement. The current model/decode source is unchanged, but prefill code
+and potentially compiler layout differ. Labels identify whole grouped calls,
+not individual Q/K/V or gate/up projections. Original trace provenance is in
+[`benchmarks/cpu-worker-spans-20260919.json`](benchmarks/cpu-worker-spans-20260919.json).
+All 12 original raw outputs are now preserved as losslessly compressed records,
+with SHA256 checks and standard-library decode instructions. These records,
+verified mapping, analysis source, exact breakdowns and review are in
+[`benchmarks/worker-decode-operation-attribution-20260920.json`](benchmarks/worker-decode-operation-attribution-20260920.json).

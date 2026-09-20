@@ -6,8 +6,8 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
 
 - `QwenConfig` + `load_config(GGUFModel)`: reads Qwen3 metadata
   (`block_count`, `embedding_length`, `feed_forward_length`,
-  `attention.head_count[_kv]`, `key_length`, `context_length`, `rope_theta`,
-  `rms_eps`).
+  `attention.head_count[_kv]`, `attention.key_length`, `context_length`,
+  `rope.freq_base`, `attention.layer_norm_rms_epsilon`, with the `qwen3.` prefix).
   Consumed integer fields accept positive INT32/UINT32/INT64/UINT64 values up
   to `INT_MAX`. Consumed float fields accept finite positive F32/F64 values
   representable as nonzero F32. Duplicate consumed keys and wrong types fail.

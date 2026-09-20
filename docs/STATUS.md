@@ -59,10 +59,19 @@ The reopened candidate on source `a61c414` passed Windows native, lifecycle,
 active HF logit and 0.6B long-continuation checks, with machine activity
 recording implemented and exercised. Integration onto `291ce2c` now passes
 Windows/Linux suites, active HF logits and 0.6B long-continuation checks in
-separate scratch. New monitored timing remains open; see its block.
+separate scratch. The monitored matrix now finishes with all 54 blocks
+and 162 processes retained; see its block for results and the competing-agent
+workload deviation. Independent analysis supports lean integration and final-source
+validation; production adoption remains open.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
-External performance requirements still block main/GitHub publication.
+The performance-sensitive runtime stack still needs a final release decision
+under the documented tradeoff policy. Optional placement integration is not a
+prerequisite to assessing completed runtime work. Independently validated CI
+retry/cache repair is now on main at `b266650` with all four hosted jobs green;
+automatic build identification is on main at `9511a4a`, with local Windows/Linux
+validation and hosted CI being observed. These release slices do not publish
+this branch's runtime kernels or its broader README/ASCII cleanup.
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
@@ -78,7 +87,7 @@ External performance requirements still block main/GitHub publication.
 | GGUF reader size and tensor extent validation | In Progress |
 | JSON quantize tensor validation | In Progress |
 | Qwen model construction validation | In Progress |
-| Device execution model (GPU prerequisite) | Planned |
+| Device execution model (GPU prerequisite) | In Progress (LDEV, separate branch) |
 | GPU backends (ROCm first, Vulkan portability) | Planned |
 | Multi-device split                       | Planned  |
 | Multi-node / cluster                     | Planned  |
@@ -103,7 +112,7 @@ External performance requirements still block main/GitHub publication.
 | CPU worker cost profile                 | In Progress |
 | CPU ordered prefill reductions          | In Progress |
 | CLI thread settings                    | In Progress |
-| Automatic build identification          | In Progress |
+| Automatic build identification          | Done (main `9511a4a`) |
 | Live generation and loading progress     | In Progress |
 | GitHub CPU CI                          | Done     |
 | HF integration (pull + Hub formats)      | Planned  |
@@ -115,18 +124,32 @@ another. Assess and report the complete workload tradeoff, retaining HF
 correctness and explicit matched mx comparisons. Prior frozen-screen results
 remain historical facts; the prefill-placement decision is being reassessed
 under this clarified preference. Fresh correctness checks pass below, but no
-candidate has yet been adopted or timed under that assessment.
+candidate has yet been adopted. The complete monitored comparison below is
+the first full timing matrix under that assessment.
 
 **Machine contention requirement (2026-09-20):** the user requires checking
 whether other demanding work is using the PC during measurements. Upcoming
 placement validation must capture background process CPU use and system
-CPU/disk/GPU activity before and throughout every arm. Use predefined
-contamination criteria, preserve affected matched blocks as inconclusive and
-repeat complete blocks after contention clears. Existing small differences
+CPU/disk/GPU activity before and throughout every arm. The later user
+clarification below replaces the earlier quiet-window stopping rule. Existing small differences
 cannot retroactively be certified contention-free without the needed evidence.
 Windows recording, controlled-load detection and the comparison driver's
-preflight screen are now exercised. Completed model timing and assessment of
-observer effects remain open.
+preflight screen are exercised. The complete model comparison is recorded
+below; observer effects and unresolved activity still limit attribution.
+
+**Activity policy clarification (2026-09-20):** the user states that no idle
+window will be available: run with monitoring and assess whether PC activity
+could affect each result. Do not stop or replace planned blocks solely because
+background activity crosses a threshold. Retain all samples, use the existing
+rotated/interleaved comparisons, report activity flags and missing telemetry,
+and assess paired uncertainty and load imbalance. Earlier deferred preflights
+remain historical evidence, not failed performance tests. The offered dev rig
+was inspected and had a large compiler workload on nearly all 16 logical CPUs;
+the already prepared Windows comparison is being used under this clarified
+policy. HF bounds, benchmark inputs and performance tradeoff requirements are
+unchanged. The plan prohibited competing agent builds/tests/downloads. LDEV
+later disclosed overlapping jobs; this protocol deviation is retained below
+and is not covered by permission for ordinary PC activity.
 
 ## Active feature blocks
 
@@ -236,6 +259,31 @@ observer effects remain open.
 
 ### Prefill placement reassessment with machine activity monitoring
 
+- **Completed monitored run:** `run-monitored.py`, output `monitored-01`,
+  finishes with exit 0: 54 blocks and 162 processes, comprising six outer
+  warmup blocks and all 48 measured blocks. Every block runs once; none is
+  excluded or replaced. All final-vector checks pass and all 66 frozen
+  manifest identities recheck unchanged. Existing plans and nine stopped
+  preflights remain preserved. Completion is not automatic performance
+  acceptance or adoption. Full results and raw evidence are linked in
+  [ASSETS](ASSETS.md#monitored-prefill-comparison-2026-09-20).
+- **Observed tradeoff:** all-eight paired primary-prefill speed changes versus
+  production are +12.378% (0.6B) and +25.216% (8B), with descriptive 95%
+  intervals [1.349, 23.407]% and [5.807, 44.625]%. Primary decode changes are
+  +0.689% and -2.243%, with intervals crossing zero. The candidate's 8B
+  one-token follow-up combined speed is 2.893% below mx, interval
+  [-5.488, -0.297]%; primary combined speed is 25.763%/34.678% above mx.
+  These are paired means, not ratios of mean times. No isolated 0.5% veto
+  applies, and no universal per-phase parity claim follows.
+- **Activity and deviation:** every block has activity flags. LDEV disclosed
+  six MSVC builds, approximately 57 sixteen-thread generation jobs and two
+  suites around 13:33-13:52:07 +0300, using artifact timestamps rather than
+  exact process logs. The first disclosure incorrectly extended to 14:00;
+  both versions are preserved. The monitor observes named competing jobs in
+  ten blocks, including warmup. This violated the no-competing-agent-work
+  plan. All measured samples remain included. Several differences co-vary
+  strongly with load imbalance; no causal correction or quiet subset is used.
+
 - **Supplement after `d846115`:** current-source primary/one-token/nine-token
   follow-up checks pass for both Q8 models: 12 terminal processes, six exact
   full-vector pairs, 911,616 finite values and 20 individually checked callbacks.
@@ -267,10 +315,11 @@ observer effects remain open.
   decode setters. F32 maximum HF logit error is 0.000126362; absolute HF mean
   NLL differences are 0.000000645211 (F32) and 0.007011817 (Q8). Linux placement
   remains pass-through. These timings are diagnostic, not performance evidence.
-- **Current next step:** use the current-source `run-current.py` comparison
-  after coordinating a quiet window. Its order, thresholds, monitor, evaluator
-  and harnesses match the older plan; only source/provenance and prerequisite
-  checks changed. Seven older-source preflights are retained, all deferred
+- **Completed runner:** the current-source `run-monitored.py` comparison ran
+  under the clarified activity policy. The original `run-current.py` is
+  preserved. Order, activity thresholds, recorder and model harnesses remain
+  unchanged; activity flags annotate results instead of stopping/replacing
+  busy blocks. Seven older-source preflights are retained, all deferred
   before model timing. Current-source short follow-up witnesses and the
   optional 8B consumer now pass in the supplement above; earlier evidence
   below remains historical. No production placement integration or merge is
@@ -282,7 +331,8 @@ observer effects remain open.
   scripts, commands, text outputs and reviews are in
   [current-source placement evidence](benchmarks/prefill-current-integration-20260920.json).
 
-- **Method clarification after LDEV review:** the frozen runner rotates and
+- **Historical method clarification before the activity-policy update:**
+  the earlier frozen runner rotates and
   reverses the three arm orders inside each model/workload block; model and
   workload order also rotate across one warmup and eight measured rounds.
   Report mean/median rates and elapsed time, paired ranges, sample deviation
@@ -324,15 +374,21 @@ observer effects remain open.
   24-sample controlled-load check detects the known CPU process at a median
   99.995% of one logical CPU; recorder CPU is 0.53125 s over 24.01487 s,
   including initialization. Intervals and query errors remain in the log.
-- **Left:** complete prospectively planned matched comparisons and check observer
-  effects once a quiet measurement window is available. The driver records
-  machine activity before and throughout every matched block; no model timing
-  has yet passed its preflight screen.
+- **Decision:** independent audit passes the exact schedule, all 162 vectors,
+  540 saved activity assessments and all 66 frozen identities. It reproduces
+  all-eight timing and load statistics. The gain/cost balance supports the
+  bounded next step: lean production integration and final-source validation.
+  This does not establish universal parity or remove activity uncertainty.
+- **Left:** remove temporary A/B controls, integrate the small delta and
+  validate that final source before adoption.
+  Report known load imbalance and uncertainty; do not wait for an idle PC or
+  discard flagged samples. Placement is not published; independent CI and build
+  identification fixes are on main as described above.
 - **Done:** fresh Linux candidate pass-through build, native 8/8 and full
   required-HF suite 11/11 pass with unchanged snapshot source. Matched mx
   primary/one-token/nine-token continuation harness builds against the pinned
   CPU DLLs. The activity evaluator passes 20 synthetic/known-load checks.
-- **In progress:** prospective three-arm comparison plan uses one outer
+- **Historical initial plan (superseded by monitored retention):** one outer
   warmup round plus eight measured rounds per model/workload, with complete
   matched-block replacement for detected contention (at most two replacements).
   The first preflight defers before any model launch: accessible unrelated CPU
@@ -1050,31 +1106,6 @@ pair excluded. Every output byte matches. Builds/tests were stopped during
 these runs. This is end-user delivery latency, including loading and prefill,
 not a kernel-speedup or external mx-llama.cpp parity claim.
 
-### Automatic build identification
-
-- **Goal:** identify each CMake/plain MSVC build by release version plus Git
-  revision, with a dirty marker for tracked changes and a clear archive fallback.
-- **Done:** CMake refreshes build revision on each build, without rewriting an
-  unchanged header. Plain build.bat emits the same metadata. --version and the
-  usage banner show release plus Git revision and tracked-dirty state, with
-  unknown fallback outside a checkout. Windows plain/CMake clean, dirty,
-  new-commit, archive and no-op cases pass in a path containing spaces; Linux
-  clean/dirty/new-commit rebuilds and version smoke pass. The current project
-  build also reports its actual HEAD plus dirty state. Windows full required-HF suite passes with
-  the new version regression. The Windows for/f equals-sign parsing issue was
-  caught and fixed before the passing rerun.
-  README now separates implemented CPU capabilities from future execution,
-  serving and HF goals. All source/comments/docs and new messages use ASCII;
-  Unicode fixture data is preserved. The requirement is recorded in AGENTS.
-- **Left:** merge with the validated stack after its external gates pass.
-  Live generation/progress reached checkpoint 9cfe43f; subsequent CPU cost
-  profiles are recorded above. Full evidence for build identification is in
-  `benchmarks/build-version-20260919.json`; all 25 Markdown files were reviewed
-  for current capabilities, future goals, build behavior and ASCII compliance.
-- **Gotchas:** untracked files do not mark a build dirty. Source archives report
-  unknown even when nested in another repo. No timestamps, automatic release
-  increments, commits/tags or new build/runtime dependencies are introduced.
-
 ### CLI thread settings
 
 - **Goal:** make existing auto, decode and prefill thread flags work consistently
@@ -1699,5 +1730,9 @@ feature ships, delete its block and mark the row `Done` above.
   - ubatch barely matters once the kernel is right, and 343 vs 512 on a
     343-token prompt is the SAME computation - do not read noise as signal.
 
-Nothing else is in flight. When you start a feature, open a block above
-before writing code - see `AGENTS.md` -> "Starting a feature".
+LDEV owns device execution work (#4a) on the separate Gitea branch
+`design/device-execution-model`; it is not merged into this stack. Its early
+timing overlapped this study and does not establish a gain or neutrality.
+XDEV owns placement assessment, runtime validation and this release stack.
+LDEV will rebase afterward; shared backend/model files require coordination.
+When starting another feature, open its block before writing code.

@@ -3118,3 +3118,136 @@ still failed by its recorded rule; that is not proof the tiny observed decode
 loss exceeds noise, nor an automatic reason to discard large prefill gains.
 The historical table and samples remain unchanged. Further HF, short-follow-up
 and matched mx checks are required before adoption.
+
+## Monitored prefill comparison (2026-09-20)
+
+The completed archive contains 580 raw records and identities for all 162 local
+final vectors. Archive SHA-256 is
+`7e0dcfc4e89d4101617cfe43633244c05f510349a5b87bcc66c3e1025e166431`.
+Independent timing, source-integration and Markdown reviews are retained.
+The placement experiment remains separate from the CI/version fixes published
+on main at `b266650` and `9511a4a`.
+
+Current runtime source `291ce2c` and its four-file placement candidate are
+compared with pinned mx `5542318e74` on the same Windows Ryzen 5800X. Shared
+Qwen3 Q8_0 model files, six threads, ubatch 128 and F32 KV are fixed. The
+primary workload is 215 prompt tokens plus 32 forced decode tokens; follow-up
+workloads reuse a fixed prefix and time one or nine suffix tokens plus the
+same decode. Loading and prefix setup are outside the phase clocks. This is
+token-prefix reuse, not a new interactive chat-template test.
+
+The user explicitly permits normal PC use during timing. One-second CPU,
+disk and GPU monitoring records every arm. The prospectively reviewed plan
+runs one outer warmup and eight measured rounds, rotating workloads/models
+and rotating/reversing the three arms. All 54 blocks/162 processes finish,
+including all 48 measured blocks/144 processes. Each process has an internal
+warmup; only its second iteration enters the results. No activity-based
+exclusion, retry or replacement occurs. All vectors pass and all 66 frozen
+manifest files rehash unchanged. Prior stopped preflights remain separate.
+
+Mean throughput below is the arithmetic mean of each round's token rate,
+not token count divided by mean time. All eight rounds contribute equally.
+
+| Model / workload / phase | Production tok/s | Placement tok/s | mx tok/s |
+|---|---:|---:|---:|
+| 0.6B / primary / pp | 363.042 | 409.215 | 252.223 |
+| 0.6B / primary / tg | 39.912 | 40.173 | 39.179 |
+| 0.6B / followup1 / pp | 41.231 | 37.796 | 39.679 |
+| 0.6B / followup1 / tg | 39.003 | 39.971 | 40.146 |
+| 0.6B / followup9 / pp | 201.778 | 167.184 | 155.061 |
+| 0.6B / followup9 / tg | 39.818 | 38.294 | 38.191 |
+| 8B / primary / pp | 26.810 | 33.740 | 19.213 |
+| 8B / primary / tg | 3.823 | 3.741 | 3.609 |
+| 8B / followup1 / pp | 3.781 | 3.675 | 3.972 |
+| 8B / followup1 / tg | 3.664 | 3.737 | 3.850 |
+| 8B / followup9 / pp | 17.535 | 19.795 | 14.106 |
+| 8B / followup9 / tg | 3.663 | 3.771 | 3.826 |
+
+The combined interval adds measured prefill and decode. It excludes loading
+and prefix setup and does not predict every chat workload or output length.
+
+| Model / workload | Production mean ms | Placement mean ms | mx mean ms |
+|---|---:|---:|---:|
+| 0.6B / primary | 1411.122 | 1348.866 | 1683.668 |
+| 0.6B / followup1 | 870.745 | 833.162 | 833.346 |
+| 0.6B / followup9 | 860.384 | 925.716 | 981.805 |
+| 8B / primary | 16489.038 | 15437.571 | 20572.681 |
+| 8B / followup1 | 9269.490 | 8904.251 | 8654.993 |
+| 8B / followup9 | 9401.944 | 9037.245 | 9083.933 |
+
+Paired speed change is `(baseline_ms / candidate_ms - 1) * 100` per round.
+Approximate 95% intervals use the paired sample standard deviation and a
+Student-t multiplier for seven degrees of freedom. They are descriptive,
+unadjusted for multiple comparisons, and do not eliminate systematic bias.
+
+| Model / workload / phase | Placement vs production | Approx. 95% interval | Placement vs mx | Approx. 95% interval |
+|---|---:|---:|---:|---:|
+| 0.6B / primary / pp | +12.378% | [+1.349, +23.407]% | +61.288% | [+40.684, +81.892]% |
+| 0.6B / primary / tg | +0.689% | [-2.752, +4.129]% | +2.863% | [-1.711, +7.438]% |
+| 0.6B / primary / whole | +5.090% | [+0.207, +9.973]% | +25.763% | [+18.776, +32.750]% |
+| 0.6B / followup1 / pp | -4.955% | [-31.881, +21.971]% | -3.703% | [-20.795, +13.389]% |
+| 0.6B / followup1 / tg | +5.314% | [-13.806, +24.433]% | +0.141% | [-5.855, +6.137]% |
+| 0.6B / followup1 / whole | +4.930% | [-14.414, +24.275]% | -0.056% | [-6.105, +5.993]% |
+| 0.6B / followup9 / pp | -14.125% | [-37.239, +8.989]% | +16.470% | [-24.091, +57.032]% |
+| 0.6B / followup9 / tg | -4.283% | [-12.998, +4.433]% | +6.143% | [-22.345, +34.631]% |
+| 0.6B / followup9 / whole | -5.330% | [-13.986, +3.326]% | +6.369% | [-22.556, +35.294]% |
+| 8B / primary / pp | +25.216% | [+5.807, +44.625]% | +75.863% | [+47.500, +104.226]% |
+| 8B / primary / tg | -2.243% | [-5.121, +0.636]% | +5.356% | [-5.337, +16.048]% |
+| 8B / primary / whole | +8.860% | [-1.061, +18.781]% | +34.678% | [+19.777, +49.579]% |
+| 8B / followup1 / pp | -2.827% | [-12.111, +6.458]% | -7.811% | [-15.425, -0.198]% |
+| 8B / followup1 / tg | +4.131% | [-9.955, +18.217]% | -2.707% | [-5.493, +0.080]% |
+| 8B / followup1 / whole | +3.871% | [-9.765, +17.507]% | -2.893% | [-5.488, -0.297]% |
+| 8B / followup9 / pp | +12.208% | [-3.033, +27.449]% | +38.914% | [+17.544, +60.283]% |
+| 8B / followup9 / tg | +3.559% | [-2.650, +9.767]% | -1.321% | [-4.385, +1.742]% |
+| 8B / followup9 / whole | +3.820% | [-1.521, +9.161]% | +0.583% | [-2.294, +3.459]% |
+
+Every measured block is activity-flagged. Whole-interval background CPU means
+below are percentages of one logical CPU, so 400% means approximately four
+logical CPUs. These means weight samples by interval overlap within each arm,
+then weight the eight rounds equally. They do not measure DRAM bandwidth.
+Adjacent counter brackets can overlap; summed weights can exceed elapsed
+duration and are not an exact coverage measure or subsecond CPU attribution.
+
+| Model / workload | Production background CPU | Placement background CPU | mx background CPU |
+|---|---:|---:|---:|
+| 0.6B / primary | 390.20% | 360.46% | 368.28% |
+| 0.6B / followup1 | 389.70% | 417.49% | 380.22% |
+| 0.6B / followup9 | 377.98% | 428.19% | 429.51% |
+| 8B / primary | 356.68% | 429.44% | 457.98% |
+| 8B / followup1 | 502.73% | 488.87% | 489.37% |
+| 8B / followup9 | 488.38% | 495.28% | 523.50% |
+
+Protocol deviation: LDEV later disclosed six MSVC builds, approximately 57
+sixteen-thread generation invocations and two suites around 13:33-13:52:07
++0300. The original disclosure said 14:00; the correction uses artifact
+timestamps, not exact process logs. Both are retained. These jobs violated
+the no-competing-agent-work plan; permission for ordinary PC use did not
+authorize them. Named compiler/model processes appear in 144 distinct saved
+sample/process observations across ten blocks, including warmup. This count
+does not identify every affected phase or every missed short process.
+
+Some differences strongly co-vary with load imbalance. For example, paired
+combined placement/production speed versus baseline-minus-candidate CPU has
+Pearson r=0.971 for the small nine-token follow-up and r=0.926 for the large
+primary workload (eight pairs each). These associations are not causal
+corrections. No quiet subset is substituted for the complete matrix. Invalid
+GPU samples, inaccessible/new processes, unresolved CPU and observer CPU are
+retained in the analysis. One-second sampling is coarse for short suffixes;
+unknown activity is not zero, and observer cost is not separately bounded.
+
+Assessment: the primary-prefill gains support advancing the small placement
+delta to production integration and final-source validation. A minor loss
+does not trigger the old isolated 0.5% veto. Follow-up and decode tradeoffs
+remain explicit: the candidate's 8B one-token combined interval trails mx by
+2.893% in paired mean speed, while primary combined speed exceeds mx by
+25.763%/34.678%. This is not universal per-phase parity, a causal gain estimate
+or a completed adoption/merge. Placement is still scratch at this checkpoint.
+
+The [analysis and manifest](benchmarks/prefill-monitored-20260920.json) retain
+all mean/median rates and elapsed times, paired ranges/deviations/intervals,
+load associations, phase activity/unknown counts, vector hashes and both
+workload disclosures. The [compressed raw archive](benchmarks/prefill-monitored-20260920-raw.tar.gz)
+preserves original state, telemetry, stdout/stderr, plans, scripts and the
+two current-source stopped preflights; its per-file hashes are in the manifest.
+Executable/model/vector payloads remain local with recorded hashes. Existing
+HF, long-continuation and callback correctness evidence is linked from STATUS.

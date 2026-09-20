@@ -156,9 +156,12 @@ and implemented HF coverage are recorded in STATUS.
   correctness and explicit matched mx comparisons remain required.
 - Record background process CPU use and system CPU/disk/GPU activity before
   and throughout timing, with identical low-overhead monitoring for each arm.
-  Declare contamination criteria in advance. Preserve affected blocks as
-  inconclusive and repeat whole matched blocks when quiet; never remove only
-  slow samples. Missing telemetry is a stated limitation, not proof of idleness.
+  An idle machine is not required. Declare activity flags in advance, retain
+  all planned matched blocks and report potentially affected runs alongside
+  the complete comparison. Use interleaved repetitions to assess noise and
+  activity imbalance, without automatically stopping or replacing busy runs.
+  Never remove only slow samples. Missing telemetry is a stated limitation,
+  not proof of idleness; small differences may remain unresolved.
 - Path-controlled perplexity on real text as the lossless gate (see
   `correctness-gate` skill)
 - Large-context output hashing to prove KV cache + RoPE correctness at depth

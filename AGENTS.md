@@ -43,10 +43,13 @@ by the plain `build.bat` path. Keep the two in sync when you add build knobs.
   and system CPU, disk and GPU activity before and throughout performance runs,
   using the same low-overhead monitoring in every arm. Separate benchmark and
   monitor activity from unrelated work. Do not run competing builds, tests or
-  downloads. Define contamination criteria before measuring; preserve affected
-  results, mark them inconclusive and repeat the complete matched block after
-  the machine is quiet. Do not discard isolated slow samples. If monitoring is
-  unavailable, report that limitation instead of assuming the machine was idle.
+  downloads. An idle machine is not required. Define activity flags before
+  measuring, retain every planned matched block and report potentially affected
+  runs alongside the complete results. Interleave and repeat arms to assess
+  noise and activity imbalance; do not automatically stop, discard or replace
+  a run because background activity is present. Do not discard isolated slow
+  samples. If monitoring is unavailable, report that limitation instead of
+  assuming the machine was idle or treating unknown activity as zero.
 - **Dependency-free.** No external libs. The whole point is to control the full
   stack; reaching for a library erodes that.
 - **Lean, not clever.** Add a seam only when a second implementation is on the

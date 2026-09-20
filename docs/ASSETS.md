@@ -2365,3 +2365,63 @@ compared against this session to close them.
 Full sources, frozen plan, identities, lifecycle/parser checks, raw timings,
 placement witnesses and exact final vectors are archived in
 [`benchmarks/cpu-prefill-placement-20260920.json`](benchmarks/cpu-prefill-placement-20260920.json).
+
+
+## Observer-free prefill CPU placement (2026-09-20)
+
+Branch `research/cpu-prefill-observer-free` starts at `9769833`, using unchanged
+runtime source `bf122fd` and the same placement helper. It removes the shared
+observer dispatches from the preceding diagnostic. No production source, CLI,
+Backend API, tests or root executable changed.
+
+The same binary runs scheduler and prefill-only modes. Scheduler constructs
+no placement Session or observer. Candidate construction/topology, apply and
+its verification, prefill, final active verification and checked restoration
+are inside prefill timing. Decode starts immediately at the prefill clock
+boundary with no intervening dispatch or reporting. Candidate JSON is emitted
+after decode from stored apply/verify/restore fields. The restored destructor
+performs no affinity/pool call; diagnostic formatting and inert disposal are
+outside both clocks. These are pre-decode witnesses, not observations made
+throughout or after decode. Scheduler mask state is not separately observed.
+
+The prospective plan retains Windows Ryzen 7 5800X, MSVC /O2 /arch:AVX2,
+Qwen3-0.6B and Qwen3-8B Q8_0, six threads, ubatch 128, F32 KV, 215 prompt
+and 32 forced continuation tokens. All 24 processes and 48 internal records
+are retained: one discarded outer pair and five measured pairs per model,
+alternating model/arm order, plus internal warmup per process. No samples are
+removed, rerun or pooled with earlier sessions. Means and medians use each
+measured process's throughput, not inverse mean latency.
+
+The unchanged prospective screen requires each model's prefill mean and median
+throughput to improve at least 5%, with at least 4/5 paired wins, and both
+decode means and medians to remain at least 99.5% of scheduler. All pass:
+
+| Model / phase | Scheduler mean tok/s | Prefill-only mean tok/s | Mean change | Scheduler median tok/s | Prefill-only median tok/s | Median change | Candidate wins |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 0.6b / pp | 479.228537 | 529.632147 | +10.52% | 476.660380 | 529.184136 | +11.02% | 5/5 |
+| 0.6b / tg | 49.518222 | 49.633298 | +0.23% | 49.557314 | 49.609096 | +0.10% | 3/5 |
+| 8b / pp | 29.027817 | 40.985134 | +41.19% | 29.063798 | 40.774485 | +40.29% | 5/5 |
+| 8b / tg | 4.581855 | 4.600768 | +0.41% | 4.568602 | 4.604604 | +0.79% | 4/5 |
+
+Fresh validation includes the MSVC build, independent boundary review, seven
+accepted archived lifecycle records, 34 rejected report corruptions and six
+acceptance-rule boundary cases. The unchanged helper's prior 3,636 exact Q8
+value checks and failure/reuse cases are reused evidence, not freshly run.
+All 48 frozen identities are checked. Each model's 12 saved finite vectors
+(151,936 final logits each) match byte-for-byte, and each process checks its
+internal warmup/measured identity. This remains self-consistency rather than
+independent HF or full-context proof. No OS restore failure is injected.
+
+The result supports a distinct implementation experiment: CPU-local placement
+inside existing nonempty parallel batched-matmul callbacks, preserving the
+Backend interface and model layer. It has not been implemented. Per-operation
+apply/restore would recur thousands of times and omit attention, serial work,
+one-token/tail-one operations and final vocabulary projection. Its costs and
+activation cannot inherit this phase-wide result. Restricted masks, fallback,
+exceptions, pool recreation, short prompts and follow-up generation also need
+coverage before adoption. No new independent HF/mx gate passes here; both
+external decode requirements remain open.
+
+The archive retains the source, frozen inputs, reused lifecycle provenance,
+fresh checks, raw results, stored witnesses and common exact vectors:
+[`benchmarks/cpu-prefill-observer-free-20260920.json`](benchmarks/cpu-prefill-observer-free-20260920.json).

@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/cpu-prefill-placement`, based on research checkpoint `248f658` and
+`research/cpu-prefill-observer-free`, based on research checkpoint `9769833` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -44,6 +44,8 @@ remain outside production; their complete samples and reviews are archived below
 The all-phase placement candidate remains rejected. A separate prefill-only
 placement screen passes, with its independent timing audit and full 25-file
 Markdown review complete. Production integration and external gates remain open.
+The separate observer-free placement screen also passes; its post-run audit
+and full Markdown review are complete. Per-operation placement remains unimplemented.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
@@ -91,6 +93,40 @@ External performance requirements still block main/GitHub publication.
 
 ## Active feature blocks
 
+### Prefill placement without diagnostic observers (scratch screening passed)
+
+- **Goal:** establish whether the prefill placement benefit survives removal
+  of shared observer dispatches before considering production integration.
+- **Done:** all 24 invocations completed with exit 0, and the frozen screen
+  passes. Both prefill means/medians improve at least 5%, with 5/5 wins per
+  model; decode means/medians stay within the 0.5% regression limit.
+  Each model's 12 finite final vectors match exactly, with internal warmup
+  identity also checked. All 48 source/build/check identities were frozen.
+  The new parser accepts seven archived lifecycle records and rejects 34
+  corruptions; six rule-boundary checks pass. Unchanged helper lifecycle
+  evidence is reused explicitly, not claimed as fresh execution.
+  Independent timing audit and review of all 25 Markdown files are complete.
+  Full results are in `docs/benchmarks/cpu-prefill-observer-free-20260920.json`.
+- **Left:** the next source-reviewed candidate is CPU-local placement inside existing
+  parallel batched-matmul callbacks, with no generic Backend phase API.
+  This is a distinct unimplemented hypothesis with repeated affinity costs;
+  it needs its own lifecycle/numerical/performance evidence before adoption.
+  Independent HF and fresh matched mx gates remain required.
+- **Gotchas:** scheduler mode constructs no placement Session. Candidate
+  construction/apply/prefill/verify/checked restoration are timed; decode
+  follows immediately. Stored pre-decode witnesses are serialized afterward,
+  and the already-restored destructor performs no pool/affinity call.
+  Formatting and inert object disposal are outside timing. There is no
+  post-decode mask observation. Six threads, one prompt, Windows only;
+  this remains scratch evidence, not production or HF/mx acceptance.
+
+| Model / phase | Scheduler mean tok/s | Prefill-only mean tok/s | Mean change | Median change | Candidate wins |
+|---|---:|---:|---:|---:|---:|
+| 0.6b / pp | 479.228537 | 529.632147 | +10.52% | +11.02% | 5/5 |
+| 0.6b / tg | 49.518222 | 49.633298 | +0.23% | +0.10% | 3/5 |
+| 8b / pp | 29.027817 | 40.985134 | +41.19% | +40.29% | 5/5 |
+| 8b / tg | 4.581855 | 4.600768 | +0.41% | +0.79% | 4/5 |
+
 ### Prefill-only CPU placement (scratch screening passed)
 
 - **Goal:** test the measured prefill opportunity while restoring normal
@@ -105,10 +141,9 @@ External performance requirements still block main/GitHub publication.
   Independent preflight passes; 46 identities were frozen before timing.
   Independent post-run audit and all 25 Markdown checkpoint reviews pass.
   Complete results are in `docs/benchmarks/cpu-prefill-placement-20260920.json`.
-- **Left:** review the proposed lean prefill scope without diagnostic observer
-  dispatches before implementation. Then validate broader thread/phase
-  lifecycles, independent HF correctness and fresh matched mx performance
-  before adoption.
+- **Left:** the separate observer-free study above passes its frozen screen.
+  Broader thread/phase lifecycles, independent HF correctness and
+  fresh matched mx performance remain required before adoption.
 - **Gotchas:** this is a screening pass, not production readiness. Restoring
   masks does not reset cache, boost or scheduling state. The full candidate
   Session lifecycle, including report serialization and destruction, is timed

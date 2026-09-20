@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/cpu-worker-placement`, based on research checkpoint `dce1066` and
+`research/cpu-prefill-placement`, based on research checkpoint `248f658` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -41,6 +41,9 @@ this rejection checkpoint.
 Subsequent Q8 split-storage and exact decode SwiGLU callback studies pass their
 scoped numerical checks but miss their frozen synthetic timing screens. Both
 remain outside production; their complete samples and reviews are archived below.
+The all-phase placement candidate remains rejected. A separate prefill-only
+placement screen passes, with its independent timing audit and full 25-file
+Markdown review complete. Production integration and external gates remain open.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
@@ -88,6 +91,38 @@ External performance requirements still block main/GitHub publication.
 
 ## Active feature blocks
 
+### Prefill-only CPU placement (scratch screening passed)
+
+- **Goal:** test the measured prefill opportunity while restoring normal
+  scheduling before decode, including recurring placement costs in timing.
+- **Done:** the fixed 24-invocation comparison completed with exit 0 and passes
+  its frozen screen. Both models improve prefill mean/median by at least 5%
+  with 5/5 wins, and decode mean/median stay within the 0.5% regression limit.
+  All 12 saved final vectors per model match exactly; each internal warmup
+  also matches its measured iteration. Lifecycle tests pass 3,636 exact Q8 value
+  comparisons, fresh iterations, exception cleanup and same-pool reuse.
+  The parser accepts seven lifecycle records and rejects fifteen corruptions.
+  Independent preflight passes; 46 identities were frozen before timing.
+  Independent post-run audit and all 25 Markdown checkpoint reviews pass.
+  Complete results are in `docs/benchmarks/cpu-prefill-placement-20260920.json`.
+- **Left:** review the proposed lean prefill scope without diagnostic observer
+  dispatches before implementation. Then validate broader thread/phase
+  lifecycles, independent HF correctness and fresh matched mx performance
+  before adoption.
+- **Gotchas:** this is a screening pass, not production readiness. Restoring
+  masks does not reset cache, boost or scheduling state. The full candidate
+  Session lifecycle, including report serialization and destruction, is timed
+  as prefill. Common observation work outside both clocks can influence decode.
+  The result covers one 215-token prompt, 32 forced decode steps, six threads,
+  ubatch 128, F32 KV and Windows Ryzen 7 5800X only. No HF/mx floor follows.
+
+| Model / phase | Scheduler mean tok/s | Prefill-only mean tok/s | Mean change | Median change | Candidate wins |
+|---|---:|---:|---:|---:|---:|
+| 0.6b / pp | 467.836623 | 535.466490 | +14.46% | +11.93% | 5/5 |
+| 0.6b / tg | 49.293600 | 49.418118 | +0.25% | +0.39% | 3/5 |
+| 8b / pp | 29.521998 | 40.948992 | +38.71% | +40.36% | 5/5 |
+| 8b / tg | 4.594650 | 4.623768 | +0.63% | -0.30% | 3/5 |
+
 ### Explicit CPU worker placement (all-phase candidate screened out)
 
 - **Goal:** compare scheduler-selected placement with six workers on six
@@ -112,9 +147,9 @@ External performance requirements still block main/GitHub publication.
   4/5 wins in both models, and no prefill mean/median regression above 3%.
   Small-model decode fails; the all-phase candidate stays outside production.
   All samples are retained; no new mx or independent HF gate was run.
-- **Left:** retain scheduler-selected production behavior. Review prefill-only
-  placement as a distinct possible follow-up, with transition costs included
-  and a separately frozen comparison; do not relabel this failed candidate.
+- **Left:** retain scheduler-selected production behavior. The separate
+  prefill-only study above passed its own frozen screen with transition costs
+  included; this all-phase candidate remains rejected.
   Matched external decode requirements remain open.
 - **Gotchas:** topology and allowed mask are queried in each owned child;
   adjacent CPU IDs are observed, not assumed. Core placement includes serial

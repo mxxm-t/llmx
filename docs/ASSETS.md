@@ -2307,3 +2307,61 @@ this all-phase run. No claim is made about migration versus SMT contention,
 reserved cores, other mappings, machines or production multi-user scheduling.
 Source, commands, raw logs, exact final vectors and independent reviews:
 [`benchmarks/cpu-worker-placement-20260920.json`](benchmarks/cpu-worker-placement-20260920.json).
+
+
+## Prefill-only CPU placement (2026-09-20)
+
+Scratch branch `research/cpu-prefill-placement` starts at `248f658`, using
+unchanged runtime source `bf122fd`. This is a separate hypothesis and frozen
+run from the rejected all-phase placement experiment above. It uses the same
+queried physical-core mapping but restores each participant's original mask
+before decode. No production source, public API, CLI flag or executable changed.
+
+The Windows Ryzen 7 5800X comparison uses MSVC /O2 /arch:AVX2, Qwen3-0.6B
+and Qwen3-8B Q8_0, six threads, ubatch 128, F32 KV, 215 prompt tokens and
+32 forced continuation tokens. The same executable runs both modes. All 24
+invocations are retained: a discarded outer pair and five measured pairs per
+model, with alternating model/arm order and an internal warmup per process.
+Means and medians use individual throughput samples; no outliers are removed.
+The original all-phase samples are not pooled into this result.
+
+A fresh candidate Session is constructed for each prefill. Its entire lifecycle
+(topology discovery, apply, verification, restoration, report serialization and
+destruction) is inside the prefill clock. Common unbound observers check worker
+identities and masks before/after phases outside both clocks. Those dispatches
+can influence subsequent scheduling, so this diagnostic harness is not the
+production performance-floor comparator. Mask restoration does not reset cache,
+boost or scheduling state, and does not prove restored decode CPU residency.
+
+The prospective advancement rule requires both models' prefill mean and median
+throughput to improve at least 5%, with at least 4/5 paired wins. Both decode
+means and medians must remain at least 99.5% of control. All conditions pass:
+
+| Model / phase | Scheduler mean tok/s | Prefill-only mean tok/s | Mean change | Scheduler median tok/s | Prefill-only median tok/s | Median change | Candidate wins |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 0.6b / pp | 467.836623 | 535.466490 | +14.46% | 476.035277 | 532.833577 | +11.93% | 5/5 |
+| 0.6b / tg | 49.293600 | 49.418118 | +0.25% | 49.599945 | 49.793156 | +0.39% | 3/5 |
+| 8b / pp | 29.521998 | 40.948992 | +38.71% | 29.230321 | 41.027020 | +40.36% | 5/5 |
+| 8b / tg | 4.594650 | 4.623768 | +0.63% | 4.643793 | 4.629796 | -0.30% | 3/5 |
+
+The independent lifecycle checks cover 18 comparisons of 202 Q8 outputs
+(3,636 exact values), seven fresh iterations, body failure while pinned,
+application failure at caller zero and worker three, and successful same-pool
+reuse after each failure. Every changed mask is checked after restoration.
+The report parser accepts seven actual lifecycle records and rejects fifteen
+corruptions. Real-model execution checks 48 internal records and byte identity
+of all 12 finite final vectors per model (151,936 logits each), including
+internal warmup/measured equality. This is self-consistency, not HF proof or
+full-context logit coverage. OS-level restoration failure is not injected.
+
+The screening pass supports further integration work; it does not justify a
+public affinity policy, heterogeneous-core or multi-group support, arbitrary
+thread counts, thread-pool recreation, or concurrent model execution. A lean
+implementation still needs phase/thread lifecycle coverage without diagnostic
+observer overhead, independent HF gates and fresh matched mx timing. Both
+external decode requirements remain open; historical mx rates cannot be
+compared against this session to close them.
+
+Full sources, frozen plan, identities, lifecycle/parser checks, raw timings,
+placement witnesses and exact final vectors are archived in
+[`benchmarks/cpu-prefill-placement-20260920.json`](benchmarks/cpu-prefill-placement-20260920.json).

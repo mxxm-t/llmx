@@ -151,8 +151,14 @@ GGUF reads and seeks throw on stream failure, including truncated payloads.
 The reader bounds metadata lengths/counts by the opened file extent, limits
 array nesting, checks tensor-size arithmetic and validates every payload range
 before payload allocation or loading progress. It honors declared file alignment.
-These are structural checks: metadata string encoding and model configuration,
-required tensor names/shapes and token IDs still need validation before execution.
+These are structural format checks. Qwen model construction separately validates
+consumed configuration values, attention geometry, required tensor names/shapes,
+normalization types and in-memory payload ranges before model activation/KV/RoPE
+allocation. Explicit malformed values cannot select optional metadata defaults.
+The backend may already exist before these model checks. Borrowed model metadata
+and weights must stay unchanged for the model's lifetime. Metadata string encoding,
+numeric weight contents, arbitrary token IDs and dynamic request limits are not
+fully validated by construction.
 Valid large files or overlapping tensor ranges can still exceed available memory;
 there is no per-request memory budget. The JSON parser validates syntax and
 Unicode with bounded nesting and finite-double storage. The quantize CLI

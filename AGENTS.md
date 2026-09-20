@@ -99,7 +99,7 @@ than the spec requires, so use `llmx.exe info` as the authoritative check.
 
 ## Tests
 
-Run the native backend, chat-template, KV storage, loader and streaming checks
+Run the native backend, model, chat-template, KV storage, loader and streaming checks
 after a CMake build:
 ```
 ctest --test-dir build -C Release --output-on-failure
@@ -113,6 +113,11 @@ escaped Unicode tensor names through the actual CLI.
 array depth, tensor arithmetic, file extents, quantized row widths and custom
 alignment. These are format checks; they do not establish model-schema safety.
 `load-progress` also checks early rejection and a file truncated after validation.
+
+`model-validation` checks Qwen configuration ranges/defaults, required tensor
+layouts and in-memory storage before model execution buffers are allocated.
+It covers tied/untied output, supported matrix types and singleton axes; it
+does not validate numeric weights, arbitrary token IDs or failed-session recovery.
 
 `backend-group` checks mixed types, uneven rows, batches, thread counts,
 output boundaries and fallback behavior against separate calls and double dots.

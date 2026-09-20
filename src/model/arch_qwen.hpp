@@ -8,6 +8,7 @@
 #include <cmath>
 #include <thread>
 #include <stdexcept>
+#include <limits>
 
 #include "format/gguf.hpp"
 #include "core/fp16.hpp"
@@ -40,40 +41,94 @@ struct QwenConfig {
 
 inline QwenConfig load_config(const gguf::GGUFModel& m) {
     QwenConfig c;
-    auto getu = [&](const std::string& k) -> uint64_t {
+    auto find = [&](const std::string& k) -> const gguf::MetaValue* {
+        const gguf::MetaValue* found = nullptr;
         for (const auto& kv : m.kv) {
             if (kv.first == k) {
-                if (kv.second.vtype == gguf::V_UINT32) return kv.second.u;
-                if (kv.second.vtype == gguf::V_INT32)  return (uint64_t)kv.second.i;
-                if (kv.second.vtype == gguf::V_UINT64) return kv.second.u;
-                if (kv.second.vtype == gguf::V_INT64)  return (uint64_t)kv.second.i;
+                if (found) throw std::runtime_error("inference: duplicate metadata " + k);
+                found = &kv.second;
             }
         }
-        return 0;
+        return found;
     };
-    auto getf = [&](const std::string& k) -> float {
-        for (const auto& kv : m.kv) {
-            if (kv.first == k) {
-                if (kv.second.vtype == gguf::V_FLOAT32) { float x; std::memcpy(&x, &kv.second.fb, 4); return x; }
-                if (kv.second.vtype == gguf::V_FLOAT64) return (float)kv.second.f64;
-            }
+    auto integer = [&](const std::string& k, int fallback = 0) -> int {
+        const auto* v = find(k);
+        if (!v) {
+            if (fallback) return fallback;
+            throw std::runtime_error("inference: missing metadata " + k);
         }
-        return 0.0f;
+        uint64_t n;
+        if (v->vtype == gguf::V_UINT32 || v->vtype == gguf::V_UINT64) {
+            n = v->u;
+        } else if (v->vtype == gguf::V_INT32 || v->vtype == gguf::V_INT64) {
+            if (v->i <= 0) throw std::runtime_error("inference: invalid positive integer " + k);
+            n = uint64_t(v->i);
+        } else {
+            throw std::runtime_error("inference: invalid integer type " + k);
+        }
+        if (!n || n > uint64_t(std::numeric_limits<int>::max()))
+            throw std::runtime_error("inference: integer outside supported range " + k);
+        return int(n);
     };
-    c.n_layer = (int)getu("qwen3.block_count");
-    c.n_embd  = (int)getu("qwen3.embedding_length");
-    c.n_ff    = (int)getu("qwen3.feed_forward_length");
-    c.n_head  = (int)getu("qwen3.attention.head_count");
-    c.n_head_kv = (int)getu("qwen3.attention.head_count_kv");
-    int kl = (int)getu("qwen3.attention.key_length");
-    if (kl <= 0) kl = c.n_embd / c.n_head;
-    c.head_dim = kl;
-    c.context_length = (int)getu("qwen3.context_length");
-    if (c.context_length <= 0) c.context_length = 4096;
-    c.rope_theta = getf("qwen3.rope.freq_base");
-    if (c.rope_theta <= 0.0f) c.rope_theta = 10000.0f;
-    c.rms_eps = getf("qwen3.attention.layer_norm_rms_epsilon");
-    if (c.rms_eps <= 0.0f) c.rms_eps = 1e-6f;
+    auto real = [&](const std::string& k, float fallback) -> double {
+        const auto* v = find(k);
+        if (!v) return fallback;
+        double n;
+        if (v->vtype == gguf::V_FLOAT32) {
+            float value;
+            std::memcpy(&value, &v->fb, sizeof(value));
+            n = value;
+        } else if (v->vtype == gguf::V_FLOAT64) {
+            n = v->f64;
+        } else {
+            throw std::runtime_error("inference: invalid floating-point type " + k);
+        }
+        if (!std::isfinite(n) || n <= 0 || n > std::numeric_limits<float>::max())
+            throw std::runtime_error("inference: invalid positive float " + k);
+        const float value = float(n);
+        if (value == 0) throw std::runtime_error("inference: float underflow " + k);
+        return n;
+    };
+    auto option = [&](const std::string& k, const std::string& supported) {
+        const auto* v = find(k);
+        if (v && (v->vtype != gguf::V_STRING || v->s != supported))
+            throw std::runtime_error("inference: unsupported metadata " + k);
+    };
+    option("general.architecture", "qwen3");
+    option("qwen3.tensor_data_layout", "reference");
+    option("qwen3.rope.scaling.type", "none");
+    if (real("qwen3.rope.scaling.factor", 1) != 1 ||
+        real("qwen3.rope.scale_linear", 1) != 1)
+        throw std::runtime_error("inference: scaled RoPE is unsupported");
+
+    c.n_layer = integer("qwen3.block_count");
+    c.n_embd = integer("qwen3.embedding_length");
+    c.n_ff = integer("qwen3.feed_forward_length");
+    c.n_head = integer("qwen3.attention.head_count");
+    c.n_head_kv = integer("qwen3.attention.head_count_kv", c.n_head);
+    if (c.n_head % c.n_head_kv)
+        throw std::runtime_error("inference: head count must be divisible by KV head count");
+    if (find("qwen3.attention.key_length")) {
+        c.head_dim = integer("qwen3.attention.key_length");
+    } else {
+        if (c.n_embd % c.n_head)
+            throw std::runtime_error("inference: embedding width does not determine an integral head width");
+        c.head_dim = c.n_embd / c.n_head;
+    }
+    if (c.head_dim <= 0 || c.head_dim % 2 ||
+        c.n_head > std::numeric_limits<int>::max() / c.head_dim)
+        throw std::runtime_error("inference: invalid attention projection dimensions");
+    if (integer("qwen3.attention.value_length", c.head_dim) != c.head_dim ||
+        integer("qwen3.rope.dimension_count", c.head_dim) != c.head_dim)
+        throw std::runtime_error("inference: value and rotary widths must equal key width");
+    c.context_length = integer("qwen3.context_length", c.context_length);
+    c.rope_theta = float(real("qwen3.rope.freq_base", c.rope_theta));
+    c.rms_eps = float(real("qwen3.attention.layer_norm_rms_epsilon", c.rms_eps));
+    const uint64_t kv_width = uint64_t(c.n_head_kv) * c.head_dim;
+    const auto max_floats = std::vector<float>().max_size();
+    if (uint64_t(c.context_length) > max_floats / kv_width ||
+        uint64_t(c.context_length) > max_floats / uint64_t(c.n_head))
+        throw std::runtime_error("inference: context storage exceeds allocation limit");
     return c;
 }
 
@@ -85,23 +140,33 @@ public:
     explicit Model(const gguf::GGUFModel& m,
                    backend::BackendPtr backend = backend::make_cpu_backend())
         : m_(&m), b_(std::move(backend)) {
+        if (!b_) throw std::runtime_error("inference: missing backend");
         quant::register_builtins(); // populate the quant registry (idempotent)
         cfg = load_config(m);
-        if (cfg.n_layer <= 0 || cfg.n_embd <= 0) throw std::runtime_error("inference: incomplete Qwen3 config in metadata");
-        if (cfg.n_head_kv <= 0) cfg.n_head_kv = cfg.n_head;
         // The attention projection width is n_head*head_dim, which only equals
         // n_embd by coincidence on some models (Qwen3-8B: 32*128 == 4096).
         // Qwen3-0.6B/1.7B/4B have head_dim 128 with a smaller n_embd.
         q_dim_ = cfg.n_head * cfg.head_dim;
 
-        for (size_t i = 0; i < m.tensors.size(); i++) tindex_[m.tensors[i].name] = i;
+        if (m.offsets.size() != m.tensors.size())
+            throw std::runtime_error("inference: tensor storage count mismatch");
+        for (size_t i = 0; i < m.tensors.size(); i++) {
+            const auto& t = m.tensors[i];
+            if (!tindex_.emplace(t.name, i).second)
+                throw std::runtime_error("inference: duplicate tensor " + t.name);
+            if (t.ne.size() > 4)
+                throw std::runtime_error("inference: invalid tensor rank " + t.name);
+            const uint64_t bytes = t.data_size();
+            if (m.offsets[i] % alignof(float) || m.offsets[i] > m.blob.size() ||
+                bytes > m.blob.size() - m.offsets[i])
+                throw std::runtime_error("inference: invalid tensor storage " + t.name);
+        }
 
         // Tied embeddings: models without a separate output.weight reuse
         // token_embd.weight as the output projection (same [n_embd, n_vocab]
         // layout), so the head is just a matvec against the embedding matrix.
         out_name_ = tindex_.count("output.weight") ? "output.weight" : "token_embd.weight";
-        if (!tindex_.count(out_name_))
-            throw std::runtime_error("inference: missing output projection tensor");
+        validate_tensors();
 
         // buffers
         x_.assign(cfg.n_embd, 0.0f);
@@ -286,6 +351,43 @@ private:
     }
     const uint8_t* tensor_data(const std::string& name) const {
         return m_->tensor_data(tindex_.at(name));
+    }
+
+    void validate_tensors() const {
+        const auto& embedding = tensor("token_embd.weight");
+        if (embedding.ne.size() < 2 || !embedding.ne[1] ||
+            embedding.ne[1] > uint64_t(std::numeric_limits<int>::max()))
+            throw std::runtime_error("inference: invalid vocabulary dimension");
+        const uint64_t vocab = embedding.ne[1];
+        auto check = [&](const std::string& name, uint64_t input, uint64_t output, bool norm = false) {
+            const auto& t = tensor(name);
+            bool valid = !t.ne.empty() && t.ne[0] == input;
+            if (norm) {
+                valid = valid && t.type == gguf::GGML_TYPE_F32;
+            } else {
+                valid = valid && t.ne.size() >= 2 && t.ne[1] == output;
+            }
+            for (size_t d = norm ? 1 : 2; d < t.ne.size(); ++d) valid = valid && t.ne[d] == 1;
+            if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + name);
+        };
+        check("token_embd.weight", cfg.n_embd, vocab);
+        check(out_name_, cfg.n_embd, vocab);
+        check("output_norm.weight", cfg.n_embd, 1, true);
+        const uint64_t kv_width = uint64_t(cfg.n_head_kv) * cfg.head_dim;
+        for (int l = 0; l < cfg.n_layer; ++l) {
+            const std::string pre = "blk." + std::to_string(l) + ".";
+            check(pre + "attn_norm.weight", cfg.n_embd, 1, true);
+            check(pre + "attn_q_norm.weight", cfg.head_dim, 1, true);
+            check(pre + "attn_k_norm.weight", cfg.head_dim, 1, true);
+            check(pre + "attn_q.weight", cfg.n_embd, q_dim_);
+            check(pre + "attn_k.weight", cfg.n_embd, kv_width);
+            check(pre + "attn_v.weight", cfg.n_embd, kv_width);
+            check(pre + "attn_output.weight", q_dim_, cfg.n_embd);
+            check(pre + "ffn_norm.weight", cfg.n_embd, 1, true);
+            check(pre + "ffn_gate.weight", cfg.n_embd, cfg.n_ff);
+            check(pre + "ffn_up.weight", cfg.n_embd, cfg.n_ff);
+            check(pre + "ffn_down.weight", cfg.n_ff, cfg.n_embd);
+        }
     }
 
     // Physical batch: how many tokens go through ONE forward pass of the

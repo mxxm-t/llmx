@@ -14,6 +14,44 @@ sections record follow-up results without pooling separate timing sessions.
 > below become a cache the tool manages. Until then, this file is the record of
 > what is on this machine.
 
+## Qwen model construction validation (2026-09-20)
+
+Branch `fix/qwen-model-validation` starts at JSON conversion checkpoint
+`92ac73c` in the isolated `llmx-model-validation` worktree. Configuration
+checks precede narrowing/division and required tensor checks precede model
+activation/KV/RoPE allocation. They preserve valid separate projection widths,
+tied/untied weights, supported F32/block types and singleton tensor axes.
+Declared unsupported architecture, tensor layout or RoPE scaling is rejected.
+Metadata defaults apply only to absent optional keys.
+
+Native `model-validation` uses independently sized in-memory fixtures with
+literal block sizes. It checks invalid types/ranges/default substitutions,
+duplicate consumed keys, geometry and capacity limits, every required matrix
+and norm layout, duplicate names and payload count/alignment/extents. Valid
+aliases and unused scalar/empty F32 tensors are retained. Allocation failures
+do not count as expected rejection. The 371 checks include positive/negative
+configurations and layouts, not 371 independent real models.
+
+| Validation | Windows MSVC | Linux GCC |
+|---|---:|---:|
+| Native CTests | 10/10 | 10/10 |
+| Required-HF Python suite | 11/11 | 11/11 |
+| Model validation checks | 371 passed | 371 passed |
+| Current model test under ASan/UBSan/float-cast-overflow | Not run | 371 passed |
+| Real 8B short HF rankings | 6/6 top-1; top-5 overlap 5/5 | Not run |
+| 8B printed top-10 outputs vs prior validated build | 6/6 exact | Not run |
+
+The shared required-HF suite keeps the existing tiny F32 and real 0.6B
+Q8/mixed-Q4 numerical bounds. No forward arithmetic changes or timing claims
+are made. Numerical weight contents, arbitrary token IDs and all dynamic
+request boundaries are outside these construction checks. Backend construction
+can precede them; borrowed model metadata/storage must remain unchanged.
+The new 8B check does not extend perplexity or long-context coverage. Commands,
+source identities and logs are in
+[checkpoint evidence](benchmarks/qwen-model-validation-20260920.json).
+Linux's mapped Windows worktree reports build revision `unknown`; manifests
+pin its tested source. All 25 Markdown files were reviewed at this checkpoint.
+
 ## GGUF reader validation (2026-09-20)
 
 Branch `fix/gguf-tensor-extents` starts at `5859762` in the isolated

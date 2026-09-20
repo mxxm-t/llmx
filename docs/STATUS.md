@@ -9,7 +9,8 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`fix/json-tensor-extents`, based on GGUF checkpoint `d2b5a32`, placement checkpoint `5859762` and
+`fix/qwen-model-validation`, based on JSON conversion checkpoint `92ac73c`,
+GGUF checkpoint `d2b5a32`, placement checkpoint `5859762` and
 based on validated JSON checkpoint `a61c414` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
@@ -74,6 +75,7 @@ External performance requirements still block main/GitHub publication.
 | JSON syntax and Unicode validation      | In Progress |
 | GGUF reader size and tensor extent validation | In Progress |
 | JSON quantize tensor validation | In Progress |
+| Qwen model construction validation | In Progress |
 | Device execution model (GPU prerequisite) | Planned |
 | GPU backends (ROCm first, Vulkan portability) | Planned |
 | Multi-device split                       | Planned  |
@@ -125,6 +127,39 @@ preflight screen are now exercised. Completed model timing and assessment of
 observer effects remain open.
 
 ## Active feature blocks
+
+### Qwen model construction validation
+
+- **Goal:** reject invalid Qwen configuration geometry and required tensor
+  layouts before allocating execution buffers or starting inference. This
+  addresses the model-layer gap from ARCHITECTURE's error-handling review.
+- **Done:** consumed metadata types/ranges and absent-only defaults are checked
+  before integer narrowing, division or projection products. GQA, even head
+  widths, unscaled RoPE and reference tensor layout are enforced. Construction
+  rejects duplicate names, bad storage and incompatible required matrices/norms
+  before model activation/KV/RoPE buffers. Supported quantized/F32 matrices,
+  tied/untied heads, singleton axes and unused scalar/empty F32 tensors remain
+  accepted. Isolated branch starts at `92ac73c`; execution arithmetic is unchanged.
+- **Done:** Windows/Linux native suites pass 10/10 and required-HF suites pass
+  11/11 each. The model test has 371 checks; its current-code ASan/UBSan/
+  float-cast-overflow run also passes. Counts include positive and negative
+  checks, not 371 independent real models.
+- **Done:** the pinned real 8B model passes six short HF ranking cases; each
+  top-1 agrees and top-5 overlap is 5/5. All six printed top-10 outputs are
+  exact against the prior validated build. This is not a new 8B perplexity or
+  long-context claim. Source identities remain stable; all jobs are terminal.
+  All 25 Markdown files reviewed and construction guarantees separated from
+  remaining request/numerical-content validation. Evidence:
+  [`qwen-model-validation-20260920.json`](benchmarks/qwen-model-validation-20260920.json).
+- **Left:** merge the validated Gitea feature checkpoint with the runtime stack
+  only after its independent performance gate. Main/GitHub and
+  the root executable remain unchanged by this feature.
+- **Gotchas:** no inference kernel changes or new model architecture. Numeric
+  tensor contents, token IDs, failed-session recovery and concurrent mutation
+  are separate concerns. Dynamic request limits are not fully validated here.
+  The backend may be constructed before these model checks. Defaults apply to absent optional metadata, not
+  malformed values. The sixth monitored performance attempt stopped before
+  model timing; no benchmarks compete with this correctness work.
 
 ### JSON quantize tensor validation
 
@@ -188,9 +223,10 @@ observer effects remain open.
   passes; the root executable and main/GitHub remain unchanged. No inference
   hot path changed and no new performance result is claimed. Evidence:
   [`gguf-reader-validation-20260920.json`](benchmarks/gguf-reader-validation-20260920.json).
-- **Gotchas:** model configuration, tensor names/shapes required by a model,
-  token IDs, writer validation and future request recovery remain separate
-  validation work. JSON conversion dimensions are covered by the later block
+- **Gotchas:** token IDs, numerical weight contents, writer validation and future
+  request recovery remain separate validation work. The later Qwen construction
+  block checks configuration geometry and required tensor layouts.
+  JSON conversion dimensions are covered by the later block
   above. Do not
   claim that file-extent checks make arbitrary models executable. Preserve
   nested GGUF arrays within a documented depth limit and valid non-power-of-two
@@ -198,6 +234,17 @@ observer effects remain open.
 
 ### Prefill placement reassessment with machine activity monitoring
 
+- **Method clarification after LDEV review:** the frozen runner rotates and
+  reverses the three arm orders inside each model/workload block; model and
+  workload order also rotate across one warmup and eight measured rounds.
+  Report mean/median rates and elapsed time, paired ranges, sample deviation
+  and approximate paired 95% intervals, retaining all originals. A third
+  contaminated block ends the study as inconclusive; it is not accepted.
+  Benchmark and recorder CPU are excluded by PID plus creation time. All arms
+  use the same model path/hash for a given model. Activity telemetry does not
+  measure DRAM bandwidth or prove absence of short/inaccessible activity;
+  sub-percent observer effects also remain unresolved. No clean-preflight
+  result alone establishes that a small performance difference is real.
 - **Goal:** complete the reopened whole-prefill placement assessment against
   production and matched mx, including HF/lossless and short follow-ups.
 - **Done:** preserved the historical candidate and its failed original screen;
@@ -303,8 +350,9 @@ observer effects remain open.
   storage is double, not exact arbitrary-precision integers. Lone surrogates,
   invalid UTF-8, overflow and nonzero underflow to zero are rejected by policy.
   Quoting expects valid UTF-8. The later JSON conversion block checks tensor
-  dimensions and byte extents; model execution schemas and general
-  filesystem-path handling remain separate. No inference arithmetic changes.
+  dimensions and byte extents; the Qwen block validates construction geometry
+  and tensor layouts. Token/request checks and general filesystem-path handling
+  remain separate. No inference arithmetic changes.
   Suite timings are diagnostic; existing HF/mx merge requirements stay open.
 
 ### Native CPU decode sampling (diagnostic complete)
@@ -934,8 +982,9 @@ No mx benchmark or new independent HF gate was run by this scratch probe.
   or resumable-session recovery. Byte chunks can split UTF-8 characters. Loading
   counts tensor payload bytes, not metadata/padding or model preparation; final
   completion follows every read/seek. The later GGUF validation checkpoint
-  checks file extents before progress starts; model execution schemas remain
-  separate work. Legacy filtering buffers text when future markers can
+  checks file extents before progress starts, and the Qwen checkpoint validates
+  construction geometry/layouts. Token/request checks remain separate work.
+  Legacy filtering buffers text when future markers can
   retroactively discard it; no server framework is added.
 
 | Qwen3-0.6B Q8_0, 64 greedy tokens, median of 3 pairs | Before 8226e17 | Streaming |
@@ -1015,8 +1064,8 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
   eight of nine rounds despite overlapping ranges; do not dismiss that as noise.
 - **Gotchas:** dispatch recovery does not roll back partially written outputs
   or establish Model/session recovery. No concurrent submissions are supported.
-  The later GGUF checkpoint addresses file-size/extent checks; model config and
-  required-tensor validation remain gaps from the same review. Control is
+  Later GGUF and Qwen checkpoints address file extents, configuration geometry
+  and required tensor layouts; token/request checks remain open. Control is
   `3a82284`; no merge. Gitea holds
   the feature checkpoint, while the public/default branch remains unchanged.
 
@@ -1445,7 +1494,8 @@ feature ships, delete its block and mark the row `Done` above.
   - The CLI thread-settings block records the validated auto/prefill/decode
     corrections found during the documentation review.
   - JSON syntax/Unicode and conversion tensor dimensions/extents are implemented
-    in their active blocks above; model execution schema checks remain separate. See
+    in their active blocks above. Qwen construction now validates configuration
+    geometry and required tensor layouts; token/request checks remain separate. See
     docs/src/core-json.md.
   - Qwen3 does NOT use the GPT-2 pretokenizer regex. Read the Split pattern out
     of `tokenizer.json` before touching `pretokenize`.

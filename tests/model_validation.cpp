@@ -1,0 +1,314 @@
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <functional>
+#include <iostream>
+#include <limits>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include "model/arch_qwen.hpp"
+
+namespace {
+size_t checks = 0;
+
+void require(bool condition, const std::string& label) {
+    if (!condition) throw std::runtime_error(label);
+}
+
+template<class F> void rejects(const std::string& label, F work) {
+    try { work(); }
+    catch (const std::runtime_error&) { ++checks; return; }
+    throw std::runtime_error("accepted invalid model: " + label);
+}
+
+gguf::MetaValue integer(uint64_t n, uint32_t type = gguf::V_UINT32) {
+    gguf::MetaValue v;
+    v.vtype = type; v.u = n; v.i = int64_t(n);
+    return v;
+}
+
+gguf::MetaValue real(double n, uint32_t type = gguf::V_FLOAT64) {
+    gguf::MetaValue v;
+    v.vtype = type; v.f64 = n;
+    if (type == gguf::V_FLOAT32) {
+        const float f = float(n);
+        std::memcpy(&v.fb, &f, sizeof(f));
+    }
+    return v;
+}
+
+gguf::MetaValue text(const std::string& s) {
+    gguf::MetaValue v;
+    v.vtype = gguf::V_STRING; v.s = s;
+    return v;
+}
+
+void set(gguf::GGUFModel& m, const std::string& key, const gguf::MetaValue& value) {
+    for (auto& kv : m.kv) if (kv.first == key) { kv.second = value; return; }
+    m.kv.push_back({key, value});
+}
+
+void erase_key(gguf::GGUFModel& m, const std::string& key) {
+    m.kv.erase(std::remove_if(m.kv.begin(), m.kv.end(),
+        [&](const auto& kv) { return kv.first == key; }), m.kv.end());
+}
+
+void add(gguf::GGUFModel& m, const std::string& name,
+         std::vector<uint64_t> shape, uint32_t type, bool norm = false) {
+    size_t n = 1;
+    for (uint64_t d : shape) n *= size_t(d);
+    size_t bytes = 0;
+    switch (type) {
+        case 0: bytes = n * 4; break;
+        case 2: bytes = n / 32 * 18; break;
+        case 3: bytes = n / 32 * 20; break;
+        case 8: bytes = n / 32 * 34; break;
+        case 12: bytes = n / 256 * 144; break;
+        case 13: bytes = n / 256 * 176; break;
+        case 14: bytes = n / 256 * 210; break;
+        default: throw std::runtime_error("invalid fixture type");
+    }
+    const size_t offset = (m.blob.size() + 3) / 4 * 4;
+    m.blob.resize(offset + bytes, 0);
+    if (norm) {
+        const float one = 1.0f;
+        for (size_t i = 0; i < n; ++i)
+            std::memcpy(m.blob.data() + offset + i * 4, &one, 4);
+    }
+    m.tensors.push_back({name, std::move(shape), type, 0});
+    m.offsets.push_back(offset);
+}
+
+gguf::GGUFModel fixture(bool tied = false, uint32_t type = 0, bool odd = false,
+                        bool grouped = true) {
+    gguf::GGUFModel m;
+    const uint64_t emb = type ? 256 : (odd ? 7 : 8);
+    const uint64_t ff = type ? 256 : 12;
+    const uint64_t hd = type ? 128 : 4;
+    for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{
+            {"block_count", 1}, {"embedding_length", emb}, {"feed_forward_length", ff},
+            {"attention.head_count", 2}, {"attention.head_count_kv", grouped ? 1u : 2u},
+            {"attention.key_length", hd}, {"context_length", 8}})
+        m.kv.push_back({"qwen3." + kv.first, integer(kv.second)});
+    add(m, "token_embd.weight", {emb, 5}, type);
+    add(m, "output_norm.weight", {emb}, 0, true);
+    for (const char* name : {"attn_norm", "ffn_norm"})
+        add(m, std::string("blk.0.") + name + ".weight", {emb}, 0, true);
+    for (const char* name : {"attn_q_norm", "attn_k_norm"})
+        add(m, std::string("blk.0.") + name + ".weight", {hd}, 0, true);
+    add(m, "blk.0.attn_q.weight", {emb, 2 * hd}, type);
+    add(m, "blk.0.attn_k.weight", {emb, hd * (grouped ? 1 : 2)}, type);
+    add(m, "blk.0.attn_v.weight", {emb, hd * (grouped ? 1 : 2)}, type);
+    add(m, "blk.0.attn_output.weight", {2 * hd, emb}, type);
+    add(m, "blk.0.ffn_gate.weight", {emb, ff}, type);
+    add(m, "blk.0.ffn_up.weight", {emb, ff}, type);
+    add(m, "blk.0.ffn_down.weight", {ff, emb}, type);
+    if (!tied) add(m, "output.weight", {emb, 5}, type);
+    return m;
+}
+
+void construct(const gguf::GGUFModel& m, bool step = false) {
+    auto cpu = backend::make_cpu_backend();
+    cpu->set_threads(1);
+    infer::Model model(m, std::move(cpu));
+    if (step) {
+        const auto logits = model.step(0);
+        require(logits.size() == 5, "valid fixture vocabulary changed");
+        for (float v : logits) require(v == 0.0f, "zero-weight fixture produced nonzero logits");
+    }
+}
+
+void metadata_checks() {
+    const auto base = fixture();
+    const std::vector<std::string> required = {"block_count", "embedding_length",
+        "feed_forward_length", "attention.head_count"};
+    const std::vector<std::string> optional = {"attention.head_count_kv", "attention.key_length",
+        "context_length", "attention.value_length", "rope.dimension_count"};
+    for (const auto& key : required) {
+        auto m = base; erase_key(m, "qwen3." + key);
+        rejects("missing " + key, [&] { infer::load_config(m); });
+    }
+    auto keys = required;
+    keys.insert(keys.end(), optional.begin(), optional.end());
+    auto negative = integer(0, gguf::V_INT64); negative.i = -1;
+    auto negative32 = integer(0, gguf::V_INT32); negative32.i = -1;
+    for (const auto& key : keys) {
+        for (const auto& value : std::vector<gguf::MetaValue>{integer(0), negative, negative32,
+                integer(uint64_t(std::numeric_limits<int>::max()) + 1, gguf::V_UINT64),
+                text("2"), real(2), integer(2, gguf::V_BOOL), integer(2, gguf::V_ARRAY),
+                integer(2, gguf::V_UINT8), integer(2, gguf::V_INT8),
+                integer(2, gguf::V_UINT16), integer(2, gguf::V_INT16)}) {
+            auto m = base; set(m, "qwen3." + key, value);
+            rejects("invalid integer " + key, [&] { infer::load_config(m); });
+        }
+        auto m = base;
+        set(m, "qwen3." + key, integer(key == "attention.value_length" || key == "rope.dimension_count" ? 4 : 2));
+        m.kv.push_back({"qwen3." + key, integer(2)});
+        rejects("duplicate " + key, [&] { infer::load_config(m); });
+    }
+    for (uint32_t type : {gguf::V_UINT32, gguf::V_INT32, gguf::V_UINT64, gguf::V_INT64}) {
+        auto m = base;
+        for (auto& kv : m.kv) kv.second = integer(kv.second.u, type);
+        construct(m); ++checks;
+    }
+    for (const char* key : {"qwen3.rope.freq_base", "qwen3.attention.layer_norm_rms_epsilon"}) {
+        for (const auto& value : std::vector<gguf::MetaValue>{real(0), real(-1),
+                real(std::numeric_limits<double>::infinity()), real(std::numeric_limits<double>::quiet_NaN()),
+                real(std::numeric_limits<double>::max()), real(std::numeric_limits<double>::denorm_min()),
+                real(std::numeric_limits<float>::infinity(), gguf::V_FLOAT32),
+                real(std::numeric_limits<float>::quiet_NaN(), gguf::V_FLOAT32), text("1"), integer(1)}) {
+            auto m = base; set(m, key, value);
+            rejects(std::string("invalid float ") + key, [&] { infer::load_config(m); });
+        }
+        auto m = base; set(m, key, real(1)); m.kv.push_back({key, real(1)});
+        rejects(std::string("duplicate ") + key, [&] { infer::load_config(m); });
+        for (uint32_t type : {gguf::V_FLOAT32, gguf::V_FLOAT64}) {
+            m = base; set(m, key, real(0.5, type));
+            infer::load_config(m); ++checks;
+        }
+    }
+    for (const auto& item : std::vector<std::pair<std::string, std::string>>{
+            {"general.architecture", "qwen3"}, {"qwen3.rope.scaling.type", "none"},
+            {"qwen3.tensor_data_layout", "reference"}}) {
+        auto m = base; set(m, item.first, text(item.second)); construct(m); ++checks;
+        m.kv.push_back({item.first, text(item.second)});
+        rejects("duplicate " + item.first, [&] { infer::load_config(m); });
+        for (const auto& value : {text("unsupported"), text(""), integer(1)}) {
+            m = base; set(m, item.first, value);
+            rejects("invalid " + item.first, [&] { infer::load_config(m); });
+        }
+    }
+    for (const char* key : {"qwen3.rope.scaling.factor", "qwen3.rope.scale_linear"}) {
+        for (const auto& value : std::vector<gguf::MetaValue>{real(0), real(0.5), real(2), real(1 + 1e-10),
+                real(std::numeric_limits<double>::infinity()), real(std::numeric_limits<double>::quiet_NaN()),
+                integer(1), text("1")}) {
+            auto m = base; set(m, key, value);
+            rejects(std::string("invalid ") + key, [&] { infer::load_config(m); });
+        }
+        for (uint32_t type : {gguf::V_FLOAT32, gguf::V_FLOAT64}) {
+            auto m = base; set(m, key, real(1, type)); construct(m); ++checks;
+        }
+        auto m = base; set(m, key, real(1)); m.kv.push_back({key, real(1)});
+        rejects(std::string("duplicate ") + key, [&] { infer::load_config(m); });
+    }
+    auto m = fixture(false, 0, false, false);
+    for (const char* key : {"attention.head_count_kv", "attention.key_length", "context_length"})
+        erase_key(m, std::string("qwen3.") + key);
+    auto config = infer::load_config(m);
+    require(config.n_head_kv == 2 && config.head_dim == 4 && config.context_length == 4096 &&
+            config.rope_theta == 10000.0f && config.rms_eps == 1e-6f, "incorrect absent defaults");
+    construct(m, true);
+    ++checks;
+    set(m, "qwen3.embedding_length", integer(7));
+    rejects("indivisible default head width", [&] { infer::load_config(m); });
+    m = base;
+    set(m, "qwen3.attention.value_length", integer(4));
+    set(m, "qwen3.rope.dimension_count", integer(4));
+    construct(m); ++checks;
+    for (const auto& item : std::vector<std::pair<std::string, uint64_t>>{
+            {"attention.head_count_kv", 3}, {"attention.head_count", 3},
+            {"attention.key_length", 3}, {"attention.value_length", 2}, {"rope.dimension_count", 2},
+            {"attention.key_length", uint64_t(std::numeric_limits<int>::max()) - 1}}) {
+        m = base;
+        if (item.first == "attention.head_count") set(m, "qwen3.attention.head_count_kv", integer(2));
+        set(m, "qwen3." + item.first, integer(item.second));
+        rejects("incompatible geometry " + item.first, [&] { infer::load_config(m); });
+    }
+    m = base;
+    const uint64_t limit = uint64_t(std::numeric_limits<int>::max());
+    set(m, "qwen3.attention.head_count", integer(1));
+    set(m, "qwen3.attention.key_length", integer(limit - 1));
+    set(m, "qwen3.context_length", integer(limit));
+    if (limit * (limit - 1) > std::vector<float>().max_size())
+        rejects("KV float capacity", [&] { infer::load_config(m); });
+    else { infer::load_config(m); ++checks; }
+}
+
+void tensor_checks() {
+    const auto base = fixture();
+    construct(base, true); ++checks;
+    construct(fixture(true), true); ++checks;
+    construct(fixture(false, 0, true), true); ++checks;
+    rejects("null backend", [&] { infer::Model model(base, backend::BackendPtr{}); });
+    for (size_t i = 0; i < base.tensors.size(); ++i) {
+        const auto name = base.tensors[i].name;
+        if (name != "output.weight") {
+            auto m = base;
+            m.tensors.erase(m.tensors.begin() + i); m.offsets.erase(m.offsets.begin() + i);
+            rejects("missing " + name, [&] { construct(m); });
+        }
+        for (unsigned kind = 0; kind < 5; ++kind) {
+            auto m = base;
+            auto& shape = m.tensors[i].ne;
+            if (kind == 0) --shape[0];
+            if (kind == 1) shape.clear();
+            if (kind == 2) shape.resize(5, 1);
+            if (kind == 3) shape.push_back(2);
+            if (kind == 4) shape[0] = 0;
+            rejects("shape " + name, [&] { construct(m); });
+        }
+        if (base.tensors[i].ne.size() == 2) {
+            auto m = base; m.tensors[i].ne.pop_back();
+            rejects("matrix rank one " + name, [&] { construct(m); });
+            m = base; --m.tensors[i].ne[1];
+            rejects("matrix output width " + name, [&] { construct(m); });
+        }
+        for (size_t rank = base.tensors[i].ne.size() + 1; rank <= 4; ++rank) {
+            auto m = base; m.tensors[i].ne.resize(rank, 1);
+            construct(m); ++checks;
+        }
+    }
+    for (uint32_t type : {2u, 3u, 8u, 12u, 13u, 14u}) {
+        auto m = fixture(false, type); construct(m); ++checks;
+        m.tensors[1].type = type;
+        rejects("quantized norm", [&] { construct(m); });
+        m = fixture(false, type); --m.tensors[0].ne[0];
+        rejects("partial quantized row", [&] { construct(m); });
+    }
+    auto m = base; m.tensors.push_back(m.tensors[0]); m.offsets.push_back(m.offsets[0]);
+    rejects("duplicate tensor", [&] { construct(m); });
+    m = base; m.offsets.pop_back();
+    rejects("missing offset", [&] { construct(m); });
+    m = base; m.offsets.push_back(0);
+    rejects("extra offset", [&] { construct(m); });
+    for (size_t offset : {size_t(1), base.blob.size(), std::numeric_limits<size_t>::max()}) {
+        m = base; m.offsets[0] = offset;
+        rejects("invalid storage offset", [&] { construct(m); });
+    }
+    m = base; m.blob.pop_back();
+    rejects("truncated blob", [&] { construct(m); });
+    m = base; set(m, "qwen3.block_count", integer(2));
+    rejects("missing second layer", [&] { construct(m); });
+    m = base; m.tensors[0].type = 1;
+    rejects("unsupported tensor type", [&] { construct(m); });
+    m = base; m.tensors[0].ne[1] = uint64_t(std::numeric_limits<int>::max()) + 1;
+    rejects("oversized vocabulary", [&] { construct(m); });
+    m = base; m.tensors[0].ne[1] = 0;
+    rejects("zero vocabulary", [&] { construct(m); });
+    m = base; m.tensors[0].ne = {std::numeric_limits<uint64_t>::max(), 2};
+    rejects("overflowing tensor extent", [&] { construct(m); });
+    m = base; m.tensors.push_back({"unused", {8}, 1, 0}); m.offsets.push_back(0);
+    rejects("unsupported unused tensor", [&] { construct(m); });
+    m = base; m.tensors.push_back({"unused", {8}, 0, 0}); m.offsets.push_back(m.offsets[1]);
+    construct(m); ++checks;
+    m = base; m.tensors.push_back({"unused.scalar", {}, 0, 0}); m.offsets.push_back(0);
+    construct(m); ++checks;
+    m = base; m.tensors.push_back({"unused.empty", {0}, 0, 0}); m.offsets.push_back(m.blob.size());
+    construct(m); ++checks;
+    m = base; std::swap(m.offsets[1], m.offsets[2]);
+    construct(m); ++checks;
+}
+}
+
+int main() {
+    try {
+        metadata_checks();
+        tensor_checks();
+        std::cout << "model-validation: " << checks << " checks passed\n";
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "model-validation: " << e.what() << '\n';
+        return 1;
+    }
+}

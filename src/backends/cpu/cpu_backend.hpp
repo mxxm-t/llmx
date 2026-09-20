@@ -164,12 +164,24 @@ public:
                                                                  : gguf::Q6_K_TYPESIZE;
             const size_t nb = nin / blk;
             const size_t rowbytes = nb * tsz;
+            // A fused dot accumulates sum(q*x) and applies the block scale
+            // afterwards. That is what makes it fast and what makes it
+            // overflow: q is bounded (31 for Q5_K, 63 for Q6_K) but x is not,
+            // so a large activation can drive the inner sum to infinity
+            // before a small or zero scale would have kept it finite. Then
+            // d*Inf is Inf, and with d zero, 0*Inf is NaN. Dequantizing first
+            // multiplies the scale into each weight and stays finite.
+            // Detection is complete rather than heuristic: once any partial
+            // overflows, the row result is Inf or NaN and never a plausible
+            // finite number, so a finite fused result needs no fallback.
             const auto dot = [&](const uint8_t* r) {
+                float v;
                 switch (ggml_type) {
-                    case gguf::GGML_TYPE_Q4_K: return dot_row_q4_K(r, X, nb);
-                    case gguf::GGML_TYPE_Q5_K: return dot_row_q5_K(r, X, nb);
-                    default:                   return dot_row_q6_K(r, X, nb);
+                    case gguf::GGML_TYPE_Q4_K: v = dot_row_q4_K(r, X, nb); break;
+                    case gguf::GGML_TYPE_Q5_K: v = dot_row_q5_K(r, X, nb); break;
+                    default:                   v = dot_row_q6_K(r, X, nb); break;
                 }
+                return std::isfinite(v) ? v : dot_row_dequant(ggml_type, r, X, nin, nb);
             };
             const int nt = threads_;
             if (nt <= 1 || nout < (size_t)nt * 8) {
@@ -957,6 +969,24 @@ private:
             }
         }
         return acc;
+    }
+
+    // Exact-ish fallback for a row whose fused dot overflowed: dequantize
+    // first so the block scale is multiplied into each weight before it meets
+    // the activation, which is what keeps intermediates finite. Accumulates
+    // in double so the fallback itself cannot overflow where the reference
+    // would not. Rare by construction, so a local buffer is cheaper than
+    // reserving per-worker scratch that is almost never touched.
+    float dot_row_dequant(uint32_t type, const uint8_t* row, const float* x,
+                          size_t nin, size_t nb) {
+        const quant::QuantType* qt = quant::Registry::instance().get(type);
+        if (!qt || !qt->dequantize)
+            throw std::runtime_error("backend: no dequantizer for fallback dot");
+        std::vector<float> buf(nin);
+        qt->dequantize(row, buf.data(), nb);
+        double s = 0.0;
+        for (size_t i = 0; i < nin; i++) s += (double)buf[i] * (double)x[i];
+        return (float)s;
     }
 
     float dot_row_q4_K(const uint8_t* row, const float* x, size_t nblocks) {

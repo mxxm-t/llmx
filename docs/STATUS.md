@@ -1778,10 +1778,14 @@ feature ships, delete its block and mark the row `Done` above.
 
   | Phase | base mean | cand mean | Mean | Median | Baseline wins |
   |---|---:|---:|---:|---:|---:|
-  | Decode | 8.96 | 13.33 | +51.37% | +51.12% | 0/15 |
+  | Decode | 8.424 | 12.751 | +51.369% | +51.12% | 0/15 |
   | Prefill | - | - | -0.93% | -0.64% | 10/15 |
 
   Evidence: `benchmarks/fused-q5k-decode-20260920.json`.
+  **Corrected 2026-09-20 by XDEV's recomputation of all 15 pairs**: the arm
+  means were 8.424 and 12.751333 tok/s, not 8.96 and 13.33. The paired
+  +51.369% is unchanged, and Q6_K recomputes to +68.0186%. The original
+  figures were read from a single round rather than the arm means.
 - **Done:** the matched external floor, which the above does NOT establish.
   `tools/compare_cpu.py`, mx `5542318e74`, six threads, eight matched rounds,
   identical committed HF token IDs in both arms:

@@ -1,0 +1,109 @@
+// A fused K-quant dot accumulates sum(q*x) and applies the block scale
+// afterwards. q is bounded but x is not, so a large activation can drive the
+// inner sum past FLT_MAX before a small or zero scale would have kept the
+// product finite: d*Inf is Inf, and 0*Inf is NaN. Dequantizing first
+// multiplies the scale into each weight and stays finite.
+//
+// These cases come from the release audit that caught the regression. Every
+// decoded weight is q=31 with unit group scales, so the exact answer is known
+// in closed form and no oracle library is needed.
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#include "backends/cpu/cpu_backend.hpp"
+
+namespace {
+
+void require(bool ok, const std::string& what) {
+    if (!ok) throw std::runtime_error(what);
+}
+
+void put16(std::vector<uint8_t>& v, size_t at, uint16_t x) {
+    v[at] = (uint8_t)(x & 0xFF);
+    v[at + 1] = (uint8_t)(x >> 8);
+}
+
+// One 256-value super-block whose every decoded weight is 31, with the given
+// half-precision super-block scale.
+std::vector<uint8_t> block_q5_K(uint16_t half) {
+    std::vector<uint8_t> b(gguf::Q5_K_TYPESIZE, 0);
+    put16(b, 0, half);          // d
+    put16(b, 2, 0);             // dmin: no min contribution
+    for (int i = 0; i < 12; i++) b[4 + i] = 0;
+    for (int g = 0; g < 8; g++) {   // 6-bit scale 1, min 0, for all 8 groups
+        if (g < 4) b[4 + g] = 1; else { b[4 + 8 + (g - 4)] = 1; }
+    }
+    for (int i = 0; i < 32; i++) b[16 + i] = 0xFF;   // every high bit set: +16
+    for (int i = 0; i < 128; i++) b[48 + i] = 0xFF;  // every nibble 15
+    return b;                                        // 15 + 16 = 31
+}
+
+std::vector<uint8_t> block_q6_K(uint16_t half) {
+    std::vector<uint8_t> b(gguf::Q6_K_TYPESIZE, 0);
+    for (int i = 0; i < 128; i++) b[i] = 0xFF;       // low nibbles 15
+    for (int i = 0; i < 64; i++) b[128 + i] = 0xFF;  // high 2-bit pairs = 3
+    for (int i = 0; i < 16; i++) b[192 + i] = 1;     // group scales 1
+    put16(b, 208, half);                             // d
+    return b;                                        // (15|3<<4) - 32 = 31
+}
+
+struct Case { const char* name; uint16_t half; float x; bool huge; };
+
+int run_type(uint32_t type, const char* tname) {
+    const size_t nin = 256;
+    backend::CpuBackend cpu;
+    cpu.set_threads(1);
+
+    const Case cases[] = {
+        {"tiny scale, huge input", 0x0001, 0.0f, true},
+        {"zero scale, huge input", 0x0000, 0.0f, true},
+        {"ordinary scale/input",   0x3555, 0.0f, false},
+        {"tiny scale, ordinary",   0x0001, 0.0f, false},
+    };
+    int checked = 0;
+    for (const auto& c : cases) {
+        std::vector<uint8_t> w = type == gguf::GGML_TYPE_Q5_K ? block_q5_K(c.half)
+                                                              : block_q6_K(c.half);
+        std::vector<float> x(nin), y(1, 0.0f);
+        for (size_t i = 0; i < nin; i++)
+            x[i] = c.huge ? std::ldexp(1.0f, 123)
+                          : (float)((int)(i * 17 % 37) - 18) / 37.0f;
+
+        // Every weight decodes to 31, so the exact dot is 31*d*sum(x).
+        const float d = f16_to_f32(c.half);
+        long double exact = 0.0L;
+        for (size_t i = 0; i < nin; i++) exact += (long double)31.0L * d * x[i];
+
+        cpu.matmul(type, w.data(), x.data(), y.data(), nin, 1, 1);
+
+        require(std::isfinite(y[0]),
+                std::string(tname) + " / " + c.name + ": produced a nonfinite result");
+        const long double err = std::fabs((long double)y[0] - exact);
+        const long double tol = std::fabs(exact) * 1e-5L + 1e-30L;
+        require(err <= tol, std::string(tname) + " / " + c.name +
+                            ": " + std::to_string((double)y[0]) +
+                            " differs from " + std::to_string((double)exact));
+        checked++;
+    }
+    return checked;
+}
+
+}  // namespace
+
+int main() {
+    try {
+        quant::register_builtins();
+        int n = run_type(gguf::GGML_TYPE_Q5_K, "Q5_K");
+        n += run_type(gguf::GGML_TYPE_Q6_K, "Q6_K");
+        printf("fused dot overflow: %d cases finite and exact\n", n);
+        return 0;
+    } catch (const std::exception& e) {
+        printf("FAIL: %s\n", e.what());
+        return 1;
+    }
+}

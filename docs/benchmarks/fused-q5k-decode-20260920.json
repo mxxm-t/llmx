@@ -364,5 +364,19 @@
   },
   "advance": "pass",
   "decision": "Adopt. Decode +51.37% mean (8.96 -> 13.33 tok/s) with 0/15 baseline wins. Prefill is unchanged code and its -0.93% is noise.",
-  "limits": "One model, quant, prompt and thread count. Prefill takes the batched path, which dequantizes each row once and reuses it across the batch, so the fused dot cannot help there and does not: the fused dot only fires at nbatch == 1. That makes prefill an accidental control here - identical code measured -0.93% mean and -0.64% median, which puts this setup's noise floor near 1% and is worth remembering when reading small effects. Does not establish the external mx floor."
+  "limits": "One model, quant, prompt and thread count. Prefill takes the batched path, which dequantizes each row once and reuses it across the batch, so the fused dot cannot help there and does not: the fused dot only fires at nbatch == 1. That makes prefill an accidental control here - identical code measured -0.93% mean and -0.64% median, which puts this setup's noise floor near 1% and is worth remembering when reading small effects. Does not establish the external mx floor.",
+  "correction": {
+    "date": "2026-09-20",
+    "by": "XDEV recomputation of all 15 pairs",
+    "was": {
+      "base_mean_tok_s": 8.96,
+      "cand_mean_tok_s": 13.33
+    },
+    "is": {
+      "base_mean_tok_s": 8.424,
+      "cand_mean_tok_s": 12.751333
+    },
+    "unchanged": "paired +51.369%; Q6_K recomputes to +68.0186%",
+    "cause": "the original pair of absolute figures was taken from one round rather than from the arm means; the paired statistic was correct."
+  }
 }

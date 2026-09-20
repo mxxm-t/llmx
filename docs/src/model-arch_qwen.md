@@ -21,6 +21,14 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   existing synthetic models. RoPE scaling is unsupported: type must be absent
   or `none`, and current/legacy factors absent or exactly one. These keys use
   the [GGUF metadata vocabulary](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
+- `Weight` / `LayerWeights`: a tensor resolved once at load - type, storage
+  pointer and the two dimensions - and the eleven per-layer weights grouped
+  together. `Weight::f32()` is the whole row for a normalization weight, which
+  validation guarantees is F32. The forward pass indexes `layers_[l]` instead
+  of rebuilding `"blk.N."` and hashing a tensor name for every projection of
+  every layer of every token. Measured neutral on CPU decode; it exists because
+  a device backend must recognize the same weight across calls to keep it
+  resident. See `docs/DEVICE-EXECUTION.md` step 1.
 - `Model`: loads tensors from a `GGUFModel`, owns one sequence's logical token
   count and a `HostKVCache` for physical CPU storage.
   - `set_threads(n)`, `threads_available()`, `n_tokens()`, `head_dim()`,
@@ -51,15 +59,19 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
     operations finish before dependent matrix operations or KV writes begin.
     Batches with fewer than two rows per worker stay on the calling thread
     to avoid dispatch overhead; a single-thread backend also stays serial.
-  - `matvec` / `dequant_row`: per-tensor matmul helpers that dispatch on the
-    tensor's type via `quant::Registry`. Q8_0 uses the backend's fused AVX2
+  - `matvec` / `matmul` / `dequant_row`: helpers taking a resolved `Weight`,
+    which carries the type and dimensions, so they dispatch through
+    `quant::Registry` without a name lookup. Q8_0 uses the backend's fused AVX2
     matvec; Q4_K has a fused decode dot; other supported quants use a
     generic dequant-row-to-f32 + dot path.
   - The constructor calls `quant::register_builtins()` (idempotent) so the
     quant registry is populated before any tensor is processed.
   - Before model activation/KV/RoPE allocation, construction checks tensor-name
     uniqueness, offset count/alignment/ranges, supported storage types and all
-    required layouts. Norms are F32 vectors. Matrices have the expected input
+    required layouts. `resolve_tensors` performs this validation and returns
+    the `Weight` for each tensor from the same check, so a resolved handle is
+    well-formed by construction and no other path produces one.
+    Norms are F32 vectors. Matrices have the expected input
     and output dimensions, with equal embedding/output vocabulary sizes.
     Trailing singleton dimensions up to rank four are accepted. Valid payload
     aliases and unused scalar/empty F32 tensors remain supported. The backend

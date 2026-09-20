@@ -179,6 +179,26 @@ The `_rows` suffixes matter more than they look. `rope_rows` replaces
 the SwiGLU loop that currently reads `gate` and `up` and writes `ffn` as three
 separate streams. `embed` replaces the per-token host-side `dequant_row`.
 
+Three things learned from writing this step against the CPU backend:
+
+- **Fuse the per-head norm with RoPE.** The model never applies one without the
+  other, and always per head, so a single `norm_rope_rows` is the honest shape:
+  the head stays hot between the two passes, and a device gets one launch per
+  layer rather than `rows * heads`. Separate `rms_norm_rows` and `rope_rows`
+  ops, as first sketched above, would be orthogonal but would not match any
+  caller.
+- **Dispatch thresholds are backend-private and must not leak into the spec.**
+  The CPU backend declines to spread fewer than two rows per worker, and keeps
+  elementwise spans under ~32K elements on the calling thread, because waking
+  its pool costs more than the work. Those numbers are properties of a host
+  thread pool. A GPU backend wants every row in one launch at any count and
+  must not inherit them. Keeping the rule inside the backend - rather than in
+  the model, where it lived as `for_rows` - is what makes that possible.
+- **Only prefill can benefit on CPU.** Decode runs `B == 1`, so there is no row
+  dimension to batch and nothing for these ops to amortize; the per-head loop
+  is the same work either way. Expect prefill movement and decode noise, and
+  treat a decode "gain" here as a measurement artifact until proven otherwise.
+
 Once these exist, `Model` has no elementwise loops left, so it no longer needs
 `for_rows`, so `parallel_for` and the compute use of `threads_available` come
 off the interface and become private details of `CpuBackend`. The CLI's
@@ -230,6 +250,14 @@ must be A/B'd against the previous binary interleaved, never sequentially: on a
 loaded workstation, sequential sampling drifts enough to invent a 7% change in
 either direction. The CPU backend is the floor for every GPU claim, so a step
 that costs throughput is not acceptable even though the destination is a device.
+
+Interleaving alone is not enough to clear this project's bar. A step's timing
+also needs what the placement study already does: `tools/monitor_windows.py`
+telemetry in every arm, contamination criteria and an advance rule frozen
+*before* measuring, the matched mx-llama.cpp column, and all slow samples
+retained rather than dropped. Per-sample pairs must be reported, not just
+means - a mean hides the case where two contaminated rounds carry the whole
+effect, which is exactly how step 2's first decode number went wrong.
 
 A vendor backend (#4b) is only writable after step 6.
 

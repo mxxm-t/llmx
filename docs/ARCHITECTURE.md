@@ -20,8 +20,8 @@ model/         Qwen3 Model + KV cache; architecture registry planned,
                Qwen3 forward graph (arch_qwen)
    |
    v
-backends/      Backend interface (type-generic matmul / attention / RMSNorm / RoPE /
-               parallel_for), cpu/ impl
+backends/      Backend interface (type-generic matmul / attention / RMSNorm /
+               RoPE / batched elementwise ops), cpu/ impl
    |
    v
 tokenizer/     byte-level BPE, Qwen2/Qwen3 pretokenizer (encode / decode)

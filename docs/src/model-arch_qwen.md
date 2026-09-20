@@ -54,11 +54,12 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   - Q/K/V and FFN gate/up share activations and use `matmul_group` in both
     forward paths. CPU groups eligible decode projections; batched prefill
     retains sequential matrix calls through the backend fallback.
-  - Batched norms, per-head norm/RoPE, and SiLU use the backend worker pool
-    across independent token rows. Each row keeps the same arithmetic; the
-    operations finish before dependent matrix operations or KV writes begin.
-    Batches with fewer than two rows per worker stay on the calling thread
-    to avoid dispatch overhead; a single-thread backend also stays serial.
+  - Batched norms, per-head norm/RoPE, SiLU and the residual adds are backend
+    ops (`rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`), so the model
+    holds no elementwise loops and needs no host parallelism of its own. Each
+    row keeps the same arithmetic, and the operations finish before dependent
+    matrix operations or KV writes begin. Whether to spread a stage across
+    workers is the backend's decision, not the model's.
   - `matvec` / `matmul` / `dequant_row`: helpers taking a resolved `Weight`,
     which carries the type and dimensions, so they dispatch through
     `quant::Registry` without a name lookup. Q8_0 uses the backend's fused AVX2

@@ -48,6 +48,15 @@ the compiled binary portable to older CPUs.
   Float activations and per-lane accumulation order are unchanged. Software
   half conversion and scalar dot fallbacks remain available.
 - `rms_norm`, `rope`: AVX2 vectorized with scalar tails for non-multiples of 8.
+- `rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`: the batched forms the
+  model calls. Two private helpers decide dispatch. `spread` keeps a stage on
+  the calling thread below two rows per worker; `chunk` keeps elementwise spans
+  under 32K elements there. Both thresholds are properties of a host thread
+  pool - waking it costs more than the work - and a device backend must not
+  inherit them. `silu_mul` keeps `std::exp` per element: a vectorized
+  approximation would shift logits and needs its own correctness gate.
+- `parallel_for` stays public here but is deliberately off the `Backend`
+  interface; the batched ops above are how the model gets parallelism.
 - `attention`: causal GQA over the host KV cache. Heads use the persistent
   worker pool and separate score rows, reused across queries. The backend
   reads contiguous per-head histories with an explicit head stride in floats;

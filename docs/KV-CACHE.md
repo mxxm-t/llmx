@@ -242,6 +242,11 @@ Memory at the end of a run, from `generate --verbose`:
 | 0.6B, 873 tokens | 224 / 336 / 191 MiB | same | same |
 | 8B, 873 tokens | 288 / 432 / 246 MiB | same | same |
 
+This is an internal comparison of paged against the contiguous cache it
+replaces. It says nothing about the external mx-llama.cpp floor, which
+remains the separate matched gate in ROADMAP #8 and has to be re-run on the
+paged runtime before any claim against it.
+
 Decision: **128**. 64 fails prefill in five of eight plans and never wins.
 128 and 256 are not separable on decode; 256 fails prefill on both
 50-token plans and backs twice the memory for a short sequence, which is the

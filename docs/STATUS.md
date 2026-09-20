@@ -30,10 +30,9 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Done (screening):** 64/128/256 against contiguous main on 0.6B and 8B
   Q8_0, eight frozen plans, all samples kept, tables in
   [KV-CACHE](KV-CACHE.md). Block fixed at 128; the knob is deleted.
-- **Left:** build and validate the staged review repairs (non-movable pool,
-  scratch readiness, checked bounds, failure tests) after XDEV's window;
-  XDEV re-review; then main integration. Fork/COW and device buffers are
-  later steps. F16 KV is out of scope.
+- **Left:** XDEV re-review of `10995be`; the matched mx-llama.cpp
+  comparison on the paged runtime; then main integration. Fork/COW and
+  device buffers are later steps. F16 KV is out of scope.
 - **Gotchas:** the microbenchmark is isolated attention with a cold cache and
   is not an end-to-end decode cost. Memory waste cuts against large blocks:
   224 KiB per token on 0.6B means a partial 256-token tail wastes up to

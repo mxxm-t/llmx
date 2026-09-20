@@ -1,0 +1,198 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long",
+ "note": "16 logical CPUs; one busy thread is 6.25%; the six-thread benchmark itself is about 37.5%",
+ "runs": {
+  "monitor-r0-base.jsonl": {
+   "samples": 42,
+   "system_cpu_mean": 56.6,
+   "system_cpu_max": 79.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r0-base.jsonl",
+   "bytes": 4324939,
+   "sha256": "0d419c7cc81ebe2b223513225056e34fe38f110cc346b50b259098b9ed82a77c"
+  },
+  "monitor-r0-kv128.jsonl": {
+   "samples": 44,
+   "system_cpu_mean": 56.7,
+   "system_cpu_max": 76.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r0-kv128.jsonl",
+   "bytes": 4492817,
+   "sha256": "20c6212764ea901dafcd6cd46aeb53fdcbff821cb77840de4d2b145f0d1fbf4f"
+  },
+  "monitor-r0-kv256.jsonl": {
+   "samples": 42,
+   "system_cpu_mean": 55.6,
+   "system_cpu_max": 70.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r0-kv256.jsonl",
+   "bytes": 4301547,
+   "sha256": "05495a637030d7413168879751003b58a14ec116d4ead7a9b5b8dc21048f35aa"
+  },
+  "monitor-r0-kv64.jsonl": {
+   "samples": 43,
+   "system_cpu_mean": 53.6,
+   "system_cpu_max": 71.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r0-kv64.jsonl",
+   "bytes": 4394933,
+   "sha256": "ac636b5a06b4b3a4e2c1695eb8667f343b640f41e8c3e7cd3dc9182807e57be4"
+  },
+  "monitor-r1-base.jsonl": {
+   "samples": 45,
+   "system_cpu_mean": 52.6,
+   "system_cpu_max": 84.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r1-base.jsonl",
+   "bytes": 4608284,
+   "sha256": "295adf59d2add1e2e1486d8473413b28709fab5707594523ecf7f55048d521db"
+  },
+  "monitor-r1-kv128.jsonl": {
+   "samples": 45,
+   "system_cpu_mean": 54.2,
+   "system_cpu_max": 93.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r1-kv128.jsonl",
+   "bytes": 4586563,
+   "sha256": "fea16fadbfc7da0c3d182adfae9b35e18c54e1d448fd0d9aedd3e8e6d0541207"
+  },
+  "monitor-r1-kv256.jsonl": {
+   "samples": 45,
+   "system_cpu_mean": 54.2,
+   "system_cpu_max": 84.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r1-kv256.jsonl",
+   "bytes": 4608163,
+   "sha256": "c7c030392235a913d19b80c8cb9b97c94a795a35d5a10915f916d26833c40898"
+  },
+  "monitor-r1-kv64.jsonl": {
+   "samples": 44,
+   "system_cpu_mean": 54.9,
+   "system_cpu_max": 72.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r1-kv64.jsonl",
+   "bytes": 4504552,
+   "sha256": "7da49f05af7157e64a76e0fc3982396f2abdf43707c5c70d029dc660e63333c8"
+  },
+  "monitor-r2-base.jsonl": {
+   "samples": 41,
+   "system_cpu_mean": 50.7,
+   "system_cpu_max": 74.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r2-base.jsonl",
+   "bytes": 4173336,
+   "sha256": "068bd2d6b8add214c1475982ee52240af0e8d0b9f61380312a88debe5dcd104e"
+  },
+  "monitor-r2-kv128.jsonl": {
+   "samples": 44,
+   "system_cpu_mean": 58.9,
+   "system_cpu_max": 91.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r2-kv128.jsonl",
+   "bytes": 4482370,
+   "sha256": "2301081cc44e7b2d0f27c69e80c2f765ce6097ef621ef639727faff1072f2139"
+  },
+  "monitor-r2-kv256.jsonl": {
+   "samples": 44,
+   "system_cpu_mean": 56.7,
+   "system_cpu_max": 92.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r2-kv256.jsonl",
+   "bytes": 4518578,
+   "sha256": "a15fbef1762b34ba3f0251e5cc2dfe91b0f4dac22427e917bcae265cc5f8f747"
+  },
+  "monitor-r2-kv64.jsonl": {
+   "samples": 44,
+   "system_cpu_mean": 54.2,
+   "system_cpu_max": 77.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r2-kv64.jsonl",
+   "bytes": 4529063,
+   "sha256": "a9603f1727e31e1715168d6dca5237762d11f482cc9a4d1288c9003d2385d8a9"
+  },
+  "monitor-r3-base.jsonl": {
+   "samples": 45,
+   "system_cpu_mean": 58.2,
+   "system_cpu_max": 84.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r3-base.jsonl",
+   "bytes": 4574552,
+   "sha256": "ab9d8014cacffb16b8cadbb88a5c24c43a76e16fb3e087e8e8bd9a24dca9ae69"
+  },
+  "monitor-r3-kv128.jsonl": {
+   "samples": 42,
+   "system_cpu_mean": 48.6,
+   "system_cpu_max": 68.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r3-kv128.jsonl",
+   "bytes": 4266004,
+   "sha256": "eed2d9d028d35c3a91fcf864a77d78ceee72f765bbbf2e69e742813e78eac149"
+  },
+  "monitor-r3-kv256.jsonl": {
+   "samples": 43,
+   "system_cpu_mean": 47.9,
+   "system_cpu_max": 72.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r3-kv256.jsonl",
+   "bytes": 4411226,
+   "sha256": "ccdae3ac234c87fceb580418346d50a016e437aaabe77fb581195a788b58517e"
+  },
+  "monitor-r3-kv64.jsonl": {
+   "samples": 43,
+   "system_cpu_mean": 48.6,
+   "system_cpu_max": 78.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r3-kv64.jsonl",
+   "bytes": 4415862,
+   "sha256": "8b99f99f876b690a11c27ca8f18a4d40585922d761827b96e94c7bede20fc42f"
+  },
+  "monitor-r4-base.jsonl": {
+   "samples": 42,
+   "system_cpu_mean": 49.4,
+   "system_cpu_max": 75.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r4-base.jsonl",
+   "bytes": 4252567,
+   "sha256": "f5be510ea2ceae7c686f474ffe45e802ce4643edf724c0dcec077d8539df186d"
+  },
+  "monitor-r4-kv128.jsonl": {
+   "samples": 41,
+   "system_cpu_mean": 51.0,
+   "system_cpu_max": 77.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r4-kv128.jsonl",
+   "bytes": 4179844,
+   "sha256": "e91b44dce99f165f634a4324e3d8124cbb6f850ed063ff356db070b63cbccb3a"
+  },
+  "monitor-r4-kv256.jsonl": {
+   "samples": 41,
+   "system_cpu_mean": 47.0,
+   "system_cpu_max": 64.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r4-kv256.jsonl",
+   "bytes": 4191967,
+   "sha256": "400ff9fdca79212bff32d8fdb9ce7d87b8fce8764b79eb98c932d35fce8bf5ae"
+  },
+  "monitor-r4-kv64.jsonl": {
+   "samples": 42,
+   "system_cpu_mean": 46.3,
+   "system_cpu_max": 66.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r4-kv64.jsonl",
+   "bytes": 4300410,
+   "sha256": "4be96f66d32ecb6e315c7958cd96ab3d47cd485810661672cae4fae8ac376eab"
+  },
+  "monitor-r5-base.jsonl": {
+   "samples": 41,
+   "system_cpu_mean": 46.9,
+   "system_cpu_max": 65.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r5-base.jsonl",
+   "bytes": 4228533,
+   "sha256": "8912e2e3ab62d460d249fd41be99da22bb174a0ada46b36156e30f262f961c8f"
+  },
+  "monitor-r5-kv128.jsonl": {
+   "samples": 44,
+   "system_cpu_mean": 51.6,
+   "system_cpu_max": 69.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r5-kv128.jsonl",
+   "bytes": 4513116,
+   "sha256": "fed3f2745f9db4283aafd2bec8a30fe45ac9a75095d4259f0fe87352df1ea749"
+  },
+  "monitor-r5-kv256.jsonl": {
+   "samples": 43,
+   "system_cpu_mean": 49.5,
+   "system_cpu_max": 81.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r5-kv256.jsonl",
+   "bytes": 4405530,
+   "sha256": "00a403035b0d9f1a46ba8bf7ece3e32ade82130cd0a049965dcddde967aaf777"
+  },
+  "monitor-r5-kv64.jsonl": {
+   "samples": 42,
+   "system_cpu_mean": 46.3,
+   "system_cpu_max": 66.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\kv-block-screen-20260920\\8b-p_long\\monitor-r5-kv64.jsonl",
+   "bytes": 4303105,
+   "sha256": "d54e51d53fe22a7082a4eb87c1f67d3f9f8077e7a107682f9e5ba78baa23d4af"
+  }
+ }
+}

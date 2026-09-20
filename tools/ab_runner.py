@@ -90,10 +90,14 @@ def cmd_plan(args):
     plan_path = out / "plan.json"
     if plan_path.exists():
         sys.exit("plan.json exists; refusing to rewrite a frozen plan")
-    arms = {"base": args.base}
+    # Absolute native paths: CreateProcess does not accept a relative
+    # forward-slash command token, and a frozen plan must not depend on cwd.
+    arms = {"base": str(Path(args.base).resolve())}
     for i, c in enumerate(args.cand):
         name, _, exe = c.rpartition("=")
-        arms[name or ("cand" if len(args.cand) == 1 else f"cand{i}")] = exe
+        arms[name or ("cand" if len(args.cand) == 1 else f"cand{i}")] = str(Path(exe).resolve())
+    args.model = Path(args.model).resolve()
+    args.prompt = Path(args.prompt).resolve()
     plan = {
         "kind": "device-execution A/B",
         "created": time.strftime("%Y-%m-%dT%H:%M:%S%z"),

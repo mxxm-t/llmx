@@ -17,11 +17,13 @@ computes an offset into them.
   was. `reset()` returns every block; the backend keeps the storage they used.
 - `view(storage)` produces the `backend::KVView` that `kv_write` and
   `attention` consume: storage handle, block table and committed length.
-- Ownership: neither class is copyable. A sequence returns its blocks when
-  destroyed or moved from. Vectors are reserved to the budget at
-  construction, so `alloc`, `release`, `abort` and `reset` never allocate and
-  cannot fail half way. `Model` is not copyable or movable for the same
-  reason: its sequence points at its pool.
+- Ownership: neither class is copyable and the pool is not movable, since
+  sequences hold its address; `configure` sets the budget in place and is
+  refused while blocks are held. A sequence returns its blocks when destroyed
+  or moved from, and `prepare` on an unbound sequence is rejected. Vectors
+  are reserved to the budget, so `alloc`, `release`, `abort` and `reset`
+  never allocate and cannot fail half way. `Model` is not copyable or
+  movable for the same reason.
 
 `Model` owns one pool and one sequence today. The server keeps one sequence per
 request over a shared pool; fork, prefix sharing and completion-gated release

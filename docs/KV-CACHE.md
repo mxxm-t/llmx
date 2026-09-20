@@ -3,8 +3,8 @@
 Design for the KV cache that the multi-user server (ROADMAP #7) and the device
 execution model (ROADMAP #4a) both need. Status: direction agreed by both
 developers on 2026-09-20; the contract conditions XDEV set are recorded in
-their sections below. Step 1 of the order of work is implemented on the
-design branch; the block-size screening has not run.
+their sections below. Step 1 is implemented on the design branch and the
+block-size screening below fixed the CPU block at 128 tokens.
 
 ## Why change
 
@@ -99,11 +99,14 @@ KVSequence    ordered physical block ids, valid length;
               fork shares full blocks (refcount+1) and copies the partial tail
 ```
 
-Both own what they hold: neither is copyable, a sequence returns its blocks
-when destroyed or moved from, and every bookkeeping vector is reserved to the
-budget at construction so alloc, release, abort and reset never allocate.
-The CPU storage grows by copying the history into exact-size buffers, all
-layers before any is published, and reports the capacity it retains.
+Both own what they hold: neither is copyable, the pool is not movable either
+because sequences hold its address and it is configured in place while idle,
+a sequence returns its blocks when destroyed or moved from, and every
+bookkeeping vector is reserved to the budget so alloc, release, abort and
+reset never allocate. The CPU storage grows by copying the history into
+exact-size buffers, all layers before any is published, and reports the
+capacity it retains. A failed step restores history and length; capacity
+the backend grew for the attempt may stay retained, within the budget.
 
 `KVSequence` replaces the per-model position bookkeeping; `Model` keeps one
 today and the server keeps one per request later. The budget covers every
@@ -151,7 +154,7 @@ table order, which is the form the benchmark measured. The softmax stays one
 global pass over the scores and the value accumulation stays token-ordered
 across block boundaries; there are no per-block partial reductions, so the
 arithmetic and its reduction order are those of the contiguous path.
-`block_tokens` is decided by the evaluation, not here.
+`block_tokens` is 128, from the screening below.
 
 ### Lifetime and reuse
 
@@ -204,6 +207,49 @@ The default is the complete tradeoff of latency, allocated versus used
 bytes and growth cost, not the attention column alone. A contiguous path
 survives only if the paged form loses beyond noise on the primary decode
 workload.
+
+### Screening result (2026-09-20)
+
+Eight frozen plans in `docs/benchmarks/kv-block-screen-20260920/` (plan,
+samples, report and a per-run monitor summary each; raw monitors archived
+locally). Base is contiguous main b46994c; candidates are ec0747d built
+with 64, 128 and 256. Qwen3-0.6B Q8_0 with 7 pairs and Qwen3-8B Q8_0 with 5
+pairs, 6 threads, 32 decoded tokens, prompts of 50, 105, 247 and 841 tokens
+so decode crosses the 64, 128 and 256 boundaries. Cells are the paired
+median change against base, prefill / decode; F is a cell that failed the
+runner's frozen rule (mean or median below -3%, or baseline wins at the
+binomial threshold). System CPU during runs averaged 32% to 59% against the
+benchmark's own 37.5%, so background activity was present; every sample is
+kept.
+
+| Plan | tokens | 64 pp / tg | 128 pp / tg | 256 pp / tg |
+|---|---|---|---|---|
+| 0.6B | 50 | -7.8% F / +0.7% | +0.5% / +2.3% | -11.0% F / -0.3% |
+| 0.6B | 105 | +5.0% / +0.3% | -1.3% / +0.3% | +1.3% / +3.5% |
+| 0.6B | 247 | -6.5% F / -2.0% | -2.7% / -0.8% | +2.4% / -2.6% |
+| 0.6B | 841 | -3.3% F / -2.2% | +0.1% / +0.2% | -0.6% / -1.4% |
+| 8B | 50 | -1.0% F / -0.5% | -2.0% / -1.2% | -6.2% F / -1.4% |
+| 8B | 105 | +0.2% / -0.8% | -1.2% / -0.8% | -0.5% / -1.8% |
+| 8B | 247 | -4.0% F / +2.4% | -1.9% / +0.6% | -0.1% / +1.6% |
+| 8B | 841 | -2.8% / +2.2% | -3.9% F / -3.6% F | -2.8% / +0.9% |
+
+Memory at the end of a run, from `generate --verbose`:
+
+| Plan | 64 alloc / peak / used | 128 alloc / peak / used | 256 alloc / peak / used |
+|---|---|---|---|
+| 0.6B, 82 tokens | 28 / 42 / 18 MiB | 28 / 28 / 18 MiB | 56 / 56 / 18 MiB |
+| 8B, 82 tokens | 36 / 54 / 23 MiB | 36 / 36 / 23 MiB | 72 / 72 / 23 MiB |
+| 0.6B, 873 tokens | 224 / 336 / 191 MiB | same | same |
+| 8B, 873 tokens | 288 / 432 / 246 MiB | same | same |
+
+Decision: **128**. 64 fails prefill in five of eight plans and never wins.
+128 and 256 are not separable on decode; 256 fails prefill on both
+50-token plans and backs twice the memory for a short sequence, which is the
+figure that bounds server concurrency. 128's one failing cell (8B, 841
+tokens, 4 of 5 pairs) is noted and not explained; it is the first thing to
+re-measure when the contiguous path is deleted or the copying growth is
+replaced. The `LLMX_KV_BLOCK` knob is deleted with this decision, per
+AGENTS: a temporary A/B knob goes once it has answered its question.
 
 ## Order of work
 

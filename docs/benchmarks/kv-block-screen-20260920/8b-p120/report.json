@@ -1,0 +1,147 @@
+{
+  "advance": "pass",
+  "candidates": {
+    "kv128": {
+      "kv_bytes": {
+        "allocated": 75497472,
+        "peak": 113246208,
+        "used": 40402944
+      },
+      "prefill": {
+        "base_mean": 36.08,
+        "cand_mean": 36.144,
+        "base_median": 36.48,
+        "cand_median": 36.35,
+        "paired_mean_change_percent": 0.594238637131328,
+        "paired_median_change_percent": -1.1888305225324802,
+        "unpaired_mean_change_percent": 0.17738359201773246,
+        "baseline_wins": 3,
+        "pairs": 5,
+        "fail_at_wins": 5,
+        "paired_change_percent": [
+          -7.821229050279344,
+          -1.1888305225324802,
+          -4.271488469601669,
+          13.593750000000004,
+          2.6589912280701844
+        ],
+        "advance": "pass"
+      },
+      "decode": {
+        "base_mean": 3.896,
+        "cand_mean": 3.858,
+        "base_median": 3.91,
+        "cand_median": 3.88,
+        "paired_mean_change_percent": -0.9594064960270265,
+        "paired_median_change_percent": -0.7633587786259555,
+        "unpaired_mean_change_percent": -0.9753593429158047,
+        "baseline_wins": 3,
+        "pairs": 5,
+        "fail_at_wins": 5,
+        "paired_change_percent": [
+          -0.7633587786259555,
+          -3.990024937655856,
+          1.0230179028132946,
+          -1.0666666666666713,
+          0.0
+        ],
+        "advance": "pass"
+      }
+    },
+    "kv256": {
+      "kv_bytes": {
+        "allocated": 75497472,
+        "peak": 75497472,
+        "used": 40402944
+      },
+      "prefill": {
+        "base_mean": 36.08,
+        "cand_mean": 35.952,
+        "base_median": 36.48,
+        "cand_median": 37.0,
+        "paired_mean_change_percent": 0.09946000152341039,
+        "paired_median_change_percent": -0.5054535780792846,
+        "unpaired_mean_change_percent": -0.354767184035476,
+        "baseline_wins": 3,
+        "pairs": 5,
+        "fail_at_wins": 5,
+        "paired_change_percent": [
+          -0.5054535780792846,
+          4.9764998617638945,
+          -5.974842767295585,
+          15.625,
+          -13.623903508771917
+        ],
+        "advance": "pass"
+      },
+      "decode": {
+        "base_mean": 3.896,
+        "cand_mean": 3.796,
+        "base_median": 3.91,
+        "cand_median": 3.87,
+        "paired_mean_change_percent": -2.519953581927248,
+        "paired_median_change_percent": -1.7902813299232823,
+        "unpaired_mean_change_percent": -2.566735112936347,
+        "baseline_wins": 4,
+        "pairs": 5,
+        "fail_at_wins": 5,
+        "paired_change_percent": [
+          -1.526717557251911,
+          -2.4937655860349017,
+          -1.7902813299232823,
+          5.066666666666664,
+          -11.855670103092786
+        ],
+        "advance": "pass"
+      }
+    },
+    "kv64": {
+      "kv_bytes": {
+        "allocated": 75497472,
+        "peak": 113246208,
+        "used": 40402944
+      },
+      "prefill": {
+        "base_mean": 36.08,
+        "cand_mean": 35.622,
+        "base_median": 36.48,
+        "cand_median": 36.28,
+        "paired_mean_change_percent": -1.1476680952473783,
+        "paired_median_change_percent": 0.19188596491228616,
+        "unpaired_mean_change_percent": -1.2694013303769403,
+        "baseline_wins": 2,
+        "pairs": 5,
+        "fail_at_wins": 5,
+        "paired_change_percent": [
+          -3.4849694067571213,
+          2.294719380702226,
+          -5.8962264150943415,
+          1.156249999999992,
+          0.19188596491228616
+        ],
+        "advance": "pass"
+      },
+      "decode": {
+        "base_mean": 3.896,
+        "cand_mean": 3.834,
+        "base_median": 3.91,
+        "cand_median": 3.86,
+        "paired_mean_change_percent": -1.555613043316184,
+        "paired_median_change_percent": -0.7633587786259555,
+        "unpaired_mean_change_percent": -1.591375770020531,
+        "baseline_wins": 3,
+        "pairs": 5,
+        "fail_at_wins": 5,
+        "paired_change_percent": [
+          -0.7633587786259555,
+          -3.7406483790523692,
+          0.5115089514066584,
+          2.400000000000002,
+          -6.185567010309267
+        ],
+        "advance": "pass"
+      }
+    }
+  },
+  "plan_sha256": "e4cac1a48329a005616b31c62d0d0312f9cba5a87f73eae86ebce87fae3af739"
+}

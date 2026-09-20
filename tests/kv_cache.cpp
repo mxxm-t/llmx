@@ -16,6 +16,21 @@
 #include "model/arch_qwen.hpp"
 #include "model/kv_cache.hpp"
 
+// Fails the Nth allocation of at least `min_bytes` after arming, once. Used
+// to break the batch-scratch allocation part way through.
+static thread_local size_t fail_large_after = 0, fail_min_bytes = 0;
+
+void* operator new(std::size_t n) {
+    if (fail_min_bytes && n >= fail_min_bytes && fail_large_after && --fail_large_after == 0) {
+        fail_min_bytes = 0;
+        throw std::bad_alloc();
+    }
+    if (void* p = std::malloc(n ? n : 1)) return p;
+    throw std::bad_alloc();
+}
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete(void* p, std::size_t) noexcept { std::free(p); }
+
 namespace {
 
 void require(bool value, const char* message) {
@@ -72,9 +87,16 @@ void pool_and_sequence() {
     require(seq.length() == 0 && seq.n_blocks() == 0 && p2.in_use() == 0,
             "reset returns every block");
 
+    seq.prepare(1);
+    seq.commit();
     rejects([&] { seq.prepare(std::numeric_limits<size_t>::max()); }, "length overflow accepted");
-    require(seq.n_blocks() == 0 && p2.in_use() == 0, "failed overflow prepare took blocks");
+    require(seq.length() == 1 && seq.n_blocks() == 1 && p2.in_use() == 1,
+            "failed overflow prepare changed the sequence");
+    seq.reset();
     rejects([&] { infer::KVSequence bad(&p2, 0); }, "zero block size accepted");
+    rejects([&] { infer::KVSequence unbound; unbound.prepare(1); }, "unbound sequence accepted");
+    rejects([&] { infer::BlockPool held(2); held.alloc(); held.configure(4); },
+            "pool reconfigured while blocks are held");
 
     // Ownership: a sequence returns its blocks when destroyed or moved from.
     {
@@ -93,9 +115,8 @@ void pool_and_sequence() {
         require(other.length() == 6 && p2.in_use() == 2, "move assignment must release the old blocks");
     }
     require(p2.in_use() == 0, "destroyed sequences must return their blocks");
-    infer::BlockPool moved_pool(std::move(p2));
-    require(moved_pool.max_blocks() == 3 && moved_pool.in_use() == 0 && moved_pool.alloc() == 0,
-            "moved pool keeps its budget and free list");
+    p2.configure(5);
+    require(p2.max_blocks() == 5 && p2.alloc() == 0, "an idle pool can be reconfigured in place");
 }
 
 // Append `batch` tokens at `pos` through the backend and commit them.
@@ -264,13 +285,14 @@ void attention_over_blocks() {
 }
 
 // A one-layer Qwen3-shaped F32 model, deterministic weights, for the
-// transaction check below. Mirrors the prefill-scope fixture.
+// transaction check below. Mirrors the prefill-scope fixture, with a context
+// of four CPU blocks so a step can cross a block boundary.
 gguf::GGUFModel fixture() {
     gguf::GGUFModel m;
     for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{
             {"block_count", 1}, {"embedding_length", 8}, {"feed_forward_length", 12},
             {"attention.head_count", 2}, {"attention.head_count_kv", 1},
-            {"attention.key_length", 4}, {"context_length", 32}}) {
+            {"attention.key_length", 4}, {"context_length", 4 * 128}}) {
         gguf::MetaValue v; v.vtype = gguf::V_UINT32; v.u = kv.second;
         m.kv.push_back({"qwen3." + kv.first, v});
     }
@@ -350,6 +372,45 @@ void model_transaction() {
     require(model.prefill({4, 5, 6}) == control.prefill({4, 5, 6}), "prefill retry differs");
     require(model.step(7) == control.step(7), "step after prefill retry differs");
     require(model.n_tokens() == 4 && cpu->outputs == 7, "output projection count");
+
+    // A failure on the step that opens a new block. Policy: history and
+    // length are restored; capacity the backend grew for the attempt may be
+    // retained, bounded by the budget.
+    const size_t bt = cpu->kv_layout().block_tokens;
+    model.reset();
+    control.reset();
+    std::vector<uint32_t> fill(bt - 1);
+    for (size_t i = 0; i < fill.size(); ++i) fill[i] = (uint32_t)(1 + i % 15);
+    require(model.prefill(fill) == control.prefill(fill), "block fill differs");
+    require(model.step(9) == control.step(9), "last token of the first block differs");
+    const size_t before = model.kv_allocated_bytes();
+    cpu->fail_output = true;
+    rejects([&] { model.step(10); }, "injected block-crossing failure did not propagate");
+    require(model.n_tokens() == (int)bt && model.kv_used_bytes() == bt * 1 * 2 * 1 * 4 * sizeof(float),
+            "failed block-crossing step changed the history");
+    require(model.kv_allocated_bytes() >= before, "retained capacity shrank");
+    require(model.step(10) == control.step(10), "retry across the block boundary differs");
+    require(model.step(11) == control.step(11), "step after block-crossing retry differs");
+    require(model.n_tokens() == (int)bt + 2, "position after block-crossing retry");
+
+    // Partial scratch allocation: the second large batch buffer fails, the
+    // retry must allocate the whole set and match the control exactly.
+    model.reset();
+    control.reset();
+    model.set_ubatch(3);
+    control.set_ubatch(3);
+    {
+        infer::Model fresh(weights, plain);
+        fresh.set_ubatch(3);
+        fail_min_bytes = 3 * 8 * sizeof(float);
+        fail_large_after = 2;
+        bool failed = false;
+        try { fresh.prefill({1, 2, 3}); } catch (const std::bad_alloc&) { failed = true; }
+        fail_min_bytes = 0;
+        require(failed && fresh.n_tokens() == 0, "partial scratch failure did not propagate cleanly");
+        require(fresh.prefill({1, 2, 3}) == control.prefill({1, 2, 3}), "retry after partial scratch differs");
+        require(fresh.step(4) == control.step(4), "step after partial scratch retry differs");
+    }
 }
 
 }  // namespace

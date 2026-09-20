@@ -203,7 +203,7 @@ public:
         // allocate it.
         kv_storage_ = b_->kv_alloc(cfg.n_layer, cfg.n_head_kv, cfg.head_dim,
                                    (size_t)cfg.context_length);
-        kv_pool_ = BlockPool(kv_storage_->max_blocks());
+        kv_pool_.configure(kv_storage_->max_blocks());
         kv_seq_ = KVSequence(&kv_pool_, b_->kv_layout().block_tokens);
 
         // Precompute the RoPE cos/sin table for every position up to the
@@ -449,19 +449,19 @@ private:
     // Sized to the largest chunk this prompt will actually use, so a short
     // prompt does not allocate scratch for a full ubatch (at n_ff 12288 a
     // 512-wide gate/up/ffn is about 25 MB each).
+    // Readiness is published only once every buffer exists: the new set is
+    // built aside and swapped in together, so a failed allocation part way
+    // leaves the old set intact and a retry allocates again.
     void ensure_batch_buffers(size_t want) {
         const size_t B = std::min((size_t)ubatch(), std::max<size_t>(want, 1));
         if (xb_.size() >= B * (size_t)cfg.n_embd) return;
         const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
-        xb_.assign(B * cfg.n_embd, 0.0f);
-        hb_.assign(B * cfg.n_embd, 0.0f);
-        qb_.assign(B * (size_t)q_dim_, 0.0f);
-        kb_.assign(B * KV, 0.0f);
-        vb_.assign(B * KV, 0.0f);
-        attnb_.assign(B * (size_t)q_dim_, 0.0f);
-        gateb_.assign(B * cfg.n_ff, 0.0f);
-        upb_.assign(B * cfg.n_ff, 0.0f);
-        ffnb_.assign(B * cfg.n_ff, 0.0f);
+        std::vector<float> xb(B * cfg.n_embd, 0.0f), hb(B * cfg.n_embd, 0.0f);
+        std::vector<float> qb(B * (size_t)q_dim_, 0.0f), kb(B * KV, 0.0f), vb(B * KV, 0.0f);
+        std::vector<float> attnb(B * (size_t)q_dim_, 0.0f);
+        std::vector<float> gateb(B * cfg.n_ff, 0.0f), upb(B * cfg.n_ff, 0.0f), ffnb(B * cfg.n_ff, 0.0f);
+        xb_.swap(xb); hb_.swap(hb); qb_.swap(qb); kb_.swap(kb); vb_.swap(vb);
+        attnb_.swap(attnb); gateb_.swap(gateb); upb_.swap(upb); ffnb_.swap(ffnb);
     }
 
     void forward_batch(const uint32_t* ids, int B, std::vector<float>* out_logits) {

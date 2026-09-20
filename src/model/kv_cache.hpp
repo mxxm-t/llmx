@@ -14,20 +14,29 @@ namespace infer {
 // and counts references. Ids are dense from zero, so storage can grow toward
 // the budget on demand instead of allocating it up front.
 //
-// Every vector is reserved to the budget at construction, so alloc, release,
+// Every vector is reserved to the budget when configured, so alloc, release,
 // abort and reset publish their state without an allocation that could throw
-// half way. A pool owns its ids: it cannot be copied, only moved.
+// half way. Sequences hold the pool's address, so a pool stays where it was
+// constructed: it is neither copyable nor movable, and it can be configured
+// only while nothing is allocated from it.
 class BlockPool {
 public:
     BlockPool() = default;
-    explicit BlockPool(size_t max_blocks) : max_(max_blocks) {
-        free_.reserve(max_blocks);
-        refs_.reserve(max_blocks);
-    }
+    explicit BlockPool(size_t max_blocks) { configure(max_blocks); }
     BlockPool(const BlockPool&) = delete;
     BlockPool& operator=(const BlockPool&) = delete;
-    BlockPool(BlockPool&& o) noexcept { swap(o); }
-    BlockPool& operator=(BlockPool&& o) noexcept { swap(o); return *this; }
+
+    void configure(size_t max_blocks) {
+        if (in_use()) throw std::logic_error("KV cache: pool reconfigured while blocks are held");
+        std::vector<int32_t> f;
+        std::vector<uint32_t> r;
+        f.reserve(max_blocks);
+        r.reserve(max_blocks);
+        free_.swap(f);
+        refs_.swap(r);
+        max_ = max_blocks;
+        next_ = 0;
+    }
 
     int32_t alloc() {
         if (!free_.empty()) {
@@ -62,13 +71,6 @@ public:
     size_t max_blocks() const { return max_; }
 
 private:
-    void swap(BlockPool& o) noexcept {
-        std::swap(max_, o.max_);
-        std::swap(next_, o.next_);
-        free_.swap(o.free_);
-        refs_.swap(o.refs_);
-    }
-
     size_t max_ = 0, next_ = 0;
     std::vector<int32_t> free_;
     std::vector<uint32_t> refs_;
@@ -102,6 +104,7 @@ public:
 
     // Make positions [length, length + n) addressable.
     void prepare(size_t n) {
+        if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");
         if (pending_) throw std::logic_error("KV cache: step already in progress");
         if (n > std::numeric_limits<size_t>::max() - length_)
             throw std::runtime_error("KV cache: sequence length overflow");

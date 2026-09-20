@@ -1,0 +1,159 @@
+{
+  "advance": "fail",
+  "candidates": {
+    "kv128": {
+      "kv_bytes": {
+        "allocated": 234881024,
+        "peak": 352321536,
+        "used": 200245248
+      },
+      "prefill": {
+        "base_mean": 380.41285714285715,
+        "cand_mean": 375.4642857142857,
+        "base_median": 382.02,
+        "cand_median": 375.39,
+        "paired_mean_change_percent": -1.259109590785279,
+        "paired_median_change_percent": 0.11509888040182048,
+        "unpaired_mean_change_percent": -1.300842317932771,
+        "baseline_wins": 3,
+        "pairs": 7,
+        "fail_at_wins": 7,
+        "paired_change_percent": [
+          -5.084186200066021,
+          -4.056952376030387,
+          1.046249597596316,
+          0.27781487912379443,
+          -1.5784513899795738,
+          0.46665947345705394,
+          0.11509888040182048
+        ],
+        "advance": "pass"
+      },
+      "decode": {
+        "base_mean": 27.064285714285713,
+        "cand_mean": 27.150000000000002,
+        "base_median": 27.5,
+        "cand_median": 27.12,
+        "paired_mean_change_percent": 0.387084355486933,
+        "paired_median_change_percent": 0.22421524663676085,
+        "unpaired_mean_change_percent": 0.3167062549485511,
+        "baseline_wins": 3,
+        "pairs": 7,
+        "fail_at_wins": 7,
+        "paired_change_percent": [
+          -4.632929436920874,
+          -1.381818181818173,
+          -0.47050307636626876,
+          1.4534883720930258,
+          0.22421524663676085,
+          1.112816577129716,
+          6.404320987654311
+        ],
+        "advance": "pass"
+      }
+    },
+    "kv256": {
+      "kv_bytes": {
+        "allocated": 234881024,
+        "peak": 352321536,
+        "used": 200245248
+      },
+      "prefill": {
+        "base_mean": 380.41285714285715,
+        "cand_mean": 373.5814285714286,
+        "base_median": 382.02,
+        "cand_median": 374.05,
+        "paired_mean_change_percent": -1.775062256554949,
+        "paired_median_change_percent": -0.6225803076279179,
+        "unpaired_mean_change_percent": -1.7957932922501474,
+        "baseline_wins": 5,
+        "pairs": 7,
+        "fail_at_wins": 7,
+        "paired_change_percent": [
+          -4.85308682733574,
+          1.627949042610921,
+          0.3460671745895594,
+          -0.5636436489915853,
+          -7.232605622742261,
+          -1.1275356063875752,
+          -0.6225803076279179
+        ],
+        "advance": "pass"
+      },
+      "decode": {
+        "base_mean": 27.064285714285713,
+        "cand_mean": 26.591428571428573,
+        "base_median": 27.5,
+        "cand_median": 26.61,
+        "paired_mean_change_percent": -1.716862035611011,
+        "paired_median_change_percent": -1.420029895366226,
+        "unpaired_mean_change_percent": -1.74716283979941,
+        "baseline_wins": 6,
+        "pairs": 7,
+        "fail_at_wins": 7,
+        "paired_change_percent": [
+          -5.203136136849595,
+          -0.2909090909090861,
+          -3.0039811798769356,
+          -0.6177325581395277,
+          -1.420029895366226,
+          -4.144282425172674,
+          2.662037037037024
+        ],
+        "advance": "pass"
+      }
+    },
+    "kv64": {
+      "kv_bytes": {
+        "allocated": 234881024,
+        "peak": 352321536,
+        "used": 200245248
+      },
+      "prefill": {
+        "base_mean": 380.41285714285715,
+        "cand_mean": 360.85857142857145,
+        "base_median": 382.02,
+        "cand_median": 365.87,
+        "paired_mean_change_percent": -5.138809299203551,
+        "paired_median_change_percent": -3.293021307784927,
+        "unpaired_mean_change_percent": -5.1402799214387285,
+        "baseline_wins": 7,
+        "pairs": 7,
+        "fail_at_wins": 7,
+        "paired_change_percent": [
+          -5.510831195875765,
+          -0.9302565957776787,
+          -1.8483742890868071,
+          -11.598771203419266,
+          -3.293021307784927,
+          -1.7749244712990997,
+          -11.015486031181322
+        ],
+        "advance": "fail"
+      },
+      "decode": {
+        "base_mean": 27.064285714285713,
+        "cand_mean": 26.462857142857143,
+        "base_median": 27.5,
+        "cand_median": 26.52,
+        "paired_mean_change_percent": -2.1761733834367414,
+        "paired_median_change_percent": -2.2077452044878765,
+        "unpaired_mean_change_percent": -2.2222222222222143,
+        "baseline_wins": 6,
+        "pairs": 7,
+        "fail_at_wins": 7,
+        "paired_change_percent": [
+          -4.027084818246607,
+          -2.7272727272727226,
+          -2.2077452044878765,
+          -5.450581395348841,
+          -0.8968609865470878,
+          0.15349194167306734,
+          -0.07716049382717749
+        ],
+        "advance": "pass"
+      }
+    }
+  },
+  "plan_sha256": "6addea545ceac520111dfe9eaac6c8dd2dd478fce0a409c6c9953db023d7d971"
+}

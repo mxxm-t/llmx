@@ -1,0 +1,38 @@
+{
+  "advance": {
+    "alpha": 0.05,
+    "contamination": "A pair is flagged when either arm's whole-run CPU exceeds the session median by 25%. Flags are reported, never used to drop, replace or re-run a pair.",
+    "noise_fraction": 0.03,
+    "rule": "For each phase, over the PAIRED per-round ratios cand/base: both the mean and the median ratio are at least (1 - noise_fraction), AND baseline paired wins are below the smallest count whose one-sided binomial tail under p=0.5 is at most alpha. Ratios are paired so a drift within the run cancels inside each pair; comparing marginal medians instead let a run that drifted 289 -> 222 tok/s report -11.15% on identical code."
+  },
+  "arms": {
+    "base": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\main-wt\\build\\Release\\llmx.exe",
+      "sha256": "040293bf3be7035931604ee6286d43a93aa2234fb4c4d3a21f9d55cae458f17d"
+    },
+    "kv128": {
+      "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build\\Release\\llmx.exe",
+      "sha256": "a90c0a365778bbe9f851d164c5d38af97ee2804be33f0263b67a40a79af4b149"
+    },
+    "kv256": {
+      "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-kv256\\Release\\llmx.exe",
+      "sha256": "130e83b9bd5f3e4bbd5e5d13b160eeb790755163528f798f2df43cabeb663e29"
+    },
+    "kv64": {
+      "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-kv64\\Release\\llmx.exe",
+      "sha256": "562808e362d4fbf4b38a779dedcefd89d32e23ff4a8d6f912a50f599f9cfb632"
+    }
+  },
+  "created": "2026-09-20T21:32:06+0300",
+  "kind": "device-execution A/B",
+  "limits": "One model and one prompt. Host load is recorded, not controlled. This runner covers only the regression half of the bar, baseline against candidate. The external mx-llama.cpp floor is a separate matched comparison and is NOT run here; a step that passes this runner still has to clear that floor.",
+  "max_tokens": 32,
+  "measured_rounds": 7,
+  "model": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+  "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+  "order": "arms rotate by one place per round; the rotation reverses on odd rounds",
+  "prompt": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\screen\\p120.txt",
+  "prompt_sha256": "81023b9495ad81dea9ff23e66bddc72258159b4926841a15c86ba91d31b49cf9",
+  "threads": 6,
+  "warmup_rounds": 1
+}

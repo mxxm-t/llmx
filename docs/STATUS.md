@@ -27,10 +27,13 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   both HF models passes; main and paged logits byte-identical on 0.6B and
   8B (11 to 841 tokens) and greedy text identical. Provisional block size
   128 behind the temporary `LLMX_KV_BLOCK` knob.
-- **Left:** the real-model screening of 64/128/256 against contiguous main
-  (decode, prefill, boundary lengths, allocated/peak/used bytes) with the
-  multi-candidate `ab_runner`; then delete the knob and record the default.
-  Fork/COW and device buffers are later steps. F16 KV is out of scope.
+- **Done (screening):** 64/128/256 against contiguous main on 0.6B and 8B
+  Q8_0, eight frozen plans, all samples kept, tables in
+  [KV-CACHE](KV-CACHE.md). Block fixed at 128; the knob is deleted.
+- **Left:** build and validate the staged review repairs (non-movable pool,
+  scratch readiness, checked bounds, failure tests) after XDEV's window;
+  XDEV re-review; then main integration. Fork/COW and device buffers are
+  later steps. F16 KV is out of scope.
 - **Gotchas:** the microbenchmark is isolated attention with a cold cache and
   is not an end-to-end decode cost. Memory waste cuts against large blocks:
   224 KiB per token on 0.6B means a partial 256-token tail wastes up to

@@ -31,12 +31,10 @@ namespace backend {
 
 // CPU implementation of the Backend interface. Uses AVX2 fused dequant+FMA for
 // Q8_0 matmuls when the host supports it, otherwise a scalar fallback.
-// Temporary A/B knob for the block-size screening in docs/KV-CACHE.md; it
-// becomes a plain constant once the screening picks the default.
-#ifndef LLMX_KV_BLOCK
-#define LLMX_KV_BLOCK 128
-#endif
-static const size_t KV_BLOCK_TOKENS = LLMX_KV_BLOCK;
+// 128 tokens per KV block: chosen by the real-model screening recorded in
+// docs/KV-CACHE.md. 64 lost prefill consistently; 256 was not separable
+// from 128 on decode and doubles the partial-tail waste.
+static const size_t KV_BLOCK_TOKENS = 128;
 
 // Host KV blocks. Per layer, block id b of K or V starts at b*block_floats()
 // and holds [kv_head][token][head_dim], so a head's history is contiguous
@@ -55,6 +53,15 @@ public:
         if (a && b > std::numeric_limits<size_t>::max() / a)
             throw std::runtime_error("backend: KV storage size overflows");
         return a * b;
+    }
+    static size_t add(size_t a, size_t b) {
+        if (b > std::numeric_limits<size_t>::max() - a)
+            throw std::runtime_error("backend: KV storage size overflows");
+        return a + b;
+    }
+    // Whole blocks for `tokens` positions, without the usual +bt-1 overflow.
+    static size_t blocks_for(size_t tokens) {
+        return tokens / KV_BLOCK_TOKENS + (tokens % KV_BLOCK_TOKENS != 0);
     }
 
     size_t max_blocks() const override { return max_; }
@@ -86,7 +93,8 @@ public:
             nv[l].assign(v_[l].begin(), v_[l].end());
             nv[l].resize(floats);
         }
-        peak_ = std::max(peak_, allocated_bytes() + floats * sizeof(float) * 2 * k_.size());
+        peak_ = std::max(peak_, add(allocated_bytes(),
+                                    mul(mul(floats, sizeof(float) * 2), k_.size())));
         k_.swap(nk);
         v_.swap(nv);
         backed_ = want;
@@ -571,10 +579,12 @@ public:
                                         size_t max_tokens) override {
         if (layers == 0 || n_head_kv == 0 || head_dim == 0)
             throw std::runtime_error("backend: invalid KV storage shape");
-        const size_t blocks = max_tokens / KV_BLOCK_TOKENS + (max_tokens % KV_BLOCK_TOKENS != 0);
-        // The whole budget must be addressable, even if it is never backed.
-        CpuKVStorage::mul(CpuKVStorage::mul(CpuKVStorage::mul(blocks, layers * 2), n_head_kv),
-                          CpuKVStorage::mul(KV_BLOCK_TOKENS, head_dim * sizeof(float)));
+        const size_t blocks = CpuKVStorage::blocks_for(max_tokens);
+        // The whole budget must be addressable, even if it is never backed;
+        // every factor goes through the checked multiply.
+        using S = CpuKVStorage;
+        S::mul(S::mul(S::mul(S::mul(blocks, layers), 2), n_head_kv),
+               S::mul(S::mul(KV_BLOCK_TOKENS, head_dim), sizeof(float)));
         return std::make_unique<CpuKVStorage>(layers, n_head_kv, head_dim, blocks);
     }
 
@@ -582,7 +592,8 @@ public:
                   const float* k, const float* v, size_t batch) override {
         CpuKVStorage& s = storage_of(view);
         const size_t bt = KV_BLOCK_TOKENS, heads = s.heads(), dim = s.dim();
-        if (layer >= s.layers() || (pos + batch + bt - 1) / bt > view.n_blocks)
+        if (layer >= s.layers() ||
+            CpuKVStorage::blocks_for(CpuKVStorage::add(pos, batch)) > view.n_blocks)
             throw std::runtime_error("backend: KV write outside the view");
         for (size_t b = 0; b < batch; ++b) {
             const size_t t = pos + b;
@@ -606,11 +617,12 @@ public:
             throw std::runtime_error("backend: invalid attention dimensions");
         const CpuKVStorage& s = storage_of(view);
         const size_t bt = KV_BLOCK_TOKENS;
-        const size_t sequence = view.length + (size_t)nbatch;
+        const size_t sequence = CpuKVStorage::add(view.length, (size_t)nbatch);
+        const size_t blocks = CpuKVStorage::blocks_for(sequence);
         if (layer >= s.layers() || (size_t)head_dim != s.dim() ||
-            (size_t)n_head_kv != s.heads() || (sequence + bt - 1) / bt > view.n_blocks)
+            (size_t)n_head_kv != s.heads() || blocks > view.n_blocks)
             throw std::runtime_error("backend: attention outside the KV view");
-        for (size_t i = 0; i < (sequence + bt - 1) / bt; ++i)
+        for (size_t i = 0; i < blocks; ++i)
             if (!s.backed((size_t)view.blocks[i]))
                 throw std::runtime_error("backend: attention over unwritten KV blocks");
         const size_t q_stride = (size_t)n_head * head_dim;

@@ -14,6 +14,68 @@ sections record follow-up results without pooling separate timing sessions.
 > below become a cache the tool manages. Until then, this file is the record of
 > what is on this machine.
 
+## Windows benchmark activity logs
+
+Start the stdlib-only recorder before a performance comparison and keep it
+running throughout every arm:
+
+```
+python tools/monitor_windows.py --output activity.jsonl --seconds 1200 --stop-file activity.stop
+```
+
+The output and stop file must not already exist. Creating the stop file ends
+recording after the next sample; `--seconds` bounds its lifetime and
+`--interval` defaults to one second. The JSONL contains recorder PID, counter
+availability, system CPU/disk/GPU readings, per-process CPU intervals and a
+terminal record. Process CPU uses 100% for one logical CPU, not the whole
+machine. Keep benchmark PIDs and phase timestamps beside this log.
+
+PID plus creation time identifies process CPU observations, avoiding legacy
+Windows same-name performance-counter ambiguity. Inaccessible processes and
+new processes without a prior observation have unknown deltas. Invalid/missing
+counter data, sampling gaps and a missing terminal record cannot establish
+idleness. Do not sum GPU engine percentages. Counter behavior is documented in
+[Microsoft PDH](https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhgetformattedcounterarrayw).
+
+The local 24-sample controlled CPU-load check detects a median 99.995% of one
+logical CPU and reports 0.53125 recorder CPU-seconds over 24.01487 elapsed
+seconds, including initialization. System CPU/disk/GPU counters are available;
+124-126 inaccessible processes remain explicit. This checks CPU-load detection,
+not controlled GPU/disk saturation or the recorder's effect on model timings.
+Use identical monitoring in all arms and declare contention criteria before
+timing, as required by AGENTS.md. Preserve affected matched blocks.
+
+## Prefill placement reassessment correctness (2026-09-20)
+
+Fresh Windows scratch builds restore the four saved callback/placement headers
+against `a61c414`, retaining its JSON reader/writer fixes. Production source is
+unchanged. The enabled candidate and exact production control each pass 8/8
+native CTests; the candidate required-HF suite passes 11/11 with diagnostic
+timing only. Fresh callback/lifecycle tests pass 17/27 cases respectively.
+
+| Active candidate check | Observed | Existing HF requirement |
+|---|---:|---:|
+| Tiny F32 full logits, 10 cases | Max error 6.991024018e-7 | Error < 2e-5 |
+| Real 0.6B Q8/F32 and 8B Q8, 18 cases | Top-1 match; top-5 overlap 5/5 | Same |
+| Long 0.6B F32 logits | Max error 0.000126362 | <= 0.001 |
+| Long 0.6B F32 mean continuation NLL | Absolute difference 0.000000645211 | <= 0.0001 |
+| Long 0.6B Q8 mean continuation NLL | Absolute difference 0.007011817 | <= 0.01 |
+
+Each short candidate process verifies six placement applies/restores with no
+errors or leftover restrictions, and exact printed output against production.
+The long check uses 1,943 prompt tokens plus 32 forced HF continuation tokens;
+all 33 full vectors per model are finite and byte-identical between arms
+(5,013,888 floats per model per arm). Placement is active only during prefill; decode makes
+zero affinity setters. All 36 historical input hashes are verified against the
+earlier committed evidence before execution. This is finite excerpt coverage,
+not full-corpus, maximum-context or 8B long-context HF validation.
+
+Source restoration, commands, logs, input identities and monitor smoke results
+are in [checkpoint evidence](benchmarks/prefill-reassessment-correctness-20260920.json).
+All 25 project Markdown files are reviewed at this checkpoint. Fresh monitored
+mx comparisons, short-follow-up timing and observer-effect assessment remain
+open; the historical screen failure has not been rewritten as a pass.
+
 ## Model locations
 
 Models are kept in the LM Studio model directory:

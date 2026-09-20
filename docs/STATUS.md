@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`fix/json-validation`, based on research checkpoint `6fc9ce5` and
+`research/prefill-reassessment`, based on validated JSON checkpoint `a61c414` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -53,6 +53,9 @@ The subsequent synchronous callback integration also fails its frozen screen:
 That original screen stopped adoption; the user tradeoff clarification below
 reopens assessment. Independent timing/archive audit and the full
 25-file Markdown checkpoint review are complete.
+The reopened candidate now passes fresh Windows native, lifecycle, active HF
+logit and 0.6B long-continuation checks, with machine activity recording
+implemented and exercised. New monitored timing remains open; see its block.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
@@ -103,9 +106,9 @@ External performance requirements still block main/GitHub publication.
 large gain in one phase not be automatically rejected for a minor loss in
 another. Assess and report the complete workload tradeoff, retaining HF
 correctness and explicit matched mx comparisons. Prior frozen-screen results
-remain historical facts; the prefill-placement decision will be reassessed
-after the JSON checkpoint under this clarified preference. No candidate has
-yet been adopted or remeasured under that assessment.
+remain historical facts; the prefill-placement decision is being reassessed
+under this clarified preference. Fresh correctness checks pass below, but no
+candidate has yet been adopted or timed under that assessment.
 
 **Machine contention requirement (2026-09-20):** the user requires checking
 whether other demanding work is using the PC during measurements. Upcoming
@@ -114,9 +117,54 @@ CPU/disk/GPU activity before and throughout every arm. Use predefined
 contamination criteria, preserve affected matched blocks as inconclusive and
 repeat complete blocks after contention clears. Existing small differences
 cannot retroactively be certified contention-free without the needed evidence.
-Monitoring for the reopened comparison is still to be implemented and checked.
+Windows recording and controlled-load detection are now exercised; integrating
+the logs with model timing and assessing observer effects remain open.
 
 ## Active feature blocks
+
+### Prefill placement reassessment with machine activity monitoring
+
+- **Goal:** complete the reopened whole-prefill placement assessment against
+  production and matched mx, including HF/lossless and short follow-ups.
+- **Done:** preserved the historical candidate and its failed original screen;
+  JSON checkpoint `a61c414` passes Windows/Linux correctness suites.
+- **Done:** fresh scratch control and default-enabled candidate retain current
+  JSON/CLI fixes and pass 8/8 Windows CTests each. The candidate full required-HF
+  suite passes 11/11; timings are diagnostic only. Rebuilt callback contracts
+  pass 17 cases/4,626 exact values and Windows lifecycle checks pass 27
+  cases/1,176 exact values. All 28 active-prefill HF logit cases pass: ten tiny
+  F32, six real 0.6B Q8, six real 0.6B F32 and six 8B Q8. Every candidate
+  process verifies six applies/restores on distinct target CPUs, no errors or
+  leftover restriction, and exact printed logits against current production.
+  Tiny F32 maximum HF error is 6.991024018e-7 against the unchanged 2e-5 bound;
+  all 18 real-model cases match top-1 and all five top-5 IDs.
+- **Done:** the active 1,943-token prefill plus 32 forced continuation steps
+  passes for real 0.6B F32 and Q8. Each model's 33 full vectors (5,013,888
+  finite floats per arm) are byte-identical to current production, with exact
+  per-target NLL. Both candidate processes verify six applies/restores and
+  zero decode setters. All 36 HF/prompt/continuation inputs match the earlier
+  committed evidence before execution. F32 maximum HF logit error is
+  0.000126362 <= 0.001; absolute mean continuation NLL differences are
+  0.000000645211 <= 0.0001 (F32) and 0.007011817 <= 0.01 (Q8).
+- **Done:** `tools/monitor_windows.py` records timestamped system CPU/disk/GPU
+  counters and per-process CPU deltas keyed by PID plus creation time. The
+  24-sample controlled-load check detects the known CPU process at a median
+  99.995% of one logical CPU; recorder CPU is 0.53125 s over 24.01487 s,
+  including initialization. Intervals and query errors remain in the log.
+- **Left:** integrate activity recording with model timing and check observer
+  effects, then complete follow-up and prospectively planned matched comparisons.
+  Timing harnesses now build with phase timestamps, but have not run. Optional
+  full 8B consumer and Linux pass-through revalidation remain separate.
+- **Gotchas:** activity monitoring is evidence, not proof of no interference.
+  Keep observer overhead and unavailable counters explicit; no automatic
+  adoption or retroactive noise claim follows from the policy change.
+  The local check retains 124-126 inaccessible processes as unknown; system
+  counters remain available. Controlled disk/GPU saturation and benchmark
+  timing perturbation are untested. This continuation check is not full-corpus,
+  maximum-context or 8B long-context HF coverage. Production runtime source
+  remains unchanged; the candidate is still scratch-only.
+  Full 25-file Markdown review and saved checkpoint evidence:
+  [`prefill-reassessment-correctness-20260920.json`](benchmarks/prefill-reassessment-correctness-20260920.json).
 
 ### JSON validation, Unicode decoding and output escaping
 
@@ -256,8 +304,9 @@ Monitoring for the reopened comparison is still to be implemented and checked.
   Evidence: `docs/benchmarks/cpu-prefill-callback-20260920.json`.
   Independent timing/archive audit and the full 25-file Markdown checkpoint
   review are complete.
-- **Left:** complete active-path HF/lossless, short-follow-up and fresh matched
-  mx validation under the user's clarified tradeoff preference. Retain the
+- **Left:** fresh active-path HF/lossless checks pass in the reassessment block;
+  short-follow-up and fresh matched mx validation remain open under the user's
+  clarified tradeoff preference. Retain the
   bounded callback and existing mapping. Report uncertainty for small decode
   differences and gains across phases; the old cutoff failure stays recorded.
   Production scheduling remains unchanged until adoption is validated.

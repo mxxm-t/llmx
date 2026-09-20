@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/cpu-matmul-placement`, based on research checkpoint `88eed5f` and
+`research/cpu-prefill-callback`, based on research checkpoint `731dd5c` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -48,6 +48,10 @@ The separate observer-free placement screen also passes; its post-run audit
 and full Markdown review are complete. CPU-local per-operation placement is implemented only in scratch and rejected
 by its completed screen because small-model decode regresses. Its independent
 timing audit and full 25-file Markdown checkpoint review are complete.
+The subsequent synchronous callback integration also fails its frozen screen:
+8B decode mean is 0.574% below disabled prototype, beyond the 0.5% limit.
+Placement adoption stops. Independent timing/archive audit and the full
+25-file Markdown checkpoint review are complete.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
@@ -95,6 +99,54 @@ External performance requirements still block main/GitHub publication.
 
 ## Active feature blocks
 
+### Synchronous CPU prefill placement (scratch integration screened out)
+
+- **Goal:** test one backend-owned synchronous callback around the complete
+  prefill, after the smaller operation-local candidate failed. Keep platform
+  details below Model and include setup, callback and checked cleanup costs.
+- **Done:** all 36 primary invocations completed with exit 0. Both prefill cases
+  pass against fresh production and disabled prototype, with 5/5 wins against
+  each. However, 8B decode mean loses 0.573915% against disabled, beyond the
+  frozen 0.5% limit. Reject this integration and stop placement adoption.
+  No retest, sample removal, follow-up timing or conditional HF/mx runs.
+  Windows native checks pass 7/7; callback/tiny-model contracts pass 17 cases
+  and 4,626 exact values, plus 27 Windows placement cases and 1,176 exact
+  values. Linux unchanged native assertions and callback/no-op guards pass.
+  Both one-thread perf smoke floors pass (placement inactive).
+  All 18 separate real-model witnesses pass: exact fresh-production vectors
+  for initial and one/nine-token continuation cases on both models. Enabled
+  processes have 12 applies/restores for primary and 24 for follow-ups across
+  two iterations; disabled witnesses and decode have zero setters. Production
+  has no instrumentation. All 36 timed vectors match their witness controls.
+  Preflight passes 103 checks; 216 identities were frozen before timing.
+  Evidence: `docs/benchmarks/cpu-prefill-callback-20260920.json`.
+  Independent timing/archive audit and the full 25-file Markdown checkpoint
+  review are complete.
+- **Left:** retain scheduler-selected production behavior and pursue the
+  external decode floor through a distinct, evidence-backed hypothesis.
+  Do not widen the callback API, tune placement maps or rerun this screen.
+  Independent HF/mx acceptance remains open; prior phase-wide passes do not
+  override this integrated candidate's rejection.
+- **Gotchas:** scratch Backend/Model/CPU only; production source, tests, build
+  files, public API and root executable are unchanged. Successful placement
+  uses one apply and one checked restore pool dispatch. Partial application
+  restores all changed participants before unbound fallback. Cleanup retries
+  once but reports its first error; persistent refusal does not establish safe
+  pool/model reuse. Initial scope is six supported Windows participants,
+  mechanically quant-independent, with no wider performance claim. Source
+  guards reject nesting/thread changes but do not make Model concurrent.
+  Timed policy permits fallback; witness counters prove their own processes.
+  Exact vectors are not an independent HF gate. The failed primary screen
+  prevents the planned short-follow-up performance runs, so their timing is
+  unverified despite passing numerical/activation witnesses.
+
+| Model / phase | Production mean tok/s | Disabled mean tok/s | Enabled mean tok/s | Mean vs production | Mean vs disabled | Median vs disabled |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.6b / pp | 474.695274 | 472.415155 | 548.326819 | +15.511% | +16.069% | +17.878% |
+| 0.6b / tg | 48.835786 | 50.004903 | 50.342125 | +3.084% | +0.674% | +0.222% |
+| 8b / pp | 30.392742 | 30.891701 | 41.452967 | +36.391% | +34.188% | +34.854% |
+| 8b / tg | 4.628661 | 4.649671 | 4.622986 | -0.123% | -0.574% | +0.004% |
+
 ### CPU-local batched-matmul placement (scratch candidate screened out)
 
 - **Goal:** keep placement inside the CPU backend and existing callbacks,
@@ -112,11 +164,10 @@ External performance requirements still block main/GitHub publication.
   setters. All 130 identities were frozen before timing.
   Evidence: `docs/benchmarks/cpu-matmul-placement-20260920.json`.
   Independent timing audit and full 25-file Markdown checkpoint review pass.
-- **Left:** a separate source review identifies one bounded scratch experiment
-  with a synchronous prefill callback and checked cleanup. This is not production
-  seam approval; no new API or revised placement candidate is implemented.
-  HF/mx gates remain open, and the prepared active-path HF plan was not run
-  for this rejected arm.
+- **Left:** the subsequent bounded synchronous callback integration above also
+  fails its own frozen screen. Stop placement adoption; production remains
+  unchanged. HF/mx gates remain open, and the prepared active-path HF plan
+  was not run for this rejected arm.
 - **Gotchas:** six-thread Q8_0 nbatch > 1 scope only; other paths fall back.
   Every eligible operation queries topology and each nonempty callback pays
   apply/checked restore. Timing compares enabled/disabled prototype policy,
@@ -149,8 +200,9 @@ External performance requirements still block main/GitHub publication.
   Independent timing audit and review of all 25 Markdown files are complete.
   Full results are in `docs/benchmarks/cpu-prefill-observer-free-20260920.json`.
 - **Left:** the CPU-local batched-matmul prototype above is rejected by its
-  separate performance screen. A minimal phase-wide architectural boundary
-  has a source-reviewed scratch proposal; no new Backend API is implemented.
+  separate performance screen. The synchronous callback is implemented only
+  in scratch and rejected by its own primary comparison; placement adoption
+  stops and production Backend API is unchanged.
   Independent HF and fresh matched mx gates remain required.
 - **Gotchas:** scheduler mode constructs no placement Session. Candidate
   construction/apply/prefill/verify/checked restoration are timed; decode

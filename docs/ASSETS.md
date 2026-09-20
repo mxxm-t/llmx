@@ -2532,3 +2532,105 @@ and does not authorize this operation-local implementation or a new Backend API.
 Sources, build logs, native/synthetic checks, instrumented witness, frozen plans,
 raw timing and common vectors with witness aliases are archived in
 [`benchmarks/cpu-matmul-placement-20260920.json`](benchmarks/cpu-matmul-placement-20260920.json).
+
+## Synchronous CPU prefill placement callback (2026-09-20)
+
+Branch `research/cpu-prefill-callback` starts at `731dd5c`, with production
+runtime source still `bf122fd`. Scratch is
+`%TEMP%/llmx-cpu-prefill-callback`. This is the one bounded callback integration
+specified after the smaller operation-local candidate failed. It is rejected;
+production Backend/Model/CPU, tests, build files and root executable are unchanged.
+
+The scratch Backend adds a synchronous `run_prefill` callback. Model calls it
+once around scratch-buffer preparation and all forward chunks, including the
+final vocabulary projection. CPU owns topology, original worker masks and
+checked cleanup; successful supported execution uses one apply and one restore
+pool dispatch. Work executes once on the caller between completed dispatches.
+The concrete scratch switch defaults off; a separate CLI include overlay changes
+only that default for conditional validation. No production flag or API is added.
+
+Eligibility is six workers on homogeneous single-group Windows topology with
+at least six allowed physical cores. Query the process mask, sort the lowest allowed LP
+per physical core, and choose the first six. Per-thread restrictions must also
+permit the target. Unsupported or partially applied setup restores every changed
+participant before unbound fallback. Each restore checks the original owner and
+mask. Nested scopes and effective thread-count changes reject; same-count calls
+are no-ops. Cleanup retries once but propagates its first failure, which may
+replace a body exception. Persistent OS restore refusal is reported and only
+the synthetic test performs manual rescue; no safe-reuse claim follows. Linux
+is pass-through. This is not an async/GPU or concurrent-session contract.
+
+Fresh Windows native checks pass 7/7. Callback/tiny tied/untied F32 model checks
+pass 17 cases/4,626 exact values, including empty, one-token, tail-one and
+follow-up behavior. Windows mask/lifecycle checks pass 27 cases/1,176 exact
+values with 241 setter events audited, including partial setup, body and cleanup
+failures. Setup allocation failure is injected through the topology wrapper,
+not a global allocator sweep. The executed Windows test recipe retains a
+nonfatal `vswhere.exe` setup diagnostic; both builds and runs exit 0, with no
+compiler warning or rerun. Linux unchanged backend-group/backend-errors and
+callback/no-op guards pass; platform binding is not claimed there.
+
+Both unchanged one-thread `tests/perf.py` smoke floors pass; placement is inactive
+at one thread. Control/candidate matmul is 37.86/38.46 GFLOPS, synthetic prefill
+7,858/7,757 tok/s and decode 7,498/7,593 tok/s. These single smoke invocations
+are not a statistical placement comparison.
+
+All 18 separate real-model witness processes exit 0: both pinned Q8_0 models,
+initial 215-token prompt, one-token suffix after a 214-token prefix, and nine-token
+suffix after a 206-token prefix, with production/disabled/enabled arms. Each
+process runs two internal iterations and 32 forced decode tokens after the
+suffix. Enabled primary witnesses record 12 applies and 12 restores; follow-up
+witnesses record 24 and 24 because both prefix and suffix have scopes. Each of
+six queried LPs and the caller participates equally. Disabled counts are zero;
+production is uninstrumented. No setters occur during decode. All six final
+vector groups are finite and exact against fresh production; primary also matches
+historical unchanged controls. Instrumented times are ignored. The output's
+caller identity is an opaque C++ thread-ID hash, not a Win32 thread ID; actual
+owner/caller identity is checked separately by lifecycle and mask witnesses.
+
+Before timing, independent preflight passes 103 AST/data checks. An exact
+threshold-rounding bug was corrected prospectively: decisions compare rates
+with control * 1.05 or control * 0.995; percentages are reporting only. This
+preserves equality at the original bounds without adding tolerance. The final
+runner also checks terminal witness rows, plan and binary identities and strict
+prior-workload identity/status prerequisites. A 216-file manifest freezes the
+complete pre-timing source/binary/evidence set. All other compute is terminal;
+Windows guards and a pre-launch WSL inspection establish isolation.
+
+Primary timing session 67199 completes all 36 invocations with exit 0 on the
+Ryzen 7 5800X, six workers, ubatch 128, F32 KV, 215 prompt plus 32 forced decode
+tokens. One outer triplet per model and each process's internal first iteration
+are designated warmups; the remaining five triplets per model are retained in
+full. Arm order rotates and reverses prospectively. Clocks cover all Model
+prefill callback/topology/apply/restore costs and immediately following decode;
+model loading is outside clocks. All 36 final vectors exactly match their
+fresh-production witness controls. Normal timing has no activation counters,
+so it measures the enabled policy including permitted fallback.
+
+| Model / phase | Production mean tok/s | Disabled mean tok/s | Enabled mean tok/s | Mean vs production | Mean vs disabled | Median vs disabled |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.6b / pp | 474.695274 | 472.415155 | 548.326819 | +15.511% | +16.069% | +17.878% |
+| 0.6b / tg | 48.835786 | 50.004903 | 50.342125 | +3.084% | +0.674% | +0.222% |
+| 8b / pp | 30.392742 | 30.891701 | 41.452967 | +36.391% | +34.188% | +34.854% |
+| 8b / tg | 4.628661 | 4.649671 | 4.622986 | -0.123% | -0.574% | +0.004% |
+
+The frozen screen requires enabled primary prefill mean and median >=5% higher
+than BOTH controls, with at least 4/5 paired wins against each; decode mean and
+median must be >=99.5% of BOTH controls. Both prefill cases pass with 5/5 wins.
+The single failed rule is 8B decode mean against disabled prototype:
+4.622985950 versus 4.649671131 tok/s, or -0.573915446%, beyond -0.5%.
+Its median is +0.003835% against disabled; production comparison is -0.122610%
+mean and +0.706814% median. These do not override the failed required rule.
+
+Reject this integration and stop placement adoption. No outlier removal,
+threshold change, repeat screen, wider API or map search follows. Conditional
+one/nine-token follow-up timing is not run because primary fails; numerical
+witnesses do not establish short-prompt performance. The unchanged-bound HF
+validation plan is retained but not run for this rejected candidate. No fresh
+HF/mx acceptance, main merge or GitHub publication is claimed. Prior external
+decode requirements remain open, and no regression cause is established.
+
+Independent timing/archive audit and the full 25-file Markdown review are
+complete. Rebuild sources, recipes, logs, all timing results, six model/workload
+full-vector groups with witness/timing aliases and independent reviews are preserved in
+[`benchmarks/cpu-prefill-callback-20260920.json`](benchmarks/cpu-prefill-callback-20260920.json).

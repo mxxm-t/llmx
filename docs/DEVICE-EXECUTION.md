@@ -119,12 +119,14 @@ The current forward pass builds `"blk." + std::to_string(l) + "."` and does ~10
 hash lookups **per layer, per token** - ~280 per decoded token on 28 layers.
 Pre-resolution deletes them.
 
-**Measured effect on CPU decode: none** (25.32 tok/s before and after, 10
-interleaved pairs). A few thousand lookups per second never competed with
-matmuls streaming hundreds of MB per second. This step is a prerequisite, not
-an optimization: the backend must receive the same handle for a given weight on
-every token to keep it resident. Expect the same of the rest of the migration -
-CPU-neutral and GPU-enabling.
+**No admissible measurement yet.** An interleaved A/B showed 25.32 tok/s before
+and after, but it ran off-protocol and on a machine another agent's benchmark
+owned, so it establishes nothing. Neutrality is expected rather than shown: a
+few thousand lookups per second do not compete with matmuls streaming hundreds
+of MB per second. This step is a prerequisite, not an optimization - the
+backend must receive the same handle for a given weight on every token to keep
+it resident. Expect the same of the rest of the migration: CPU-neutral and
+GPU-enabling.
 
 ### Activation arena
 
@@ -222,7 +224,7 @@ benchmarkable against the floor.
 
 | # | Step | CPU effect |
 |---|---|---|
-| 1 | Pre-resolve tensors into `LayerWeights` | **Measured neutral** (mean 25.32 -> 25.32 tok/s, 10 interleaved pairs) |
+| 1 | Pre-resolve tensors into `LayerWeights` | Expected neutral; no admissible measurement yet |
 | 2 | Batched elementwise ops (`rms_norm_rows`, `rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` | Expected neutral on decode; `silu_mul` may help prefill, which reads and writes three `n_ff * B` streams |
 | 3 | `Buffer`, `alloc`/`adopt`/`read`/`write`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` | Neutral - CPU buffers wrap host memory, zero-copy |
 | 4 | Activation arena; op signatures take buffer + offset | Neutral to slight win (one allocation, better locality) |

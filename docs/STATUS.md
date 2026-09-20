@@ -1691,14 +1691,15 @@ feature ships, delete its block and mark the row `Done` above.
   six steps of `docs/DEVICE-EXECUTION.md`. Bar per step is no measured
   regression, not a win.
 - **Done:** the design, `b1e4904`. Step 1, weights resolved once at load,
-  `edd617f`: suite green, HF logits and PPL unchanged on Q8_0 and Q4_0,
-  interleaved A/B neutral (25.32 -> 25.32 tok/s, 10 pairs). Doc page refreshed
-  in `1d4ffa4`.
+  `edd617f`: suite green, HF logits and PPL unchanged on Q8_0 and Q4_0. Doc
+  page refreshed in `1d4ffa4`.
 - **Left:** step 2, batched elementwise ops, written but NOT committed. Suite
-  green and HF perplexity bit-identical to step 1. Not gated: timed without
-  `monitor_windows.py`, a frozen advance rule, an mx column or contamination
-  criteria, on a machine LDEV was itself loading. Redo under the placement
-  runner's discipline.
+  green and HF perplexity bit-identical to step 1.
+- **Left:** NEITHER step has an admissible performance measurement. Both were
+  timed without `monitor_windows.py`, a frozen advance rule, an mx column or
+  contamination criteria, during XDEV session 57294's measured rounds
+  (13:33:07-13:52:07 +0300, disclosed in the devlog). Redo both under the
+  placement runner's discipline once that session is terminal.
 - **Left:** steps 3-6 (buffers, arena, KV on buffers, sync) untouched. No
   vendor backend is writable until step 6.
 - **Gotchas:**

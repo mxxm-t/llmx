@@ -26,9 +26,9 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   together. `Weight::f32()` is the whole row for a normalization weight, which
   validation guarantees is F32. The forward pass indexes `layers_[l]` instead
   of rebuilding `"blk.N."` and hashing a tensor name for every projection of
-  every layer of every token. Measured neutral on CPU decode; it exists because
-  a device backend must recognize the same weight across calls to keep it
-  resident. See `docs/DEVICE-EXECUTION.md` step 1.
+  every layer of every token. It exists so a device backend can recognize the
+  same weight across calls and keep it resident; no admissible CPU performance
+  measurement exists yet. See `docs/DEVICE-EXECUTION.md` step 1.
 - `Model`: loads tensors from a `GGUFModel`, owns one sequence's logical token
   count and a `HostKVCache` for physical CPU storage.
   - `set_threads(n)`, `threads_available()`, `n_tokens()`, `head_dim()`,

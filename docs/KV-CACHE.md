@@ -26,29 +26,34 @@ token.
 ## Measured before deciding
 
 `tools/paged_attn_bench.cpp` (build: `cl /O2 /arch:AVX2 /EHsc`) runs decode
-attention for one 0.6B-shaped layer, 16 heads, 8 KV heads, head_dim 128, over
-a pool of KV sets larger than cache and with shuffled block tables, so it
-measures cold memory and real indirection rather than a sequentially
-allocated best case. Three history lengths, one thread, 2026-09-20 on the
-Ryzen 7 5800X; cost is paged ms/step over contiguous ms/step.
+attention for one layer over a pool of KV sets larger than cache and with
+shuffled block tables, so it measures cold memory and real indirection rather
+than a sequentially allocated best case. Seven paired repeats per cell, one
+thread, 2026-09-20 on the Ryzen 7 5800X; each cell is the median paired
+ratio of paged over contiguous ms/step. Raw output, commands, source and
+binary hashes and the activity monitor are in
+`docs/benchmarks/kv-paging-20260920/`. System CPU during the run averaged
+12.7% of 16 logical CPUs (one busy thread is 6.25%), so other activity was
+present and every sample is kept.
 
-| Block tokens | n_past 256 | n_past 840 | n_past 2048 |
-|---|---|---|---|
-| 16 | +27.4% | +30.3% | +35.0% |
-| 32 | +17.1% | +14.2% | +19.5% |
-| 64 | +11.9% | +18.6% | +16.1% |
-| 128 | +10.7% | +4.2% | +6.7% |
-| 256 | +4.1% | +4.3% | +5.9% |
+| Block tokens | 0.6B shape (16/8 heads) n_past 256 / 840 / 2048 | 8B shape (32/8 heads) 256 / 840 / 2048 |
+|---|---|---|
+| 16 | +29.2% / +24.6% / +32.6% | +25.5% / +25.9% / +29.4% |
+| 32 | +15.3% / +15.4% / +17.2% | +16.4% / +13.3% / +13.4% |
+| 64 | +9.0% / +6.1% / +11.5% | +7.6% / +8.3% / +10.2% |
+| 128 | +9.8% / +6.0% / +6.5% | +4.7% / +5.2% / +6.2% |
+| 256 | +0.9% / +3.3% / +1.5% | +3.2% / +2.6% / +2.5% |
 
-Contiguous baseline: 0.115, 0.438 and 1.128 ms/step. Single runs of 400, 200
-and 120 iterations; not repeated, not activity-monitored, so the ordering is
-established and the last few percent are not.
+Contiguous baselines run 0.11 to 1.9 ms/step across the cells. Per-repeat
+spread at 64 and 128 reaches 20 points, so those two are not separated from
+each other; 16 and 32 are separated from everything, and 256 is the cheapest
+in every cell.
 
 vLLM's default of 16 is a GPU answer. On CPU the block must be large enough
 that per-block setup and the loss of hardware prefetch across block edges are
 amortized over the vectorized inner loop. 128 and 256 are the candidates.
-This is one geometry with a cold cache, not an end-to-end decode cost; the
-evaluation section covers what still has to be measured.
+This is isolated attention with a cold cache, not an end-to-end decode cost;
+the evaluation section covers what still has to be measured.
 
 Memory waste pulls the other way. On 0.6B (28 layers, 8 KV heads, head_dim
 128, F32 K and V) one token costs 224 KiB. A sequence's partially filled last

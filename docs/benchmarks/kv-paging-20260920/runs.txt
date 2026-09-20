@@ -1,0 +1,47 @@
+commit 0173ee6c46ca2c2be4abbaf9bf5e029753ee4011
+binary sha256 ad9dfb2bd41a6d1df423fe619111b3df7888ebfe3e5a7bb728986eae0f73e763
+source sha256 7745ca964cafff8b502417200705c3242dab9a62de116c98d9cded4c727e06d9
+Sun Sep 20 20:48:28 FLEDT 2026
+== cmd: paged_attn_bench.exe 256 400 16 8 7
+decode attention, n_past=256, heads 16/8, 127 KV sets (255 MB), 400 iters/arm, 7 repeats
+  bs=16   contiguous    0.114  paged    0.145 ms/step  median paired  +29.2%  (all: +23.2% +29.2% +29.7% +42.4% +25.3% +24.4% +29.3%)
+  bs=32   contiguous    0.113  paged    0.130 ms/step  median paired  +15.3%  (all: +20.3% +17.1% +8.2% +11.9% +15.3% +17.2% +11.4%)
+  bs=64   contiguous    0.114  paged    0.124 ms/step  median paired   +9.0%  (all: +9.0% -11.2% +5.0% +10.9% +13.6% +12.0% +7.3%)
+  bs=128  contiguous    0.113  paged    0.125 ms/step  median paired   +9.8%  (all: +12.2% +13.2% +1.0% +3.9% +5.7% +9.8% +24.7%)
+  bs=256  contiguous    0.114  paged    0.117 ms/step  median paired   +0.9%  (all: +3.6% +0.3% +0.1% +0.9% +6.9% +3.3% -3.1%)
+== cmd: paged_attn_bench.exe 840 200 16 8 7
+decode attention, n_past=840, heads 16/8, 38 KV sets (250 MB), 200 iters/arm, 7 repeats
+  bs=16   contiguous    0.423  paged    0.531 ms/step  median paired  +24.6%  (all: +28.4% +24.4% +22.6% +18.3% +27.1% +27.2% +24.6%)
+  bs=32   contiguous    0.417  paged    0.486 ms/step  median paired  +15.4%  (all: +16.9% +20.0% +24.1% +15.2% +15.4% +13.3% +9.8%)
+  bs=64   contiguous    0.428  paged    0.455 ms/step  median paired   +6.1%  (all: -5.1% +11.4% -2.3% +6.1% +9.4% +3.7% +34.2%)
+  bs=128  contiguous    0.423  paged    0.466 ms/step  median paired   +6.0%  (all: +18.1% -1.8% +1.2% +7.7% +2.4% +25.0% +6.0%)
+  bs=256  contiguous    0.414  paged    0.435 ms/step  median paired   +3.3%  (all: +5.4% +0.1% +3.3% +1.9% -4.9% +5.1% +6.7%)
+== cmd: paged_attn_bench.exe 2048 120 16 8 7
+decode attention, n_past=2048, heads 16/8, 15 KV sets (240 MB), 120 iters/arm, 7 repeats
+  bs=16   contiguous    1.144  paged    1.493 ms/step  median paired  +32.6%  (all: +32.6% +27.5% +33.5% +34.4% +28.3% +32.6% +25.1%)
+  bs=32   contiguous    1.133  paged    1.334 ms/step  median paired  +17.2%  (all: +14.5% +19.4% +27.6% +15.3% +17.2% +13.4% +17.8%)
+  bs=64   contiguous    1.142  paged    1.273 ms/step  median paired  +11.5%  (all: +11.4% +18.1% +13.1% +11.9% +11.3% +10.0% +11.5%)
+  bs=128  contiguous    1.181  paged    1.209 ms/step  median paired   +6.5%  (all: +6.5% +3.2% +9.0% +7.7% +0.1% +7.2% -5.0%)
+  bs=256  contiguous    1.160  paged    1.204 ms/step  median paired   +1.5%  (all: +10.9% -0.0% +1.5% +17.7% -4.8% +8.3% -4.6%)
+== cmd: paged_attn_bench.exe 256 400 32 8 7
+decode attention, n_past=256, heads 32/8, 127 KV sets (255 MB), 400 iters/arm, 7 repeats
+  bs=16   contiguous    0.175  paged    0.218 ms/step  median paired  +25.5%  (all: +25.9% +25.5% +28.4% +20.7% +14.6% +26.7% +23.8%)
+  bs=32   contiguous    0.172  paged    0.199 ms/step  median paired  +16.4%  (all: +12.6% +15.9% +15.1% +19.5% +18.4% +16.4% +17.2%)
+  bs=64   contiguous    0.179  paged    0.192 ms/step  median paired   +7.6%  (all: +6.9% +8.2% +12.0% +12.9% +6.8% -8.6% +7.6%)
+  bs=128  contiguous    0.175  paged    0.183 ms/step  median paired   +4.7%  (all: +7.4% +3.6% +4.4% +4.7% +4.1% +8.2% +5.1%)
+  bs=256  contiguous    0.175  paged    0.181 ms/step  median paired   +3.2%  (all: +2.5% +3.4% +3.2% +6.0% +2.3% +1.5% +4.7%)
+== cmd: paged_attn_bench.exe 840 200 32 8 7
+decode attention, n_past=840, heads 32/8, 38 KV sets (250 MB), 200 iters/arm, 7 repeats
+  bs=16   contiguous    0.626  paged    0.780 ms/step  median paired  +25.9%  (all: +16.9% +26.0% +24.5% +29.3% +26.6% +25.9% +21.9%)
+  bs=32   contiguous    0.632  paged    0.716 ms/step  median paired  +13.3%  (all: +11.1% +13.4% +18.5% +11.5% +16.2% +11.6% +13.3%)
+  bs=64   contiguous    0.631  paged    0.685 ms/step  median paired   +8.3%  (all: +4.9% +10.4% +12.3% +6.9% +9.0% +8.3% +7.7%)
+  bs=128  contiguous    0.636  paged    0.663 ms/step  median paired   +5.2%  (all: +0.3% +8.2% +7.5% +3.9% -0.4% +5.2% +7.1%)
+  bs=256  contiguous    0.628  paged    0.646 ms/step  median paired   +2.6%  (all: +1.5% +4.0% +5.0% +1.2% +4.0% +2.6% -0.2%)
+== cmd: paged_attn_bench.exe 2048 120 32 8 7
+decode attention, n_past=2048, heads 32/8, 15 KV sets (240 MB), 120 iters/arm, 7 repeats
+  bs=16   contiguous    1.814  paged    2.365 ms/step  median paired  +29.4%  (all: +33.4% +18.8% +31.4% +32.0% +28.9% +26.8% +29.4%)
+  bs=32   contiguous    1.828  paged    2.102 ms/step  median paired  +13.4%  (all: +16.7% +12.5% +10.2% +14.5% +13.4% +13.2% +17.7%)
+  bs=64   contiguous    1.821  paged    2.020 ms/step  median paired  +10.2%  (all: +3.7% +9.7% +5.7% +10.2% +12.3% +11.8% +15.1%)
+  bs=128  contiguous    1.892  paged    1.988 ms/step  median paired   +6.2%  (all: +6.2% +9.8% +5.6% +4.2% +7.8% +9.0% -4.5%)
+  bs=256  contiguous    1.894  paged    1.894 ms/step  median paired   +2.5%  (all: +3.2% +4.4% +4.7% +2.5% -0.8% -1.3% +0.7%)
+Sun Sep 20 20:49:31 FLEDT 2026

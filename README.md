@@ -79,7 +79,8 @@ cmake --build build --config Release
 ```
 
 Current builds require x86 AVX2/FMA/F16C. Git-enabled builds identify themselves
-as `0.1.0+g<commit>`, with `.dirty` for tracked changes. Source archives without
+as `0.1.0+g<commit>` (at least 12 revision characters), with `.dirty` for tracked
+changes. The identifier refreshes on rebuild. Source archives without
 Git metadata report `0.1.0+unknown`; no timestamp or automatic release bump is used.
 
 ## Use

@@ -125,8 +125,8 @@ Split a single model across several backends on one machine.
   and future server streaming. Loading progress should report completed work
   from the loader, leaving presentation to the CLI or server. Implement the
   current CLI consumers first; avoid server-specific stubs. The CLI callbacks
-  and progress display are implemented on the active feature stack; validation
-  and merge status are tracked in STATUS. Server transport remains planned.
+  and progress display are implemented; validation and release scope are
+  tracked in STATUS. Server transport remains planned.
 
 - HTTP/WS server front-end sharing read-only model weights, with independent
   sequence state and mutable KV histories (see ARCHITECTURE.md, KV state and

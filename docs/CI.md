@@ -25,7 +25,28 @@ hardware; compilation alone does not establish backend correctness.
 
 The HF job runs `tools/fetch_test_models.py`, a standard-library downloader
 using the revisions and SHA-256 digests in `tests/baseline.py`. Downloads are
-verified before entering the HF snapshot cache. `--require-baseline` makes
+verified before entering the HF snapshot cache. The HF job caches those
+snapshots between runs, with a key derived from `tests/baseline.py`; restored
+files are still SHA-256 checked on every run. Cold or invalid cache entries
+are downloaded from the pinned revision.
+
+The downloader makes at most five attempts for HTTP 408/429/500/502/503/504
+and transient connection/read failures. Backoff is 30/60/120/240 seconds;
+valid `Retry-After` and HF `RateLimit` reset headers can extend each wait to
+at most 300 seconds. A longer server wait fails with a clear diagnostic,
+rather than retrying early. Permanent HTTP failures, local file errors and
+SHA-256 mismatches fail immediately. Failed attempts remove temporary files;
+only a complete verified download replaces the destination.
+
+Every CI job also runs `python -X utf8 tests/fetch_models.py`: fifteen offline
+tests cover throttling, reset headers, retry exhaustion, interrupted reads,
+cache reuse/replacement, checksum rejection and permanent failures. These
+tests use tiny independent bytes and simulated network responses; they do
+not download models or replace the real HF reference checks. All fifteen pass
+on Linux, including a real HTTP response parser test for premature EOF; the
+previous downloader reproduces the single-request 429 failure.
+
+`--require-baseline` makes
 missing fixtures fatal, preventing a green numerical job made entirely of
 skips. Test execution does not install torch, transformers or HF packages.
 The ordinary CPU jobs can skip real-model checks because their fixtures are
@@ -70,9 +91,10 @@ and required tensor/storage layouts,
 grouped kernels, worker
 failures, chat rendering and KV storage,
 plus the Python HF/Jinja2 follow-up fixtures and CLI thread-control checks.
-The five-job workflow and these
-new native checks still await a hosted run for the current unmerged stack;
-the initial four-job result above does not validate this branch.
+The combined five-job workflow runs when this runtime release reaches main;
+the initial four-job result above does not validate the larger runtime tree.
+The reconciled tree passes all ten native tests, all fifteen downloader cases
+and all eleven required-HF Python components on Windows MSVC and WSL GCC 13.3.
 
 Hosted jobs pass `--no-perf-floor`: `bench` must still run and report finite,
 positive throughput, but the workstation-specific floors are disabled.
@@ -87,6 +109,7 @@ To reproduce locally:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 2
 ctest --test-dir build -C Release --output-on-failure
+python -X utf8 tests/fetch_models.py
 python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor
 python -X utf8 tools/fetch_test_models.py
 python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-baseline
@@ -110,3 +133,16 @@ consumer exceptions. `cli-output` observes flushing through the actual CLI
 emitter with a controlled stream buffer, without wall-clock timing assertions.
 Python chat checks keep progress on stderr and compare
 follow-up replies to the HF goldens with progress enabled and disabled.
+
+The reported [run at d6e00e0](https://github.com/mxxm-t/llmx/actions/runs/35498190148)
+failed while fetching the Q8_0 fixture with HTTP 429, before HF tests ran.
+Retry/cache handling addresses that download failure; persistent service
+throttling can still exhaust the bounded retry policy and fail the job. The
+[updated hosted run](https://github.com/mxxm-t/llmx/actions/runs/35510681421)
+passed all four jobs, including fixture downloads and required HF checks.
+
+The independent build-identification release at `9511a4a` also passed its
+[four-job hosted run](https://github.com/mxxm-t/llmx/actions/runs/35511296680).
+These public releases are merged here without removing the pending runtime
+stack's native, HF or UBSan checks. All five jobs run the offline downloader
+checks.

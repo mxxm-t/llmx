@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "scope": "Reconciliation of the validated runtime with public CI/version fixes; scoped release accepted under the documented tradeoff policy. Placement remains excluded.",
+  "runtime_parent": "0d41a7b5b345a1ddb607f5185785835af94c029b",
+  "public_parent": "9511a4a474f92bca56c5b391757ad63443e389b2",
+  "runtime_src_git_blobs": {
+    "src/backends/backend.hpp": "9bcd406ef91ab03f12bd9eb422bbaffe6eca08bd",
+    "src/backends/cpu/cpu_backend.hpp": "fbcc9e4f96c10b416f0954ad6bbfe790f2170409",
+    "src/cli/main.cpp": "091bcfa4760240cf1a3ee9f5ab0ee981aff23e92",
+    "src/config.hpp": "35c0ace8a538e0198575dac819a382a02a84130c",
+    "src/core/fp16.hpp": "96482159baa7d71fd0cacc4f0a199caa38f5933b",
+    "src/core/json.hpp": "11f18edeac354436b4591cb2ce9b54262d05e867",
+    "src/format/format.hpp": "52920584e323df6534018d07b89198f3044db368",
+    "src/format/gguf.hpp": "926500fc5c7c7be9d335b5d09fd0c68490bab2d8",
+    "src/inference/chat.hpp": "ee55a743e9c64c80c6420eb620a836ec66080650",
+    "src/inference/generate.hpp": "03827b6f910d5a3971b1643f89b7de4732ccb98a",
+    "src/inference/perplexity.hpp": "89bd32721296b42ec73a221bf99336ba80168344",
+    "src/inference/sampler.hpp": "27922bcf714003fe8c9c996614a5aacc119159f1",
+    "src/model/arch_qwen.hpp": "6118636a6d3ba7f0f29696b47eface8289eddd5a",
+    "src/model/host_kv_cache.hpp": "b56117496c91e547dcc0b018da7b8798f19d80ab",
+    "src/quant/k_quants.hpp": "335d11ebb92d65e3513408b49fa7d688578bb124",
+    "src/quant/quant.hpp": "761e236d0483a68034afe85d2a424f4b61d48738",
+    "src/tokenizer/tokenizer.hpp": "c1c2a007bef8f41c87312f9b4770684dbfa02702"
+  },
+  "runtime_src_unchanged": true,
+  "validation": {
+    "windows": {
+      "compiler": "MSVC 19.50",
+      "native": {
+        "passed": 10,
+        "total": 10
+      },
+      "downloader": {
+        "passed": 15,
+        "total": 15
+      },
+      "required_hf_suite": {
+        "passed": 11,
+        "total": 11
+      },
+      "tiny_f32_max_abs_hf_error": 7e-07,
+      "exec_session": 32021,
+      "exit_code": 0
+    },
+    "linux": {
+      "environment": "WSL Ubuntu",
+      "compiler": "GCC 13.3.0",
+      "native": {
+        "passed": 10,
+        "total": 10
+      },
+      "downloader": {
+        "passed": 15,
+        "total": 15
+      },
+      "required_hf_suite": {
+        "passed": 11,
+        "total": 11
+      },
+      "tiny_f32_max_abs_hf_error": 7e-07,
+      "exec_session": 43566,
+      "exit_code": 0
+    }
+  },
+  "scope_notes": [
+    "Python suite results observed in terminal stdout from the listed completed tool sessions.",
+    "Linux source export verified all 91 input file hashes before build; subsequent edits only change docs and this evidence.",
+    "Initial rig reference-container attempt failed before configuration because CMake was absent; validation then used the existing WSL toolchain.",
+    "Synthetic performance floors disabled during these concurrent correctness checks. They provide no new matched performance result."
+  ],
+  "reviews": {
+    "merge_integrity": "pass; src and existing CMake/test code match runtime parent, public download/build fixes preserved",
+    "markdown": "25 files reviewed; release matrix independently recomputed, all values and links checked"
+  },
+  "performance_evidence": [
+    "prefill-monitored-20260920.json",
+    "prefill-ordered-reduction-20260920.json"
+  ],
+  "release_limits": [
+    "No universal per-phase/per-quant performance parity claim.",
+    "All monitored timing samples retained with activity/competing-work limitations.",
+    "Full corpus, maximum context and vendor GPU coverage remain separate roadmap work."
+  ]
+}

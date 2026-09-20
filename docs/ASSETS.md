@@ -3,7 +3,8 @@
 Where the real models and corpora used for manual verification live. These are
 environment-specific paths (this dev machine); the automated suite
 (`tests/run_tests.py`) generates its own synthetic fixtures; its real-model HF
-checks need the pinned fixtures below and otherwise skip.
+checks need the pinned fixtures below and otherwise skip, unless
+`--require-baseline` is set.
 
 Dated validation/research sections preserve the source revision and state at
 that checkpoint. Their old next steps and binary revisions are historical,

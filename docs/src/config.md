@@ -21,6 +21,9 @@ Defines:
   CMake refreshes metadata every build and rewrites the header only when it
   changes. Plain `build.bat` writes the same header before compiling.
   Direct compiler builds without that header retain the `unknown` fallback.
+  Plain builds stop before compilation if writing the version header fails.
+- Update CMake project and fallback config version macros/string together for
+  a release. Rebuilding does not bump or tag a release.
 - `LLMX_HAS_BACKEND_CPU/ROCM/CUDA/SYCL/VULKAN`
 - `LLMX_DEFAULT_THREADS` is declared but not consumed by the CPU backend.
   Actual thread control uses CLI flags and backend hardware concurrency.

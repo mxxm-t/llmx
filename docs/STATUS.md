@@ -1693,14 +1693,34 @@ feature ships, delete its block and mark the row `Done` above.
 - **Done:** the design, `b1e4904`. Step 1, weights resolved once at load,
   `edd617f`: suite green, HF logits and PPL unchanged on Q8_0 and Q4_0. Doc
   page refreshed in `1d4ffa4`.
-- **Left:** step 2, batched elementwise ops, committed on the feature branch
-  and explicitly ungated. Suite green and HF perplexity bit-identical to step
-  1. Must not be merged until it has an admissible measurement.
-- **Left:** NEITHER step has an admissible performance measurement. Both were
-  timed without `monitor_windows.py`, a frozen advance rule, an mx column or
-  contamination criteria, during XDEV session 57294's measured rounds
-  (13:33:07-13:52:07 +0300, disclosed in the devlog). Redo both under the
-  placement runner's discipline once that session is terminal.
+- **Done:** step 2, batched elementwise ops, committed on the feature branch.
+  Suite green and HF perplexity bit-identical to step 1.
+- **Done:** step 2 measured under protocol after 57294 went terminal, with the
+  plan, advance rule and contamination criteria frozen and hashed before any
+  timing. Nine measured pairs, arms alternating and reversing, every arm under
+  `monitor_windows.py`, no sample dropped. **Result: does not advance.**
+
+  | Phase | base mean | cand mean | Mean | Median | Baseline wins |
+  |---|---:|---:|---:|---:|---:|
+  | Prefill | 337.91 | 346.55 | +2.56% | +2.66% | 2/9 |
+  | Decode | 27.48 | 27.69 | +0.79% | -0.50% | 5/9 |
+
+  Prefill passes every criterion. Decode fails paired wins (5/9 against a
+  rule of <= 4) while its mean and median both sit inside the 1% noise band,
+  so that phase is better described as indistinguishable than regressed. The
+  rule is not weakened and the run is not repeated to obtain a pass. Evidence:
+  `benchmarks/device-exec-step2-20260920.json`.
+- **Left:** decide step 2's disposition. The frozen rule is stricter than
+  `AGENTS.md`'s own tradeoff principle, which says a large gain can justify a
+  minor loss and warns against rejecting on an isolated per-case cutoff. That
+  tension is a judgement call and must not be resolved by editing the rule
+  afterwards. Options: re-measure with more pairs under a NEW prospective plan,
+  or keep decode on the single-row ops so only prefill changes.
+- **Left:** step 1 still has no admissible measurement of its own; it was timed
+  off-protocol during 57294 (13:33:05-13:52:07 +0300, disclosed in the devlog).
+  Expected neutral, unproven.
+- **Left:** the external mx-llama.cpp floor is untouched by this runner and
+  still applies to any step that advances.
 - **Left:** steps 3-6 (buffers, arena, KV on buffers, sync) untouched. No
   vendor backend is writable until step 6. Step 3 was started as interface
   plumbing only and reverted: `Buffer` with no caller is a speculative seam,

@@ -96,7 +96,9 @@ The combined five-job workflow first ran on published runtime `08351b0`.
 passed ordinary Ubuntu and required HF, but exposed three portability issues:
 Windows short-path spelling in a test, UBSan scalar-tail contraction in an
 exact oracle, and macOS subnormal-number conversion in the JSON parser.
-The initial four-job result above does not validate this larger runtime tree.
+Repair `851d375` resolves those issues. Its [complete hosted run](https://github.com/mxxm-t/llmx/actions/runs/35512954742)
+passes all five jobs, including the full required-HF suite and the actual macOS
+and Windows runners. The initial four-job result above covers the older tree.
 The reconciled tree passes all ten native tests, all fifteen downloader cases
 and all eleven required-HF Python components on Windows MSVC and WSL GCC 13.3.
 

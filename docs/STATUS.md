@@ -118,6 +118,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Live generation and loading progress     | Done |
 | GitHub CPU CI                          | Done     |
 | HF fixture download retries and CI cache | Done |
+| Hosted numeric/path portability repair | Done (five jobs green at `851d375`) |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
@@ -125,21 +126,15 @@ their own measurements; K-quant optimization remains separate work below.
 Runtime `08351b0` is published on both main remotes. Its initial five-check
 hosted run `35512421834` passed ordinary Ubuntu and required HF, but failed
 Windows reference-generator path spelling, UBSan exact scalar-tail comparison,
-and macOS JSON subnormal conversion. Repair validation is tracked below;
-prior four-check passes at `b266650` and `9511a4a` cover those smaller releases.
+and macOS JSON subnormal conversion. Repair `851d375` passed all five jobs in
+[run 35512954742](https://github.com/mxxm-t/llmx/actions/runs/35512954742):
+Windows, macOS Intel, Linux, Linux UBSan and required HF. The repair changes
+JSON conversion plus test portability, preserving inference kernels and bounds.
+Evidence is in `docs/benchmarks/ci-portability-20260920.json`; prior four-check
+passes at `b266650` and `9511a4a` cover those smaller releases.
 See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 
 ## Active feature blocks
-
-### Hosted CI portability repair
-
-- **Goal:** resolve the expanded hosted CI failures at published main `08351b0`.
-- **Done:** Windows short-path alias regression passes 3/3 and rejects the old spelling assertion. The test now checks an absolute path and filesystem identity.
-- **Done:** reproduced the GCC UBSan exact-tail mismatch at n=2; the test-only contraction option preserves explicit FMAs, exact equality and all cases. The complete UBSan native suite passes 10/10.
-- **Done:** reproduced the macOS JSON failure with Clang/libc++ on Linux. Representable tiny numbers may now carry failbit, while overflow, malformed input and underflow to zero remain rejected. Expanded numeric-boundary tests pass 1,051 checks each on MSVC, GCC/UBSan and Clang/libc++.
-- **Done:** the UBSan Python suite passes all 11 components with real Q8/Q4 HF fixtures. Its CLI was built before the JSON patch; final JSON conversion is covered separately by the three-compiler boundary checks above.
-- **Left:** all five hosted checks on the repair commit.
-- **Gotchas:** the exact reduction test controls implicit contraction only in its own target; CLI arithmetic and build flags are unchanged. JSON numeric conversion is the only runtime source change. No performance-kernel change or new speed claim.
 
 ### Scoped correctness coverage and remaining HF work
 

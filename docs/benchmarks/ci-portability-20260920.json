@@ -30,5 +30,33 @@
     "Runtime JSON conversion accepts finite nonzero tiny results with failbit; overflow and underflow-to-zero remain errors.",
     "No inference kernel changes or new performance claim."
   ],
-  "review": "Independent source review accepted; complete Markdown checkpoint reviewed."
+  "review": "Independent source review accepted; complete Markdown checkpoint reviewed.",
+  "hosted_repair": {
+    "commit": "851d375345c800b7cc9d6711eb5072c16a8f063f",
+    "run": 35512954742,
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/35512954742",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "CPU (windows-2022)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux UBSan)",
+        "conclusion": "success"
+      },
+      {
+        "name": "HF reference (CPU)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "conclusion": "success"
+      }
+    ]
+  }
 }

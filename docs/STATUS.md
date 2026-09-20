@@ -30,9 +30,13 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Done (screening):** 64/128/256 against contiguous main on 0.6B and 8B
   Q8_0, eight frozen plans, all samples kept, tables in
   [KV-CACHE](KV-CACHE.md). Block fixed at 128; the knob is deleted.
-- **Left:** XDEV re-review of `10995be`; the matched mx-llama.cpp
-  comparison on the paged runtime; then main integration. Fork/COW and
-  device buffers are later steps. F16 KV is out of scope.
+- **Done (mx gate):** matched comparison on the paged runtime, tables in
+  [KV-CACHE](KV-CACHE.md). Prefill +79.8% (0.6B) and +82.7% (8B) over mx,
+  8/8 pairs; decode -0.2% and -3.5%. The 8B decode cell is under the floor
+  and is the existing decode bandwidth item, not a paging cost.
+- **Left:** XDEV re-review of the final revision; a decision on the 8B
+  decode cell; then main integration. Fork/COW and device buffers are later
+  steps. F16 KV is out of scope.
 - **Gotchas:** the microbenchmark is isolated attention with a cold cache and
   is not an end-to-end decode cost. Memory waste cuts against large blocks:
   224 KiB per token on 0.6B means a partial 256-token tail wastes up to

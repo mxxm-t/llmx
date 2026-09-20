@@ -117,6 +117,23 @@ void pool_and_sequence() {
     require(p2.in_use() == 0, "destroyed sequences must return their blocks");
     p2.configure(5);
     require(p2.max_blocks() == 5 && p2.alloc() == 0, "an idle pool can be reconfigured in place");
+    p2.release(0);
+
+    // A sequence bound before the pool grew must still take ids safely.
+    {
+        infer::BlockPool grow(1);
+        infer::KVSequence bound(&grow, 4);
+        grow.configure(6);
+        bound.prepare(4 * 6);
+        require(bound.n_blocks() == 6 && grow.in_use() == 6, "prepare after reconfiguration");
+        bound.abort();
+        require(grow.in_use() == 0, "abort after reconfiguration returned every id");
+        rejects([&] { bound.prepare(4 * 6 + 1); }, "over-budget prepare after reconfiguration accepted");
+        require(grow.in_use() == 0 && bound.n_blocks() == 0, "failed prepare left ids outstanding");
+        bound.prepare(3);
+        bound.commit();
+        require(bound.length() == 3 && grow.in_use() == 1, "retry after failed prepare");
+    }
 }
 
 // Append `batch` tokens at `pos` through the backend and commit them.

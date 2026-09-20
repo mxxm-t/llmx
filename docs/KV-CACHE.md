@@ -136,8 +136,9 @@ A view names its storage: block ids are only meaningful inside one
 `KVStorage`, and a process may hold several caches (two models, or two
 pools). The budget crosses the seam in tokens: only the backend knows what
 a block costs in bytes, so a byte budget, when the server needs one,
-converts inside the backend. Storage reports retained bytes and the peak
-held during a growth copy separately. Storage is host memory now and
+converts inside the backend. Storage reports retained bytes and, separately,
+the peak held across successful growth copies; a failed growth attempt is
+not counted. Storage is host memory now and
 becomes a `Buffer` at step 5 of
 [DEVICE-EXECUTION](DEVICE-EXECUTION.md) without changing this contract. The
 public raw-pointer `attention` overload is deleted once every model, test and
@@ -243,9 +244,8 @@ Memory at the end of a run, from `generate --verbose`:
 | 8B, 873 tokens | 288 / 432 / 246 MiB | same | same |
 
 This is an internal comparison of paged against the contiguous cache it
-replaces. It says nothing about the external mx-llama.cpp floor, which
-remains the separate matched gate in ROADMAP #8 and has to be re-run on the
-paged runtime before any claim against it.
+replaces. The external mx-llama.cpp floor is the separate matched gate in
+ROADMAP #8 and was re-run on the paged runtime; see below.
 
 Decision: **128**. 64 fails prefill in five of eight plans and never wins.
 128 and 256 are not separable on decode; 256 fails prefill on both
@@ -255,6 +255,31 @@ tokens, 4 of 5 pairs) is noted and not explained; it is the first thing to
 re-measure when the contiguous path is deleted or the copying growth is
 replaced. The `LLMX_KV_BLOCK` knob is deleted with this decision, per
 AGENTS: a temporary A/B knob goes once it has answered its question.
+
+### Matched mx-llama.cpp gate on the paged runtime (2026-09-20)
+
+`tools/compare_cpu.py` as in [ASSETS](ASSETS.md): pinned 215-token excerpt
+plus 32 forced tokens, 6 threads, 8 alternating pairs, llmx arm from
+`0c0dec7`, reference mx `5542318e74`. Evidence in
+`docs/benchmarks/kv-mx-20260920/`.
+
+| Model | Phase | llmx paged | mx | Paired median | llmx wins |
+|---|---|---:|---:|---:|---:|
+| 0.6B Q8_0 | prefill | 464.92 | 259.21 | +79.8% | 8/8 |
+| 0.6B Q8_0 | decode | 43.56 | 41.62 | -0.2% | 3/8 |
+| 8B Q8_0 | prefill | 37.34 | 20.58 | +82.7% | 8/8 |
+| 8B Q8_0 | decode | 3.89 | 4.02 | -3.5% | 2/8 |
+
+System CPU averaged 55% in both runs against the benchmark's own 37.5%, with
+peaks near 98%, so other work was present throughout; all samples are kept
+and the alternating pairs put that load on both arms.
+
+Prefill clears the floor on both models. 8B decode is 3.5% under it. The
+screening above shows paging did not move decode against the contiguous
+cache, and contiguous llmx was already at or slightly under mx on 8B decode
+in the base release table, so this gap is the decode bandwidth question in
+STATUS, not a cost of the cache. It is recorded here rather than claimed
+either way.
 
 ## Order of work
 

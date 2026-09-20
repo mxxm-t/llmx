@@ -45,8 +45,9 @@ class KVStorage {
 public:
     virtual ~KVStorage() = default;
     virtual size_t max_blocks() const = 0;
-    // Bytes retained for blocks now, and the most held at any instant
-    // (growth may copy, so the peak can exceed the retained figure).
+    // Bytes retained for blocks now, and the most held across successful
+    // growths (a growth copies, so old plus new is held for a moment). A
+    // growth that failed part way is not counted.
     virtual size_t allocated_bytes() const = 0;
     virtual size_t peak_bytes() const = 0;
 };

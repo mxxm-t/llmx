@@ -14,6 +14,11 @@
 //   - The block table must be SHUFFLED. Sequentially allocated blocks are
 //     indistinguishable from a contiguous layout and would flatter paging.
 //     Real allocation interleaves sequences and reuses freed blocks.
+//
+// Usage: paged_attn_bench [n_past] [iters] [heads] [kv_heads] [repeats]
+// Each repeat times both arms back to back and the median paired ratio is
+// reported, so drift lands on both arms and one slow repeat does not decide.
+// Build: cl /O2 /arch:AVX2 /EHsc tools/paged_attn_bench.cpp
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -30,8 +35,8 @@ using Clock = std::chrono::steady_clock;
 namespace {
 
 constexpr int kHeadDim = 128;
-constexpr int kHeads = 16;
-constexpr int kKvHeads = 8;
+int kHeads = 16;     // 0.6B; pass 32 for the 8B geometry
+int kKvHeads = 8;
 
 float dot(const float* a, const float* b, int n) {
     __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
@@ -105,11 +110,23 @@ void attend_paged(const float* q, const float* pool_k, const float* pool_v,
     }
 }
 
+double median(std::vector<double> v) {
+    std::sort(v.begin(), v.end());
+    return v[v.size() / 2];
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     const int n_past = argc > 1 ? atoi(argv[1]) : 840;
     const int iters = argc > 2 ? atoi(argv[2]) : 200;
+    if (argc > 3) kHeads = atoi(argv[3]);
+    if (argc > 4) kKvHeads = atoi(argv[4]);
+    const int repeats = argc > 5 ? atoi(argv[5]) : 5;
+    if (kHeads <= 0 || kKvHeads <= 0 || kHeads % kKvHeads || repeats <= 0) {
+        fprintf(stderr, "heads must be a positive multiple of kv_heads; repeats > 0\n");
+        return 2;
+    }
     const int end = n_past + 1;
     const size_t per_head = (size_t)end * kHeadDim;
 
@@ -123,10 +140,9 @@ int main(int argc, char** argv) {
     std::vector<float> out(kHeadDim);
     std::vector<float> scores(end + 512);
 
-    printf("decode attention, n_past=%d, %d KV sets (%.0f MB), %d iters/arm\n",
-           n_past, sets, sets * set_bytes / 1048576.0, iters);
+    printf("decode attention, n_past=%d, heads %d/%d, %d KV sets (%.0f MB), %d iters/arm, %d repeats\n",
+           n_past, kHeads, kKvHeads, sets, sets * set_bytes / 1048576.0, iters, repeats);
 
-    // Contiguous arm.
     std::vector<std::vector<float>> ck(sets), cv(sets);
     for (int s = 0; s < sets; ++s) {
         ck[s].resize(per_head * kKvHeads);
@@ -136,18 +152,18 @@ int main(int argc, char** argv) {
             cv[s][i] = std::cos((float)(i + s)) * 0.5f;
         }
     }
-    auto t0 = Clock::now();
-    for (int it = 0; it < iters; ++it)
-        for (int h = 0; h < kHeads; ++h)
-            attend_contiguous(q.data(),
-                              ck[it % sets].data() + (size_t)(h % kKvHeads) * per_head,
-                              cv[it % sets].data() + (size_t)(h % kKvHeads) * per_head,
-                              n_past, out.data(), scores);
-    const double contig = std::chrono::duration<double>(Clock::now() - t0).count();
-    printf("  contiguous %8.3f ms/step\n", contig * 1000.0 / iters);
+    const auto run_contig = [&] {
+        auto t0 = Clock::now();
+        for (int it = 0; it < iters; ++it)
+            for (int h = 0; h < kHeads; ++h)
+                attend_contiguous(q.data(),
+                                  ck[it % sets].data() + (size_t)(h % kKvHeads) * per_head,
+                                  cv[it % sets].data() + (size_t)(h % kKvHeads) * per_head,
+                                  n_past, out.data(), scores);
+        return std::chrono::duration<double>(Clock::now() - t0).count() * 1000.0 / iters;
+    };
 
-    // Paged arms, block size swept. Block tables are shuffled so the walk is
-    // not accidentally sequential.
+    // Block tables are shuffled so the walk is not accidentally sequential.
     for (int bs : {16, 32, 64, 128, 256}) {
         const int blocks_per_head = (end + bs - 1) / bs;
         const int total_blocks = blocks_per_head * kKvHeads;
@@ -164,15 +180,26 @@ int main(int argc, char** argv) {
             std::iota(tables[s].begin(), tables[s].end(), 0);
             std::shuffle(tables[s].begin(), tables[s].end(), rng);
         }
-        auto t1 = Clock::now();
-        for (int it = 0; it < iters; ++it)
-            for (int h = 0; h < kHeads; ++h)
-                attend_paged(q.data(), pk[it % sets].data(), pv[it % sets].data(),
-                             tables[it % sets].data() + (size_t)(h % kKvHeads) * blocks_per_head,
-                             bs, n_past, out.data(), scores);
-        const double paged = std::chrono::duration<double>(Clock::now() - t1).count();
-        printf("  paged bs=%-4d %8.3f ms/step  %+6.1f%% vs contiguous\n",
-               bs, paged * 1000.0 / iters, (paged / contig - 1.0) * 100.0);
+        const auto run_paged = [&] {
+            auto t1 = Clock::now();
+            for (int it = 0; it < iters; ++it)
+                for (int h = 0; h < kHeads; ++h)
+                    attend_paged(q.data(), pk[it % sets].data(), pv[it % sets].data(),
+                                 tables[it % sets].data() + (size_t)(h % kKvHeads) * blocks_per_head,
+                                 bs, n_past, out.data(), scores);
+            return std::chrono::duration<double>(Clock::now() - t1).count() * 1000.0 / iters;
+        };
+        std::vector<double> ratios, c_ms, p_ms;
+        for (int r = 0; r < repeats; ++r) {
+            const double c = run_contig(), p = run_paged();
+            c_ms.push_back(c);
+            p_ms.push_back(p);
+            ratios.push_back(p / c);
+        }
+        printf("  bs=%-4d contiguous %8.3f  paged %8.3f ms/step  median paired %+6.1f%%  (all:",
+               bs, median(c_ms), median(p_ms), (median(ratios) - 1.0) * 100.0);
+        for (double x : ratios) printf(" %+.1f%%", (x - 1.0) * 100.0);
+        printf(")\n");
     }
     return 0;
 }

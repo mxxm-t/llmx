@@ -16,6 +16,9 @@ The project is early; most of that broader execution and serving work is planned
 - Dense **Qwen3** inference on x86 CPU with **AVX2/FMA/F16C**.
 - GGUF v3 reading/writing, including mixed Q8_0, Q4_0, Q4_1, Q4_K, Q5_K,
   Q6_K and F32 tensors. The CLI quantizes to Q8_0 or Q4_0; K-quants are read-only.
+- Native `llmx pull` downloads pinned GGUF models with multiple streams,
+  verified caching and gated-repo credentials. Sharded GGUF loads through the
+  same model commands. Downloads use curl 8.4+; Python is not required.
 - Byte-level BPE with Qwen2/Qwen3 pretokenization, generation and interactive
   follow-up chat using a Jinja2-subset template renderer. Text streams as tokens
   arrive; legacy reasoning filters retain buffering. Loading and processing
@@ -23,8 +26,9 @@ The project is early; most of that broader execution and serving work is planned
 - Batched prompt processing, a growing CPU KV cache, sampling and windowed
   perplexity. One model instance currently handles one sequence at a time.
 
-ARM, GPU execution, additional model architectures, a multi-user server and
-`llmx pull` are not implemented yet. Some validated development checkpoints
+See [usage](docs/USAGE.md#llmx-pull-ownerrepoquant) for the download/cache
+interface. ARM, GPU execution, additional model architectures and a multi-user
+server are not implemented yet. Some development checkpoints
 remain on feature branches while their performance gates are open; see
 [development status](docs/STATUS.md) for the current state.
 
@@ -33,7 +37,7 @@ remain on feature branches while their performance gates are open; see
 | Area | Planned work |
 |---|---|
 | Model coverage | Llama, Mistral, Gemma and Phi; additional quantizations |
-| Hugging Face | Pinned downloads/cache, sharded GGUF, safetensors, BF16/F16 tensors, HF tokenizer/config files |
+| Hugging Face | Safetensors, BF16/F16 tensors, HF tokenizer/config files |
 | Device execution | Backend-owned buffers, resident activations and asynchronous submission |
 | GPU backends | ROCm as a first-class target; CUDA and SYCL; Vulkan for portability |
 | Multiple devices/nodes | Model splitting across devices and cluster nodes |
@@ -46,7 +50,7 @@ CPU worker parallelism does not make a model instance safe for concurrent users.
 
 The runtime has no external libraries today. Planned GPU SDKs are a deliberate
 build dependency; vendor math libraries are outside the design. HF download
-support is planned through system HTTPS tooling. Direct loading of PyTorch Hub
+support uses system curl HTTPS tooling. Direct loading of PyTorch Hub
 kernel extensions would introduce PyTorch/Python dependencies and is not planned.
 See the [roadmap](docs/ROADMAP.md) for dependencies, priorities and scope.
 

@@ -3415,3 +3415,73 @@ Independent review checked all 84 outputs/vectors (12,762,624 finite values),
 252 phase activity summaries and 1,092 statistical comparisons. It independently
 rehashed 78 unique non-model manifest files; full model rehashes were performed
 by each runner. These integrity checks do not remove the disclosed contention.
+
+## Native HF pull checkpoint (2026-09-20)
+
+The `feat/hf-pull` implementation is based on published main `3a61d2b`.
+It adds native C++ Hub metadata/quant selection, pinned downloads, verified
+cache reuse, bounded parallel byte ranges and aggregate GGUF shard loading.
+It changes no model/backend/quant arithmetic. This is a feature checkpoint,
+not evidence of all roadmap HF formats or GPU kernels being implemented.
+
+| Check | Windows MSVC | Linux GCC 13.3 |
+|---|---:|---:|
+| Full native tests | 16/16 | 15/15 with UBSan |
+| Required-HF Python components | 12/12 | 12/12 with UBSan |
+| Shard/Unicode native fixture checks | 66/66 | 66/66 with ASan/UBSan |
+| Native curl transport checks | 58/58 | 58/58 |
+| Sharded synthetic HF full-logit cases | 20/20 | 20/20 |
+| Maximum sharded HF logit error | 0.00000070 | 0.00000070 |
+
+The sharded HF consumer covers tied/untied weights, one/four workers, all 257
+logits, metadata-only first shards, chunked NLL and missing-shard CLI rejection.
+The full required suites also retain both real Q8/Q4 tokenizer/logit/PPL gates.
+Synthetic perf timings were collected during concurrent validation and are
+diagnostic only; they are not a new inference comparison against mx-llama.cpp.
+
+Real public Hub acquisition used `Qwen/Qwen3-0.6B-GGUF:Q8_0`, pinned revision
+`23749fefcc72300e3a2ad315e1317431b06b590a`, and four streams. The 639,446,688-byte
+file independently matches Python SHA256
+`9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031`.
+A subsequent invocation refreshed metadata, verified and reused the cached file.
+Observed command times were 18.00 seconds for acquisition and 2.62 seconds for
+reuse, including metadata and hashing. These are single-run diagnostics, not
+a serial-versus-parallel speed claim. Ordinary machine/network activity was not
+controlled for those timings.
+
+The [checkpoint report](benchmarks/hf-pull-checkpoint-20260920.json) records
+commands, terminal exits and source identities. Raw logs, native review reports
+and downloaded model remain in the local temporary directory
+`llmx-hf-pull-20260920`. Local Windows plain build also passes. All 28 Markdown
+files were reviewed, including ASCII and local-link checks. macOS hosted
+execution and live gated-repository/controlled credential-redirect checks are
+not covered by these local results.
+
+The single-file loader comparison uses identical MSVC C++17 `/O2 /arch:AVX2`
+harnesses and the same downloaded model. One planned warmup pair precedes five
+measured pairs in alternating AB/BA order; the odd measured count has a 3/2
+first-position split. Input hashing warms the filesystem cache. Only
+`read_gguf` is timed; complete payload, tensor and metadata SHA256 fingerprints
+are computed afterward. All 12 processes match, and all 56 frozen small-file
+identities plus the separate model identity pass before and after the run.
+
+| Repeated warm-cache loading | Main headers | Candidate headers |
+|---|---:|---:|
+| Mean time | 427.246 ms | 428.494 ms |
+| Median time | 427.363 ms | 428.079 ms |
+
+Mean observed cost is +1.248 ms. Mean paired speed difference is -0.283%, with
+a descriptive 95% interval of [-3.706%, +3.140%]; candidate wins 2/5 pairs.
+This small study does not resolve the tiny difference or prove zero overhead.
+Six measured runs carry activity flags; every sample is retained. One-second
+telemetry can miss bursts during subsecond loads, and disk activity includes
+the loader itself. No competing developer workload was identified by the
+monitor, which is not proof that every external process was observable.
+
+The [raw archive](benchmarks/hf-pull-checkpoint-20260920-raw.tar.gz) contains
+139 records, including plans, harness/source snapshots, test logs and activity.
+Its 1,165,130 bytes have SHA256
+`30edc384b192ab35f7963bac42ae7660a3ad7ab3b4de6092da8e2d676002fb86`.
+Every archived record was rehashed after writing. Model/executable payloads
+remain local; identities are retained. Root independently recomputed all five
+paired statistics and all 12 loaded-model fingerprint comparisons.

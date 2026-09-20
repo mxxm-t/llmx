@@ -7,6 +7,9 @@ the model in `model/`.
 Commands and their entry points:
 
 - `--version`: release version plus the build revision, without loading a model.
+- `pull`: parse repository/quant, revision, explicit file, cache and stream count;
+  pass HF credentials to `hub::pull`, render status on stderr and print the
+  verified model path on stdout. See [Hub acquisition](hub.md).
 
 - `quantize` / `dequantize`: `cmd_quantize` / `cmd_dequantize` (Q8_0/Q4_0
   writing and supported-type dequantization via `model.json`/`model.bin`).

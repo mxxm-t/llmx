@@ -31,7 +31,9 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   Tensor infos have no individual padding.
 
 This is the format the CLI and the `infer::Model` layer consume. Reads/seeks
-throw on stream failure. The internal `Reader` obtains the extent from the
+throw on stream failure. Read/write paths are UTF-8 and converted through
+`std::filesystem::u8path` so Unicode cache paths also work on Windows.
+The internal `Reader` obtains the extent from the
 opened stream and bounds strings, arrays and field reads before allocation.
 Only version 3 and at most four tensor dimensions are accepted. Nested arrays
 are supported up to `MAX_ARRAY_DEPTH` (256 containers); an empty array still
@@ -51,3 +53,18 @@ payload allocation and after structural validation, advances after successful re
 into tensor storage, and ends at `(total, total)`. Empty models report `(0, 0)`
 once. Failed reads throw before reporting those bytes as complete. Percentages
 and console output belong to the caller; no extra tensor copy is introduced.
+
+Sharded files require the complete typed `split.no` (uint16), `split.count`
+(uint16) and `split.tensors.count` (int32) metadata trio. Open the canonical first
+`-00001-of-0000N.gguf` file; the reader discovers sibling names and keeps the
+validated streams open. Model/tokenizer metadata is authoritative in the first
+shard, which may contain no tensors. Later shards may omit it; repeated keys
+must match exactly by type and value, except each file owns its own alignment.
+Duplicate keys/tensors and mismatched indices/counts/totals fail before progress
+or payload allocation. Extremely large shard sets may exceed OS open-file limits.
+
+All shards share one final blob and one aggregate progress total. No shard-size
+temporary blob or concatenation copy is used. The assembled model removes split
+bookkeeping so writing it as one GGUF remains valid. Native fixtures exercise
+structure, payload bytes and error paths; `tests/shards.py` compares sharded
+synthetic model logits and NLL against the committed HF references.

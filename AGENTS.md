@@ -80,7 +80,9 @@ do not want while measuring.
 - **Temporary A/B knobs get deleted** once they have answered their question.
   Both `LLMX_ROW_BLOCK` and `LLMX_ROW_BLOCK_BYTES` existed only to find a
   number and were removed with the finding recorded in `docs/STATUS.md`.
-- **The one environment variable is for tests**: `LLMX_BASELINE_GGUF` points
+- **The runtime credential exception is `HF_TOKEN`** for `llmx pull` gated-repo
+  access. It is not a tuning knob and must not appear in child argv or logs.
+- **Test configuration**: `LLMX_BASELINE_GGUF` points
   `tests/baseline.py` at a fixture model. That is test configuration, not
   runtime configuration, and it never reaches the binary.
 
@@ -116,6 +118,14 @@ escaped Unicode tensor names through the actual CLI.
 array depth, tensor arithmetic, file extents, quantized row widths and custom
 alignment. These are format checks; they do not establish model-schema safety.
 `load-progress` also checks early rejection and a file truncated after validation.
+
+`gguf-shards` covers complete shard sets, metadata-only first shards, exact
+payloads, inconsistent metadata, truncation, aggregate progress and Unicode
+file paths. `hub-manifest`, `hub-pull` and `hub-transport` are offline tests of
+variant selection/hash vectors, concurrent range assembly/cache repair and
+native curl child lifetime/response handling. Real transfers are separate
+integration checks. The Python `shards` component compares sharded synthetic
+logits and NLL against the independent HF fixture.
 
 `model-validation` checks Qwen configuration ranges/defaults, required tensor
 layouts and in-memory storage before model execution buffers are allocated.
@@ -191,7 +201,7 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   reference generation and model correctness remain separate checks.
 - **Reference consumer** (`tests/reference_consumer.py`): standard-library
   rejection tests for changed 8B fixtures, damaged logits/PPL, wrong model
-  identity and failed launches. This is the ordinary suite's eleventh component;
+  identity and failed launches. It is included in the ordinary suite;
   it does not load or download the 8B model.
 
 The optional real 8B check is separate from the ordinary suite and default CI:
@@ -235,6 +245,7 @@ matters: **each layer depends only on the layers below it** -
 | Directory    | Contents                                        |
 |--------------|-------------------------------------------------|
 | `core/`      | fp16 <-> f32, JSON parser, common types         |
+| `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
 | `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
 | `format/`    | ModelFormat interface + GGUF v3 impl           |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3 pretokenizer       |

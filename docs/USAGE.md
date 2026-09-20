@@ -23,6 +23,60 @@ change the release number, or embed timestamps.
   thread count, including in `bench`. Specify a positive count for matched
   performance comparisons.
 
+## `llmx pull <owner/repo>:<quant>`
+
+Download a GGUF model from Hugging Face and print its absolute local path on
+stdout. Status goes to stderr. For example:
+
+```powershell
+$model = .\llmx.exe pull Qwen/Qwen3-0.6B-GGUF:Q8_0 --parallel 4
+.\llmx.exe chat "$model" --threads 6 --temp 0 -n 256
+```
+
+The command requires curl 8.4 or newer for HTTPS. There is no Python runtime or
+linked TLS library. `HF_TOKEN` supplies a credential for private/gated models;
+access must already be granted by the repository owner. Tokens are passed to
+curl through stdin and omitted from its arguments, environment and diagnostics.
+HTTPS redirects retain certificate checks and strip authorization on a change
+of origin. Normal curl proxy and CA environment settings remain supported.
+
+| Flag | Meaning |
+|---|---|
+| `--revision <ref>` | Branch, tag or full commit SHA; default `main`. Metadata resolves it to a SHA before downloading. |
+| `--file <name>` | Exact repository-relative file when several models match the quant. Selecting any shard downloads the entire set. |
+| `--cache-dir <path>` | Cache root; default `<home>/.cache/llmx`. |
+| `--parallel N` | Maximum streams per file, from 1 to 16; default 4. Large files use concurrent byte ranges. |
+
+Quant matching is case insensitive and uses the filename's quant suffix.
+Ambiguous matches and incomplete shard sets fail with an error. Files smaller
+than 16 MiB use one stream; larger files use up to N streams with at least
+8 MiB per stream. A server must honor ranges with exact HTTP 206 responses;
+an ignored or mismatched range fails, rather than assembling incorrect bytes.
+Use `--parallel 1` if the server does not support ranges.
+
+The cache layout is
+`<cache>/models--<owner>--<repo>/snapshots/<commit-sha>/<repository-file>`.
+Every pull refreshes revision metadata. Cache hits are verified against the
+published size and SHA256 for LFS files, or Git blob SHA1 for ordinary files.
+Existing verified bytes are reused. Corrupt entries are replaced only after a
+complete verified replacement is available. There is no offline mode.
+
+Up to five attempts retry transient network/HTTP failures, including HTTP 429,
+with bounded backoff and numeric Retry-After delays up to 60 seconds. Longer
+server waits fail with an instruction to retry later, rather than retry early. Failed attempts
+restart their stream; partial transfers are not resumed across invocations.
+Range parts are assembled and hashed in bounded memory before atomic per-file
+publication. Temporary disk use can approach twice a file's size. Temporary
+files are removed on ordinary failure; a forcibly terminated process may leave
+its `.pull-*` directory for manual removal. Simultaneous pulls use separate
+temporary directories. Completed shards remain reusable if a later shard fails.
+
+All GGUF commands accept the first `-00001-of-0000N.gguf` shard and discover
+the siblings beside it. Loading validates all shard metadata and tensor extents
+before one aggregate payload allocation. The first shard may contain metadata
+only. Successful download does not establish that llmx implements the model's
+architecture, tokenizer or tensor types; current runtime coverage still applies.
+
 ## `llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]`
 
 Convert a raw float32 model into a quantized GGUF file.

@@ -6,9 +6,12 @@
 #include <utility>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 #include <stdexcept>
 #include <algorithm>
 #include <limits>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "format/format.hpp"
 
@@ -292,7 +295,7 @@ inline void write_meta_value(std::ostream& os, const MetaValue& v) {
 
 inline void write_gguf(const GGUFModel& m, const std::string& path) {
     const uint32_t alignment = file_alignment(m.kv);
-    std::ofstream os(path, std::ios::binary);
+    std::ofstream os(std::filesystem::u8path(path), std::ios::binary);
     if (!os) throw std::runtime_error("cannot open file for writing: " + path);
 
     uint32_t magic = MAGIC;
@@ -328,13 +331,10 @@ inline void write_gguf(const GGUFModel& m, const std::string& path) {
     }
 }
 
-inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& progress = {}) {
-    std::ifstream is(path, std::ios::binary);
-    if (!is) throw std::runtime_error("cannot open file: " + path);
-    is.exceptions(std::ios::failbit | std::ios::badbit);
-    Reader reader(is);
+namespace detail {
 
-    GGUFModel m;
+inline uint64_t read_header(std::ifstream& is, GGUFModel& m) {
+    Reader reader(is);
     uint32_t magic;
     uint32_t ver;
     uint64_t ntc, nkv;
@@ -372,6 +372,136 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
     if (data_start > reader.size()) throw std::ios_base::failure("GGUF data section exceeds file extent");
     const uint64_t available = reader.size() - data_start;
 
+    for (const auto& t : m.tensors) {
+        const uint64_t bytes = t.data_size();
+        if (t.offset % alignment) throw std::runtime_error("unaligned GGUF tensor offset");
+        if (t.offset > available || bytes > available - t.offset)
+            throw std::ios_base::failure("GGUF tensor exceeds file extent");
+    }
+    return data_start;
+}
+
+struct Input {
+    std::ifstream stream;
+    uint64_t data_start;
+    size_t begin, end;
+
+    Input(const std::string& path, GGUFModel& header, size_t first)
+        : stream(std::filesystem::u8path(path), std::ios::binary), begin(first) {
+        if (!stream) throw std::runtime_error("cannot open file: " + path);
+        stream.exceptions(std::ios::failbit | std::ios::badbit);
+        data_start = read_header(stream, header);
+        const uint64_t total = checked_add(first, header.tensors.size());
+        if (total > header.tensors.max_size())
+            throw std::runtime_error("GGUF tensor count exceeds allocation limit");
+        end = size_t(total);
+    }
+};
+
+struct Split {
+    uint16_t no = 0, count = 1;
+    int32_t tensors = 0;
+    bool present = false;
+};
+
+inline Split split_info(const GGUFModel& m) {
+    const MetaValue* values[3]{};
+    for (const auto& kv : m.kv) {
+        const int index = kv.first == "split.no" ? 0 : kv.first == "split.count" ? 1 :
+                          kv.first == "split.tensors.count" ? 2 : -1;
+        if (index < 0) continue;
+        if (values[index]) throw std::runtime_error("duplicate GGUF split metadata");
+        values[index] = &kv.second;
+    }
+    if (!values[0] && !values[1] && !values[2]) return {};
+    if (!values[0] || !values[1] || !values[2] ||
+        values[0]->vtype != V_UINT16 || values[1]->vtype != V_UINT16 ||
+        values[2]->vtype != V_INT32 || !values[1]->u ||
+        values[0]->u >= values[1]->u || values[2]->i < 0)
+        throw std::runtime_error("invalid GGUF split metadata");
+    return {uint16_t(values[0]->u), uint16_t(values[1]->u), int32_t(values[2]->i), true};
+}
+
+inline bool equal_value(const MetaValue& a, const MetaValue& b) {
+    if (a.vtype != b.vtype) return false;
+    switch (a.vtype) {
+        case V_UINT8: case V_UINT16: case V_UINT32: case V_UINT64: return a.u == b.u;
+        case V_INT8: case V_INT16: case V_INT32: case V_INT64: return a.i == b.i;
+        case V_FLOAT32: return a.fb == b.fb;
+        case V_FLOAT64: return std::memcmp(&a.f64, &b.f64, sizeof(double)) == 0;
+        case V_BOOL: return a.b == b.b;
+        case V_STRING: return a.s == b.s;
+        case V_ARRAY:
+            if (a.u != b.u || a.arr.size() != b.arr.size()) return false;
+            for (size_t i = 0; i < a.arr.size(); ++i)
+                if (!equal_value(a.arr[i], b.arr[i])) return false;
+            return true;
+        default: return false;
+    }
+}
+
+inline std::string split_suffix(uint16_t no, uint16_t count) {
+    const std::string index = std::to_string(unsigned(no) + 1);
+    const std::string total = std::to_string(count);
+    return "-" + std::string(5 - index.size(), '0') + index + "-of-" +
+           std::string(5 - total.size(), '0') + total + ".gguf";
+}
+
+} // namespace detail
+
+inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& progress = {}) {
+    GGUFModel m;
+    std::vector<detail::Input> files;
+    files.emplace_back(path, m, 0);
+    const auto split = detail::split_info(m);
+    if (split.present) {
+        if (split.no) throw std::runtime_error("open the first GGUF shard (split.no must be zero)");
+        std::string prefix;
+        if (split.count > 1) {
+            const std::string suffix = detail::split_suffix(0, split.count);
+            if (path.size() < suffix.size() || path.compare(path.size() - suffix.size(), suffix.size(), suffix))
+                throw std::runtime_error("GGUF shard filename must end in " + suffix);
+            prefix = path.substr(0, path.size() - suffix.size());
+        }
+        std::unordered_map<std::string, const MetaValue*> metadata;
+        for (const auto& kv : m.kv)
+            if (!metadata.emplace(kv.first, &kv.second).second)
+                throw std::runtime_error("duplicate GGUF shard metadata: " + kv.first);
+        std::unordered_set<std::string> names;
+        auto check_tensors = [&](const GGUFModel& header, size_t total) {
+            if (total > uint64_t(split.tensors))
+                throw std::runtime_error("GGUF split tensor count mismatch");
+            for (const auto& t : header.tensors)
+                if (!names.insert(t.name).second)
+                    throw std::runtime_error("duplicate GGUF shard tensor: " + t.name);
+        };
+        check_tensors(m, m.tensors.size());
+        for (uint16_t index = 1; index < split.count; ++index) {
+            GGUFModel header;
+            files.emplace_back(prefix + detail::split_suffix(index, split.count), header, m.tensors.size());
+            const auto next = detail::split_info(header);
+            if (!next.present || next.no != index || next.count != split.count || next.tensors != split.tensors)
+                throw std::runtime_error("inconsistent GGUF split metadata");
+            std::unordered_set<std::string> keys;
+            for (const auto& kv : header.kv) {
+                if (!keys.insert(kv.first).second)
+                    throw std::runtime_error("duplicate GGUF shard metadata: " + kv.first);
+                if (kv.first == "split.no" || kv.first == "general.alignment") continue;
+                const auto found = metadata.find(kv.first);
+                if (found == metadata.end() || !detail::equal_value(*found->second, kv.second))
+                    throw std::runtime_error("inconsistent GGUF shard metadata: " + kv.first);
+            }
+            check_tensors(header, files.back().end);
+            for (auto& tensor : header.tensors) m.tensors.push_back(std::move(tensor));
+        }
+        if (m.tensors.size() != uint64_t(split.tensors))
+            throw std::runtime_error("GGUF split tensor count mismatch");
+        // The assembled model can be written as one file; split keys describe its inputs only.
+        m.kv.erase(std::remove_if(m.kv.begin(), m.kv.end(), [](const auto& kv) {
+            return kv.first == "split.no" || kv.first == "split.count" || kv.first == "split.tensors.count";
+        }), m.kv.end());
+    }
+
     // Size the blob exactly, then read each tensor straight into place: no
     // per-tensor temporary and no reallocation of an 8 GB buffer.
     size_t total = 0;
@@ -380,9 +510,6 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
     for (const auto& t : m.tensors) {
         // Odd quantized block counts must not misalign a following F32 tensor.
         const uint64_t bytes = t.data_size();
-        if (t.offset % alignment) throw std::runtime_error("unaligned GGUF tensor offset");
-        if (t.offset > available || bytes > available - t.offset)
-            throw std::ios_base::failure("GGUF tensor exceeds file extent");
         const uint64_t aligned = aligned_size(total, alignof(float));
         const uint64_t next = checked_add(aligned, bytes);
         if (next > m.blob.max_size()) throw std::runtime_error("GGUF payload exceeds allocation limit");
@@ -394,15 +521,17 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
     if (progress && payload) progress(0, payload);
     m.blob.resize(total);
     size_t completed = 0;
-    for (size_t i = 0; i < m.tensors.size(); i++) {
-        is.seekg(std::streamoff(data_start + m.tensors[i].offset));
-        const size_t bytes = m.tensor_bytes(i);
-        for (size_t offset = 0; offset < bytes;) {
-            const size_t chunk = std::min(bytes - offset, size_t(8 * 1024 * 1024));
-            is.read((char*)m.tensor_data(i) + offset, (std::streamsize)chunk);
-            offset += chunk;
-            completed += chunk;
-            if (progress && completed < payload) progress(completed, payload);
+    for (auto& file : files) {
+        for (size_t i = file.begin; i < file.end; i++) {
+            file.stream.seekg(std::streamoff(file.data_start + m.tensors[i].offset));
+            const size_t bytes = m.tensor_bytes(i);
+            for (size_t offset = 0; offset < bytes;) {
+                const size_t chunk = std::min(bytes - offset, size_t(8 * 1024 * 1024));
+                file.stream.read((char*)m.tensor_data(i) + offset, (std::streamsize)chunk);
+                offset += chunk;
+                completed += chunk;
+                if (progress && completed < payload) progress(completed, payload);
+            }
         }
     }
     if (progress) progress(completed, payload);
@@ -456,7 +585,7 @@ private:
 // Auto-detect the format from the file header and open it. Currently only GGUF
 // is implemented; the magic check is the extension point for future formats.
 inline format::ModelFormatPtr format::open(const std::string& path, const LoadProgress& progress) {
-    std::ifstream is(path, std::ios::binary);
+    std::ifstream is(std::filesystem::u8path(path), std::ios::binary);
     if (!is) throw std::runtime_error("cannot open file: " + path);
     uint32_t magic = 0;
     is.read((char*)&magic, 4);

@@ -28,6 +28,7 @@
 #include "config.hpp"
 #include "core/fp16.hpp"
 #include "core/json.hpp"
+#include "hub/pull.hpp"
 #include "format/gguf.hpp"
 #include "format/format.hpp"
 #include "quant/quant.hpp"
@@ -631,6 +632,9 @@ void print_usage() {
         << "\n"
         << "Usage:\n"
         << "  llmx --version  print release version and build revision\n"
+        << "  llmx pull       <owner/repo>:<quant> [--revision <ref>] [--file <name>]\n"
+        << "                  [--cache-dir <path>] [--parallel N] (default: 4, range: 1..16)\n"
+        << "    pull uses curl 8.4+ for HTTPS; HF_TOKEN supplies gated-repo credentials\n"
         << "  llmx quantize   <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n"
         << "  llmx dequantize <in.gguf> <out.json> <out.bin>\n"
         << "  llmx info       <in.gguf>\n"
@@ -696,6 +700,45 @@ int main(int argc, char** argv) {
         std::string cmd = argv[1];
         if (cmd == "--version") {
             std::cout << "llmx " << LLMX_VERSION_STRING << "\n";
+            return 0;
+        }
+
+        if (cmd == "pull") {
+            if (argc < 3) throw std::runtime_error("usage: llmx pull <owner/repo>:<quant> [flags...]");
+            const std::string target = argv[2];
+            const auto colon = target.find(':');
+            if (colon == std::string::npos) throw std::runtime_error("pull: expected owner/repository:quant");
+            hub::PullOptions options;
+            options.repo = target.substr(0, colon);
+            options.quant = target.substr(colon + 1);
+#ifdef _WIN32
+            char* token = nullptr;
+            size_t token_size = 0;
+            if (_dupenv_s(&token, &token_size, "HF_TOKEN")) throw std::runtime_error("pull: cannot read HF_TOKEN");
+            std::unique_ptr<char, decltype(&std::free)> token_owner(token, &std::free);
+            if (token) options.token = token;
+#else
+            if (const char* token = std::getenv("HF_TOKEN")) options.token = token;
+#endif
+            for (int i = 3; i < argc; ++i) {
+                const std::string flag = argv[i];
+                if (flag != "--revision" && flag != "--file" && flag != "--cache-dir" && flag != "--parallel")
+                    throw std::runtime_error("pull: unknown flag: " + flag);
+                if (i + 1 == argc) throw std::runtime_error("pull: missing value for " + flag);
+                const std::string value = argv[++i];
+                if (flag == "--revision") options.revision = value;
+                else if (flag == "--file") options.filename = value;
+                else if (flag == "--cache-dir") {
+                    if (value.empty()) throw std::runtime_error("pull: empty cache path");
+                    options.cache = std::filesystem::u8path(value);
+                } else {
+                    if (value.empty() || value.size() > 2 || value.find_first_not_of("0123456789") != std::string::npos)
+                        throw std::runtime_error("pull: --parallel must be between 1 and 16");
+                    options.parallel = unsigned(std::stoul(value));
+                }
+            }
+            const auto path = hub::pull(options, [](const std::string& message) { std::cerr << message << '\n'; });
+            std::cout << path.u8string() << '\n';
             return 0;
         }
 

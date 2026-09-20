@@ -39,6 +39,10 @@ tensor schemas, dimension ranges, extent arithmetic or binary payloads. The
 the stored double values; it does not recover the exact decimal spelling.
 Safetensors and HF tokenizer/config loading remain future work.
 
+The native Hub path also parses model/file metadata and curl response-header
+JSON. Those consumers impose their own document-size limits and validate the
+fields they consume, including duplicate manifest fields, sizes and identities.
+
 Some standard libraries set a range-error flag for representable subnormals,
 including values rounded up to minimum normal. The parser accepts that flag
 only for a fully consumed finite nonzero result whose absolute magnitude is at or below minimum normal.

@@ -4,6 +4,34 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Native HF download checkpoint (2026-09-20)
+
+ROADMAP #9a is implemented: native `llmx pull`, immutable revision resolution,
+verified cache, `HF_TOKEN` credentials, bounded parallel downloads (four streams
+by default) and aggregate sharded GGUF loading. This checkpoint is locally
+validated and prepared for main publication; hosted CI is still pending.
+HF native safetensors/tokenizer/config support and device kernels remain planned.
+
+| Local check | Windows | Linux |
+|---|---:|---:|
+| Native suite | 16/16 | 15/15 with UBSan |
+| Required-HF Python components | 12/12 | 12/12 with UBSan |
+| Shard/Unicode fixtures | 66/66 | 66/66 with ASan/UBSan |
+| Transport fixtures | 58/58 | 58/58 |
+| Sharded HF full-logit cases | 20/20 | 20/20 |
+
+The real 639,446,688-byte public Q8 download passes independent SHA256 after
+four-stream assembly. Cache reuse passes on Windows and Linux. Five measured
+loader pairs average 427.246 ms before and 428.494 ms after; paired speed change
+is -0.283% with a descriptive interval [-3.706%, +3.140%]. This tiny observed
+cost is unresolved; all activity-flagged samples are retained. Complete loaded
+payload/tensor/metadata hashes match in all 12 processes. No inference arithmetic
+changed, and this is not a fresh mx inference comparison. Full evidence and
+limitations are in the [checkpoint](ASSETS.md#native-hf-pull-checkpoint-2026-09-20).
+All 28 Markdown files were reviewed. Live gated-repository use and controlled
+credential redirects remain untested; native credential fixtures and public
+HTTPS pass. A maintained curl 8.4+ supplies HTTPS and redirect behavior.
+
 ## Prefill placement checkpoint (2026-09-20)
 
 Backend-owned prefill placement is merged and published on both main remotes
@@ -165,7 +193,8 @@ their own measurements; K-quant optimization remains separate work below.
 | GitHub CPU CI                          | Done     |
 | HF fixture download retries and CI cache | Done |
 | Hosted numeric/path portability repair | Done (five jobs green at `851d375`) |
-| HF integration (pull + Hub formats)      | Planned  |
+| HF model download and sharded GGUF (ROADMAP #9a) | Done (local gates pass; hosted CI pending publication) |
+| HF native formats (ROADMAP #9b)          | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 `Done` denotes implemented and validated functionality in this release tree.
@@ -198,7 +227,7 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 
 ## Working rules and ownership
 
-XDEV owns runtime release, validation and optional placement. LDEV owns its
+XDEV owns native HF download/cache and sharded GGUF loading. LDEV owns its
 separate K-quant/device work. Coordination uses the TUI on port 8181 and the
 shared devlog; the notification watcher is polled explicitly. Builds and tests
 may run in parallel when no timing reservation is active. Keep every planned

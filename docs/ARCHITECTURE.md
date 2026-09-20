@@ -50,7 +50,8 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 
 | Directory       | Contents                                                              |
 |-----------------|-----------------------------------------------------------------------|
-| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser)    |
+| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `sha.hpp` (Hub file hashes) |
+| `hub/`          | Hub metadata/quant selection, curl HTTPS transport, verified download cache |
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants)                       |
 | `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3)            |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3 pretokenizer)             |
@@ -59,10 +60,17 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
 
-Per-file documentation lives in `docs/src/` - one page per source file, covering
+Source and subsystem documentation lives in `docs/src/`, covering
 what each header does, its public surface, and its place in the layering. See
 `docs/src/cli-main.md` for the CLI entry points and `docs/USAGE.md` for the
 command reference.
+
+`hub/` is a CLI-invoked acquisition path beside the inference stack. It depends
+on core JSON and hashing, never on a model or backend. Curl is an external HTTPS
+process; no Python or TLS library is linked. Bounded range downloads write into
+private temporary files; final size/hash verification precedes cache publication.
+The CLI owns credentials, options and status rendering. GGUF shard interpretation
+belongs to `format/`, so locally supplied and downloaded shards load identically.
 
 ## Build-time vs runtime
 

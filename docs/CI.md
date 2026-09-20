@@ -23,6 +23,13 @@ GPU jobs should be added when the device execution model and each backend
 exist. Actual GPU numerical/performance results require the corresponding
 hardware; compilation alone does not establish backend correctness.
 
+HF acquisition adds four offline native targets: Hub manifest/hash,
+Hub cache/multi-stream assembly, curl child-process/response handling, and GGUF
+shards. It also runs a sharded synthetic F32 consumer against committed HF
+logits/NLL in the Python suite. These require no internet access or real curl
+installation; the native transport test supplies a fake child executable.
+Live downloads still require curl 8.4+ and separate network integration checks.
+
 The HF job runs `tools/fetch_test_models.py`, a standard-library downloader
 using the revisions and SHA-256 digests in `tests/baseline.py`. Downloads are
 verified before entering the HF snapshot cache. The HF job caches those
@@ -55,7 +62,7 @@ absent; the separate HF job supplies that coverage.
 The Python suite also checks reference-generator argument safeguards and that
 the requested commit, float32 dtype and eager attention reach the HF loader.
 These use standard-library test doubles; CI does not generate new HF goldens
-or download larger models. The ordinary suite now has 11 components, including
+or download larger models. The ordinary suite now has 12 components, including
 `reference-consumer` rejection tests for 8B fixture tampering, malformed or
 out-of-bound numerical output, wrong model identity and failed launches. These
 tests use small committed JSON fixtures and doubles, without 8B inference.

@@ -175,7 +175,7 @@ bar. Two halves with different dependencies: the download + format-coverage half
 is gated on nothing and can start immediately; only the kernel half is gated (on
 #4a). The position in this list is by dependency, not by priority.
 
-### 9a. `llmx pull` - model download
+### 9a. `llmx pull` - model download [implemented]
 - Hub REST: `GET /api/models/{repo}` for the file list and metadata,
   `GET /{repo}/resolve/{rev}/{file}` for bytes
 - Pin a commit SHA rather than `main`, so a pull is reproducible
@@ -183,12 +183,15 @@ is gated on nothing and can start immediately; only the kernel half is gated (on
 - A local cache with a documented layout; `llmx pull <repo>:<quant>` resolves a
   quant variant to a concrete file
 - **Sharded GGUF**: the Hub splits large models into `-0000N-of-0000M.gguf`.
-  `gguf::read_gguf` assumes a single file - a real gap, not a detail
+  Download a complete set and load it through the normal GGUF entry point.
+- Multiple concurrent byte-range streams for large files, bounded by a CLI
+  `--parallel` setting, with final size/hash verification before cache publication.
 - **TLS is the dependency problem.** There is no HTTPS in the C++ stdlib, and
   this is the second carve-out from "dependency-free" after GPU SDKs. Shelling
   out to `curl` (present on Win10+, Linux and macOS) adds zero link-time deps
-  and is the default choice; a stdlib-only `tools/hf_pull.py` is the fallback.
-  Do not link OpenSSL, and do not implement TLS.
+  and is the selected implementation. Require curl 8.4+ for bounded downloads
+  and credential-safe redirects; a missing/old curl gives an actionable error.
+  There is no runtime Python fallback. Do not link OpenSSL or implement TLS.
 
 ### 9b. Reading what the Hub actually hosts
 `docs/ASSETS.md` records local model coverage. Quant support alone does not

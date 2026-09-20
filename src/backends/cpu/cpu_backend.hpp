@@ -147,13 +147,21 @@ public:
             matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
             return;
         }
-        if (nbatch == 1 && ggml_type == gguf::GGML_TYPE_Q4_K) {
-            const size_t nb = nin / gguf::Q4_K_BLOCK;
-            const size_t rowbytes = nb * gguf::Q4_K_TYPESIZE;
+        // K-quants whose value factorises into d*sum(q*x) - m*sum(x) have a
+        // fused decode dot that materialises no dequantized value.
+        if (nbatch == 1 && (ggml_type == gguf::GGML_TYPE_Q4_K ||
+                            ggml_type == gguf::GGML_TYPE_Q5_K)) {
+            const bool q5 = ggml_type == gguf::GGML_TYPE_Q5_K;
+            const size_t nb = nin / (q5 ? gguf::Q5_K_BLOCK : gguf::Q4_K_BLOCK);
+            const size_t rowbytes = nb * (q5 ? gguf::Q5_K_TYPESIZE
+                                             : gguf::Q4_K_TYPESIZE);
+            const auto dot = [&](const uint8_t* r) {
+                return q5 ? dot_row_q5_K(r, X, nb) : dot_row_q4_K(r, X, nb);
+            };
             const int nt = threads_;
             if (nt <= 1 || nout < (size_t)nt * 8) {
                 for (size_t o = 0; o < nout; o++)
-                    Y[o] = dot_row_q4_K(data + o * rowbytes, X, nb);
+                    Y[o] = dot(data + o * rowbytes);
                 return;
             }
             const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
@@ -161,7 +169,7 @@ public:
                 const size_t s0 = (size_t)w * chunk;
                 const size_t e0 = std::min(nout, s0 + chunk);
                 for (size_t o = s0; o < e0; o++)
-                    Y[o] = dot_row_q4_K(data + o * rowbytes, X, nb);
+                    Y[o] = dot(data + o * rowbytes);
             });
             return;
         }
@@ -774,6 +782,88 @@ private:
     // d*q - m with q a 4-bit unsigned nibble, so its contribution to the dot is
     //     sum_l (d*q_l - m) * x_l  =  d * sum_l(q_l * x_l)  -  m * sum_l(x_l)
     // and the two sums are plain FMA reductions over the nibbles and over x.
+    // Same factorisation as Q4_K: the value is d*(q + 16*hbit) - m, so the dot
+    // is d*sum((q + 16*hbit)*x) - m*sum(x) and no dequantized value is
+    // materialised. The fifth bit comes from qh, whose mask shifts left by two
+    // every 64 values while qh itself does not advance.
+    float dot_row_q5_K(const uint8_t* row, const float* x, size_t nblocks) {
+        float acc = 0.0f;
+        for (size_t b = 0; b < nblocks; b++) {
+            const uint8_t* p = row + b * gguf::Q5_K_TYPESIZE;
+            const float d    = half_to_float((uint16_t)(p[0] | ((uint16_t)p[1] << 8)));
+            const float dmin = half_to_float((uint16_t)(p[2] | ((uint16_t)p[3] << 8)));
+            const uint8_t* sc = p + 4;
+            const uint8_t* qh = p + 16;
+            const uint8_t* ql = p + 48;
+            const float* xp = x + b * gguf::Q5_K_BLOCK;
+
+            int is = 0;
+            uint8_t u1 = 1, u2 = 2;
+            for (int j = 0; j < (int)gguf::Q5_K_BLOCK; j += 64) {
+                uint8_t s, mm;
+                quant::get_scale_min_k4(is + 0, sc, &s, &mm);
+                const float d1 = d * (float)s, m1 = dmin * (float)mm;
+                quant::get_scale_min_k4(is + 1, sc, &s, &mm);
+                const float d2 = d * (float)s, m2 = dmin * (float)mm;
+
+                if (avx2_) {
+                    const __m128i lo_mask = _mm_set1_epi8(0x0F);
+                    const __m128i sixteen = _mm_set1_epi8(16);
+                    const __m128i b1 = _mm_set1_epi8((char)u1);
+                    const __m128i b2 = _mm_set1_epi8((char)u2);
+                    __m128i rawl[2] = { _mm_loadu_si128((const __m128i*)(ql +  0)),
+                                        _mm_loadu_si128((const __m128i*)(ql + 16)) };
+                    __m128i rawh[2] = { _mm_loadu_si128((const __m128i*)(qh +  0)),
+                                        _mm_loadu_si128((const __m128i*)(qh + 16)) };
+                    __m256 qx_lo = _mm256_setzero_ps(), sx_lo = _mm256_setzero_ps();
+                    __m256 qx_hi = _mm256_setzero_ps(), sx_hi = _mm256_setzero_ps();
+                    for (int h = 0; h < 2; h++) {
+                        // A set bit contributes exactly 16 to the value, so
+                        // compare-then-mask gives the addend without a branch.
+                        const __m128i hb = rawh[h];
+                        const __m128i add_lo = _mm_and_si128(
+                            _mm_cmpeq_epi8(_mm_and_si128(hb, b1), b1), sixteen);
+                        const __m128i add_hi = _mm_and_si128(
+                            _mm_cmpeq_epi8(_mm_and_si128(hb, b2), b2), sixteen);
+                        const __m128i L = _mm_add_epi8(
+                            _mm_and_si128(rawl[h], lo_mask), add_lo);
+                        const __m128i H = _mm_add_epi8(
+                            _mm_and_si128(_mm_srli_epi16(rawl[h], 4), lo_mask), add_hi);
+                        for (int q = 0; q < 2; q++) {
+                            const __m128i Lp = q ? _mm_srli_si128(L, 8) : L;
+                            const __m128i Hp = q ? _mm_srli_si128(H, 8) : H;
+                            const __m256 fl = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Lp));
+                            const __m256 fh = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Hp));
+                            const __m256 xl = _mm256_loadu_ps(xp + h * 16 + q * 8);
+                            const __m256 xh = _mm256_loadu_ps(xp + 32 + h * 16 + q * 8);
+                            qx_lo = _mm256_fmadd_ps(fl, xl, qx_lo);
+                            sx_lo = _mm256_add_ps(xl, sx_lo);
+                            qx_hi = _mm256_fmadd_ps(fh, xh, qx_hi);
+                            sx_hi = _mm256_add_ps(xh, sx_hi);
+                        }
+                    }
+                    acc += d1 * hsum256(qx_lo) - m1 * hsum256(sx_lo);
+                    acc += d2 * hsum256(qx_hi) - m2 * hsum256(sx_hi);
+                } else {
+                    float qx1 = 0, sx1 = 0, qx2 = 0, sx2 = 0;
+                    for (int l = 0; l < 32; l++) {
+                        const float xa = xp[l], xb = xp[l + 32];
+                        qx1 += (float)((ql[l] & 0xF) + ((qh[l] & u1) ? 16 : 0)) * xa;
+                        sx1 += xa;
+                        qx2 += (float)((ql[l] >> 4)  + ((qh[l] & u2) ? 16 : 0)) * xb;
+                        sx2 += xb;
+                    }
+                    acc += d1 * qx1 - m1 * sx1;
+                    acc += d2 * qx2 - m2 * sx2;
+                }
+                xp += 64; ql += 32; is += 2;
+                u1 = (uint8_t)(u1 << 2);
+                u2 = (uint8_t)(u2 << 2);
+            }
+        }
+        return acc;
+    }
+
     float dot_row_q4_K(const uint8_t* row, const float* x, size_t nblocks) {
         float acc = 0.0f;
         for (size_t b = 0; b < nblocks; b++) {

@@ -1741,15 +1741,36 @@ feature ships, delete its block and mark the row `Done` above.
   dequantized value is materialised. Q4_K works because `d*q - m` factorises
   into `d*sum(q*x) - m*sum(x)`; Q5_K carries the same scale/min pair plus a
   high bit, and Q6_K has signed group scales and no min.
-- **Done:** nothing yet; block opened before writing code.
-- **Left:** Q5_K fused dot, then Q6_K, each measured separately.
-- **Left:** correctness through the HF fixtures, then throughput through
-  `tools/ab_runner.py` with the plan frozen before timing.
+- **Done:** Q5_K fused dot, adopted. `dot_row_q5_K` mirrors `dot_row_q4_K`
+  with the fifth bit taken from `qh`, whose mask shifts two places every 64
+  values while `qh` itself does not advance. Dispatch now covers both types
+  through one threading block rather than a copy.
+- **Done:** correctness against the fp32 HF golden, not against llmx. The
+  ordinary suite's fixtures are Q8_0 and Q4_0, so it does not cover this path
+  at all; `Qwen3-0.6B-Q5_K_M.gguf` was scored directly against
+  `tests/data/baseline_logits.json`: top-1 6/6, worst top-5 overlap 4/5, mean
+  4.50, max absolute logit 24.46 against the 100 bound. The file is 29 tensors
+  of Q6_K as well, so that path is exercised incidentally.
+- **Done:** throughput, plan frozen before timing, 15 measured pairs.
+
+  | Phase | base mean | cand mean | Mean | Median | Baseline wins |
+  |---|---:|---:|---:|---:|---:|
+  | Decode | 8.96 | 13.33 | +51.37% | +51.12% | 0/15 |
+  | Prefill | - | - | -0.93% | -0.64% | 10/15 |
+
+  Evidence: `benchmarks/fused-q5k-decode-20260920.json`.
+- **Left:** the same treatment for Q6_K, which has signed group scales and no
+  min, so the dot is `sum(d_g * sum(q*x))` with no `sum(x)` term.
+- **Left:** propose adding `Qwen3-0.6B-Q5_K_M.gguf` to `BASELINE_MODELS` so
+  the external gate covers Q5_K/Q6_K permanently. Deliberately not done here:
+  that list drives `tools/fetch_test_models.py`, which XDEV owns while fixing
+  CI rate limits, and a third fixture is a third download.
 - **Gotchas:**
-  - Prefill is a different question and may not benefit: the batched path
-    already dequantizes each row once and reuses it across the batch, so the
-    fused dot removes work that path does not repeat. Measure both phases and
-    report them together.
+  - Prefill does not benefit and cannot: the fused dot only fires at
+    `nbatch == 1`, and the batched path already dequantizes each row once and
+    reuses it across the batch. That made prefill an accidental control in the
+    Q5_K run - identical code measured -0.93% mean and -0.64% median, which
+    puts this setup's noise floor near 1%. Useful when reading small effects.
   - Qwen3-0.6B-Q5_K_M is 168 Q5_K / 29 Q6_K / 113 F32, so it exercises both
     paths in one model. A fused Q5_K dot alone will show a partial effect.
   - The roadmap's 2.16 -> ~2.6 tok/s is Q4_K's result on its own model, not a

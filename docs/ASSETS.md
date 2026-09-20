@@ -14,6 +14,34 @@ sections record follow-up results without pooling separate timing sessions.
 > below become a cache the tool manages. Until then, this file is the record of
 > what is on this machine.
 
+## Placement integration on current validated source (2026-09-20)
+
+Scratch `%TEMP%/llmx-placement-current-02` applies the same four-file placement
+delta onto `291ce2c`, retaining GGUF, JSON conversion and Qwen construction
+checks. The old `a61c414` snapshots and seven deferred preflights remain intact.
+Production source and the root executable are unchanged.
+
+| Check | Windows | Linux |
+|-------|---------|-------|
+| Native CTest | 10/10 | 10/10 |
+| Required-HF Python suite | 11/11 | 11/11 |
+| Active six-thread HF cases | 28/28 | Placement pass-through |
+| 0.6B F32/Q8 long continuation | 33 exact vectors/model | Not rerun |
+
+The long check uses 1,943 prompt tokens and 32 forced continuation steps,
+checking 5,013,888 finite values per arm/model against current production and
+the unchanged HF bounds. Affinity witnesses verify six participants, full
+restoration and no decode setters. This is not full-corpus, maximum-context or
+8B long-context evidence. Current-source short follow-up placement witnesses
+and the optional 8B consumer are not included in this checkpoint.
+
+`run-current.py` uses current-source binaries and unchanged comparison order,
+contention criteria and statistical reporting. It has not launched model timing.
+The quiet-window performance gate and observer limitations remain open.
+All 25 Markdown files were reviewed. Preparation failure, source delta,
+manifests, build/test commands and raw results are retained in
+[checkpoint evidence](benchmarks/prefill-current-integration-20260920.json).
+
 ## Qwen model construction validation (2026-09-20)
 
 Branch `fix/qwen-model-validation` starts at JSON conversion checkpoint

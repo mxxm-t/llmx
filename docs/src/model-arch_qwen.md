@@ -32,8 +32,8 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   - `prefill(ids) -> logits`: run a whole prompt through matrix-matrix matmuls
     in chunks of `ubatch()` tokens, so each weight row is read once per chunk
     instead of once per token. Only the final token's logits are produced, so
-    the vocab projection stays a single matvec. This is the prefill path and is
-    compute bound, unlike decode.
+    the vocab projection stays a single matvec. The limiting resource depends
+    on the model, batch size, hardware and competing workloads.
   - `set_ubatch(n)` / `ubatch()`: physical batch, llama.cpp's `n_ubatch`, set
     by `--ubatch`. llmx has no logical batch; see `docs/USAGE.md`.
   - `reset()`: reset logical history while retaining allocated KV capacity.

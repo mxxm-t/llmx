@@ -55,9 +55,11 @@ The subsequent synchronous callback integration also fails its frozen screen:
 That original screen stopped adoption; the user tradeoff clarification below
 reopens assessment. Independent timing/archive audit and the full
 25-file Markdown checkpoint review are complete.
-The reopened candidate now passes fresh Windows native, lifecycle, active HF
-logit and 0.6B long-continuation checks, with machine activity recording
-implemented and exercised. New monitored timing remains open; see its block.
+The reopened candidate on source `a61c414` passed Windows native, lifecycle,
+active HF logit and 0.6B long-continuation checks, with machine activity
+recording implemented and exercised. Integration onto `291ce2c` now passes
+Windows/Linux suites, active HF logits and 0.6B long-continuation checks in
+separate scratch. New monitored timing remains open; see its block.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
@@ -234,6 +236,36 @@ observer effects remain open.
 
 ### Prefill placement reassessment with machine activity monitoring
 
+- **Current integration checkpoint:** transplanted the existing four-file
+  placement delta onto validated checkpoint `291ce2c` in isolated scratch
+  `%TEMP%/llmx-placement-current-02`. Independent review verifies all 61 control
+  files against Git and all 188 frozen identities; candidate changes are exactly
+  the archived placement delta, with separate opt-in and default-enabled copies.
+  GGUF, JSON conversion and model construction validation remain intact.
+  The first preparation attempt stopped at a context assertion before building;
+  its incomplete scratch and script are retained. Grouped context patches fixed
+  preparation without changing the intended delta.
+- **Current integration validation:** Windows and Linux each pass 10/10 native
+  tests and the 11-component required-HF suite. Windows passes all 28 active
+  placement HF cases with six distinct cores and complete affinity restoration.
+  The 1,943-token plus 32-step 0.6B F32/Q8 gate passes: 33 byte-identical full
+  vectors per model, 5,013,888 finite floats per arm, unchanged HF bounds and no
+  decode setters. F32 maximum HF logit error is 0.000126362; absolute HF mean
+  NLL differences are 0.000000645211 (F32) and 0.007011817 (Q8). Linux placement
+  remains pass-through. These timings are diagnostic, not performance evidence.
+- **Current next step:** use the current-source `run-current.py` comparison
+  after coordinating a quiet window. Its order, thresholds, monitor, evaluator
+  and harnesses match the older plan; only source/provenance and prerequisite
+  checks changed. Seven older-source preflights are retained, all deferred
+  before model timing. Current-source one-/nine-token placement witnesses and
+  the optional 8B consumer have not been rerun; their earlier evidence below is
+  historical. No production placement integration or merge is claimed.
+- **Current checkpoint review:** all jobs are terminal and all 25 Markdown
+  files reviewed. Corrected historical-source scope, CPU ISA requirements and
+  the categorical prefill bottleneck claim. Source identities, preparation
+  scripts, commands, text outputs and reviews are in
+  [current-source placement evidence](benchmarks/prefill-current-integration-20260920.json).
+
 - **Method clarification after LDEV review:** the frozen runner rotates and
   reverses the three arm orders inside each model/workload block; model and
   workload order also rotate across one warmup and eight measured rounds.
@@ -247,6 +279,10 @@ observer effects remain open.
   result alone establishes that a small performance difference is real.
 - **Goal:** complete the reopened whole-prefill placement assessment against
   production and matched mx, including HF/lossless and short follow-ups.
+- **Historical source scope:** the completed placement checks below used
+  control source `a61c414`, before the three later validation fixes. References
+  to current production in those results mean that historical control. They
+  do not establish validation of the new `291ce2c` integration described above.
 - **Done:** preserved the historical candidate and its failed original screen;
   JSON checkpoint `a61c414` passes Windows/Linux correctness suites.
 - **Done:** fresh scratch control and default-enabled candidate retain current

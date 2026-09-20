@@ -6,7 +6,7 @@ making changes.
 ## What this is
 
 **llmx** - a ground-up, dependency-free LLM inference runtime. It reads/writes
-GGUF v3, runs quantized or F32 Qwen3-style transformers on CPU (AVX2 where available),
+GGUF v3, runs quantized or F32 Qwen3-style transformers on x86 CPU with AVX2/FMA/F16C,
 and is structured so formats, quantizations, backends, and multi-device / cluster
 serving can be added later without touching the core.
 

@@ -47,6 +47,16 @@ the compiled binary portable to older CPUs.
   conversion; signed byte groups load directly into the widening operations.
   Float activations and per-lane accumulation order are unchanged. Software
   half conversion and scalar dot fallbacks remain available.
+- **Order of operations decides whether a kernel can overflow, and the two
+  families differ.** `dot_row_impl` folds the scale into each weight before it
+  meets the activation, `(q*d)*x`, so nothing intermediate is larger than the
+  result and Q8_0 has no overflow window. The fused K-quant dots accumulate
+  `sum(q*x)` and apply the scale afterwards, which is what makes them fast and
+  what lets a large activation reach infinity before a small scale could bound
+  it. Those rows fall back to dequantizing first when the fused result is not
+  finite. Do not "simplify" the Q8_0 kernel into the same shape: measured at
+  q=127 and x=2^123 the accumulate-first form reaches 4.3e40 where the exact
+  answer is finite. `tests/fused_dot_overflow.cpp` pins both families.
 - `rms_norm`, `rope`: AVX2 vectorized with scalar tails for non-multiples of 8.
 - `rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`: the batched forms the
   model calls. Two private helpers decide dispatch. `spread` keeps a stage on

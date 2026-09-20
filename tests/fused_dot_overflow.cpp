@@ -28,6 +28,22 @@ void put16(std::vector<uint8_t>& v, size_t at, uint16_t x) {
     v[at + 1] = (uint8_t)(x >> 8);
 }
 
+// Q8_0 for contrast. Its kernel folds the scale into each weight before the
+// activation, (q*d)*x, rather than accumulating sum(q*x) first, so it should
+// have no overflow window at all. Included to verify that by measurement
+// rather than by reading the kernel, and to catch it if that ever changes.
+// Eight 32-value blocks, every weight 127.
+std::vector<uint8_t> block_q8_0(uint16_t half) {
+    std::vector<uint8_t> b(8 * gguf::Q8_0_TYPESIZE, 0);
+    for (int blk = 0; blk < 8; blk++) {
+        uint8_t* p = b.data() + blk * gguf::Q8_0_TYPESIZE;
+        p[0] = (uint8_t)(half & 0xFF);
+        p[1] = (uint8_t)(half >> 8);
+        for (int i = 0; i < 32; i++) p[2 + i] = 127;
+    }
+    return b;
+}
+
 // Q4_K: every nibble 15, unit group scales, zero mins, so each weight
 // decodes to 15. Same 144-byte layout as the dequantizer expects.
 std::vector<uint8_t> block_q4_K(uint16_t half) {
@@ -80,8 +96,10 @@ int run_type(uint32_t type, const char* tname) {
     };
     int checked = 0;
     for (const auto& c : cases) {
-        const float q = type == gguf::GGML_TYPE_Q4_K ? 15.0f : 31.0f;
-        std::vector<uint8_t> w = type == gguf::GGML_TYPE_Q4_K ? block_q4_K(c.half)
+        const float q = type == gguf::GGML_TYPE_Q8_0 ? 127.0f
+                      : type == gguf::GGML_TYPE_Q4_K ? 15.0f : 31.0f;
+        std::vector<uint8_t> w = type == gguf::GGML_TYPE_Q8_0 ? block_q8_0(c.half)
+                               : type == gguf::GGML_TYPE_Q4_K ? block_q4_K(c.half)
                                : type == gguf::GGML_TYPE_Q5_K ? block_q5_K(c.half)
                                                               : block_q6_K(c.half);
         std::vector<float> x(nin), y(1, 0.0f);
@@ -113,7 +131,8 @@ int run_type(uint32_t type, const char* tname) {
 int main() {
     try {
         quant::register_builtins();
-        int n = run_type(gguf::GGML_TYPE_Q4_K, "Q4_K");
+        int n = run_type(gguf::GGML_TYPE_Q8_0, "Q8_0");
+        n += run_type(gguf::GGML_TYPE_Q4_K, "Q4_K");
         n += run_type(gguf::GGML_TYPE_Q5_K, "Q5_K");
         n += run_type(gguf::GGML_TYPE_Q6_K, "Q6_K");
         printf("fused dot overflow: %d cases finite and exact\n", n);

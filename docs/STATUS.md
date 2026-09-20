@@ -4,6 +4,46 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## A/A calibration of the A/B runner (2026-09-20)
+
+Run after the screening and sampler results below, not before them, which is
+the wrong order and is why this block exists. The same binary published as
+both arms, `tools/ab_runner.py`, 247-token prompt, 6 threads, evidence in
+`docs/benchmarks/aa-calibration-20260920/`.
+
+| Model | Phase | Paired mean | Paired median | Baseline wins | Per-pair spread |
+|---|---|---:|---:|---:|---|
+| 0.6B Q8_0 | prefill | -2.04% | -3.53% | 7/9 | -8.09% to +8.96% |
+| 0.6B Q8_0 | decode | -0.03% | +0.30% | 4/9 | -5.94% to +3.03% |
+| 8B Q8_0 | prefill | -0.00% | +0.07% | 2/5 | -4.49% to +2.57% |
+| 8B Q8_0 | decode | +1.93% | +2.27% | 2/5 | -2.24% to +5.67% |
+
+**0.6B prefill fails its own A/A**: identical code reports a 3.53% median
+loss, past the runner's 3% band. 8B decode moves 2.27% on identical code.
+So on this machine today, a single cell below about 4% in those two places
+is not evidence either way. What survives: 0.6B decode, where the A/A holds
+to 0.30% median.
+
+Consequences, applied to the blocks below rather than left for a reader to
+work out:
+
+- The sampler's 0.6B decode gain, +32.04% with 0 of 9 baseline wins, is far
+  outside this band and stands.
+- The sampler's prefill cells, +2.79% and +2.17%, are inside the band and
+  are **withdrawn**; the change has no measured prefill effect.
+- The sampler's 8B decode cell was already reported as unresolved and stays
+  so.
+- In the KV screening, per-cell prefill differences under about 4% carry no
+  weight. The rejection of 64 rested on five of eight plans losing prefill,
+  two of them by 6.5% and 7.8%, which is a pattern rather than one cell, but
+  it is weaker evidence than that table implied. The choice of 128 over 256
+  rests on allocated-versus-used bytes, which is counted rather than timed
+  and is unaffected.
+- The matched mx comparison uses a different harness
+  (`tools/compare_cpu.py`, in-process timing) which has **not** been A/A
+  calibrated. Its 8B decode cell of -3.5% should be treated as provisional
+  until it is.
+
 ## Greedy sampling cost (2026-09-20)
 
 Greedy sampling sorted the whole 151936-token vocabulary before reading one

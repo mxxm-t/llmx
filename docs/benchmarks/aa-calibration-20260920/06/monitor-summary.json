@@ -1,0 +1,165 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06",
+ "runs": {
+  "monitor-r0-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 43.1,
+   "system_cpu_max": 52.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r0-base.jsonl",
+   "bytes": 223804,
+   "sha256": "e4ad851d8acd25045b74e7c53ae6f65cf5c9701611bcad66874dc26792a29e61"
+  },
+  "monitor-r0-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 34.6,
+   "system_cpu_max": 39.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r0-cand.jsonl",
+   "bytes": 223737,
+   "sha256": "03e74a17921b43df9e9aa1969c3a8d80f69aaa4dc2e426f736d4366f7ff23ce0"
+  },
+  "monitor-r1-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 34.7,
+   "system_cpu_max": 40.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r1-base.jsonl",
+   "bytes": 223704,
+   "sha256": "18aa485b82e996fec02bce2bebc967ebd97167e657317357ecfdf56af6069b67"
+  },
+  "monitor-r1-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.7,
+   "system_cpu_max": 39.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r1-cand.jsonl",
+   "bytes": 223672,
+   "sha256": "58532877c6f0d10e212f1f7d1f337942348bb298992ae486073e4ba9b9a2bb56"
+  },
+  "monitor-r2-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 39.9,
+   "system_cpu_max": 44.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r2-base.jsonl",
+   "bytes": 223696,
+   "sha256": "dd65b8537d25803091294276fda759aa0f9980b36801e801b10892a8463b8c10"
+  },
+  "monitor-r2-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.3,
+   "system_cpu_max": 39.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r2-cand.jsonl",
+   "bytes": 224276,
+   "sha256": "43e91d4c2179f7dfade4b0aef9a1c475aa1f607e1013f09cbb4806d2df945164"
+  },
+  "monitor-r3-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 34.4,
+   "system_cpu_max": 36.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r3-base.jsonl",
+   "bytes": 224470,
+   "sha256": "46b0961604413b6939adffc0a82a1e914890629dafdb8dfdd30f38ba984ef02d"
+  },
+  "monitor-r3-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 39.0,
+   "system_cpu_max": 40.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r3-cand.jsonl",
+   "bytes": 222016,
+   "sha256": "4e7b2a18560551ea802dcbd4ab9cbcf6344196ba061c0e6d093de213d625d31e"
+  },
+  "monitor-r4-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 37.5,
+   "system_cpu_max": 42.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r4-base.jsonl",
+   "bytes": 222046,
+   "sha256": "73b0811ec1dd8ac734a755205cb39c59b943f345236db9e698563611a2842927"
+  },
+  "monitor-r4-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.9,
+   "system_cpu_max": 49.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r4-cand.jsonl",
+   "bytes": 223693,
+   "sha256": "c615e91087d43ca2ea33e434e2dce46f791915b21c6b4dcbfd6e2f5cea7376b2"
+  },
+  "monitor-r5-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 41.1,
+   "system_cpu_max": 50.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r5-base.jsonl",
+   "bytes": 224078,
+   "sha256": "a17e3a6da75c35d55a26ebb7b323abe8a460ae10f0400bbc96f5e61bcb43e5f1"
+  },
+  "monitor-r5-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 40.1,
+   "system_cpu_max": 45.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r5-cand.jsonl",
+   "bytes": 224084,
+   "sha256": "323aff9286846982be94fc6aafda2ab536c10fa8a1ad0ea3b3eb41da3c0e72fd"
+  },
+  "monitor-r6-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.0,
+   "system_cpu_max": 36.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r6-base.jsonl",
+   "bytes": 223987,
+   "sha256": "bd11fe9019751f7e1c10997894ad3adb763cf3ab267d1eea10f6f761a585ac1e"
+  },
+  "monitor-r6-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 33.4,
+   "system_cpu_max": 36.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r6-cand.jsonl",
+   "bytes": 223651,
+   "sha256": "01c0b3ddca1c275d13f606acd4b7f8408b57891a0820e22eb1a42da6fec3cde0"
+  },
+  "monitor-r7-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.6,
+   "system_cpu_max": 38.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r7-base.jsonl",
+   "bytes": 223553,
+   "sha256": "c8e4499f8dc52a47a8def4d2e61a71c2942a0397573cb853fbadfbfdb2fb3641"
+  },
+  "monitor-r7-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.5,
+   "system_cpu_max": 38.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r7-cand.jsonl",
+   "bytes": 224035,
+   "sha256": "b6f9966ab2f17334e8faf7ff0d3d2c9f82368927713973c68b1148f6b05bcc53"
+  },
+  "monitor-r8-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 33.4,
+   "system_cpu_max": 37.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r8-base.jsonl",
+   "bytes": 224001,
+   "sha256": "4cfb4fc5d8042d0a241357032d1e2f4c56844987dc53dbd6288f3bb7684582e6"
+  },
+  "monitor-r8-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 34.3,
+   "system_cpu_max": 37.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r8-cand.jsonl",
+   "bytes": 223536,
+   "sha256": "b1686c1dc92223d504e6f3082d209d401c48f161412ff58f154c025858ce2144"
+  },
+  "monitor-r9-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.4,
+   "system_cpu_max": 43.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r9-base.jsonl",
+   "bytes": 223608,
+   "sha256": "9f5944f36327115959100247181a4df40c5ed0bf190d900e72efa6527edec972"
+  },
+  "monitor-r9-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.2,
+   "system_cpu_max": 37.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\06\\monitor-r9-cand.jsonl",
+   "bytes": 224028,
+   "sha256": "b2113a23dd9fe79ba60a821babf3403cc3376e71418574ae2d8fb85dceb782ff"
+  }
+ }
+}

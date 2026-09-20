@@ -1,0 +1,101 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b",
+ "runs": {
+  "monitor-r0-base.jsonl": {
+   "samples": 21,
+   "system_cpu_mean": 35.5,
+   "system_cpu_max": 51.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r0-base.jsonl",
+   "bytes": 2343597,
+   "sha256": "3efb249136c9fcf94fbdd2a7a15067423dd5a005ef7b3ea5ba5b0fa168d15987"
+  },
+  "monitor-r0-cand.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 34.3,
+   "system_cpu_max": 54.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r0-cand.jsonl",
+   "bytes": 2456136,
+   "sha256": "a9556643adada677018eae24bad9a9f77c574de3612b5bb2de4dd14f000c4754"
+  },
+  "monitor-r1-base.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 37.7,
+   "system_cpu_max": 61.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r1-base.jsonl",
+   "bytes": 2461670,
+   "sha256": "d507802c82aaa5d5cc9dbf03f4b9a08c2c1c6402f6a3113b090ffbacdfb8579a"
+  },
+  "monitor-r1-cand.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 34.6,
+   "system_cpu_max": 55.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r1-cand.jsonl",
+   "bytes": 2456012,
+   "sha256": "36cb113eedb5db874454061448c9b865bafbac8aed167da4d5cb0bf6d194750e"
+  },
+  "monitor-r2-base.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 36.0,
+   "system_cpu_max": 81.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r2-base.jsonl",
+   "bytes": 2428836,
+   "sha256": "6ba33ee044f0d92607021636c216a81cae4e6aa72221e596e4eabd28dcf707cf"
+  },
+  "monitor-r2-cand.jsonl": {
+   "samples": 21,
+   "system_cpu_mean": 34.0,
+   "system_cpu_max": 49.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r2-cand.jsonl",
+   "bytes": 2253012,
+   "sha256": "24575943c7d0bb55568c2f544cca18a50fda77a89ff0816e4fbcda046e5522a2"
+  },
+  "monitor-r3-base.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 33.1,
+   "system_cpu_max": 50.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r3-base.jsonl",
+   "bytes": 2364409,
+   "sha256": "645d9829e0061167bca80edf0b422c7c7896e8ddef2359e87712adde6c0f06cc"
+  },
+  "monitor-r3-cand.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 33.1,
+   "system_cpu_max": 52.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r3-cand.jsonl",
+   "bytes": 2359746,
+   "sha256": "f2bbbee157638212f16b04abb07380485cf500f891d7e76104625e8006f97cde"
+  },
+  "monitor-r4-base.jsonl": {
+   "samples": 21,
+   "system_cpu_mean": 35.5,
+   "system_cpu_max": 57.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r4-base.jsonl",
+   "bytes": 2257710,
+   "sha256": "2543a65b331c09368351ce944a9848c38e9c53c641a67788d99b4f28244f292b"
+  },
+  "monitor-r4-cand.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 33.6,
+   "system_cpu_max": 53.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r4-cand.jsonl",
+   "bytes": 2361300,
+   "sha256": "6de506961092d3076d42938ce47b3b06b97e8fb3b6f4122dbd611468d543468f"
+  },
+  "monitor-r5-base.jsonl": {
+   "samples": 21,
+   "system_cpu_mean": 34.2,
+   "system_cpu_max": 55.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r5-base.jsonl",
+   "bytes": 2250551,
+   "sha256": "d31c297193e90c76d69435b4d6be8eef8d769244da768b7b1be0abb623762c63"
+  },
+  "monitor-r5-cand.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 36.1,
+   "system_cpu_max": 64.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\aa-calibration-20260920\\8b\\monitor-r5-cand.jsonl",
+   "bytes": 2364721,
+   "sha256": "934a66f8ef9f63d7b1e915fade02d08b4fab82d467219501c9c97dae93cd9eff"
+  }
+ }
+}

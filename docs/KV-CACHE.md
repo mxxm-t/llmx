@@ -247,6 +247,12 @@ This is an internal comparison of paged against the contiguous cache it
 replaces. The external mx-llama.cpp floor is the separate matched gate in
 ROADMAP #8 and was re-run on the paged runtime; see below.
 
+An A/A calibration run afterwards (see STATUS) found that 0.6B prefill moves
+3.53% by median on identical code, so per-cell prefill differences below
+about 4% in the table above carry no weight. The pattern across plans and
+the memory figures below, which are counted rather than timed, are what the
+decision rests on.
+
 Decision: **128**. 64 fails prefill in five of eight plans and never wins.
 128 and 256 are not separable on decode; 256 fails prefill on both
 50-token plans and backs twice the memory for a short sequence, which is the

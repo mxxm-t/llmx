@@ -2152,3 +2152,71 @@ Production source, tests and executable remain unchanged. Exact sources,
 commands, oracle/mutant logs, assembly, prospective plan and every raw sample
 are archived in
 [`benchmarks/q8-split-storage-screening-20260920.json`](benchmarks/q8-split-storage-screening-20260920.json).
+
+
+## Exact Q8 decode SwiGLU callback fusion screening (2026-09-20)
+
+Scratch branch `research/q8-swiglu-fusion` starts at research checkpoint
+`248ed64`, with unchanged production source `bf122fd`. Source/history review
+found that each Q8 gate/up worker owns the same row interval for both matrices.
+It can run the original SwiGLU expression after its two projection loops and
+before synchronous completion, without another dispatch or cross-worker reads.
+Existing prefill SiLU parallelism did not implement this decode fusion.
+
+The scratch helper preserves gate, up and output buffers, gate-then-up order,
+original CPU dot arithmetic and `g = gate / (1 + exp(-gate)); out = g * up`.
+Both timed arms use the same concrete helper; only the location of this final
+loop differs. The production generic dispatcher is not timed here. No model,
+Backend API, quant format or root executable changes were made.
+
+| Synthetic numerical check, per compiler | MSVC | GCC |
+|---|---:|---:|
+| Matrix arm comparisons | 1,440 pass | 1,440 pass |
+| Finite bit comparisons | 126,990 pass | 126,990 pass |
+| Nonfinite classifications | 27,054 pass | 27,054 pass |
+| Fused row witnesses in separate copy | 16,920 pass | 16,920 pass |
+
+The reference calls actual unchanged `matmul_group` and an independently
+written original expression. It checks both scratch arms and a separate atomic
+row witness with one/six workers, zero/tiny/uneven/eligible partitions, changing
+inputs, unaligned weights/activations and output guards. An elementwise grid
+covers 441 pairs per thread count, including signed zero, subnormal/normal
+extremes, infinities and NaNs. Finite values require identical bits; nonfinite
+values require matching classification and infinity sign. All run in round to
+nearest with FTZ/DAZ disabled; cross-libm, NaN payload and alternate rounding
+claims are excluded. Dot arithmetic itself is unchanged, not independently
+re-proven by this study. A separately compiled mutant adds one to the output;
+it exits 1 on a numerical mismatch. MSVC/GCC builds and normal runs exit 0.
+Build logs retain nonfatal vcvars diagnostics and pre-existing GCC warnings.
+
+MSVC `/std:c++17 /O2 /arch:AVX2 /EHsc` assembly confirms original dots and
+scalar `expf`, add, divide, multiply. Source snapshots and immutable identities
+are archived. All correctness/build jobs are terminal before timing; Windows
+process guards before/after are empty and WSL was separately inspected.
+
+One isolated Windows process uses six workers and completes both shapes. Small
+is 1024 inputs x 3072 rows per matrix, 512 calls/sample; large is 4096 x 12288,
+64 calls/sample. Each shape has one discarded warmup pair and nine alternating
+measured pairs, for 40 raw samples plus two shape headers. The timed interval
+includes both projections, SwiGLU and complete worker return. Allocation,
+fixture setup and exact gate/up/output checks are outside the clock. Every
+sample is retained; only the predeclared warmup pair is excluded from statistics.
+
+| Synthetic shape | Serial mean ms/call | Fused mean ms/call | Mean change | Serial median ms/call | Fused median ms/call | Median change | Fused wins |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Small gate/up + SwiGLU | 0.089504 | 0.085051 | -4.98% | 0.089841 | 0.084535 | -5.91% | 7/9 |
+| Large gate/up + SwiGLU | 2.442995 | 2.383465 | -2.44% | 2.399619 | 2.405680 | +0.25% | 7/9 |
+
+**Screened out.** The prospectively frozen rule requires lower mean AND median
+in both shapes, with at least 6/9 paired wins each, and at least one shape with
+at least 2% lower mean AND median. The large median fails even though both means
+improve and each shape has seven wins. The rule is not changed after observing
+results. This is insufficient evidence to advance under that screen, not proof
+of a model-level slowdown. No model integration or HF/mx run follows.
+
+The diagnostic repeats synthetic weights and does not reproduce a full model's
+working set. The prior 8B outside-dispatch interval includes all serial work;
+it is not a measured SwiGLU cost or a promised recoverable speedup. Existing
+external decode deficits and prior model correctness evidence are unchanged.
+Commands, source, raw logs, fixed plan, results and independent reviews:
+[`benchmarks/q8-swiglu-fusion-screening-20260920.json`](benchmarks/q8-swiglu-fusion-screening-20260920.json).

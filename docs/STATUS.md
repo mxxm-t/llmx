@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/q8-split-storage`, based on profile checkpoint `1b30ef4` and
+`research/q8-swiglu-fusion`, based on research checkpoint `248ed64` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -38,6 +38,9 @@ its complete nine-round timing found no decode gain. It is rejected and remains
 outside production: both decode means/medians trail current and mx, with no
 candidate wins over mx in either model. All 25 Markdown files are reviewed at
 this rejection checkpoint.
+Subsequent Q8 split-storage and exact decode SwiGLU callback studies pass their
+scoped numerical checks but miss their frozen synthetic timing screens. Both
+remain outside production; their complete samples and reviews are archived below.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
@@ -84,6 +87,36 @@ External performance requirements still block main/GitHub publication.
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### Exact decode SwiGLU callback fusion (screened out)
+
+- **Goal:** measure unchanged SwiGLU inside the existing equal-row Q8 gate/up
+  worker callback, preserving all buffers, arithmetic and projection order.
+- **Done:** MSVC and GCC each pass 1,440 matrix arm comparisons, 126,990
+  finite bit comparisons and 27,054 nonfinite classifications. A separate
+  instrumented copy witnesses 16,920 rows exactly once; an arithmetic mutant
+  compiles and is rejected numerically. Actual unchanged grouped projections
+  plus an independent literal SwiGLU expression supply the synthetic reference.
+  Assembly confirms original dots and scalar exp/divide/multiply order.
+  All 40 fixed timing samples complete with exact gate/up/output checks.
+
+  | Synthetic shape | Serial mean ms/call | Fused mean ms/call | Mean change | Median change | Fused wins |
+  |---|---:|---:|---:|---:|---:|
+  | Small gate/up + SwiGLU | 0.089504 | 0.085051 | -4.98% | -5.91% | 7/9 |
+  | Large gate/up + SwiGLU | 2.442995 | 2.383465 | -2.44% | +0.25% | 7/9 |
+
+  The frozen screen requires lower mean and median in both shapes with at
+  least 6/9 wins each, plus at least 2% lower mean and median in one shape.
+  The large median fails; no model integration follows. All samples retained.
+- **Left:** retain current production behavior; do not weaken the prospective
+  screen or repeat this experiment merely to obtain a passing sample.
+  Independent HF and matched external decode requirements remain open.
+- **Gotchas:** both timed arms use one concrete Q8 helper, not the generic
+  production dispatch. Repeated synthetic weights can remain cached. This is
+  neither a model slowdown finding nor an HF/external performance result.
+  Numerical checks use the standard floating environment and compare within
+  each compiler; NaN payload and alternate rounding-mode identity are unclaimed.
+  Evidence: `benchmarks/q8-swiglu-fusion-screening-20260920.json`.
 
 ### Native Q8 bounded inner-loop follow-up (rejected)
 

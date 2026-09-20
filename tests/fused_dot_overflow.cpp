@@ -28,6 +28,19 @@ void put16(std::vector<uint8_t>& v, size_t at, uint16_t x) {
     v[at + 1] = (uint8_t)(x >> 8);
 }
 
+// Q4_K: every nibble 15, unit group scales, zero mins, so each weight
+// decodes to 15. Same 144-byte layout as the dequantizer expects.
+std::vector<uint8_t> block_q4_K(uint16_t half) {
+    std::vector<uint8_t> b(gguf::Q4_K_TYPESIZE, 0);
+    put16(b, 0, half);          // d
+    put16(b, 2, 0);             // dmin
+    for (int g = 0; g < 8; g++) {   // 6-bit scale 1, min 0, all 8 groups
+        if (g < 4) b[4 + g] = 1; else { b[4 + 8 + (g - 4)] = 1; }
+    }
+    for (int i = 0; i < 128; i++) b[16 + i] = 0xFF;  // every nibble 15
+    return b;
+}
+
 // One 256-value super-block whose every decoded weight is 31, with the given
 // half-precision super-block scale.
 std::vector<uint8_t> block_q5_K(uint16_t half) {
@@ -67,17 +80,19 @@ int run_type(uint32_t type, const char* tname) {
     };
     int checked = 0;
     for (const auto& c : cases) {
-        std::vector<uint8_t> w = type == gguf::GGML_TYPE_Q5_K ? block_q5_K(c.half)
+        const float q = type == gguf::GGML_TYPE_Q4_K ? 15.0f : 31.0f;
+        std::vector<uint8_t> w = type == gguf::GGML_TYPE_Q4_K ? block_q4_K(c.half)
+                               : type == gguf::GGML_TYPE_Q5_K ? block_q5_K(c.half)
                                                               : block_q6_K(c.half);
         std::vector<float> x(nin), y(1, 0.0f);
         for (size_t i = 0; i < nin; i++)
             x[i] = c.huge ? std::ldexp(1.0f, 123)
                           : (float)((int)(i * 17 % 37) - 18) / 37.0f;
 
-        // Every weight decodes to 31, so the exact dot is 31*d*sum(x).
+        // Every weight decodes to the same constant, so the dot is q*d*sum(x).
         const float d = f16_to_f32(c.half);
         long double exact = 0.0L;
-        for (size_t i = 0; i < nin; i++) exact += (long double)31.0L * d * x[i];
+        for (size_t i = 0; i < nin; i++) exact += (long double)q * d * x[i];
 
         cpu.matmul(type, w.data(), x.data(), y.data(), nin, 1, 1);
 
@@ -98,7 +113,8 @@ int run_type(uint32_t type, const char* tname) {
 int main() {
     try {
         quant::register_builtins();
-        int n = run_type(gguf::GGML_TYPE_Q5_K, "Q5_K");
+        int n = run_type(gguf::GGML_TYPE_Q4_K, "Q4_K");
+        n += run_type(gguf::GGML_TYPE_Q5_K, "Q5_K");
         n += run_type(gguf::GGML_TYPE_Q6_K, "Q6_K");
         printf("fused dot overflow: %d cases finite and exact\n", n);
         return 0;

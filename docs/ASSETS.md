@@ -2029,3 +2029,54 @@ All 12 original raw outputs are now preserved as losslessly compressed records,
 with SHA256 checks and standard-library decode instructions. These records,
 verified mapping, analysis source, exact breakdowns and review are in
 [`benchmarks/worker-decode-operation-attribution-20260920.json`](benchmarks/worker-decode-operation-attribution-20260920.json).
+
+
+### Current 8B worker-span diagnostic
+
+A fresh `bf122fd` runtime snapshot compares plain and instrumented builds on
+verified Qwen3-8B Q8_0, six workers, ubatch 128, F32 KV and pinned 215+32 token
+IDs. The fixed session completed all eight processes: one discarded outer
+warmup pair and three alternating measured pairs. Every process also warms up
+internally. All builds and fault tests finished before isolated timing; every
+measured sample is retained. This is not an mx comparison or an HF gate.
+
+| Phase time, ms | Plain mean | Plain median | Spans mean | Spans median | Mean change |
+|---|---:|---:|---:|---:|---:|
+| Prefill, 215 tokens | 7224.912 | 7215.189 | 7188.779 | 7186.463 | -0.50% |
+| Decode, 32 tokens | 6955.863 | 6934.154 | 6887.725 | 6864.781 | -0.98% |
+
+Instrumented/plain paired time changes are -0.676%, -1.815%, +1.016% for
+prefill and -2.522%, +0.126%, -0.516% for decode. The signs vary, so lower means
+do not establish a speedup caused by instrumentation. Do not pool these samples
+with the earlier 0.6B traces or external-floor measurements.
+
+All eight saved final vectors have 151,936 finite floats and match exactly as
+bytes. Internal warmup equivalence uses FNV64 rather than saved byte comparison.
+The instrumented fault check retains caller error priority, completion and
+worker reuse. Each of four instrumented invocations has 865 prefill and 5,792
+decode records, valid timestamps and no overflow. Decode has five dispatches
+per layer across 36 layers plus vocabulary projection: 181 per token.
+
+| Instrumented decode, ms/token | Entry | Callback | Completion | Dispatch | Dispatch share |
+|---|---:|---:|---:|---:|---:|
+| QKV | 0.31670 | 24.80917 | 0.14641 | 25.27228 | 11.85% |
+| Attention | 0.34743 | 2.57661 | 0.18305 | 3.10709 | 1.46% |
+| Attention output | 0.29727 | 16.59627 | 0.13086 | 17.02441 | 7.98% |
+| Gate/up | 0.26121 | 99.45746 | 0.12008 | 99.83874 | 46.82% |
+| FFN down | 0.32646 | 50.20885 | 0.12887 | 50.66418 | 23.76% |
+| Vocabulary | 0.00836 | 17.30919 | 0.00635 | 17.32390 | 8.12% |
+
+These are three-run means across all layers per token. The exact last-finisher
+partition sums to 213.23060 ms/token dispatch within 215.24142 ms/token phase
+time. Entry can overlap other workers' computation; callback intervals can
+include descheduling. The 149 tied final exits select the lowest participant
+index. Do not interpret this partition as scheduler-versus-kernel cost or as entirely
+recoverable overhead. Members within grouped calls remain unseparated.
+
+Matrix projections account for 98.54% of recorded decode dispatch time. Gate/up
+and FFN down together account for 70.58%, directing the next investigation to
+large matrix costs. This does not select an implementation or establish a
+causal regression; prior kernel and worker nulls still apply. Production source,
+tests and the user executable are unchanged. Source identities, commands, raw
+outputs, exact-vector identity, reviews and scope are in
+[`benchmarks/current-8b-worker-spans-20260920.json`](benchmarks/current-8b-worker-spans-20260920.json).

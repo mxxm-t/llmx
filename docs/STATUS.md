@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/worker-operation-attribution`, based on rejection checkpoint `77192a1` and
+`research/current-8b-worker-spans`, based on attribution checkpoint `4670449` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -95,9 +95,9 @@ External performance requirements still block main/GitHub publication.
   unchanged; the extra instruction reloads the feature flag inside the loop.
   No second-block work moves before the first block's final FMA/exit check.
   This fails the useful-scheduling gate; no numerical/model/timing runs follow.
-- **Left:** stop this unrolling exploration. Historical whole-operation labels
-  are now resolved below; current-source 8B and within-group attribution remain
-  pending before selecting another hot-path change.
+- **Left:** stop this unrolling exploration. Historical and current-source 8B
+  whole-operation diagnostics are complete below. Within-group attribution
+  remains unresolved; use the matrix-cost findings to select the next study.
 - **Gotchas:** instruction counts are not micro-op counts or measured latency.
   No hints, forced inlining, feature specialization or duplicated kernel bodies
   were used. Production remains unchanged. Evidence:
@@ -246,6 +246,35 @@ External performance requirements still block main/GitHub publication.
   The tooling-only checkpoint changed no hot path and ran after worker timing.
   The parallel 8B HF work ran on the separate rig; it is not a performance gate.
 
+### Current 8B worker-span diagnostic
+
+- **Goal:** measure instrumentation impact on the current 8B runtime and
+  attribute decode dispatch intervals to operations before selecting a change.
+- **Done:** current source snapshots, plain/instrumented builds and fault check
+  pass. All eight fixed processes pass: one discarded outer warmup pair and
+  three alternating measured pairs. Every process internally warms up. Saved
+  151,936-float final vectors match byte-for-byte across all eight invocations;
+  internal warmups use FNV64. Each instrumented trace has 865 prefill and 5,792
+  decode records with valid ordered timestamps and no overflow.
+
+  | Phase time, ms | Plain mean | Plain median | Spans mean | Spans median | Mean change |
+  |---|---:|---:|---:|---:|---:|
+  | Prefill, 215 tokens | 7224.912 | 7215.189 | 7188.779 | 7186.463 | -0.50% |
+  | Decode, 32 tokens | 6955.863 | 6934.154 | 6887.725 | 6864.781 | -0.98% |
+
+  Paired changes reverse direction in both phases; no probe speedup is claimed.
+  Instrumented decode dispatch is 213.231 ms/token within 215.241 ms/token phase
+  time. Gate/up accounts for 46.82% and FFN down for 23.76% of dispatch time;
+  all matrix projections total 98.54%, attention 1.46%.
+- **Left:** select a distinct matrix-cost hypothesis after checking prior null
+  studies. Do not change workers or extrapolate an external performance pass
+  from this three-pair diagnostic. No next implementation is selected yet.
+- **Gotchas:** all builds/tests finished before timing; all measured samples
+  remain. No mx comparison or independent HF gate was run. Last-finisher entry
+  can overlap other workers' compute and callback intervals can include
+  descheduling. These intervals are not all recoverable overhead. Evidence:
+  `benchmarks/current-8b-worker-spans-20260920.json`.
+
 ### Archived decode operation attribution
 
 - **Goal:** label the existing 0.6B decode worker spans by operation, using the
@@ -258,8 +287,8 @@ External performance requirements still block main/GitHub publication.
   vocabulary projection for 21.90% of dispatch time. Each of the five layer
   operations changes its control/current delta sign across three pairs.
 - **Left:** within-group Q/K/V and gate/up member timing remains unresolved.
-  Do not rewrite workers on this evidence. A current-source 8B plain/spans
-  comparison is the next scoped diagnostic; none has been prepared or run.
+  Do not rewrite workers on this evidence. The separate current-source 8B
+  plain/spans diagnostic is complete in the block above.
 - **Gotchas:** archived current is `9cfe43f`, not a fresh `bf122fd` measurement.
   Model and decode paths are unchanged, but prefill source/compiler layout
   differs. Instrumentation perturbs timings; these are neither external-floor

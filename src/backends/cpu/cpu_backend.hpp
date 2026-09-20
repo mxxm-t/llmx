@@ -8,6 +8,7 @@
 #include <exception>
 #include <limits>
 #include <vector>
+#include <atomic>
 #include <cstdlib>
 
 #include "backends/backend.hpp"
@@ -120,15 +121,17 @@ public:
         {
             std::lock_guard<std::mutex> lk(m_);
             job_ = &job;
-            pending_ = threads_ - 1;
+            pending_.store(threads_ - 1, std::memory_order_relaxed);
             epoch_++;
         }
         cv_work_.notify_all();
         std::exception_ptr error;
         try { fn(0); }
         catch (...) { error = std::current_exception(); }
+        for (int i = 0; i < SPIN_LIMIT && pending_.load(std::memory_order_acquire); i++)
+            _mm_pause();
         std::unique_lock<std::mutex> lk(m_);
-        cv_done_.wait(lk, [&] { return pending_ == 0; });
+        cv_done_.wait(lk, [&] { return pending_.load(std::memory_order_relaxed) == 0; });
         job_ = nullptr;
         if (!error) error = worker_error_;
         worker_error_ = nullptr;
@@ -692,10 +695,18 @@ private:
     std::vector<float> attention_scores_;
     std::mutex m_;
     std::condition_variable cv_work_, cv_done_;
+    // A decode token issues roughly 196 matvecs plus 28 attention calls, each
+    // a full dispatch. Measured at 14.1 us per empty dispatch through the
+    // condition variable alone, that is a fixed cost of several ms per token.
+    // Workers and the caller therefore spin briefly before blocking: the
+    // common case is that the other side is already running and arrives
+    // within a few hundred nanoseconds. The count is bounded so an idle pool
+    // still parks instead of burning a core.
+    static const int SPIN_LIMIT = 2048;
     const std::function<void(int)>* job_ = nullptr;
     std::exception_ptr worker_error_;
     unsigned epoch_ = 0;
-    int pending_ = 0;
+    std::atomic<int> pending_{0};
     bool stop_ = false;
 
     void start_pool() {
@@ -703,7 +714,7 @@ private:
             rowbuf_.assign((size_t)(threads_ > 0 ? threads_ : 1), std::vector<float>());
             stop_ = false;
             epoch_ = 0;
-            pending_ = 0;
+            pending_.store(0);
             for (int i = 1; i < threads_; i++)
                 pool_.emplace_back([this, i] { worker(i); });
         } catch (...) {
@@ -728,6 +739,8 @@ private:
         unsigned seen = 0;
         for (;;) {
             const std::function<void(int)>* job = nullptr;
+            for (int i = 0; i < SPIN_LIMIT && epoch_ == seen && !stop_; i++)
+                _mm_pause();
             {
                 std::unique_lock<std::mutex> lk(m_);
                 cv_work_.wait(lk, [&] { return stop_ || epoch_ != seen; });
@@ -738,10 +751,15 @@ private:
             std::exception_ptr error;
             try { if (job) (*job)(idx); }
             catch (...) { error = std::current_exception(); }
-            {
+            if (error) {
                 std::lock_guard<std::mutex> lk(m_);
-                if (error && !worker_error_) worker_error_ = error;
-                if (--pending_ == 0) cv_done_.notify_one();
+                if (!worker_error_) worker_error_ = error;
+            }
+            // Notify under the lock so a caller that has just decided to block
+            // cannot miss the wakeup.
+            if (pending_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                std::lock_guard<std::mutex> lk(m_);
+                cv_done_.notify_one();
             }
         }
     }

@@ -15,6 +15,15 @@ at `ec74308`. Local Windows MSVC and WSL Linux GCC CMake builds also passed
 the suite with both HF fixtures required. Workflow lint and negative checks
 for corrupt downloads, missing fixtures and invalid throughput passed.
 
+The ordinary test suite also checks `--version` format and agreement with the
+usage banner. Build metadata does not change the inference kernels. Local
+Windows plain/CMake builds and Linux CMake builds pass the version checks.
+The Windows required-HF suite passes; the local Linux synthetic suite passes
+with real-model checks skipped. Lifecycle checks cover tracked changes,
+commit refresh without reconfiguration, no-op rebuilds and no-Git/archive
+fallback. Windows build-script failure checks reject failed toolchain setup,
+blocked output directories and unwritable version headers before compilation.
+
 The CPU backend currently uses x86 intrinsics, and CMake enables AVX2/FMA/F16C.
 Runtime checks inside some kernels do not make that binary safe on older CPUs.
 Intel macOS is intentional; ARM and a portable scalar build are not covered.
@@ -82,4 +91,6 @@ adding this workflow does not enable it automatically.
 The reported [run at d6e00e0](https://github.com/mxxm-t/llmx/actions/runs/35498190148)
 failed while fetching the Q8_0 fixture with HTTP 429, before HF tests ran.
 Retry/cache handling addresses that download failure; persistent service
-throttling can still exhaust the bounded retry policy and fail the job.
+throttling can still exhaust the bounded retry policy and fail the job. The
+[updated hosted run](https://github.com/mxxm-t/llmx/actions/runs/35510681421)
+passed all four jobs, including fixture downloads and required HF checks.

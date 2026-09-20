@@ -42,6 +42,11 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
+Identify the binary with `llmx --version` (or `llmx.exe --version`). Builds report
+`0.1.0+g<revision>` (at least 12 revision characters), with `.dirty` for tracked changes.
+The identifier refreshes on rebuild; archives or builds without Git use
+`0.1.0+unknown`. Release numbers remain explicit, and timestamps are not embedded.
+
 ## Quick start
 
 ```

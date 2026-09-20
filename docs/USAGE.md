@@ -4,6 +4,13 @@ Command-line reference for the `llmx` binary. All commands take the form
 `llmx <command> [args...] [flags...]`. Run `llmx` with no arguments to print a
 short usage summary.
 
+## `llmx --version`
+
+Print the release and build identifier, then exit successfully. For example:
+`llmx 0.1.0+g0123456789ab`. Tracked changes add `.dirty`; source archives or
+builds without Git report `unknown` instead of a revision. Untracked files do
+not affect the identifier. The usage banner reports the same version.
+
 ## Global conventions
 
 - A model file is a GGUF v3 container (see `docs/src/format-gguf.md`).

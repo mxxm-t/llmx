@@ -5,7 +5,14 @@
 #define LLMX_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
 #define LLMX_VERSION_MINOR @PROJECT_VERSION_MINOR@
 #define LLMX_VERSION_PATCH @PROJECT_VERSION_PATCH@
-#define LLMX_VERSION_STRING "@PROJECT_VERSION@"
+#define LLMX_RELEASE_VERSION "@PROJECT_VERSION@"
+#if __has_include("llmx-build-info.hpp")
+#include "llmx-build-info.hpp"
+#endif
+#ifndef LLMX_BUILD_REVISION
+#define LLMX_BUILD_REVISION "unknown"
+#endif
+#define LLMX_VERSION_STRING LLMX_RELEASE_VERSION "+" LLMX_BUILD_REVISION
 
 // Backends compiled in. CPU is mandatory and has no SDK dependency. GPU
 // backends are opt-in and require their SDK at build time.

@@ -28,6 +28,16 @@ configure_file(
     @ONLY
 )
 
+add_custom_target(llmx-build-info
+    COMMAND ${CMAKE_COMMAND}
+        "-DSOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/build-info.cmake"
+    BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp"
+    VERBATIM
+)
+add_dependencies(llmx llmx-build-info)
+
 # The current x86 build requires AVX2/FMA/F16C; per-kernel runtime checks do not make the binary portable to older CPUs.
 if(MSVC)
     target_compile_options(llmx PRIVATE /std:c++17 /O2 /arch:AVX2)

@@ -6,6 +6,8 @@ the model in `model/`.
 
 Commands and their entry points:
 
+- `--version`: print the release/build identifier and exit.
+
 - `quantize` / `dequantize`: `cmd_quantize` / `cmd_dequantize` (Q8_0/F32
   conversion via `model.json`/`model.bin`).
 - `info`: `cmd_info` (dump metadata + tensor list).

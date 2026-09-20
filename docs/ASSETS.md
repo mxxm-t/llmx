@@ -2220,3 +2220,90 @@ it is not a measured SwiGLU cost or a promised recoverable speedup. Existing
 external decode deficits and prior model correctness evidence are unchanged.
 Commands, source, raw logs, fixed plan, results and independent reviews:
 [`benchmarks/q8-swiglu-fusion-screening-20260920.json`](benchmarks/q8-swiglu-fusion-screening-20260920.json).
+
+
+## Topology-derived CPU worker placement (2026-09-20)
+
+Scratch branch `research/cpu-worker-placement` starts at checkpoint `dce1066`
+with unchanged production source `bf122fd`. A source/history review across
+44 prior artifacts found no explicit worker-affinity measurement; older SMT
+claims came from thread-count sweeps. The Windows query identifies eight
+physical cores, each with two logical processors, under one processor group.
+
+One immutable MSVC `/std:c++17 /O2 /arch:AVX2 /EHsc` model harness compares
+scheduler-selected placement and a single fixed mapping. Each owned child
+queries physical core masks and its permitted process mask, sorts eligible
+cores by lowest allowed logical processor, and chooses one processor from each
+of the first six distinct cores. The observed mapping is 0/2/4/6/8/10, including
+caller worker zero. Every invocation reports the same topology and `0xffff`
+process mask; no preferred-core ranking or alternate mapping search is used.
+
+The helper changes only its own calling/pool threads through the existing
+synchronous pool. It saves previous thread masks and checks each setter return,
+current mask, actual group/processor and worker identity. Separate snapshots
+preserve placement before model execution, after execution and after restoring
+original masks. The scheduler arm makes no mask changes. Normal explicit
+restoration is checked; destructor cleanup on unwinding is best effort if an
+OS API itself fails. No production flag, Backend API or kernel changes exist.
+
+| Scratch helper check | Result |
+|---|---|
+| Fixed/scheduler placement and explicit restoration | Pass |
+| Injected apply failure after caller zero / worker three | Both restore before rethrow |
+| Body-exception destructor restoration / pool reuse | Pass |
+| Grouped Q8 exact value comparisons | 1,818 pass (9 vectors x 202) |
+| Corrupted placement report checks | 11 rejected |
+| Immutable source snapshot | 17 files match production source |
+
+Tests cover the observed single-group topology and reject a five-participant
+session. Other processor-group layouts and OS cleanup failures are not executed.
+The runner parser tests compose synthetic snapshots and expected verification
+counts from the helper logs; these are parser fixtures, not measured model
+records. Independent preflight caught and resolved lost active-placement reports
+and insufficient process-name prefix matching before timing.
+
+The fixed real-model run uses the existing verified 0.6B/8B Q8_0 models,
+215 pinned prompt IDs plus 32 forced decode IDs, six workers, ubatch 128 and F32
+KV. There is one discarded outer pair plus five measured pairs per model,
+with model order and scheduler/fixed order reversed on odd pairs. Each process
+also performs one internal warmup before its measured iteration. All 24
+invocations and both internal records are retained; no samples are dropped.
+All builds/checks are terminal before timing, WSL was separately inspected and
+named Windows process guards are empty before/after each model invocation.
+
+Weights, model and pool are created before placement is applied. Apply,
+witnesses, final-vector checks and restoration are outside the clocks; model
+reset is also outside the clock. Prefill and the subsequent 32 forced steps
+are timed directly. The same executable/kernel/data/thread count is used in
+both modes. Pinning also affects caller work and warmup KV/scratch first-touch,
+so this measures whole-execution placement, not isolated worker wakeup cost.
+
+| Model / phase | Scheduler mean tok/s | Fixed mean tok/s | Mean change | Scheduler median tok/s | Fixed median tok/s | Median change | Fixed wins |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 0.6B prefill | 479.071849 | 541.704220 | +13.07% | 480.110046 | 535.723941 | +11.58% | 5/5 |
+| 0.6B decode | 49.314603 | 47.022156 | -4.65% | 49.455816 | 46.638018 | -5.70% | 0/5 |
+| 8B prefill | 30.183415 | 40.902861 | +35.51% | 30.196669 | 40.982961 | +35.72% | 5/5 |
+| 8B decode | 4.564495 | 4.649338 | +1.86% | 4.553530 | 4.644439 | +2.00% | 5/5 |
+
+**The all-phase candidate is screened out.** The prospective rule requires
+at least 0.5% higher decode mean AND median with at least 4/5 wins in BOTH
+models, and no prefill mean/median regression above 3%. Small-model decode
+fails all its advancement conditions despite the other improvements. The
+mapping and rule are not changed after observing results. Scheduler-selected
+production behavior remains unchanged.
+
+All 24 invocations pass placement/mask restoration checks. Each compares its
+full final warmup/measured vector byte-for-byte. All twelve saved vectors per
+model are independently identical, with 151,936 finite floats each; the archive
+stores one common full vector per model and each invocation's hash. This
+covers the final position only. It is neither independent HF validation nor a
+large-context/full-corpus losslessness claim. No mx comparator ran, so do not
+compare these absolute rates with historical mx numbers or mark a floor passed.
+
+The consistent prefill benefit supports reviewing prefill-only placement as a
+distinct future experiment, restoring normal scheduling before decode and
+including transition costs in timing. It is not implemented or validated by
+this all-phase run. No claim is made about migration versus SMT contention,
+reserved cores, other mappings, machines or production multi-user scheduling.
+Source, commands, raw logs, exact final vectors and independent reviews:
+[`benchmarks/cpu-worker-placement-20260920.json`](benchmarks/cpu-worker-placement-20260920.json).

@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/q8-swiglu-fusion`, based on research checkpoint `248ed64` and
+`research/cpu-worker-placement`, based on research checkpoint `dce1066` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -87,6 +87,41 @@ External performance requirements still block main/GitHub publication.
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 ## Active feature blocks
+
+### Explicit CPU worker placement (all-phase candidate screened out)
+
+- **Goal:** compare scheduler-selected placement with six workers on six
+  distinct queried physical cores, including caller worker zero, without
+  changing kernels or production options.
+- **Done:** helper success/unbound, caller/worker failure cleanup, destructor
+  restoration and 1,818 exact grouped Q8 value checks pass. Independent
+  preflight verifies source fidelity, masks, actual CPU witnesses and cleanup.
+  All 24 real-model invocations pass. Fixed-arm before/after snapshots verify
+  logical CPUs 0/2/4/6/8/10 from the same queried topology and process mask;
+  every original thread mask is restored. Saved finite final vectors match
+  byte-for-byte within each model, across both arms and all invocations.
+
+  | Model / phase | Scheduler mean tok/s | Fixed mean tok/s | Mean change | Median change | Fixed wins |
+  |---|---:|---:|---:|---:|---:|
+  | 0.6B prefill | 479.071849 | 541.704220 | +13.07% | +11.58% | 5/5 |
+  | 0.6B decode | 49.314603 | 47.022156 | -4.65% | -5.70% | 0/5 |
+  | 8B prefill | 30.183415 | 40.902861 | +35.51% | +35.72% | 5/5 |
+  | 8B decode | 4.564495 | 4.649338 | +1.86% | +2.00% | 5/5 |
+
+  The frozen rule requires at least 0.5% higher decode mean and median with
+  4/5 wins in both models, and no prefill mean/median regression above 3%.
+  Small-model decode fails; the all-phase candidate stays outside production.
+  All samples are retained; no new mx or independent HF gate was run.
+- **Left:** retain scheduler-selected production behavior. Review prefill-only
+  placement as a distinct possible follow-up, with transition costs included
+  and a separately frozen comparison; do not relabel this failed candidate.
+  Matched external decode requirements remain open.
+- **Gotchas:** topology and allowed mask are queried in each owned child;
+  adjacent CPU IDs are observed, not assumed. Core placement includes serial
+  caller work and warmup first-touch, and cannot isolate migration/SMT effects.
+  Final-position vectors do not prove full-corpus/deep-context correctness.
+  No mapping search, production flag, API or cross-platform affinity promise.
+  Evidence: `benchmarks/cpu-worker-placement-20260920.json`.
 
 ### Exact decode SwiGLU callback fusion (screened out)
 

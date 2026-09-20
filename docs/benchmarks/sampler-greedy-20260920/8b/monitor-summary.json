@@ -1,0 +1,102 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b",
+ "note": "16 logical CPUs; one busy thread is 6.25%; the six-thread benchmark itself is about 37.5%",
+ "runs": {
+  "monitor-r0-base.jsonl": {
+   "samples": 23,
+   "system_cpu_mean": 36.7,
+   "system_cpu_max": 56.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r0-base.jsonl",
+   "bytes": 2402786,
+   "sha256": "4632420c6cf1927b30adb2a53ac72efd94eb87d72ddf52f6bd958c622aac732f"
+  },
+  "monitor-r0-cand.jsonl": {
+   "samples": 23,
+   "system_cpu_mean": 37.6,
+   "system_cpu_max": 55.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r0-cand.jsonl",
+   "bytes": 2407031,
+   "sha256": "dee855861a9f796474f7598e3e1a10216dbc4e86fd41e72acd5bd6e25a0316d2"
+  },
+  "monitor-r1-base.jsonl": {
+   "samples": 23,
+   "system_cpu_mean": 35.6,
+   "system_cpu_max": 52.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r1-base.jsonl",
+   "bytes": 2416139,
+   "sha256": "bd63dc290aafdc6384e05306bc3a72cf3f9fd53c27c6259071781f67fc6d8c34"
+  },
+  "monitor-r1-cand.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 38.4,
+   "system_cpu_max": 62.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r1-cand.jsonl",
+   "bytes": 2310757,
+   "sha256": "6073c87a8df676f6b13d5c76891e9ecf9375b60362f80c8ba45241553e45fd6e"
+  },
+  "monitor-r2-base.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 34.7,
+   "system_cpu_max": 51.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r2-base.jsonl",
+   "bytes": 2309996,
+   "sha256": "95dcc9f977715af3b73de4a3166feea35f517bd040a83b6c992347ebb3ed41e9"
+  },
+  "monitor-r2-cand.jsonl": {
+   "samples": 23,
+   "system_cpu_mean": 38.4,
+   "system_cpu_max": 61.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r2-cand.jsonl",
+   "bytes": 2418603,
+   "sha256": "fbae03a266486cb893ad340aae02f7e88e3433dc4ab789895adb2dd9142777a7"
+  },
+  "monitor-r3-base.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 36.3,
+   "system_cpu_max": 51.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r3-base.jsonl",
+   "bytes": 2310105,
+   "sha256": "5476ac83c7a968ae9f90c35d480e0b79fb442b9143f7d3e9bc78f4803872cf3b"
+  },
+  "monitor-r3-cand.jsonl": {
+   "samples": 23,
+   "system_cpu_mean": 35.0,
+   "system_cpu_max": 57.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r3-cand.jsonl",
+   "bytes": 2415572,
+   "sha256": "37230d7cebc6f43fca55385d10c0b949ce69bdd2a67d1975eda960a434affe79"
+  },
+  "monitor-r4-base.jsonl": {
+   "samples": 21,
+   "system_cpu_mean": 36.6,
+   "system_cpu_max": 57.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r4-base.jsonl",
+   "bytes": 2205195,
+   "sha256": "f67b7bc0d7f49afab8a7786f8143a91628bae8e91865541a9629bb6863bf91d3"
+  },
+  "monitor-r4-cand.jsonl": {
+   "samples": 23,
+   "system_cpu_mean": 34.2,
+   "system_cpu_max": 50.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r4-cand.jsonl",
+   "bytes": 2414658,
+   "sha256": "449707cbe3c36b09767d006038a3776440144894bcd392bf36206a6e28b42881"
+  },
+  "monitor-r5-base.jsonl": {
+   "samples": 23,
+   "system_cpu_mean": 34.6,
+   "system_cpu_max": 50.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r5-base.jsonl",
+   "bytes": 2415880,
+   "sha256": "1b10464a45452089a8cab9fbe273cbabbf63f497bc33be805adb22b92b5ab155"
+  },
+  "monitor-r5-cand.jsonl": {
+   "samples": 22,
+   "system_cpu_mean": 37.9,
+   "system_cpu_max": 60.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\8b\\monitor-r5-cand.jsonl",
+   "bytes": 2306757,
+   "sha256": "018c6ce2bbcf6e6e078c5a2c4ead9d7a3455a9f2c73e001fe8769915133bea76"
+  }
+ }
+}

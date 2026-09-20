@@ -1,0 +1,29 @@
+{
+ "what": "Greedy sampling no longer sorts the whole vocabulary",
+ "date": "2026-09-20",
+ "host": "Ryzen 7 5800X, 6 threads",
+ "harness": "tools/ab_runner.py, generate --temp 0 --seed 1, 247-token prompt, 32 tokens, frozen plans in docs/benchmarks/sampler-greedy-20260920",
+ "base": "00515c6 (paged KV, unmodified sampler)",
+ "candidate": "same tree with the sampler change",
+ "results": [
+  {
+   "model": "Qwen3-0.6B Q8_0",
+   "pairs": 9,
+   "prefill_paired_median_pct": 2.79,
+   "decode_paired_median_pct": 32.04,
+   "baseline_wins_decode": "0/9"
+  },
+  {
+   "model": "Qwen3-8B Q8_0",
+   "pairs": 5,
+   "prefill_paired_median_pct": 2.17,
+   "decode_paired_median_pct": -0.72,
+   "decode_paired_mean_pct": 0.85,
+   "baseline_wins_decode": "3/5"
+  }
+ ],
+ "cause": "sample() built a 151936-element pair array and std::sort'd it before the temp<=0 branch read element zero",
+ "reading": "The saved work is a constant per token, about 7 ms, so it is a large share of a 0.6B token and a small share of an 8B one. The 8B cells sit inside the runner's 3% noise band at five pairs and are reported as unresolved, not as a win.",
+ "not_measured": "The temp>0 path also changed (partial_sort over the top-k window instead of a full sort) and was not benchmarked; the A/B used temperature zero.",
+ "scope": "The matched mx-llama.cpp gate is unaffected: tools/compare_cpu.py times model inference only and excludes sampling."
+}

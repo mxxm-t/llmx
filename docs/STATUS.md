@@ -4,6 +4,25 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Greedy sampling cost (2026-09-20)
+
+Greedy sampling sorted the whole 151936-token vocabulary before reading one
+element. `sample` now takes a linear maximum at temperature zero and a
+partial sort over the top-k window above it; the repetition penalty is read
+through a lambda instead of materialized. Ties now take the lowest token id,
+where the unstable sort left them unspecified.
+
+| Paired A/B, generate --temp 0, 247-token prompt, 6 threads | Prefill | Decode |
+|---|---:|---:|
+| Qwen3-0.6B Q8_0, 9 pairs | +2.79% | +32.04% |
+| Qwen3-8B Q8_0, 5 pairs | +2.17% | -0.72% |
+
+The saved work is a constant per token, about 7 ms, so it dominates a 0.6B
+token and is inside the runner's noise band on 8B at five pairs, where it is
+reported as unresolved rather than as a win. Evidence in
+`docs/benchmarks/sampler-greedy-20260920/`. The matched mx gate is unaffected:
+that harness times model inference only and excludes sampling.
+
 ## Paged KV cache design (2026-09-20)
 
 - **Goal:** replace the single-sequence contiguous `HostKVCache` with a paged

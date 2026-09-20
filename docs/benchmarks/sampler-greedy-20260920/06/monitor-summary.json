@@ -1,0 +1,166 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06",
+ "note": "16 logical CPUs; one busy thread is 6.25%; the six-thread benchmark itself is about 37.5%",
+ "runs": {
+  "monitor-r0-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 29.0,
+   "system_cpu_max": 42.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r0-base.jsonl",
+   "bytes": 315683,
+   "sha256": "d246ff2e9402e0e0e20ae322203d6caef512d7d2447226db9d0f4bd20cf3983a"
+  },
+  "monitor-r0-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 40.1,
+   "system_cpu_max": 46.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r0-cand.jsonl",
+   "bytes": 210477,
+   "sha256": "a11ad93fde22b18e783f8f8727076d3fbbbd2957e361f8abd1a13b7682247ad5"
+  },
+  "monitor-r1-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 26.8,
+   "system_cpu_max": 37.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r1-base.jsonl",
+   "bytes": 316167,
+   "sha256": "1fbb1c4ffb81d889ade6e3c0bc074e2c339f63d35b7e3ce1a3488047324885f3"
+  },
+  "monitor-r1-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 34.5,
+   "system_cpu_max": 39.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r1-cand.jsonl",
+   "bytes": 210369,
+   "sha256": "66d6f6abab95f24a95366d57011c3633860c019ec3a23a96db86f0bc36b8a29f"
+  },
+  "monitor-r2-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 26.7,
+   "system_cpu_max": 36.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r2-base.jsonl",
+   "bytes": 314792,
+   "sha256": "ce14abd0baaa2fb3c233abaf6a988dd2e2aa13ce3665b0677630a0ccb15d8b4e"
+  },
+  "monitor-r2-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 45.4,
+   "system_cpu_max": 58.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r2-cand.jsonl",
+   "bytes": 209995,
+   "sha256": "996694aa179d1b42fbcffad5438d4be852fd59127074908d7a6404d75da344f7"
+  },
+  "monitor-r3-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 35.8,
+   "system_cpu_max": 51.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r3-base.jsonl",
+   "bytes": 315768,
+   "sha256": "e7fb394c39f6c241f0fc707c4c1fd9538fe54ec450437e5382adf7c914ef848d"
+  },
+  "monitor-r3-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 41.8,
+   "system_cpu_max": 47.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r3-cand.jsonl",
+   "bytes": 210235,
+   "sha256": "024000be76107ec66f8d10ed15da015bf347240cbe463c447e2786afca9c49c6"
+  },
+  "monitor-r4-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 28.6,
+   "system_cpu_max": 40.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r4-base.jsonl",
+   "bytes": 315210,
+   "sha256": "bbdd6598b2bb0abd34fdd06604a252277a95c4885b59e96785745a7a998eae1d"
+  },
+  "monitor-r4-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 45.7,
+   "system_cpu_max": 57.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r4-cand.jsonl",
+   "bytes": 209304,
+   "sha256": "7624b7205b9e71200304e48f98a554790393a0f00105171df8eff2d75cb24762"
+  },
+  "monitor-r5-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 33.8,
+   "system_cpu_max": 45.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r5-base.jsonl",
+   "bytes": 313555,
+   "sha256": "ba62e62bb7e01ab30fa73ed63509071d5dfd02c04d8fddd51c406d666d1587c1"
+  },
+  "monitor-r5-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 44.5,
+   "system_cpu_max": 59.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r5-cand.jsonl",
+   "bytes": 210122,
+   "sha256": "42f8935dd28ba705e458f63419edafbf9ddab8ec6437d2b5c6864b0ebecd46ad"
+  },
+  "monitor-r6-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 38.6,
+   "system_cpu_max": 60.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r6-base.jsonl",
+   "bytes": 319725,
+   "sha256": "0bccf1cf9c9347a418e9065c27d58a0406caa60ccc0f760699a0a23f69e0c0a2"
+  },
+  "monitor-r6-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 39.1,
+   "system_cpu_max": 44.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r6-cand.jsonl",
+   "bytes": 213991,
+   "sha256": "f24ce29f39ea8aa22d547b1b06f0c188142d39451aa962a93b484c5964fbaa89"
+  },
+  "monitor-r7-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 27.1,
+   "system_cpu_max": 36.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r7-base.jsonl",
+   "bytes": 315938,
+   "sha256": "1c9527ee327526b026c68683073efa2c4ee9a0a958933f09f4af861cebbc4bc1"
+  },
+  "monitor-r7-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.4,
+   "system_cpu_max": 47.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r7-cand.jsonl",
+   "bytes": 209669,
+   "sha256": "584b9ef3d050f280991dd363ccd0235f20bae5396420190aa108c6cb92657734"
+  },
+  "monitor-r8-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 26.7,
+   "system_cpu_max": 38.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r8-base.jsonl",
+   "bytes": 312987,
+   "sha256": "fa6070534d00cbe1a845545be87a1ffb5de4bdbf40d3b002ebec20c8ffa9f94b"
+  },
+  "monitor-r8-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 45.8,
+   "system_cpu_max": 56.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r8-cand.jsonl",
+   "bytes": 208793,
+   "sha256": "a5bb1b682b43a5f15f1db7e3d6b7ea177cf39c5c1a43ca08205136cbb35c5887"
+  },
+  "monitor-r9-base.jsonl": {
+   "samples": 3,
+   "system_cpu_mean": 34.0,
+   "system_cpu_max": 47.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r9-base.jsonl",
+   "bytes": 313431,
+   "sha256": "488bb98069080feb3ec7ce8b057bdcc24415fef7a9d2d3b4c48fd03df2b4be9c"
+  },
+  "monitor-r9-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.7,
+   "system_cpu_max": 43.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\sampler-greedy-20260920\\06\\monitor-r9-cand.jsonl",
+   "bytes": 208880,
+   "sha256": "e39def08b42550ccc234ffa0cf9d2ef401a21b1550850c1d353ecdb22c778d2a"
+  }
+ }
+}

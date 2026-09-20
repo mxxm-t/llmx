@@ -6,8 +6,11 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
 ## Prefill placement checkpoint (2026-09-20)
 
-Backend-owned prefill placement is accepted for main under the performance
-tradeoff policy. Publication and hosted validation of the new tests are pending.
+Backend-owned prefill placement is merged and published on both main remotes
+at `3c5d4b9`, under the performance tradeoff policy. All five hosted jobs pass in
+[run 35516912422](https://github.com/mxxm-t/llmx/actions/runs/35516912422): Windows,
+macOS Intel, Linux, Linux UBSan and required HF. The new native targets are
+included (12 Windows, 11 Linux/macOS).
 On supported Windows topology, six-worker prefill uses separate physical cores
 and checks restoration before decode. Other configurations fall back. There is
 no runtime affinity flag, NUMA memory policy, arithmetic change or concurrent
@@ -155,7 +158,7 @@ their own measurements; K-quant optimization remains separate work below.
 | CPU worker exception safety           | Done |
 | CPU worker cost profile                 | Done |
 | CPU ordered prefill reductions          | Done |
-| Backend-owned prefill placement | Done (hosted validation pending) |
+| Backend-owned prefill placement | Done (main `3c5d4b9`, five hosted jobs green) |
 | CLI thread settings                    | Done |
 | Automatic build identification          | Done (main `9511a4a`) |
 | Live generation and loading progress     | Done |
@@ -166,7 +169,7 @@ their own measurements; K-quant optimization remains separate work below.
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
 `Done` denotes implemented and validated functionality in this release tree.
-Runtime `08351b0` is published on both main remotes. Its initial five-check
+The earlier runtime base `08351b0` was published on both main remotes. Its initial five-check
 hosted run `35512421834` passed ordinary Ubuntu and required HF, but failed
 Windows reference-generator path spelling, UBSan exact scalar-tail comparison,
 and macOS JSON subnormal conversion. Repair `851d375` passed all five jobs in

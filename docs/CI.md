@@ -183,5 +183,8 @@ These checks do not require a real model or establish performance.
 
 With the prefill tests integrated, native counts are 12 on Windows and 11 on
 Linux/macOS; the Windows-only lifecycle target accounts for the difference.
-Windows 12/12 and Linux 11/11 pass locally. Hosted validation of these new targets is pending;
-the five-job pass at `851d375` above predates the prefill scope tests.
+Windows 12/12 and Linux 11/11 pass locally. Placement release `3c5d4b9` also
+passes all five hosted jobs in
+[run 35516912422](https://github.com/mxxm-t/llmx/actions/runs/35516912422), including
+the new native targets on Windows, macOS Intel, Linux and Linux UBSan, plus the
+required HF job. The earlier `851d375` pass predates these added tests.

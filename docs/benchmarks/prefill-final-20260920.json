@@ -19583,7 +19583,58 @@
   "release_assessment": {
     "decision": "Accept for main under the user-authorized large-gain/small-cost policy, with all phase/model costs and protocol deviations retained.",
     "limits": "Not universal per-phase parity, an unconfounded causal estimate, or a guarantee for other hardware/workloads. Three-round intervals do not bound future loss. No samples removed or replaced; no token-count policy inferred.",
-    "publication": "pending"
+    "publication": {
+      "feature_commit": "3c5d4b9adfaf6e7b13a04e6c475bfea068dd722b",
+      "remotes": [
+        "Gitea main",
+        "GitHub main"
+      ],
+      "hosted": {
+        "head": "3c5d4b9adfaf6e7b13a04e6c475bfea068dd722b",
+        "checked_utc": "2026-09-20T14:39:35.521326+00:00",
+        "runs": [
+          {
+            "id": 35516912422,
+            "head_sha": "3c5d4b9adfaf6e7b13a04e6c475bfea068dd722b",
+            "status": "completed",
+            "conclusion": "success",
+            "html_url": "https://github.com/mxxm-t/llmx/actions/runs/35516912422",
+            "jobs": [
+              {
+                "name": "CPU (Linux UBSan)",
+                "status": "completed",
+                "conclusion": "success",
+                "active_step": []
+              },
+              {
+                "name": "CPU (ubuntu-24.04)",
+                "status": "completed",
+                "conclusion": "success",
+                "active_step": []
+              },
+              {
+                "name": "CPU (macos-15-intel)",
+                "status": "completed",
+                "conclusion": "success",
+                "active_step": []
+              },
+              {
+                "name": "CPU (windows-2022)",
+                "status": "completed",
+                "conclusion": "success",
+                "active_step": []
+              },
+              {
+                "name": "HF reference (CPU)",
+                "status": "completed",
+                "conclusion": "success",
+                "active_step": []
+              }
+            ]
+          }
+        ]
+      }
+    }
   },
   "independent_review": {
     "status": "pass_evidence_integrity",

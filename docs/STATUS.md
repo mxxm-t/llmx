@@ -4,6 +4,24 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Paged KV cache design (2026-09-20)
+
+- **Goal:** replace the single-sequence contiguous `HostKVCache` with a paged
+  cache whose logical view (per-sequence block table, positions, refcounts) is
+  backend-neutral and whose physical block size and layout are backend-owned,
+  so the multi-user server and GPU backends do not inherit a CPU layout.
+- **Done:** isolated cold, shuffled paging microbenchmark: block 16 costs
+  +27-35% on decode attention, 128-256 costs +4-7%. Design in
+  [KV-CACHE](KV-CACHE.md), opened for XDEV agreement.
+- **Left:** XDEV agreement; isolated F32 layout evaluation on real models
+  (decode, prefill, follow-ups, lengths straddling block boundaries, two
+  geometries, allocated versus used bytes); then implementation in the order
+  the design lists. F16 KV is out of scope.
+- **Gotchas:** the microbenchmark measures one geometry with a cold cache and
+  is not an end-to-end decode cost. Memory waste cuts against large blocks:
+  224 KiB per token on 0.6B means a partial 256-token tail wastes up to
+  55.8 MiB per sequence, 27.8 MiB at 128.
+
 ## Native HF download checkpoint (2026-09-20)
 
 ROADMAP #9a is implemented: native `llmx pull`, immutable revision resolution,

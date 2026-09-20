@@ -1,0 +1,34 @@
+{
+  "study": "K-quant decode is compute bound in llmx and bandwidth bound in mx",
+  "date": "2026-09-20",
+  "branch": "design/device-execution-model",
+  "production_changed": false,
+  "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+  "scope": "Qwen3-0.6B Q8_0 and Q5_K_M, same machine, same session, same two compare_cpu binaries, six threads, eight matched rounds each, identical committed HF token IDs in both arms. The llmx arm includes the fused Q5_K decode dot.",
+  "measurements": {
+    "q8_0": {
+      "prefill": {
+        "llmx": 387.69106312509723,
+        "mx": 258.71537893841275
+      },
+      "decode": {
+        "llmx": 40.92717154136059,
+        "mx": 41.44310379819427
+      }
+    },
+    "q5_k_m": {
+      "prefill": {
+        "llmx": 324.3274360793628,
+        "mx": 230.32823794516443
+      },
+      "decode": {
+        "llmx": 15.979555130249224,
+        "mx": 58.299381913228245
+      }
+    }
+  },
+  "finding": "Decode is memory-bandwidth bound, so moving from Q8_0 (about 1.06 bytes per weight) to Q5_K (about 0.69) should make it FASTER. mx does exactly that: 41.44 -> 58.30 tok/s, +41%. llmx goes the other way: 40.93 -> 15.98, -61%. A smaller quant making llmx slower means the llmx K-quant decode path is limited by per-weight unpacking and float conversion, not by memory traffic. Q8_0 decode sits at parity (0.99x) because its fused dequant+FMA matvec is cheap enough to stay bandwidth bound.",
+  "consequence": "Prefill work cannot close this. Both quants are already above the floor in prefill (1.50x and 1.41x here). The gap is entirely in K-quant decode.",
+  "next": "Test whether quantizing the activation vector to 8 bits and taking an integer dot product recovers the bandwidth-bound behaviour, as mx does. That is a larger change than a fused dot and affects every quant type, so it needs its own prospective plan and its own HF gate.",
+  "limits": "One model family, one size, one thread count. Bytes per weight is computed from block layouts, not measured DRAM traffic; no bandwidth counter was read. The compute-bound conclusion follows from the direction of the change across quants, not from a hardware counter."
+}

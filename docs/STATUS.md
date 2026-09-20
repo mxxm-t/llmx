@@ -1772,14 +1772,29 @@ feature ships, delete its block and mark the row `Done` above.
   the previous llmx build and still leaves mx 3.65x faster. Reporting the
   self-comparison alone would have read as success.
   Evidence: `benchmarks/q5k-external-floor-20260920.json`.
-- **Left:** Q5_K decode is 3.65x below the external floor even after the fused
-  dot, so the type is not done. UNVERIFIED hypothesis for the gap: mx
-  quantizes the activation vector to 8-bit and takes an integer dot product,
-  so its inner loop is integer SIMD over two quantized operands, while the
-  llmx fused dot converts weights to float and uses float FMA against f32
-  activations. That moves more bytes per weight and does less work per
-  instruction. Measure before treating it as the cause; a quantized-activation
-  path is a much larger change than a fused dot and affects every type.
+- **Done:** located the gap. Same machine, session, binaries and harness, two
+  quants:
+
+  | | llmx | mx | ratio |
+  |---|---:|---:|---:|
+  | Q8_0 decode | 40.93 | 41.44 | 0.99x |
+  | Q5_K decode | 15.98 | 58.30 | 0.27x |
+
+  Decode is bandwidth bound, so Q5_K (about 0.69 bytes/weight) should beat
+  Q8_0 (about 1.06). mx does that: 41.44 -> 58.30, +41%. llmx goes backwards:
+  40.93 -> 15.98, -61%. A smaller quant making llmx slower means the K-quant
+  decode path is limited by per-weight unpacking and float conversion, not by
+  memory traffic. Q8_0 sits at parity because its fused dequant+FMA matvec is
+  cheap enough to stay bandwidth bound.
+  Evidence: `benchmarks/kquant-decode-bound-20260920.json`.
+- **Left:** prefill work cannot close this. Both quants are already above the
+  floor in prefill, 1.50x and 1.41x in the same runs. The whole gap is K-quant
+  decode.
+- **Left:** test whether quantizing the activation vector to 8 bits and taking
+  an integer dot product restores bandwidth-bound behaviour, as mx does. That
+  is a much larger change than a fused dot, affects every quant type, and
+  changes arithmetic, so it needs its own prospective plan and its own HF
+  gate. It is the highest-value remaining decode work.
 - **Left:** the same treatment for Q6_K, which has signed group scales and no
   min, so the dot is `sum(d_g * sum(q*x))` with no `sum(x)` term. Written, not
   built or measured. Expect the same floor gap to remain afterwards.

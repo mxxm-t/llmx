@@ -1,3 +1,4 @@
+#include <string>
 #include <array>
 #include <cstring>
 #include <iostream>
@@ -152,6 +153,58 @@ static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
     return count;
 }
 
+// Activation magnitude sweep. The ordinary cases above generate x within
+// about +-1.6, which is why this file passed a kernel that produced Inf and
+// NaN on large inputs: a fused dot accumulates sum(q*x) and applies the block
+// scale afterwards, so the inner sum can overflow before a small scale would
+// have bounded it. The oracle bound is relative to magnitude, so extreme
+// scales are testable here without loosening anything.
+static size_t check_magnitudes(backend::CpuBackend& cpu) {
+    size_t values = 0;
+    for (float mag : {1e-30f, 1e-8f, 1.0f, 1e8f, 1e30f, 1e36f}) {
+        for (uint32_t type : {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0,
+                              gguf::GGML_TYPE_Q4_1, gguf::GGML_TYPE_Q4_K,
+                              gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K,
+                              gguf::GGML_TYPE_F32}) {
+            const size_t width = type == gguf::GGML_TYPE_F32 ? 37 : 256;
+            Matrix m(type, 17, width, 1);
+            std::vector<float> x(width);
+            // Sign matters as much as magnitude. A mixed-sign pattern lets the
+            // inner sum cancel and never reach the overflow window, which is
+            // why an earlier version of this sweep passed a kernel that
+            // produced Inf. Same-sign inputs maximise sum(q*x) instead.
+            for (size_t i = 0; i < width; ++i)
+                x[i] = mag >= 1e30f ? mag
+                     : mag * float(int((i * 19 + 7) % 101) - 50) / 50.0f;
+            cpu.matmul(m.type, m.data(), x.data(), m.separate.data() + 1, width, m.rows, 1);
+            for (size_t o = 0; o < m.rows; ++o) {
+                double expected = 0, magnitude = 0;
+                for (size_t i = 0; i < width; ++i) {
+                    const double product = double(m.weights[o * width + i]) * x[i];
+                    expected += product;
+                    magnitude += std::abs(product);
+                }
+                // Only meaningful where the true answer is representable. At
+                // extreme magnitudes some rows genuinely exceed FLT_MAX, and
+                // returning infinity for those is correct rather than a bug.
+                // The interesting rows are the ones whose result fits while
+                // the kernel's intermediate sum(q*x) does not - which is the
+                // overflow this sweep exists to catch.
+                if (!(std::abs(expected) <= 3.0e38)) continue;
+                const float actual = m.separate[1 + o];
+                require(std::isfinite(actual),
+                        ("nonfinite output where the exact result fits: type " +
+                         std::to_string(type) + " mag " +
+                         std::to_string(mag)).c_str());
+                require(std::abs(actual - expected) <= 2e-6 * (1 + magnitude),
+                        "magnitude sweep differs from double-precision dot oracle");
+                ++values;
+            }
+        }
+    }
+    return values;
+}
+
 int main() {
     try {
         quant::register_builtins();
@@ -159,6 +212,7 @@ int main() {
         cpu.set_threads(1);
         const size_t scales = check_q8_scales(cpu);
         const size_t reductions = check_prefill_reduction();
+        const size_t magnitudes = check_magnitudes(cpu);
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
@@ -188,7 +242,8 @@ int main() {
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
                   << scales << " exact finite Q8 scale/weight cases; "
-                  << reductions << " ordered prefill reductions\n";
+                  << reductions << " ordered prefill reductions; "
+                  << magnitudes << " magnitude-sweep outputs\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

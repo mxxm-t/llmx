@@ -30,6 +30,7 @@ feature currently stands right now.
 | Chunked corpus perplexity               | Done     |
 | F32 embedding/matrix inference          | Planned  |
 | GitHub CPU CI                          | Done     |
+| HF fixture download retries and CI cache | Done |
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 

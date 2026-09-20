@@ -86,7 +86,7 @@ than the spec requires, so use `llmx.exe info` as the authoritative check.
 
 ## Tests
 
-Run the full suite (all generate their own fixtures, no real models needed):
+Run the full suite (synthetic fixtures are generated locally; HF checks need pinned models and otherwise skip):
 ```
 python tests/run_tests.py
 ```

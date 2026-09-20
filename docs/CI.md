@@ -24,7 +24,28 @@ hardware; compilation alone does not establish backend correctness.
 
 The HF job runs `tools/fetch_test_models.py`, a standard-library downloader
 using the revisions and SHA-256 digests in `tests/baseline.py`. Downloads are
-verified before entering the HF snapshot cache. `--require-baseline` makes
+verified before entering the HF snapshot cache. The HF job caches those
+snapshots between runs, with a key derived from `tests/baseline.py`; restored
+files are still SHA-256 checked on every run. Cold or invalid cache entries
+are downloaded from the pinned revision.
+
+The downloader makes at most five attempts for HTTP 408/429/500/502/503/504
+and transient connection/read failures. Backoff is 30/60/120/240 seconds;
+valid `Retry-After` and HF `RateLimit` reset headers can extend each wait to
+at most 300 seconds. A longer server wait fails with a clear diagnostic,
+rather than retrying early. Permanent HTTP failures, local file errors and
+SHA-256 mismatches fail immediately. Failed attempts remove temporary files;
+only a complete verified download replaces the destination.
+
+Every CI job also runs `python -X utf8 tests/fetch_models.py`: fifteen offline
+tests cover throttling, reset headers, retry exhaustion, interrupted reads,
+cache reuse/replacement, checksum rejection and permanent failures. These
+tests use tiny independent bytes and simulated network responses; they do
+not download models or replace the real HF reference checks. All fifteen pass
+on Linux, including a real HTTP response parser test for premature EOF; the
+previous downloader reproduces the single-request 429 failure.
+
+`--require-baseline` makes
 missing fixtures fatal, preventing a green numerical job made entirely of
 skips. Test execution does not install torch, transformers or HF packages.
 The ordinary CPU jobs can skip real-model checks because their fixtures are
@@ -40,6 +61,7 @@ To reproduce locally:
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 2
+python -X utf8 tests/fetch_models.py
 python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor
 python -X utf8 tools/fetch_test_models.py
 python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-baseline
@@ -53,6 +75,11 @@ Actions are pinned to commit SHAs, checkout credentials are not persisted,
 and workflow permissions are read-only. Jobs run on hosted machines; this
 workflow does not expose the GPU rig to pull-request jobs.
 
-After the first hosted run succeeds, the four stable check names above can be
+After the updated hosted run succeeds, the four stable check names above can be
 required for `main`. Branch protection is a separate repository setting;
 adding this workflow does not enable it automatically.
+
+The reported [run at d6e00e0](https://github.com/mxxm-t/llmx/actions/runs/35498190148)
+failed while fetching the Q8_0 fixture with HTTP 429, before HF tests ran.
+Retry/cache handling addresses that download failure; persistent service
+throttling can still exhaust the bounded retry policy and fail the job.

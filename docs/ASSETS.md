@@ -1,9 +1,10 @@
 # llmx — Test assets
 
 Where the real models and corpora used for manual verification live. These are
-environment-specific paths (this dev machine); the automated suite
-(`tests/run_tests.py`) generates its own synthetic fixtures and needs none of
-them.
+environment-specific paths (this dev machine). The automated suite
+(`tests/run_tests.py`) generates its synthetic fixtures locally; its HF checks
+need the pinned models below and otherwise skip, unless `--require-baseline`
+is set.
 
 > Superseded once `llmx pull` lands (`docs/ROADMAP.md` #9a): the hardcoded paths
 > below become a cache the tool manages. Until then, this file is the record of

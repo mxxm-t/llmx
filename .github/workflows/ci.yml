@@ -35,6 +35,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
+      - name: Test fixture downloader
+        run: python -X utf8 tests/fetch_models.py
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -53,10 +55,17 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
+      - name: Test fixture downloader
+        run: python -X utf8 tests/fetch_models.py
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build --config Release --parallel 2
+      - name: Cache HF fixtures
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/huggingface/hub
+          key: hf-fixtures-v1-${{ runner.os }}-${{ hashFiles('tests/baseline.py') }}
       - name: Fetch pinned HF fixtures
         run: python -X utf8 tools/fetch_test_models.py
       - name: Test with required HF fixtures

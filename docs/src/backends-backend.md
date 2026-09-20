@@ -40,3 +40,9 @@ and completes cleanup before returning. Setup or reentrancy errors can reject
 the call before body entry. Its default implementation invokes the body directly.
 Backends may use this boundary to scope execution policy across all prompt
 microbatches without putting platform details in the model layer.
+
+The replacement interface is designed in `docs/DEVICE-EXECUTION.md`. Two
+members above do not survive it: `parallel_for` takes a host callback and has
+no device implementation, and `dot_q8_0` / `matvec_q8_0` are type-specific,
+single-row leftovers that `matmul` replaced everywhere except the `bench`
+command.

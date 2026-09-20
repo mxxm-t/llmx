@@ -60,6 +60,8 @@ do not build GPU code yet. The vendor targets are ROCm, CUDA, SYCL
 execution model has to land before any vendor backend is worth writing.
 
 ### 4a. Device execution model (prerequisite, backend-agnostic)
+Designed in `docs/DEVICE-EXECUTION.md`: interface shape, the six-step migration
+order, and the scope boundary against #5. Not implemented.
 Today's `Backend` takes raw host pointers and returns scalars synchronously, so
 a device backend would re-upload weights and round-trip activations on every
 call. Before any GPU work:

@@ -1702,7 +1702,11 @@ feature ships, delete its block and mark the row `Done` above.
   (13:33:07-13:52:07 +0300, disclosed in the devlog). Redo both under the
   placement runner's discipline once that session is terminal.
 - **Left:** steps 3-6 (buffers, arena, KV on buffers, sync) untouched. No
-  vendor backend is writable until step 6.
+  vendor backend is writable until step 6. Step 3 was started as interface
+  plumbing only and reverted: `Buffer` with no caller is a speculative seam,
+  which `AGENTS.md` forbids. It must land together with the weight conversion
+  that uses it, which means touching `arch_qwen.hpp` and waiting for XDEV's
+  stack.
 - **Gotchas:**
   - Step 2's first decode reading of +3.40% was an artifact: its two winning
     pairs were the two lowest-throughput rounds, the other six gave +0.63%.

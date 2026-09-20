@@ -246,6 +246,14 @@ decode number went wrong.
 
 A vendor backend (#4b) is only writable after step 6.
 
+**No step lands without its consumer.** Adding `Buffer` and its five methods
+while the model still passes host pointers would be a seam with no caller and
+no test, which `AGENTS.md` forbids. Step 3 therefore means buffers *and* the
+weights converted to use them, in one change. This was attempted as
+plumbing-only and reverted for exactly that reason. The same applies to steps
+4-6: if a step cannot be landed with something calling it, it is not ready to
+be split off.
+
 ## Scope boundary
 
 Explicitly **not** part of #4a:

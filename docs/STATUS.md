@@ -85,6 +85,24 @@ External performance requirements still block main/GitHub publication.
 
 ## Active feature blocks
 
+### Native Q8 bounded inner-loop follow-up (rejected)
+
+- **Goal:** test one ordinary two-trip loop with local accumulators, preserving
+  one copy of the native block body and every arithmetic operation.
+- **Done:** MSVC emits two block bodies without accumulator stack traffic.
+  Independent instruction review finds 55 F16C-path instructions per pair
+  versus 54 for two control iterations. Arithmetic and branch counts are
+  unchanged; the extra instruction reloads the feature flag inside the loop.
+  No second-block work moves before the first block's final FMA/exit check.
+  This fails the useful-scheduling gate; no numerical/model/timing runs follow.
+- **Left:** stop this unrolling exploration. Resume current-runtime cost
+  attribution, including the unresolved operation labels in the worker span
+  profile, before selecting another hot-path change.
+- **Gotchas:** instruction counts are not micro-op counts or measured latency.
+  No hints, forced inlining, feature specialization or duplicated kernel bodies
+  were used. Production remains unchanged. Evidence:
+  `benchmarks/q8-bounded-inner-loop-rejection-20260920.json`.
+
 ### Native Q8 block scheduling study (rejected at codegen gate)
 
 - **Goal:** expose two consecutive native Q8 blocks to compiler scheduling while
@@ -947,9 +965,10 @@ feature ships, delete its block and mark the row `Done` above.
     passing numerical gates. Read-only review also found two redundant `h_`
     clears in `Model::step`, but no evidence that their cost closes the gap.
     The native two-block lambda is rejected at the no-spill codegen gate.
-    Further scheduling changes need a distinct, verified code-generation
-    hypothesis; prior F16C specialization, pointer increments and row pairing
-    are nulls.
+    The ordinary inner-loop follow-up also fails the useful-scheduling gate:
+    no spills, but one extra feature reload and no useful cross-block work.
+    Stop unrolling exploration and resume current-runtime cost attribution;
+    prior F16C specialization, pointer increments and row pairing are nulls.
   - Thread and matrix-shape diagnostics are complete (see CPU comparison
     thread scaling above). F32 matrix ranges overlap mx, while Q8 matrix
     latency still trails it. The resulting head-major KV layout is now validated.

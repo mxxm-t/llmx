@@ -1956,3 +1956,28 @@ possible native unrolling formulation would fail. Production remains unchanged;
 the two external decode cases remain open. Source patch, assembly, compiler
 commands, oracle source and raw results are archived in
 [`benchmarks/q8-native-block-scheduling-rejection-20260920.json`](benchmarks/q8-native-block-scheduling-rejection-20260920.json).
+
+
+### Bounded native Q8 inner-loop follow-up rejected
+
+The separate follow-up keeps the original body in an ordinary two-trip inner
+loop with local accumulators. MSVC emits two bodies without the lambda's stack
+stores, but fails the second gate: useful instruction scheduling.
+
+| F16C path per two blocks | Current | Follow-up |
+|---|---:|---:|
+| Executed instructions | 54 | 55 |
+| FMA instructions | 8 | 8 |
+| Feature tests / conditional branches | 2 / 2 | 2 / 2 |
+| Termination comparisons / branches | 2 / 2 | 2 / 2 |
+| Accumulator loop stack accesses | 0 | 0 |
+
+The extra instruction reloads the F16C flag inside the paired loop. The second
+body remains after the first block's final FMA and termination check. One
+backedge becomes a forward exit branch, but control count is unchanged. These
+are static path instruction counts, not micro-ops or measured latency. Reject
+this formulation and stop this unrolling exploration; no numerical/model/HF or
+performance runs were performed for the follow-up, and no production code was
+changed. The earlier lambda oracle passes do not validate this new source.
+Commands, source manifest, exact patch, assembly and independent review are in
+[`benchmarks/q8-bounded-inner-loop-rejection-20260920.json`](benchmarks/q8-bounded-inner-loop-rejection-20260920.json).

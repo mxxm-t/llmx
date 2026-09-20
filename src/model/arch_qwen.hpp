@@ -198,18 +198,13 @@ public:
         up_.assign(cfg.n_ff, 0.0f);
         ffn_.assign(cfg.n_ff, 0.0f);
 
-        // Budget: the whole context in whole blocks. Storage is backed on
-        // demand, so a short chat does not allocate it.
-        {
-            const size_t bt = b_->kv_layout().block_tokens;
-            const size_t blocks = ((size_t)cfg.context_length + bt - 1) / bt;
-            const size_t block_bytes = (size_t)cfg.n_layer * 2 * cfg.n_head_kv * bt *
-                                       cfg.head_dim * sizeof(float);
-            kv_storage_ = b_->kv_alloc(cfg.n_layer, cfg.n_head_kv, cfg.head_dim,
-                                       blocks * block_bytes);
-            kv_pool_ = BlockPool(kv_storage_->max_blocks());
-            kv_seq_ = KVSequence(&kv_pool_, bt);
-        }
+        // Budget: the whole context. The backend turns tokens into blocks and
+        // bytes; storage is backed on demand, so a short chat does not
+        // allocate it.
+        kv_storage_ = b_->kv_alloc(cfg.n_layer, cfg.n_head_kv, cfg.head_dim,
+                                   (size_t)cfg.context_length);
+        kv_pool_ = BlockPool(kv_storage_->max_blocks());
+        kv_seq_ = KVSequence(&kv_pool_, b_->kv_layout().block_tokens);
 
         // Precompute the RoPE cos/sin table for every position up to the
         // context length. Indexed as [pos*(head_dim/2) + i].
@@ -224,6 +219,11 @@ public:
             }
         }
     }
+
+    // One sequence owns one pool through a raw pointer; moving the model
+    // would leave it pointing at the old pool. Nothing moves a Model today.
+    Model(const Model&) = delete;
+    Model& operator=(const Model&) = delete;
 
     void set_threads(int n) { b_->set_threads(n); }
     int threads_available() const { return b_->threads_available(); }
@@ -244,20 +244,21 @@ public:
             throw std::runtime_error("inference: context length exceeded (" +
                                      std::to_string(cfg.context_length) + " tokens)");
 
+        // The whole step is one transaction: blocks are taken first, and the
+        // committed length and token position advance together only after
+        // the logits exist. A failure anywhere leaves the previous history.
         kv_seq_.prepare(1);
+        std::vector<float> logits;
         try {
             step_body(token_id, pos);
+            b_->rms_norm(h_.data(), x_.data(), output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
+            logits.assign(output_.nout, 0.0f);
+            matvec(output_, h_.data(), logits.data());
         } catch (...) {
             kv_seq_.abort();
             throw;
         }
         kv_seq_.commit();
-
-        // final norm + output projection
-        b_->rms_norm(h_.data(), x_.data(), output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
-        std::vector<float> logits(output_.nout);
-        matvec(output_, h_.data(), logits.data());
-
         n_tokens_++;
         return logits;
     }
@@ -326,6 +327,9 @@ public:
     std::vector<float> prefill(const std::vector<uint32_t>& ids) {
         if (ids.empty()) throw std::runtime_error("inference: empty prompt");
         std::vector<float> logits;
+        // The prompt is one transaction across its microbatches: a failure in
+        // any of them restores the history from before the call.
+        const int start = n_tokens_;
         auto work = [&] {
             ensure_batch_buffers(ids.size());
             size_t i = 0;
@@ -336,7 +340,13 @@ public:
                 i += (size_t)B;
             }
         };
-        b_->run_prefill(std::ref(work));
+        try {
+            b_->run_prefill(std::ref(work));
+        } catch (...) {
+            kv_seq_.truncate((size_t)start);
+            n_tokens_ = start;
+            throw;
+        }
         return logits;
     }
 
@@ -347,7 +357,13 @@ public:
         n_tokens_ = 0;
     }
 
+    // Allocated is what the backend backs; used is the committed history.
+    // The gap is the paging cost in memory (docs/KV-CACHE.md).
     size_t kv_allocated_bytes() const { return kv_storage_->allocated_bytes(); }
+    size_t kv_peak_bytes() const { return kv_storage_->peak_bytes(); }
+    size_t kv_used_bytes() const {
+        return (size_t)n_tokens_ * cfg.n_layer * 2 * cfg.n_head_kv * cfg.head_dim * sizeof(float);
+    }
 
 private:
     const gguf::GGUFModel* m_;
@@ -456,19 +472,18 @@ private:
         kv_seq_.prepare((size_t)B);
         try {
             forward_batch_body(ids, B, pos0);
+            if (out_logits) {
+                b_->rms_norm(h_.data(), xb_.data() + (size_t)(B - 1) * cfg.n_embd,
+                             output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
+                out_logits->assign(output_.nout, 0.0f);
+                matvec(output_, h_.data(), out_logits->data());
+            }
         } catch (...) {
             kv_seq_.abort();
             throw;
         }
         kv_seq_.commit();
         n_tokens_ += B;
-
-        if (out_logits) {
-            b_->rms_norm(h_.data(), xb_.data() + (size_t)(B - 1) * cfg.n_embd,
-                         output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
-            out_logits->assign(output_.nout, 0.0f);
-            matvec(output_, h_.data(), out_logits->data());
-        }
     }
 
     void forward_batch_body(const uint32_t* ids, int B, int pos0) {

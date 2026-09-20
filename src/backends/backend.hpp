@@ -45,8 +45,10 @@ class KVStorage {
 public:
     virtual ~KVStorage() = default;
     virtual size_t max_blocks() const = 0;
-    // Bytes currently backing blocks; grows on demand toward the budget.
+    // Bytes retained for blocks now, and the most held at any instant
+    // (growth may copy, so the peak can exceed the retained figure).
     virtual size_t allocated_bytes() const = 0;
+    virtual size_t peak_bytes() const = 0;
 };
 
 // One sequence's history in one storage: logical block i is physical block
@@ -100,12 +102,12 @@ public:
 
     virtual KVLayout kv_layout() const = 0;
 
-    // F32 keys and values for `layers` layers of n_head_kv x head_dim, up to
-    // as many whole blocks as budget_bytes holds including any layout
-    // overhead. Nothing is backed until a block is written.
+    // F32 keys and values for `layers` layers of n_head_kv x head_dim, enough
+    // whole blocks for max_tokens positions. The backend alone knows what a
+    // block costs in bytes; nothing is backed until a block is written.
     virtual std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv,
                                                 size_t head_dim,
-                                                size_t budget_bytes) = 0;
+                                                size_t max_tokens) = 0;
 
     // Store `batch` token-major [batch, n_head_kv, head_dim] rows at
     // positions pos .. pos+batch of the view's sequence.

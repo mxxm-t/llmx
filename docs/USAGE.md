@@ -278,7 +278,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--think`               | disable legacy reasoning-token filtering             | off     |
-| `--verbose`             | print prompt-token/thread counts and loading/processing status | off   |
+| `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status | off   |
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
 

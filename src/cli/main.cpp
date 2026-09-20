@@ -363,6 +363,9 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     printf("tg: %zu tok, %.0f ms, %.2f tok/s\n", gen.size(), tg_ms,
            (double)gen.size() / (tg_ms / 1e3));
+    if (gp.show_prompt_tokens)
+        printf("kv: allocated %zu bytes, peak %zu bytes, used %zu bytes\n",
+               model.kv_allocated_bytes(), model.kv_peak_bytes(), model.kv_used_bytes());
     return 0;
 }
 
@@ -652,7 +655,7 @@ void print_usage() {
         << "           --ubatch N  prefill physical batch (default 512)\n"
         << "           -tb/--threads-batch N  threads for prefill (default: --threads)\n"
         << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
-        << "           --verbose reports prompt tokens, actual thread counts and loading/processing status\n";
+        << "           --verbose reports prompt tokens, thread counts, KV bytes and loading/processing status\n";
 }
 
 } // namespace

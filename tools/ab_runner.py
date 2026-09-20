@@ -1,4 +1,5 @@
-"""Paired A/B runner for the docs/DEVICE-EXECUTION.md migration steps.
+"""Paired A/B runner for the docs/DEVICE-EXECUTION.md migration steps and
+the docs/KV-CACHE.md block-size screening.
 
 The bar for each step is no measured regression, so the runner is built to
 make a negative result stick: the plan, including the advance rule and the
@@ -6,15 +7,17 @@ contamination criteria, is written and hashed BEFORE any timing, and the
 runner refuses to start if a plan already exists. Samples are never dropped;
 activity flags are diagnostic only.
 
-Arms alternate within each round and the order reverses on odd rounds, so a
-drift in machine load falls on both arms equally. Every arm is monitored by
-tools/monitor_windows.py, which is what makes the activity annotation
-comparable across arms.
+Arms rotate within each round and the rotation reverses on odd rounds, so a
+drift in machine load falls on every arm equally and no arm always runs
+first. Every arm is monitored by tools/monitor_windows.py, which is what
+makes the activity annotation comparable across arms.
 
-Usage, in two phases so the rule cannot be written after seeing data:
+One base and one or more candidates; every candidate is scored against the
+base by paired ratios within a round. Usage, in two phases so the rule cannot
+be written after seeing data:
 
     python tools/ab_runner.py plan --out DIR --base A.exe --cand B.exe \\
-        --model M.gguf --prompt P.txt
+        [--cand NAME=C.exe ...] --model M.gguf --prompt P.txt
     python tools/ab_runner.py run --out DIR
 """
 
@@ -29,6 +32,7 @@ from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
 RATE = re.compile(r"^(pp|tg): .*?, ([0-9.]+) tok/s", re.M)
+KV = re.compile(r"^kv: allocated ([0-9]+) bytes, peak ([0-9]+) bytes, used ([0-9]+) bytes", re.M)
 
 # Frozen before any timing. A step advances unless a phase shows a real
 # regression: mean or median below the noise band, or a baseline win count that
@@ -86,7 +90,10 @@ def cmd_plan(args):
     plan_path = out / "plan.json"
     if plan_path.exists():
         sys.exit("plan.json exists; refusing to rewrite a frozen plan")
-    arms = {"base": args.base, "cand": args.cand}
+    arms = {"base": args.base}
+    for i, c in enumerate(args.cand):
+        name, _, exe = c.rpartition("=")
+        arms[name or ("cand" if len(args.cand) == 1 else f"cand{i}")] = exe
     plan = {
         "kind": "device-execution A/B",
         "created": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -99,7 +106,7 @@ def cmd_plan(args):
         "max_tokens": args.max_tokens,
         "warmup_rounds": 1,
         "measured_rounds": args.rounds,
-        "order": "arms alternate within a round; order reverses on odd rounds",
+        "order": "arms rotate by one place per round; the rotation reverses on odd rounds",
         "advance": ADVANCE,
         "limits": "One model and one prompt. Host load is recorded, not "
                   "controlled. This runner covers only the regression half of "
@@ -122,10 +129,16 @@ def invoke(exe, model, prompt_text, threads, max_tokens):
         capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError(f"{exe} exited {proc.returncode}: {proc.stderr[-400:]}")
-    rates = dict((m.group(1), float(m.group(2)))
-                 for m in RATE.finditer(proc.stdout + proc.stderr))
+    text = proc.stdout + proc.stderr
+    rates = dict((m.group(1), float(m.group(2))) for m in RATE.finditer(text))
     if "pp" not in rates or "tg" not in rates:
         raise RuntimeError(f"{exe} produced no rate lines")
+    # Binaries before the paged cache print no kv line; record what is there.
+    kv = KV.search(text)
+    if kv:
+        rates["kv_allocated"] = int(kv.group(1))
+        rates["kv_peak"] = int(kv.group(2))
+        rates["kv_used"] = int(kv.group(3))
     return rates
 
 
@@ -158,12 +171,15 @@ def cmd_run(args):
             sys.exit(f"arm {name} binary changed since the plan was frozen")
 
     prompt_text = Path(plan["prompt"]).read_text(encoding="utf-8")
-    order = ["base", "cand"]
+    order = list(plan["arms"])
     samples = []
     total = plan["warmup_rounds"] + plan["measured_rounds"]
     for rnd in range(total):
         measured = rnd >= plan["warmup_rounds"]
-        seq = order if rnd % 2 == 0 else order[::-1]
+        k = rnd % len(order)
+        seq = order[k:] + order[:k]
+        if rnd % 2:
+            seq = seq[::-1]
         for arm in seq:
             tag = f"r{rnd}-{arm}"
             rates, log = monitored(out, tag, lambda: invoke(
@@ -171,6 +187,9 @@ def cmd_run(args):
                 plan["threads"], plan["max_tokens"]))
             samples.append({"round": rnd, "arm": arm, "measured": measured,
                             "pp": rates["pp"], "tg": rates["tg"],
+                            "kv_allocated": rates.get("kv_allocated"),
+                            "kv_peak": rates.get("kv_peak"),
+                            "kv_used": rates.get("kv_used"),
                             "monitor": log.name})
             print(f"{tag}: pp {rates['pp']:.2f} tg {rates['tg']:.2f}")
     (out / "samples.json").write_text(
@@ -199,10 +218,17 @@ def cmd_report(args):
     pick = lambda r, a, ph: next(s[ph] for s in measured
                                  if s["round"] == r and s["arm"] == a)
     limit = win_threshold(len(rounds), adv["alpha"])
-    verdict, phases = True, {}
-    for ph, name in (("pp", "prefill"), ("tg", "decode")):
+    cands = [a for a in plan["arms"] if a != "base"]
+    verdict, report = True, {}
+    for cand in cands:
+      phases = {}
+      kv = next((s for s in reversed(measured) if s["arm"] == cand and s.get("kv_used")), None)
+      if kv:
+          phases["kv_bytes"] = {"allocated": kv["kv_allocated"], "peak": kv["kv_peak"],
+                                "used": kv["kv_used"]}
+      for ph, name in (("pp", "prefill"), ("tg", "decode")):
         b = [pick(r, "base", ph) for r in rounds]
-        c = [pick(r, "cand", ph) for r in rounds]
+        c = [pick(r, cand, ph) for r in rounds]
         wins = sum(1 for i in range(len(b)) if b[i] > c[i])
         keep = 1 - adv["noise_fraction"]
         # Paired ratios, not a ratio of marginals. The arms alternate so that
@@ -225,13 +251,14 @@ def cmd_report(args):
             "paired_change_percent": [(c[i] / b[i] - 1) * 100
                                       for i in range(len(b))],
             "advance": "pass" if ok else "fail"}
-        print(f"{name}: paired mean {phases[name]['paired_mean_change_percent']:+.2f}% "
+        print(f"{cand} {name}: paired mean {phases[name]['paired_mean_change_percent']:+.2f}% "
               f"median {phases[name]['paired_median_change_percent']:+.2f}% "
               f"baseline wins {wins}/{len(b)} (fail at >= {limit}) "
               f"-> {'PASS' if ok else 'FAIL'}")
+      report[cand] = phases
     print("ADVANCE:", "pass" if verdict else "fail")
     (out / "report.json").write_text(json.dumps(
-        {"advance": "pass" if verdict else "fail", "phases": phases,
+        {"advance": "pass" if verdict else "fail", "candidates": report,
          "plan_sha256": (out / "plan.sha256").read_text(encoding="ascii").strip()},
         indent=2), encoding="ascii")
 
@@ -243,7 +270,8 @@ def main():
     f = sub.add_parser("plan")
     f.add_argument("--out", required=True)
     f.add_argument("--base", required=True)
-    f.add_argument("--cand", required=True)
+    f.add_argument("--cand", required=True, action="append",
+                   help="candidate exe, or NAME=exe; repeatable")
     f.add_argument("--model", required=True)
     f.add_argument("--prompt", required=True)
     f.add_argument("--threads", type=int, default=6)

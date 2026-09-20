@@ -71,7 +71,9 @@ the compiled binary portable to older CPUs.
   the paged KV cache. Per layer, block `b` of K or V holds
   `[kv_head][token][head_dim]`, so a head's history is contiguous inside a
   block. Blocks are backed in doubling steps as ids are first written, up to
-  the budget. `KV_BLOCK_TOKENS` is a temporary `LLMX_KV_BLOCK` compile knob
+  the budget; growth copies the history into exact-size buffers for every
+  layer before publishing any, and `allocated_bytes` is the retained
+  capacity. `KV_BLOCK_TOKENS` is a temporary `LLMX_KV_BLOCK` compile knob
   for the block-size screening in `docs/KV-CACHE.md` and becomes a constant
   when that lands.
 - `attention`: causal GQA over a `KVView`. Heads use the persistent worker

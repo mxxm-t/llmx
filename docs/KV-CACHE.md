@@ -99,6 +99,12 @@ KVSequence    ordered physical block ids, valid length;
               fork shares full blocks (refcount+1) and copies the partial tail
 ```
 
+Both own what they hold: neither is copyable, a sequence returns its blocks
+when destroyed or moved from, and every bookkeeping vector is reserved to the
+budget at construction so alloc, release, abort and reset never allocate.
+The CPU storage grows by copying the history into exact-size buffers, all
+layers before any is published, and reports the capacity it retains.
+
 `KVSequence` replaces the per-model position bookkeeping; `Model` keeps one
 today and the server keeps one per request later. The budget covers every
 layer, K and V, and layout and alignment overhead. A CLI flag for it waits
@@ -118,14 +124,18 @@ so a failed step leaves the previous history valid.
 KVLayout   { block_tokens }                      queried once, backend-chosen
 KVStorage  handle from kv_alloc; owns the physical blocks of one cache
 KVView     { storage, blocks, n_blocks, length } one sequence, one layer
-kv_alloc(layers, budget_bytes) -> KVStorage      grows on demand
+kv_alloc(layers, max_tokens) -> KVStorage        grows on demand
 kv_write(layer, view, pos, k, v, batch)          model -> storage
 attention(Q, layer, view, out, n_head, n_head_kv, head_dim, nbatch)
 ```
 
 A view names its storage: block ids are only meaningful inside one
 `KVStorage`, and a process may hold several caches (two models, or two
-pools). Storage is host memory now and becomes a `Buffer` at step 5 of
+pools). The budget crosses the seam in tokens: only the backend knows what
+a block costs in bytes, so a byte budget, when the server needs one,
+converts inside the backend. Storage reports retained bytes and the peak
+held during a growth copy separately. Storage is host memory now and
+becomes a `Buffer` at step 5 of
 [DEVICE-EXECUTION](DEVICE-EXECUTION.md) without changing this contract. The
 public raw-pointer `attention` overload is deleted once every model, test and
 benchmark caller uses the view form; a contiguous implementation may survive

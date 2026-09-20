@@ -17,14 +17,20 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Done (step 1):** `model/kv_cache.hpp` (`BlockPool`, `KVSequence`),
   backend `kv_layout`/`kv_alloc`/`kv_write` and view-form `attention`,
   `CpuKVStorage` backed on demand, `HostKVCache` and the raw-pointer
-  attention removed. Native suite 17/17; Python suite with both HF models
-  passes (f32 max error 0.00000070, baseline PPL and logits within bounds).
-  Provisional block size 128 behind the temporary `LLMX_KV_BLOCK` knob.
-- **Left:** bit-identity check of logits against main; the real-model
-  screening of 64/128/256 against contiguous main (decode, prefill,
-  follow-ups, boundary lengths, allocated versus used bytes) with
-  `ab_runner`; then delete the knob and record the default. Fork/COW and
-  device buffers are later steps. F16 KV is out of scope.
+  attention removed. XDEV's review findings folded in: each step and each
+  prompt is one transaction, bookkeeping vectors are reserved so failure
+  paths never allocate, pool and sequence own their ids (non-copyable,
+  release on destruction), retain rejects free ids, growth copies into
+  exact-size buffers with retained and peak bytes reported, the budget
+  crosses the seam in tokens, arithmetic is checked. `generate --verbose`
+  prints `kv: allocated/peak/used`. Native suite 17/17; Python suite with
+  both HF models passes; main and paged logits byte-identical on 0.6B and
+  8B (11 to 841 tokens) and greedy text identical. Provisional block size
+  128 behind the temporary `LLMX_KV_BLOCK` knob.
+- **Left:** the real-model screening of 64/128/256 against contiguous main
+  (decode, prefill, boundary lengths, allocated/peak/used bytes) with the
+  multi-candidate `ab_runner`; then delete the knob and record the default.
+  Fork/COW and device buffers are later steps. F16 KV is out of scope.
 - **Gotchas:** the microbenchmark is isolated attention with a cold cache and
   is not an end-to-end decode cost. Memory waste cuts against large blocks:
   224 KiB per token on 0.6B means a partial 256-token tail wastes up to

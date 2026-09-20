@@ -41,30 +41,54 @@ static const size_t KV_BLOCK_TOKENS = LLMX_KV_BLOCK;
 // Host KV blocks. Per layer, block id b of K or V starts at b*block_floats()
 // and holds [kv_head][token][head_dim], so a head's history is contiguous
 // inside the block. Blocks are backed in doubling steps as ids are first
-// written; ids come dense from the model's pool.
+// written; ids come dense from the model's pool. Growth copies the history
+// into exact-size buffers, as the contiguous cache did, and allocated_bytes
+// reports the capacity actually retained.
 class CpuKVStorage final : public KVStorage {
 public:
     CpuKVStorage(size_t layers, size_t heads, size_t dim, size_t max_blocks)
-        : heads_(heads), dim_(dim), max_(max_blocks), k_(layers), v_(layers) {}
+        : heads_(heads), dim_(dim), max_(max_blocks), k_(layers), v_(layers) {
+        mul(mul(heads, KV_BLOCK_TOKENS), dim);
+    }
+
+    static size_t mul(size_t a, size_t b) {
+        if (a && b > std::numeric_limits<size_t>::max() / a)
+            throw std::runtime_error("backend: KV storage size overflows");
+        return a * b;
+    }
 
     size_t max_blocks() const override { return max_; }
     size_t allocated_bytes() const override {
-        return backed_ * block_floats() * sizeof(float) * 2 * k_.size();
+        size_t floats = 0;
+        for (size_t l = 0; l < k_.size(); ++l) floats += k_[l].capacity() + v_[l].capacity();
+        return floats * sizeof(float);
     }
+    size_t peak_bytes() const override { return peak_; }
     size_t layers() const { return k_.size(); }
     size_t heads() const { return heads_; }
     size_t dim() const { return dim_; }
     size_t block_floats() const { return heads_ * KV_BLOCK_TOKENS * dim_; }
     bool backed(size_t id) const { return id < backed_; }
 
+    // Every layer grows into a fresh buffer before any is published, so a
+    // failed allocation leaves the storage exactly as it was.
     void ensure(size_t id) {
         if (id < backed_) return;
         if (id >= max_) throw std::runtime_error("backend: KV block outside the budget");
         const size_t want = std::max(id + 1, std::min(max_, backed_ * 2));
+        const size_t floats = mul(want, block_floats());
+        std::vector<std::vector<float>> nk(k_.size()), nv(v_.size());
         for (size_t l = 0; l < k_.size(); ++l) {
-            k_[l].resize(want * block_floats());
-            v_[l].resize(want * block_floats());
+            nk[l].reserve(floats);
+            nk[l].assign(k_[l].begin(), k_[l].end());
+            nk[l].resize(floats);
+            nv[l].reserve(floats);
+            nv[l].assign(v_[l].begin(), v_[l].end());
+            nv[l].resize(floats);
         }
+        peak_ = std::max(peak_, allocated_bytes() + floats * sizeof(float) * 2 * k_.size());
+        k_.swap(nk);
+        v_.swap(nv);
         backed_ = want;
     }
 
@@ -74,7 +98,7 @@ public:
     const float* v(size_t layer, int32_t id) const { return v_[layer].data() + (size_t)id * block_floats(); }
 
 private:
-    size_t heads_, dim_, max_, backed_ = 0;
+    size_t heads_, dim_, max_, backed_ = 0, peak_ = 0;
     std::vector<std::vector<float>> k_, v_;
 };
 
@@ -544,12 +568,14 @@ public:
     KVLayout kv_layout() const override { return {KV_BLOCK_TOKENS}; }
 
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
-                                        size_t budget_bytes) override {
+                                        size_t max_tokens) override {
         if (layers == 0 || n_head_kv == 0 || head_dim == 0)
             throw std::runtime_error("backend: invalid KV storage shape");
-        const size_t block_bytes = layers * 2 * n_head_kv * KV_BLOCK_TOKENS * head_dim * sizeof(float);
-        return std::make_unique<CpuKVStorage>(layers, n_head_kv, head_dim,
-                                              budget_bytes / block_bytes);
+        const size_t blocks = max_tokens / KV_BLOCK_TOKENS + (max_tokens % KV_BLOCK_TOKENS != 0);
+        // The whole budget must be addressable, even if it is never backed.
+        CpuKVStorage::mul(CpuKVStorage::mul(CpuKVStorage::mul(blocks, layers * 2), n_head_kv),
+                          CpuKVStorage::mul(KV_BLOCK_TOKENS, head_dim * sizeof(float)));
+        return std::make_unique<CpuKVStorage>(layers, n_head_kv, head_dim, blocks);
     }
 
     void kv_write(size_t layer, const KVView& view, size_t pos,

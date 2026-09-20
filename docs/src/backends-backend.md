@@ -17,12 +17,13 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
   activations. Each descriptor gives type, weights, output and row count.
   Outputs must be disjoint from one another, inputs and weights. The default
   calls `matmul` sequentially; all outputs are ready when the call returns.
-- `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, budget_bytes)`,
+- `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, max_tokens)`,
   `kv_write(layer, view, pos, k, v, batch)`: the backend-owned half of the
   paged KV cache in `docs/KV-CACHE.md`. The backend chooses the block size and
   the layout inside a block; the model layer hands it a `KVView` (storage
   handle, block table, committed length) and never computes an offset.
-  Storage is backed on demand up to as many whole blocks as the budget holds.
+  Storage is backed on demand up to the blocks `max_tokens` needs; it reports
+  retained bytes and the peak held during a growth copy.
 - `attention(Q, layer, view, out, n_head, n_head_kv, head_dim, nbatch)`:
   causal GQA over the view, shared by decode and prefill. Queries/output have
   shape `[nbatch, n_head, head_dim]`; query `b` sees positions through

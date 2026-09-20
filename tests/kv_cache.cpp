@@ -3,12 +3,17 @@
 // HF/model history checks remain separate; this does not replace them.
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <stdexcept>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "backends/cpu/cpu_backend.hpp"
+#include "model/arch_qwen.hpp"
 #include "model/kv_cache.hpp"
 
 namespace {
@@ -37,6 +42,7 @@ void pool_and_sequence() {
     pool.release(a);
     require(pool.in_use() == 1 && pool.alloc() == a, "a freed block is reused first");
     rejects([&] { pool.release(b); pool.release(b); }, "double release accepted");
+    rejects([&] { pool.retain(b); }, "retain of a free block accepted");
     require(pool.alloc() == b, "the first release of a double release must still free");
     pool.alloc();
     pool.alloc();
@@ -65,6 +71,31 @@ void pool_and_sequence() {
     seq.reset();
     require(seq.length() == 0 && seq.n_blocks() == 0 && p2.in_use() == 0,
             "reset returns every block");
+
+    rejects([&] { seq.prepare(std::numeric_limits<size_t>::max()); }, "length overflow accepted");
+    require(seq.n_blocks() == 0 && p2.in_use() == 0, "failed overflow prepare took blocks");
+    rejects([&] { infer::KVSequence bad(&p2, 0); }, "zero block size accepted");
+
+    // Ownership: a sequence returns its blocks when destroyed or moved from.
+    {
+        infer::KVSequence owner(&p2, 4);
+        owner.prepare(6);
+        owner.commit();
+        require(p2.in_use() == 2, "owner holds two blocks");
+        infer::KVSequence moved(std::move(owner));
+        require(moved.length() == 6 && moved.n_blocks() == 2 && p2.in_use() == 2,
+                "move must transfer, not duplicate, the blocks");
+        infer::KVSequence other(&p2, 4);
+        other.prepare(1);
+        other.commit();
+        require(p2.in_use() == 3, "second owner holds one block");
+        other = std::move(moved);
+        require(other.length() == 6 && p2.in_use() == 2, "move assignment must release the old blocks");
+    }
+    require(p2.in_use() == 0, "destroyed sequences must return their blocks");
+    infer::BlockPool moved_pool(std::move(p2));
+    require(moved_pool.max_blocks() == 3 && moved_pool.in_use() == 0 && moved_pool.alloc() == 0,
+            "moved pool keeps its budget and free list");
 }
 
 // Append `batch` tokens at `pos` through the backend and commit them.
@@ -111,9 +142,9 @@ void storage_growth_and_reset() {
     for (size_t width : {size_t(1), size_t(8), size_t(42), size_t(128)}) {
         const size_t heads = 3, limit = 3 * bt;
         const size_t block_bytes = 3 * 2 * heads * bt * width * sizeof(float);
-        auto st = cpu.kv_alloc(3, heads, width, 3 * block_bytes + block_bytes / 2);
-        require(st->max_blocks() == 3, "budget rounds down to whole blocks");
-        require(st->allocated_bytes() == 0, "storage backed before any write");
+        auto st = cpu.kv_alloc(3, heads, width, limit - 1);
+        require(st->max_blocks() == 3, "budget rounds up to whole blocks");
+        require(st->allocated_bytes() == 0 && st->peak_bytes() == 0, "storage backed before any write");
         infer::BlockPool pool(st->max_blocks());
         infer::KVSequence seq(&pool, bt);
         size_t last = 0;
@@ -124,6 +155,11 @@ void storage_growth_and_reset() {
             check(*st, seq, bt, heads, width, 1);
             require(st->allocated_bytes() >= last, "storage shrank while growing");
             require(st->allocated_bytes() <= 3 * block_bytes, "storage exceeded the budget");
+            require(st->allocated_bytes() % block_bytes == 0,
+                    "retained capacity is not a whole number of blocks");
+            require(st->peak_bytes() >= st->allocated_bytes() &&
+                    st->peak_bytes() <= last + st->allocated_bytes(),
+                    "growth peak must be old plus new at most");
             last = st->allocated_bytes();
         }
         require(seq.length() == limit, "sequence did not reach the budget");
@@ -169,8 +205,7 @@ void attention_over_blocks() {
             // pool was churned first so the table is out of order.
             std::vector<std::vector<float>> outs;
             for (int churn = 0; churn < 2; ++churn) {
-                const size_t block_bytes = 2 * n_head_kv * bt * head_dim * sizeof(float);
-                auto st = cpu.kv_alloc(1, n_head_kv, head_dim, 8 * block_bytes);
+                auto st = cpu.kv_alloc(1, n_head_kv, head_dim, 8 * bt);
                 infer::BlockPool pool(st->max_blocks());
                 if (churn) {
                     std::vector<int32_t> taken;
@@ -228,6 +263,95 @@ void attention_over_blocks() {
     }
 }
 
+// A one-layer Qwen3-shaped F32 model, deterministic weights, for the
+// transaction check below. Mirrors the prefill-scope fixture.
+gguf::GGUFModel fixture() {
+    gguf::GGUFModel m;
+    for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{
+            {"block_count", 1}, {"embedding_length", 8}, {"feed_forward_length", 12},
+            {"attention.head_count", 2}, {"attention.head_count_kv", 1},
+            {"attention.key_length", 4}, {"context_length", 32}}) {
+        gguf::MetaValue v; v.vtype = gguf::V_UINT32; v.u = kv.second;
+        m.kv.push_back({"qwen3." + kv.first, v});
+    }
+    auto add = [&](const std::string& name, std::vector<uint64_t> shape, bool norm = false) {
+        size_t count = 1;
+        for (uint64_t d : shape) count *= size_t(d);
+        const size_t offset = m.blob.size();
+        m.blob.resize(offset + count * sizeof(float));
+        for (size_t i = 0; i < count; ++i) {
+            const float v = norm ? 1.0f : float(int((i * 17 + m.tensors.size() * 3) % 29) - 14) / 64.0f;
+            std::memcpy(m.blob.data() + offset + i * sizeof(float), &v, sizeof(v));
+        }
+        m.tensors.push_back({name, std::move(shape), gguf::GGML_TYPE_F32, 0});
+        m.offsets.push_back(offset);
+    };
+    add("token_embd.weight", {8, 16});
+    add("output_norm.weight", {8}, true);
+    for (const char* name : {"attn_norm", "ffn_norm"})
+        add(std::string("blk.0.") + name + ".weight", {8}, true);
+    for (const char* name : {"attn_q_norm", "attn_k_norm"})
+        add(std::string("blk.0.") + name + ".weight", {4}, true);
+    add("blk.0.attn_q.weight", {8, 8});
+    add("blk.0.attn_k.weight", {8, 4});
+    add("blk.0.attn_v.weight", {8, 4});
+    add("blk.0.attn_output.weight", {8, 8});
+    add("blk.0.ffn_gate.weight", {8, 12});
+    add("blk.0.ffn_up.weight", {8, 12});
+    add("blk.0.ffn_down.weight", {12, 8});
+    return m;
+}
+
+// Fails the output projection (the only 16-row matmul) once, after every
+// layer's KV has been written for the step.
+struct FailingCpu : backend::CpuBackend {
+    bool fail_output = false;
+    int outputs = 0;
+    void matmul(uint32_t type, const uint8_t* data, const float* x, float* y,
+                size_t nin, size_t nout, size_t nbatch) override {
+        if (nout == 16) {
+            ++outputs;
+            if (fail_output) { fail_output = false; throw std::runtime_error("injected"); }
+        }
+        backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch);
+    }
+};
+
+// A failure after the KV writes must leave length, position and bytes as
+// they were, and the retried step must produce the logits of an undisturbed
+// model, exactly.
+void model_transaction() {
+    const auto weights = fixture();
+    auto cpu = std::make_shared<FailingCpu>();
+    auto plain = std::make_shared<backend::CpuBackend>();
+    cpu->set_threads(1);
+    plain->set_threads(1);
+    infer::Model model(weights, cpu), control(weights, plain);
+    model.set_ubatch(2);
+    control.set_ubatch(2);
+
+    // Decode path.
+    require(model.step(1) == control.step(1), "first step differs");
+    const size_t used = model.kv_used_bytes(), allocated = model.kv_allocated_bytes();
+    cpu->fail_output = true;
+    rejects([&] { model.step(2); }, "injected failure did not propagate");
+    require(model.n_tokens() == 1 && model.kv_used_bytes() == used &&
+            model.kv_allocated_bytes() == allocated, "failed step changed the history");
+    require(model.step(2) == control.step(2), "retry after failure differs");
+    require(model.step(3) == control.step(3), "step after retry differs");
+    require(model.n_tokens() == 3, "position after retry");
+
+    // Prefill path, failing in the last microbatch's output stage.
+    model.reset();
+    control.reset();
+    cpu->fail_output = true;
+    rejects([&] { model.prefill({4, 5, 6}); }, "injected prefill failure did not propagate");
+    require(model.n_tokens() == 0 && model.kv_used_bytes() == 0, "failed prefill changed the history");
+    require(model.prefill({4, 5, 6}) == control.prefill({4, 5, 6}), "prefill retry differs");
+    require(model.step(7) == control.step(7), "step after prefill retry differs");
+    require(model.n_tokens() == 4 && cpu->outputs == 7, "output projection count");
+}
+
 }  // namespace
 
 int main() {
@@ -235,7 +359,9 @@ int main() {
         pool_and_sequence();
         storage_growth_and_reset();
         attention_over_blocks();
-        std::cout << "KV cache: pool, sequence, on-demand storage, reset and paged attention pass\n";
+        model_transaction();
+        std::cout << "KV cache: pool, sequence, ownership, on-demand storage, reset, paged attention "
+                     "and failed-step transactions pass\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

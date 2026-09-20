@@ -139,6 +139,9 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
 - **Round-trip** (`tests/roundtrip.py`): build a random Q8_0 model, quantize,
   dequantize, assert max error below a Q8_0-appropriate bound. Regression gate
   for `quant/` + `format/`.
+  Also checks quantize's JSON tensor schema/dimension and binary-length rejection,
+  output preservation on validation failure, and valid one-to-four-dimensional
+  conversion for both writable types.
 - **Perf** (`tests/perf.py`): time matmul / RMSNorm / RoPE hot paths and print
   throughput, so perf-first changes can be checked for regressions. Assert a
   generous floor so catastrophic slowdowns fail loudly without being flaky.

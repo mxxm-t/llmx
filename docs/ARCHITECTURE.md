@@ -154,9 +154,12 @@ before payload allocation or loading progress. It honors declared file alignment
 These are structural checks: metadata string encoding and model configuration,
 required tensor names/shapes and token IDs still need validation before execution.
 Valid large files or overlapping tensor ranges can still exceed available memory;
-there is no per-request memory budget. The JSON parser validates syntax and Unicode with bounded
-nesting and finite-double storage; that does not validate tensor dimensions
-or extent arithmetic. A future server must define
+there is no per-request memory budget. The JSON parser validates syntax and
+Unicode with bounded nesting and finite-double storage. The quantize CLI
+separately checks parsed dimensions, rank, quantized row width, checked byte
+totals and exact binary length before payload allocation or output creation.
+Its float input buffer owns properly aligned float objects. These conversion
+checks do not validate model execution schemas. A future server must define
 request/session recovery rather than treating the CLI's process-level catch as request isolation.
 
 ## Multi-device / multi-node design notes

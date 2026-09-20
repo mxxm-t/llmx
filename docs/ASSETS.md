@@ -53,7 +53,50 @@ with recorded hashes. No inference hot path changed; timings are diagnostic
 only and the independent placement performance gate remains open. The new 8B
 check covers loading and short ranks, not perplexity or long context. Model
 schema, metadata string encoding, JSON tensor shapes, writer hardening and
-resource budgets remain separate work. All 25 Markdown files were reviewed.
+resource budgets were outside that checkpoint. The later conversion checkpoint
+below addresses JSON tensor shapes. All 25 Markdown files were reviewed.
+
+## JSON quantize tensor validation (2026-09-20)
+
+Branch `fix/json-tensor-extents` starts at GGUF checkpoint `d2b5a32` in the
+isolated `llmx-json-extents` worktree. Quantize validates positive integral
+dimensions in the stored-double range `1..2^53-1`, rank 1..4 and whole 32-value
+rows. It reuses GGUF checked tensor arithmetic and checks total input bytes,
+aligned output storage, allocation limits and the exact binary extent before
+payload allocation. Read/seek failures throw, and input validation precedes
+output creation. Valid Q8_0/Q4_0 quantizer arithmetic is unchanged.
+
+`tests/roundtrip.py` exercises 32 invalid inputs per writable type, including
+dimension/product/byte/sum boundaries, wrong ranks and partial rows, plus short
+and extra payloads. Every rejection checks its diagnostic and unchanged output
+sentinel; separate checks verify that invalid input does not create a missing
+output. Valid cases cover all four ranks, equivalent integral decimal/exponent
+spellings and empty tensor lists. The upper parsed-dimension boundary reaches
+the binary-length check without allocating a huge buffer.
+
+Twelve valid-input comparisons against the prior Windows binary produce exact
+GGUF bytes: empty, rank 1, rank 2, rank 3, rank 4 and mixed-rank inputs for both
+writable types. This is a compatibility check, not independent model accuracy.
+The prior binary is used only with valid inputs.
+
+| Validation | Windows MSVC | Linux GCC |
+|---|---:|---:|
+| Native CTests | 9/9 | 9/9 |
+| Required-HF Python suite | 11/11 | 11/11 |
+| Invalid conversion inputs, with output preservation | 64 passed | 64 passed |
+| Valid GGUF byte comparisons against prior build | 12/12 exact | Not run |
+| Current CLI roundtrip under ASan/UBSan/float-cast-overflow | Not run | Passed |
+
+Source identities, commands and results are in
+[checkpoint evidence](benchmarks/json-tensor-extents-20260920.json). Linux uses
+the mapped Windows worktree, so its build identifier is `unknown`; source
+manifests pin the exact tested inputs. All 25 Markdown files were reviewed.
+Timing from concurrent correctness jobs is diagnostic only; the independent
+placement comparison remains deferred by its activity preflight. Dimensions
+are validated after conversion to double, not against exact decimal spelling.
+Float payload suitability, duplicate-name semantics, model execution schemas,
+general writer failure recovery and dequantize aggregate arithmetic remain
+outside this change.
 
 ## Windows benchmark activity logs
 

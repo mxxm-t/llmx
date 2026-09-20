@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`fix/gguf-tensor-extents`, isolated from placement checkpoint `5859762` and
+`fix/json-tensor-extents`, based on GGUF checkpoint `d2b5a32`, placement checkpoint `5859762` and
 based on validated JSON checkpoint `a61c414` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
@@ -73,6 +73,7 @@ External performance requirements still block main/GitHub publication.
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | In Progress |
 | GGUF reader size and tensor extent validation | In Progress |
+| JSON quantize tensor validation | In Progress |
 | Device execution model (GPU prerequisite) | Planned |
 | GPU backends (ROCm first, Vulkan portability) | Planned |
 | Multi-device split                       | Planned  |
@@ -125,6 +126,40 @@ observer effects remain open.
 
 ## Active feature blocks
 
+### JSON quantize tensor validation
+
+- **Goal:** validate JSON tensor dimensions, quantized row widths and checked
+  input/output sizes before allocating or quantizing the binary input. Keep
+  valid Q8_0/Q4_0 conversion behavior and output unchanged.
+- **Done:** dimensions are validated before integer casts; shared GGUF tensor
+  arithmetic checks products and whole quantized rows. Input byte totals,
+  aligned output storage and stream/allocation limits are checked before input
+  allocation. Binary size must match exactly, and failed reads/seeks throw.
+  Float input storage is aligned; all input checks precede output creation.
+  Isolated branch `fix/json-tensor-extents` begins at `d2b5a32`.
+- **Done:** Windows and Linux native suites pass 9/9 each and full required-HF
+  suites pass 11/11 each. All 64 invalid-input cases preserve the output and
+  report the expected diagnostic. Valid ranks 1..4, integral numeric spellings,
+  empty models and the existing numerical conversion checks pass on both.
+  The current CLI round-trip checks also pass under Linux ASan, UBSan and
+  float-cast-overflow checks. Twelve valid-input Q8/Q4 GGUF outputs are
+  byte-identical to the prior build. Source identities remain unchanged through
+  validation; all jobs are terminal. No inference hot path changed.
+- **Done:** all 25 tracked Markdown files reviewed. Conversion limits and
+  conditional re-quantization of dequantize output are documented; stale error
+  handling gaps now distinguish completed extent checks from model schemas.
+  Evidence: [`json-tensor-extents-20260920.json`](benchmarks/json-tensor-extents-20260920.json).
+- **Left:** merge with the runtime stack after its independent performance
+  gate passes. Feature checkpoint goes to Gitea; main/GitHub and the root
+  executable remain unchanged.
+- **Gotchas:** JSON stores numbers as doubles; dimensions must be positive
+  integers within the exact integer range. This validates the conversion
+  command, not model execution schemas or arbitrary GGUF writer callers.
+  Dimensions use stored doubles, not exact decimal spellings. Float payload
+  suitability, duplicate names and general writer failure recovery are separate.
+  Performance timing remains deferred after the fifth busy preflight;
+  no competing benchmarks run during this work.
+
 ### GGUF reader size and tensor extent validation
 
 - **Goal:** reject malformed lengths, dimensions, arithmetic overflow and tensor
@@ -154,8 +189,9 @@ observer effects remain open.
   hot path changed and no new performance result is claimed. Evidence:
   [`gguf-reader-validation-20260920.json`](benchmarks/gguf-reader-validation-20260920.json).
 - **Gotchas:** model configuration, tensor names/shapes required by a model,
-  token IDs, JSON tensor-dimension arithmetic, writer validation and future
-  request recovery remain separate validation work. Do not
+  token IDs, writer validation and future request recovery remain separate
+  validation work. JSON conversion dimensions are covered by the later block
+  above. Do not
   claim that file-extent checks make arbitrary models executable. Preserve
   nested GGUF arrays within a documented depth limit and valid non-power-of-two
   alignments that are multiples of eight.
@@ -266,7 +302,8 @@ observer effects remain open.
 - **Gotchas:** 1,033 counts checks, not independent input documents. Numeric
   storage is double, not exact arbitrary-precision integers. Lone surrogates,
   invalid UTF-8, overflow and nonzero underflow to zero are rejected by policy.
-  Quoting expects valid UTF-8; tensor-schema/range/extent arithmetic and general
+  Quoting expects valid UTF-8. The later JSON conversion block checks tensor
+  dimensions and byte extents; model execution schemas and general
   filesystem-path handling remain separate. No inference arithmetic changes.
   Suite timings are diagnostic; existing HF/mx merge requirements stay open.
 
@@ -896,8 +933,9 @@ No mx benchmark or new independent HF gate was run by this scratch probe.
 - **Gotchas:** callbacks are synchronous and do not provide concurrent execution
   or resumable-session recovery. Byte chunks can split UTF-8 characters. Loading
   counts tensor payload bytes, not metadata/padding or model preparation; final
-  completion follows every read/seek. Comprehensive size/extent validation is
-  still separate work. Legacy filtering buffers text when future markers can
+  completion follows every read/seek. The later GGUF validation checkpoint
+  checks file extents before progress starts; model execution schemas remain
+  separate work. Legacy filtering buffers text when future markers can
   retroactively discard it; no server framework is added.
 
 | Qwen3-0.6B Q8_0, 64 greedy tokens, median of 3 pairs | Before 8226e17 | Streaming |
@@ -977,8 +1015,9 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
   eight of nine rounds despite overlapping ranges; do not dismiss that as noise.
 - **Gotchas:** dispatch recovery does not roll back partially written outputs
   or establish Model/session recovery. No concurrent submissions are supported.
-  Comprehensive GGUF size/extent validation and model config/tensor validation are separate
-  known gaps from the same review. Control is `3a82284`; no merge. Gitea holds
+  The later GGUF checkpoint addresses file-size/extent checks; model config and
+  required-tensor validation remain gaps from the same review. Control is
+  `3a82284`; no merge. Gitea holds
   the feature checkpoint, while the public/default branch remains unchanged.
 
 - **Post-reboot decision:** retain the existing c072af2 implementation. The
@@ -1405,8 +1444,8 @@ feature ships, delete its block and mark the row `Done` above.
     Qwen3's actual `<think>` / `</think>` markers. Its docs now state that limit.
   - The CLI thread-settings block records the validated auto/prefill/decode
     corrections found during the documentation review.
-  - JSON syntax and Unicode validation are implemented in the active parser
-    block above; tensor-schema/range validation remains separate. See
+  - JSON syntax/Unicode and conversion tensor dimensions/extents are implemented
+    in their active blocks above; model execution schema checks remain separate. See
     docs/src/core-json.md.
   - Qwen3 does NOT use the GPT-2 pretokenizer regex. Read the Split pattern out
     of `tokenizer.json` before touching `pretokenize`.

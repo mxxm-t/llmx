@@ -29,7 +29,7 @@ Convert a raw float32 model into a quantized GGUF file.
 
 - `model.json` is UTF-8 JSON; escaped Unicode tensor names are decoded to UTF-8.
   Invalid JSON syntax/Unicode is rejected. See `docs/src/core-json.md` for
-  parser limits; syntax parsing does not validate all tensor dimensions.
+  parser limits. The conversion command validates tensor dimensions separately.
 - `model.json` describes the tensor names and shapes; `model.bin` holds each
   tensor's float32 data concatenated in the same order (row-major, with the
   fastest-varying dimension first).
@@ -37,6 +37,12 @@ Convert a raw float32 model into a quantized GGUF file.
   `q4_0`.
 - Every tensor's fastest-varying dimension must be divisible by 32 (the block
   size for both Q8_0 and Q4_0), so each quantized row contains whole blocks.
+- A tensor has one to four dimensions. Each parsed dimension must be a positive
+  integer at most `2^53-1`, within the JSON parser's consecutive integer range.
+  Products, total byte sizes and allocation limits are checked; `model.bin`
+  must contain exactly the described float32 data. Invalid shapes or payload
+  lengths fail before creating or replacing the output. An empty tensor list
+  is supported with an empty binary input.
 - The output is a GGUF v3 file with all tensors quantized to the chosen type.
 
 > Note: Q4_0 inference is currently correct-but-slow (a generic dequant-to-f32
@@ -59,10 +65,11 @@ Convert a raw float32 model into a quantized GGUF file.
 ## `llmx dequantize <in.gguf> <out.json> <out.bin>`
 
 Read a GGUF containing any supported tensor types and write the tensors as
-raw float32. Produces a `model.json`-compatible `out.json` plus the concatenated
+raw float32. Produces tensor descriptions in `out.json` plus the concatenated
 float32 data in `out.bin`. JSON output escapes path and tensor-name quotes,
-backslashes and control characters, preserving UTF-8 tensor names. Useful for round-trip verification and for feeding
-data back into `quantize`.
+backslashes and control characters, preserving UTF-8 tensor names. Reusing this
+output with `quantize` requires the shape rules above: GGUF can also hold scalar,
+zero-sized or F32 tensors whose rows do not contain whole quantization blocks.
 
 ## `llmx info <in.gguf>`
 

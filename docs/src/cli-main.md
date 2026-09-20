@@ -12,6 +12,12 @@ Commands and their entry points:
   writing and supported-type dequantization via `model.json`/`model.bin`).
   Input uses the core JSON parser; output quotes paths and tensor names through
   its string helper, preserving UTF-8 and escaping JSON special characters.
+  Quantize requires one to four positive integral dimensions in the JSON
+  parser's consecutive integer range (`1..2^53-1`) and whole 32-value rows.
+  Shared GGUF tensor arithmetic checks products and output bytes; the CLI
+  checks total float32 input size and allocation limits before loading data.
+  Binary length must match exactly, and read/seek failures throw. These checks
+  happen before opening the output. Empty tensor lists remain supported.
 - `info`: `cmd_info` (dump metadata + tensor list).
 - `tokenize` / `detokenize`: `cmd_tokenize` / `cmd_detokenize`.
 - `perplexity`: `cmd_perplexity` loads and tokenizes inline or `-f/--file`

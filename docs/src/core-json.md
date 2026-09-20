@@ -34,5 +34,7 @@ libraries' floating-point `from_chars` support.
 
 Used by the `quantize` path to read `model.json` tensor descriptions and by
 `dequantize` to quote the source path and tensor names. Parsing does not validate
-tensor schemas, dimension ranges, extent arithmetic or binary payloads.
+tensor schemas, dimension ranges, extent arithmetic or binary payloads. The
+`quantize` command checks these conversion requirements after parsing, using
+the stored double values; it does not recover the exact decimal spelling.
 Safetensors and HF tokenizer/config loading remain future work.

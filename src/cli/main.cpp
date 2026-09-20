@@ -76,18 +76,14 @@ void emit_text(const std::string& text) {
 // model.json / model.bin helper structures (quantize input)
 // ---------------------------------------------------------------------------
 
-struct JsonTensor {
-    std::string name;
-    std::vector<uint64_t> shape; // shape[0] -> ne[0] (fastest dim)
-};
-
-std::vector<JsonTensor> parse_model_json(const jmini::Value& root) {
-    std::vector<JsonTensor> out;
+std::vector<gguf::TensorInfo> parse_model_json(const jmini::Value& root, uint32_t type) {
+    std::vector<gguf::TensorInfo> out;
     const jmini::Value* tensors = root.get("tensors");
     if (!tensors || !tensors->isArray())
         throw std::runtime_error("model.json: missing \"tensors\" array");
     for (const auto& t : tensors->asArray()) {
-        JsonTensor jt;
+        gguf::TensorInfo jt;
+        jt.type = type;
         const jmini::Value* name = t.get("name");
         if (!name || !name->isString())
             throw std::runtime_error("model.json: tensor missing \"name\" string");
@@ -95,22 +91,20 @@ std::vector<JsonTensor> parse_model_json(const jmini::Value& root) {
         const jmini::Value* shape = t.get("shape");
         if (!shape || !shape->isArray())
             throw std::runtime_error("model.json: tensor missing \"shape\" array: " + jt.name);
+        if (shape->asArray().empty() || shape->asArray().size() > 4)
+            throw std::runtime_error("model.json: tensor rank must be between 1 and 4: " + jt.name);
         for (const auto& d : shape->asArray()) {
             if (!d.isNumber())
                 throw std::runtime_error("model.json: shape dim is not a number: " + jt.name);
-            uint64_t v = (uint64_t)d.asNumber();
-            if (v == 0) throw std::runtime_error("model.json: zero dimension in: " + jt.name);
-            jt.shape.push_back(v);
+            const double v = d.asNumber();
+            // JSON numbers are doubles; stay within their consecutive integer range.
+            if (!std::isfinite(v) || v < 1 || v > 9007199254740991.0 || std::floor(v) != v)
+                throw std::runtime_error("model.json: dimension must be an integer from 1 to 2^53-1: " + jt.name);
+            jt.ne.push_back(uint64_t(v));
         }
         out.push_back(std::move(jt));
     }
     return out;
-}
-
-uint64_t num_elements(const JsonTensor& t) {
-    uint64_t n = 1;
-    for (auto d : t.shape) n *= d;
-    return n;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,42 +114,47 @@ uint64_t num_elements(const JsonTensor& t) {
 int cmd_quantize(const std::string& json_path, const std::string& bin_path,
                  const std::string& out_path, const std::string& type_arg) {
     uint32_t type;
-    size_t block, typesize;
+    size_t block;
     void (*quantize)(const float*, uint8_t*, size_t);
     if (type_arg == "q4_0") {
         type = gguf::GGML_TYPE_Q4_0; block = gguf::Q4_0_BLOCK;
-        typesize = gguf::Q4_0_TYPESIZE; quantize = quant::quantize_row_q4_0;
+        quantize = quant::quantize_row_q4_0;
     } else { // default q8_0
         type = gguf::GGML_TYPE_Q8_0; block = gguf::Q8_0_BLOCK;
-        typesize = gguf::Q8_0_TYPESIZE; quantize = quant::quantize_row_q8_0;
+        quantize = quant::quantize_row_q8_0;
     }
     std::ifstream jf(json_path);
     if (!jf) throw std::runtime_error("cannot open " + json_path);
     std::stringstream jss;
     jss << jf.rdbuf();
     jmini::Value root = jmini::parse(jss.str());
-    std::vector<JsonTensor> tensors = parse_model_json(root);
+    gguf::GGUFModel m;
+    m.tensors = parse_model_json(root, type);
+    uint64_t need = 0;
+    uint64_t output_size = 0;
+    for (const auto& t : m.tensors) {
+        need = gguf::checked_add(need, gguf::checked_multiply(t.n_elements(), sizeof(float)));
+        output_size = gguf::checked_add(gguf::aligned_size(output_size, alignof(float)), t.data_size());
+    }
+    std::vector<float> values;
+    if (need / sizeof(float) > values.max_size() ||
+        need > uint64_t(std::numeric_limits<std::streamsize>::max()) ||
+        output_size > m.blob.max_size())
+        throw std::runtime_error("model.json: tensor storage exceeds allocation or stream limit");
 
     std::ifstream bf(bin_path, std::ios::binary);
     if (!bf) throw std::runtime_error("cannot open " + bin_path);
+    bf.exceptions(std::ios::failbit | std::ios::badbit);
     bf.seekg(0, std::ios::end);
-    std::streampos sz = bf.tellg();
-    bf.seekg(0, std::ios::beg);
-    std::vector<uint8_t> bytes(sz);
-    if (sz > 0) bf.read((char*)bytes.data(), sz);
-
-    uint64_t need = 0;
-    for (auto& t : tensors) {
-        if (num_elements(t) % block != 0)
-            throw std::runtime_error("tensor has elements not divisible by " +
-                std::to_string(block) + " (" + type_arg + " block): " + t.name);
-        need += num_elements(t) * 4;
-    }
-    if ((uint64_t)bytes.size() != need)
+    const std::streamoff sz = bf.tellg();
+    if (sz < 0) throw std::runtime_error("cannot determine model.bin size");
+    if (uint64_t(sz) != need)
         throw std::runtime_error("model.bin size does not match model.json tensor shapes");
-
-    const float* fptr = (const float*)bytes.data();
-    gguf::GGUFModel m;
+    bf.seekg(0, std::ios::beg);
+    values.resize(size_t(need / sizeof(float)));
+    if (need) bf.read(reinterpret_cast<char*>(values.data()), std::streamsize(need));
+    const float* fptr = values.data();
+    m.blob.reserve(size_t(output_size));
 
     const jmini::Value* name = root.get("name");
     std::string model_name = (name && name->isString()) ? name->asString() : "custom";
@@ -170,18 +169,11 @@ int cmd_quantize(const std::string& json_path, const std::string& bin_path,
     m.kv.emplace_back("general.quantization_version", mv_qver);
     m.kv.emplace_back("general.file_type", mv_ft);
 
-    for (auto& t : tensors) {
-        gguf::TensorInfo ti;
-        ti.name = t.name;
-        ti.ne = t.shape;
-        ti.type = type;
-
-        size_t nblocks = (size_t)(num_elements(t) / block);
-        std::vector<uint8_t> q(nblocks * typesize);
+    for (const auto& t : m.tensors) {
+        size_t nblocks = size_t(t.n_elements() / block);
+        std::vector<uint8_t> q(size_t(t.data_size()));
         quantize(fptr, q.data(), nblocks);
-        fptr += num_elements(t);
-
-        m.tensors.push_back(std::move(ti));
+        fptr += size_t(t.n_elements());
         m.add_tensor_data(q);
     }
 

@@ -15,7 +15,8 @@ the compiled binary portable to older CPUs.
   joins created threads; failed reconfiguration falls back to serial execution.
   Concurrent or recursive submissions remain unsupported.
 - `matvec_q8_0`: fused dequant+FMA AVX2 row dot, kept for the single-column
-  (decode) case, which is bandwidth bound.
+  (decode) case. It streams weight blocks; native sampled instruction locations
+  alone do not establish DRAM bandwidth saturation or memory-stall causes.
 - Q4_K decode also has a fused row dot. F16C availability is cached and used
   for half conversion where supported.
 - `matmul`: type-generic batched matmul. Dequantizes `DOT_ROWS` weight rows

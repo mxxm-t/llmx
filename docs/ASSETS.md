@@ -2718,7 +2718,7 @@ reports Running then Stopped and produces a recording. A Python smoke yields
 3,393 resolve to `sample_integer_mix`, 2,812 to `sample_rotate_mix`, and 16 are
 other target-attributed locations. This proves function sampling capability,
 not model hotspots, complete call stacks, memory-stall causes or model
-elapsed-time costs. No model was sampled. Only owned-target sampled events are archived;
+elapsed-time costs. No model was sampled in this earlier capability study. Only owned-target sampled events are archived;
 raw ETL/system dumps stay local. xperf text uses the local Windows ANSI code
 page 1257; the extraction script decodes that format before retaining ASCII
 owned-target rows.
@@ -2731,3 +2731,62 @@ Production source, tests, build/CI and root executable remain unchanged. Main
 and GitHub remain unchanged. Rebuild sources, commands, raw diagnostics, shared
 full-vector payload, target-only sampled events and reviews are preserved in
 [`benchmarks/cpu-decode-caller-cost-20260920.json`](benchmarks/cpu-decode-caller-cost-20260920.json).
+
+## Native CPU decode sampling (2026-09-20)
+
+This diagnostic uses unchanged runtime source with optimized local PDBs and
+one fixed executable for plain and sampled runs. Qwen3-8B Q8_0 uses six CPU
+threads, ubatch 128, F32 KV, 215 prompt IDs and 32 forced decode IDs. Eight
+invocations comprise one prospectively discarded pair and three measured
+pairs; each process has its own internal warmup. Both arms use the same
+10-second ready and 5-second done holds outside model clocks. Collector
+attachment/stop and actual target holds must meet the frozen bounds.
+
+The first session completes the discarded pair and saves a zero-loss trace,
+then fails parsing unquoted commas inside xperf C++ symbol fields. Separate
+recovery files preserve all 41 original identities and the complete failure.
+The corrected reader requires an unambiguous split between two module symbols,
+retains unknown locations and agrees with an independent raw-line parser.
+A separately frozen 51-entry recovery manifest precedes exactly the remaining
+six invocations; no model run is repeated. Continuation session 21434 exits 0.
+
+| Mean elapsed ms | Plain | Sampled | Sampled/plain change |
+|---|---:|---:|---:|
+| Prefill, 215 tokens | 7060.177800 | 7022.348833 | -0.535808% |
+| Decode, 32 tokens | 6970.996900 | 7034.000533 | +0.903797% |
+
+Paired decode changes are +2.915900%, -0.611112% and +0.453332%; all samples
+are retained. These differences combine profiler/handshake/state effects and
+ordinary variation, not an isolated profiler-overhead measurement.
+
+All 16 finite full vectors (151,936 floats each) equal the pinned historical
+runtime vector byte-for-byte. Independent audit verifies both manifests,
+records, phase clocks, hold bounds, owned collector Running/Stopped states,
+and every target row against the raw export. Trace counts are 39,209 for the
+discarded preflight, then 40,115, 39,733 and 39,571 measured. Every trace reports
+zero lost events/buffers and resolves all application samples to named local
+symbols. Unknown and system-module samples remain in the denominator.
+
+Of 119,419 measured target samples, 116,184 (97.291051%) resolve to
+`backend::CpuBackend::dot_row_impl`. These are sampled executing locations,
+including gate bookkeeping around decode, not exclusive operation times,
+complete call stacks or evidence of DRAM/cache stalls. No runtime optimization
+or external HF/mx acceptance follows from this diagnostic. Production source,
+tests, build/CI, main and GitHub remain unchanged.
+
+Offline instruction mapping uses the exact executable, PDB and MAP, plus
+recorded per-process image bases. All 345 instructions and 1,476 bytes in the
+dot function match executable bytes; PE exception ranges bound the function
+and exclude padding. Every retained dot sample maps to an instruction start.
+The archive keeps per-run instruction/mnemonic/region counts and caller/other
+thread groups, with the discarded pair separate and non-dot samples retained.
+A high count at an instruction is not its exclusive latency: for example,
+`mov rax,r11` accounts for 18,694 measured samples. Sampling delivery and
+instruction overlap prevent interpreting this as time spent on that move.
+No new optimization is selected and earlier rejected studies remain closed.
+
+Full plan, failed parser and recovery, commands, exact source, byte-verified
+assembly, target-only samples, vectors and reviews are preserved in
+[`benchmarks/cpu-native-decode-sampling-20260920.json`](benchmarks/cpu-native-decode-sampling-20260920.json).
+Raw system-containing traces/exports and binaries stay local with recorded
+hashes; compressed target samples preserve their complete original bytes.

@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/cpu-decode-caller-cost`, based on research checkpoint `4be2872` and
+`research/cpu-native-decode-sampling`, based on research checkpoint `0b7c568` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -99,6 +99,47 @@ External performance requirements still block main/GitHub publication.
 
 ## Active feature blocks
 
+### Native CPU decode sampling (diagnostic complete)
+
+- **Goal:** identify sampled native instruction/function locations during current
+  8B decode without adding timers to runtime source. This is a separate
+  diagnostic after caller attribution proved no production saving.
+- **Done:** optimized PDB harness builds against 17 unchanged runtime files.
+  Session 65416 completes the discarded pair, then stops on xperf's unquoted
+  commas in C++ symbol fields. A separate parser recovers the saved trace;
+  the initial failure and all 41 original identities remain unchanged.
+  Independent recovery review pins 51 additional identities. Session 21434
+  runs exactly the remaining six invocations and terminates with exit 0.
+  All eight planned invocations and 16 finite full vectors pass; vectors are
+  byte-identical to the historical unchanged-runtime reference.
+- **Done:** independent audit rehashes both manifests, checks collector ownership,
+  Running/Stopped states, fixed ready/done holds, and reconstructs all target
+  samples directly from saved exports: 39,209 discarded, then 40,115, 39,733
+  and 39,571 measured. Every trace has zero lost events/buffers and 100%
+  named application-symbol coverage. All unknown/system samples are retained.
+  Of 119,419 measured samples, 116,184 (97.291051%) land in `dot_row_impl`.
+
+| 8B phase, mean elapsed ms | Plain | Sampled | Sampled/plain change |
+|---|---:|---:|---:|
+| Prefill, 215 tokens | 7060.177800 | 7022.348833 | -0.535808% |
+| Decode, 32 tokens | 6970.996900 | 7034.000533 | +0.903797% |
+
+- **Done:** exact-binary mapping verifies 345 instructions and all 1,476 code
+  bytes against the frozen executable. Actual image bases and PE exception
+  ranges resolve every dot sample to an instruction start; padding is excluded.
+  All non-dot and caller/other-thread counts remain in the evidence.
+- **Left:** external HF/mx requirements remain open. This diagnostic selects no
+  production optimization and does not reopen rejected studies. Main/GitHub
+  remain unchanged. Full checkpoint evidence and Markdown review are archived
+  in [`cpu-native-decode-sampling-20260920.json`](benchmarks/cpu-native-decode-sampling-20260920.json).
+- **Gotchas:** three measured pairs, six threads, ubatch 128 and F32 KV; one
+  internal warmup per process. Decode paired elapsed changes are +2.915900%,
+  -0.611112% and +0.453332%. These combine profiler/handshake/state effects
+  and variability, not pure tool overhead. Samples include outside-clock gate
+  activity and identify execution locations, not hardware-stall causes or
+  elapsed per-operation costs. This exact-vector check supplements earlier
+  HF evidence; it does not replace the independent correctness gate.
+
 ### Current decode caller-cost attribution (diagnostic complete)
 
 - **Goal:** separate caller work from the previously mixed dispatch residual
@@ -113,7 +154,8 @@ External performance requirements still block main/GitHub publication.
   Builds, native grouped/error checks, active-probe error/reuse, synthetic
   accounting and independent malformed-trace checks pass. Native Windows
   sampling resolves 6,205 of 6,221 samples to two named C++ test functions
-  using local PDBs; no model sampling or memory-stall diagnosis is claimed.
+  using local PDBs; this earlier capability checkpoint does not sample a model
+  or establish a memory-stall diagnosis. The later model study is above.
 - **Finding:** observed means are 217.602291 ms/token in dispatch, 1.972685
   model-side, 0.080984 backend caller work, 0.015842 harness and 0.067954
   explicit caller-observer brackets, plus 0.000014 outer timer fringe.
@@ -126,10 +168,10 @@ External performance requirements still block main/GitHub publication.
 - **Decision:** no recoverable production saving is proved. Stop the
   outside-kernel optimization direction without probe tuning, a repeat timing
   screen or runtime implementation. Keep all samples. Native function sampling
-  is available as a separate future investigation; no model sampling selected
-  or run in this study. External HF/mx requirements remain open.
+  is exercised in the separate model study above; none was selected or run
+  in this earlier caller-attribution study. External HF/mx gates remain open.
 - **Left:** the existing external decode performance gaps remain open. Any
-  future native model sampling needs its own fixed plan, output checks and
+  separate native model sampling needs its own fixed plan, output checks and
   unprofiled control. No production implementation follows this diagnostic.
   Independent terminal audit rechecks all 93 identities, 24 vectors and
   148,608 caller events, reproducing every integer time partition.

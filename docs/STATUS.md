@@ -14,10 +14,11 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   repeats, two geometries, three lengths: block 16 costs +25-33% on decode
   attention, 128 costs +5-10%, 256 costs +1-3%. Design in
   [KV-CACHE](KV-CACHE.md), opened for XDEV agreement.
-- **Left:** XDEV agreement; isolated F32 layout evaluation on real models
-  (decode, prefill, follow-ups, lengths straddling block boundaries, two
-  geometries, allocated versus used bytes); then implementation in the order
-  the design lists. F16 KV is out of scope.
+- **Left:** direction agreed by XDEV 2026-09-20 with six conditions, all
+  recorded in the design. Next: step 1 (`BlockPool`, `KVSequence`, paged host
+  storage, view-form attention) behind the same outputs, then the real-model
+  screening of 64/128/256 against contiguous with allocated versus used
+  bytes. F16 KV is out of scope.
 - **Gotchas:** the microbenchmark is isolated attention with a cold cache and
   is not an end-to-end decode cost. Memory waste cuts against large blocks:
   224 KiB per token on 0.6B means a partial 256-token tail wastes up to

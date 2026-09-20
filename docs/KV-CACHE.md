@@ -1,20 +1,26 @@
 # Paged KV cache
 
 Design for the KV cache that the multi-user server (ROADMAP #7) and the device
-execution model (ROADMAP #4a) both need. Status: proposal, awaiting agreement
-between both developers before implementation. Nothing here is built yet.
+execution model (ROADMAP #4a) both need. Status: direction agreed by both
+developers on 2026-09-20; the contract conditions XDEV set are recorded in
+their sections below. Nothing here is built yet.
 
 ## Why change
 
 `HostKVCache` holds one sequence per model as a contiguous, head-major,
 capacity-strided F32 array per layer, growing by doubling and copying. That is
-correct and fast for one chat, and it cannot become a server:
+correct and fast for one chat. Serving many sequences from it would cost more
+than it should:
 
-- Two sequences need two full capacity reservations, or one grows into the
-  other. Contiguous growth fragments memory and copies the whole history.
-- A shared prompt prefix would have to be stored once per sequence.
+- Each sequence needs its own capacity reservation and its own growth copies,
+  and the reservations fragment as sequences come and go.
+- A shared prompt prefix is stored once per sequence, or copied on fork.
 - The layout is a CPU decision that the attention op receives as raw pointers
   plus a stride, so a GPU backend would inherit it.
+
+Contiguous caches can serve; the point is that paging makes the sharing and
+reuse cases cheap by construction, at an indirection cost that is measured
+below rather than assumed.
 
 vLLM answers all three with paging: uniform blocks, a per-sequence block
 table, refcounts for sharing. llama.cpp's flat cell array with per-cell
@@ -51,15 +57,16 @@ in every cell.
 
 vLLM's default of 16 is a GPU answer. On CPU the block must be large enough
 that per-block setup and the loss of hardware prefetch across block edges are
-amortized over the vectorized inner loop. 128 and 256 are the candidates.
-This is isolated attention with a cold cache, not an end-to-end decode cost;
-the evaluation section covers what still has to be measured.
+amortized over the vectorized inner loop. 64, 128 and 256 go to the
+real-model screening; 16 and 32 do not. This is isolated attention with a
+cold cache, not an end-to-end decode cost; the evaluation section covers what
+still has to be measured.
 
 Memory waste pulls the other way. On 0.6B (28 layers, 8 KV heads, head_dim
 128, F32 K and V) one token costs 224 KiB. A sequence's partially filled last
-block is private, so the worst-case tail waste per sequence is 27.8 MiB at 128
-tokens and 55.8 MiB at 256. With many short sequences resident, that is the
-number that bounds concurrency, not indirection cost.
+block is private, so the worst-case tail waste per sequence is 13.8 MiB at 64
+tokens, 27.8 MiB at 128 and 55.8 MiB at 256. With many short sequences
+resident, that is the number that bounds concurrency, not indirection cost.
 
 ## Decision: paged, with a logical/physical split
 
@@ -71,8 +78,8 @@ logical block index to physical block id, refcounts, and the free list. This
 is bookkeeping and has no layout in it.
 
 **Physical storage, owned by the backend.** Block size in tokens, byte layout
-inside a block, dtype, and where the memory lives. The CPU wants 128 to 256
-tokens with each KV head contiguous inside the block. A GPU wants something
+inside a block, dtype, and where the memory lives. The CPU wants large blocks
+with each KV head contiguous inside the block. A GPU wants something
 else: vLLM interleaves for coalesced loads and uses small blocks because its
 attention is massively parallel. Neither number belongs in the model layer.
 
@@ -84,29 +91,44 @@ the backend maps those to bytes however it likes.
 
 ```
 BlockPool     free list (O(1) alloc/release), refcount per block,
-              capacity fixed at construction from a byte budget
+              byte budget as the constructor limit; physical storage grows
+              on demand up to it, so a short chat does not allocate the budget
 KVSequence    ordered physical block ids, valid length;
               append allocates a block when length % block_tokens == 0;
               fork shares full blocks (refcount+1) and copies the partial tail
 ```
 
 `KVSequence` replaces the per-model position bookkeeping; `Model` keeps one
-today and the server keeps one per request later.
+today and the server keeps one per request later. The budget covers every
+layer, K and V, and layout and alignment overhead. A CLI flag for it waits
+for a concrete consumer with a default and a defined exhaustion behaviour;
+no flag is added in this design.
+
+`length` is the committed history: tokens whose K and V are written and
+retired. A forward pass appends `batch` tokens with `kv_write` after
+allocating the blocks they need; query `b` of the batch attends through
+`length + b`. If allocation or the write fails, the sequence's block list and
+`length` are unchanged and any blocks allocated for the attempt are released,
+so a failed step leaves the previous history valid.
 
 ### Backend contract
 
 ```
 KVLayout   { block_tokens }                      queried once, backend-chosen
-KVView     { blocks, n_blocks, length }          one sequence, one layer
-kv_alloc(layers, n_blocks)                       physical storage
+KVStorage  handle from kv_alloc; owns the physical blocks of one cache
+KVView     { storage, blocks, n_blocks, length } one sequence, one layer
+kv_alloc(layers, budget_bytes) -> KVStorage      grows on demand
 kv_write(layer, view, pos, k, v, batch)          model -> storage
 attention(Q, layer, view, out, n_head, n_head_kv, head_dim, nbatch)
 ```
 
-Storage is host memory now and becomes a `Buffer` at step 5 of
+A view names its storage: block ids are only meaningful inside one
+`KVStorage`, and a process may hold several caches (two models, or two
+pools). Storage is host memory now and becomes a `Buffer` at step 5 of
 [DEVICE-EXECUTION](DEVICE-EXECUTION.md) without changing this contract. The
-current raw-pointer `attention` overload is deleted when the view form lands;
-there is no reason to keep two.
+public raw-pointer `attention` overload is deleted once every model, test and
+benchmark caller uses the view form; a contiguous implementation may survive
+as a private detail behind the view.
 
 ### CPU physical layout
 
@@ -114,8 +136,11 @@ Per layer, K and V pools of `n_blocks * block_tokens * n_head_kv * head_dim`
 floats. Inside a block the order is `[kv_head][token][head_dim]`, so each
 head's history within a block is contiguous and the existing dot and
 weighted-value loops run unchanged inside a block. Attention walks blocks in
-table order, which is the form the benchmark measured. `block_tokens` is
-decided by the evaluation, not here.
+table order, which is the form the benchmark measured. The softmax stays one
+global pass over the scores and the value accumulation stays token-ordered
+across block boundaries; there are no per-block partial reductions, so the
+arithmetic and its reduction order are those of the contiguous path.
+`block_tokens` is decided by the evaluation, not here.
 
 ### Lifetime and reuse
 
@@ -123,19 +148,23 @@ A physical block returns to the free list when its refcount reaches zero
 **and** the backend has retired every submission that read it. On the eager
 CPU backend the second condition is always already true. Under the async
 contract of DEVICE-EXECUTION it is the `sync()` point; refcounts alone must
-never free device memory a kernel may still be reading.
+never free device memory a kernel may still be reading. The same rule holds
+the view's block table and its `KVStorage` alive until retirement, not only
+the blocks.
 
 A fork copies only the partial tail block; full blocks are shared read-only.
 A write to a shared full block is a design error and is checked, not handled.
 
 ### Prefix sharing
 
-Sharing is by full immutable blocks only. A block's identity is the hash of
-(model revision, dtype and layout id, block position range, chain hash of all
-token ids up to and including this block, adapter state). Hash equality is a
-lookup key; the full key is compared before two sequences alias a block.
-The index and its eviction policy land with the server, which is their first
-consumer, not with this design.
+Sharing is by full immutable blocks only. A block's lookup key is the hash
+of (model identity including revision and the effective RoPE and position
+configuration, dtype and layout id, block position range, chain hash of all
+token ids up to and including this block, adapter state). A hash hit is a
+candidate, not a match: the actual token prefix and the identity fields are
+compared before two sequences alias a block, because a chain hash inside the
+key is still a hash. The index and its eviction policy land with the server,
+which is their first consumer, not with this design.
 
 ## Out of scope
 
@@ -150,17 +179,20 @@ The microbenchmark chose the candidates. The default is chosen on real
 models, with both candidates against the contiguous baseline, following
 AGENTS "Measuring a change":
 
+- Candidates: 64, 128 and 256, each against the contiguous baseline.
 - Workloads: decode, prefill, and follow-up turns; Qwen3-0.6B and Qwen3-8B
-  Q8_0; lengths that straddle block boundaries (127, 128, 129, 255, 256, 257
-  and a long prompt) so the partial-tail path is exercised.
+  Q8_0; lengths that straddle block boundaries (63, 64, 65, 127, 128, 129,
+  255, 256, 257 and a long prompt) so the partial-tail path is exercised.
 - Growth: allocation and growth cost per token against the doubling copy.
 - Memory: allocated versus used bytes per sequence, at each length.
 - Method: `tools/ab_runner.py`, A/A first, interleaved arms, paired ratios,
   all samples kept, activity monitoring in every arm, raw commands and binary
   identities recorded under `docs/benchmarks/`.
 
-A contiguous fast path survives only if the paged form loses beyond noise on
-the primary decode workload.
+The default is the complete tradeoff of latency, allocated versus used
+bytes and growth cost, not the attention column alone. A contiguous path
+survives only if the paged form loses beyond noise on the primary decode
+workload.
 
 ## Order of work
 
@@ -171,10 +203,13 @@ the primary decode workload.
 | 3 | Storage on `Buffer`, completion-gated release | DEVICE-EXECUTION step 5, no CPU regression |
 | 4 | Prefix index, per-request sequences | With the server, ROADMAP #7 |
 
-## Open for agreement
+## Agreement record
 
-1. Block size decided by measurement between 128 and 256, with memory waste
-   reported next to latency. Any objection to excluding 64?
-2. Deleting the raw-pointer `attention` overload once the view form exists.
-3. Byte budget as the `BlockPool` constructor input, with the CLI flag named
-   after llama.cpp's when one exists.
+XDEV agreed the direction on 2026-09-20 with six conditions, all accepted
+and folded into the sections above: 64 stays in the real-model screening;
+the raw-pointer overload goes only after every caller migrates; the byte
+budget is a limit that storage grows toward, with no CLI flag yet; views
+name their storage and `length` has a defined meaning and failure rule;
+softmax and value accumulation keep the contiguous arithmetic across blocks
+and async retirement holds tables and storage as well as blocks; a hash hit
+is verified against the actual prefix and model identity.

@@ -1,0 +1,435 @@
+{
+  "study": "Fused Q6_K decode row dot",
+  "date": "2026-09-20",
+  "branch": "design/device-execution-model",
+  "production_changed": true,
+  "scope": "Qwen3-0.6B-Q5_K_M (29 Q6_K tensors), 6 threads, 840-token prompt, -n 32, 15 measured pairs, arms alternating and reversing, each arm under monitor_windows.py.",
+  "correctness": {
+    "suite": "full run_tests.py PASS; Q4_0 perplexities identical to the pre-change run. The Q4_0 fixture's token_embd IS Q6_K and the model has tied embeddings, so the output projection exercises this dot at nbatch==1 - the committed suite does cover Q6_K.",
+    "hf_golden": "Q5_K_M against the fp32 golden: top-1 6/6, worst top-5 overlap 4/5, max |logit| 24.46 of 100."
+  },
+  "plan": {
+    "advance": {
+      "alpha": 0.05,
+      "contamination": "A pair is flagged when either arm's whole-run CPU exceeds the session median by 25%. Flags are reported, never used to drop, replace or re-run a pair.",
+      "noise_fraction": 0.03,
+      "rule": "For each phase, over the PAIRED per-round ratios cand/base: both the mean and the median ratio are at least (1 - noise_fraction), AND baseline paired wins are below the smallest count whose one-sided binomial tail under p=0.5 is at most alpha. Ratios are paired so a drift within the run cancels inside each pair; comparing marginal medians instead let a run that drifted 289 -> 222 tok/s report -11.15% on identical code."
+    },
+    "arms": {
+      "base": {
+        "exe": "C:/Users/Marko/AppData/Local/Temp/llmx-q5k/base6.exe",
+        "sha256": "3532a4371b897934990cbef204da510a54bd39ac43a1cd90c0605653162ea9e1"
+      },
+      "cand": {
+        "exe": "C:/Users/Marko/AppData/Local/Temp/llmx-q5k/cand6.exe",
+        "sha256": "080455670cb7faa00d9f2cada7240bcdc90711ad79214c0a4514224a0d6767ae"
+      }
+    },
+    "created": "2026-09-20T15:52:29+0300",
+    "kind": "device-execution A/B",
+    "limits": "One model and one prompt. Host load is recorded, not controlled. This runner covers only the regression half of the bar, baseline against candidate. The external mx-llama.cpp floor is a separate matched comparison and is NOT run here; a step that passes this runner still has to clear that floor.",
+    "max_tokens": 32,
+    "measured_rounds": 15,
+    "model": "C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+    "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+    "order": "arms alternate within a round; order reverses on odd rounds",
+    "prompt": "C:/Users/Marko/AppData/Local/Temp/llmx-q5k/prompt.txt",
+    "prompt_sha256": "d1c26639d70e7fbc79ff93c15897d2fab6ba4f9d18af737f89b806d5e0effad7",
+    "threads": 6,
+    "warmup_rounds": 1
+  },
+  "plan_sha256": "0c119ef5ee33edccb2973e77b1246b7c1a3d6400428d3aaf504f885d3017190a",
+  "samples": [
+    {
+      "round": 0,
+      "arm": "base",
+      "measured": false,
+      "pp": 227.88,
+      "tg": 9.7,
+      "monitor": "monitor-r0-base.jsonl"
+    },
+    {
+      "round": 0,
+      "arm": "cand",
+      "measured": false,
+      "pp": 233.46,
+      "tg": 16.34,
+      "monitor": "monitor-r0-cand.jsonl"
+    },
+    {
+      "round": 1,
+      "arm": "cand",
+      "measured": true,
+      "pp": 229.43,
+      "tg": 16.12,
+      "monitor": "monitor-r1-cand.jsonl"
+    },
+    {
+      "round": 1,
+      "arm": "base",
+      "measured": true,
+      "pp": 224.96,
+      "tg": 9.42,
+      "monitor": "monitor-r1-base.jsonl"
+    },
+    {
+      "round": 2,
+      "arm": "base",
+      "measured": true,
+      "pp": 224.47,
+      "tg": 10.01,
+      "monitor": "monitor-r2-base.jsonl"
+    },
+    {
+      "round": 2,
+      "arm": "cand",
+      "measured": true,
+      "pp": 231.97,
+      "tg": 16.39,
+      "monitor": "monitor-r2-cand.jsonl"
+    },
+    {
+      "round": 3,
+      "arm": "cand",
+      "measured": true,
+      "pp": 233.68,
+      "tg": 17.54,
+      "monitor": "monitor-r3-cand.jsonl"
+    },
+    {
+      "round": 3,
+      "arm": "base",
+      "measured": true,
+      "pp": 222.11,
+      "tg": 9.28,
+      "monitor": "monitor-r3-base.jsonl"
+    },
+    {
+      "round": 4,
+      "arm": "base",
+      "measured": true,
+      "pp": 229.18,
+      "tg": 9.61,
+      "monitor": "monitor-r4-base.jsonl"
+    },
+    {
+      "round": 4,
+      "arm": "cand",
+      "measured": true,
+      "pp": 229.87,
+      "tg": 16.58,
+      "monitor": "monitor-r4-cand.jsonl"
+    },
+    {
+      "round": 5,
+      "arm": "cand",
+      "measured": true,
+      "pp": 231.85,
+      "tg": 19.23,
+      "monitor": "monitor-r5-cand.jsonl"
+    },
+    {
+      "round": 5,
+      "arm": "base",
+      "measured": true,
+      "pp": 261.15,
+      "tg": 11.55,
+      "monitor": "monitor-r5-base.jsonl"
+    },
+    {
+      "round": 6,
+      "arm": "base",
+      "measured": true,
+      "pp": 263.63,
+      "tg": 12.41,
+      "monitor": "monitor-r6-base.jsonl"
+    },
+    {
+      "round": 6,
+      "arm": "cand",
+      "measured": true,
+      "pp": 269.71,
+      "tg": 19.08,
+      "monitor": "monitor-r6-cand.jsonl"
+    },
+    {
+      "round": 7,
+      "arm": "cand",
+      "measured": true,
+      "pp": 286.74,
+      "tg": 20.8,
+      "monitor": "monitor-r7-cand.jsonl"
+    },
+    {
+      "round": 7,
+      "arm": "base",
+      "measured": true,
+      "pp": 279.71,
+      "tg": 12.33,
+      "monitor": "monitor-r7-base.jsonl"
+    },
+    {
+      "round": 8,
+      "arm": "base",
+      "measured": true,
+      "pp": 257.76,
+      "tg": 12.32,
+      "monitor": "monitor-r8-base.jsonl"
+    },
+    {
+      "round": 8,
+      "arm": "cand",
+      "measured": true,
+      "pp": 285.83,
+      "tg": 21.41,
+      "monitor": "monitor-r8-cand.jsonl"
+    },
+    {
+      "round": 9,
+      "arm": "cand",
+      "measured": true,
+      "pp": 293.81,
+      "tg": 20.93,
+      "monitor": "monitor-r9-cand.jsonl"
+    },
+    {
+      "round": 9,
+      "arm": "base",
+      "measured": true,
+      "pp": 286.04,
+      "tg": 12.51,
+      "monitor": "monitor-r9-base.jsonl"
+    },
+    {
+      "round": 10,
+      "arm": "base",
+      "measured": true,
+      "pp": 284.43,
+      "tg": 12.33,
+      "monitor": "monitor-r10-base.jsonl"
+    },
+    {
+      "round": 10,
+      "arm": "cand",
+      "measured": true,
+      "pp": 267.98,
+      "tg": 21.01,
+      "monitor": "monitor-r10-cand.jsonl"
+    },
+    {
+      "round": 11,
+      "arm": "cand",
+      "measured": true,
+      "pp": 292.6,
+      "tg": 21.03,
+      "monitor": "monitor-r11-cand.jsonl"
+    },
+    {
+      "round": 11,
+      "arm": "base",
+      "measured": true,
+      "pp": 297.39,
+      "tg": 12.46,
+      "monitor": "monitor-r11-base.jsonl"
+    },
+    {
+      "round": 12,
+      "arm": "base",
+      "measured": true,
+      "pp": 282.63,
+      "tg": 12.83,
+      "monitor": "monitor-r12-base.jsonl"
+    },
+    {
+      "round": 12,
+      "arm": "cand",
+      "measured": true,
+      "pp": 288.98,
+      "tg": 21.08,
+      "monitor": "monitor-r12-cand.jsonl"
+    },
+    {
+      "round": 13,
+      "arm": "cand",
+      "measured": true,
+      "pp": 278.64,
+      "tg": 19.93,
+      "monitor": "monitor-r13-cand.jsonl"
+    },
+    {
+      "round": 13,
+      "arm": "base",
+      "measured": true,
+      "pp": 294.87,
+      "tg": 12.83,
+      "monitor": "monitor-r13-base.jsonl"
+    },
+    {
+      "round": 14,
+      "arm": "base",
+      "measured": true,
+      "pp": 279.67,
+      "tg": 12.59,
+      "monitor": "monitor-r14-base.jsonl"
+    },
+    {
+      "round": 14,
+      "arm": "cand",
+      "measured": true,
+      "pp": 297.32,
+      "tg": 21.01,
+      "monitor": "monitor-r14-cand.jsonl"
+    },
+    {
+      "round": 15,
+      "arm": "cand",
+      "measured": true,
+      "pp": 291.96,
+      "tg": 20.65,
+      "monitor": "monitor-r15-cand.jsonl"
+    },
+    {
+      "round": 15,
+      "arm": "base",
+      "measured": true,
+      "pp": 268.32,
+      "tg": 12.28,
+      "monitor": "monitor-r15-base.jsonl"
+    }
+  ],
+  "phases": {
+    "prefill": {
+      "base_mean": 263.75466666666665,
+      "cand_mean": 267.358,
+      "base_median": 268.32,
+      "cand_median": 278.64,
+      "paired_mean_change_percent": 1.5009748250440547,
+      "paired_median_change_percent": 2.30626256495845,
+      "unpaired_mean_change_percent": 1.3661685606826568,
+      "baseline_wins": 4,
+      "pairs": 15,
+      "fail_at_wins": 12,
+      "paired_change_percent": [
+        1.9870199146514889,
+        3.341203724328423,
+        5.2091306109585345,
+        0.30107339209355377,
+        -11.2196055906567,
+        2.30626256495845,
+        2.513317364413159,
+        10.889975170701426,
+        2.716403300237724,
+        -5.783496818197797,
+        -1.610679579003993,
+        2.2467537062590637,
+        -5.504120459863671,
+        6.31100940394036,
+        8.810375670840775
+      ],
+      "advance": "pass"
+    },
+    "decode": {
+      "base_mean": 11.650666666666666,
+      "cand_mean": 19.519333333333332,
+      "base_median": 12.33,
+      "cand_median": 20.65,
+      "paired_mean_change_percent": 68.01861102029152,
+      "paired_median_change_percent": 68.15960912052117,
+      "unpaired_mean_change_percent": 67.53833829251545,
+      "baseline_wins": 0,
+      "pairs": 15,
+      "fail_at_wins": 12,
+      "paired_change_percent": [
+        71.12526539278133,
+        63.73626373626375,
+        89.00862068965519,
+        72.52861602497399,
+        66.49350649350649,
+        53.74697824335213,
+        68.69424168694242,
+        73.78246753246754,
+        67.30615507593924,
+        70.39740470397406,
+        68.7800963081862,
+        64.3024162120031,
+        55.3390491036633,
+        66.87847498014298,
+        68.15960912052117
+      ],
+      "advance": "pass"
+    }
+  },
+  "advance": "pass",
+  "aa_calibration": {
+    "note": "Same binary published as both arms, 15 pairs, to calibrate the noise band and validate the statistic. Must pass by construction.",
+    "phases": {
+      "prefill": {
+        "base_mean": 291.2873333333333,
+        "cand_mean": 295.04466666666667,
+        "base_median": 293.3,
+        "cand_median": 297.97,
+        "paired_mean_change_percent": 1.4957549512315538,
+        "paired_median_change_percent": -0.25258400079762877,
+        "unpaired_mean_change_percent": 1.2899061865603523,
+        "baseline_wins": 8,
+        "pairs": 15,
+        "fail_at_wins": 12,
+        "paired_change_percent": [
+          1.9883724930338298,
+          -7.660075492606577,
+          -3.646381694391798,
+          -4.86315163920894,
+          -0.25258400079762877,
+          1.5922263893624278,
+          -2.0273677840164206,
+          -3.5440837206191955,
+          9.62204270051934,
+          11.583112471536827,
+          -3.6720387840670776,
+          1.649750388468263,
+          9.97179478024921,
+          -0.8406078241189885,
+          12.535315985130113
+        ],
+        "advance": "pass"
+      },
+      "decode": {
+        "base_mean": 12.778,
+        "cand_mean": 12.613333333333333,
+        "base_median": 12.93,
+        "cand_median": 12.72,
+        "paired_mean_change_percent": -1.199035292401185,
+        "paired_median_change_percent": -1.8590240123934954,
+        "unpaired_mean_change_percent": -1.2886732404653878,
+        "baseline_wins": 9,
+        "pairs": 15,
+        "fail_at_wins": 12,
+        "paired_change_percent": [
+          -0.22744503411674666,
+          -7.8525641025641075,
+          4.811547714514841,
+          -4.881769641495037,
+          3.2131661442006187,
+          5.810147299508994,
+          -6.707787201233629,
+          -8.180428134556571,
+          8.101265822784809,
+          -3.7007240547063502,
+          -5.182926829268286,
+          2.010827532869297,
+          -3.4168564920273314,
+          0.07704160246533309,
+          -1.8590240123934954
+        ],
+        "advance": "pass"
+      }
+    },
+    "advance": "pass"
+  },
+  "method_corrections": [
+    "noise_fraction was 0.01 and failed its own A/A; the A/A moved prefill +1.59% and decode -1.62% by median with zero code difference. Calibrated to 0.03, roughly twice the observed A/A spread.",
+    "The rule compared median(cand) to median(base), which are UNPAIRED marginals. The first Q6_K run drifted 289 -> 222 tok/s prefill across 15 rounds and reported -11.15% on identical prefill code; the paired median of the same data was +1.24%. Ratios are now paired per round."
+  ],
+  "decision": "Adopt. Decode +68.02% paired mean, 0/15 baseline wins. Prefill +1.50%, unchanged code.",
+  "limits": "One model, quant, prompt and thread count. Throughput fell monotonically across long runs, consistent with thermal drift; the paired statistic is what makes the result robust to it. Does NOT establish the external mx floor."
+}

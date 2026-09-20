@@ -147,16 +147,26 @@ public:
             matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
             return;
         }
-        // K-quants whose value factorises into d*sum(q*x) - m*sum(x) have a
-        // fused decode dot that materialises no dequantized value.
+        // K-quants whose dot factorises so no dequantized value is
+        // materialised: Q4_K/Q5_K give d*sum(q*x) - m*sum(x), Q6_K has signed
+        // group scales and no min, so it is sum over groups of d_g*sum(q*x).
         if (nbatch == 1 && (ggml_type == gguf::GGML_TYPE_Q4_K ||
-                            ggml_type == gguf::GGML_TYPE_Q5_K)) {
-            const bool q5 = ggml_type == gguf::GGML_TYPE_Q5_K;
-            const size_t nb = nin / (q5 ? gguf::Q5_K_BLOCK : gguf::Q4_K_BLOCK);
-            const size_t rowbytes = nb * (q5 ? gguf::Q5_K_TYPESIZE
-                                             : gguf::Q4_K_TYPESIZE);
+                            ggml_type == gguf::GGML_TYPE_Q5_K ||
+                            ggml_type == gguf::GGML_TYPE_Q6_K)) {
+            const size_t blk = ggml_type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_BLOCK
+                             : ggml_type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_BLOCK
+                                                                 : gguf::Q6_K_BLOCK;
+            const size_t tsz = ggml_type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE
+                             : ggml_type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_TYPESIZE
+                                                                 : gguf::Q6_K_TYPESIZE;
+            const size_t nb = nin / blk;
+            const size_t rowbytes = nb * tsz;
             const auto dot = [&](const uint8_t* r) {
-                return q5 ? dot_row_q5_K(r, X, nb) : dot_row_q4_K(r, X, nb);
+                switch (ggml_type) {
+                    case gguf::GGML_TYPE_Q4_K: return dot_row_q4_K(r, X, nb);
+                    case gguf::GGML_TYPE_Q5_K: return dot_row_q5_K(r, X, nb);
+                    default:                   return dot_row_q6_K(r, X, nb);
+                }
             };
             const int nt = threads_;
             if (nt <= 1 || nout < (size_t)nt * 8) {
@@ -782,6 +792,67 @@ private:
     // d*q - m with q a 4-bit unsigned nibble, so its contribution to the dot is
     //     sum_l (d*q_l - m) * x_l  =  d * sum_l(q_l * x_l)  -  m * sum_l(x_l)
     // and the two sums are plain FMA reductions over the nibbles and over x.
+    // Q6_K has signed values and per-16 group scales but no min, so the dot is
+    // sum over groups of (d * sc_g) * sum(q*x), with no sum(x) term. Each
+    // 128-value chunk holds four sub-blocks of 32, and each sub-block splits
+    // into two 16-value groups whose scales are sc[2k] and sc[2k+1].
+    float dot_row_q6_K(const uint8_t* row, const float* x, size_t nblocks) {
+        float acc = 0.0f;
+        for (size_t b = 0; b < nblocks; b++) {
+            const uint8_t* p = row + b * gguf::Q6_K_TYPESIZE;
+            const uint8_t* ql = p;
+            const uint8_t* qh = p + 128;
+            const int8_t*  sc = (const int8_t*)(p + 192);
+            const float d = half_to_float((uint16_t)(p[208] | ((uint16_t)p[209] << 8)));
+            const float* xp = x + b * gguf::Q6_K_BLOCK;
+
+            for (int n = 0; n < (int)gguf::Q6_K_BLOCK; n += 128) {
+                for (int k = 0; k < 4; k++) {
+                    const uint8_t* qlk = ql + ((k & 1) ? 32 : 0);
+                    const bool high = k >= 2;
+                    const int shift = 2 * k;
+                    const float* xk = xp + k * 32;
+                    for (int is = 0; is < 2; is++) {
+                        float s;
+                        if (avx2_) {
+                            // Shifting 16-bit lanes leaks neighbouring bits
+                            // into the high half of each byte; the mask drops
+                            // them, so the kept bits are this byte's own.
+                            const __m128i cnt = _mm_cvtsi32_si128(shift);
+                            const __m128i rawl = _mm_loadu_si128((const __m128i*)(qlk + is * 16));
+                            const __m128i rawh = _mm_loadu_si128((const __m128i*)(qh + is * 16));
+                            const __m128i lo = high
+                                ? _mm_and_si128(_mm_srli_epi16(rawl, 4), _mm_set1_epi8(0x0F))
+                                : _mm_and_si128(rawl, _mm_set1_epi8(0x0F));
+                            const __m128i hb = _mm_slli_epi16(
+                                _mm_and_si128(_mm_srl_epi16(rawh, cnt), _mm_set1_epi8(3)), 4);
+                            const __m128i q = _mm_sub_epi8(
+                                _mm_or_si128(lo, _mm_and_si128(hb, _mm_set1_epi8((char)0x30))),
+                                _mm_set1_epi8(32));
+                            __m256 a = _mm256_mul_ps(
+                                _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(q)),
+                                _mm256_loadu_ps(xk + is * 16));
+                            a = _mm256_fmadd_ps(
+                                _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(q, 8))),
+                                _mm256_loadu_ps(xk + is * 16 + 8), a);
+                            s = hsum256(a);
+                        } else {
+                            s = 0.0f;
+                            for (int l = is * 16; l < is * 16 + 16; l++) {
+                                const int nib = high ? (qlk[l] >> 4) : (qlk[l] & 0xF);
+                                const int qv = (nib | (((qh[l] >> shift) & 3) << 4)) - 32;
+                                s += (float)qv * xk[l];
+                            }
+                        }
+                        acc += d * (float)sc[k * 2 + is] * s;
+                    }
+                }
+                ql += 64; qh += 32; sc += 8; xp += 128;
+            }
+        }
+        return acc;
+    }
+
     // Same factorisation as Q4_K: the value is d*(q + 16*hbit) - m, so the dot
     // is d*sum((q + 16*hbit)*x) - m*sum(x) and no dequantized value is
     // materialised. The fifth bit comes from qh, whose mask shifts left by two

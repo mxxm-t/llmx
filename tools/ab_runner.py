@@ -41,13 +41,24 @@ RATE = re.compile(r"^(pp|tg): .*?, ([0-9.]+) tok/s", re.M)
 # gate. The threshold below is the smallest count whose one-sided tail is at
 # most 5%, so a neutral change passes about 95% of the time and a consistent
 # regression still fails.
+#
+# noise_fraction is CALIBRATED BY AN A/A RUN, not guessed. Publishing the same
+# binary as both arms on this harness moved prefill +1.59% and decode -1.62% by
+# median over 15 pairs, with zero code difference. A 1% band therefore failed
+# its own A/A, which means it was measuring the harness rather than the change.
+# 3% leaves roughly a factor of two over the observed A/A spread. Re-run the
+# A/A on new hardware or a new workload before trusting this number there: if
+# the A/A does not pass, the band is wrong and no result from it means anything.
 ADVANCE = {
-    "noise_fraction": 0.01,
+    "noise_fraction": 0.03,
     "alpha": 0.05,
-    "rule": "For each phase: candidate mean and median are at least "
-            "(1 - noise_fraction) x baseline, AND baseline paired wins are "
-            "below the smallest count whose one-sided binomial tail under "
-            "p=0.5 is at most alpha. Otherwise the step does not advance.",
+    "rule": "For each phase, over the PAIRED per-round ratios cand/base: both "
+            "the mean and the median ratio are at least (1 - noise_fraction), "
+            "AND baseline paired wins are below the smallest count whose "
+            "one-sided binomial tail under p=0.5 is at most alpha. Ratios are "
+            "paired so a drift within the run cancels inside each pair; "
+            "comparing marginal medians instead let a run that drifted "
+            "289 -> 222 tok/s report -11.15% on identical code.",
     "contamination": "A pair is flagged when either arm's whole-run CPU exceeds "
                      "the session median by 25%. Flags are reported, never used "
                      "to drop, replace or re-run a pair.",
@@ -194,21 +205,28 @@ def cmd_report(args):
         c = [pick(r, "cand", ph) for r in rounds]
         wins = sum(1 for i in range(len(b)) if b[i] > c[i])
         keep = 1 - adv["noise_fraction"]
-        ok = (st.mean(c) >= keep * st.mean(b)
-              and st.median(c) >= keep * st.median(b)
-              and wins < limit)
+        # Paired ratios, not a ratio of marginals. The arms alternate so that
+        # drift cancels WITHIN a pair; comparing median(cand) to median(base)
+        # discards that pairing and lets a monotonic drift dominate. A run
+        # whose throughput fell 289 -> 222 across 15 rounds reported a -11.15%
+        # unpaired prefill median on identical code, against +1.24% paired.
+        ratios = sorted(c[i] / b[i] for i in range(len(b)))
+        mean_ratio = sum(ratios) / len(ratios)
+        median_ratio = st.median(ratios)
+        ok = (mean_ratio >= keep and median_ratio >= keep and wins < limit)
         verdict &= ok
         phases[name] = {
             "base_mean": st.mean(b), "cand_mean": st.mean(c),
             "base_median": st.median(b), "cand_median": st.median(c),
-            "mean_change_percent": (st.mean(c) / st.mean(b) - 1) * 100,
-            "median_change_percent": (st.median(c) / st.median(b) - 1) * 100,
+            "paired_mean_change_percent": (mean_ratio - 1) * 100,
+            "paired_median_change_percent": (median_ratio - 1) * 100,
+            "unpaired_mean_change_percent": (st.mean(c) / st.mean(b) - 1) * 100,
             "baseline_wins": wins, "pairs": len(b), "fail_at_wins": limit,
             "paired_change_percent": [(c[i] / b[i] - 1) * 100
                                       for i in range(len(b))],
             "advance": "pass" if ok else "fail"}
-        print(f"{name}: mean {phases[name]['mean_change_percent']:+.2f}% "
-              f"median {phases[name]['median_change_percent']:+.2f}% "
+        print(f"{name}: paired mean {phases[name]['paired_mean_change_percent']:+.2f}% "
+              f"median {phases[name]['paired_median_change_percent']:+.2f}% "
               f"baseline wins {wins}/{len(b)} (fail at >= {limit}) "
               f"-> {'PASS' if ok else 'FAIL'}")
     print("ADVANCE:", "pass" if verdict else "fail")

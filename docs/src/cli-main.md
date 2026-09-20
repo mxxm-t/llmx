@@ -10,6 +10,8 @@ Commands and their entry points:
 
 - `quantize` / `dequantize`: `cmd_quantize` / `cmd_dequantize` (Q8_0/Q4_0
   writing and supported-type dequantization via `model.json`/`model.bin`).
+  Input uses the core JSON parser; output quotes paths and tensor names through
+  its string helper, preserving UTF-8 and escaping JSON special characters.
 - `info`: `cmd_info` (dump metadata + tensor list).
 - `tokenize` / `detokenize`: `cmd_tokenize` / `cmd_detokenize`.
 - `perplexity`: `cmd_perplexity` loads and tokenizes inline or `-f/--file`

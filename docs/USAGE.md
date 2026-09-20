@@ -27,6 +27,9 @@ change the release number, or embed timestamps.
 
 Convert a raw float32 model into a quantized GGUF file.
 
+- `model.json` is UTF-8 JSON; escaped Unicode tensor names are decoded to UTF-8.
+  Invalid JSON syntax/Unicode is rejected. See `docs/src/core-json.md` for
+  parser limits; syntax parsing does not validate all tensor dimensions.
 - `model.json` describes the tensor names and shapes; `model.bin` holds each
   tensor's float32 data concatenated in the same order (row-major, with the
   fastest-varying dimension first).
@@ -57,7 +60,8 @@ Convert a raw float32 model into a quantized GGUF file.
 
 Read a GGUF containing any supported tensor types and write the tensors as
 raw float32. Produces a `model.json`-compatible `out.json` plus the concatenated
-float32 data in `out.bin`. Useful for round-trip verification and for feeding
+float32 data in `out.bin`. JSON output escapes path and tensor-name quotes,
+backslashes and control characters, preserving UTF-8 tensor names. Useful for round-trip verification and for feeding
 data back into `quantize`.
 
 ## `llmx info <in.gguf>`

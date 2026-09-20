@@ -150,6 +150,15 @@ and implemented HF coverage are recorded in STATUS.
   gfx906 fork on the same model, quant, prompt and hardware, measured as pp and
   tg tok/s. A ground-up runtime slower than the thing it replaces has no claim
   to being a runtime. Report both arms; never a single number.
+- Assess the complete performance tradeoff: a large phase/model gain can
+  justify a minor regression elsewhere. Report both sides and retain failed
+  screens; an isolated cutoff is not an automatic adoption decision. HF
+  correctness and explicit matched mx comparisons remain required.
+- Record background process CPU use and system CPU/disk/GPU activity before
+  and throughout timing, with identical low-overhead monitoring for each arm.
+  Declare contamination criteria in advance. Preserve affected blocks as
+  inconclusive and repeat whole matched blocks when quiet; never remove only
+  slow samples. Missing telemetry is a stated limitation, not proof of idleness.
 - Path-controlled perplexity on real text as the lossless gate (see
   `correctness-gate` skill)
 - Large-context output hashing to prove KV cache + RoPE correctness at depth
@@ -183,8 +192,10 @@ is gated on nothing and can start immediately; only the kernel half is gated (on
 make a model usable: its architecture and tokenizer must also be implemented.
 - **K-quants** (`Q4_K_M` and friends): the dominant GGUF quant on the Hub - #1
 - **safetensors**: HF-native: u64 header length + JSON header + raw tensor
-  bytes. Reuse `core/json.hpp` after fixing its validation/Unicode gaps; validate
-  tensor extents and dtypes before exposing data. No new dependency; see #3.
+  bytes. Reuse `core/json.hpp`, which now validates syntax and Unicode with
+  bounded depth and finite-double number storage. The loader still needs
+  schema, integer-range, tensor-extent and dtype checks before exposing data.
+  No new dependency; see #3.
 - **BF16 / F16 tensors**: most HF safetensors are BF16. `core/fp16.hpp` covers
   f16 <-> f32, but there is no bf16 path and no F16 case in
   `gguf::TensorInfo::data_size()`

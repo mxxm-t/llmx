@@ -1,0 +1,768 @@
+{
+  "schema": "llmx-validation-evidence-v1",
+  "date": "2026-09-20",
+  "base": "6fc9ce542e0769679e17e2a0dd807d256df87202",
+  "scope": "JSON reader correctness and dequantize string output; no inference arithmetic or external performance-gate change. Existing HF fixture bounds retained.",
+  "reference": "https://www.rfc-editor.org/rfc/rfc8259.html",
+  "policies": {
+    "numbers": "Finite double; classic-locale conversion, reject overflow and nonzero underflow to zero; not exact arbitrary-precision integers",
+    "strings": "UTF-8 scalar values, escaped UTF-16 pairs; reject lone surrogates and invalid UTF-8",
+    "nesting": 256,
+    "duplicates": "Preserve ordered members; get returns first",
+    "quote": "Escapes quote/backslash/control bytes in valid UTF-8 input; no general object serializer or malformed GGUF validation"
+  },
+  "failure_history": [
+    "Old parser fails the new Unicode-key regression; old root CLI fails escaped-Unicode tensor names.",
+    "Initial new-reader Windows full suite fails JSON loading because dequantize emitted unescaped Windows path; Linux full suite passes. Original logs retained.",
+    "Added minimal string quoting for two dequantize fields and expanded native/integration coverage; final builds/suites and sanitizer evidence recorded separately."
+  ],
+  "source_identities": [
+    {
+      "path": "src/core/json.hpp",
+      "sha256": "1690c48431a92c06f48d902055f49a2a26378044cbab916a406486648f7f3def",
+      "bytes": 10267
+    },
+    {
+      "path": "src/cli/main.cpp",
+      "sha256": "67ef2e78729b1da4fa52b524cf074e570645823d6937349f8d2b125e3b28afe9",
+      "bytes": 38920
+    },
+    {
+      "path": "tests/json.cpp",
+      "sha256": "71d6bc6f3d50ecba6109ec83032b0c22a1177138ea9d500d26e680697b07122c",
+      "bytes": 10212
+    },
+    {
+      "path": "tests/roundtrip.py",
+      "sha256": "d6091d7d8d1efdbb6fbc19c5996edb69f2f51960217abc9d20a5185e7eed5694",
+      "bytes": 4305
+    },
+    {
+      "path": "CMakeLists.txt",
+      "sha256": "63910c5d0ed71359e4be040b1c4f9e26847220c3aa12effeb98aa84c0e8d1a6e",
+      "bytes": 5335
+    }
+  ],
+  "evidence": [
+    {
+      "path": "archive.py",
+      "bytes": 3255,
+      "sha256": "1ab9762589a81230a6fa1586d26f00ac010877c1baa630fcb1129d5786e35e1e",
+      "text": "from pathlib import Path\r\nimport hashlib,json\r\nroot=Path(__file__).resolve().parent\r\nrepo=Path('C:/Users/Marko/Desktop/Projects/llmx')\r\nfiles=[]\r\nfor platform in ['windows','linux','windows-fixed','linux-fixed-reconfigured']:\r\n    directory=root/platform\r\n    state=json.loads((directory/'results.json').read_text())\r\n    assert state['status']==('failed' if platform=='windows' else 'pass'),platform\r\n    files.extend(p for p in directory.iterdir() if p.is_file())\r\nfor pattern in ['*.py','*.json','*.stdout','*.stderr','*.hpp','*.cpp']:\r\n    files.extend(p for p in root.glob(pattern) if p.name not in ['update-goals.py','placement-reassessment.json','review.json'])\r\nfiles.extend(p for p in (root/'review').glob('*') if p.is_file() and p.name!='final.json')\r\nfiles.append(root/'linux-fixed/launch-failure.json')\r\nrecords=[]\r\nfor p in sorted(set(files)):\r\n    raw=p.read_bytes()\r\n    try:text=raw.decode('utf-8')\r\n    except UnicodeDecodeError:text=raw.decode('mbcs')\r\n    records.append({'path':p.relative_to(root).as_posix(),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'text':text})\r\nsources=[]\r\nfor name in ['src/core/json.hpp','src/cli/main.cpp','tests/json.cpp','tests/roundtrip.py','CMakeLists.txt']:\r\n    raw=(repo/name).read_bytes();sources.append({'path':name,'sha256':hashlib.sha256(raw).hexdigest(),'bytes':len(raw)})\r\nreport={'schema':'llmx-validation-evidence-v1','date':'2026-09-20','base':'6fc9ce542e0769679e17e2a0dd807d256df87202','scope':'JSON reader correctness and dequantize string output; no inference arithmetic or external performance-gate change. Existing HF fixture bounds retained.','reference':'https://www.rfc-editor.org/rfc/rfc8259.html','policies':{'numbers':'Finite double; classic-locale conversion, reject overflow and nonzero underflow to zero; not exact arbitrary-precision integers','strings':'UTF-8 scalar values, escaped UTF-16 pairs; reject lone surrogates and invalid UTF-8','nesting':256,'duplicates':'Preserve ordered members; get returns first','quote':'Escapes quote/backslash/control bytes in valid UTF-8 input; no general object serializer or malformed GGUF validation'},'failure_history':['Old parser fails the new Unicode-key regression; old root CLI fails escaped-Unicode tensor names.','Initial new-reader Windows full suite fails JSON loading because dequantize emitted unescaped Windows path; Linux full suite passes. Original logs retained.','Added minimal string quoting for two dequantize fields and expanded native/integration coverage; final builds/suites and sanitizer evidence recorded separately.'],'source_identities':sources,'evidence':records,'limits':['Metadata parsing is outside inference hot paths. Diagnostic benchmark smoke results are not external parity evidence.','Native/Windows/Linux checks do not establish a hosted macOS run.','Tensor-schema/range/extent arithmetic and general non-ASCII filesystem paths are outside this change.','The enclosing runtime stack retains its existing HF/mx merge requirements; no GitHub feature-branch push.']}\r\noutput=repo/'docs/benchmarks/json-validation-20260920.json';output.write_text(json.dumps(report,indent=2,ensure_ascii=True)+'\\n',encoding='ascii')\r\nprint('Archived',len(records),'records;',output.stat().st_size,'bytes')\r\n"
+    },
+    {
+      "path": "json-before.hpp",
+      "bytes": 5017,
+      "sha256": "798d4339448c950650ba4e3d926ddeebc9a85752b677c411d632b8b43ee00b59",
+      "text": "#pragma once\n#include <string>\n#include <vector>\n#include <utility>\n#include <stdexcept>\n#include <cstdint>\n#include <cstdlib>\n#include <cctype>\n\n// Minimal recursive-descent JSON parser, written from scratch (no libs).\n\nnamespace jmini {\n\nstruct Value;\nusing Object = std::vector<std::pair<std::string, Value>>;\nusing Array  = std::vector<Value>;\n\nstruct Value {\n    enum class T { Null, Bool, Number, String, Array, Object } t = T::Null;\n    bool b = false;\n    double num = 0;\n    std::string str;\n    Array arr;\n    Object obj;\n\n    bool isObject() const { return t == T::Object; }\n    bool isArray()  const { return t == T::Array; }\n    bool isString() const { return t == T::String; }\n    bool isNumber() const { return t == T::Number; }\n\n    const Value* get(const std::string& k) const {\n        if (t != T::Object) return nullptr;\n        for (const auto& p : obj) if (p.first == k) return &p.second;\n        return nullptr;\n    }\n    const std::string& asString() const { return str; }\n    double asNumber() const { return num; }\n    const Array& asArray() const { return arr; }\n};\n\nclass Parser {\n    const std::string& s;\n    size_t i = 0;\n\n    void ws() { while (i < s.size() && (s[i]==' '||s[i]=='\\t'||s[i]=='\\n'||s[i]=='\\r')) i++; }\n    char peek() {\n        if (i >= s.size()) throw std::runtime_error(\"json: unexpected end of input\");\n        return s[i];\n    }\n    void expect(char c) { ws(); if (peek() != c) throw std::runtime_error(\"json: expected character\"); i++; }\n\n    std::string parseString() {\n        expect('\"');\n        std::string out;\n        while (i < s.size()) {\n            char c = s[i++];\n            if (c == '\"') return out;\n            if (c == '\\\\') {\n                char e = s[i++];\n                switch (e) {\n                    case '\"':  out += '\"';  break;\n                    case '\\\\': out += '\\\\'; break;\n                    case '/':  out += '/';  break;\n                    case 'b':  out += '\\b'; break;\n                    case 'f':  out += '\\f'; break;\n                    case 'n':  out += '\\n'; break;\n                    case 'r':  out += '\\r'; break;\n                    case 't':  out += '\\t'; break;\n                    case 'u': {\n                        if (i + 4 <= s.size()) {\n                            unsigned v = (unsigned)std::strtoul(s.substr(i, 4).c_str(), nullptr, 16);\n                            out += (char)v;\n                            i += 4;\n                        }\n                        break;\n                    }\n                    default: out += e;\n                }\n            } else out += c;\n        }\n        throw std::runtime_error(\"json: unterminated string\");\n    }\n\n    Value parseObject() {\n        Value v; v.t = Value::T::Object;\n        expect('{'); ws();\n        if (peek() == '}') { i++; return v; }\n        for (;;) {\n            ws();\n            std::string key = parseString();\n            ws(); expect(':');\n            Value val = parseValue();\n            v.obj.push_back({ std::move(key), std::move(val) });\n            ws();\n            char c = peek();\n            if (c == ',') { i++; continue; }\n            if (c == '}') { i++; break; }\n            throw std::runtime_error(\"json: object syntax error\");\n        }\n        return v;\n    }\n\n    Value parseArray() {\n        Value v; v.t = Value::T::Array;\n        expect('['); ws();\n        if (peek() == ']') { i++; return v; }\n        for (;;) {\n            Value val = parseValue();\n            v.arr.push_back(std::move(val));\n            ws();\n            char c = peek();\n            if (c == ',') { i++; continue; }\n            if (c == ']') { i++; break; }\n            throw std::runtime_error(\"json: array syntax error\");\n        }\n        return v;\n    }\n\n    Value parseValue() {\n        ws();\n        char c = peek();\n        if (c == '{') return parseObject();\n        if (c == '[') return parseArray();\n        if (c == '\"') { Value v; v.t = Value::T::String; v.str = parseString(); return v; }\n        if (c == 't') { expect('t'); expect('r'); expect('u'); expect('e'); Value v; v.t = Value::T::Bool; v.b = true; return v; }\n        if (c == 'f') { expect('f'); expect('a'); expect('l'); expect('s'); expect('e'); Value v; v.t = Value::T::Bool; v.b = false; return v; }\n        if (c == 'n') { expect('n'); expect('u'); expect('l'); expect('l'); return Value(); }\n        std::string num;\n        if (c == '-') { num += c; i++; }\n        while (i < s.size() && (std::isdigit((unsigned char)s[i]) || s[i]=='.'||s[i]=='e'||s[i]=='E'||s[i]=='+'||s[i]=='-')) num += s[i++];\n        Value v; v.t = Value::T::Number; v.num = std::strtod(num.c_str(), nullptr); return v;\n    }\n\npublic:\n    explicit Parser(const std::string& str) : s(str) {}\n\n    Value parse() {\n        ws();\n        Value v = parseValue();\n        ws();\n        if (i != s.size()) throw std::runtime_error(\"json: trailing data after document\");\n        return v;\n    }\n};\n\ninline Value parse(const std::string& s) { return Parser(s).parse(); }\n\n} // namespace jmini\n"
+    },
+    {
+      "path": "linux/build.stderr",
+      "bytes": 15436,
+      "sha256": "14dee9bd053c3ee4382c6bf1a3fb1388715687495c9827f5d9fe5de129910c1a",
+      "text": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/../src/cli/main.cpp:33,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/cli_output.cpp:3:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/../src/cli/main.cpp:34:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/model/arch_qwen.hpp:14,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/inference/generate.hpp:9,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/generation_stream.cpp:2:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/model/arch_qwen.hpp:17:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_group.cpp:5:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:8:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:33:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:34:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n"
+    },
+    {
+      "path": "linux/build.stdout",
+      "bytes": 1634,
+      "sha256": "4eee5f2347445a53846ed8a3fae5b8637350351d5e6f9a3a0bf808a9fd42ee55",
+      "text": "[  5%] Building CXX object CMakeFiles/llmx-json-test.dir/tests/json.cpp.o\n[  5%] Built target llmx-build-info\n[ 11%] Building CXX object CMakeFiles/llmx-cli-output-test.dir/tests/cli_output.cpp.o\n[ 16%] Linking CXX executable llmx-json-test\n[ 16%] Built target llmx-json-test\n[ 22%] Building CXX object CMakeFiles/llmx-load-progress-test.dir/tests/load_progress.cpp.o\n[ 27%] Linking CXX executable llmx-load-progress-test\n[ 27%] Built target llmx-load-progress-test\n[ 33%] Building CXX object CMakeFiles/llmx-generation-stream-test.dir/tests/generation_stream.cpp.o\n[ 38%] Linking CXX executable llmx-generation-stream-test\n[ 38%] Built target llmx-generation-stream-test\n[ 44%] Building CXX object CMakeFiles/llmx-backend-group-test.dir/tests/backend_group.cpp.o\n[ 50%] Linking CXX executable llmx-cli-output-test\n[ 50%] Built target llmx-cli-output-test\n[ 55%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 61%] Linking CXX executable llmx-backend-errors-test\n[ 66%] Linking CXX executable llmx-backend-group-test\n[ 66%] Built target llmx-backend-errors-test\n[ 72%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 72%] Built target llmx-backend-group-test\n[ 77%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 83%] Linking CXX executable llmx-kv-cache-test\n[ 83%] Built target llmx-kv-cache-test\n[ 88%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\n[ 94%] Linking CXX executable llmx-chat-template-test\n[ 94%] Built target llmx-chat-template-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\n"
+    },
+    {
+      "path": "linux/configure.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "linux/configure.stdout",
+      "bytes": 502,
+      "sha256": "980406ed400dff73327183783cfdea9b793a3bed62a5eb9c13da92e489a91ca9",
+      "text": "-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (1.6s)\n-- Generating done (0.0s)\n-- Build files have been written to: /tmp/llmx-json-validation-build\n"
+    },
+    {
+      "path": "linux/native.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "linux/native.stdout",
+      "bytes": 954,
+      "sha256": "a6d11b0856dccbb218a8ac12ef2c3f8b8777ef2855b91089321154a87bcc7206",
+      "text": "Internal ctest changing into directory: /tmp/llmx-json-validation-build\nTest project /tmp/llmx-json-validation-build\n    Start 1: json\n1/8 Test #1: json .............................   Passed    0.00 sec\n    Start 2: cli-output\n2/8 Test #2: cli-output .......................   Passed    0.00 sec\n    Start 3: load-progress\n3/8 Test #3: load-progress ....................   Passed    0.07 sec\n    Start 4: generation-stream\n4/8 Test #4: generation-stream ................   Passed    0.01 sec\n    Start 5: backend-group\n5/8 Test #5: backend-group ....................   Passed    0.18 sec\n    Start 6: backend-errors\n6/8 Test #6: backend-errors ...................   Passed    0.16 sec\n    Start 7: chat-template\n7/8 Test #7: chat-template ....................   Passed    0.01 sec\n    Start 8: kv-cache\n8/8 Test #8: kv-cache .........................   Passed    0.00 sec\n\n100% tests passed, 0 tests failed out of 8\n\nTotal Test time (real) =   0.44 sec\n"
+    },
+    {
+      "path": "linux/python.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "linux/python.stdout",
+      "bytes": 2518,
+      "sha256": "8e2f9f7d62fc1309a0fd68c367ce0a5abb1a0fdbfabd6d4760e0cbb60459d746",
+      "text": "version: release/build identifier and usage banner agree  [ok]\n..\n----------------------------------------------------------------------\nRan 2 tests in 0.017s\n\nOK\n....\n----------------------------------------------------------------------\nRan 4 tests in 0.046s\n\nOK\nroundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 33.96 GFLOPS (0.247 ms), prefill 8454 tok/s, decode 6494 tok/s, rms_norm 0.000 ms, rope 0.000 ms  [ok]\nperf: hardware-specific floors disabled; timings are diagnostic only\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nchat progress: completed loading percentages and per-turn phases stay on stderr  [ok]\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6581 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  version    PASS\n  reference-generator PASS\n  reference-consumer PASS\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS\n"
+    },
+    {
+      "path": "linux/results.json",
+      "bytes": 1279,
+      "sha256": "e88af18895afbc0122fb9c14678022382a3f44a2d02672184cbb5f84c4695c19",
+      "text": "{\n  \"status\": \"pass\",\n  \"platform\": \"linux\",\n  \"started\": \"2026-09-20T04:45:30.016636+00:00\",\n  \"commands\": [\n    {\n      \"name\": \"configure\",\n      \"command\": [\n        \"cmake\",\n        \"-S\",\n        \"/mnt/c/Users/Marko/Desktop/Projects/llmx\",\n        \"-B\",\n        \"/tmp/llmx-json-validation-build\",\n        \"-DCMAKE_BUILD_TYPE=Release\"\n      ],\n      \"exit_code\": 0\n    },\n    {\n      \"name\": \"build\",\n      \"command\": [\n        \"cmake\",\n        \"--build\",\n        \"/tmp/llmx-json-validation-build\",\n        \"--config\",\n        \"Release\",\n        \"--parallel\",\n        \"2\"\n      ],\n      \"exit_code\": 0\n    },\n    {\n      \"name\": \"native\",\n      \"command\": [\n        \"ctest\",\n        \"--test-dir\",\n        \"/tmp/llmx-json-validation-build\",\n        \"-C\",\n        \"Release\",\n        \"--output-on-failure\"\n      ],\n      \"exit_code\": 0\n    },\n    {\n      \"name\": \"python\",\n      \"command\": [\n        \"/usr/bin/python3\",\n        \"-X\",\n        \"utf8\",\n        \"tests/run_tests.py\",\n        \"--exe\",\n        \"/tmp/llmx-json-validation-build/llmx\",\n        \"--no-perf-floor\",\n        \"--require-baseline\"\n      ],\n      \"exit_code\": 0\n    }\n  ],\n  \"exe_sha256\": \"f84f357254b9ee4df4c6e9c53cc90f76ccba4f6becd63df3308138c340100eee\",\n  \"completed\": \"2026-09-20T04:48:19.423164+00:00\"\n}\n"
+    },
+    {
+      "path": "linux-fixed/launch-failure.json",
+      "bytes": 261,
+      "sha256": "75f5716df43a8e3f5db565a4702ce8bdaecc9913955332d5c2d90f1918582393",
+      "text": "{\r\n  \"status\": \"failed_before_build\",\r\n  \"exit_code\": 1,\r\n  \"reason\": \"Previous /tmp Linux build directory is absent after WSL lifecycle; no build or test command executed. Reconfigure a persistent owned build path; do not restart the running Windows job.\"\r\n}\r\n"
+    },
+    {
+      "path": "linux-fixed-reconfigured/build.stderr",
+      "bytes": 15436,
+      "sha256": "14dee9bd053c3ee4382c6bf1a3fb1388715687495c9827f5d9fe5de129910c1a",
+      "text": "In file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/../src/cli/main.cpp:33,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/cli_output.cpp:3:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/../src/cli/main.cpp:34:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/model/arch_qwen.hpp:14,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/inference/generate.hpp:9,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/generation_stream.cpp:2:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/model/arch_qwen.hpp:17:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_group.cpp:5:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:16,\n                 from /mnt/c/Users/Marko/Desktop/Projects/llmx/tests/backend_errors.cpp:8:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:33:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_0(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:78:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   78 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:79:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n   79 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp: In function \u2018void quant::quantize_row_q4_1(const float*, uint8_t*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:120:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  120 |             if (lo > 15) lo = 15; if (lo < 0) lo = 0;\n      |                                   ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:13: warning: this \u2018if\u2019 clause does not guard... [-Wmisleading-indentation]\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |             ^~\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/quant/quant.hpp:121:35: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the \u2018if\u2019\n  121 |             if (hi > 15) hi = 15; if (hi < 0) hi = 0;\n      |                                   ^~\nIn file included from /mnt/c/Users/Marko/Desktop/Projects/llmx/src/cli/main.cpp:34:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp: In member function \u2018float backend::CpuBackend::dot_row_impl(const uint8_t*, const float*, size_t)\u2019:\n/mnt/c/Users/Marko/Desktop/Projects/llmx/src/backends/cpu/cpu_backend.hpp:797:31: warning: comparison of integer expressions of different signedness: \u2018int\u2019 and \u2018const size_t\u2019 {aka \u2018const long unsigned int\u2019} [-Wsign-compare]\n  797 |             for (int j = 0; j < gguf::Q8_0_BLOCK; j++)\n      |                             ~~^~~~~~~~~~~~~~~~~~\n"
+    },
+    {
+      "path": "linux-fixed-reconfigured/build.stdout",
+      "bytes": 1634,
+      "sha256": "55f0ba4dbe8cf5df63023dd9a662635740e4dabc1c00647d588a25ef877d640b",
+      "text": "[  5%] Building CXX object CMakeFiles/llmx-json-test.dir/tests/json.cpp.o\n[  5%] Built target llmx-build-info\n[ 11%] Building CXX object CMakeFiles/llmx-cli-output-test.dir/tests/cli_output.cpp.o\n[ 16%] Linking CXX executable llmx-json-test\n[ 16%] Built target llmx-json-test\n[ 22%] Building CXX object CMakeFiles/llmx-load-progress-test.dir/tests/load_progress.cpp.o\n[ 27%] Linking CXX executable llmx-load-progress-test\n[ 27%] Built target llmx-load-progress-test\n[ 33%] Building CXX object CMakeFiles/llmx-generation-stream-test.dir/tests/generation_stream.cpp.o\n[ 38%] Linking CXX executable llmx-generation-stream-test\n[ 38%] Built target llmx-generation-stream-test\n[ 44%] Building CXX object CMakeFiles/llmx-backend-group-test.dir/tests/backend_group.cpp.o\n[ 50%] Linking CXX executable llmx-cli-output-test\n[ 50%] Built target llmx-cli-output-test\n[ 55%] Building CXX object CMakeFiles/llmx-backend-errors-test.dir/tests/backend_errors.cpp.o\n[ 61%] Linking CXX executable llmx-backend-errors-test\n[ 61%] Built target llmx-backend-errors-test\n[ 66%] Linking CXX executable llmx-backend-group-test\n[ 72%] Building CXX object CMakeFiles/llmx-chat-template-test.dir/tests/chat_template.cpp.o\n[ 72%] Built target llmx-backend-group-test\n[ 77%] Building CXX object CMakeFiles/llmx-kv-cache-test.dir/tests/kv_cache.cpp.o\n[ 83%] Linking CXX executable llmx-kv-cache-test\n[ 83%] Built target llmx-kv-cache-test\n[ 88%] Building CXX object CMakeFiles/llmx.dir/src/cli/main.cpp.o\n[ 94%] Linking CXX executable llmx-chat-template-test\n[ 94%] Built target llmx-chat-template-test\n[100%] Linking CXX executable llmx\n[100%] Built target llmx\n"
+    },
+    {
+      "path": "linux-fixed-reconfigured/configure.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "linux-fixed-reconfigured/configure.stdout",
+      "bytes": 508,
+      "sha256": "9dfc3d3fc40d481dfa833d04f4af55c1161154eb5d589601b5ff2224e0162344",
+      "text": "-- The CXX compiler identification is GNU 13.3.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /usr/bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n-- Found Threads: TRUE  \n-- Configuring done (3.0s)\n-- Generating done (0.1s)\n-- Build files have been written to: /root/llmx-work/json-validation-build\n"
+    },
+    {
+      "path": "linux-fixed-reconfigured/native-details.txt",
+      "bytes": 5214,
+      "sha256": "b59a78e593ae586290902117fc9191dbf10064acea449ea79c1bec66b7a49db8",
+      "text": "Start testing: Sep 20 07:54 EEST\n----------------------------------------------------------\n1/8 Testing: json\n1/8 Test: json\nCommand: \"/root/llmx-work/json-validation-build/llmx-json-test\"\nDirectory: /root/llmx-work/json-validation-build\n\"json\" start time: Sep 20 07:54 EEST\nOutput:\n----------------------------------------------------------\nJSON locale: custom C++ comma facet; installed C comma locale unavailable\nJSON: 1033 independent checks pass\n<end of output>\nTest time =   0.00 sec\n----------------------------------------------------------\nTest Passed.\n\"json\" end time: Sep 20 07:54 EEST\n\"json\" time elapsed: 00:00:00\n----------------------------------------------------------\n\n2/8 Testing: cli-output\n2/8 Test: cli-output\nCommand: \"/root/llmx-work/json-validation-build/llmx-cli-output-test\"\nDirectory: /root/llmx-work/json-validation-build\n\"cli-output\" start time: Sep 20 07:54 EEST\nOutput:\n----------------------------------------------------------\nCLI output: each byte chunk flushed immediately\n<end of output>\nTest time =   0.00 sec\n----------------------------------------------------------\nTest Passed.\n\"cli-output\" end time: Sep 20 07:54 EEST\n\"cli-output\" time elapsed: 00:00:00\n----------------------------------------------------------\n\n3/8 Testing: load-progress\n3/8 Test: load-progress\nCommand: \"/root/llmx-work/json-validation-build/llmx-load-progress-test\" \"/root/llmx-work/json-validation-build/load-progress-fixture.gguf\"\nDirectory: /root/llmx-work/json-validation-build\n\"load-progress\" start time: Sep 20 07:54 EEST\nOutput:\n----------------------------------------------------------\nload progress: payload bytes, chunks, adapter, truncation and consumer failures pass\n<end of output>\nTest time =   0.06 sec\n----------------------------------------------------------\nTest Passed.\n\"load-progress\" end time: Sep 20 07:54 EEST\n\"load-progress\" time elapsed: 00:00:00\n----------------------------------------------------------\n\n4/8 Testing: generation-stream\n4/8 Test: generation-stream\nCommand: \"/root/llmx-work/json-validation-build/llmx-generation-stream-test\"\nDirectory: /root/llmx-work/json-validation-build\n\"generation-stream\" start time: Sep 20 07:54 EEST\nOutput:\n----------------------------------------------------------\ngeneration stream: early delivery, UTF-8, filters, stop/EOS and consumer failures pass\n<end of output>\nTest time =   0.01 sec\n----------------------------------------------------------\nTest Passed.\n\"generation-stream\" end time: Sep 20 07:54 EEST\n\"generation-stream\" time elapsed: 00:00:00\n----------------------------------------------------------\n\n5/8 Testing: backend-group\n5/8 Test: backend-group\nCommand: \"/root/llmx-work/json-validation-build/llmx-backend-group-test\"\nDirectory: /root/llmx-work/json-validation-build\n\"backend-group\" start time: Sep 20 07:54 EEST\nOutput:\n----------------------------------------------------------\ngrouped projections: 540 cases, 141750 outputs checked against separate calls and double dots; 253952 exact finite Q8 scale/weight cases; 1824 ordered prefill reductions\n<end of output>\nTest time =   0.18 sec\n----------------------------------------------------------\nTest Passed.\n\"backend-group\" end time: Sep 20 07:54 EEST\n\"backend-group\" time elapsed: 00:00:00\n----------------------------------------------------------\n\n6/8 Testing: backend-errors\n6/8 Test: backend-errors\nCommand: \"/root/llmx-work/json-validation-build/llmx-backend-errors-test\"\nDirectory: /root/llmx-work/json-validation-build\n\"backend-errors\" start time: Sep 20 07:54 EEST\nOutput:\n----------------------------------------------------------\nstartup allocation failures: constructor=21 resize=3\nbackend errors: passed\n<end of output>\nTest time =   0.16 sec\n----------------------------------------------------------\nTest Passed.\n\"backend-errors\" end time: Sep 20 07:54 EEST\n\"backend-errors\" time elapsed: 00:00:00\n----------------------------------------------------------\n\n7/8 Testing: chat-template\n7/8 Test: chat-template\nCommand: \"/root/llmx-work/json-validation-build/llmx-chat-template-test\" \"/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/data/baseline_chat_template.json\"\nDirectory: /root/llmx-work/json-validation-build\n\"chat-template\" start time: Sep 20 07:54 EEST\nOutput:\n----------------------------------------------------------\n12 Qwen chat-template cases match Jinja2\n<end of output>\nTest time =   0.01 sec\n----------------------------------------------------------\nTest Passed.\n\"chat-template\" end time: Sep 20 07:54 EEST\n\"chat-template\" time elapsed: 00:00:00\n----------------------------------------------------------\n\n8/8 Testing: kv-cache\n8/8 Test: kv-cache\nCommand: \"/root/llmx-work/json-validation-build/llmx-kv-cache-test\"\nDirectory: /root/llmx-work/json-validation-build\n\"kv-cache\" start time: Sep 20 07:54 EEST\nOutput:\n----------------------------------------------------------\nKV storage: layer/head/lane isolation, growth, retained reset and bounds pass\n<end of output>\nTest time =   0.00 sec\n----------------------------------------------------------\nTest Passed.\n\"kv-cache\" end time: Sep 20 07:54 EEST\n\"kv-cache\" time elapsed: 00:00:00\n----------------------------------------------------------\n\nEnd testing: Sep 20 07:54 EEST\n"
+    },
+    {
+      "path": "linux-fixed-reconfigured/native.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "linux-fixed-reconfigured/native.stdout",
+      "bytes": 966,
+      "sha256": "b3c445d24b00a475901763ab5615bde3df2b6550edadaeb0ae4c06914f505356",
+      "text": "Internal ctest changing into directory: /root/llmx-work/json-validation-build\nTest project /root/llmx-work/json-validation-build\n    Start 1: json\n1/8 Test #1: json .............................   Passed    0.00 sec\n    Start 2: cli-output\n2/8 Test #2: cli-output .......................   Passed    0.00 sec\n    Start 3: load-progress\n3/8 Test #3: load-progress ....................   Passed    0.06 sec\n    Start 4: generation-stream\n4/8 Test #4: generation-stream ................   Passed    0.01 sec\n    Start 5: backend-group\n5/8 Test #5: backend-group ....................   Passed    0.18 sec\n    Start 6: backend-errors\n6/8 Test #6: backend-errors ...................   Passed    0.16 sec\n    Start 7: chat-template\n7/8 Test #7: chat-template ....................   Passed    0.01 sec\n    Start 8: kv-cache\n8/8 Test #8: kv-cache .........................   Passed    0.00 sec\n\n100% tests passed, 0 tests failed out of 8\n\nTotal Test time (real) =   0.44 sec\n"
+    },
+    {
+      "path": "linux-fixed-reconfigured/python.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "linux-fixed-reconfigured/python.stdout",
+      "bytes": 2518,
+      "sha256": "d49e3a0cf07d73e90785519171d5f804c355911e15eb79b6f56d1474ccc66918",
+      "text": "version: release/build identifier and usage banner agree  [ok]\n..\n----------------------------------------------------------------------\nRan 2 tests in 0.018s\n\nOK\n....\n----------------------------------------------------------------------\nRan 4 tests in 0.049s\n\nOK\nroundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nperf: matmul 40.82 GFLOPS (0.206 ms), prefill 6561 tok/s, decode 8117 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\nperf: hardware-specific floors disabled; timings are diagnostic only\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\nchat progress: completed loading percentages and per-turn phases stay on stderr  [ok]\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6581 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\n\n  version    PASS\n  reference-generator PASS\n  reference-consumer PASS\n  roundtrip  PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS\n"
+    },
+    {
+      "path": "linux-fixed-reconfigured/results.json",
+      "bytes": 1303,
+      "sha256": "46126d62680f88b460b6222ff166cbee1846739526c0777e0fb290ef427c58ef",
+      "text": "{\n  \"status\": \"pass\",\n  \"platform\": \"linux\",\n  \"started\": \"2026-09-20T04:54:21.456761+00:00\",\n  \"commands\": [\n    {\n      \"name\": \"configure\",\n      \"command\": [\n        \"cmake\",\n        \"-S\",\n        \"/mnt/c/Users/Marko/Desktop/Projects/llmx\",\n        \"-B\",\n        \"/root/llmx-work/json-validation-build\",\n        \"-DCMAKE_BUILD_TYPE=Release\"\n      ],\n      \"exit_code\": 0\n    },\n    {\n      \"name\": \"build\",\n      \"command\": [\n        \"cmake\",\n        \"--build\",\n        \"/root/llmx-work/json-validation-build\",\n        \"--config\",\n        \"Release\",\n        \"--parallel\",\n        \"2\"\n      ],\n      \"exit_code\": 0\n    },\n    {\n      \"name\": \"native\",\n      \"command\": [\n        \"ctest\",\n        \"--test-dir\",\n        \"/root/llmx-work/json-validation-build\",\n        \"-C\",\n        \"Release\",\n        \"--output-on-failure\"\n      ],\n      \"exit_code\": 0\n    },\n    {\n      \"name\": \"python\",\n      \"command\": [\n        \"/usr/bin/python3\",\n        \"-X\",\n        \"utf8\",\n        \"tests/run_tests.py\",\n        \"--exe\",\n        \"/root/llmx-work/json-validation-build/llmx\",\n        \"--no-perf-floor\",\n        \"--require-baseline\"\n      ],\n      \"exit_code\": 0\n    }\n  ],\n  \"exe_sha256\": \"dd5ed4b18f5ae4a24804c62aa4d5c888c27a945bc7d34a0806c4637a14268751\",\n  \"completed\": \"2026-09-20T04:56:57.318117+00:00\"\n}\n"
+    },
+    {
+      "path": "old-reader-test.cpp",
+      "bytes": 9631,
+      "sha256": "d30bb1c32d9e96ef8c6504145ec5332f2df7fc53512801b84fc10e446b4959f4",
+      "text": "#include \"core/json.hpp\"\n#include <clocale>\n#include <cmath>\n#include <iostream>\n#include <limits>\n#include <locale>\n\nsize_t checks = 0;\n\nvoid require(bool condition, const std::string& message) {\n    ++checks;\n    if (!condition) throw std::runtime_error(message);\n}\n\nvoid rejects(const std::string& input) {\n    bool rejected = false;\n    try { (void)jmini::parse(input); }\n    catch (const std::runtime_error&) { rejected = true; }\n    require(rejected, \"invalid JSON accepted (\" + std::to_string(input.size()) + \" bytes)\");\n}\n\nvoid number(const std::string& input, double expected) {\n    const auto value = jmini::parse(input);\n    require(value.isNumber() && value.asNumber() == expected,\n            \"wrong number: \" + input);\n    require(std::isfinite(value.asNumber()), \"nonfinite number accepted\");\n    if (expected == 0) require(std::signbit(value.asNumber()) == std::signbit(expected), \"zero sign changed\");\n}\n\nvoid string_value(const std::string& input, const std::string& expected) {\n    const auto value = jmini::parse(input);\n    require(value.isString() && value.asString() == expected, \"wrong decoded string bytes\");\n}\n\nvoid values() {\n    require(jmini::parse(\" \\t\\r\\nnull \\n\").t == jmini::Value::T::Null, \"null/whitespace\");\n    const auto yes = jmini::parse(\"true\"), no = jmini::parse(\"false\");\n    require(yes.t == jmini::Value::T::Bool && yes.b, \"true\");\n    require(no.t == jmini::Value::T::Bool && !no.b, \"false\");\n    const auto empty_array = jmini::parse(\"[]\"), empty_object = jmini::parse(\"{}\");\n    require(empty_array.isArray() && empty_array.asArray().empty(), \"empty array\");\n    require(empty_object.isObject() && empty_object.obj.empty(), \"empty object\");\n    const auto value = jmini::parse(\"{\\\"a\\\":[null,false,1.25,\\\"x\\\",{}],\\\"a\\\":2,\\\"z\\\":true}\");\n    require(value.isObject() && value.obj.size() == 3, \"object members\");\n    require(value.obj[0].first == \"a\" && value.obj[1].first == \"a\" && value.obj[2].first == \"z\", \"member order/duplicates\");\n    require(value.get(\"a\") == &value.obj[0].second && value.get(\"missing\") == nullptr, \"first duplicate lookup\");\n    const auto& array = value.get(\"a\")->asArray();\n    require(array.size() == 5 && array[0].t == jmini::Value::T::Null &&\n            array[1].t == jmini::Value::T::Bool && !array[1].b &&\n            array[2].asNumber() == 1.25 && array[3].asString() == \"x\" && array[4].isObject(), \"nested values\");\n    require(array[2].get(\"a\") == nullptr, \"nonobject lookup\");\n    const auto key = jmini::parse(\"{\\\"a\\\\u0000b\\\":7,\\\"\\\\u00e9\\\":8}\");\n    const auto* nul_key = key.get(std::string(\"a\\0b\", 3));\n    const auto* unicode_key = key.get(\"\\xc3\\xa9\");\n    require(nul_key && nul_key->asNumber() == 7, \"NUL key\");\n    require(unicode_key && unicode_key->asNumber() == 8, \"Unicode key\");\n}\n\nvoid numbers() {\n    for (const auto& entry : std::vector<std::pair<std::string, double>>{\n             {\"0\", 0.0}, {\"-0\", -0.0}, {\"-0.0e+10\", -0.0}, {\"0e999\", 0.0},\n             {\"1\", 1.0}, {\"-12\", -12.0}, {\"12.375\", 12.375}, {\"1E2\", 100.0},\n             {\"1e+2\", 100.0}, {\"125e-2\", 1.25}, {\"-1.25E+3\", -1250.0},\n             {\"9007199254740992\", 9007199254740992.0},\n             {\"1.7976931348623157e308\", std::numeric_limits<double>::max()},\n             {\"2.2250738585072014e-308\", std::numeric_limits<double>::min()},\n             {\"4.9406564584124654e-324\", std::numeric_limits<double>::denorm_min()},\n             {\"-4.9406564584124654e-324\", -std::numeric_limits<double>::denorm_min()}})\n        number(entry.first, entry.second);\n    for (const char* input : {\"+1\", \".5\", \"-.5\", \"1.\", \"01\", \"-01\", \"00\", \"0x10\",\n                              \"1e\", \"1e+\", \"1e-\", \"1E--2\", \"1e+-2\", \"--1\", \"-\", \"1+2\",\n                              \"1-2\", \"1.2.3\", \"1e2e3\", \"nan\", \"NaN\", \"Infinity\", \"-inf\",\n                              \"1e309\", \"-1e309\", \"1e-324\", \"-1e-999\", \"1.7976931348623159e308\"})\n        rejects(input);\n}\n\nvoid strings() {\n    string_value(\"\\\"\\\"\", \"\");\n    string_value(\"\\\"\\\\\\\"\\\\\\\\\\\\/\\\\b\\\\f\\\\n\\\\r\\\\t\\\"\", \"\\\"\\\\/\\b\\f\\n\\r\\t\");\n    string_value(\"\\\"a\\\\u0000b\\\"\", std::string(\"a\\0b\", 3));\n    for (const auto& entry : std::vector<std::pair<std::string, std::string>>{\n             {\"\\\\u007f\", \"\\x7f\"}, {\"\\\\u0080\", \"\\xc2\\x80\"},\n             {\"\\\\u07ff\", \"\\xdf\\xbf\"}, {\"\\\\u0800\", \"\\xe0\\xa0\\x80\"},\n             {\"\\\\uD7FF\", \"\\xed\\x9f\\xbf\"}, {\"\\\\uE000\", \"\\xee\\x80\\x80\"},\n             {\"\\\\uffff\", \"\\xef\\xbf\\xbf\"}, {\"\\\\u00e9\", \"\\xc3\\xa9\"},\n             {\"\\\\u4e2d\", \"\\xe4\\xb8\\xad\"}, {\"\\\\ud800\\\\udc00\", \"\\xf0\\x90\\x80\\x80\"},\n             {\"\\\\uDBFF\\\\uDFFF\", \"\\xf4\\x8f\\xbf\\xbf\"}, {\"\\\\ud83d\\\\ude00\", \"\\xf0\\x9f\\x98\\x80\"}}) {\n        string_value('\"' + entry.first + '\"', entry.second);\n        string_value('\"' + entry.second + '\"', entry.second);\n    }\n    for (unsigned c = 0; c < 32; ++c) rejects('\"' + std::string(1, char(c)) + '\"');\n    for (const char* input : {\"\\\"\", \"\\\"abc\", \"\\\"abc\\\\\", \"\\\"\\\\x\\\"\", \"\\\"\\\\v\\\"\", \"\\\"\\\\0\\\"\",\n                              \"\\\"\\\\u\\\"\", \"\\\"\\\\u0\\\"\", \"\\\"\\\\u00\\\"\", \"\\\"\\\\u000\\\"\", \"\\\"\\\\u000g\\\"\",\n                              \"\\\"\\\\u+123\\\"\", \"\\\"\\\\u 123\\\"\", \"\\\"\\\\ud800\\\"\", \"\\\"\\\\udfff\\\"\",\n                              \"\\\"\\\\ud800x\\\"\", \"\\\"\\\\ud800\\\\u0041\\\"\", \"\\\"\\\\ud800\\\\ud800\\\"\",\n                              \"\\\"\\\\udc00\\\\ud800\\\"\", \"\\\"\\\\ud800\\\\n\\\"\", \"\\\"\\\\ud800\\\\u12\\\"\"})\n        rejects(input);\n    for (const std::string& bytes : std::vector<std::string>{\n             \"\\x80\", \"\\xbf\", \"\\xc0\\x80\", \"\\xc1\\xbf\", \"\\xc2\", \"\\xdf\", \"\\xc2 \",\n             \"\\xe0\\x80\\x80\", \"\\xe0\\x9f\\xbf\", \"\\xe0\\xa0\", \"\\xe1\\x80\", \"\\xed\\xa0\\x80\",\n             \"\\xed\\xbf\\xbf\", \"\\xef\\xbf\", \"\\xf0\\x80\\x80\\x80\", \"\\xf0\\x8f\\xbf\\xbf\",\n             \"\\xf0\\x90\\x80\", \"\\xf4\\x90\\x80\\x80\", \"\\xf5\\x80\\x80\\x80\",\n             \"\\xf8\\x88\\x80\\x80\\x80\", \"\\xfe\", \"\\xff\", \"\\xe1\\x41\\x80\", \"\\xf1\\x80\\x41\\x80\"})\n        rejects('\"' + bytes + '\"');\n}\n\nvoid structure() {\n    for (const char* input : {\"\", \" \", \"[\", \"{\", \"[1\", \"{\\\"a\\\"\", \"{\\\"a\\\":\", \"{\\\"a\\\":1\",\n                              \"[1,]\", \"{\\\"a\\\":1,}\", \"[,1]\", \"[1,,2]\", \"{,}\", \"[1 2]\",\n                              \"{a:1}\", \"{\\\"a\\\" 1}\", \"{\\\"a\\\"::1}\", \"{\\\"a\\\":1 \\\"b\\\":2}\",\n                              \"[}\", \"{]\", \"}\", \"]\", \"true false\", \"nullx\", \"false0\", \"1 true\",\n                              \"{}[]\", \"\\\"x\\\"x\", \"t rue\", \"tr\\tue\", \"fal se\", \"n\\null\", \"True\",\n                              \"tru\", \"fals\", \"nul\", \"/*x*/null\", \"[//x\\n1]\", \"'x'\", \"\\vnull\", \"null\\f\"})\n        rejects(input);\n    rejects(std::string(\"null\\0\", 5));\n    rejects(std::string(\"\\0null\", 5));\n    rejects(\"\\xef\\xbb\\xbfnull\");\n    for (const char* valid : {\"null\", \"true\", \"false\", \"0\", \"[]\", \"{}\", \"\\\"x\\\"\"}) {\n        (void)jmini::parse(std::string(\" \\t\") + valid + \"\\n\\r\");\n        ++checks;\n        rejects(std::string(valid) + \"!\");\n    }\n}\n\nstd::string nested(size_t depth, int kind) {\n    std::string text = \"0\";\n    for (size_t i = 0; i < depth; ++i)\n        text = (kind == 0 || (kind == 2 && i % 2 == 0)) ? '[' + text + ']' : \"{\\\"x\\\":\" + text + '}';\n    return text;\n}\n\nvoid nesting() {\n    for (int kind : {0, 1, 2}) {\n        const auto value = jmini::parse(nested(256, kind));\n        const jmini::Value* leaf = &value;\n        size_t depth = 0;\n        while (leaf->isArray() || leaf->isObject()) {\n            ++depth;\n            if (leaf->isArray()) {\n                require(leaf->arr.size() == 1, \"nested array extent\");\n                leaf = &leaf->arr[0];\n            } else {\n                require(leaf->obj.size() == 1 && leaf->get(\"x\"), \"nested object extent\");\n                leaf = leaf->get(\"x\");\n            }\n        }\n        require(depth == 256 && leaf->isNumber() && leaf->asNumber() == 0, \"maximum nesting\");\n        rejects(nested(257, kind));\n    }\n    require(jmini::parse('[' + std::string(255, '[') + std::string(255, ']') + ']').isArray(), \"empty deepest container\");\n    require(jmini::parse('[' + nested(255, 0) + ',' + nested(255, 1) + ']').arr.size() == 2, \"sibling depth reset\");\n}\n\nstruct CommaDecimal : std::numpunct<char> {\n    char do_decimal_point() const override { return ','; }\n    char do_thousands_sep() const override { return '.'; }\n    std::string do_grouping() const override { return \"\\3\"; }\n};\n\nstruct RestoreLocale {\n    std::locale cpp = std::locale();\n    std::string c_all = std::setlocale(LC_ALL, nullptr);\n    ~RestoreLocale() {\n        std::locale::global(cpp);\n        std::setlocale(LC_ALL, c_all.c_str());\n    }\n};\n\nvoid locales() {\n    const std::locale before_cpp;\n    const std::string before_c = std::setlocale(LC_ALL, nullptr);\n    bool comma_c = false;\n    {\n        RestoreLocale restore;\n        std::locale::global(std::locale(restore.cpp, new CommaDecimal));\n        for (const char* name : {\"de_DE.UTF-8\", \"de_DE.utf8\", \"fr_FR.UTF-8\", \"German_Germany.1252\", \"German\"}) {\n            if (std::setlocale(LC_NUMERIC, name) && std::localeconv()->decimal_point[0] == ',') {\n                comma_c = true;\n                break;\n            }\n        }\n        number(\"1.25\", 1.25);\n        number(\"12e-1\", 1.2);\n        rejects(\"1,25\");\n        rejects(\"1.234,5\");\n    }\n    require(std::locale() == before_cpp && std::setlocale(LC_ALL, nullptr) == before_c, \"locale not restored\");\n    std::cout << \"JSON locale: custom C++ comma facet; installed C comma locale \"\n              << (comma_c ? \"checked\" : \"unavailable\") << '\\n';\n}\n\nint main() {\n    try {\n        values();\n        numbers();\n        strings();\n        structure();\n        nesting();\n        locales();\n        std::cout << \"JSON: \" << checks << \" independent checks pass\\n\";\n        return 0;\n    } catch (const std::exception& error) {\n        std::cerr << error.what() << '\\n';\n        return 1;\n    }\n}\n"
+    },
+    {
+      "path": "old-roundtrip.stderr",
+      "bytes": 527,
+      "sha256": "bdd4545432944ca74647067429e1c04c788094d05a866bc8dd94517ad8c3286d",
+      "text": "Traceback (most recent call last):\r\n  File \"<string>\", line 1, in <module>\r\n  File \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\roundtrip.py\", line 67, in run\r\n    restored = json.load(f)\r\n               ^^^^^^^^^^^^\r\n  File \"C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\json\\__init__.py\", line 293, in load\r\n    return loads(fp.read(),\r\n                 ^^^^^^^^^\r\n  File \"<frozen codecs>\", line 322, in decode\r\nUnicodeDecodeError: 'utf-8' codec can't decode byte 0xe9 in position 222: invalid continuation byte\r\n"
+    },
+    {
+      "path": "old-roundtrip.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "old-test-build.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "old-test-build.stdout",
+      "bytes": 10,
+      "sha256": "215c59c3ca9b2baa75f31342e984cd22981166ffd7c11db9288393fbfd7cc213",
+      "text": "json.cpp\r\n"
+    },
+    {
+      "path": "old-test.stderr",
+      "bytes": 13,
+      "sha256": "0557819e802095a9fd4cc42f148f7779e4f822358f92b2862ae0e7d05e0b939f",
+      "text": "Unicode key\r\n"
+    },
+    {
+      "path": "old-test.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "regression-provenance.json",
+      "bytes": 456,
+      "sha256": "d0cca02684cc48ecaafe08b2126b0f8df5a0cd036d4c2210d7de3d8e31557f1d",
+      "text": "{\r\n  \"old_test_source_sha256\": \"d30bb1c32d9e96ef8c6504145ec5332f2df7fc53512801b84fc10e446b4959f4\",\r\n  \"source\": \"old-reader-test.cpp\",\r\n  \"reconstruction\": \"Exact earlier test source restored by removing only subsequent quoting test function/call; digest matches independent pre-build agent record. regression.py originally built this version of tests/json.cpp.\",\r\n  \"old_cli_sha256\": \"9fcde79c839e1946117267e2fc0fa8b4a6d750cd25e4b6fc5b86644c806b283c\"\r\n}\r\n"
+    },
+    {
+      "path": "regression.json",
+      "bytes": 217,
+      "sha256": "477cc33ad82a0da34a7be1b77169a09e74b9df32bb9cb5b3fab50ecf6c6da264",
+      "text": "{\r\n  \"status\": \"pass\",\r\n  \"old_parser_test_exit\": 1,\r\n  \"old_parser_failure\": \"Unicode key\",\r\n  \"old_cli_roundtrip_exit\": 1,\r\n  \"old_cli_roundtrip_failure\": \"UnicodeDecodeError from malformed decoded tensor name\"\r\n}\r\n"
+    },
+    {
+      "path": "regression.py",
+      "bytes": 1825,
+      "sha256": "2526cf123ac7b3867c15dd7b43a10245c8d38339734c6831a2784822bdd3de73",
+      "text": "from pathlib import Path\r\nimport json,subprocess,sys\r\nr=Path(__file__).resolve().parent\r\nrepo=Path('C:/Users/Marko/Desktop/Projects/llmx')\r\nbat=r/'old-test-build.bat'\r\nbat.write_text('@echo off\\nset \"PATH=C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\Installer;%PATH%\"\\ncall \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\" >nul\\nif errorlevel 1 exit /b %errorlevel%\\ncl /nologo /std:c++17 /O2 /EHsc /W4 /I\"'+str(r/'old')+'\" \"'+str(repo/'tests/json.cpp')+'\" /Fe:\"'+str(r/'old-json-test.exe')+'\" /Fo:\"'+str(r/'old-json-test.obj')+'\"\\n',encoding='ascii')\r\nresult=subprocess.run(['cmd','/c',str(bat)],capture_output=True);(r/'old-test-build.stdout').write_bytes(result.stdout);(r/'old-test-build.stderr').write_bytes(result.stderr);result.check_returncode()\r\nresult=subprocess.run([str(r/'old-json-test.exe')],capture_output=True);(r/'old-test.stdout').write_bytes(result.stdout);(r/'old-test.stderr').write_bytes(result.stderr)\r\nassert result.returncode==1 and b'Unicode key' in result.stderr,(result.returncode,result.stderr)\r\nstate={'status':'pass','old_parser_test_exit':result.returncode,'old_parser_failure':result.stderr.decode().strip()}\r\ncommand=[sys.executable,'-X','utf8','-c',\"import sys;sys.path.insert(0,'tests');import roundtrip;roundtrip.run()\"]\r\nresult=subprocess.run(command,cwd=repo,capture_output=True);(r/'old-roundtrip.stdout').write_bytes(result.stdout);(r/'old-roundtrip.stderr').write_bytes(result.stderr)\r\nassert result.returncode!=0 and b'UnicodeDecodeError' in result.stderr,(result.returncode,result.stderr)\r\nstate.update(old_cli_roundtrip_exit=result.returncode,old_cli_roundtrip_failure='UnicodeDecodeError from malformed decoded tensor name')\r\n(r/'regression.json').write_text(json.dumps(state,indent=2)+'\\n');print(json.dumps(state,indent=2))\r\n"
+    },
+    {
+      "path": "sanitizer-build.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "sanitizer-build.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "sanitizer-final-build.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "sanitizer-final-build.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "sanitizer-final-test.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "sanitizer-final-test.stdout",
+      "bytes": 109,
+      "sha256": "6bdcb4f2451440a257d6497d522726be30a0ff6fc32e2c0e8bdc938488286322",
+      "text": "JSON locale: custom C++ comma facet; installed C comma locale unavailable\nJSON: 1033 independent checks pass\n"
+    },
+    {
+      "path": "sanitizer-final.json",
+      "bytes": 630,
+      "sha256": "de0271ca2dacb0ad44425f94ae4f2acc7da2da442318dd0ea58b8445cd4b66aa",
+      "text": "{\n  \"commands\": [\n    {\n      \"command\": [\n        \"g++\",\n        \"-std=c++17\",\n        \"-O1\",\n        \"-g\",\n        \"-Wall\",\n        \"-Wextra\",\n        \"-fsanitize=address,undefined\",\n        \"-fno-sanitize-recover=undefined\",\n        \"-fno-omit-frame-pointer\",\n        \"-I/mnt/c/Users/Marko/Desktop/Projects/llmx/src\",\n        \"/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/json.cpp\",\n        \"-o\",\n        \"/root/llmx-work/json-validation-sanitizer/json-test\"\n      ],\n      \"exit_code\": 0\n    },\n    {\n      \"command\": [\n        \"/root/llmx-work/json-validation-sanitizer/json-test\"\n      ],\n      \"exit_code\": 0\n    }\n  ]\n}\n"
+    },
+    {
+      "path": "sanitizer-test.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "sanitizer-test.stdout",
+      "bytes": 109,
+      "sha256": "7e06bb5b19bb6d105389ed49aaaffdd9aedd9b5f5618ee5d41856f147b57ce24",
+      "text": "JSON locale: custom C++ comma facet; installed C comma locale unavailable\nJSON: 1021 independent checks pass\n"
+    },
+    {
+      "path": "sanitizer.json",
+      "bytes": 618,
+      "sha256": "1b108eefda0f96e5e990a24d615834cb4e19bf8c3ea093b5df7b143bd2f8aa46",
+      "text": "{\n  \"commands\": [\n    {\n      \"command\": [\n        \"g++\",\n        \"-std=c++17\",\n        \"-O1\",\n        \"-g\",\n        \"-Wall\",\n        \"-Wextra\",\n        \"-fsanitize=address,undefined\",\n        \"-fno-sanitize-recover=undefined\",\n        \"-fno-omit-frame-pointer\",\n        \"-I/mnt/c/Users/Marko/Desktop/Projects/llmx/src\",\n        \"/mnt/c/Users/Marko/Desktop/Projects/llmx/tests/json.cpp\",\n        \"-o\",\n        \"/tmp/llmx-json-validation-sanitizer/json-test\"\n      ],\n      \"exit_code\": 0\n    },\n    {\n      \"command\": [\n        \"/tmp/llmx-json-validation-sanitizer/json-test\"\n      ],\n      \"exit_code\": 0\n    }\n  ]\n}\n"
+    },
+    {
+      "path": "verify-fixed.py",
+      "bytes": 2147,
+      "sha256": "815d56189303049b4775862e4f48b6ad8212b1b69704ee967551a7a2752cfe4e",
+      "text": "from pathlib import Path\r\nimport datetime,hashlib,json,subprocess,sys\r\nroot=Path(__file__).resolve().parent\r\nrepo=Path('C:/Users/Marko/Desktop/Projects/llmx') if sys.platform=='win32' else Path('/mnt/c/Users/Marko/Desktop/Projects/llmx')\r\nplatform='windows' if sys.platform=='win32' else 'linux'\r\nout=root/(platform+'-fixed');out.mkdir(exist_ok=False)\r\nbuild=root/'build-windows' if sys.platform=='win32' else Path('/tmp/llmx-json-validation-build')\r\nassert build.is_dir(),str(build)\r\nstate={'status':'running','platform':platform,'started':datetime.datetime.now(datetime.timezone.utc).isoformat(),'commands':[]}\r\ndef save():(out/'results.json').write_text(json.dumps(state,indent=2)+'\\n')\r\ndef run(name,command):\r\n    print('START',platform,name,flush=True)\r\n    result=subprocess.run(command,cwd=repo,capture_output=True)\r\n    (out/(name+'.stdout')).write_bytes(result.stdout);(out/(name+'.stderr')).write_bytes(result.stderr)\r\n    state['commands'].append({'name':name,'command':[str(x) for x in command],'exit_code':result.returncode})\r\n    save()\r\n    if result.returncode:\r\n        print(result.stdout.decode('utf-8',errors='replace')[-4000:],flush=True)\r\n        print(result.stderr.decode('utf-8',errors='replace')[-2000:],flush=True)\r\n    result.check_returncode();print('PASS',platform,name,flush=True)\r\ntry:\r\n    configure=['cmake','-S',str(repo),'-B',str(build),'-DCMAKE_BUILD_TYPE=Release']\r\n    if platform=='windows':configure+=['-G','Visual Studio 18 2026','-A','x64']\r\n    run('build',['cmake','--build',str(build),'--config','Release','--parallel','2'])\r\n    run('native',['ctest','--test-dir',str(build),'-C','Release','--output-on-failure'])\r\n    exe=build/'Release/llmx.exe' if platform=='windows' else build/'llmx'\r\n    run('python',[sys.executable,'-X','utf8','tests/run_tests.py','--exe',str(exe),'--no-perf-floor','--require-baseline'])\r\n    state['exe_sha256']=hashlib.sha256(exe.read_bytes()).hexdigest()\r\n    state['status']='pass'\r\nexcept BaseException as error:\r\n    state['status']='failed';state['error']=repr(error);save();raise\r\nstate['completed']=datetime.datetime.now(datetime.timezone.utc).isoformat();save()\r\n"
+    },
+    {
+      "path": "verify-linux-fixed.py",
+      "bytes": 2202,
+      "sha256": "a68148a7895a4741b589b8c6a0de26cc8470c5510f7f657bac0f8218b12ca5d6",
+      "text": "from pathlib import Path\r\nimport datetime,hashlib,json,subprocess,sys\r\nroot=Path(__file__).resolve().parent\r\nrepo=Path('C:/Users/Marko/Desktop/Projects/llmx') if sys.platform=='win32' else Path('/mnt/c/Users/Marko/Desktop/Projects/llmx')\r\nplatform='windows' if sys.platform=='win32' else 'linux'\r\nout=root/(platform+'-fixed-reconfigured');out.mkdir(exist_ok=False)\r\nbuild=root/'build-windows' if sys.platform=='win32' else Path('/root/llmx-work/json-validation-build')\r\nassert not build.exists(),str(build)\r\nstate={'status':'running','platform':platform,'started':datetime.datetime.now(datetime.timezone.utc).isoformat(),'commands':[]}\r\ndef save():(out/'results.json').write_text(json.dumps(state,indent=2)+'\\n')\r\ndef run(name,command):\r\n    print('START',platform,name,flush=True)\r\n    result=subprocess.run(command,cwd=repo,capture_output=True)\r\n    (out/(name+'.stdout')).write_bytes(result.stdout);(out/(name+'.stderr')).write_bytes(result.stderr)\r\n    state['commands'].append({'name':name,'command':[str(x) for x in command],'exit_code':result.returncode})\r\n    save()\r\n    if result.returncode:\r\n        print(result.stdout.decode('utf-8',errors='replace')[-4000:],flush=True)\r\n        print(result.stderr.decode('utf-8',errors='replace')[-2000:],flush=True)\r\n    result.check_returncode();print('PASS',platform,name,flush=True)\r\ntry:\r\n    configure=['cmake','-S',str(repo),'-B',str(build),'-DCMAKE_BUILD_TYPE=Release']\r\n    if platform=='windows':configure+=['-G','Visual Studio 18 2026','-A','x64']\r\n    run('configure',configure)\r\n    run('build',['cmake','--build',str(build),'--config','Release','--parallel','2'])\r\n    run('native',['ctest','--test-dir',str(build),'-C','Release','--output-on-failure'])\r\n    exe=build/'Release/llmx.exe' if platform=='windows' else build/'llmx'\r\n    run('python',[sys.executable,'-X','utf8','tests/run_tests.py','--exe',str(exe),'--no-perf-floor','--require-baseline'])\r\n    state['exe_sha256']=hashlib.sha256(exe.read_bytes()).hexdigest()\r\n    state['status']='pass'\r\nexcept BaseException as error:\r\n    state['status']='failed';state['error']=repr(error);save();raise\r\nstate['completed']=datetime.datetime.now(datetime.timezone.utc).isoformat();save()\r\n"
+    },
+    {
+      "path": "verify.py",
+      "bytes": 2172,
+      "sha256": "bb7aec45d59625ab9aea131712be4b68eb77f56033e05d165c4a051ce0cd9b94",
+      "text": "from pathlib import Path\r\nimport datetime,hashlib,json,subprocess,sys\r\nroot=Path(__file__).resolve().parent\r\nrepo=Path('C:/Users/Marko/Desktop/Projects/llmx') if sys.platform=='win32' else Path('/mnt/c/Users/Marko/Desktop/Projects/llmx')\r\nplatform='windows' if sys.platform=='win32' else 'linux'\r\nout=root/platform;out.mkdir(exist_ok=False)\r\nbuild=root/'build-windows' if sys.platform=='win32' else Path('/tmp/llmx-json-validation-build')\r\nassert not build.exists(),str(build)\r\nstate={'status':'running','platform':platform,'started':datetime.datetime.now(datetime.timezone.utc).isoformat(),'commands':[]}\r\ndef save():(out/'results.json').write_text(json.dumps(state,indent=2)+'\\n')\r\ndef run(name,command):\r\n    print('START',platform,name,flush=True)\r\n    result=subprocess.run(command,cwd=repo,capture_output=True)\r\n    (out/(name+'.stdout')).write_bytes(result.stdout);(out/(name+'.stderr')).write_bytes(result.stderr)\r\n    state['commands'].append({'name':name,'command':[str(x) for x in command],'exit_code':result.returncode})\r\n    save()\r\n    if result.returncode:\r\n        print(result.stdout.decode('utf-8',errors='replace')[-4000:],flush=True)\r\n        print(result.stderr.decode('utf-8',errors='replace')[-2000:],flush=True)\r\n    result.check_returncode();print('PASS',platform,name,flush=True)\r\ntry:\r\n    configure=['cmake','-S',str(repo),'-B',str(build),'-DCMAKE_BUILD_TYPE=Release']\r\n    if platform=='windows':configure+=['-G','Visual Studio 18 2026','-A','x64']\r\n    run('configure',configure)\r\n    run('build',['cmake','--build',str(build),'--config','Release','--parallel','2'])\r\n    run('native',['ctest','--test-dir',str(build),'-C','Release','--output-on-failure'])\r\n    exe=build/'Release/llmx.exe' if platform=='windows' else build/'llmx'\r\n    run('python',[sys.executable,'-X','utf8','tests/run_tests.py','--exe',str(exe),'--no-perf-floor','--require-baseline'])\r\n    state['exe_sha256']=hashlib.sha256(exe.read_bytes()).hexdigest()\r\n    state['status']='pass'\r\nexcept BaseException as error:\r\n    state['status']='failed';state['error']=repr(error);save();raise\r\nstate['completed']=datetime.datetime.now(datetime.timezone.utc).isoformat();save()\r\n"
+    },
+    {
+      "path": "windows/build.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "windows/build.stdout",
+      "bytes": 6781,
+      "sha256": "508d132894232a3e9c60d62a64d6be4efcdf2a69a347e1270590da9831a5f0d9",
+      "text": "MSBuild version 18.4.0+6e61e96ac for .NET Framework\r\n\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\ZERO_CHECK.vcxproj]\r\n  1>Checking Build System\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-build-info.vcxproj]\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-backend-errors-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-backend-group-test.vcxproj]\r\n  backend_errors.cpp\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  main.cpp\r\n  backend_group.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-chat-template-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  llmx-backend-errors-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-backend-errors-test.exe\r\n  chat_template.cpp\r\n  llmx-backend-group-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-backend-group-test.exe\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-cli-output-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  cli_output.cpp\r\n  llmx-chat-template-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-chat-template-test.exe\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-generation-stream-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  generation_stream.cpp\r\n  llmx.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx.exe\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-json-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  json.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-kv-cache-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  llmx-cli-output-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-cli-output-test.exe\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-load-progress-test.vcxproj]\r\n  kv_cache.cpp\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  load_progress.cpp\r\n  llmx-generation-stream-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-generation-stream-test.exe\r\n  llmx-json-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-json-test.exe\r\n  llmx-kv-cache-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-kv-cache-test.exe\r\n  llmx-load-progress-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-load-progress-test.exe\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\ALL_BUILD.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n"
+    },
+    {
+      "path": "windows/configure.stderr",
+      "bytes": 100,
+      "sha256": "86636419be5f41694021a22214958358dafafd1fce93325b4f8a5c90de622e1c",
+      "text": "CMake Warning:\n  Manually-specified variables were not used by the project:\n\n    CMAKE_BUILD_TYPE\n\n\n"
+    },
+    {
+      "path": "windows/configure.stdout",
+      "bytes": 900,
+      "sha256": "ec654fc40b469736098c9490b4592dfa1043409eca39f734338ec5a7bae6d8bb",
+      "text": "-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.19045.\n-- The CXX compiler identification is MSVC 19.50.35728.0\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed\n-- Looking for pthread_create in pthreads\n-- Looking for pthread_create in pthreads - not found\n-- Looking for pthread_create in pthread\n-- Looking for pthread_create in pthread - not found\n-- Found Threads: TRUE\n-- Configuring done (3.7s)\n-- Generating done (0.1s)\n-- Build files have been written to: C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\n"
+    },
+    {
+      "path": "windows/native.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "windows/native.stdout",
+      "bytes": 919,
+      "sha256": "5cbbe783bc682c05b73721855b8575949da014a9ec5a7e1327ef8bb52c291b5c",
+      "text": "Test project C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\n    Start 1: json\n1/8 Test #1: json .............................   Passed    0.03 sec\n    Start 2: cli-output\n2/8 Test #2: cli-output .......................   Passed    0.02 sec\n    Start 3: load-progress\n3/8 Test #3: load-progress ....................   Passed    0.06 sec\n    Start 4: generation-stream\n4/8 Test #4: generation-stream ................   Passed    0.03 sec\n    Start 5: backend-group\n5/8 Test #5: backend-group ....................   Passed    0.12 sec\n    Start 6: backend-errors\n6/8 Test #6: backend-errors ...................   Passed    1.03 sec\n    Start 7: chat-template\n7/8 Test #7: chat-template ....................   Passed    0.03 sec\n    Start 8: kv-cache\n8/8 Test #8: kv-cache .........................   Passed    0.03 sec\n\n100% tests passed, 0 tests failed out of 8\n\nTotal Test time (real) =   1.49 sec\n"
+    },
+    {
+      "path": "windows/python.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "windows/python.stdout",
+      "bytes": 2416,
+      "sha256": "61c81b3b461a6cd04a53dc658e05d59de23fa724a5f34774f5786206afc2c605",
+      "text": "version: release/build identifier and usage banner agree  [ok]\r\n..\r\n----------------------------------------------------------------------\r\nRan 2 tests in 0.013s\r\n\r\nOK\r\n....\r\n----------------------------------------------------------------------\r\nRan 4 tests in 0.055s\r\n\r\nOK\r\n  error: Invalid \\escape: line 2 column 14 (char 15)\r\nperf: matmul 39.22 GFLOPS (0.214 ms), prefill 7703 tok/s, decode 7324 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\r\nperf: hardware-specific floors disabled; timings are diagnostic only\r\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\r\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\r\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\r\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\r\nchat progress: completed loading percentages and per-turn phases stay on stderr  [ok]\r\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\r\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\r\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\r\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\r\n\r\n  version    PASS\r\n  reference-generator PASS\r\n  reference-consumer PASS\r\n  roundtrip  FAIL\r\n  perf       PASS\r\n  tokenizer  PASS\r\n  perplexity PASS\r\n  f32        PASS\r\n  chat       PASS\r\n  threads    PASS\r\n  baseline   PASS\r\n"
+    },
+    {
+      "path": "windows/results.json",
+      "bytes": 4471,
+      "sha256": "f97992ae19d207972ecd3ede4b299040ae31811711226b165ab48eb8998ec1aa",
+      "text": "{\r\n  \"status\": \"failed\",\r\n  \"platform\": \"windows\",\r\n  \"started\": \"2026-09-20T04:45:25.960072+00:00\",\r\n  \"commands\": [\r\n    {\r\n      \"name\": \"configure\",\r\n      \"command\": [\r\n        \"cmake\",\r\n        \"-S\",\r\n        \"C:\\\\Users\\\\Marko\\\\Desktop\\\\Projects\\\\llmx\",\r\n        \"-B\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-json-validation\\\\build-windows\",\r\n        \"-DCMAKE_BUILD_TYPE=Release\",\r\n        \"-G\",\r\n        \"Visual Studio 18 2026\",\r\n        \"-A\",\r\n        \"x64\"\r\n      ],\r\n      \"exit_code\": 0\r\n    },\r\n    {\r\n      \"name\": \"build\",\r\n      \"command\": [\r\n        \"cmake\",\r\n        \"--build\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-json-validation\\\\build-windows\",\r\n        \"--config\",\r\n        \"Release\",\r\n        \"--parallel\",\r\n        \"2\"\r\n      ],\r\n      \"exit_code\": 0\r\n    },\r\n    {\r\n      \"name\": \"native\",\r\n      \"command\": [\r\n        \"ctest\",\r\n        \"--test-dir\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-json-validation\\\\build-windows\",\r\n        \"-C\",\r\n        \"Release\",\r\n        \"--output-on-failure\"\r\n      ],\r\n      \"exit_code\": 0\r\n    },\r\n    {\r\n      \"name\": \"python\",\r\n      \"command\": [\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe\",\r\n        \"-X\",\r\n        \"utf8\",\r\n        \"tests/run_tests.py\",\r\n        \"--exe\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-json-validation\\\\build-windows\\\\Release\\\\llmx.exe\",\r\n        \"--no-perf-floor\",\r\n        \"--require-baseline\"\r\n      ],\r\n      \"exit_code\": 1\r\n    }\r\n  ],\r\n  \"error\": \"CalledProcessError(1, ['C:\\\\\\\\Users\\\\\\\\Marko\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Programs\\\\\\\\Python\\\\\\\\Python312\\\\\\\\python.exe', '-X', 'utf8', 'tests/run_tests.py', '--exe', 'C:\\\\\\\\Users\\\\\\\\Marko\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\llmx-json-validation\\\\\\\\build-windows\\\\\\\\Release\\\\\\\\llmx.exe', '--no-perf-floor', '--require-baseline'], b\\\"version: release/build identifier and usage banner agree  [ok]\\\\r\\\\n..\\\\r\\\\n----------------------------------------------------------------------\\\\r\\\\nRan 2 tests in 0.013s\\\\r\\\\n\\\\r\\\\nOK\\\\r\\\\n....\\\\r\\\\n----------------------------------------------------------------------\\\\r\\\\nRan 4 tests in 0.055s\\\\r\\\\n\\\\r\\\\nOK\\\\r\\\\n  error: Invalid \\\\\\\\escape: line 2 column 14 (char 15)\\\\r\\\\nperf: matmul 39.22 GFLOPS (0.214 ms), prefill 7703 tok/s, decode 7324 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\\\\r\\\\nperf: hardware-specific floors disabled; timings are diagnostic only\\\\r\\\\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\\\\r\\\\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\\\\r\\\\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\\\\r\\\\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\\\\r\\\\nchat progress: completed loading percentages and per-turn phases stay on stderr  [ok]\\\\r\\\\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\\\\r\\\\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\\\\r\\\\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\\\\r\\\\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\\\\r\\\\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\\\\r\\\\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\\\\r\\\\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\\\\r\\\\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\\\\r\\\\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\\\\r\\\\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\\\\r\\\\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\\\\r\\\\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\\\\r\\\\n\\\\r\\\\n  version    PASS\\\\r\\\\n  reference-generator PASS\\\\r\\\\n  reference-consumer PASS\\\\r\\\\n  roundtrip  FAIL\\\\r\\\\n  perf       PASS\\\\r\\\\n  tokenizer  PASS\\\\r\\\\n  perplexity PASS\\\\r\\\\n  f32        PASS\\\\r\\\\n  chat       PASS\\\\r\\\\n  threads    PASS\\\\r\\\\n  baseline   PASS\\\\r\\\\n\\\", b'')\"\r\n}\r\n"
+    },
+    {
+      "path": "windows-fixed/build.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "windows-fixed/build.stdout",
+      "bytes": 6676,
+      "sha256": "4f32e99bd272c862257499cc92ea726b49feaa73a90407616b61344f3b61ef36",
+      "text": "MSBuild version 18.4.0+6e61e96ac for .NET Framework\r\n\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\ZERO_CHECK.vcxproj]\r\n  1>Checking Build System\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-build-info.vcxproj]\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-backend-errors-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-backend-group-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-chat-template-test.vcxproj]\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  llmx-backend-group-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-backend-group-test.exe\r\n  llmx-backend-errors-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-backend-errors-test.exe\r\n  chat_template.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-cli-output-test.vcxproj]\r\n  main.cpp\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  cli_output.cpp\r\n  llmx-chat-template-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-chat-template-test.exe\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-generation-stream-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  llmx-generation-stream-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-generation-stream-test.exe\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-json-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  json.cpp\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-kv-cache-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  llmx-kv-cache-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-kv-cache-test.exe\r\n  llmx-json-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-json-test.exe\r\n  llmx-cli-output-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-cli-output-test.exe\r\n  llmx.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx.exe\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\llmx-load-progress-test.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n  llmx-load-progress-test.vcxproj -> C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\Release\\llmx-load-progress-test.exe\r\nC:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Microsoft\\VC\\v180\\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-json-validation\\build-windows\\ALL_BUILD.vcxproj]\r\n  Building Custom Rule C:/Users/Marko/Desktop/Projects/llmx/CMakeLists.txt\r\n"
+    },
+    {
+      "path": "windows-fixed/native-details.txt",
+      "bytes": 6196,
+      "sha256": "6e512c778c172c994659e38d178033a3485690ffa0cf6865baa6ece9351827ab",
+      "text": "Start testing: Sep 20 07:53 FLE Daylight Time\r\n----------------------------------------------------------\r\n1/8 Testing: json\r\n1/8 Test: json\r\nCommand: \"C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows/Release/llmx-json-test.exe\"\r\nDirectory: C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\r\n\"json\" start time: Sep 20 07:53 FLE Daylight Time\r\nOutput:\r\n----------------------------------------------------------\r\nJSON locale: custom C++ comma facet; installed C comma locale checked\r\nJSON: 1033 independent checks pass\r\n<end of output>\r\nTest time =   0.03 sec\r\n----------------------------------------------------------\r\nTest Passed.\r\n\"json\" end time: Sep 20 07:53 FLE Daylight Time\r\n\"json\" time elapsed: 00:00:00\r\n----------------------------------------------------------\r\n\r\n2/8 Testing: cli-output\r\n2/8 Test: cli-output\r\nCommand: \"C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows/Release/llmx-cli-output-test.exe\"\r\nDirectory: C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\r\n\"cli-output\" start time: Sep 20 07:53 FLE Daylight Time\r\nOutput:\r\n----------------------------------------------------------\r\nCLI output: each byte chunk flushed immediately\r\n<end of output>\r\nTest time =   0.02 sec\r\n----------------------------------------------------------\r\nTest Passed.\r\n\"cli-output\" end time: Sep 20 07:53 FLE Daylight Time\r\n\"cli-output\" time elapsed: 00:00:00\r\n----------------------------------------------------------\r\n\r\n3/8 Testing: load-progress\r\n3/8 Test: load-progress\r\nCommand: \"C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows/Release/llmx-load-progress-test.exe\" \"C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows/load-progress-fixture.gguf\"\r\nDirectory: C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\r\n\"load-progress\" start time: Sep 20 07:53 FLE Daylight Time\r\nOutput:\r\n----------------------------------------------------------\r\nload progress: payload bytes, chunks, adapter, truncation and consumer failures pass\r\n<end of output>\r\nTest time =   0.04 sec\r\n----------------------------------------------------------\r\nTest Passed.\r\n\"load-progress\" end time: Sep 20 07:53 FLE Daylight Time\r\n\"load-progress\" time elapsed: 00:00:00\r\n----------------------------------------------------------\r\n\r\n4/8 Testing: generation-stream\r\n4/8 Test: generation-stream\r\nCommand: \"C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows/Release/llmx-generation-stream-test.exe\"\r\nDirectory: C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\r\n\"generation-stream\" start time: Sep 20 07:53 FLE Daylight Time\r\nOutput:\r\n----------------------------------------------------------\r\ngeneration stream: early delivery, UTF-8, filters, stop/EOS and consumer failures pass\r\n<end of output>\r\nTest time =   0.02 sec\r\n----------------------------------------------------------\r\nTest Passed.\r\n\"generation-stream\" end time: Sep 20 07:53 FLE Daylight Time\r\n\"generation-stream\" time elapsed: 00:00:00\r\n----------------------------------------------------------\r\n\r\n5/8 Testing: backend-group\r\n5/8 Test: backend-group\r\nCommand: \"C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows/Release/llmx-backend-group-test.exe\"\r\nDirectory: C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\r\n\"backend-group\" start time: Sep 20 07:53 FLE Daylight Time\r\nOutput:\r\n----------------------------------------------------------\r\ngrouped projections: 540 cases, 141750 outputs checked against separate calls and double dots; 253952 exact finite Q8 scale/weight cases; 1824 ordered prefill reductions\r\n<end of output>\r\nTest time =   0.10 sec\r\n----------------------------------------------------------\r\nTest Passed.\r\n\"backend-group\" end time: Sep 20 07:53 FLE Daylight Time\r\n\"backend-group\" time elapsed: 00:00:00\r\n----------------------------------------------------------\r\n\r\n6/8 Testing: backend-errors\r\n6/8 Test: backend-errors\r\nCommand: \"C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows/Release/llmx-backend-errors-test.exe\"\r\nDirectory: C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\r\n\"backend-errors\" start time: Sep 20 07:53 FLE Daylight Time\r\nOutput:\r\n----------------------------------------------------------\r\nstartup allocation failures: constructor=24 resize=3\r\nbackend errors: passed\r\n<end of output>\r\nTest time =   1.00 sec\r\n----------------------------------------------------------\r\nTest Passed.\r\n\"backend-errors\" end time: Sep 20 07:53 FLE Daylight Time\r\n\"backend-errors\" time elapsed: 00:00:00\r\n----------------------------------------------------------\r\n\r\n7/8 Testing: chat-template\r\n7/8 Test: chat-template\r\nCommand: \"C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows/Release/llmx-chat-template-test.exe\" \"C:/Users/Marko/Desktop/Projects/llmx/tests/data/baseline_chat_template.json\"\r\nDirectory: C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\r\n\"chat-template\" start time: Sep 20 07:53 FLE Daylight Time\r\nOutput:\r\n----------------------------------------------------------\r\n12 Qwen chat-template cases match Jinja2\r\n<end of output>\r\nTest time =   0.03 sec\r\n----------------------------------------------------------\r\nTest Passed.\r\n\"chat-template\" end time: Sep 20 07:53 FLE Daylight Time\r\n\"chat-template\" time elapsed: 00:00:00\r\n----------------------------------------------------------\r\n\r\n8/8 Testing: kv-cache\r\n8/8 Test: kv-cache\r\nCommand: \"C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows/Release/llmx-kv-cache-test.exe\"\r\nDirectory: C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\r\n\"kv-cache\" start time: Sep 20 07:53 FLE Daylight Time\r\nOutput:\r\n----------------------------------------------------------\r\nKV storage: layer/head/lane isolation, growth, retained reset and bounds pass\r\n<end of output>\r\nTest time =   0.01 sec\r\n----------------------------------------------------------\r\nTest Passed.\r\n\"kv-cache\" end time: Sep 20 07:53 FLE Daylight Time\r\n\"kv-cache\" time elapsed: 00:00:00\r\n----------------------------------------------------------\r\n\r\nEnd testing: Sep 20 07:53 FLE Daylight Time\r\n"
+    },
+    {
+      "path": "windows-fixed/native.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "windows-fixed/native.stdout",
+      "bytes": 919,
+      "sha256": "37f52373f13eb08d1bad5fc4e5ce933b43700384a7495c0f9763ec0c2c83169a",
+      "text": "Test project C:/Users/Marko/AppData/Local/Temp/llmx-json-validation/build-windows\n    Start 1: json\n1/8 Test #1: json .............................   Passed    0.03 sec\n    Start 2: cli-output\n2/8 Test #2: cli-output .......................   Passed    0.02 sec\n    Start 3: load-progress\n3/8 Test #3: load-progress ....................   Passed    0.04 sec\n    Start 4: generation-stream\n4/8 Test #4: generation-stream ................   Passed    0.02 sec\n    Start 5: backend-group\n5/8 Test #5: backend-group ....................   Passed    0.10 sec\n    Start 6: backend-errors\n6/8 Test #6: backend-errors ...................   Passed    1.00 sec\n    Start 7: chat-template\n7/8 Test #7: chat-template ....................   Passed    0.03 sec\n    Start 8: kv-cache\n8/8 Test #8: kv-cache .........................   Passed    0.01 sec\n\n100% tests passed, 0 tests failed out of 8\n\nTotal Test time (real) =   1.31 sec\n"
+    },
+    {
+      "path": "windows-fixed/python.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    {
+      "path": "windows-fixed/python.stdout",
+      "bytes": 2562,
+      "sha256": "f902ab43f749ac1cc1aeb4fa5da81121c5af9ac30d114181cd80b08bd5da2244",
+      "text": "version: release/build identifier and usage banner agree  [ok]\r\n..\r\n----------------------------------------------------------------------\r\nRan 2 tests in 0.012s\r\n\r\nOK\r\n....\r\n----------------------------------------------------------------------\r\nRan 4 tests in 0.038s\r\n\r\nOK\r\nroundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\r\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\r\nperf: matmul 40.91 GFLOPS (0.205 ms), prefill 7726 tok/s, decode 7234 tok/s, rms_norm 0.001 ms, rope 0.000 ms  [ok]\r\nperf: hardware-specific floors disabled; timings are diagnostic only\r\ntokenizer: encode->decode round-trip 'hello' -> hello  [ok]\r\nperplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]\r\nf32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000070  [ok]\r\nchat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]\r\nchat progress: completed loading percentages and per-turn phases stay on stderr  [ok]\r\nthreads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]\r\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\r\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\r\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1]: PPL 28.8371 vs HF 28.7974, NLL delta 0.001374 <= 0.010  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4]: PPL 56.6580 vs HF 56.2812, NLL delta 0.006670 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2]: PPL 40.9581 vs HF 40.8602, NLL delta 0.002393 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2]: PPL 38.2140 vs HF 37.7428, NLL delta 0.012406 <= 0.020  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1]: PPL 32.8463 vs HF 28.7974, NLL delta 0.131554 <= 0.160  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4]: PPL 66.5492 vs HF 56.2812, NLL delta 0.167580 <= 0.200  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2]: PPL 43.7750 vs HF 40.8602, NLL delta 0.068903 <= 0.200  [ok]\r\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2]: PPL 42.5740 vs HF 37.7428, NLL delta 0.120446 <= 0.200  [ok]\r\n\r\n  version    PASS\r\n  reference-generator PASS\r\n  reference-consumer PASS\r\n  roundtrip  PASS\r\n  perf       PASS\r\n  tokenizer  PASS\r\n  perplexity PASS\r\n  f32        PASS\r\n  chat       PASS\r\n  threads    PASS\r\n  baseline   PASS\r\n"
+    },
+    {
+      "path": "windows-fixed/results.json",
+      "bytes": 1266,
+      "sha256": "d5b6c9a0504274c2f1cc4d0c63146b8c89be5de409cdcb2603ce6e4dd9dd8e8b",
+      "text": "{\r\n  \"status\": \"pass\",\r\n  \"platform\": \"windows\",\r\n  \"started\": \"2026-09-20T04:53:44.740807+00:00\",\r\n  \"commands\": [\r\n    {\r\n      \"name\": \"build\",\r\n      \"command\": [\r\n        \"cmake\",\r\n        \"--build\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-json-validation\\\\build-windows\",\r\n        \"--config\",\r\n        \"Release\",\r\n        \"--parallel\",\r\n        \"2\"\r\n      ],\r\n      \"exit_code\": 0\r\n    },\r\n    {\r\n      \"name\": \"native\",\r\n      \"command\": [\r\n        \"ctest\",\r\n        \"--test-dir\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-json-validation\\\\build-windows\",\r\n        \"-C\",\r\n        \"Release\",\r\n        \"--output-on-failure\"\r\n      ],\r\n      \"exit_code\": 0\r\n    },\r\n    {\r\n      \"name\": \"python\",\r\n      \"command\": [\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe\",\r\n        \"-X\",\r\n        \"utf8\",\r\n        \"tests/run_tests.py\",\r\n        \"--exe\",\r\n        \"C:\\\\Users\\\\Marko\\\\AppData\\\\Local\\\\Temp\\\\llmx-json-validation\\\\build-windows\\\\Release\\\\llmx.exe\",\r\n        \"--no-perf-floor\",\r\n        \"--require-baseline\"\r\n      ],\r\n      \"exit_code\": 0\r\n    }\r\n  ],\r\n  \"exe_sha256\": \"bd75125f5b9146b4080aa143fe0a76e22c65e3fd0305170750bbf8a57af33777\",\r\n  \"completed\": \"2026-09-20T04:55:52.739857+00:00\"\r\n}\r\n"
+    }
+  ],
+  "limits": [
+    "Metadata parsing is outside inference hot paths. Diagnostic benchmark smoke results are not external parity evidence.",
+    "Native/Windows/Linux checks do not establish a hosted macOS run.",
+    "Tensor-schema/range/extent arithmetic and general non-ASCII filesystem paths are outside this change.",
+    "The enclosing runtime stack retains its existing HF/mx merge requirements; no GitHub feature-branch push."
+  ],
+  "final_review": {
+    "path": "review.json",
+    "sha256": "1138016a60998674c758d4b778ff3d48da35624065343804a6c91380c8e9f157",
+    "report": {
+      "status": "pass",
+      "scope": "Independent source/test/CMake/documentation and saved-evidence review only. No additional build, test, model or benchmark run.",
+      "pre_embedding_artifact_sha256": "859fbb1c65f36b1d5cac08c6a6301593c95f88ed998bca96178262fd505791e9",
+      "artifact_bytes": 132053,
+      "evidence_records_checked": 62,
+      "all_records_exact_utf8_bytes_and_sha256": true,
+      "source_identities": [
+        {
+          "path": "src/core/json.hpp",
+          "sha256": "1690c48431a92c06f48d902055f49a2a26378044cbab916a406486648f7f3def",
+          "bytes": 10267
+        },
+        {
+          "path": "src/cli/main.cpp",
+          "sha256": "67ef2e78729b1da4fa52b524cf074e570645823d6937349f8d2b125e3b28afe9",
+          "bytes": 38920
+        },
+        {
+          "path": "tests/json.cpp",
+          "sha256": "71d6bc6f3d50ecba6109ec83032b0c22a1177138ea9d500d26e680697b07122c",
+          "bytes": 10212
+        },
+        {
+          "path": "tests/roundtrip.py",
+          "sha256": "d6091d7d8d1efdbb6fbc19c5996edb69f2f51960217abc9d20a5185e7eed5694",
+          "bytes": 4305
+        },
+        {
+          "path": "CMakeLists.txt",
+          "sha256": "63910c5d0ed71359e4be040b1c4f9e26847220c3aa12effeb98aa84c0e8d1a6e",
+          "bytes": 5335
+        }
+      ],
+      "all_markdown": [
+        {
+          "path": "AGENTS.md",
+          "sha256": "9a01abc80e3e8b1ce61151a9c7492e82f86f331cbfade97c5ea443b2a3844ea6",
+          "bytes": 16742,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "README.md",
+          "sha256": "81ee01203cef3e8d478fb6701ee95feba7be705ec217f434162b9d90135ae190",
+          "bytes": 6185,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/ARCHITECTURE.md",
+          "sha256": "ae04d0cc99739edcf18698a15d937035b2332ad28095a5608f09bf22dc9db1aa",
+          "bytes": 9094,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/ASSETS.md",
+          "sha256": "91ccd41e1e8d16fd6f2201aafcebb8f335f70c2713b7dd36e54aa09d3bf8130a",
+          "bytes": 165872,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/CI.md",
+          "sha256": "c431c6017a9148f23486eb9b4282c91521c6080caa37ea7369bb279a9fde5fb5",
+          "bytes": 6432,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/ROADMAP.md",
+          "sha256": "31158b498cf6b8f3899f3ba3bdfa534333a89ea1b1aa95caa77df9d3ea353c71",
+          "bytes": 13993,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/STATUS.md",
+          "sha256": "a5440093226a33198e59fa363aa27047b65000b4fa0d877b290680ac217c7d64",
+          "bytes": 94091,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/USAGE.md",
+          "sha256": "2ea297b8712e8f8391a08834ff529abe5cfbc08927d33df51090c2cd3422cc64",
+          "bytes": 14080,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/backends-backend.md",
+          "sha256": "3e32bfe879237a916f4f3ae51902fe084c45cbc4688de13ea9c5c56df1f2e5d6",
+          "bytes": 2369,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/backends-cpu.md",
+          "sha256": "28640dd562778891a518a4a4cd2e0769b2ba006f6764b84e112c49dcecebca7e",
+          "bytes": 4596,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/cli-main.md",
+          "sha256": "6fb2f609ce8ca20d4029a4ab0f2e82c9a354ebc71d4227d3e25782504fa96edf",
+          "bytes": 2630,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/config.md",
+          "sha256": "d2e72b7ea54d1cfb934f1a826e6dad8dbab99800526c901024a4418e53e69624",
+          "bytes": 1494,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/core-fp16.md",
+          "sha256": "8daeffa5bd5d081ffeda88e4be2a835cc343e80a21bbdf9f28632499ea55b3fa",
+          "bytes": 1137,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/core-json.md",
+          "sha256": "6e9bea724c7b15f3b53642e128a3adbbee9c70bddfd9945ce1cd6208b988f42b",
+          "bytes": 2302,
+          "ascii": true,
+          "matches_prior_complete_review": false,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/format-format.md",
+          "sha256": "7448366de8de189ff82342a32f734dc9f1ce785e30710a02e274ac2b3ed8c9aa",
+          "bytes": 1150,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/format-gguf.md",
+          "sha256": "929ae59303e3d9185a1bef1e715da6d8d97e51308a383879e9412c07a3416859",
+          "bytes": 2438,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/inference-chat.md",
+          "sha256": "9c1e6ed2a251aae5790f05bf2f92f04039d581cc8b7b92a4da6c9327261d2a9c",
+          "bytes": 1431,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/inference-generate.md",
+          "sha256": "92b51f3d9812414e1545cf291cb23790c6a80806b47a5f0461778d0b4407608e",
+          "bytes": 1462,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/inference-perplexity.md",
+          "sha256": "9b5949c09f319fe13e91fc6ee88ba40f2b0142592ceeec91b5d8df883fe72efc",
+          "bytes": 970,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/inference-sampler.md",
+          "sha256": "3cffbc0236f926218d3b7918a971b0aa57da89379ee5db2369408011589278f5",
+          "bytes": 687,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/model-arch_qwen.md",
+          "sha256": "0e316812f5249ef6b7f5b2c09ed7c81877e18ee380100085b209e6c5afc48081",
+          "bytes": 3321,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/model-host_kv_cache.md",
+          "sha256": "601346653a4d20270564fc4f735299c0502ef4a30249732f8d47a43099c206c7",
+          "bytes": 1692,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/quant-k_quants.md",
+          "sha256": "bdd96fe86e9cead5bc225f36e8e547058b44be0eb66800a5ba36be856a7890a2",
+          "bytes": 614,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/quant-quant.md",
+          "sha256": "1741a3cb4c9cb85c38a7c1597286ba4b6ca44264cf03c7df71f2071f8e551995",
+          "bytes": 1802,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        },
+        {
+          "path": "docs/src/tokenizer-tokenizer.md",
+          "sha256": "609aed5ded18bb621cfd14615c393ca6ae1181f3c52fad1251c97058f9a1453d",
+          "bytes": 731,
+          "ascii": true,
+          "matches_prior_complete_review": true,
+          "local_links_valid": true
+        }
+      ],
+      "local_link_targets_checked": 65,
+      "previous_complete_review": {
+        "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-native-decode-sampling\\review\\final-docs-review.json",
+        "sha256": "713b4128b784ce1241be8fcb198d9c676ae90527b6881ac425b29baddf49d6b3"
+      },
+      "results": {
+        "windows": {
+          "status": "failed",
+          "result_sha256": "f97992ae19d207972ecd3ede4b299040ae31811711226b165ab48eb8998ec1aa"
+        },
+        "linux": {
+          "status": "pass",
+          "result_sha256": "e88af18895afbc0122fb9c14678022382a3f44a2d02672184cbb5f84c4695c19"
+        },
+        "windows-fixed": {
+          "status": "pass",
+          "result_sha256": "d5b6c9a0504274c2f1cc4d0c63146b8c89be5de409cdcb2603ce6e4dd9dd8e8b",
+          "native_tests": 8,
+          "json_checks": 1033,
+          "python_components": 11
+        },
+        "linux-fixed-reconfigured": {
+          "status": "pass",
+          "result_sha256": "46126d62680f88b460b6222ff166cbee1846739526c0777e0fb290ef427c58ef",
+          "native_tests": 8,
+          "json_checks": 1033,
+          "python_components": 11
+        }
+      },
+      "sanitizer_final": {
+        "build_exit": 0,
+        "run_exit": 0,
+        "checks": 1033,
+        "stderr_empty": true
+      },
+      "preserved_failure_history": {
+        "initial_windows_python": "10/11, dequantize Windows path emitted without JSON escaping",
+        "initial_linux_python": "11/11, before quote helper extension",
+        "linux_later_launch": {
+          "status": "failed_before_build",
+          "exit_code": 1,
+          "reason": "Previous /tmp Linux build directory is absent after WSL lifecycle; no build or test command executed. Reconfigure a persistent owned build path; do not restart the running Windows job."
+        },
+        "old_parser_and_root_cli_regression": {
+          "status": "pass",
+          "old_parser_test_exit": 1,
+          "old_parser_failure": "Unicode key",
+          "old_cli_roundtrip_exit": 1,
+          "old_cli_roundtrip_failure": "UnicodeDecodeError from malformed decoded tensor name"
+        },
+        "old_reader_source": {
+          "old_test_source_sha256": "d30bb1c32d9e96ef8c6504145ec5332f2df7fc53512801b84fc10e446b4959f4",
+          "source": "old-reader-test.cpp",
+          "reconstruction": "Exact earlier test source restored by removing only subsequent quoting test function/call; digest matches independent pre-build agent record. regression.py originally built this version of tests/json.cpp.",
+          "old_cli_sha256": "9fcde79c839e1946117267e2fc0fa8b4a6d750cd25e4b6fc5b86644c806b283c"
+        }
+      },
+      "root_executable_sha256": "9fcde79c839e1946117267e2fc0fa8b4a6d750cd25e4b6fc5b86644c806b283c",
+      "preserved_untracked_user_files": {
+        "build_test.bat": "a6a9bc99130d62d30b27ebd279f8acaca72006888f52c2ffff8ba3f76925c36f",
+        "chat_template.txt": "79d9011d7d9195afee9fdb82b435cab8b5080ce1d1580ec365731eaccde70741"
+      },
+      "changed_production_source": [
+        "src/cli/main.cpp",
+        "src/core/json.hpp"
+      ],
+      "findings": [],
+      "resolved_findings": [
+        "Floating from_chars portability risk avoided by classic-locale C++17 stream conversion after strict lexical scan.",
+        "Initial Windows roundtrip failure exposed existing output escaping bug, resolved using minimal quote helper in two CLI fields. Failed evidence retained.",
+        "Current stale JSON limitations updated in architecture, roadmap and source documentation without claiming tensor schema safety."
+      ],
+      "review_conclusions": [
+        "Strict complete-document grammar, literal/number syntax, bounded escape/UTF8 handling, surrogate-pair decoding and256-container limit have no source-review blocker.",
+        "Value API and ordered duplicate get-first behavior preserved; finite double rounding/range limits and Unicode scalar restriction documented as policies.",
+        "Quote helper escapes control bytes, quote and backslash; validUTF8 input is a precondition, not a general malformed-GGUF validator or object serializer.",
+        "Tests use independently expected numeric/decoded/quoted bytes;1033 counts checks, including repeated depth assertions, not independent documents.",
+        "Actual Q8/Q4 integration uses Python json.load to verify source path plus BMP/supplementary Unicode, quote, backslash and newline names. Quantization bounds unchanged.",
+        "CMake adds eighth native test; Python suite remains11components. Hosted AppleClang/macOS not claimed. No inference arithmetic or external performance result changed.",
+        "All25 Markdown reviewed; unchanged files reuse exact preceding full-review content, changed files reread against implementation and saved results.",
+        "User performance-tradeoff clarification permits reassessment of placement despite historical per-case cutoff failures; history and explicit HF/mx comparisons remain required.",
+        "Final STATUS/ASSETS reread and hashes refreshed after historical placement-stop wording was explicitly scoped to its original screen; current user-authorized reassessment remains open.",
+        "Final contention-policy paragraphs in AGENTS, ROADMAP and STATUS reviewed: timestamped process/system CPU, disk and GPU before/during matched arms, consistent low-overhead observer, prospective contamination criteria, preserve inconclusive blocks and repeat whole blocks, unavailable telemetry disclosed. Historical measurements are not retroactively certified idle. No claim monitor already implemented."
+      ],
+      "reference_sources": [
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc8259.html",
+          "use": "JSON syntax and implementation limits. Unicode scalar restriction is project policy."
+        },
+        {
+          "url": "https://libcxx.llvm.org/Status/Cxx17.html",
+          "use": "Identified float from_chars availability risk; final conversion avoids that overload."
+        }
+      ],
+      "limitations": [
+        "No arbitrary-precision integers, tensor-schema/range/extent arithmetic or general nonASCII filesystem compatibility proved.",
+        "Platform runs executed by parent; reviewer inspected terminal logs/commands/hashes rather than rerunning.",
+        "Old reader source reconstructed exactly with recorded pre-writer test hash; initial recipe referenced the then-current tests/json.cpp.",
+        "Initial review data checker omitted digits from Python component-name regex, noticed f32 omission, corrected to [a-z0-9-]+; no product/test/model rerun."
+      ],
+      "post_embedding_note": "Parent may append report last; pre_embedding_artifact_sha256 identifies inspected archive before append."
+    }
+  }
+}

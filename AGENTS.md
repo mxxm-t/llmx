@@ -34,6 +34,19 @@ by the plain `build.bat` path. Keep the two in sync when you add build knobs.
   attention, KV cache) should state the perf impact and be benchmarked, not just
   verified for correctness. When correctness and speed trade off, prefer the
   fast path and prove it is lossless (see `docs/ROADMAP.md` correctness gate).
+- **Assess performance tradeoffs.** Report gains and regressions together across
+  phases and models. A large gain can justify a minor loss elsewhere; do not
+  automatically reject it on an isolated per-case cutoff. Preserve all results
+  and explain the workload tradeoff. HF correctness and matched mx comparisons
+  remain required.
+- **Check machine contention.** Record timestamped background process CPU use
+  and system CPU, disk and GPU activity before and throughout performance runs,
+  using the same low-overhead monitoring in every arm. Separate benchmark and
+  monitor activity from unrelated work. Do not run competing builds, tests or
+  downloads. Define contamination criteria before measuring; preserve affected
+  results, mark them inconclusive and repeat the complete matched block after
+  the machine is quiet. Do not discard isolated slow samples. If monitoring is
+  unavailable, report that limitation instead of assuming the machine was idle.
 - **Dependency-free.** No external libs. The whole point is to control the full
   stack; reaching for a library erodes that.
 - **Lean, not clever.** Add a seam only when a second implementation is on the
@@ -91,6 +104,10 @@ after a CMake build:
 ```
 ctest --test-dir build -C Release --output-on-failure
 ```
+
+`json` checks syntax, numeric/locale boundaries, UTF-8 and escaped Unicode,
+malformed input, nesting limits and JSON output string escaping. The Q8/Q4 round-trip test also checks
+escaped Unicode tensor names through the actual CLI.
 
 `backend-group` checks mixed types, uneven rows, batches, thread counts,
 output boundaries and fallback behavior against separate calls and double dots.

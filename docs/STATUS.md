@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/cpu-native-decode-sampling`, based on research checkpoint `0b7c568` and
+`fix/json-validation`, based on research checkpoint `6fc9ce5` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -50,7 +50,8 @@ by its completed screen because small-model decode regresses. Its independent
 timing audit and full 25-file Markdown checkpoint review are complete.
 The subsequent synchronous callback integration also fails its frozen screen:
 8B decode mean is 0.574% below disabled prototype, beyond the 0.5% limit.
-Placement adoption stops. Independent timing/archive audit and the full
+That original screen stopped adoption; the user tradeoff clarification below
+reopens assessment. Independent timing/archive audit and the full
 25-file Markdown checkpoint review are complete.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
@@ -66,6 +67,7 @@ External performance requirements still block main/GitHub publication.
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
 | More model architectures (Llama, ...)    | Planned  |
 | More formats (safetensors, ...)          | Planned  |
+| JSON syntax and Unicode validation      | In Progress |
 | Device execution model (GPU prerequisite) | Planned |
 | GPU backends (ROCm first, Vulkan portability) | Planned |
 | Multi-device split                       | Planned  |
@@ -97,7 +99,54 @@ External performance requirements still block main/GitHub publication.
 | HF integration (pull + Hub formats)      | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
+**Performance tradeoff clarification (2026-09-20):** the user asks that a
+large gain in one phase not be automatically rejected for a minor loss in
+another. Assess and report the complete workload tradeoff, retaining HF
+correctness and explicit matched mx comparisons. Prior frozen-screen results
+remain historical facts; the prefill-placement decision will be reassessed
+after the JSON checkpoint under this clarified preference. No candidate has
+yet been adopted or remeasured under that assessment.
+
+**Machine contention requirement (2026-09-20):** the user requires checking
+whether other demanding work is using the PC during measurements. Upcoming
+placement validation must capture background process CPU use and system
+CPU/disk/GPU activity before and throughout every arm. Use predefined
+contamination criteria, preserve affected matched blocks as inconclusive and
+repeat complete blocks after contention clears. Existing small differences
+cannot retroactively be certified contention-free without the needed evidence.
+Monitoring for the reopened comparison is still to be implemented and checked.
+
 ## Active feature blocks
+
+### JSON validation, Unicode decoding and output escaping
+
+- **Goal:** fix current model-description JSON handling and the documented
+  ROADMAP #9b prerequisite for HF metadata/safetensors, without dependencies.
+- **Done:** strict number/literal/escape syntax, classic-locale finite-double
+  conversion, validated UTF-8 and UTF-16 surrogate-pair decoding, and a
+  256-container nesting bound. Value/API and duplicate get-first behavior stay
+  unchanged. A small string quoting helper now escapes both dequantize path
+  and tensor-name fields, including quotes, backslashes and control bytes.
+- **Done:** final Windows/Linux builds and native tests pass 8/8; both full
+  required-HF Python suites pass 11/11. Native JSON has 1,033 checks, including
+  independent expected bytes, numeric/locale limits and malformed input.
+  Linux ASan+UBSan passes the same checks. Actual Q8/Q4 CLI round trips retain
+  BMP/supplementary Unicode, quotes, backslashes, newline and source paths.
+  Old parser/CLI regressions fail as expected. The initial new-reader Windows
+  suite exposed the existing output-escaping bug; its failed result remains
+  archived alongside successful final runs. A missing temporary Linux build
+  directory caused one later launch to fail before executing any build/test;
+  final Linux validation uses a persistent owned build directory.
+- **Left:** include the validated fix with the runtime stack when its external
+  requirements pass; hosted macOS execution remains unobserved locally.
+  All project Markdown is reviewed at this checkpoint. Evidence:
+  [`json-validation-20260920.json`](benchmarks/json-validation-20260920.json).
+- **Gotchas:** 1,033 counts checks, not independent input documents. Numeric
+  storage is double, not exact arbitrary-precision integers. Lone surrogates,
+  invalid UTF-8, overflow and nonzero underflow to zero are rejected by policy.
+  Quoting expects valid UTF-8; tensor-schema/range/extent arithmetic and general
+  filesystem-path handling remain separate. No inference arithmetic changes.
+  Suite timings are diagnostic; existing HF/mx merge requirements stay open.
 
 ### Native CPU decode sampling (diagnostic complete)
 
@@ -181,7 +230,7 @@ External performance requirements still block main/GitHub publication.
   Production source, tests, build/CI and root executable remain unchanged.
   Full evidence: [`cpu-decode-caller-cost-20260920.json`](benchmarks/cpu-decode-caller-cost-20260920.json).
 
-### Synchronous CPU prefill placement (scratch integration screened out)
+### Synchronous CPU prefill placement (old screen failed; reassessment reopened)
 
 - **Goal:** test one backend-owned synchronous callback around the complete
   prefill, after the smaller operation-local candidate failed. Keep platform
@@ -190,7 +239,10 @@ External performance requirements still block main/GitHub publication.
   pass against fresh production and disabled prototype, with 5/5 wins against
   each. However, 8B decode mean loses 0.573915% against disabled, beyond the
   frozen 0.5% limit. Reject this integration and stop placement adoption.
-  No retest, sample removal, follow-up timing or conditional HF/mx runs.
+  Under that original rule, follow-up timing and conditional HF/mx runs did
+  not proceed. The user has since requested evaluating large gains against
+  minor losses: adoption is reopened for further validation, with this failed
+  screen and all samples preserved.
   Windows native checks pass 7/7; callback/tiny-model contracts pass 17 cases
   and 4,626 exact values, plus 27 Windows placement cases and 1,176 exact
   values. Linux unchanged native assertions and callback/no-op guards pass.
@@ -204,11 +256,11 @@ External performance requirements still block main/GitHub publication.
   Evidence: `docs/benchmarks/cpu-prefill-callback-20260920.json`.
   Independent timing/archive audit and the full 25-file Markdown checkpoint
   review are complete.
-- **Left:** retain scheduler-selected production behavior and pursue the
-  external decode floor through a distinct, evidence-backed hypothesis.
-  Do not widen the callback API, tune placement maps or rerun this screen.
-  Independent HF/mx acceptance remains open; prior phase-wide passes do not
-  override this integrated candidate's rejection.
+- **Left:** complete active-path HF/lossless, short-follow-up and fresh matched
+  mx validation under the user's clarified tradeoff preference. Retain the
+  bounded callback and existing mapping. Report uncertainty for small decode
+  differences and gains across phases; the old cutoff failure stays recorded.
+  Production scheduling remains unchanged until adoption is validated.
 - **Gotchas:** scratch Backend/Model/CPU only; production source, tests, build
   files, public API and root executable are unchanged. Successful placement
   uses one apply and one checked restore pool dispatch. Partial application
@@ -219,8 +271,8 @@ External performance requirements still block main/GitHub publication.
   guards reject nesting/thread changes but do not make Model concurrent.
   Timed policy permits fallback; witness counters prove their own processes.
   Exact vectors are not an independent HF gate. The failed primary screen
-  prevents the planned short-follow-up performance runs, so their timing is
-  unverified despite passing numerical/activation witnesses.
+  originally prevented the planned short-follow-up performance runs, so their
+  timing remains unverified despite passing numerical/activation witnesses.
 
 | Model / phase | Production mean tok/s | Disabled mean tok/s | Enabled mean tok/s | Mean vs production | Mean vs disabled | Median vs disabled |
 |---|---:|---:|---:|---:|---:|---:|
@@ -246,10 +298,10 @@ External performance requirements still block main/GitHub publication.
   setters. All 130 identities were frozen before timing.
   Evidence: `docs/benchmarks/cpu-matmul-placement-20260920.json`.
   Independent timing audit and full 25-file Markdown checkpoint review pass.
-- **Left:** the subsequent bounded synchronous callback integration above also
-  fails its own frozen screen. Stop placement adoption; production remains
-  unchanged. HF/mx gates remain open, and the prepared active-path HF plan
-  was not run for this rejected arm.
+- **Left:** the later whole-prefill callback above is the preferred reopened
+  assessment under the user's clarified tradeoff preference. This per-operation
+  arm and its failure remain archived. Production is unchanged; its prepared
+  active-path HF plan was not run.
 - **Gotchas:** six-thread Q8_0 nbatch > 1 scope only; other paths fall back.
   Every eligible operation queries topology and each nonempty callback pays
   apply/checked restore. Timing compares enabled/disabled prototype policy,
@@ -283,8 +335,8 @@ External performance requirements still block main/GitHub publication.
   Full results are in `docs/benchmarks/cpu-prefill-observer-free-20260920.json`.
 - **Left:** the CPU-local batched-matmul prototype above is rejected by its
   separate performance screen. The synchronous callback is implemented only
-  in scratch and rejected by its own primary comparison; placement adoption
-  stops and production Backend API is unchanged.
+  in scratch and failed its old primary cutoff. Its adoption decision is now
+  reopened above; the production Backend API remains unchanged.
   Independent HF and fresh matched mx gates remain required.
 - **Gotchas:** scheduler mode constructs no placement Session. Candidate
   construction/apply/prefill/verify/checked restoration are timed; decode
@@ -1230,8 +1282,9 @@ feature ships, delete its block and mark the row `Done` above.
     Qwen3's actual `<think>` / `</think>` markers. Its docs now state that limit.
   - The CLI thread-settings block records the validated auto/prefill/decode
     corrections found during the documentation review.
-  - JSON parsing still has incomplete numeric/escape validation and Unicode
-    escape decoding; see docs/src/core-json.md.
+  - JSON syntax and Unicode validation are implemented in the active parser
+    block above; tensor-schema/range validation remains separate. See
+    docs/src/core-json.md.
   - Qwen3 does NOT use the GPT-2 pretokenizer regex. Read the Split pattern out
     of `tokenizer.json` before touching `pretokenize`.
 

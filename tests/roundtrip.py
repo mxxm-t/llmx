@@ -3,6 +3,7 @@ import sys
 import struct
 import tempfile
 import random
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, write_bin, read_bin_floats, max_err
@@ -12,6 +13,7 @@ from common import run as cli, write_bin, read_bin_floats, max_err
 # within each type's quantization bound.
 
 rng = random.Random(42)
+UNICODE_NAME = "layer.\u00e9.\u4e2d.\U0001f600.\"\\\n.weight"
 
 
 def tensor(rows, cols):
@@ -37,13 +39,12 @@ def make_fixtures(d):
         "tensors": [
             {"name": "tok_embeddings.weight", "shape": [256, 512]},
             {"name": "norm.weight",           "shape": [256]},
-            {"name": "layer.0.weight",        "shape": [32, 64]},
+            {"name": UNICODE_NAME,           "shape": [32, 64]},
             {"name": "tiny.weight",           "shape": [256]},
         ],
     }
-    with open(os.path.join(d, "model.json"), "w") as f:
-        import json
-        json.dump(json_doc, f, indent=2)
+    with open(os.path.join(d, "model.json"), "w", encoding="ascii") as f:
+        json.dump(json_doc, f, indent=2, ensure_ascii=True)
 
     allf = list(t1) + list(t2) + list(t3) + list(t4)
     write_bin(os.path.join(d, "model.bin"), allf)
@@ -62,6 +63,12 @@ def run():
             assert rc == 0, "quantize (%s) failed" % qtype
             rc, _ = cli(["dequantize", mg, oj, ob])
             assert rc == 0, "dequantize (%s) failed" % qtype
+            with open(oj, encoding="utf-8") as f:
+                restored = json.load(f)
+            assert restored["name"] == mg, "model path changed during %s round-trip" % qtype
+            assert [entry["name"] for entry in restored["tensors"]] == [
+                "tok_embeddings.weight", "norm.weight", UNICODE_NAME, "tiny.weight"
+            ], "Unicode tensor names changed during %s round-trip" % qtype
 
             got = read_bin_floats(ob)
             assert len(got) == len(original), "element count mismatch"

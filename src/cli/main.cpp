@@ -197,11 +197,11 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
 
     std::stringstream js;
     js << "{\n";
-    js << "  \"name\": \"" << in_path << "\",\n";
+    js << "  \"name\": " << jmini::quote(in_path) << ",\n";
     js << "  \"tensors\": [\n";
     for (size_t i = 0; i < m.tensors.size(); i++) {
         const auto& t = m.tensors[i];
-        js << "    {\"name\": \"" << t.name << "\", \"shape\": [";
+        js << "    {\"name\": " << jmini::quote(t.name) << ", \"shape\": [";
         for (size_t d = 0; d < t.ne.size(); d++) {
             if (d) js << ", ";
             js << t.ne[d];

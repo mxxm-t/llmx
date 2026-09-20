@@ -150,8 +150,9 @@ in serial mode, from which it can be configured again.
 GGUF reads and seeks now throw on stream failure, including truncated payloads.
 Known gaps remain: file extents and metadata-derived sizes need comprehensive
 validation, and model configuration, tensor shapes and token IDs need validation
-before execution. The minimal JSON parser also lacks strict number/escape
-validation and complete Unicode escape decoding. A future server must define
+before execution. The JSON parser validates syntax and Unicode with bounded
+nesting and finite-double storage; that does not validate tensor dimensions
+or extent arithmetic. A future server must define
 request/session recovery rather than treating the CLI's process-level catch as request isolation.
 
 ## Multi-device / multi-node design notes

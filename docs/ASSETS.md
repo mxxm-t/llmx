@@ -2622,10 +2622,12 @@ The single failed rule is 8B decode mean against disabled prototype:
 Its median is +0.003835% against disabled; production comparison is -0.122610%
 mean and +0.706814% median. These do not override the failed required rule.
 
-Reject this integration and stop placement adoption. No outlier removal,
-threshold change, repeat screen, wider API or map search follows. Conditional
-one/nine-token follow-up timing is not run because primary fails; numerical
-witnesses do not establish short-prompt performance. The unchanged-bound HF
+Under the original rule, this integration was rejected and adoption stopped.
+All samples and the cutoff failure are retained. The user later clarified that
+large gains should be weighed against minor losses, reopening this candidate
+for further validation. Conditional one/nine-token follow-up timing was not
+run after the original primary failure; numerical witnesses do not establish
+short-prompt performance. The unchanged-bound HF
 validation plan is retained but not run for this rejected candidate. No fresh
 HF/mx acceptance, main merge or GitHub publication is claimed. Prior external
 decode requirements remain open, and no regression cause is established.
@@ -2790,3 +2792,48 @@ assembly, target-only samples, vectors and reviews are preserved in
 [`benchmarks/cpu-native-decode-sampling-20260920.json`](benchmarks/cpu-native-decode-sampling-20260920.json).
 Raw system-containing traces/exports and binaries stay local with recorded
 hashes; compressed target samples preserve their complete original bytes.
+
+## JSON parsing and output validation (2026-09-20)
+
+The existing JSON reader truncated escaped Unicode and accepted malformed
+numbers/literals/escapes. Strict syntax checks now decode valid UTF-8 and
+paired UTF-16 escapes, use classic-locale finite-double conversion, and limit
+container nesting to 256. Ordered duplicate members and first-match lookup
+remain unchanged. These are documented parser policies, not tensor-schema
+or arbitrary-precision number support.
+
+The new CLI round-trip test exposed another existing bug: dequantize emitted
+Windows paths and tensor names without JSON escaping. A small core string
+helper now quotes those two fields. Tests check the decoded source path and
+tensor names containing BMP/supplementary Unicode, quotes, backslash and newline
+with Python's independent JSON reader, for both Q8_0 and Q4_0.
+
+| Final validation | Windows MSVC | Linux GCC |
+|---|---:|---:|
+| CMake build | Pass | Pass |
+| Native tests | 8/8 | 8/8 |
+| JSON checks | 1,033 | 1,033 |
+| Required-HF Python suite | 11/11 | 11/11 |
+| JSON AddressSanitizer + UBSan | Not run | Pass |
+
+The native count includes repeated nesting assertions, not 1,033 independent
+documents. A custom comma-decimal C++ locale is checked on both platforms;
+an installed comma-decimal C locale is checked on Windows and unavailable in
+the Linux environment. The saved old parser fails the new Unicode-key check,
+and the unchanged root CLI fails the escaped-name round trip. Initial Linux
+full validation passed; initial Windows validation failed at the newly exposed
+writer bug. All initial results are retained. One later Linux launch stopped
+before build/test because the previous temporary build directory was absent;
+final validation reconfigured a persistent owned directory.
+
+No inference arithmetic changes. The existing HF bounds pass unchanged; suite
+benchmark timings are diagnostic and do not close the external mx floor.
+Source hashes, commands, successful/failed logs and review are archived in
+[`benchmarks/json-validation-20260920.json`](benchmarks/json-validation-20260920.json).
+
+The user's subsequent performance preference also reopens the earlier CPU
+prefill-placement candidate for validation. Its original 0.5% per-case screen
+still failed by its recorded rule; that is not proof the tiny observed decode
+loss exceeds noise, nor an automatic reason to discard large prefill gains.
+The historical table and samples remain unchanged. Further HF, short-follow-up
+and matched mx checks are required before adoption.

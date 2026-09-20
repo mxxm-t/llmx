@@ -236,6 +236,20 @@ observer effects remain open.
 
 ### Prefill placement reassessment with machine activity monitoring
 
+- **Supplement after `d846115`:** current-source primary/one-token/nine-token
+  follow-up checks pass for both Q8 models: 12 terminal processes, six exact
+  full-vector pairs, 911,616 finite values and 20 individually checked callbacks.
+  All 120 applies/restores succeed on six distinct physical cores per callback,
+  with zero errors, decode setters or leftover restrictions. The unchanged 8B
+  HF consumer passes 37/37, including all four serial-step NLL cases. Absolute
+  NLL differences are 0.001494413 for the continuous excerpt (bound 0.01) and
+  at most 0.002185356 for the three window cases (bound 0.02). Serial NLL does
+  not establish placement activation; the separate witnesses do. All 188
+  integration identities remain unchanged. All jobs are terminal; all 25
+  Markdown files reviewed. This closes the two scoped correctness gaps from
+  the integration checkpoint, with no performance acceptance or adoption.
+  [Supplemental evidence](benchmarks/prefill-current-followup-20260920.json).
+
 - **Current integration checkpoint:** transplanted the existing four-file
   placement delta onto validated checkpoint `291ce2c` in isolated scratch
   `%TEMP%/llmx-placement-current-02`. Independent review verifies all 61 control
@@ -257,9 +271,11 @@ observer effects remain open.
   after coordinating a quiet window. Its order, thresholds, monitor, evaluator
   and harnesses match the older plan; only source/provenance and prerequisite
   checks changed. Seven older-source preflights are retained, all deferred
-  before model timing. Current-source one-/nine-token placement witnesses and
-  the optional 8B consumer have not been rerun; their earlier evidence below is
-  historical. No production placement integration or merge is claimed.
+  before model timing. Current-source short follow-up witnesses and the
+  optional 8B consumer now pass in the supplement above; earlier evidence
+  below remains historical. No production placement integration or merge is
+  claimed. The remaining acceptance work is matched performance assessment,
+  with observer and machine-contention limitations retained.
 - **Current checkpoint review:** all jobs are terminal and all 25 Markdown
   files reviewed. Corrected historical-source scope, CPU ISA requirements and
   the categorical prefill bottleneck claim. Source identities, preparation

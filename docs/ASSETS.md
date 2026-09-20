@@ -14,6 +14,32 @@ sections record follow-up results without pooling separate timing sessions.
 > below become a cache the tool manages. Until then, this file is the record of
 > what is on this machine.
 
+## Current-source placement follow-up and 8B supplement (2026-09-20)
+
+The supplement to `d846115` uses the same frozen `291ce2c` control/candidate
+sources in `%TEMP%/llmx-placement-current-02`. Only driver paths changed from
+the earlier study. All 188 integration source identities remain unchanged.
+
+| Check | Result |
+|-------|--------|
+| Primary/followup1/followup9 on both Q8 models | 12 processes, six exact full-vector pairs |
+| Finite values compared exactly | 911,616 |
+| Separate placement callbacks | 20 |
+| Affinity applies/restores | 120/120, zero errors or decode setters |
+| Optional 8B HF consumer | 37/37 |
+| Continuous 8B NLL difference from HF | 0.001494413 <= 0.01 |
+| Maximum windowed 8B NLL difference from HF | 0.002185356 <= 0.02 |
+
+Each callback verifies six distinct physical cores and complete restoration.
+Fixed token-prefix/suffix workloads supplement the ordinary interactive chat
+tests. Serial NLL is not active-prefill evidence; the separate witnesses cover
+placement. This does not establish full-corpus or maximum-context correctness.
+The two integration-checkpoint gaps below are now closed. Production source
+is unchanged and matched performance acceptance remains open. All jobs are
+terminal; all 25 Markdown files reviewed. Raw text outputs, commands, source
+identities and local vector hashes are in
+[supplemental evidence](benchmarks/prefill-current-followup-20260920.json).
+
 ## Placement integration on current validated source (2026-09-20)
 
 Scratch `%TEMP%/llmx-placement-current-02` applies the same four-file placement

@@ -2425,3 +2425,110 @@ external decode requirements remain open.
 The archive retains the source, frozen inputs, reused lifecycle provenance,
 fresh checks, raw results, stored witnesses and common exact vectors:
 [`benchmarks/cpu-prefill-observer-free-20260920.json`](benchmarks/cpu-prefill-observer-free-20260920.json).
+
+
+## CPU-local batched-matmul placement (2026-09-20)
+
+Branch `research/cpu-matmul-placement` starts at `88eed5f`. This distinct scratch
+prototype keeps all placement code inside the CPU backend: the existing parallel
+batched-matmul callback applies and restores its own thread mask around row work.
+The Backend interface, model graph, kernels, row partitions and pool protocol
+are unchanged. The production source tree, tests, build configuration and root
+executable are unchanged; the prototype lives in the archived source snapshot.
+
+Initial eligibility is Q8_0, nbatch > 1, six threads, nonempty parallel row ranges,
+and homogeneous single-group topology with at least six allowed physical cores.
+A fresh map queries topology for each eligible operation. It selects each core's
+lowest allowed logical processor, sorts those IDs and takes the first six cores.
+There is no cache or hardcoded CPU-ID map. Unsupported/query/apply cases fall
+back, respecting pre-existing thread restrictions. Serial/tiny/single-column
+work, other formats, attention/model-side work and final vocabulary projection
+stay unbound. Every topology/query/apply/restore cost is part of model timing.
+
+Allocation failure while building the map propagates before dispatch or affinity
+changes. A task exception triggers checked restoration before propagation; if
+both task and restoration fail, the cleanup failure may replace the task payload.
+Normal restore failures are visible, and the destructor attempts best-effort
+cleanup. Persistent OS refusal cannot be claimed as recovered: the synthetic
+oracle detects the pinned state and uses explicit test-only rescue afterward.
+
+| Validation | Result / scope |
+|---|---|
+| Windows lifecycle/activation oracle | 41 cases, 11,849 exact float comparisons |
+| Windows native backend-group, each arm | 540 cases, 141,750 outputs against separate calls/double dots |
+| Windows native scale/reduction oracles, each arm | 253,952 exact finite Q8 scale/weight cases; 1,824 ordered reductions |
+| Linux GCC backend-group / backend-errors | Both pass; Windows placement is a no-op |
+| Linux standalone helper | 20 no-op checks pass |
+| Fresh model and witness builds | MSVC pass |
+| Timing runner AST checks | Sample/iteration/order checks and eight threshold boundary cases pass |
+
+The lifecycle oracle covers actual callback activation/caller participation,
+excluded routes with no affinity calls, empty ranges, restricted caller masks,
+thread counts 1 -> 6 -> 4 -> 6, query/apply fallbacks, caller/worker body errors,
+one-time restore failure/retry and persistent refusal. These are synthetic
+contracts, not HF proof or multi-user scheduling support.
+
+Both unchanged `tests/perf.py` one-thread smoke checks pass. Placement is inactive
+at one thread, and these single smoke invocations are not a statistical timing
+comparison or evidence about the six-thread policy:
+
+| Smoke metric | Disabled prototype | Enabled-default CLI |
+|---|---:|---:|
+| Matmul GFLOPS | 43.36 | 38.00 |
+| Synthetic prefill tok/s | 7,804 | 7,838 |
+| Synthetic decode tok/s | 7,566 | 7,532 |
+
+A separate instrumented model executable intercepts affinity setters to verify
+actual CPU/mask, original masks, paired restoration, caller participation and
+no setters outside prefill. All four processes pass, with two internal iterations
+each; their timing fields are ignored:
+
+| Model / mode | Applies | Restores | Caller applies | Final vector vs prior control |
+|---|---:|---:|---:|---|
+| 0.6B disabled | 0 | 0 | 0 | Exact |
+| 0.6B enabled | 4,704 | 4,704 | 784 | Exact |
+| 8B disabled | 0 | 0 | 0 | Exact |
+| 8B enabled | 6,048 | 6,048 | 1,008 | Exact |
+
+Each enabled witness has six equally populated target-CPU counters and no
+errors, active scopes after decode or setters outside prefill. Counts derive
+from two iterations, two multi-token chunks, seven projections per layer,
+six workers and 28/36 layers. The normal timing binary excludes instrumentation:
+its measurements include permitted fallback, and do not prove that every timed
+callback pinned. The exact executed witness plan is retained; a later limits-only
+addition documents this distinction without changing inputs, order or thresholds.
+
+The fixed comparison uses Windows Ryzen 7 5800X, MSVC /O2 /arch:AVX2, the same
+Qwen3-0.6B/8B Q8_0 files and 247 IDs, six threads, ubatch 128, F32 KV,
+215 prompt tokens and 32 forced decode steps. Both arms use the same prototype
+binary with a concrete scratch switch disabled/enabled. Disabled control includes
+inert callback scaffolding and is not the exact production binary. All 24
+processes and 48 internal records are retained: discarded outer pair -1 and
+five measured alternating pairs per model, plus internal warmup. No pooling,
+retry or sample removal. Means and medians use individual throughput samples.
+
+| Model / phase | Disabled mean tok/s | Enabled mean tok/s | Mean change | Disabled median tok/s | Enabled median tok/s | Median change | Enabled wins |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 0.6b / pp | 471.700388 | 504.994000 | +7.06% | 470.245799 | 511.307992 | +8.73% | 4/5 |
+| 0.6b / tg | 49.597335 | 48.299841 | -2.62% | 49.513507 | 48.166628 | -2.72% | 1/5 |
+| 8b / pp | 30.040204 | 40.211011 | +33.86% | 30.027637 | 40.269777 | +34.11% | 5/5 |
+| 8b / tg | 4.502460 | 4.575066 | +1.61% | 4.495369 | 4.567486 | +1.60% | 5/5 |
+
+The prospective rule requires both prefill means/medians >=5% faster with at
+least 4/5 wins, and both decode means/medians >=99.5% of disabled control.
+Prefill passes in both models; **0.6B decode fails both limits**. The candidate
+is rejected despite 8B gains. No outlier is removed and no rerun is used to
+rescue it. These observations do not identify the cause of the decode regression.
+
+Every saved final vector is finite and equals the corresponding prior runtime
+control (151,936 floats per vector), with internal warmup identity checked too.
+All 130 frozen identities are verified. Independent active-path HF and fresh
+mx gates were not run for this rejected candidate. A conditional HF plan records
+that default auto-thread/F32 tests may miss the new path, while serial PPL never
+activates it; that plan is not completed validation. Both external decode floor
+requirements remain open. The prior observer-free phase-wide result is separate
+and does not authorize this operation-local implementation or a new Backend API.
+
+Sources, build logs, native/synthetic checks, instrumented witness, frozen plans,
+raw timing and common vectors with witness aliases are archived in
+[`benchmarks/cpu-matmul-placement-20260920.json`](benchmarks/cpu-matmul-placement-20260920.json).

@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/cpu-prefill-observer-free`, based on research checkpoint `9769833` and
+`research/cpu-matmul-placement`, based on research checkpoint `88eed5f` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -45,7 +45,9 @@ The all-phase placement candidate remains rejected. A separate prefill-only
 placement screen passes, with its independent timing audit and full 25-file
 Markdown review complete. Production integration and external gates remain open.
 The separate observer-free placement screen also passes; its post-run audit
-and full Markdown review are complete. Per-operation placement remains unimplemented.
+and full Markdown review are complete. CPU-local per-operation placement is implemented only in scratch and rejected
+by its completed screen because small-model decode regresses. Its independent
+timing audit and full 25-file Markdown checkpoint review are complete.
 Prior prefill/HF evidence remains archived.
 Historical measurements and the root streaming executable remain unchanged.
 External performance requirements still block main/GitHub publication.
@@ -93,6 +95,45 @@ External performance requirements still block main/GitHub publication.
 
 ## Active feature blocks
 
+### CPU-local batched-matmul placement (scratch candidate screened out)
+
+- **Goal:** keep placement inside the CPU backend and existing callbacks,
+  avoiding a generic Backend phase API or model-level platform code.
+- **Done:** all 24 invocations completed with exit 0. Prefill meets the frozen
+  >=5% mean/median and 4/5-win screen in both models, but 0.6B decode loses
+  2.62% mean and 2.72% median throughput, beyond the 0.5% limit. Reject this
+  candidate; no sample removal, rerun or inherited phase-wide result.
+  All final vectors match within model and against prior unchanged controls.
+  Fresh Windows lifecycle gate passes 41 cases and 11,849 exact values;
+  native backend-group passes unchanged 540 cases per arm. Linux native/no-op
+  checks and both one-thread perf smoke floors pass. Four real-model witness
+  processes verify exact prior outputs, candidate apply/restore counts of
+  4,704 for 0.6B and 6,048 for 8B across two iterations, and zero decode/control
+  setters. All 130 identities were frozen before timing.
+  Evidence: `docs/benchmarks/cpu-matmul-placement-20260920.json`.
+  Independent timing audit and full 25-file Markdown checkpoint review pass.
+- **Left:** a separate source review identifies one bounded scratch experiment
+  with a synchronous prefill callback and checked cleanup. This is not production
+  seam approval; no new API or revised placement candidate is implemented.
+  HF/mx gates remain open, and the prepared active-path HF plan was not run
+  for this rejected arm.
+- **Gotchas:** six-thread Q8_0 nbatch > 1 scope only; other paths fall back.
+  Every eligible operation queries topology and each nonempty callback pays
+  apply/checked restore. Timing compares enabled/disabled prototype policy,
+  with inert scaffolding in control; it is not the exact production baseline.
+  Instrumented witness activation covers its own processes, not every timed
+  callback. Allocation failure before dispatch propagates; dual body/restore
+  failure can replace the task payload with cleanup failure. Persistent restore
+  refusal is reported and only the synthetic test performs manual rescue.
+  No production source, public flag, Backend API or root executable changed.
+
+| Model / phase | Disabled mean tok/s | Enabled mean tok/s | Mean change | Median change | Enabled wins |
+|---|---:|---:|---:|---:|---:|
+| 0.6b / pp | 471.700388 | 504.994000 | +7.06% | +8.73% | 4/5 |
+| 0.6b / tg | 49.597335 | 48.299841 | -2.62% | -2.72% | 1/5 |
+| 8b / pp | 30.040204 | 40.211011 | +33.86% | +34.11% | 5/5 |
+| 8b / tg | 4.502460 | 4.575066 | +1.61% | +1.60% | 5/5 |
+
 ### Prefill placement without diagnostic observers (scratch screening passed)
 
 - **Goal:** establish whether the prefill placement benefit survives removal
@@ -107,10 +148,9 @@ External performance requirements still block main/GitHub publication.
   evidence is reused explicitly, not claimed as fresh execution.
   Independent timing audit and review of all 25 Markdown files are complete.
   Full results are in `docs/benchmarks/cpu-prefill-observer-free-20260920.json`.
-- **Left:** the next source-reviewed candidate is CPU-local placement inside existing
-  parallel batched-matmul callbacks, with no generic Backend phase API.
-  This is a distinct unimplemented hypothesis with repeated affinity costs;
-  it needs its own lifecycle/numerical/performance evidence before adoption.
+- **Left:** the CPU-local batched-matmul prototype above is rejected by its
+  separate performance screen. A minimal phase-wide architectural boundary
+  has a source-reviewed scratch proposal; no new Backend API is implemented.
   Independent HF and fresh matched mx gates remain required.
 - **Gotchas:** scheduler mode constructs no placement Session. Candidate
   construction/apply/prefill/verify/checked restoration are timed; decode

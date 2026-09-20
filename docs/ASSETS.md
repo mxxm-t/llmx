@@ -3148,6 +3148,8 @@ manifest files rehash unchanged. Prior stopped preflights remain separate.
 
 Mean throughput below is the arithmetic mean of each round's token rate,
 not token count divided by mean time. All eight rounds contribute equally.
+Percentage comparisons use the paired per-round ratios reported below;
+dividing these mean-rate columns can give a different percentage.
 
 | Model / workload / phase | Production tok/s | Placement tok/s | mx tok/s |
 |---|---:|---:|---:|
@@ -3252,3 +3254,164 @@ preserves original state, telemetry, stdout/stderr, plans, scripts and the
 two current-source stopped preflights; its per-file hashes are in the manifest.
 Executable/model/vector payloads remain local with recorded hashes. Existing
 HF, long-continuation and callback correctness evidence is linked from STATUS.
+
+## Final prefill placement comparison (2026-09-20)
+
+Final integration `250846a` is compared with published main `bf3b5ea` and pinned
+mx-llama.cpp `5542318e74` on the same Windows Ryzen 7 5800X host. All arms use
+six workers, ubatch 128, F32 KV and the same 215 prompt IDs plus 32 forced
+decode IDs. Follow-up cases restore the prefix outside the clock, then time
+1 or 9 new prompt tokens plus 32 decode steps. Model loading is outside the
+clock. Candidate timing includes topology queries, placement, all prefill
+buffer preparation/microbatches and checked affinity restoration.
+
+The prospective Q8 plan completed all 24 blocks / 72 processes: one outer
+warmup and three measured rounds across two models and three workloads.
+The separate F32 primary guardrail completed all 4 blocks / 12 processes.
+Each process contains an internal warmup and measured record; only the latter
+enters the summary. Each measured arm occupies each order position once per
+cell. Odd model-order imbalance is disclosed in the plans. All 84 processes
+completed and all finite final vectors matched exactly between llmx arms and
+across rounds in the same workload. mx has a separate numerical identity.
+Both runs rechecked all 79 frozen artifact identities unchanged.
+
+**Protocol deviation:** the other developer disclosed roughly eleven builds
+and about 150 model invocations from 16:39 through 17:07 local time, despite
+the compute reservation. Q8 ran from 16:46 to 17:18, so this overlaps much of
+its warmup and first two measured rounds. The windows are approximate artifact
+mtimes, not exact process lifetimes; no PIDs were supplied. The full disclosure
+and timestamp correction are retained in the evidence. No sample was removed,
+replaced, pooled with the earlier eight-round study, or adjusted for activity.
+F32 ran afterward, following the reported stop. Ordinary user activity continued.
+
+Mean rates describe each arm. Percentage comparisons below use equal-weight
+paired per-round ratios `(baseline_ms / candidate_ms - 1) * 100`; dividing the
+mean-rate columns can give different percentages. Descriptive 95% intervals use
+2 degrees of freedom and t=4.30265273, without multiplicity correction. They
+do not remove systematic bias or establish parity when they cross zero.
+
+| Model / workload | Phase | Main tok/s | Placement tok/s | mx tok/s |
+|---|---|---:|---:|---:|
+| 0.6B Q8 / 215+32 | pp | 375.630 | 472.252 | 239.975 |
+| 0.6B Q8 / 215+32 | tg | 35.848 | 43.758 | 44.352 |
+| 0.6B Q8 / follow-up 1+32 | pp | 46.770 | 39.726 | 46.715 |
+| 0.6B Q8 / follow-up 1+32 | tg | 43.162 | 42.675 | 44.891 |
+| 0.6B Q8 / follow-up 9+32 | pp | 232.504 | 243.056 | 168.231 |
+| 0.6B Q8 / follow-up 9+32 | tg | 45.562 | 43.902 | 41.812 |
+| 8B Q8 / 215+32 | pp | 28.411 | 37.737 | 20.630 |
+| 8B Q8 / 215+32 | tg | 4.217 | 4.180 | 4.232 |
+| 8B Q8 / follow-up 1+32 | pp | 4.117 | 3.264 | 4.296 |
+| 8B Q8 / follow-up 1+32 | tg | 4.130 | 3.974 | 4.112 |
+| 8B Q8 / follow-up 9+32 | pp | 20.976 | 22.727 | 14.902 |
+| 8B Q8 / follow-up 9+32 | tg | 4.136 | 4.164 | 4.390 |
+| 0.6B F32 / 215+32 | pp | 423.787 | 481.760 | 390.042 |
+| 0.6B F32 / 215+32 | tg | 14.812 | 14.625 | 14.827 |
+
+| Model / workload | Phase | Placement vs main, 95% interval | Placement vs mx, 95% interval |
+|---|---|---:|---:|
+| 0.6B Q8 / 215+32 | pp | +26.40% [+0.91, +51.89] | +101.31% [+0.54, +202.08] |
+| 0.6B Q8 / 215+32 | tg | +29.79% [-67.33, +126.91] | -1.39% [-12.26, +9.49] |
+| 0.6B Q8 / 215+32 | whole | +28.81% [-40.46, +98.09] | +37.49% [+9.53, +65.46] |
+| 0.6B Q8 / follow-up 1+32 | pp | -15.56% [-66.78, +35.66] | -15.82% [-61.12, +29.48] |
+| 0.6B Q8 / follow-up 1+32 | tg | -1.52% [-23.17, +20.12] | -5.34% [-26.23, +15.56] |
+| 0.6B Q8 / follow-up 1+32 | whole | -2.03% [-24.89, +20.83] | -5.72% [-27.60, +16.17] |
+| 0.6B Q8 / follow-up 9+32 | pp | +5.35% [-10.93, +21.63] | +45.19% [+31.00, +59.38] |
+| 0.6B Q8 / follow-up 9+32 | tg | -3.60% [-11.89, +4.68] | +6.43% [-22.78, +35.63] |
+| 0.6B Q8 / follow-up 9+32 | whole | -3.16% [-11.50, +5.19] | +8.30% [-20.49, +37.09] |
+| 8B Q8 / 215+32 | pp | +32.84% [+28.47, +37.20] | +83.13% [+65.98, +100.27] |
+| 8B Q8 / 215+32 | tg | -0.79% [-9.69, +8.11] | -1.10% [-11.02, +8.82] |
+| 8B Q8 / 215+32 | whole | +13.56% [+7.05, +20.06] | +34.84% [+24.76, +44.91] |
+| 8B Q8 / follow-up 1+32 | pp | -21.83% [-68.72, +25.06] | -24.29% [-83.88, +35.30] |
+| 8B Q8 / follow-up 1+32 | tg | -3.59% [-20.31, +13.13] | -3.33% [-20.72, +14.06] |
+| 8B Q8 / follow-up 1+32 | whole | -4.39% [-20.63, +11.86] | -4.24% [-22.45, +13.97] |
+| 8B Q8 / follow-up 9+32 | pp | +9.16% [-33.03, +51.35] | +52.39% [+8.04, +96.74] |
+| 8B Q8 / follow-up 9+32 | tg | +1.04% [-29.33, +31.41] | -5.24% [-24.98, +14.50] |
+| 8B Q8 / follow-up 9+32 | whole | +1.44% [-29.52, +32.40] | -2.42% [-23.17, +18.33] |
+| 0.6B F32 / 215+32 | pp | +13.70% [+7.92, +19.49] | +23.57% [+15.71, +31.42] |
+| 0.6B F32 / 215+32 | tg | -1.26% [-2.90, +0.37] | -1.36% [-3.06, +0.34] |
+| 0.6B F32 / 215+32 | whole | +1.27% [+0.34, +2.20] | +2.86% [+1.66, +4.06] |
+
+The combined measurement is prefill plus the fixed 32-token decode, excluding
+loading and prefix setup. It does not predict arbitrary chat lengths. Absolute
+mean times expose short-prefill overhead that percentages alone can exaggerate.
+
+| Model / workload | Main pp ms | Placement pp ms | Main combined ms | Placement combined ms | mx combined ms |
+|---|---:|---:|---:|---:|---:|
+| 0.6B Q8 / 215+32 | 576.463 | 455.719 | 1537.278 | 1188.787 | 1637.004 |
+| 0.6B Q8 / follow-up 1+32 | 21.433 | 26.795 | 765.915 | 790.309 | 736.897 |
+| 0.6B Q8 / follow-up 9+32 | 39.927 | 37.672 | 745.861 | 770.278 | 839.571 |
+| 8B Q8 / 215+32 | 7567.917 | 5697.504 | 15161.500 | 13352.868 | 18006.134 |
+| 8B Q8 / follow-up 1+32 | 244.091 | 328.296 | 8059.176 | 8443.623 | 8053.161 |
+| 8B Q8 / follow-up 9+32 | 433.275 | 400.492 | 8206.856 | 8144.138 | 7898.228 |
+| 0.6B F32 / 215+32 | 507.426 | 446.293 | 2667.866 | 2634.445 | 2709.722 |
+
+All measured runs carry at least one activity flag. Observed unrelated CPU
+is in percent of one logical CPU (100% = one CPU), not whole-machine percent.
+The recorder is excluded by identity. Accessible process sums can be incomplete;
+missing or failed CPU providers are represented as unknown, not zero. System
+minus observed process CPU is a residual, not attributable background work.
+
+| Model / workload | Main observed CPU | Placement observed CPU | mx observed CPU | Known competing runs, main/placement/mx |
+|---|---:|---:|---:|---|
+| 0.6B Q8 / 215+32 | 427.6% | 290.1% | 357.0% | 1/1/1 |
+| 0.6B Q8 / follow-up 1+32 | 365.8% | 298.6% | 427.4% | 0/0/0 |
+| 0.6B Q8 / follow-up 9+32 | 350.2% | 349.1% | 273.6% | 0/0/0 |
+| 8B Q8 / 215+32 | 238.9% | 268.9% | 214.3% | 0/0/1 |
+| 8B Q8 / follow-up 1+32 | 348.1% | 509.5% | 426.3% | 0/1/0 |
+| 8B Q8 / follow-up 9+32 | 348.4% | 343.6% | 252.8% | 1/0/0 |
+| 0.6B F32 / 215+32 | 243.9% | 267.4% | 246.8% | 0/0/0 |
+
+The analyzer found 26 known competing-process sample observations in four Q8
+blocks, and none in F32. This is not a complete count of the disclosed work:
+coarse one-second sampling misses short processes and the name list is finite.
+CPU, disk, GPU, recorder and per-phase unknown/flag details remain in the raw
+archive and JSON. Interval-overlap weights can overlap each other, so their
+sum is not exact temporal coverage. Three-point correlations are descriptive
+associations only; they neither correct timings nor establish causation.
+
+The required `tests/perf.py` single-worker smoke passed on both binaries.
+Placement is inactive with one worker. These are one-pair diagnostics with
+coarse monitoring, not a precise no-regression claim or the real-model gate.
+
+| Single-worker smoke | Main | Placement |
+|---|---:|---:|
+| Matmul GFLOPS | 42.73 | 38.78 |
+| Prefill tok/s | 7816.70 | 7809.50 |
+| Decode tok/s | 7561.50 | 7497.00 |
+
+**Assessment: accepted for main under the performance tradeoff policy.**
+Primary-prefill gains appear in all three rounds for Q8 and F32. The 8B primary
+combined gain versus main is +13.56% [+7.05%, +20.06%]; F32 combined is +1.27%
+[+0.34%, +2.20%], including its observed -1.26% decode cost. Q8 follow-up combined
+means range from -4.39% to +1.44% versus main and from -5.72% to +8.30% versus mx.
+Their wide intervals and workload imbalance remain explicit; they are not
+proven upper bounds on cost. The load-confounded 0.6B primary combined gain is
+not treated as a precise feature effect. The earlier separate eight-round study
+also observed primary-prefill gains, without being pooled into this confirmation.
+Independent review found no evidence-integrity or required-correctness blocker.
+This scoped decision does not establish universal per-phase parity with mx or
+causality free of contention. No token-count cutoff has been inferred.
+
+Final correctness is recorded in
+[`prefill-final-validation-20260920.json`](benchmarks/prefill-final-validation-20260920.json):
+Windows native 12/12, Linux 11/11, required-HF suites 11/11 each, active-path HF
+28/28, six exact follow-up vector pairs and 33-vector F32/Q8 long continuations.
+F32 maximum HF logit error is 0.000126362 against 0.001; mean NLL difference is
+0.0000006453 against 0.0001. Q8 mean NLL difference is 0.00701182 against 0.01.
+Those long checks cover 1,943 prompt tokens plus 32 forced steps on 0.6B, not
+full corpus, maximum context or long 8B behavior.
+
+Full final summaries and the disclosed overlap are in
+[`prefill-final-20260920.json`](benchmarks/prefill-final-20260920.json).
+The [raw archive](benchmarks/prefill-final-20260920-raw.tar.gz) retains plans,
+runner/analyzer sources, stdout/stderr, activity records, source snapshots and
+vector identities. Large model/binary/vector payloads remain local; their hashes
+are retained for reproduction. The earlier eight-round archive stays separate.
+
+The raw archive contains 351 records and 84 local vector identities, with every
+archived record hash rechecked. Size: 21,327,663 bytes. SHA-256:
+`40d5f8330b74a850f652f4d11351319b74818fe38f815f4e2395df4293f0193b`.
+Independent review checked all 84 outputs/vectors (12,762,624 finite values),
+252 phase activity summaries and 1,092 statistical comparisons. It independently
+rehashed 78 unique non-model manifest files; full model rehashes were performed
+by each runner. These integrity checks do not remove the disclosed contention.

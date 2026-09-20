@@ -55,7 +55,7 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3)            |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3 pretokenizer)             |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass), `host_kv_cache.hpp` (CPU KV storage) |
-| `backends/`     | `backend.hpp` (interface), `cpu/cpu_backend.hpp` (AVX2 impl)          |
+| `backends/`     | `backend.hpp` (interface), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/prefill_placement.hpp` (Windows policy)          |
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
 
@@ -79,6 +79,13 @@ command reference.
 Future GPU backends must keep that meaning for applicable CPU work; GPU launch
 dimensions belong to the backend. `--ubatch` is the number of prompt tokens
 per forward pass and remains relevant to device execution.
+
+CPU prefill enters a synchronous `Backend::run_prefill` scope once around
+buffer preparation and all prompt microbatches. The default implementation
+invokes the body once on the caller. CPU owns optional Windows worker placement
+and cleanup; model code contains no platform scheduling types. Decode steps
+remain outside the scope. The scope does not add asynchronous or concurrent
+submission support.
 
 ## KV state and concurrent execution
 

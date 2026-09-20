@@ -164,6 +164,11 @@ the runtime restores that count, including automatic selection and follow-up
 chat turns. `--verbose` reports each phase's actual count on stderr; `bench`
 prints its resolved count on stdout. Changing counts recreates the CPU pool.
 
+On supported Windows topology, six-worker prefill automatically places workers
+on separate physical cores and checks restoration of their original affinity
+before decode. Other configurations use the normal scheduler. See the
+[placement policy and limits](src/backends-cpu-placement.md).
+
 For planned GPU backends these flags retain their CPU-worker meaning; they
 will not select GPU workgroup sizes or launch dimensions. `--ubatch` controls
 prompt tokens per forward pass across backends. Device selection and GPU

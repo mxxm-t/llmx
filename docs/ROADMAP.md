@@ -69,7 +69,7 @@ call. Before any GPU work:
 - **Resident activations**: the elementwise work in `Model::step` (SiLU, the two
   residual adds, per-head q/k norms) must run device-side, or every layer pays a
   host round trip. Either add ops to `Backend` or move the graph down a layer.
-- **Attention in the backend (CPU implementation in progress)**: causal GQA
+- **Attention in the backend (CPU implementation done)**: causal GQA
   now goes through `Backend::attention` for both decode and prefill. The CPU
   backend owns score scratch and vectorized computation; model code still
   owns the host KV cache. A GPU implementation needs device buffers below it.

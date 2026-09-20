@@ -75,3 +75,7 @@ does not scan numerical weight contents, validate every possible metadata
 extension, check arbitrary token IDs or establish recovery after an execution
 failure. Those require separate input/session checks; they are not guarantees
 of the configuration and layout validation above.
+
+`prefill` enters one backend-owned synchronous scope around batch-buffer
+allocation and every microbatch, including the final projection. Empty input
+is rejected before entry; individual decode steps do not enter that scope.

@@ -99,7 +99,7 @@ exact oracle, and macOS subnormal-number conversion in the JSON parser.
 Repair `851d375` resolves those issues. Its [complete hosted run](https://github.com/mxxm-t/llmx/actions/runs/35512954742)
 passes all five jobs, including the full required-HF suite and the actual macOS
 and Windows runners. The initial four-job result above covers the older tree.
-The reconciled tree passes all ten native tests, all fifteen downloader cases
+The historical reconciled release `08351b0` passes all ten native tests, all fifteen downloader cases
 and all eleven required-HF Python components on Windows MSVC and WSL GCC 13.3.
 
 Hosted jobs pass `--no-perf-floor`: `bench` must still run and report finite,
@@ -171,3 +171,17 @@ JSON parsing accepts a fully consumed finite nonzero result with absolute magnit
 minimum normal even when the standard library sets failbit for underflow.
 Malformed input, overflow and underflow to zero still fail; boundary cases run
 in the native JSON test on every platform.
+
+## Prefill scope coverage
+
+CTest includes `prefill-scope` on all platforms. It checks synchronous caller
+ownership, stable pool participants, error draining/reuse, and allocation plus
+microbatch boundaries with generated tied/untied F32 fixtures. Windows also
+runs `prefill-placement`: active real topology when available, real fallback
+otherwise, and synthetic topology/failure cases even on small hosted runners.
+These checks do not require a real model or establish performance.
+
+With the prefill tests integrated, native counts are 12 on Windows and 11 on
+Linux/macOS; the Windows-only lifecycle target accounts for the difference.
+Windows 12/12 and Linux 11/11 pass locally. Hosted validation of these new targets is pending;
+the five-job pass at `851d375` above predates the prefill scope tests.

@@ -11,6 +11,7 @@
 #include <cstdlib>
 
 #include "backends/backend.hpp"
+#include "backends/cpu/prefill_placement.hpp"
 #include "core/fp16.hpp"
 #include "format/gguf.hpp"
 #include "quant/quant.hpp"
@@ -45,12 +46,46 @@ public:
     void set_threads(int n) override {
         int t = (n > 0) ? n : 1;
         if (t == threads_) return;
+        if (prefill_active_) throw std::runtime_error("CPU threads cannot change during prefill");
         stop_pool();
         threads_ = t;
         start_pool();
     }
 
     int threads_available() const override { return threads_; }
+
+    void run_prefill(const std::function<void()>& work) override {
+        if (prefill_active_) throw std::runtime_error("Nested CPU prefill is unsupported");
+        prefill_active_ = true;
+        try {
+            detail::PrefillPlacement placement(threads_ == 6);
+            auto finish = [&](std::exception_ptr error) {
+                if (placement.needs_restore()) {
+                    try { run_parallel([&](int w) { placement.restore(w); }); }
+                    catch (...) {
+                        // A retry may repair scheduling, but cannot erase the checked failure.
+                        auto cleanup_error = std::current_exception();
+                        try { run_parallel([&](int w) { placement.restore(w); }); }
+                        catch (...) {}
+                        std::rethrow_exception(cleanup_error);
+                    }
+                }
+                if (error) std::rethrow_exception(error);
+            };
+            try {
+                if (placement.enabled())
+                    run_parallel([&](int w) { placement.apply(w); });
+            } catch (...) { finish(std::current_exception()); }
+            if (placement.enabled() && !placement.applied()) finish(nullptr);
+            try { work(); }
+            catch (...) { finish(std::current_exception()); }
+            finish(nullptr);
+            prefill_active_ = false;
+        } catch (...) {
+            prefill_active_ = false;
+            throw;
+        }
+    }
 
     float dot_q8_0(const uint8_t* row, const float* x, size_t nblocks) override {
         return dot_row_impl(row, x, nblocks);
@@ -554,6 +589,7 @@ private:
     int threads_ = 1;
     bool avx2_ = false;
     bool f16c_ = false;
+    bool prefill_active_ = false;
 
     // Persistent worker pool. The previous code created and joined
     // std::threads on every matvec call, which is once per matmul per layer per

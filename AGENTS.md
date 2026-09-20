@@ -129,6 +129,12 @@ one-hot inputs with exact expected products, and the three-column prefill
 reduction against ordered scalar FMA across dimension tails and unaligned
 inputs. The independent HF fixtures below remain the external correctness gate.
 
+`prefill-scope` uses self-generated model fixtures to check caller-once execution,
+nesting/thread guards, allocation and microbatch boundaries, error draining and
+scope reuse. Windows-only `prefill-placement` covers real eligible topology,
+unsupported topology fallback and synthetic apply/restore failures without
+requiring a six-core hosted runner. Neither replaces the independent HF gate.
+
 `backend-errors` injects task and startup-allocation failures, checks completion
 before error propagation, and exercises pool reuse and thread reconfiguration.
 It does not establish recovery of partially executed model sessions.

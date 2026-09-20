@@ -39,6 +39,9 @@ public:
     // the model layer (e.g. attention heads).
     virtual int threads_available() const = 0;
 
+    // Invoke once on the caller and complete all cleanup before returning.
+    virtual void run_prefill(const std::function<void()>& work) { work(); }
+
     // Dot product of one Q8_0 block row (nblocks*32 values) against `x`.
     virtual float dot_q8_0(const uint8_t* row, const float* x, size_t nblocks) = 0;
 

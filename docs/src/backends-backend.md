@@ -34,3 +34,9 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
 Multi-device placement is planned. Device buffers, resident activations,
 and asynchronous execution still require interface changes. Attention is a
 backend operation now, but still takes synchronous host pointers.
+
+`run_prefill(work)` invokes the body once on the caller after successful setup
+and completes cleanup before returning. Setup or reentrancy errors can reject
+the call before body entry. Its default implementation invokes the body directly.
+Backends may use this boundary to scope execution policy across all prompt
+microbatches without putting platform details in the model layer.

@@ -67,3 +67,9 @@ the compiled binary portable to older CPUs.
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a
 runtime-dispatched AVX512F/VNNI kernel can be added later without touching the
 `Backend` seam.
+
+`run_prefill` scopes automatic Windows six-worker placement across the complete
+prefill body. See [placement](backends-cpu-placement.md) for topology, fallback
+and restoration rules. Nested scopes and effective thread-count changes inside
+a scope are rejected. Same-count configuration remains a no-op; the guard is
+for synchronous reentrancy and does not make concurrent calls safe.

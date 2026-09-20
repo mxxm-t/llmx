@@ -311,15 +311,18 @@ public:
     // stays a single matvec rather than B of them.
     std::vector<float> prefill(const std::vector<uint32_t>& ids) {
         if (ids.empty()) throw std::runtime_error("inference: empty prompt");
-        ensure_batch_buffers(ids.size());
         std::vector<float> logits;
-        size_t i = 0;
-        while (i < ids.size()) {
-            const int B = (int)std::min((size_t)ubatch(), ids.size() - i);
-            const bool last = (i + (size_t)B == ids.size());
-            forward_batch(&ids[i], B, last ? &logits : nullptr);
-            i += (size_t)B;
-        }
+        auto work = [&] {
+            ensure_batch_buffers(ids.size());
+            size_t i = 0;
+            while (i < ids.size()) {
+                const int B = (int)std::min((size_t)ubatch(), ids.size() - i);
+                const bool last = (i + (size_t)B == ids.size());
+                forward_batch(&ids[i], B, last ? &logits : nullptr);
+                i += (size_t)B;
+            }
+        };
+        b_->run_prefill(std::ref(work));
         return logits;
     }
 

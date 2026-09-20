@@ -4,17 +4,59 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Runtime release checkpoint (2026-09-20)
+## Prefill placement checkpoint (2026-09-20)
+
+Backend-owned prefill placement is accepted for main under the performance
+tradeoff policy. Publication and hosted validation of the new tests are pending.
+On supported Windows topology, six-worker prefill uses separate physical cores
+and checks restoration before decode. Other configurations fall back. There is
+no runtime affinity flag, NUMA memory policy, arithmetic change or concurrent
+submission support. Persistent OS refusal to restore is reported as an error.
+
+| Final source check | Result |
+|---|---:|
+| Windows native / Linux native | 12/12 / 11/11 |
+| Required HF Python suites, Windows / Linux | 11/11 / 11/11 |
+| Active-placement HF cases | 28/28 |
+| Exact Q8 follow-up pairs | 6/6 |
+| F32/Q8 long-continuation vectors | 33/33 each |
+| Q8 monitored blocks / processes | 24/24 / 72/72 |
+| F32 monitored blocks / processes | 4/4 / 12/12 |
+| Frozen identities rechecked | 79/79 in each run |
+
+| Primary model | Paired prefill gain vs main | Paired combined gain vs mx |
+|---|---:|---:|
+| 0.6B Q8 | +26.40% | +37.49% |
+| 8B Q8 | +32.84% | +34.84% |
+| 0.6B F32 | +13.70% | +2.86% |
+
+All three measured rounds are retained. Competing developer builds/model jobs
+overlapped Q8 despite the reservation and materially limit causal claims.
+Observed Q8 follow-up combined means range from -4.39% to +1.44% versus main,
+with wide uncertainty; F32 decode is -1.26%, while its combined measurement is
++1.27% versus main. These costs are accepted alongside the primary gains, not
+relabelled as zero or used to claim universal parity. Full phase, absolute-time,
+activity and uncertainty tables are in the
+[final comparison](ASSETS.md#final-prefill-placement-comparison-2026-09-20).
+
+Independent review verified all 84 outputs/vectors and reproduced the statistics
+and activity summaries. The single-worker performance smoke passes both arms;
+its one-pair numbers are diagnostic. Source `250846a` is unchanged since final
+correctness and timing. All 26 Markdown files were reviewed for this
+checkpoint. The original working tree and executable remain untouched.
+
+## Runtime base release checkpoint (2026-09-20)
 
 The completed CPU runtime stack is accepted for release under the user's
 performance tradeoff policy: large gains may justify smaller costs elsewhere,
 with HF correctness and matched mx comparisons retained. This is a scoped
 release decision, not a claim of universal per-phase or per-quant superiority.
-The optional placement candidate is not part of this runtime.
+The optional placement candidate is not part of that published base; its
+completed integration is recorded in the checkpoint above.
 
-The tree combines runtime checkpoint `0d41a7b` with public main `9511a4a`.
-All `src/` files remain identical to the runtime parent after Git newline
-normalization. CI retry/cache handling and plain Windows build-header error
+Release `08351b0` combined runtime checkpoint `0d41a7b` with public main `9511a4a`.
+All `src/` files at that reconciliation matched the runtime parent after Git
+newline normalization. CI retry/cache handling and plain Windows build-header error
 checks are retained. No inference arithmetic changed during reconciliation.
 The original Windows working tree, user files and its root executable are not
 replaced by this release.
@@ -34,9 +76,9 @@ Independent merge review verifies that native tests, all eleven Python
 components, UBSan, required HF fixtures and downloader checks remain wired.
 All 25 Markdown files were reviewed for source alignment, ASCII and local links.
 
-## Performance decision
+## Base release performance decision
 
-Current-source Q8 evidence is the fixed monitored comparison: six workers,
+The base release's Q8 evidence is the fixed monitored comparison: six workers,
 ubatch 128, F32 KV, eight measured rounds per model/workload, with all samples
 retained. The table reports paired combined-work speed changes for production
 versus pinned mx `5542318e74`; positive means faster. Follow-up prefix loading
@@ -57,7 +99,7 @@ Background imbalance, competing-agent jobs and coarse telemetry limit causal
 attribution. No sample was discarded or corrected. An idle PC is not required;
 future timing must keep monitoring and must not overlap competing agent work.
 
-The latest applicable, separate nine-round F32 comparison is the
+The base release used the separate nine-round F32 comparison from the
 [ordered-reduction study](ASSETS.md#ordered-prefill-accumulator-reductions-2026-09-20):
 
 | 0.6B F32 phase | llmx tok/s | mx tok/s | Mean-rate difference |
@@ -65,7 +107,7 @@ The latest applicable, separate nine-round F32 comparison is the
 | Primary prefill | 382.921 | 364.721 | +4.99% |
 | Decode | 13.735 | 13.524 | +1.56% |
 
-The backend, inference and quantization sources remain identical to that
+The base release's backend, inference and quantization sources match that
 `bf122fd` study; later model edits validate construction. This is applicable
 historical evidence, not a new F32 measurement on the reconciled tree. Older
 F32 deficits and the earlier sub-percent Q8 decode veto are superseded as
@@ -113,6 +155,7 @@ their own measurements; K-quant optimization remains separate work below.
 | CPU worker exception safety           | Done |
 | CPU worker cost profile                 | Done |
 | CPU ordered prefill reductions          | Done |
+| Backend-owned prefill placement | Done (hosted validation pending) |
 | CLI thread settings                    | Done |
 | Automatic build identification          | Done (main `9511a4a`) |
 | Live generation and loading progress     | Done |
@@ -143,18 +186,10 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 - **Left:** broader full-corpus, maximum-context and per-layer references, plus prospective numerical bounds for any new lossy kernels. Short 8B rankings/excerpts are not deep-context validation.
 - **Gotchas:** self-consistency is supplementary. Exact comparison against another llmx path cannot replace HF. Model construction validation does not establish finite weights, arbitrary token-ID safety, request budgets or failed-session recovery.
 
-### Optional prefill placement integration
-
-- **Goal:** carry the measured prefill gain into a lean backend-owned scope without changing decode placement or model math.
-- **Done:** scratch integration on `291ce2c` passes Windows/Linux native and HF checks, active-path logits, 0.6B long continuation and Q8 follow-up witnesses. All 54 monitored blocks/162 processes and 66 frozen identities pass independent audit. The complete archive has 580 raw records and 162 local vector identities.
-- **Done:** paired primary-prefill gains versus production are +12.378% on 0.6B and +25.216% on 8B. The candidate's 8B one-token follow-up combined speed is -2.893% versus mx. Tradeoffs and workload deviations remain in the complete ASSETS table.
-- **Left:** remove temporary A/B controls, integrate the four-file delta, promote lifecycle tests and validate final sources before adopting it. This optional change is not a prerequisite for the completed runtime release.
-- **Gotchas:** Windows six-worker, single-group homogeneous topology only; unsupported cases pass through. Restore original masks before return or error. No NUMA memory binding, generic affinity knob, concurrent model submissions or universal speedup is claimed.
-
 ### K-quant and device execution work (separate developer branch)
 
 - **Goal:** improve the remaining K-quant decode path and continue ROADMAP #4a without overlapping this release/placement work.
-- **Done:** LDEV owns the separate `design/device-execution-model` branch and K-quant experiments. Its changes are not incorporated by this release. TUI measurements and source identities must be reviewed before adoption.
+- **Done:** LDEV owns the separate `design/device-execution-model` branch and K-quant experiments. Its changes are not incorporated by this release. TUI measurements and source identities must be reviewed before adoption. LDEV reports that quantized-activation commits `357d68d` and `97d52e8` fail `backend-group`; they remain isolated and are not merge-ready. Arithmetic-preserving dispatch work is being separated onto a passing base.
 - **Left:** prospective correctness/performance validation for any new quantized-activation path; backend-owned weights/activations and execution lifetime before vendor GPU kernels. Coordinate rebases after release and announce timing reservations.
 - **Gotchas:** earlier grouped Q16 failed the unchanged native double-dot accuracy contract. Do not reuse it as a lossless baseline or weaken bounds after observing results. CPU Q8 results do not establish K-quant parity.
 

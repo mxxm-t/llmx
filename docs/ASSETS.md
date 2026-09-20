@@ -2080,3 +2080,75 @@ causal regression; prior kernel and worker nulls still apply. Production source,
 tests and the user executable are unchanged. Source identities, commands, raw
 outputs, exact-vector identity, reviews and scope are in
 [`benchmarks/current-8b-worker-spans-20260920.json`](benchmarks/current-8b-worker-spans-20260920.json).
+
+
+### Separate Q8 scale/payload storage screened out
+
+A scratch layout separates each block's original two half-scale bytes from its
+32 signed weight bytes, aligning payload rows to 32 bytes. It preserves weight
+bits, float products, four FMA chains and the HADD reduction. Each packed matrix
+requests its original byte count plus 47 bytes of alignment/load padding. The
+diagnostic retains the original matrix as well; it does not change GGUF or
+introduce a production backend/model interface.
+
+| Correctness check | MSVC | GCC |
+|---|---:|---:|
+| Finite bit comparisons | 612,267 pass | 612,267 pass |
+| Nonfinite classifications | 1,939 pass | 1,939 pass |
+| Packing cases | 141 pass | 141 pass |
+| Packing bytes round-tripped | 2,789,224 | 2,789,224 |
+| Explicit grouped / standalone path calls | 132 / 132 | 132 / 132 |
+
+Packing checks include all 65,536 half patterns, all signed weight bytes, odd
+and empty block counts, unaligned input, aligned rows and overflow rejection.
+The unchanged scalar oracle retains its original arithmetic coverage and
+F16C/software-half/scalar modes. Its adapter packs one row per dot only for
+correctness; that adapter is never timed. The matrix harness prepares persistent
+packed rows once. A scale-bit mutant compiles and is rejected numerically.
+Nonfinite payload identity, alternate rounding modes and model/HF validation
+are outside the claim.
+
+MSVC assembly preserves four FMA chains and the original reduction without
+accumulator loop spills. The matrix harness uses the existing six-worker pool
+and per-matrix partitions, including two matrices in one grouped dispatch.
+Its free row kernels use a scratch calling convention, not the production
+method; split entry's extra argument loads remain included in timing.
+
+| Shape (input width, rows, matrices) | Original mean ms/call | Split mean ms/call | Mean change | Median change | Split wins |
+|---|---:|---:|---:|---:|---:|
+| 1024, 3072, 1 | 0.047025 | 0.047276 | +0.53% | -0.51% | 4/7 |
+| 1024, 3072, 2 | 0.078415 | 0.078916 | +0.64% | +0.69% | 1/7 |
+| 3072, 1024, 1 | 0.042013 | 0.041720 | -0.70% | -1.84% | 3/7 |
+| 4096, 12288, 1 | 0.865281 | 0.844761 | -2.37% | -6.07% | 5/7 |
+| 4096, 12288, 2 | 2.406585 | 2.359071 | -1.97% | -2.83% | 6/7 |
+| 12288, 4096, 1 | 0.859395 | 0.850048 | -1.09% | -0.20% | 3/7 |
+
+Each shape uses one discarded timed warmup pair and seven fixed alternating
+pairs. Small cases repeat 256 calls per sample; large cases repeat 64. All 96
+samples remain archived and every timed result matches its baseline bytes.
+This is a short synthetic matrix screen, with small weights fitting cache;
+these are not whole-model rates or an external mx comparison.
+
+Before timing, advancement required at least 3% lower mean and median latency
+and 5/7 paired wins for every large case, without small-case mean/median
+regression above 3%. All three large means miss that threshold. The study is
+screened out without changing the rule; no model integration is justified by
+this result. Numerical validity is retained as scoped evidence.
+
+| Packing, including allocation/initialization | Time ms | Original bytes | Packed buffer bytes |
+|---|---:|---:|---:|
+| Small up | 0.577 | 3,342,336 | 3,342,383 |
+| Small gate/up | 1.231 | 6,684,672 | 6,684,766 |
+| Small down | 0.528 | 3,342,336 | 3,342,383 |
+| Large up | 8.962 | 53,477,376 | 53,477,423 |
+| Large gate/up | 19.038 | 106,954,752 | 106,954,846 |
+| Large down | 9.092 | 53,477,376 | 53,477,423 |
+
+Packing timings are single observations outside matrix timing, not model-load
+measurements. Both original and packed buffers remain resident; an additional
+original-sized unpack vector exists transiently during round-trip validation.
+Requested buffer bytes exclude vector/allocator overhead and are not peak RSS.
+Production source, tests and executable remain unchanged. Exact sources,
+commands, oracle/mutant logs, assembly, prospective plan and every raw sample
+are archived in
+[`benchmarks/q8-split-storage-screening-20260920.json`](benchmarks/q8-split-storage-screening-20260920.json).

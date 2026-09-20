@@ -9,7 +9,7 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/current-8b-worker-spans`, based on attribution checkpoint `4670449` and
+`research/q8-split-storage`, based on profile checkpoint `1b30ef4` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -246,6 +246,38 @@ External performance requirements still block main/GitHub publication.
   The tooling-only checkpoint changed no hot path and ran after worker timing.
   The parallel 8B HF work ran on the separate rig; it is not a performance gate.
 
+### Separate Q8 scale/payload storage study (screened out)
+
+- **Goal:** test a scratch storage view with original half-scale bytes separate
+  from contiguous 32-byte weight blocks, preserving all arithmetic and values.
+- **Done:** MSVC and GCC each pass 612,267 finite bit comparisons, 1,939
+  nonfinite classifications and 141 packing cases. Grouped/standalone witnesses
+  confirm the split dot runs; a corrupted-scale mutant compiles then fails.
+  Native assembly preserves the FMA chains/HADD with no loop accumulator spills.
+  Fixed synthetic timing completes all six shapes and 96 samples, with exact
+  output checks throughout. No samples are dropped.
+
+  | Shape | Original mean ms/call | Split mean ms/call | Mean change | Median change | Split wins |
+  |---|---:|---:|---:|---:|---:|
+  | Small up | 0.047025 | 0.047276 | +0.53% | -0.51% | 4/7 |
+  | Small gate/up | 0.078415 | 0.078916 | +0.64% | +0.69% | 1/7 |
+  | Small down | 0.042013 | 0.041720 | -0.70% | -1.84% | 3/7 |
+  | Large up | 0.865281 | 0.844761 | -2.37% | -6.07% | 5/7 |
+  | Large gate/up | 2.406585 | 2.359071 | -1.97% | -2.83% | 6/7 |
+  | Large down | 0.859395 | 0.850048 | -1.09% | -0.20% | 3/7 |
+
+  The frozen advancement rule requires at least 3% mean and median improvement
+  with at least 5/7 wins in every large case, and no small-case mean/median
+  regression above 3%. It fails; no model integration follows this study.
+- **Left:** retain production storage. Revisit only with a distinct hypothesis;
+  do not weaken the screening rule or infer a real-model improvement from these
+  short cached matrix measurements. External decode requirements remain open.
+- **Gotchas:** packing takes 8.96/19.04/9.09 ms in the three large cases and
+  adds another weight-sized retained allocation in this diagnostic. Logical
+  retained bytes exclude allocator overhead and an additional unpack-validation
+  temporary. No peak-RSS, model-loading, HF or external-performance claim.
+  Evidence: `benchmarks/q8-split-storage-screening-20260920.json`.
+
 ### Current 8B worker-span diagnostic
 
 - **Goal:** measure instrumentation impact on the current 8B runtime and
@@ -266,9 +298,9 @@ External performance requirements still block main/GitHub publication.
   Instrumented decode dispatch is 213.231 ms/token within 215.241 ms/token phase
   time. Gate/up accounts for 46.82% and FFN down for 23.76% of dispatch time;
   all matrix projections total 98.54%, attention 1.46%.
-- **Left:** select a distinct matrix-cost hypothesis after checking prior null
-  studies. Do not change workers or extrapolate an external performance pass
-  from this three-pair diagnostic. No next implementation is selected yet.
+- **Left:** the separate Q8 scale/payload study above missed its screening
+  rule. Do not change workers or extrapolate an external performance pass from
+  this three-pair diagnostic. No model integration is selected.
 - **Gotchas:** all builds/tests finished before timing; all measured samples
   remain. No mx comparison or independent HF gate was run. Last-finisher entry
   can overlap other workers' compute and callback intervals can include

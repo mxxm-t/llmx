@@ -76,6 +76,49 @@ All 25 project Markdown files are reviewed at this checkpoint. Fresh monitored
 mx comparisons, short-follow-up timing and observer-effect assessment remain
 open; the historical screen failure has not been rewritten as a pass.
 
+## Contention preflight and follow-up correctness (2026-09-20)
+
+The reopened placement candidate passes additional Linux, 8B and prefix-reuse
+checks. These runs establish correctness only; their timings are not accepted
+performance measurements.
+
+| Check | Result |
+|---|---:|
+| Linux native / required-HF suites | 8/8 and 11/11 pass |
+| Enabled-candidate optional 8B HF regression | 37/37 pass, unchanged bounds |
+| Primary / one-token / nine-token suffixes, both Q8 models | 12/12 processes pass |
+| Fresh production vs candidate full final vectors | 6/6 exact pairs; 911,616 finite floats |
+| Individually verified placement callbacks | 20; six distinct physical cores each |
+| Apply / restore operations | 120 / 120 |
+| Decode setters / placement errors / active leftovers | 0 / 0 / 0 |
+| Activity evaluator, synthetic and known CPU load | 20/20 checks pass |
+
+Follow-ups reuse a fixed token prefix and compare each partition against fresh
+production with that same partition. This is not interactive chat-template
+coverage. Serial-step 8B NLL tests do not activate placement; separate callback
+witnesses establish activation and restoration. Linux uses pass-through behavior.
+
+The first comparison preflight detected sustained unrelated CPU and physical
+disk activity and stopped before launching any model benchmark. Accessible
+background CPU ranged from 23-44% of one logical CPU, physical disk busy from
+29-41%, and the busiest GPU engine was about 5%. Disk ownership was not
+established. All 56 frozen artifact identities remained unchanged. No new
+throughput result or candidate rejection follows from this deferred preflight.
+
+The prospective comparison uses production, placement and pinned mx arms on
+both models and all three workloads, with an outer warmup plus eight measured
+rounds. Contaminated matched blocks remain recorded and permit at most two
+whole-block replacements. Recorder effects on model timing remain unmeasured;
+small effects require the separate observer check before interpretation.
+
+Sources, plans, commands, results and hashes are in
+[supplemental evidence](benchmarks/prefill-contention-followup-20260920.json).
+Raw activity and vector payloads stay in `%TEMP%/llmx-prefill-performance`
+with their hashes recorded; the archive does not embed those payloads. Preserve
+the deferred `comparison` directory and archived runner. Its output path is
+exclusive; the next execution needs a fresh directory and recorded runner
+identity. All 25 Markdown files are reviewed at this checkpoint.
+
 ## Model locations
 
 Models are kept in the LM Studio model directory:

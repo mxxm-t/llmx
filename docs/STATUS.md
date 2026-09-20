@@ -117,8 +117,9 @@ CPU/disk/GPU activity before and throughout every arm. Use predefined
 contamination criteria, preserve affected matched blocks as inconclusive and
 repeat complete blocks after contention clears. Existing small differences
 cannot retroactively be certified contention-free without the needed evidence.
-Windows recording and controlled-load detection are now exercised; integrating
-the logs with model timing and assessing observer effects remain open.
+Windows recording, controlled-load detection and the comparison driver's
+preflight screen are now exercised. Completed model timing and assessment of
+observer effects remain open.
 
 ## Active feature blocks
 
@@ -151,10 +152,37 @@ the logs with model timing and assessing observer effects remain open.
   24-sample controlled-load check detects the known CPU process at a median
   99.995% of one logical CPU; recorder CPU is 0.53125 s over 24.01487 s,
   including initialization. Intervals and query errors remain in the log.
-- **Left:** integrate activity recording with model timing and check observer
-  effects, then complete follow-up and prospectively planned matched comparisons.
-  Timing harnesses now build with phase timestamps, but have not run. Optional
-  full 8B consumer and Linux pass-through revalidation remain separate.
+- **Left:** complete prospectively planned matched comparisons and check observer
+  effects once a quiet measurement window is available. The driver records
+  machine activity before and throughout every matched block; no model timing
+  has yet passed its preflight screen.
+- **Done:** fresh Linux candidate pass-through build, native 8/8 and full
+  required-HF suite 11/11 pass with unchanged snapshot source. Matched mx
+  primary/one-token/nine-token continuation harness builds against the pinned
+  CPU DLLs. The activity evaluator passes 20 synthetic/known-load checks.
+- **In progress:** prospective three-arm comparison plan uses one outer
+  warmup round plus eight measured rounds per model/workload, with complete
+  matched-block replacement for detected contention (at most two replacements).
+  The first preflight defers before any model launch: accessible unrelated CPU
+  is 23-44% of one logical CPU and physical disk busy is 29-41% across eleven
+  samples. Raw logs are retained; all 56 frozen identities recheck unchanged.
+  No performance result or candidate rejection follows. Small observer effects
+  remain an explicit unresolved limit.
+- **Done:** fresh enabled-candidate optional 8B regression passes 37/37 checks
+  against unchanged HF fixture bounds. This includes serial-step NLL coverage;
+  active placement is established by the separate callback witnesses, not by
+  the serial NLL path. Its timings are not performance evidence.
+- **Done:** primary, one-token and nine-token follow-up correctness passes
+  for both Q8 models: 12 processes, six byte-identical full-vector pairs and
+  911,616 finite floats. All 20 callbacks independently verify six distinct
+  physical cores and full restoration (120 applies and 120 restores total),
+  with zero decode setters, placement errors or leftover restrictions.
+  These fixed-token prefix/suffix checks do not replace interactive chat tests.
+- **Checkpoint:** all 25 project Markdown files reviewed; stale status wording
+  corrected. Supplemental commands, sources and results are archived in
+  [`prefill-contention-followup-20260920.json`](benchmarks/prefill-contention-followup-20260920.json).
+  All correctness jobs are terminal. Timing remains deferred; preserve the
+  first preflight and use a fresh output directory for the next comparison.
 - **Gotchas:** activity monitoring is evidence, not proof of no interference.
   Keep observer overhead and unavailable counters explicit; no automatic
   adoption or retroactive noise claim follows from the policy change.
@@ -1463,8 +1491,10 @@ feature ships, delete its block and mark the row `Done` above.
     The native two-block lambda is rejected at the no-spill codegen gate.
     The ordinary inner-loop follow-up also fails the useful-scheduling gate:
     no spills, but one extra feature reload and no useful cross-block work.
-    Stop unrolling exploration and resume current-runtime cost attribution;
-    prior F16C specialization, pointer increments and row pairing are nulls.
+    Unrolling remains closed. Caller attribution and native sampling are
+    complete above; neither established a recoverable production cost. The
+    separately reopened prefill-placement assessment remains active. Prior
+    F16C specialization, pointer increments and row pairing are nulls.
   - Thread and matrix-shape diagnostics are complete (see CPU comparison
     thread scaling above). F32 matrix ranges overlap mx, while Q8 matrix
     latency still trails it. The resulting head-major KV layout is now validated.

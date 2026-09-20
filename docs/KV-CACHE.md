@@ -3,14 +3,15 @@
 Design for the KV cache that the multi-user server (ROADMAP #7) and the device
 execution model (ROADMAP #4a) both need. Status: direction agreed by both
 developers on 2026-09-20; the contract conditions XDEV set are recorded in
-their sections below. Nothing here is built yet.
+their sections below. Step 1 of the order of work is implemented on the
+design branch; the block-size screening has not run.
 
 ## Why change
 
-`HostKVCache` holds one sequence per model as a contiguous, head-major,
-capacity-strided F32 array per layer, growing by doubling and copying. That is
-correct and fast for one chat. Serving many sequences from it would cost more
-than it should:
+Before this design, `HostKVCache` held one sequence per model as a
+contiguous, head-major, capacity-strided F32 array per layer, growing by
+doubling and copying. That is correct and fast for one chat. Serving many
+sequences from it would cost more than it should:
 
 - Each sequence needs its own capacity reservation and its own growth copies,
   and the reservations fragment as sequences come and go.
@@ -23,10 +24,10 @@ reuse cases cheap by construction, at an indirection cost that is measured
 below rather than assumed.
 
 vLLM answers all three with paging: uniform blocks, a per-sequence block
-table, refcounts for sharing. llama.cpp's flat cell array with per-cell
-sequence sets is simpler but needs a defragmentation pass and cannot share a
-prefix without copying. Paging is the right structure. The open question was
-its cost on CPU, where decode attention is memory bound and about a fifth of a
+table, refcounts for sharing. llama.cpp keeps a flat cell array with a
+sequence set per cell and defragments it. Paging is the structure chosen
+here because it makes sharing and reuse a refcount. The open question was its
+cost on CPU, where decode attention is memory bound and about a fifth of a
 token.
 
 ## Measured before deciding
@@ -176,8 +177,8 @@ which is their first consumer, not with this design.
 ## Evaluation before implementation
 
 The microbenchmark chose the candidates. The default is chosen on real
-models, with both candidates against the contiguous baseline, following
-AGENTS "Measuring a change":
+models, each candidate against the contiguous baseline, following AGENTS
+"Measuring a change":
 
 - Candidates: 64, 128 and 256, each against the contiguous baseline.
 - Workloads: decode, prefill, and follow-up turns; Qwen3-0.6B and Qwen3-8B

@@ -67,14 +67,19 @@ the compiled binary portable to older CPUs.
   approximation would shift logits and needs its own correctness gate.
 - `parallel_for` stays public here but is deliberately off the `Backend`
   interface; the batched ops above are how the model gets parallelism.
-- `attention`: causal GQA over the host KV cache. Heads use the persistent
-  worker pool and separate score rows, reused across queries. The backend
-  reads contiguous per-head histories with an explicit head stride in floats;
-  physical capacity does not extend the causal sequence. The layout change
-  preserves dot and value-reduction arithmetic order.
-  The backend
-  grows scratch to the sequence being processed, rather than reserving the
-  model's full context. AVX2 dots and weighted value accumulation have scalar
+- `CpuKVStorage`, `kv_layout`, `kv_alloc`, `kv_write`: the physical half of
+  the paged KV cache. Per layer, block `b` of K or V holds
+  `[kv_head][token][head_dim]`, so a head's history is contiguous inside a
+  block. Blocks are backed in doubling steps as ids are first written, up to
+  the budget. `KV_BLOCK_TOKENS` is a temporary `LLMX_KV_BLOCK` compile knob
+  for the block-size screening in `docs/KV-CACHE.md` and becomes a constant
+  when that lands.
+- `attention`: causal GQA over a `KVView`. Heads use the persistent worker
+  pool and separate score rows, reused across queries. Blocks are walked in
+  table order with one global softmax and token-ordered value accumulation
+  across block edges, so the arithmetic is that of a contiguous history.
+  The backend grows scratch to the sequence being processed, rather than
+  reserving the model's full context. AVX2 dots and weighted value accumulation have scalar
   tails; a scalar branch is retained for the runtime AVX2 check.
   Vectorized dot reductions change summation order and require the HF gate.
   Value coefficients are normalized once, then output accumulators stay in

@@ -14,11 +14,17 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   repeats, two geometries, three lengths: block 16 costs +25-33% on decode
   attention, 128 costs +5-10%, 256 costs +1-3%. Design in
   [KV-CACHE](KV-CACHE.md), opened for XDEV agreement.
-- **Left:** direction agreed by XDEV 2026-09-20 with six conditions, all
-  recorded in the design. Next: step 1 (`BlockPool`, `KVSequence`, paged host
-  storage, view-form attention) behind the same outputs, then the real-model
-  screening of 64/128/256 against contiguous with allocated versus used
-  bytes. F16 KV is out of scope.
+- **Done (step 1):** `model/kv_cache.hpp` (`BlockPool`, `KVSequence`),
+  backend `kv_layout`/`kv_alloc`/`kv_write` and view-form `attention`,
+  `CpuKVStorage` backed on demand, `HostKVCache` and the raw-pointer
+  attention removed. Native suite 17/17; Python suite with both HF models
+  passes (f32 max error 0.00000070, baseline PPL and logits within bounds).
+  Provisional block size 128 behind the temporary `LLMX_KV_BLOCK` knob.
+- **Left:** bit-identity check of logits against main; the real-model
+  screening of 64/128/256 against contiguous main (decode, prefill,
+  follow-ups, boundary lengths, allocated versus used bytes) with
+  `ab_runner`; then delete the knob and record the default. Fork/COW and
+  device buffers are later steps. F16 KV is out of scope.
 - **Gotchas:** the microbenchmark is isolated attention with a cold cache and
   is not an end-to-end decode cost. Memory waste cuts against large blocks:
   224 KiB per token on 0.6B means a partial 256-token tail wastes up to

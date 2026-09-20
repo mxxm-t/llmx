@@ -17,12 +17,18 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
   activations. Each descriptor gives type, weights, output and row count.
   Outputs must be disjoint from one another, inputs and weights. The default
   calls `matmul` sequentially; all outputs are ready when the call returns.
-- `attention(Q, K, V, out, n_head, n_head_kv, head_dim, n_past, nbatch, kv_head_stride)`:
-  causal GQA, shared by decode and prefill. Queries/output have shape
-  `[nbatch, n_head, head_dim]`. K/V positions are contiguous within each head;
-  `kv_head_stride` is the distance between heads in floats, including unused
-  capacity. It must hold at least `n_past + nbatch` positions. Query `b` sees
-  only positions through `n_past + b`. The backend owns temporary score storage.
+- `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, budget_bytes)`,
+  `kv_write(layer, view, pos, k, v, batch)`: the backend-owned half of the
+  paged KV cache in `docs/KV-CACHE.md`. The backend chooses the block size and
+  the layout inside a block; the model layer hands it a `KVView` (storage
+  handle, block table, committed length) and never computes an offset.
+  Storage is backed on demand up to as many whole blocks as the budget holds.
+- `attention(Q, layer, view, out, n_head, n_head_kv, head_dim, nbatch)`:
+  causal GQA over the view, shared by decode and prefill. Queries/output have
+  shape `[nbatch, n_head, head_dim]`; query `b` sees positions through
+  `view.length + b`, so the table must cover `length + nbatch` positions and
+  every block it reaches must have been written. The backend owns temporary
+  score storage.
 - `rms_norm(dst, src, w, n, eps)`: RMS norm of one row.
 - `rope(x, cos, sin, half)`: rotary position embedding on one head.
 - `rms_norm_rows(dst, src, w, rows, n, stride, eps)`: RMS norm of `rows` rows

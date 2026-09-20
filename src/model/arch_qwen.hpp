@@ -14,7 +14,7 @@
 #include "core/fp16.hpp"
 #include "quant/quant.hpp"
 #include "backends/backend.hpp"
-#include "model/host_kv_cache.hpp"
+#include "model/kv_cache.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 
 // Qwen3-style transformer forward pass, from scratch. The compute primitives
@@ -198,7 +198,18 @@ public:
         up_.assign(cfg.n_ff, 0.0f);
         ffn_.assign(cfg.n_ff, 0.0f);
 
-        cache_ = HostKVCache(cfg.n_layer, cfg.n_head_kv, cfg.head_dim, cfg.context_length);
+        // Budget: the whole context in whole blocks. Storage is backed on
+        // demand, so a short chat does not allocate it.
+        {
+            const size_t bt = b_->kv_layout().block_tokens;
+            const size_t blocks = ((size_t)cfg.context_length + bt - 1) / bt;
+            const size_t block_bytes = (size_t)cfg.n_layer * 2 * cfg.n_head_kv * bt *
+                                       cfg.head_dim * sizeof(float);
+            kv_storage_ = b_->kv_alloc(cfg.n_layer, cfg.n_head_kv, cfg.head_dim,
+                                       blocks * block_bytes);
+            kv_pool_ = BlockPool(kv_storage_->max_blocks());
+            kv_seq_ = KVSequence(&kv_pool_, bt);
+        }
 
         // Precompute the RoPE cos/sin table for every position up to the
         // context length. Indexed as [pos*(head_dim/2) + i].
@@ -233,7 +244,26 @@ public:
             throw std::runtime_error("inference: context length exceeded (" +
                                      std::to_string(cfg.context_length) + " tokens)");
 
-        cache_.reserve((size_t)pos + 1, (size_t)n_tokens_);
+        kv_seq_.prepare(1);
+        try {
+            step_body(token_id, pos);
+        } catch (...) {
+            kv_seq_.abort();
+            throw;
+        }
+        kv_seq_.commit();
+
+        // final norm + output projection
+        b_->rms_norm(h_.data(), x_.data(), output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
+        std::vector<float> logits(output_.nout);
+        matvec(output_, h_.data(), logits.data());
+
+        n_tokens_++;
+        return logits;
+    }
+
+    void step_body(int token_id, int pos) {
+        const backend::KVView view = kv_seq_.view(kv_storage_.get());
 
         // embedding
         dequant_row(token_embd_, token_id, x_.data());
@@ -261,15 +291,9 @@ public:
                                    w.attn_k_norm.f32(), cfg.rms_eps, cs, sn, half);
             }
 
-            // store k,v in cache
-            cache_.write(l, kv_.data(), v_.data(), (size_t)pos, 1);
-
-            // attention: each q-head writes only its own attn_ slice, so heads
-            // can be processed in parallel.
-            const float* kcache = cache_.keys(l);
-            const float* vcache = cache_.values(l);
-            b_->attention(q_.data(), kcache, vcache, attn_.data(),
-                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos, 1, cache_.head_stride());
+            b_->kv_write(l, view, (size_t)pos, kv_.data(), v_.data(), 1);
+            b_->attention(q_.data(), l, view, attn_.data(),
+                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, 1);
 
             // attn_output projection + residual
             std::fill(h_.begin(), h_.end(), 0.0f);
@@ -291,14 +315,6 @@ public:
             matvec(w.ffn_down, ffn_.data(), h_.data());
             b_->add(x_.data(), h_.data(), cfg.n_embd);
         }
-
-        // final norm + output projection
-        b_->rms_norm(h_.data(), x_.data(), output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
-        std::vector<float> logits(output_.nout);
-        matvec(output_, h_.data(), logits.data());
-
-        n_tokens_++;
-        return logits;
     }
 
     // Process a whole prompt with matrix-matrix matmuls instead of one token at
@@ -324,11 +340,14 @@ public:
         return logits;
     }
 
-    // Clear the KV cache (start a new conversation).
+    // Start a new conversation. Blocks return to the pool; their storage is
+    // retained for the next history.
     void reset() {
+        kv_seq_.reset();
         n_tokens_ = 0;
-
     }
+
+    size_t kv_allocated_bytes() const { return kv_storage_->allocated_bytes(); }
 
 private:
     const gguf::GGUFModel* m_;
@@ -344,7 +363,9 @@ private:
     std::vector<float> x_, h_, q_, kv_, v_, attn_;
     std::vector<float> gate_, up_, ffn_;
     std::vector<float> xb_, hb_, qb_, kb_, vb_, attnb_, gateb_, upb_, ffnb_;
-    HostKVCache cache_;
+    std::unique_ptr<backend::KVStorage> kv_storage_;
+    BlockPool kv_pool_;
+    KVSequence kv_seq_;
     std::vector<float> rope_cos_, rope_sin_;
     int n_tokens_ = 0;
     const gguf::TensorInfo& tensor(const std::string& name) const {
@@ -432,7 +453,26 @@ private:
         if (pos0 + B > cfg.context_length)
             throw std::runtime_error("inference: context length exceeded (" +
                                      std::to_string(cfg.context_length) + " tokens)");
-        cache_.reserve((size_t)pos0 + (size_t)B, (size_t)n_tokens_);
+        kv_seq_.prepare((size_t)B);
+        try {
+            forward_batch_body(ids, B, pos0);
+        } catch (...) {
+            kv_seq_.abort();
+            throw;
+        }
+        kv_seq_.commit();
+        n_tokens_ += B;
+
+        if (out_logits) {
+            b_->rms_norm(h_.data(), xb_.data() + (size_t)(B - 1) * cfg.n_embd,
+                         output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
+            out_logits->assign(output_.nout, 0.0f);
+            matvec(output_, h_.data(), out_logits->data());
+        }
+    }
+
+    void forward_batch_body(const uint32_t* ids, int B, int pos0) {
+        const backend::KVView view = kv_seq_.view(kv_storage_.get());
         const int E = cfg.n_embd, HD = cfg.head_dim;
         const size_t half = (size_t)HD / 2;
         const size_t KV = (size_t)cfg.n_head_kv * HD;
@@ -457,12 +497,9 @@ private:
             b_->norm_rope_rows(kb_.data(), (size_t)B, KV, cfg.n_head_kv,
                                w.attn_k_norm.f32(), cfg.rms_eps, cs, sn, half);
 
-            cache_.write(l, kb_.data(), vb_.data(), (size_t)pos0, (size_t)B);
-
-            const float* kc = cache_.keys(l);
-            const float* vc = cache_.values(l);
-            b_->attention(qb_.data(), kc, vc, attnb_.data(),
-                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, pos0, B, cache_.head_stride());
+            b_->kv_write(l, view, (size_t)pos0, kb_.data(), vb_.data(), (size_t)B);
+            b_->attention(qb_.data(), l, view, attnb_.data(),
+                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, B);
 
             matmul(w.attn_output, attnb_.data(), hb_.data(), B);
             b_->add(xb_.data(), hb_.data(), (size_t)B * E);
@@ -475,15 +512,6 @@ private:
             b_->silu_mul(ffnb_.data(), gateb_.data(), upb_.data(), (size_t)B * cfg.n_ff);
             matmul(w.ffn_down, ffnb_.data(), hb_.data(), B);
             b_->add(xb_.data(), hb_.data(), (size_t)B * E);
-        }
-
-        n_tokens_ += B;
-
-        if (out_logits) {
-            b_->rms_norm(h_.data(), xb_.data() + (size_t)(B - 1) * E,
-                         output_norm_.f32(), E, cfg.rms_eps);
-            out_logits->assign(output_.nout, 0.0f);
-            matvec(output_, h_.data(), out_logits->data());
         }
     }
 

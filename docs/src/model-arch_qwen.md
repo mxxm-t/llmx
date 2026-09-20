@@ -30,7 +30,8 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   same weight across calls and keep it resident; no admissible CPU performance
   measurement exists yet. See `docs/DEVICE-EXECUTION.md` step 1.
 - `Model`: loads tensors from a `GGUFModel`, owns one sequence's logical token
-  count and a `HostKVCache` for physical CPU storage.
+  count, a `BlockPool` and `KVSequence` for the logical cache, and the
+  backend's `KVStorage` for the physical blocks.
   - `set_threads(n)`, `threads_available()`, `n_tokens()`, `head_dim()`,
     `context_length()`. The thread getter reports the resolved backend count,
     allowing the CLI to restore automatic decode settings after prefill.

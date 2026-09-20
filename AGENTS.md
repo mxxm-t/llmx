@@ -182,9 +182,11 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   `cli-output`):
   completed-byte reporting, truncated reads, callback failures, early text
   delivery, split UTF-8 bytes, legacy filtering and stop/EOS accounting.
-- **KV storage** (`tests/kv_cache.cpp`, CTest `kv-cache`): distinct
-  layer/head/position/lane values across growth, retained-capacity reset and
-  invalid extents. This storage oracle supplements the independent HF gate.
+- **KV cache** (`tests/kv_cache.cpp`, CTest `kv-cache`): block pool reuse and
+  exhaustion, sequence prepare/commit/abort/reset, on-demand storage growth
+  and retained reset across block boundaries, and paged attention over two
+  block tables against a double-precision reference. This oracle supplements
+  the independent HF gate.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model.

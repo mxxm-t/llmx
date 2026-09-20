@@ -33,6 +33,32 @@ struct Projection {
     size_t rows;
 };
 
+// KV cache storage belongs to the backend; the model layer keeps only the
+// logical view (docs/KV-CACHE.md). Block ids index one KVStorage and the same
+// id addresses every layer of it. Block size and the layout inside a block
+// are the backend's choice, which is why nothing here exposes an offset.
+struct KVLayout {
+    size_t block_tokens;
+};
+
+class KVStorage {
+public:
+    virtual ~KVStorage() = default;
+    virtual size_t max_blocks() const = 0;
+    // Bytes currently backing blocks; grows on demand toward the budget.
+    virtual size_t allocated_bytes() const = 0;
+};
+
+// One sequence's history in one storage: logical block i is physical block
+// blocks[i], and `length` tokens are committed. A batch of nbatch queries
+// attends through length + b, so the table must cover length + nbatch.
+struct KVView {
+    KVStorage* storage;
+    const int32_t* blocks;
+    size_t n_blocks;
+    size_t length;
+};
+
 class Backend {
 public:
     virtual ~Backend() = default;
@@ -72,12 +98,25 @@ public:
             matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);
     }
 
-    // Causal GQA: Q/out are [nbatch, n_head, head_dim]. K/V histories
-    // are contiguous per head, separated by kv_head_stride floats.
-    // Query b attends through n_past+b.
-    virtual void attention(const float* Q, const float* K, const float* V, float* out,
-                           int n_head, int n_head_kv, int head_dim,
-                           int n_past, int nbatch, size_t kv_head_stride) = 0;
+    virtual KVLayout kv_layout() const = 0;
+
+    // F32 keys and values for `layers` layers of n_head_kv x head_dim, up to
+    // as many whole blocks as budget_bytes holds including any layout
+    // overhead. Nothing is backed until a block is written.
+    virtual std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv,
+                                                size_t head_dim,
+                                                size_t budget_bytes) = 0;
+
+    // Store `batch` token-major [batch, n_head_kv, head_dim] rows at
+    // positions pos .. pos+batch of the view's sequence.
+    virtual void kv_write(size_t layer, const KVView& view, size_t pos,
+                          const float* k, const float* v, size_t batch) = 0;
+
+    // Causal GQA over the view: Q/out are [nbatch, n_head, head_dim] and
+    // query b attends through view.length + b.
+    virtual void attention(const float* Q, size_t layer, const KVView& view,
+                           float* out, int n_head, int n_head_kv, int head_dim,
+                           int nbatch) = 0;
 
     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm).
     virtual void rms_norm(float* dst, const float* src, const float* w,

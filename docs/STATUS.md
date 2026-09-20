@@ -183,6 +183,15 @@ observer effects remain open.
   [`prefill-contention-followup-20260920.json`](benchmarks/prefill-contention-followup-20260920.json).
   All correctness jobs are terminal. Timing remains deferred; preserve the
   first preflight and use a fresh output directory for the next comparison.
+- **Latest preflight:** the next attempt also defers before launching a model:
+  sustained unrelated CPU exceeds the unchanged screen. Recorder exit is zero;
+  all 58 identities recheck unchanged. A minimally changed runner now requires
+  a fresh `--output` path, preserving both attempts and the original runner.
+  [Second preflight evidence](benchmarks/prefill-preflight-02-20260920.json).
+  Turning off the only recorder would remove during-run contention evidence;
+  an extra-recorder sensitivity diagnostic would not prove zero-recorder cost.
+  Keep that limit explicit and assess whether such a diagnostic is useful after
+  the matched comparison, without creating more measurement infrastructure now.
 - **Gotchas:** activity monitoring is evidence, not proof of no interference.
   Keep observer overhead and unavailable counters explicit; no automatic
   adoption or retroactive noise claim follows from the policy change.

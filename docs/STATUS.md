@@ -211,6 +211,29 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 
 ## Active feature blocks
 
+### External floor of merged main (2026-09-20)
+
+Matched against mx `5542318e74`, six threads, eight rounds, identical committed
+token IDs in both arms. Runtime is `main` after the device-execution steps and
+the fused Q5_K/Q6_K decode dots; the quantized-activation kernels are NOT in it.
+
+| Model / phase | llmx | mx | ratio | |
+|---|---:|---:|---:|---|
+| Q8_0 prefill | 495.23 | 271.75 | 1.82x | above |
+| Q8_0 decode | 46.01 | 44.94 | 1.02x | above |
+| Q5_K_M prefill | 408.70 | 242.41 | 1.69x | above |
+| Q5_K_M decode | 34.92 | 60.93 | 0.57x | **below** |
+
+Three of four clear the floor, and Q8_0 clears both phases: decode crossed from
+0.99x earlier today to 1.02x. **ROADMAP #8 is met for Q8_0 and NOT met
+overall** - K-quant decode is the single remaining failure, with mx 1.75x
+faster. Absolute rates are higher than this afternoon on both arms because host
+load fell; the ratios barely moved (Q5_K decode 0.589x then, 0.573x here).
+The 1.02x is inside the range an A/A can produce and should not be leaned on;
+the 1.69x-1.82x margins and the 0.57x shortfall are not.
+Evidence: `benchmarks/main-external-floor-20260920.json`.
+
+
 ### Scoped correctness coverage and remaining HF work
 
 - **Goal:** keep independent HF ground truth and extend coverage where the roadmap requires it.

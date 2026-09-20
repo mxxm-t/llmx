@@ -1,0 +1,40 @@
+{
+  "study": "Matched external floor of merged main against mx-llama.cpp",
+  "date": "2026-09-20",
+  "branch": "main",
+  "production_changed": false,
+  "runtime": "main at 8ef5930, after merging device-execution steps 1-2 and the fused Q5_K/Q6_K decode dots. The quantized-activation kernels are NOT included; they fail backend-group and remain isolated.",
+  "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+  "scope": "Qwen3-0.6B Q8_0 and Q5_K_M, six threads, eight matched rounds each, identical committed HF token IDs in both arms via tools/compare_cpu.py.",
+  "results": {
+    "q8_0": {
+      "prefill": {
+        "llmx": 495.23051300471985,
+        "mx": 271.7499056727424
+      },
+      "decode": {
+        "llmx": 46.00646040842064,
+        "mx": 44.9364987295578
+      }
+    },
+    "q5_k_m": {
+      "prefill": {
+        "llmx": 408.6960090309899,
+        "mx": 242.41369107925533
+      },
+      "decode": {
+        "llmx": 34.91804707593367,
+        "mx": 60.93014796165177
+      }
+    }
+  },
+  "ratios": {
+    "q8_0_prefill": 1.8223760254073695,
+    "q8_0_decode": 1.023810526167208,
+    "q5_k_prefill": 1.6859444168001625,
+    "q5_k_decode": 0.5730832476873419
+  },
+  "verdict": "Three of four clear the floor. Q8_0 clears BOTH phases, decode having crossed from 0.99x earlier today to 1.02x. K-quant decode remains the single failure at 0.57x, so ROADMAP #8 is met for Q8_0 and NOT met overall.",
+  "note": "Absolute rates on both arms are higher than this afternoon's runs because host load fell; the ratios are the comparable quantity and they moved little. Q5_K decode 0.589x this afternoon against 0.573x here.",
+  "limits": "One model family and size, one thread count, one prompt. The 8B models were not measured in this run. No A/A was taken immediately before this comparison, so small differences should not be over-read; the 1.69x-1.82x margins and the 0.57x shortfall are far outside any plausible noise, the 1.02x is not."
+}

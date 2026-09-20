@@ -115,23 +115,16 @@ struct LayerWeights {
 std::vector<LayerWeights> layers_;
 ```
 
-The current forward pass builds `"blk." + std::to_string(l) + "."` and then
-does ~10 string concatenations and ~10 `unordered_map` lookups **per layer, per
-token** - ~280 of each per decoded token on a 28-layer model. Pre-resolution
-deletes all of it.
+The current forward pass builds `"blk." + std::to_string(l) + "."` and does ~10
+hash lookups **per layer, per token** - ~280 per decoded token on 28 layers.
+Pre-resolution deletes them.
 
-**Measured effect on CPU decode: none.** Interleaved A/B on Qwen3-0.6B-Q8_0,
-10 pairs, gave mean 25.32 tok/s both before and after (best +0.8%, inside
-noise). The lookups are real but they are a few thousand per second against
-matmuls streaming hundreds of MB per second; they were never the bottleneck.
-This step is justified as a *prerequisite*, not an optimization: it is the only
-way to express residency, since the backend must receive the same handle for
-`blk.7.ffn_up.weight` on every token to keep it on the device. It also removes
-a per-token heap allocation (the string build) and is less code than what it
-replaces.
-
-Do not expect the rest of the migration to pay for itself on CPU either. The
-honest claim is that it is CPU-neutral and GPU-enabling.
+**Measured effect on CPU decode: none** (25.32 tok/s before and after, 10
+interleaved pairs). A few thousand lookups per second never competed with
+matmuls streaming hundreds of MB per second. This step is a prerequisite, not
+an optimization: the backend must receive the same handle for a given weight on
+every token to keep it resident. Expect the same of the rest of the migration -
+CPU-neutral and GPU-enabling.
 
 ### Activation arena
 
@@ -179,25 +172,16 @@ The `_rows` suffixes matter more than they look. `rope_rows` replaces
 the SwiGLU loop that currently reads `gate` and `up` and writes `ffn` as three
 separate streams. `embed` replaces the per-token host-side `dequant_row`.
 
-Three things learned from writing this step against the CPU backend:
+From writing this step:
 
-- **Fuse the per-head norm with RoPE.** The model never applies one without the
-  other, and always per head, so a single `norm_rope_rows` is the honest shape:
-  the head stays hot between the two passes, and a device gets one launch per
-  layer rather than `rows * heads`. Separate `rms_norm_rows` and `rope_rows`
-  ops, as first sketched above, would be orthogonal but would not match any
-  caller.
-- **Dispatch thresholds are backend-private and must not leak into the spec.**
-  The CPU backend declines to spread fewer than two rows per worker, and keeps
-  elementwise spans under ~32K elements on the calling thread, because waking
-  its pool costs more than the work. Those numbers are properties of a host
-  thread pool. A GPU backend wants every row in one launch at any count and
-  must not inherit them. Keeping the rule inside the backend - rather than in
-  the model, where it lived as `for_rows` - is what makes that possible.
-- **Only prefill can benefit on CPU.** Decode runs `B == 1`, so there is no row
-  dimension to batch and nothing for these ops to amortize; the per-head loop
-  is the same work either way. Expect prefill movement and decode noise, and
-  treat a decode "gain" here as a measurement artifact until proven otherwise.
+- Fuse the per-head norm with RoPE. The model never applies one without the
+  other, so `norm_rope_rows` matches the only caller; two orthogonal ops would
+  not.
+- Dispatch thresholds stay backend-private. The CPU pool declines under two
+  rows per worker; a GPU wants every row in one launch at any count. Keeping
+  the rule in the backend rather than the model is what allows both.
+- Only prefill can benefit on CPU. Decode runs `B == 1`, so there is no row
+  dimension to amortize. Treat a decode gain here as an artifact until proven.
 
 Once these exist, `Model` has no elementwise loops left, so it no longer needs
 `for_rows`, so `parallel_for` and the compute use of `threads_available` come
@@ -251,13 +235,12 @@ loaded workstation, sequential sampling drifts enough to invent a 7% change in
 either direction. The CPU backend is the floor for every GPU claim, so a step
 that costs throughput is not acceptable even though the destination is a device.
 
-Interleaving alone is not enough to clear this project's bar. A step's timing
-also needs what the placement study already does: `tools/monitor_windows.py`
-telemetry in every arm, contamination criteria and an advance rule frozen
-*before* measuring, the matched mx-llama.cpp column, and all slow samples
-retained rather than dropped. Per-sample pairs must be reported, not just
-means - a mean hides the case where two contaminated rounds carry the whole
-effect, which is exactly how step 2's first decode number went wrong.
+Interleaving is necessary but not sufficient. A step also needs what the
+placement study does: `monitor_windows.py` telemetry in every arm, an advance
+rule and contamination criteria frozen before measuring, the matched
+mx-llama.cpp column, all slow samples retained, and per-pair reporting. A mean
+hides two contaminated rounds carrying the whole effect - how step 2's first
+decode number went wrong.
 
 A vendor backend (#4b) is only writable after step 6.
 

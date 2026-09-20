@@ -1683,66 +1683,31 @@ feature ships, delete its block and mark the row `Done` above.
   - ubatch barely matters once the kernel is right, and 343 vs 512 on a
     343-token prompt is the SAME computation - do not read noise as signal.
 
-### Device execution model (ROADMAP #4a, steps 1-2)
+### Device execution model (ROADMAP #4a)
 
-- **Process note:** this block was opened AFTER the code was written, which
-  `AGENTS.md` -> "Starting a feature" forbids. Recorded rather than backdated.
-- **Goal:** land the backend-agnostic device execution model that #4b depends
-  on, in the six steps designed in `docs/DEVICE-EXECUTION.md`. Bar per step is
-  *no measured regression*, not a win: the CPU backend is the floor for every
-  later GPU claim.
-- **Done:** the design itself (`docs/DEVICE-EXECUTION.md`, commit `b1e4904`).
-  Interface shape, migration order, scope boundary against #5, and the verified
-  caller counts for the members that do not survive: `parallel_for` (1 caller
-  outside the CPU backend), `dot_q8_0` / `matvec_q8_0` (the `bench` command and
-  one test).
-- **Done:** step 1, weights resolved once at load (commit `edd617f`).
-  `validate_tensors` became `resolve_tensors` and returns a `Weight` from the
-  same check that validates layout, so a resolved handle is well-formed by
-  construction. Full suite passes, HF logits and PPL unchanged on Q8_0 and
-  Q4_0. Interleaved A/B, 10 pairs, Qwen3-0.6B-Q8_0 decode: mean 25.32 -> 25.32
-  tok/s, best +0.8%. Neutral, as a prerequisite should be. The design doc had
-  claimed a win and was corrected in the same commit.
-- **Left (NOT COMMITTED):** step 2, batched elementwise ops. Adds
-  `rms_norm_rows`, `norm_rope_rows`, `silu_mul` and `add` to `Backend`, removes
-  `parallel_for` from the interface (it stays public on `CpuBackend`), and
-  deletes the `for_rows` helper from the model layer. Builds clean, full suite
-  passes, and HF perplexity is bit-identical to step 1 on both quants -
-  0.0000% numerical change, not merely within tolerance.
-- **Left:** step 2 is **not gated** and must not be merged as-is. Its timing was
-  taken off-protocol: no `tools/monitor_windows.py` telemetry, no prospectively
-  frozen advance rule, no matched mx column, no contamination criteria defined
-  before measuring. Redo it under the prefill-placement runner's discipline
-  before it counts.
-- **Finding (diagnostic only, all samples retained):** 8 interleaved pairs,
-  Qwen3-0.6B-Q8_0, 840-token prompt, loaded workstation.
-
-  | Phase | step1 mean | step2 mean | Mean change | Paired wins |
-  |---|---:|---:|---:|---:|
-  | Prefill | 305.96 tok/s | 316.67 tok/s | +3.50% | 8/8 |
-  | Decode | 19.70 tok/s | 20.37 tok/s | +3.40% | 6/8 |
-
-  The decode figure is an artifact. Its two winning pairs are +25.00% and
-  +12.15%, and they are exactly the two lowest-throughput pairs (11.16 and
-  13.91 tok/s), i.e. rounds where the step1 arm absorbed a load spike. The
-  other six give +0.63% mean at 4/6 wins. Decode is unchanged, which is what
-  theory predicts: decode runs B=1, so there are no rows to batch. Prefill at
-  B=512 is where the per-row and per-head dispatch existed, and its 8/8 result
-  survives dropping the +11.99% outlier (7/7, +2.28%). The slow samples are
-  retained, not discarded.
+- **Process note:** this block was opened after the code was written, which
+  `AGENTS.md` forbids.
+- **Goal:** land the backend-agnostic execution model #4b depends on, in the
+  six steps of `docs/DEVICE-EXECUTION.md`. Bar per step is no measured
+  regression, not a win.
+- **Done:** the design, `b1e4904`. Step 1, weights resolved once at load,
+  `edd617f`: suite green, HF logits and PPL unchanged on Q8_0 and Q4_0,
+  interleaved A/B neutral (25.32 -> 25.32 tok/s, 10 pairs). Doc page refreshed
+  in `1d4ffa4`.
+- **Left:** step 2, batched elementwise ops, written but NOT committed. Suite
+  green and HF perplexity bit-identical to step 1. Not gated: timed without
+  `monitor_windows.py`, a frozen advance rule, an mx column or contamination
+  criteria, on a machine LDEV was itself loading. Redo under the placement
+  runner's discipline.
+- **Left:** steps 3-6 (buffers, arena, KV on buffers, sync) untouched. No
+  vendor backend is writable until step 6.
 - **Gotchas:**
-  - Do not read this as a SwiGLU result. The separate "Exact decode SwiGLU
-    callback fusion (screened out)" study measured a *different* change
-    (fusing SwiGLU into the Q8 gate/up worker callback) and its verdict stands.
-    Decode attribution puts SwiGLU at 1.157311 ms/token against 217.602291
-    ms/token in dispatch - about 0.5% - so no decode-sized gain can come from
-    it, which is what flagged the artifact above.
-  - `norm_rope_rows` deliberately fuses per-head RMS norm with RoPE because the
-    model only ever applies them together and per head. That is one op rather
-    than the two the design doc proposed; revisit if a future architecture
-    needs them apart.
-  - Steps 3-6 (buffers, activation arena, KV on buffers, sync) are untouched.
-    A vendor backend is not writable until step 6.
+  - Step 2's first decode reading of +3.40% was an artifact: its two winning
+    pairs were the two lowest-throughput rounds, the other six gave +0.63%.
+    Decode runs B=1 and cannot benefit. Prefill is the real effect, 8/8 paired
+    wins. All samples retained.
+  - Not a SwiGLU result. The screened-out "Exact decode SwiGLU callback fusion"
+    measured a different change and its verdict stands.
 
 Nothing else is in flight. When you start a feature, open a block above
 before writing code - see `AGENTS.md` -> "Starting a feature".

@@ -1759,8 +1759,30 @@ feature ships, delete its block and mark the row `Done` above.
   | Prefill | - | - | -0.93% | -0.64% | 10/15 |
 
   Evidence: `benchmarks/fused-q5k-decode-20260920.json`.
+- **Done:** the matched external floor, which the above does NOT establish.
+  `tools/compare_cpu.py`, mx `5542318e74`, six threads, eight matched rounds,
+  identical committed HF token IDs in both arms:
+
+  | Phase | llmx | mx | Ratio | Gate |
+  |---|---:|---:|---:|---|
+  | Prefill | 324.33 | 230.33 | 1.41x | above |
+  | Decode | 15.98 | 58.30 | 0.27x | **BELOW** |
+
+  Q5_K decode does not meet ROADMAP #8. The fused dot is a real 51% gain over
+  the previous llmx build and still leaves mx 3.65x faster. Reporting the
+  self-comparison alone would have read as success.
+  Evidence: `benchmarks/q5k-external-floor-20260920.json`.
+- **Left:** Q5_K decode is 3.65x below the external floor even after the fused
+  dot, so the type is not done. UNVERIFIED hypothesis for the gap: mx
+  quantizes the activation vector to 8-bit and takes an integer dot product,
+  so its inner loop is integer SIMD over two quantized operands, while the
+  llmx fused dot converts weights to float and uses float FMA against f32
+  activations. That moves more bytes per weight and does less work per
+  instruction. Measure before treating it as the cause; a quantized-activation
+  path is a much larger change than a fused dot and affects every type.
 - **Left:** the same treatment for Q6_K, which has signed group scales and no
-  min, so the dot is `sum(d_g * sum(q*x))` with no `sum(x)` term.
+  min, so the dot is `sum(d_g * sum(q*x))` with no `sum(x)` term. Written, not
+  built or measured. Expect the same floor gap to remain afterwards.
 - **Left:** propose adding `Qwen3-0.6B-Q5_K_M.gguf` to `BASELINE_MODELS` so
   the external gate covers Q5_K/Q6_K permanently. Deliberately not done here:
   that list drives `tools/fetch_test_models.py`, which XDEV owns while fixing

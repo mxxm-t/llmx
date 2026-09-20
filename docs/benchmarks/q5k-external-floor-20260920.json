@@ -1,0 +1,68 @@
+{
+  "study": "Q5_K matched external floor against mx-llama.cpp",
+  "date": "2026-09-20",
+  "branch": "design/device-execution-model",
+  "production_changed": false,
+  "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+  "scope": "Qwen3-0.6B-Q5_K_M, six threads, eight matched rounds, identical committed HF token IDs in both arms via tools/compare_cpu.py. llmx arm includes the fused Q5_K decode dot.",
+  "summary": {
+    "llmx": {
+      "pp": {
+        "mean": 324.3274360793628,
+        "median": 329.79380029085746,
+        "minimum": 297.5622043408097,
+        "maximum": 338.1076226442155
+      },
+      "tg": {
+        "mean": 15.979555130249224,
+        "median": 16.18845946223425,
+        "minimum": 15.024796783754438,
+        "maximum": 16.54078440534846
+      }
+    },
+    "reference": {
+      "pp": {
+        "mean": 230.32823794516443,
+        "median": 230.57622688774075,
+        "minimum": 223.36488076574884,
+        "maximum": 236.1325918550291
+      },
+      "tg": {
+        "mean": 58.299381913228245,
+        "median": 58.495635450879035,
+        "minimum": 53.98831962704868,
+        "maximum": 61.949364525354625
+      }
+    }
+  },
+  "metadata": {
+    "sha256": {
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q5k\\llmx-compare.exe": "c8b9882a454a04b27fbea37230557716a4ca08d7093e59223e973a41fbe265a3",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llmx-compare.exe": "82d74b9c3cf5a5284fb0e6dcace38efe77d625edc2e30761f5a64d6101877448",
+      "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\data\\baseline_perplexity.json": "7a7a310054bbcd6e4a558adea4f06f007fc0cee80766b6edacd14542cecef15c",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llama.dll": "2d007cdf70a8f0f29daf87d04c73eda7975248de6528de82bf0b7e7820f9f775",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml.dll": "f8c791dc32f4ebfce0e17ba2ebefba02d16c8f7209f74a5f0a87d0d60d69a12c",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-base.dll": "255b1d609643421a5d1dabecb1d0010076235035cbce0516f6c3988115581a08",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-cpu.dll": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2"
+    },
+    "reference_revision": "5542318e748c154b634211def405ae95da3dfaa9",
+    "threads": 6,
+    "ubatch": 128,
+    "kv_type": "f32",
+    "prompt_tokens": 215,
+    "forced_decode_tokens": 32,
+    "warmup_sequences_per_process": 1,
+    "rounds": 8,
+    "timing": "model inference only; no load, tokenization or sampling"
+  },
+  "result": {
+    "prefill_ratio": 1.4081097436111039,
+    "decode_ratio": 0.2740947606277011,
+    "prefill": "above floor",
+    "decode": "below floor"
+  },
+  "decision": "Prefill clears the floor at 1.41x. Decode does NOT: 15.98 against 58.30 tok/s, so mx is 3.65x faster. The fused Q5_K dot is a real 51% improvement over the previous llmx build and still leaves Q5_K decode far below the external gate. ROADMAP #8's performance requirement is NOT met for Q5_K decode.",
+  "hypothesis": "UNVERIFIED. mx quantizes the activation vector to 8-bit and takes an integer dot product, so its inner loop is integer SIMD over two quantized operands. The llmx fused dot converts weights to float and uses float FMA against f32 activations, which moves more bytes per weight and does less work per instruction. This needs measurement before it is treated as the cause.",
+  "limits": "One model, quant, thread count and workload. Prefill and decode come from the same matched rounds. Does not measure other quant types."
+}

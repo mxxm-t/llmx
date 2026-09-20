@@ -1,0 +1,86 @@
+[
+  {
+    "pair": 0,
+    "arm": "llmx",
+    "run": 1,
+    "threads": 6,
+    "pp_tokens": 215,
+    "tg_tokens": 32,
+    "pp_ms": 10069.2801,
+    "tg_ms": 6802.4285,
+    "top1": 4013,
+    "logit_sum": -26296.27124
+  },
+  {
+    "pair": 0,
+    "arm": "reference",
+    "run": 1,
+    "threads": 6,
+    "pp_tokens": 215,
+    "tg_tokens": 32,
+    "pp_ms": 10213.4277,
+    "tg_ms": 6672.6646,
+    "top1": 4013,
+    "logit_sum": -26296.27124
+  },
+  {
+    "pair": 1,
+    "arm": "reference",
+    "run": 1,
+    "threads": 6,
+    "pp_tokens": 215,
+    "tg_tokens": 32,
+    "pp_ms": 10042.6771,
+    "tg_ms": 6657.8525,
+    "top1": 4013,
+    "logit_sum": -26296.27124
+  },
+  {
+    "pair": 1,
+    "arm": "llmx",
+    "run": 1,
+    "threads": 6,
+    "pp_tokens": 215,
+    "tg_tokens": 32,
+    "pp_ms": 10022.5918,
+    "tg_ms": 6661.2118,
+    "top1": 4013,
+    "logit_sum": -26296.27124
+  },
+  {
+    "pair": 2,
+    "arm": "llmx",
+    "run": 1,
+    "threads": 6,
+    "pp_tokens": 215,
+    "tg_tokens": 32,
+    "pp_ms": 9993.0481,
+    "tg_ms": 6697.2511,
+    "top1": 4013,
+    "logit_sum": -26296.27124
+  },
+  {
+    "pair": 2,
+    "arm": "reference",
+    "run": 1,
+    "threads": 6,
+    "pp_tokens": 215,
+    "tg_tokens": 32,
+    "pp_ms": 10019.1182,
+    "tg_ms": 6701.1166,
+    "top1": 4013,
+    "logit_sum": -26296.27124
+  },
+  {
+    "pair": 3,
+    "arm": "reference",
+    "run": 1,
+    "threads": 6,
+    "pp_tokens": 215,
+    "tg_tokens": 32,
+    "pp_ms": 9928.3157,
+    "tg_ms": 6914.7405,
+    "top1": 4013,
+    "logit_sum": -26296.27124
+  }
+]

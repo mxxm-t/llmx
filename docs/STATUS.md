@@ -4,6 +4,37 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## The matched mx comparison runs under memory contention (2026-09-21)
+
+`tools/compare_cpu.py` passes its own A/A: one binary as both arms moves at
+most 0.80%, and 0.06% on the 8B decode cell. The harness is sound. What it
+does not control is that llmx copies the 8.7 GB model into the heap while mx
+maps it, so alternating the arms wants about 17 GB on a machine with 16.5 GB
+free. Medians, tok/s:
+
+| Condition | 0.6B pp | 0.6B tg | 8B pp | 8B tg |
+|---|---:|---:|---:|---:|
+| llmx alternating with mx | 464.92 | 43.56 | 37.34 | 3.89 |
+| mx alternating with llmx | 259.21 | 41.62 | 20.58 | 4.02 |
+| llmx alternating with itself | 548.42 | 50.94 | 41.49 | 4.73 |
+| mx alternating with itself | 278.13 | 49.64 | 21.45 | 4.78 |
+
+Both binaries lose about a fifth of 8B decode to the contention, llmx 3.89 to
+4.73 and mx 4.02 to 4.78, so the paired comparison is not grossly one-sided.
+But its absolute rates are not what a single process sees, and the 8B decode
+deficit reads -3.2% paired under contention against -1.0% uncontended. The
+uncontended figure compares two separate runs and is **not paired**, which is
+the comparison this project has been burned by before, so it is the weaker of
+the two. The honest range is a deficit between about 1% and 3.5%, still under
+the floor, smaller than first reported, and not attributable to the KV work.
+
+Prefill is unaffected by the question: llmx is roughly double mx in both
+conditions on both models.
+
+A paired 8B comparison needs either more free memory or arms that do not
+evict each other. 0.6B pairs cleanly. Evidence in
+`docs/benchmarks/mx-harness-aa-20260921/`.
+
 ## A/A calibration of the A/B runner (2026-09-20)
 
 Run after the screening and sampler results below, not before them, which is

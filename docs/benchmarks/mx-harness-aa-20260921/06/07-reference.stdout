@@ -1,0 +1,2 @@
+{"run":0,"threads":6,"pp_tokens":215,"tg_tokens":32,"pp_ms":462.6482,"tg_ms":600.6101,"top1":4013,"logit_sum":-492001.8287}
+{"run":1,"threads":6,"pp_tokens":215,"tg_tokens":32,"pp_ms":398.1782,"tg_ms":639.5917,"top1":4013,"logit_sum":-492001.8287}

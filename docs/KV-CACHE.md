@@ -280,7 +280,10 @@ System CPU averaged 55% in both runs against the benchmark's own 37.5%, with
 peaks near 98%, so other work was present throughout; all samples are kept
 and the alternating pairs put that load on both arms.
 
-Prefill clears the floor on both models. 8B decode is 3.5% under it. The
+Prefill clears the floor on both models. 8B decode is under it, by between
+about 1% and 3.5% depending on memory contention between the two arms; see
+the 2026-09-21 block in [STATUS](STATUS.md), which found that both binaries
+lose about a fifth of 8B decode when alternated on this machine. The
 screening above shows paging did not move decode against the contiguous
 cache, and contiguous llmx was already at or slightly under mx on 8B decode
 in the base release table, so this gap is the decode bandwidth question in

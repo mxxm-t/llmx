@@ -1,0 +1,66 @@
+{
+ "what": "Whether the matched mx comparison is biased by the two arms competing for memory",
+ "date": "2026-09-21",
+ "host": "Ryzen 7 5800X, 31.9 GB RAM, 16.5 GB free at the time, 6 threads",
+ "harness": "tools/compare_cpu.py, pinned 215-token excerpt plus 32 forced tokens, 8 alternating pairs",
+ "why": "llmx copies the 8.7 GB model into the heap and mx maps it, so alternating the arms needs about 17 GB",
+ "harness_self_check": {
+  "note": "one binary as both arms; this validates the timing mechanics",
+  "llmx_paired_median_pct": {
+   "0.6B prefill": 0.48,
+   "0.6B decode": 0.8,
+   "8B prefill": 0.04,
+   "8B decode": 0.06
+  }
+ },
+ "medians_tok_s": {
+  "llmx alternating with mx": {
+   "0.6B": {
+    "pp": 464.92,
+    "tg": 43.56
+   },
+   "8B": {
+    "pp": 37.34,
+    "tg": 3.89
+   }
+  },
+  "mx alternating with llmx": {
+   "0.6B": {
+    "pp": 259.21,
+    "tg": 41.62
+   },
+   "8B": {
+    "pp": 20.58,
+    "tg": 4.02
+   }
+  },
+  "llmx alternating with itself": {
+   "0.6B": {
+    "pp": 548.42,
+    "tg": 50.94
+   },
+   "8B": {
+    "pp": 41.49,
+    "tg": 4.73
+   }
+  },
+  "mx alternating with itself": {
+   "0.6B": {
+    "pp": 278.13,
+    "tg": 49.64
+   },
+   "8B": {
+    "pp": 21.45,
+    "tg": 4.78
+   }
+  }
+ },
+ "finding": "Both binaries lose about a fifth of 8B decode to contention: llmx 3.89 -> 4.73 and mx 4.02 -> 4.78. The harness itself is clean, so the paired comparison is not grossly biased, but its absolute rates do not represent single-process use and the size of the 8B decode deficit depends on which condition is read.",
+ "8B_decode_deficit": {
+  "paired_under_contention_pct": -3.2,
+  "unpaired_uncontended_pct": -1.0,
+  "caveat": "The uncontended figure compares two separate runs and is NOT paired, which is the comparison the runner warns against; drift between 01:35 and 01:45 could account for part of it."
+ },
+ "unchanged": "Prefill: llmx is roughly double mx in both conditions on both models.",
+ "next": "A paired 8B comparison needs either more free memory or arms that do not evict each other; 0.6B pairs cleanly and is unaffected."
+}

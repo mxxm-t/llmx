@@ -1,0 +1,20 @@
+{
+  "sha256": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llmx-compare.exe": "82d74b9c3cf5a5284fb0e6dcace38efe77d625edc2e30761f5a64d6101877448",
+    "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\tests\\data\\baseline_perplexity.json": "7a7a310054bbcd6e4a558adea4f06f007fc0cee80766b6edacd14542cecef15c",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\llama.dll": "2d007cdf70a8f0f29daf87d04c73eda7975248de6528de82bf0b7e7820f9f775",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml.dll": "f8c791dc32f4ebfce0e17ba2ebefba02d16c8f7209f74a5f0a87d0d60d69a12c",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-base.dll": "255b1d609643421a5d1dabecb1d0010076235035cbce0516f6c3988115581a08",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx-ref\\build\\bin\\Release\\ggml-cpu.dll": "ac7f8ef50edc9d4d729930b669c81ddefdb56dff7e2c0121d559a02a830035d2"
+  },
+  "reference_revision": "MX-AA-SAME-BINARY",
+  "threads": 6,
+  "ubatch": 128,
+  "kv_type": "f32",
+  "prompt_tokens": 215,
+  "forced_decode_tokens": 32,
+  "warmup_sequences_per_process": 1,
+  "rounds": 8,
+  "timing": "model inference only; no load, tokenization or sampling"
+}

@@ -9,7 +9,8 @@ feature currently stands right now.
 ## Status table
 
 **Resumed after explicit user authorization following the reboot.** Branch
-`research/prefill-reassessment`, based on validated JSON checkpoint `a61c414` and
+`fix/gguf-tensor-extents`, isolated from placement checkpoint `5859762` and
+based on validated JSON checkpoint `a61c414` and
 validated production runtime `bf122fd`.
 Pinned reference tooling is validated; broader 8B HF coverage remains open.
 The TUI watcher on **8181** is
@@ -71,6 +72,7 @@ External performance requirements still block main/GitHub publication.
 | More model architectures (Llama, ...)    | Planned  |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | In Progress |
+| GGUF reader size and tensor extent validation | In Progress |
 | Device execution model (GPU prerequisite) | Planned |
 | GPU backends (ROCm first, Vulkan portability) | Planned |
 | Multi-device split                       | Planned  |
@@ -122,6 +124,41 @@ preflight screen are now exercised. Completed model timing and assessment of
 observer effects remain open.
 
 ## Active feature blocks
+
+### GGUF reader size and tensor extent validation
+
+- **Goal:** reject malformed lengths, dimensions, arithmetic overflow and tensor
+  extents before allocating payload storage or reporting loading progress;
+  honor the file's declared alignment. This closes the documented format-layer
+  error-handling gap and supports future Hub/sharded-format work.
+- **Done:** bounded reads, checked size arithmetic and subtraction-based file
+  ranges reject malformed input before payload allocation/progress. Reader and
+  writer honor positive uint32 alignments divisible by eight, including 24.
+  Quantized row widths must contain whole blocks. Array depth is limited to
+  256 and tensor rank to four; valid empty tensors retain mathematical size zero.
+  Isolated branch `fix/gguf-tensor-extents` starts at `5859762`; placement
+  experiments and fixed binaries remain separate.
+- **Done:** 122 GGUF cases pass on Windows/Linux: independently constructed
+  fixtures plus the writer-alignment round trip. All nine
+  native tests and all eleven required-HF suite components pass on both.
+  Current-reader ASan+UBSan passes both format/progress tests. The initial full
+  Windows build lacked the MSVC include environment; that failure is retained
+  and the complete run passes after initializing vcvars64. No source workaround.
+- **Done:** the pinned 8B file loads completely with byte-identical `info`
+  output against the prior validated control. All six fresh short HF cases
+  match top-1 and top-5 overlap 5/5. This is not a new 8B NLL/long-context gate.
+  All jobs are terminal. All 25 project Markdown files reviewed and stale
+  `info`, quantized-row and loader validation descriptions corrected.
+- **Left:** merge with the runtime stack once its separate performance gate
+  passes; the root executable and main/GitHub remain unchanged. No inference
+  hot path changed and no new performance result is claimed. Evidence:
+  [`gguf-reader-validation-20260920.json`](benchmarks/gguf-reader-validation-20260920.json).
+- **Gotchas:** model configuration, tensor names/shapes required by a model,
+  token IDs, JSON tensor-dimension arithmetic, writer validation and future
+  request recovery remain separate validation work. Do not
+  claim that file-extent checks make arbitrary models executable. Preserve
+  nested GGUF arrays within a documented depth limit and valid non-power-of-two
+  alignments that are multiples of eight.
 
 ### Prefill placement reassessment with machine activity monitoring
 

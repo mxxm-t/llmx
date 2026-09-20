@@ -106,7 +106,7 @@ small committed HF goldens run without external Python packages. Real-model
 HF checks skip when models are absent; fetch the pinned fixtures with
 `python tools/fetch_test_models.py` and add `--require-baseline` to require them.
 
-Native tests cover JSON parsing/string escaping, grouped kernels, worker
+Native tests cover JSON parsing/string escaping, GGUF structure/custom alignment, grouped kernels, worker
 failures, chat templates, KV
 storage, early text delivery, CLI flushing and loader progress/error handling.
 The Python suite covers conversion, tokenization, F32 logits,

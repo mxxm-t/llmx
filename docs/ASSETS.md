@@ -14,6 +14,47 @@ sections record follow-up results without pooling separate timing sessions.
 > below become a cache the tool manages. Until then, this file is the record of
 > what is on this machine.
 
+## GGUF reader validation (2026-09-20)
+
+Branch `fix/gguf-tensor-extents` starts at `5859762` in the isolated
+`llmx-gguf-validation` worktree. Checked metadata lengths, tensor-size arithmetic
+and file ranges prevent wrapped allocations or seeks. Both reader and writer
+honor declared alignment; the default remains 32. Nested arrays remain supported
+with a depth limit of 256, and quantized rows must contain whole blocks.
+These rules follow the [GGUF specification](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
+
+| Validation | Windows | Linux |
+|---|---:|---:|
+| GGUF cases, including writer-alignment round trip | 122 pass | 122 pass |
+| Native CTests | 9/9 pass | 9/9 pass |
+| Required-HF suite | 11/11 pass | 11/11 pass |
+| ASan+UBSan format and loading-progress tests | Not run | 2/2 pass |
+| Pinned 8B full load and `info` comparison | Exact output | Not run |
+| Fresh short 8B HF rankings | 6/6 top-1; top-5 overlap 5/5 | Not run |
+
+Fixtures are constructed independently of the production writer, except the
+dedicated writer-alignment round trip. Coverage includes truncation, invalid
+counts/lengths/ranks/depth/types, arithmetic overflow, offset wrap, valid unordered
+and overlapping ranges, zero/scalar tensors and nondefault alignment. Structural
+failures emit no progress; a separate file truncated after validation still
+throws a stream error without reporting completion.
+
+The first full Windows build failed because the compiler include environment
+was absent. Its logs remain alongside the passing vcvars64-initialized run.
+The fixed implementation passes sanitizer checks; the old memory-corruption
+case was not executed. Linux uses the mapped worktree and persistent build
+`/root/llmx-work/gguf-validation`; its build identifier is `unknown` because
+the Windows worktree Git path is not directly usable by Linux Git.
+
+Source identities, commands, fixtures and results are in
+[checkpoint evidence](benchmarks/gguf-reader-validation-20260920.json).
+Raw large `info` outputs remain in `%TEMP%/llmx-gguf-validation/large-model`
+with recorded hashes. No inference hot path changed; timings are diagnostic
+only and the independent placement performance gate remains open. The new 8B
+check covers loading and short ranks, not perplexity or long context. Model
+schema, metadata string encoding, JSON tensor shapes, writer hardening and
+resource budgets remain separate work. All 25 Markdown files were reviewed.
+
 ## Windows benchmark activity logs
 
 Start the stdlib-only recorder before a performance comparison and keep it

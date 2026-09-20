@@ -65,6 +65,7 @@ weights are generated locally; committed HF float32 logits/NLL cover tied and
 untied embeddings, matrix tails, multiple physical batches and thread counts.
 The UBSan job makes misaligned in-memory tensors a test failure. Every job also
 runs CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
+GGUF structure, custom alignment and loading failures,
 grouped kernels, worker
 failures, chat rendering and KV storage,
 plus the Python HF/Jinja2 follow-up fixtures and CLI thread-control checks.

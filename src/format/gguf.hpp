@@ -8,17 +8,16 @@
 #include <fstream>
 #include <stdexcept>
 #include <algorithm>
+#include <limits>
 
 #include "format/format.hpp"
 
 // GGUF file format reader/writer, implemented from scratch.
-// Implements GGUF v3 + GGML_TYPE_Q8_0 and GGML_TYPE_F32 tensors.
-// Spec reference (llama.cpp gguf.h):
+// Implements GGUF v3 and the tensor types listed below.
+// File layout:
 //   header: magic(u32) version(u32) tensor_count(u64) metadata_kv_count(u64)
 //   metadata KVs: key(string) type(u32) value
-//   padding to ALIGNMENT
 //   tensor infos: name(string) n_dims(u32) dims(u64[n]) type(u32) offset(u64)
-//                 + padding to ALIGNMENT after each
 //   padding to ALIGNMENT
 //   tensor data (each padded to ALIGNMENT), offset relative to data start
 // string = u64 length + raw bytes (no terminator)
@@ -28,6 +27,23 @@ namespace gguf {
 constexpr uint32_t MAGIC     = 0x46554747u; // 'GGUF'
 constexpr uint32_t VERSION   = 3;
 constexpr size_t   ALIGNMENT = 32;
+constexpr unsigned MAX_ARRAY_DEPTH = 256;
+
+inline uint64_t checked_add(uint64_t a, uint64_t b) {
+    if (b > std::numeric_limits<uint64_t>::max() - a)
+        throw std::runtime_error("GGUF size addition overflow");
+    return a + b;
+}
+
+inline uint64_t checked_multiply(uint64_t a, uint64_t b) {
+    if (a && b > std::numeric_limits<uint64_t>::max() / a)
+        throw std::runtime_error("GGUF size multiplication overflow");
+    return a * b;
+}
+
+inline uint64_t aligned_size(uint64_t value, uint64_t alignment) {
+    return checked_add(value, (alignment - value % alignment) % alignment);
+}
 
 constexpr uint32_t GGML_TYPE_F32  = 0;
 constexpr uint32_t GGML_TYPE_Q4_0 = 2;
@@ -67,6 +83,21 @@ struct MetaValue {
     std::vector<MetaValue> arr;
 };
 
+inline uint32_t file_alignment(const std::vector<std::pair<std::string, MetaValue>>& kv) {
+    uint32_t alignment = uint32_t(ALIGNMENT);
+    bool found = false;
+    for (const auto& item : kv) {
+        if (item.first != "general.alignment") continue;
+        const auto& value = item.second;
+        if (found || value.vtype != V_UINT32 || !value.u || value.u % 8 ||
+            value.u > std::numeric_limits<uint32_t>::max())
+            throw std::runtime_error("invalid GGUF general.alignment");
+        alignment = uint32_t(value.u);
+        found = true;
+    }
+    return alignment;
+}
+
 struct TensorInfo {
     std::string name;
     std::vector<uint64_t> ne; // dims; ne[0] is fastest
@@ -74,19 +105,26 @@ struct TensorInfo {
     uint64_t offset = 0;
 
     uint64_t n_elements() const {
+        if (std::find(ne.begin(), ne.end(), uint64_t(0)) != ne.end()) return 0;
         uint64_t n = 1;
-        for (auto d : ne) n *= d;
+        for (auto d : ne) n = checked_multiply(n, d);
         return n;
     }
     uint64_t data_size() const {
-        if (type == GGML_TYPE_Q8_0) return (n_elements() / Q8_0_BLOCK) * Q8_0_TYPESIZE;
-        if (type == GGML_TYPE_Q4_0) return (n_elements() / Q4_0_BLOCK) * Q4_0_TYPESIZE;
-        if (type == GGML_TYPE_Q4_1) return (n_elements() / Q4_1_BLOCK) * Q4_1_TYPESIZE;
-        if (type == GGML_TYPE_Q4_K) return (n_elements() / Q4_K_BLOCK) * Q4_K_TYPESIZE;
-        if (type == GGML_TYPE_Q5_K) return (n_elements() / Q5_K_BLOCK) * Q5_K_TYPESIZE;
-        if (type == GGML_TYPE_Q6_K) return (n_elements() / Q6_K_BLOCK) * Q6_K_TYPESIZE;
-        if (type == GGML_TYPE_F32)  return n_elements() * 4;
-        throw std::runtime_error("unsupported tensor type in data_size");
+        uint64_t block, bytes;
+        switch (type) {
+            case GGML_TYPE_F32:  block = 1;          bytes = 4;               break;
+            case GGML_TYPE_Q8_0: block = Q8_0_BLOCK; bytes = Q8_0_TYPESIZE;     break;
+            case GGML_TYPE_Q4_0: block = Q4_0_BLOCK; bytes = Q4_0_TYPESIZE;     break;
+            case GGML_TYPE_Q4_1: block = Q4_1_BLOCK; bytes = Q4_1_TYPESIZE;     break;
+            case GGML_TYPE_Q4_K: block = Q4_K_BLOCK; bytes = Q4_K_TYPESIZE;     break;
+            case GGML_TYPE_Q5_K: block = Q5_K_BLOCK; bytes = Q5_K_TYPESIZE;     break;
+            case GGML_TYPE_Q6_K: block = Q6_K_BLOCK; bytes = Q6_K_TYPESIZE;     break;
+            default: throw std::runtime_error("unsupported tensor type in data_size");
+        }
+        if (block != 1 && (ne.empty() || ne[0] % block))
+            throw std::runtime_error("GGUF quantized row is not a whole number of blocks");
+        return checked_multiply(n_elements() / block, bytes);
     }
 };
 
@@ -112,12 +150,43 @@ struct GGUFModel {
     }
 };
 
-inline std::string read_string(std::istream& is) {
+class Reader {
+    std::istream& stream_;
+    uint64_t size_, position_ = 0;
+public:
+    explicit Reader(std::istream& stream) : stream_(stream) {
+        stream_.seekg(0, std::ios::end);
+        const std::streamoff size = stream_.tellg();
+        if (size < 0) throw std::ios_base::failure("cannot determine GGUF file size");
+        size_ = uint64_t(size);
+        stream_.seekg(0);
+    }
+
+    uint64_t size() const { return size_; }
+    uint64_t position() const { return position_; }
+    uint64_t remaining() const { return size_ - position_; }
+
+    void require(uint64_t bytes) const {
+        if (bytes > remaining()) throw std::ios_base::failure("GGUF field exceeds file extent");
+    }
+
+    void read(char* data, uint64_t bytes) {
+        require(bytes);
+        if (bytes > uint64_t(std::numeric_limits<std::streamsize>::max()))
+            throw std::runtime_error("GGUF field exceeds stream size limit");
+        stream_.read(data, std::streamsize(bytes));
+        position_ += bytes;
+    }
+};
+
+inline std::string read_string(Reader& is) {
     uint64_t n;
     is.read((char*)&n, 8);
+    is.require(n);
     std::string s;
+    if (n > s.max_size()) throw std::runtime_error("GGUF string exceeds allocation limit");
     s.resize((size_t)n);
-    if (n) is.read(&s[0], (std::streamsize)n);
+    if (n) is.read(&s[0], n);
     return s;
 }
 
@@ -138,7 +207,18 @@ inline void pad_to(std::ostream& os, size_t align) {
 // header carries a single element type, then each element is written as just
 // its value. So we must read/write elements as bare typed values, not as full
 // (tagged) metadata values.
-inline MetaValue read_typed_value(std::istream& is, uint32_t t) {
+inline uint64_t minimum_value_size(uint32_t type) {
+    switch (type) {
+        case V_UINT8: case V_INT8: case V_BOOL: return 1;
+        case V_UINT16: case V_INT16: return 2;
+        case V_UINT32: case V_INT32: case V_FLOAT32: return 4;
+        case V_UINT64: case V_INT64: case V_FLOAT64: case V_STRING: return 8;
+        case V_ARRAY: return 12;
+        default: throw std::runtime_error("unknown GGUF metadata value type");
+    }
+}
+
+inline MetaValue read_typed_value(Reader& is, uint32_t t, unsigned depth = 0) {
     MetaValue v;
     v.vtype = t;
     switch (t) {
@@ -152,12 +232,17 @@ inline MetaValue read_typed_value(std::istream& is, uint32_t t) {
         case V_BOOL:   { uint8_t  x; is.read((char*)&x, 1); v.b = x; break; }
         case V_STRING: v.s = read_string(is); break;
         case V_ARRAY: {
+            if (depth >= MAX_ARRAY_DEPTH) throw std::runtime_error("GGUF array nesting limit exceeded");
             uint32_t et; uint64_t cnt;
             is.read((char*)&et, 4);
             is.read((char*)&cnt, 8);
+            const uint64_t width = minimum_value_size(et);
+            if (cnt > is.remaining() / width)
+                throw std::ios_base::failure("GGUF array exceeds file extent");
+            if (cnt > v.arr.max_size()) throw std::runtime_error("GGUF array exceeds allocation limit");
             v.u = et;
             v.arr.resize((size_t)cnt);
-            for (auto& e : v.arr) e = read_typed_value(is, et);
+            for (auto& e : v.arr) e = read_typed_value(is, et, depth + 1);
             break;
         }
         case V_UINT64:  { uint64_t x; is.read((char*)&x, 8); v.u = x; break; }
@@ -168,7 +253,7 @@ inline MetaValue read_typed_value(std::istream& is, uint32_t t) {
     return v;
 }
 
-inline MetaValue read_meta_value(std::istream& is) {
+inline MetaValue read_meta_value(Reader& is) {
     uint32_t t;
     is.read((char*)&t, 4);
     return read_typed_value(is, t);
@@ -206,6 +291,7 @@ inline void write_meta_value(std::ostream& os, const MetaValue& v) {
 }
 
 inline void write_gguf(const GGUFModel& m, const std::string& path) {
+    const uint32_t alignment = file_alignment(m.kv);
     std::ofstream os(path, std::ios::binary);
     if (!os) throw std::runtime_error("cannot open file for writing: " + path);
 
@@ -232,14 +318,13 @@ inline void write_gguf(const GGUFModel& m, const std::string& path) {
         for (uint64_t d : t.ne) os.write((const char*)&d, 8);
         os.write((const char*)&t.type, 4);
         os.write((const char*)&data_offset, 8);
-        uint64_t end = data_offset + t.data_size();
-        data_offset = (end + (ALIGNMENT - 1)) & ~(uint64_t)(ALIGNMENT - 1);
+        data_offset = aligned_size(checked_add(data_offset, t.data_size()), alignment);
     }
-    pad_to(os, ALIGNMENT);
+    pad_to(os, alignment);
 
     for (size_t i = 0; i < m.tensors.size(); i++) {
         os.write((const char*)m.tensor_data(i), (std::streamsize)m.tensor_bytes(i));
-        pad_to(os, ALIGNMENT);
+        pad_to(os, alignment);
     }
 }
 
@@ -247,37 +332,45 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
     std::ifstream is(path, std::ios::binary);
     if (!is) throw std::runtime_error("cannot open file: " + path);
     is.exceptions(std::ios::failbit | std::ios::badbit);
+    Reader reader(is);
 
     GGUFModel m;
     uint32_t magic;
     uint32_t ver;
     uint64_t ntc, nkv;
-    is.read((char*)&magic, 4);
+    reader.read((char*)&magic, 4);
     if (magic != MAGIC) throw std::runtime_error("not a GGUF file (bad magic)");
-    is.read((char*)&ver, 4);
-    is.read((char*)&ntc, 8);
-    is.read((char*)&nkv, 8);
+    reader.read((char*)&ver, 4);
+    if (ver != VERSION) throw std::runtime_error("unsupported GGUF version");
+    reader.read((char*)&ntc, 8);
+    reader.read((char*)&nkv, 8);
+    if (ntc > reader.remaining() / 24 || nkv > reader.remaining() / 13 ||
+        ntc > m.tensors.max_size() || nkv > m.kv.max_size())
+        throw std::runtime_error("GGUF entry count exceeds file or allocation limit");
 
     for (uint64_t k = 0; k < nkv; k++) {
-        std::string key = read_string(is);
-        m.kv.emplace_back(std::move(key), read_meta_value(is));
+        std::string key = read_string(reader);
+        m.kv.emplace_back(std::move(key), read_meta_value(reader));
     }
+    const uint32_t alignment = file_alignment(m.kv);
 
     // Tensor infos are packed contiguously (no padding between them).
     for (uint64_t i = 0; i < ntc; i++) {
         TensorInfo t;
-        t.name = read_string(is);
+        t.name = read_string(reader);
         uint32_t nd;
-        is.read((char*)&nd, 4);
+        reader.read((char*)&nd, 4);
+        if (nd > 4) throw std::runtime_error("unsupported GGUF tensor rank");
+        reader.require(uint64_t(nd) * 8 + 12);
         t.ne.resize(nd);
-        for (uint32_t d = 0; d < nd; d++) is.read((char*)&t.ne[d], 8);
-        is.read((char*)&t.type, 4);
-        is.read((char*)&t.offset, 8);
+        for (uint32_t d = 0; d < nd; d++) reader.read((char*)&t.ne[d], 8);
+        reader.read((char*)&t.type, 4);
+        reader.read((char*)&t.offset, 8);
         m.tensors.push_back(std::move(t));
     }
-    // Only the tensor-data section start is aligned to ALIGNMENT.
-    { size_t pos = (size_t)is.tellg(); size_t pad = (ALIGNMENT - (pos % ALIGNMENT)) % ALIGNMENT; is.seekg(pos + pad); }
-    size_t data_start = (size_t)is.tellg();
+    const uint64_t data_start = aligned_size(reader.position(), alignment);
+    if (data_start > reader.size()) throw std::ios_base::failure("GGUF data section exceeds file extent");
+    const uint64_t available = reader.size() - data_start;
 
     // Size the blob exactly, then read each tensor straight into place: no
     // per-tensor temporary and no reallocation of an 8 GB buffer.
@@ -286,16 +379,23 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
     m.offsets.reserve(m.tensors.size());
     for (const auto& t : m.tensors) {
         // Odd quantized block counts must not misalign a following F32 tensor.
-        total = (total + alignof(float) - 1) / alignof(float) * alignof(float);
+        const uint64_t bytes = t.data_size();
+        if (t.offset % alignment) throw std::runtime_error("unaligned GGUF tensor offset");
+        if (t.offset > available || bytes > available - t.offset)
+            throw std::ios_base::failure("GGUF tensor exceeds file extent");
+        const uint64_t aligned = aligned_size(total, alignof(float));
+        const uint64_t next = checked_add(aligned, bytes);
+        if (next > m.blob.max_size()) throw std::runtime_error("GGUF payload exceeds allocation limit");
+        total = size_t(aligned);
         m.offsets.push_back(total);
-        total += (size_t)t.data_size();
-        payload += (size_t)t.data_size();
+        total = size_t(next);
+        payload = size_t(checked_add(payload, bytes));
     }
     if (progress && payload) progress(0, payload);
     m.blob.resize(total);
     size_t completed = 0;
     for (size_t i = 0; i < m.tensors.size(); i++) {
-        is.seekg(data_start + m.tensors[i].offset);
+        is.seekg(std::streamoff(data_start + m.tensors[i].offset));
         const size_t bytes = m.tensor_bytes(i);
         for (size_t offset = 0; offset < bytes;) {
             const size_t chunk = std::min(bytes - offset, size_t(8 * 1024 * 1024));

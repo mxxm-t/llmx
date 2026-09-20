@@ -147,10 +147,14 @@ does not establish that a failed model/session can resume. Partial pool startup
 joins threads already created; a failed thread-count change leaves the backend
 in serial mode, from which it can be configured again.
 
-GGUF reads and seeks now throw on stream failure, including truncated payloads.
-Known gaps remain: file extents and metadata-derived sizes need comprehensive
-validation, and model configuration, tensor shapes and token IDs need validation
-before execution. The JSON parser validates syntax and Unicode with bounded
+GGUF reads and seeks throw on stream failure, including truncated payloads.
+The reader bounds metadata lengths/counts by the opened file extent, limits
+array nesting, checks tensor-size arithmetic and validates every payload range
+before payload allocation or loading progress. It honors declared file alignment.
+These are structural checks: metadata string encoding and model configuration,
+required tensor names/shapes and token IDs still need validation before execution.
+Valid large files or overlapping tensor ranges can still exceed available memory;
+there is no per-request memory budget. The JSON parser validates syntax and Unicode with bounded
 nesting and finite-double storage; that does not validate tensor dimensions
 or extent arithmetic. A future server must define
 request/session recovery rather than treating the CLI's process-level catch as request isolation.

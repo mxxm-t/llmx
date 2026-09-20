@@ -109,6 +109,11 @@ ctest --test-dir build -C Release --output-on-failure
 malformed input, nesting limits and JSON output string escaping. The Q8/Q4 round-trip test also checks
 escaped Unicode tensor names through the actual CLI.
 
+`gguf-validation` checks independent binary fixtures for field lengths/counts,
+array depth, tensor arithmetic, file extents, quantized row widths and custom
+alignment. These are format checks; they do not establish model-schema safety.
+`load-progress` also checks early rejection and a file truncated after validation.
+
 `backend-group` checks mixed types, uneven rows, batches, thread counts,
 output boundaries and fallback behavior against separate calls and double dots.
 It also checks every finite f16 scale against signed Q8 weight extremes using

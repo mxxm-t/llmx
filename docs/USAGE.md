@@ -35,8 +35,8 @@ Convert a raw float32 model into a quantized GGUF file.
   fastest-varying dimension first).
 - The optional last argument selects the output quant type: `q8_0` (default) or
   `q4_0`.
-- Every tensor must have a number of elements divisible by 32 (the block size
-  for both Q8_0 and Q4_0).
+- Every tensor's fastest-varying dimension must be divisible by 32 (the block
+  size for both Q8_0 and Q4_0), so each quantized row contains whole blocks.
 - The output is a GGUF v3 file with all tensors quantized to the chosen type.
 
 > Note: Q4_0 inference is currently correct-but-slow (a generic dequant-to-f32
@@ -72,8 +72,9 @@ Inspect a GGUF file without running inference. Prints:
 - every metadata key/value (typed dump)
 - the tensor list: type, name, shape, element count, and on-disk byte size
 
-This inspects what the reader loaded; it does not comprehensively validate
-malformed files or tensor extents.
+The reader validates field lengths, tensor sizes, alignment and file extents
+before loading payloads. Successful `info` output does not establish valid
+model configuration, required tensor shapes/names or metadata string encoding.
 
 ## `llmx tokenize <in.gguf> "<text>"`
 

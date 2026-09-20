@@ -51,8 +51,19 @@ int main(int argc, char** argv) {
         seen.clear();
         threw = false;
         try { gguf::read_gguf(path, progress); }
-        catch (const std::ios_base::failure&) { threw = true; }
-        require(threw && !seen.empty() && seen.back() < bytes + 34, "truncated payload reported complete");
+        catch (const std::runtime_error&) { threw = true; }
+        require(threw && seen.empty(), "truncated payload emitted progress before structural rejection");
+        gguf::write_gguf(source, path);
+        seen.clear();
+        threw = false;
+        try {
+            gguf::read_gguf(path, [&](size_t done, size_t total) {
+                progress(done, total);
+                if (!done) std::filesystem::resize_file(path, length - 33);
+            });
+        } catch (const std::ios_base::failure&) { threw = true; }
+        require(threw && !seen.empty() && seen.back() < bytes + 34,
+                "midread truncation lost stream error or reported completion");
         std::filesystem::resize_file(path, 8);
         seen.clear();
         threw = false;
@@ -78,12 +89,12 @@ int main(int argc, char** argv) {
             const float value = 1;
             os.write((const char*)&value, 4);
         }
-        bool complete = false;
+        size_t invalid_calls = 0;
         threw = false;
         try {
-            gguf::read_gguf(path, [&](size_t done, size_t total) { complete = done == total; });
-        } catch (const std::ios_base::failure&) { threw = true; }
-        require(threw && !complete, "completion preceded a failing trailing seek");
+            gguf::read_gguf(path, [&](size_t, size_t) { ++invalid_calls; });
+        } catch (const std::runtime_error&) { threw = true; }
+        require(threw && invalid_calls == 0, "invalid trailing offset emitted progress");
         gguf::write_gguf(gguf::GGUFModel{}, path);
         size_t empty_calls = 0;
         gguf::read_gguf(path, [&](size_t done, size_t total) {

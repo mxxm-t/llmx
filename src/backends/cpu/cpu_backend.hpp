@@ -131,7 +131,13 @@ public:
         for (int i = 0; i < SPIN_LIMIT && pending_.load(std::memory_order_acquire); i++)
             _mm_pause();
         std::unique_lock<std::mutex> lk(m_);
-        cv_done_.wait(lk, [&] { return pending_.load(std::memory_order_relaxed) == 0; });
+        // Acquire, not relaxed. A worker publishes its output writes and then
+        // releases them with fetch_sub(acq_rel); only the LAST worker takes the
+        // mutex, to notify. A non-last worker therefore never synchronizes
+        // through m_, so the waiter has to acquire on pending_ itself to see
+        // that worker's results. The spin above already loads with acquire;
+        // this is the path taken when the spin budget ran out.
+        cv_done_.wait(lk, [&] { return pending_.load(std::memory_order_acquire) == 0; });
         job_ = nullptr;
         if (!error) error = worker_error_;
         worker_error_ = nullptr;

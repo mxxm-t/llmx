@@ -59,7 +59,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
     # the row kernel is one module per family of types because the register
     # demand of every family's branches in one module cost the Q8_0 path 40
     # percent of its decode throughput.
-    set(LLMX_VK_VARIANTS matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k=matmul_row=LLMX_KQUANT)
+    set(LLMX_VK_VARIANTS matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
+        matmul_row_k=matmul_row=LLMX_KQUANT)
     set(LLMX_VK_SPV)
     foreach(entry IN LISTS LLMX_VK_SHADERS LLMX_VK_VARIANTS)
         string(REPLACE "=" ";" parts ${entry})

@@ -116,6 +116,12 @@ const uint32_t kSpvMatmulRow[] = {
 const uint32_t kSpvMatmulRowQ4[] = {
 #include "vulkan/matmul_row_q4.inc"
 };
+const uint32_t kSpvMatmulRowK4[] = {
+#include "vulkan/matmul_row_k4.inc"
+};
+const uint32_t kSpvMatmulRowK5[] = {
+#include "vulkan/matmul_row_k5.inc"
+};
 const uint32_t kSpvMatmulRowK[] = {
 #include "vulkan/matmul_row_k.inc"
 };
@@ -134,7 +140,7 @@ const uint32_t kSpvMatmulTile[] = {
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
-                K_MATMUL_ROW_K, K_COUNT };
+                K_MATMUL_ROW_K4, K_MATMUL_ROW_K5, K_MATMUL_ROW_K, K_COUNT };
 
 // A kernel's bindings; `counts` gives the array length of each, one for a
 // plain buffer. The buffers of a dispatch are listed binding by binding,
@@ -161,6 +167,8 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 2, nullptr},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
     {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 6, kMatmulRowCounts},
+    {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 6, kMatmulRowCounts},
+    {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 6, kMatmulRowCounts},
     {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 6, kMatmulRowCounts},
 };
 
@@ -863,7 +871,8 @@ public:
         // The row kernel's work units and the lanes that share one, per
         // type (matmul_row.comp): Q8_0 pairs over four lanes and Q4_0
         // pairs over two when the block count is even, Q4_1 blocks over
-        // one, Q6_K blocks over sixteen, else one unit per block or value.
+        // one, Q4_K and Q5_K blocks over eight, Q6_K over sixteen, else one
+        // unit per block or value.
         const uint32_t type = live[0]->type;
         const size_t nblocks = nin / block_values_of(type);
         uint32_t wide = 0, lanes = 1;
@@ -885,11 +894,13 @@ public:
             units = nblocks;
             kernel = K_MATMUL_ROW_Q4;
             break;
+        case gguf::GGML_TYPE_Q4_K:
+        case gguf::GGML_TYPE_Q5_K:
         case gguf::GGML_TYPE_Q6_K:
-            if (dev_->subgroup_size < 16) throw std::runtime_error("vulkan: Q6_K needs a subgroup of 16 lanes");
-            lanes = 16;
+            lanes = type == gguf::GGML_TYPE_Q6_K ? 16 : 8;
+            if (dev_->subgroup_size < lanes) throw std::runtime_error("vulkan: K-quant rows need a subgroup of 16 lanes");
             units = nblocks * lanes;
-            kernel = K_MATMUL_ROW_K;
+            kernel = type == gguf::GGML_TYPE_Q6_K ? K_MATMUL_ROW_K : type == gguf::GGML_TYPE_Q5_K ? K_MATMUL_ROW_K5 : K_MATMUL_ROW_K4;
             break;
         default: break;
         }
@@ -1060,7 +1071,8 @@ private:
     // Bytes per row of a matrix type the kernels decode, zero for a type
     // they do not; the values per block of it.
     static size_t block_values_of(uint32_t type) {
-        return type == gguf::GGML_TYPE_Q6_K ? gguf::Q6_K_BLOCK : type == gguf::GGML_TYPE_F32 ? 1 : 32;
+        return type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K || type == gguf::GGML_TYPE_Q6_K
+                   ? gguf::Q6_K_BLOCK : type == gguf::GGML_TYPE_F32 ? 1 : 32;
     }
     static size_t row_bytes_of(uint32_t type, size_t nin) {
         switch (type) {
@@ -1068,6 +1080,8 @@ private:
         case gguf::GGML_TYPE_Q8_0: return (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE;
         case gguf::GGML_TYPE_Q4_0: return (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE;
         case gguf::GGML_TYPE_Q4_1: return (nin / gguf::Q4_1_BLOCK) * gguf::Q4_1_TYPESIZE;
+        case gguf::GGML_TYPE_Q4_K: return (nin / gguf::Q4_K_BLOCK) * gguf::Q4_K_TYPESIZE;
+        case gguf::GGML_TYPE_Q5_K: return (nin / gguf::Q5_K_BLOCK) * gguf::Q5_K_TYPESIZE;
         case gguf::GGML_TYPE_Q6_K: return (nin / gguf::Q6_K_BLOCK) * gguf::Q6_K_TYPESIZE;
         default: return 0;
         }

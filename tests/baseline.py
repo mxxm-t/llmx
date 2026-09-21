@@ -47,6 +47,13 @@ BASELINE_MODELS = [
      "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
      "min_overlap": 4, "max_nll_delta": 0.16, "max_chunk_nll_delta": 0.20},
+    # 168 Q5_K, 29 Q6_K and 113 F32 tensors: the K-quant path in every
+    # matmul and the Q6_K head, on both backends. Same repo and revision as
+    # the Q4_0 file, so no third download source.
+    {"repo": "unsloth/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q5_K_M.gguf",
+     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+     "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+     "min_overlap": 4, "max_nll_delta": 0.05, "max_chunk_nll_delta": 0.16},
 ]
 
 # A correct next-token logit for these models sits around 15-25. Gross

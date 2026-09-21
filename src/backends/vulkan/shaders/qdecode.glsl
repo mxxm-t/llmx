@@ -36,4 +36,44 @@ float q6_k_at(uint o, uint j, float d) {
     int s = (int(uint(QBYTES[sc + l / 16u + 2u * which])) << 24) >> 24;
     return d * float(s) * float(q);
 }
+
+// Q4_K and Q5_K sub-scale and sub-min j (0..7) from the twelve packed
+// bytes at s: the first four of each are whole bytes' low six bits, the
+// last four are split nibbles with their high two bits in the first
+// bytes' top bits.
+void scale_min_k4(uint s, uint j, out uint sc, out uint mn) {
+    if (j < 4u) {
+        sc = uint(QBYTES[s + j]) & 63u;
+        mn = uint(QBYTES[s + j + 4u]) & 63u;
+    } else {
+        sc = (uint(QBYTES[s + j + 4u]) & 15u) | ((uint(QBYTES[s + j - 4u]) >> 6u) << 4u);
+        mn = (uint(QBYTES[s + j + 4u]) >> 4u) | ((uint(QBYTES[s + j]) >> 6u) << 4u);
+    }
+}
+
+// Q4_K, 256 values in 144 bytes: d, dmin, the packed sub-scales, 128
+// nibble bytes. Each 64-value chunk is 32 bytes, low nibbles first; the
+// value is d * sc * q - dmin * mn with the sub-scale of group j / 32.
+float q4_k_at(uint o, uint j, float d, float dmin) {
+    uint c = j / 64u, r = j - c * 64u;
+    uint byte = uint(QBYTES[o + 16u + c * 32u + (r & 31u)]);
+    uint q = r < 32u ? (byte & 15u) : (byte >> 4u);
+    uint sc, mn;
+    scale_min_k4(o + 4u, j / 32u, sc, mn);
+    return d * float(sc) * float(q) - dmin * float(mn);
+}
+
+// Q5_K, 176 bytes: Q4_K with 32 bytes of fifth bits before the nibbles;
+// for position r of chunk c the bit is 2c (low nibble) or 2c + 1 (high)
+// of byte r & 31.
+float q5_k_at(uint o, uint j, float d, float dmin) {
+    uint c = j / 64u, r = j - c * 64u;
+    uint byte = uint(QBYTES[o + 48u + c * 32u + (r & 31u)]);
+    uint hb = uint(QBYTES[o + 16u + (r & 31u)]);
+    uint q = r < 32u ? ((byte & 15u) + (((hb >> (2u * c)) & 1u) << 4u))
+                     : ((byte >> 4u) + (((hb >> (2u * c + 1u)) & 1u) << 4u));
+    uint sc, mn;
+    scale_min_k4(o + 4u, j / 32u, sc, mn);
+    return d * float(sc) * float(q) - dmin * float(mn);
+}
 #endif

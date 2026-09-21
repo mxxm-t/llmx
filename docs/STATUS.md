@@ -183,14 +183,54 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   Now 149, 188 and 170 GB/s at the 8B shapes and the head at 102 GB/s,
   1.25 ms. Q4_0 decode 26 to 107 tok/s; llama.cpp does 209 on the same
   file.
-- **Left:** decode, at 56, 51 and 82 percent of the reference. On 8B the
-  matvec's 336 GB/s against a 1 TB/s memory is still most of the story;
-  on 0.6B it is the 14 dispatches of a layer at their latency floors,
-  and on the Q4_0 file the four bytes per value of activations now cost
-  as much as the two of weights. Then Q4_K and Q5_K, the rest of
-  sub-step 6, which the K-quant models need. Every number above is a
-  single run unless the runs are listed, and none is claimed until a
-  paired comparison is recorded.
+  Ninth, the rest of sub-step 6: Q4_K and Q5_K in `embed`, the tile
+  kernel and the row kernel, checked against the CPU the same way
+  (723,796 outputs across the seven types). The row kernel is now five
+  modules from one source: F32 and Q8_0, Q4_0 and Q4_1, Q4_K, Q5_K,
+  Q6_K. Q4_K and Q5_K beside Q6_K cost Q6_K 40 percent (170 to 99 GB/s)
+  the way every type beside Q8_0 had cost Q8_0, and Q4_K alone gained 30
+  percent over Q4_K beside Q5_K (104 to 135 GB/s); at the 8B shapes the
+  row kernel reads Q4_K at 135 GB/s, Q5_K at 123 and Q6_K at 163. Eight
+  lanes share a Q4_K or Q5_K block, each taking the sixteen nibble bytes
+  of one half of one 64-value chunk, with the three packed sub-scale
+  words read by every lane. `Qwen3-0.6B-Q5_K_M.gguf` (168 Q5_K, 29 Q6_K,
+  113 F32; same repo and revision as the Q4_0 file) is a third
+  `BASELINE_MODELS` fixture, as the fused Q5_K block below proposed, with
+  bounds set from the CPU's measured HF deltas plus margin: top-5 overlap
+  4, NLL delta 0.05 continuous (measured 0.026) and 0.16 per chunk
+  (measured 0.130, 0.068, 0.024). On the device its logits and all four
+  perplexity cases match the CPU's numbers to the digit (PPL 29.5612
+  continuous, 38.6676 at c=123).
+
+  A confirmation run of the reference at the end of the session, asked
+  for by the user, moved with the machine: llama.cpp 0.6B Q8_0 measured
+  602 prefill and 182 decode against 660 and 198 three hours earlier,
+  and llmx in the same minutes 1000 to 1157 and 102.7 to 106.5 against
+  1195 and 111; Q4_0 the same, 624/209 against 636/209 and llmx 878 to
+  1056 and 95.7 to 97.4 against 1110 and 107. Both arms fell together, so
+  the shares hold and neither run is a regression; the table keeps the
+  earlier pairs and the session-end pairs side by side.
+
+  | model | phase | llama.cpp b11075 Vulkan | llmx Vulkan | llmx share |
+  |---|---|---:|---:|---:|
+  | Qwen3-0.6B-Q5_K_M | prefill | 492 tok/s | 640 (533, 638, 645) | 130% |
+  | Qwen3-0.6B-Q5_K_M | decode | 205 tok/s | 87 (81, 88, 87) | 42% |
+  | Qwen3-0.6B-Q8_0, session end | prefill | 602 tok/s | 1000 to 1157 | 166 to 192% |
+  | Qwen3-0.6B-Q8_0, session end | decode | 182 tok/s | 102.7 to 106.5 | 56 to 59% |
+  | Qwen3-0.6B-Q4_0, session end | prefill | 624 tok/s | 878 to 1056 | 141 to 169% |
+  | Qwen3-0.6B-Q4_0, session end | decode | 209 tok/s | 95.7 to 97.4 | 46% |
+- **Left:** decode, at 56, 51, 42 and 82 percent of the reference. On 8B
+  the matvec's 336 GB/s against a 1 TB/s memory is still most of the
+  story; on 0.6B it is the 14 dispatches of a layer at their latency
+  floors, and on the 4- and 5-bit files the four bytes per value of
+  activations now cost as much as the weights. The K-quant row paths
+  are the first correct version and sit at 123 to 163 GB/s against
+  Q8_0's 313. Then, once decode is at the floor, the two checks the
+  user asked for on 2026-09-21: a 16384-token prompt with 512 generated
+  tokens beside the 247/32 excerpt, with llama.cpp beside it, and a
+  greedy-output hash of the device against the CPU on the same file.
+  Every number above is a single run unless the runs are listed, and
+  none is claimed until a paired comparison is recorded.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 
@@ -2667,10 +2707,11 @@ feature ships, delete its block and mark the row `Done` above.
 - **Left:** the same treatment for Q6_K, which has signed group scales and no
   min, so the dot is `sum(d_g * sum(q*x))` with no `sum(x)` term. Written, not
   built or measured. Expect the same floor gap to remain afterwards.
-- **Left:** propose adding `Qwen3-0.6B-Q5_K_M.gguf` to `BASELINE_MODELS` so
-  the external gate covers Q5_K/Q6_K permanently. Deliberately not done here:
-  that list drives `tools/fetch_test_models.py`, which is owned elsewhere while fixing
-  CI rate limits, and a third fixture is a third download.
+- **Done 2026-09-21:** `Qwen3-0.6B-Q5_K_M.gguf` is in `BASELINE_MODELS`
+  (see the Vulkan block above), so the external gate covers Q5_K/Q6_K
+  permanently on both backends. It is a third download for
+  `tools/fetch_test_models.py`, 419 MB from the same repo and revision as
+  the Q4_0 file.
 - **Gotchas:**
   - Prefill does not benefit and cannot: the fused dot only fires at
     `nbatch == 1`, and the batched path already dequantizes each row once and

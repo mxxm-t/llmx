@@ -236,6 +236,25 @@ size_t check_kernels(backend::Backend& vk) {
             auto r6 = p.results(d6);
             values += exact(r6.first, r6.second, "embed Q6_K differs");
         }
+        // Q4_K and Q5_K rows of 256 the same way; d and dmin are the first
+        // two halves of a block.
+        for (int k = 0; k < 2; ++k) {
+            const uint32_t type = k == 0 ? gguf::GGML_TYPE_Q4_K : gguf::GGML_TYPE_Q5_K;
+            const size_t bytes = k == 0 ? gguf::Q4_K_TYPESIZE : gguf::Q5_K_TYPESIZE;
+            const size_t nk = 512;
+            std::vector<uint8_t> qk(nrows * (nk / 256) * bytes);
+            for (size_t i = 0; i < qk.size(); ++i) qk[i] = uint8_t(i * 53 + 5 + k);
+            for (size_t b = 0; b < nrows * (nk / 256); ++b) {
+                qk[b * bytes + 0] = 0x00; qk[b * bytes + 1] = 0x30;
+                qk[b * bytes + 2] = 0x00; qk[b * bytes + 3] = 0x2c;
+            }
+            Pair::In tk = p.in(qk.data(), qk.size());
+            Pair::Out dk = p.out(nk * 3);
+            p.cpu.embed(dk.cs(), type, tk.cs(), nk, nrows, ids, 3);
+            p.vk.embed(dk.vs(), type, tk.vs(), nk, nrows, ids, 3);
+            auto rk = p.results(dk);
+            values += exact(rk.first, rk.second, k == 0 ? "embed Q4_K differs" : "embed Q5_K differs");
+        }
         const uint32_t beyond[1] = {10};
         bool rejected = false;
         try { p.vk.embed(d.vs(), gguf::GGML_TYPE_F32, t.vs(), nin, nrows, beyond, 1); }
@@ -277,20 +296,32 @@ size_t check_kernels(backend::Backend& vk) {
             w6[row * gguf::Q6_K_TYPESIZE + 208] = 0x00;
             w6[row * gguf::Q6_K_TYPESIZE + 209] = 0x14;
         }
+        // Q4_K and Q5_K likewise, d and dmin at 2^-10 and 2^-11.
+        std::vector<uint8_t> w4k(nout * (nin / 256) * gguf::Q4_K_TYPESIZE), w5k(nout * (nin / 256) * gguf::Q5_K_TYPESIZE);
+        for (size_t i = 0; i < w4k.size(); ++i) w4k[i] = uint8_t(i * 61 + 3);
+        for (size_t i = 0; i < w5k.size(); ++i) w5k[i] = uint8_t(i * 67 + 9);
+        for (size_t row = 0; row < nout * (nin / 256); ++row) {
+            for (uint8_t* blk : {w4k.data() + row * gguf::Q4_K_TYPESIZE, w5k.data() + row * gguf::Q5_K_TYPESIZE}) {
+                blk[0] = 0x00; blk[1] = 0x14; blk[2] = 0x00; blk[3] = 0x10;
+            }
+        }
         Pair::In wfi = p.in(wf), wqi = p.in(wq.data(), wq.size()), w4i = p.in(w4.data(), w4.size());
         Pair::In w41i = p.in(w41.data(), w41.size()), w6i = p.in(w6.data(), w6.size());
+        Pair::In w4ki = p.in(w4k.data(), w4k.size()), w5ki = p.in(w5k.data(), w5k.size());
         // 1 to 13 take the row kernel; 16, 64, 100 and 247 the tile kernel,
         // on, inside and past its 64-column tiles.
         for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(16), size_t(64),
                               size_t(100), size_t(247)}) {
             const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
-            for (int q = 0; q < 5; ++q) {
-                if (q == 4 && nin % 256) continue;   // Q6_K blocks are 256 wide
+            for (int q = 0; q < 7; ++q) {
+                if (q >= 4 && nin % 256) continue;   // K-quant blocks are 256 wide
                 const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0
                                     : q == 3 ? gguf::GGML_TYPE_Q4_1 : q == 4 ? gguf::GGML_TYPE_Q6_K
+                                    : q == 5 ? gguf::GGML_TYPE_Q4_K : q == 6 ? gguf::GGML_TYPE_Q5_K
                                     : gguf::GGML_TYPE_F32;
-                const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i : wfi;
+                const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i
+                                   : q == 5 ? w4ki : q == 6 ? w5ki : wfi;
                 Pair::Out d = p.out(nbatch * nout);
                 p.cpu.matmul(type, wi.cs(), xi.cs(), d.cs(), nin, nout, nbatch);
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
@@ -300,6 +331,8 @@ size_t check_kernels(backend::Backend& vk) {
                                                             : q == 2 ? "Q4_0 matmul differs beyond 1e-4"
                                                             : q == 3 ? "Q4_1 matmul differs beyond 1e-4"
                                                             : q == 4 ? "Q6_K matmul differs beyond 1e-4"
+                                                            : q == 5 ? "Q4_K matmul differs beyond 1e-4"
+                                                            : q == 6 ? "Q5_K matmul differs beyond 1e-4"
                                                                      : "F32 matmul differs beyond 1e-4");
                 } catch (const std::runtime_error&) {
                     std::fprintf(stderr, "  matmul type %u nin %zu nbatch %zu\n", type, nin, nbatch);
@@ -308,7 +341,7 @@ size_t check_kernels(backend::Backend& vk) {
             }
         }
         bool rejected = false;
-        try { p.vk.matmul(gguf::GGML_TYPE_Q4_K, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
+        try { p.vk.matmul(1u /* F16, no kernel */, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "unsupported matrix type accepted");
         // Three projections in one dispatch equal the same three one at a
@@ -462,12 +495,16 @@ size_t check_kernels(backend::Backend& vk) {
                            {gguf::GGML_TYPE_Q4_0, "Q4_0", 1024, 3072}, {gguf::GGML_TYPE_Q4_0, "Q4_0", 4096, 12288},
                            {gguf::GGML_TYPE_Q4_1, "Q4_1", 3072, 1024}, {gguf::GGML_TYPE_Q4_1, "Q4_1", 12288, 4096},
                            {gguf::GGML_TYPE_Q6_K, "Q6_K", 1024, 3072}, {gguf::GGML_TYPE_Q6_K, "Q6_K", 4096, 12288},
-                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 1024, 151936}}) {
+                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 1024, 151936},
+                           {gguf::GGML_TYPE_Q4_K, "Q4_K", 1024, 3072}, {gguf::GGML_TYPE_Q4_K, "Q4_K", 4096, 12288},
+                           {gguf::GGML_TYPE_Q5_K, "Q5_K", 1024, 3072}, {gguf::GGML_TYPE_Q5_K, "Q5_K", 4096, 12288}}) {
         const size_t nin = t.nin, nout = t.nout;
-        const size_t block = t.type == gguf::GGML_TYPE_Q6_K ? gguf::Q6_K_BLOCK : 32;
+        const size_t block = t.type >= gguf::GGML_TYPE_Q4_K ? gguf::Q6_K_BLOCK : 32;
         const size_t bytes = t.type == gguf::GGML_TYPE_Q8_0 ? gguf::Q8_0_TYPESIZE
                            : t.type == gguf::GGML_TYPE_Q4_0 ? gguf::Q4_0_TYPESIZE
-                           : t.type == gguf::GGML_TYPE_Q4_1 ? gguf::Q4_1_TYPESIZE : gguf::Q6_K_TYPESIZE;
+                           : t.type == gguf::GGML_TYPE_Q4_1 ? gguf::Q4_1_TYPESIZE
+                           : t.type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE
+                           : t.type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_TYPESIZE : gguf::Q6_K_TYPESIZE;
         std::vector<uint8_t> wq(nout * (nin / block) * bytes);
         for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 7 + 3);
         const auto x = uniform(nin, 15);

@@ -11,7 +11,13 @@ const uint TYPE_F32 = 0u;
 const uint TYPE_Q4_0 = 2u;
 const uint TYPE_Q4_1 = 3u;
 const uint TYPE_Q8_0 = 8u;
+const uint TYPE_Q4_K = 12u;
+const uint TYPE_Q5_K = 13u;
 const uint TYPE_Q6_K = 14u;
+
+// Q4_K: 256 values in 144 bytes; Q5_K adds 32 bytes of fifth bits.
+const uint Q4_K_BYTES = 144u;
+const uint Q5_K_BYTES = 176u;
 
 // Q4_1: 32 values, two halves d and m, 16 bytes of nibbles; 20 bytes.
 const uint Q4_1_BYTES = 20u;
@@ -42,7 +48,9 @@ float half_at(uint8_t lo, uint8_t hi) {
 // walk rows generically.
 uint block_bytes(uint type) {
     return type == TYPE_Q8_0 ? Q8_0_BYTES : type == TYPE_Q4_0 ? Q4_0_BYTES
-         : type == TYPE_Q4_1 ? Q4_1_BYTES : Q6_K_BYTES;
+         : type == TYPE_Q4_1 ? Q4_1_BYTES : type == TYPE_Q4_K ? Q4_K_BYTES
+         : type == TYPE_Q5_K ? Q5_K_BYTES : Q6_K_BYTES;
 }
-uint block_values(uint type) { return type == TYPE_Q6_K ? Q6_K_BLOCK : 32u; }
+bool is_kquant(uint type) { return type == TYPE_Q4_K || type == TYPE_Q5_K || type == TYPE_Q6_K; }
+uint block_values(uint type) { return is_kquant(type) ? Q6_K_BLOCK : 32u; }
 #endif

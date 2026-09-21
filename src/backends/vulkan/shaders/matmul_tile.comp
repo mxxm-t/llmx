@@ -59,14 +59,23 @@ void main() {
                     uint k = seg * 8u + i;
                     ws[lr][k] = q4_1_at(o, k, d, m);
                 }
-            } else if (p.type == TYPE_Q6_K) {
+            } else if (is_kquant(p.type)) {
                 // 256-value blocks: this 32-wide step is a slice of one.
-                uint o = (row * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * Q6_K_BYTES;
-                float d = half_at(w8[o + 208u], w8[o + 209u]);
+                uint o = (row * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * block_bytes(p.type);
                 uint k_in = k0 - (k0 / Q6_K_BLOCK) * Q6_K_BLOCK;
-                for (uint i = 0u; i < 8u; ++i) {
-                    uint k = seg * 8u + i;
-                    ws[lr][k] = q6_k_at(o, k_in + k, d);
+                if (p.type == TYPE_Q6_K) {
+                    float d = half_at(w8[o + 208u], w8[o + 209u]);
+                    for (uint i = 0u; i < 8u; ++i) {
+                        uint k = seg * 8u + i;
+                        ws[lr][k] = q6_k_at(o, k_in + k, d);
+                    }
+                } else {
+                    float d = half_at(w8[o], w8[o + 1u]), dmin = half_at(w8[o + 2u], w8[o + 3u]);
+                    for (uint i = 0u; i < 8u; ++i) {
+                        uint k = seg * 8u + i;
+                        ws[lr][k] = p.type == TYPE_Q4_K ? q4_k_at(o, k_in + k, d, dmin)
+                                                        : q5_k_at(o, k_in + k, d, dmin);
+                    }
                 }
             } else {
                 for (uint i = 0u; i < 8u; ++i) {

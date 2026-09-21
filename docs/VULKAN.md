@@ -134,7 +134,8 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   keyed by the same ids `quant::Registry` uses; the registry says which
   types exist, the shader include says how the device decodes them. A type
   with no shader is rejected at load with its name, not at the first op.
-  Today: F32, Q8_0, Q4_0, Q4_1 and Q6_K.
+  Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, every type the CPU
+  reads.
 - **matmul, decode** (`nbatch` small): one subgroup per output row, each
   lane accumulating a stride of blocks, one `subgroupAdd` at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
@@ -145,17 +146,21 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   managed 32 GB/s, this one 201 GB/s on the same 4096-square matvec. Rows
   with an odd block count keep the 16-bit path. The kernel is one module
   per family of types, built from one source with a define: F32 and
-  Q8_0, Q4_0 and Q4_1, Q6_K. With every family in one module the register
-  demand of the whole set the occupancy of every path and Q8_0 decode
-  lost 40 percent without any of its instructions changing. The Q4_0
-  path gives each lane a block of the 9-word pair, the first block's
-  nibble words assembled from two loads since its scale is two bytes;
-  Q4_1 is a lane per 5-word block; Q6_K is sixteen lanes per block, each
-  three words of quants, two of sub-scales and the scale, with every
-  other block's words assembled from two loads since 210 bytes is not a
-  multiple of four. All three read the activations as aligned 16-byte
-  vectors. At the 8B shapes on the Radeon VII: Q4_0 149 GB/s, Q4_1 188,
-  Q6_K 170, against Q8_0's 313.
+  Q8_0, Q4_0 and Q4_1, Q4_K, Q5_K, Q6_K. With every family in one module
+  the register demand of the whole set the occupancy of every path and
+  Q8_0 decode lost 40 percent without any of its instructions changing;
+  Q4_K and Q5_K beside Q6_K cost Q6_K the same 40 percent, and Q4_K
+  alone runs 30 percent faster than beside Q5_K. The Q4_0 path gives
+  each lane a block of the 9-word pair, the first block's nibble words
+  assembled from two loads since its scale is two bytes; Q4_1 is a lane
+  per 5-word block; Q4_K and Q5_K are eight lanes per block, each the
+  sixteen nibble bytes of one half of a 64-value chunk with every lane
+  reading the three packed sub-scale words; Q6_K is sixteen lanes per
+  block, each three words of quants, two of sub-scales and the scale,
+  with every other block's words assembled from two loads since 210
+  bytes is not a multiple of four. All of them read the activations as
+  aligned 16-byte vectors. At the 8B shapes on the Radeon VII: Q4_0 149
+  GB/s, Q4_1 188, Q4_K 135, Q5_K 123, Q6_K 163, against Q8_0's 313.
 - **matmul, prefill** (`nbatch` of 16 and up): a workgroup computes a
   64 x 64 output tile, walking the inner dimension 32 at a time; each
   step stages the dequantized W tile and the X tile in shared memory and
@@ -246,7 +251,7 @@ device is present, so the tree stays green without a GPU.
 | 3 | `matmul` for F32 and Q8_0: the row kernel and the tile kernel (**done**) | Against the CPU over batch widths 1, 3, 8 and 13 on the row kernel and 16, 64, 100 and 247 on the tile kernel, both block-count parities, 1e-4 relative; the 4096-square Q8_0 matvec reads at about 200 GB/s on the Radeon VII, reported and not gated |
 | 4 | KV storage, `kv_write`, `kv_copy`, `attention` over views (**done**) | Against the CPU backend through each backend's own storage and block size: histories of 0, 63, 64, 65 and 131 tokens with 1 and 3 queries, two views in one call, a copied block attending like its source; 1e-4 relative |
 | 5 | `--device`; the models end to end (**done** except the floor) | HF baselines with `--device vulkan:0`: Q8_0 logits and all four perplexity cases match the CPU's numbers to the digit; the whole Python suite runs on the device; the matched mx Vulkan floor is the open item |
-| 6 | Q4_0, Q4_1, Q6_K shaders (**done**); Q4_K, Q5_K | HF baselines on the Q4_0 fixture pass on the device with the CPU's numbers; `backend-vulkan` checks each type against the CPU in `embed`, the tile and the row kernel and reports the matvec bandwidth per type; the K-quant models wait on Q4_K and Q5_K |
+| 6 | Q4_0, Q4_1, Q4_K, Q5_K, Q6_K shaders (**done**) | HF baselines on the Q4_0 and Q5_K_M fixtures pass on the device with the CPU's numbers; `backend-vulkan` checks each type against the CPU in `embed`, the tile and the row kernel and reports the matvec bandwidth per type |
 | 7 | Block-size screening; barrier tracking if the profile says so | The KV screening method, on the device |
 
 The CPU backend is untouched throughout and remains the reference.

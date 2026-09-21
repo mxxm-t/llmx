@@ -20,3 +20,8 @@ err.txt
 stdout.txt
 stderr.txt
 info_out.txt
+
+# Review and benchmark outputs. Raw payloads belong in the local evidence
+# archive with a hash-indexed summary committed, not in the repository.
+hf-8b-*/
+hf-8b-review/

@@ -1,0 +1,26 @@
+#version 450
+// One workgroup per row: dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i].
+// The sum of squares is reduced through shared memory so the kernel does
+// not depend on the subgroup size. dst and src may be the same buffer: every
+// element is read before the barrier and written after it.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; } p;
+layout(set = 0, binding = 0) buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer S { float src[]; };
+layout(set = 0, binding = 2) readonly buffer W { float w[]; };
+shared float red[256];
+void main() {
+    uint row = gl_WorkGroupID.x;
+    uint lid = gl_LocalInvocationID.x;
+    uint base = row * p.stride;
+    float s = 0.0;
+    for (uint i = lid; i < p.n; i += 256u) { float v = src[base + i]; s += v * v; }
+    red[lid] = s;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    float r = 1.0 / sqrt(red[0] / float(p.n) + p.eps);
+    for (uint i = lid; i < p.n; i += 256u) dst[base + i] = src[base + i] * r * w[i];
+}

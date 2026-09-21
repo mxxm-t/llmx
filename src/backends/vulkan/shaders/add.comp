@@ -1,0 +1,10 @@
+#version 450
+// dst[i] += src[i]
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; } p;
+layout(set = 0, binding = 0) buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer S { float src[]; };
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i < p.n) dst[i] += src[i];
+}

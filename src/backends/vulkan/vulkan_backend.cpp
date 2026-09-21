@@ -4,6 +4,7 @@
 // value, wait() blocks on that value, and a ring of command buffers is
 // reused once their tickets have retired.
 #include "backends/vulkan/vulkan_backend.hpp"
+#include "format/gguf.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -66,7 +67,18 @@ namespace {
     X(vkUnmapMemory) \
     X(vkCmdCopyBuffer) \
     X(vkCmdFillBuffer) \
-    X(vkCmdPipelineBarrier)
+    X(vkCmdPipelineBarrier) \
+    X(vkCreateShaderModule) \
+    X(vkDestroyShaderModule) \
+    X(vkCreateDescriptorSetLayout) \
+    X(vkDestroyDescriptorSetLayout) \
+    X(vkCreatePipelineLayout) \
+    X(vkDestroyPipelineLayout) \
+    X(vkCreateComputePipelines) \
+    X(vkDestroyPipeline) \
+    X(vkCmdBindPipeline) \
+    X(vkCmdPushConstants) \
+    X(vkCmdDispatch)
 
 struct Fn {
 #define LLMX_VK_DECLARE(name) PFN_##name name = nullptr;
@@ -74,6 +86,55 @@ struct Fn {
     LLMX_VK_INSTANCE_FUNCTIONS(LLMX_VK_DECLARE)
     LLMX_VK_DEVICE_FUNCTIONS(LLMX_VK_DECLARE)
 #undef LLMX_VK_DECLARE
+    PFN_vkCmdPushDescriptorSetKHR vkCmdPushDescriptorSetKHR = nullptr;
+};
+
+// The kernels, compiled by glslc at build time (CMakeLists.txt) into the
+// generated include directory as comma-separated words.
+const uint32_t kSpvAdd[] = {
+#include "vulkan/add.inc"
+};
+const uint32_t kSpvSiluMul[] = {
+#include "vulkan/silu_mul.inc"
+};
+const uint32_t kSpvGatherRows[] = {
+#include "vulkan/gather_rows.inc"
+};
+const uint32_t kSpvRmsNormRows[] = {
+#include "vulkan/rms_norm_rows.inc"
+};
+const uint32_t kSpvNormRopeRows[] = {
+#include "vulkan/norm_rope_rows.inc"
+};
+const uint32_t kSpvEmbed[] = {
+#include "vulkan/embed.inc"
+};
+
+enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED, K_COUNT };
+
+struct KernelSource {
+    const uint32_t* words;
+    size_t bytes;
+    uint32_t bindings;
+};
+
+const KernelSource kKernels[K_COUNT] = {
+    {kSpvAdd, sizeof(kSpvAdd), 2},
+    {kSpvSiluMul, sizeof(kSpvSiluMul), 3},
+    {kSpvGatherRows, sizeof(kSpvGatherRows), 3},
+    {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 3},
+    {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5},
+    {kSpvEmbed, sizeof(kSpvEmbed), 4},
+};
+
+// A compiled kernel: module, layout with `bindings` storage buffers pushed
+// per dispatch and 128 bytes of push constants, and the pipeline.
+struct Kernel {
+    VkShaderModule module = VK_NULL_HANDLE;
+    VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    uint32_t bindings = 0;
 };
 
 const char* vk_result_name(VkResult r) {
@@ -379,6 +440,12 @@ public:
         if (!fn.name) throw std::runtime_error("vulkan: the device has no " #name);
         LLMX_VK_DEVICE_FUNCTIONS(LLMX_VK_LOAD_DEVICE)
 #undef LLMX_VK_LOAD_DEVICE
+        if (!d.push_descriptor)
+            throw std::runtime_error("vulkan: " + d.name + " has no VK_KHR_push_descriptor");
+        fn.vkCmdPushDescriptorSetKHR =
+            (PFN_vkCmdPushDescriptorSetKHR)fn.vkGetDeviceProcAddr(d.device, "vkCmdPushDescriptorSetKHR");
+        if (!fn.vkCmdPushDescriptorSetKHR)
+            throw std::runtime_error("vulkan: the device has no vkCmdPushDescriptorSetKHR");
         fn.vkGetDeviceQueue(d.device, d.queue_family, 0, &d.queue);
 
         VkCommandPoolCreateInfo pi{};
@@ -406,6 +473,13 @@ public:
     ~VulkanBackend() override {
         Device& d = *dev_;
         d.fn.vkDeviceWaitIdle(d.device);
+        for (auto& p : pending_) p.clear();
+        for (Kernel& k : kernels_) {
+            if (k.pipeline) d.fn.vkDestroyPipeline(d.device, k.pipeline, nullptr);
+            if (k.layout) d.fn.vkDestroyPipelineLayout(d.device, k.layout, nullptr);
+            if (k.set_layout) d.fn.vkDestroyDescriptorSetLayout(d.device, k.set_layout, nullptr);
+            if (k.module) d.fn.vkDestroyShaderModule(d.device, k.module, nullptr);
+        }
         staging_.reset();
         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
         if (pool_) d.fn.vkDestroyCommandPool(d.device, pool_, nullptr);
@@ -542,25 +616,211 @@ public:
         barrier(cmd);
     }
 
-    // The compute ops arrive with the later sub-steps of docs/VULKAN.md.
+    // Elementwise kernels: one invocation per element.
+    void add(Slice dst, CSlice src, size_t n) override {
+        if (!n) return;
+        const uint32_t pc[1] = {u32(n)};
+        dispatch(K_ADD, {bind(dst), bind(src)}, pc, sizeof(pc), groups(n, 256));
+    }
+
+    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n) override {
+        if (!n) return;
+        const uint32_t pc[1] = {u32(n)};
+        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up)}, pc, sizeof(pc), groups(n, 256));
+    }
+
+    void gather_rows(Slice dst, CSlice src, size_t width, const uint32_t* rows,
+                     size_t count) override {
+        if (count && !rows) throw std::runtime_error("vulkan: gather without rows");
+        if (!count || !width) return;
+        // Rows are checked here, since a shader cannot refuse them.
+        const size_t avail = floats_from(src);
+        for (size_t i = 0; i < count; ++i)
+            if (rows[i] >= avail / width)
+                throw std::runtime_error("vulkan: gather row outside the allocation");
+        const uint32_t pc[2] = {u32(width), u32(count)};
+        dispatch(K_GATHER_ROWS, {bind(dst), bind(src), args(rows, count * sizeof(uint32_t))},
+                 pc, sizeof(pc), groups(width * count, 256));
+    }
+
+    // Row kernels: one workgroup per row, or per (row, head).
+    void rms_norm(Slice dst, CSlice src, CSlice w, size_t n, float eps) override {
+        rms_norm_rows(dst, src, w, 1, n, n, eps);
+    }
+
+    void rms_norm_rows(Slice dst, CSlice src, CSlice w, size_t rows, size_t n,
+                       size_t stride, float eps) override {
+        if (!rows || !n) return;
+        struct { uint32_t rows, n, stride; float eps; } pc{u32(rows), u32(n), u32(stride), eps};
+        dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w)}, &pc, sizeof(pc), u32(rows));
+    }
+
+    void norm_rope_rows(Slice x, size_t rows, size_t stride, size_t heads, CSlice w,
+                        float eps, CSlice cos, CSlice sin, size_t half,
+                        const uint32_t* pos) override {
+        if (!rows || !heads || !half) return;
+        if (!pos) throw std::runtime_error("vulkan: rope without positions");
+        const size_t table = floats_from(cos) / half;
+        for (size_t r = 0; r < rows; ++r)
+            if (pos[r] >= table) throw std::runtime_error("vulkan: position outside the RoPE table");
+        struct { uint32_t rows, stride, heads, half; float eps; }
+            pc{u32(rows), u32(stride), u32(heads), u32(half), eps};
+        dispatch(K_NORM_ROPE_ROWS,
+                 {bind(x), bind(w), bind(cos), bind(sin), args(pos, rows * sizeof(uint32_t))},
+                 &pc, sizeof(pc), u32(rows * heads));
+    }
+
+    void embed(Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows,
+               const uint32_t* ids, size_t count) override {
+        if (count && !ids) throw std::runtime_error("vulkan: embed without ids");
+        if (!count || !nin) return;
+        if (type != gguf::GGML_TYPE_F32 && type != gguf::GGML_TYPE_Q8_0)
+            throw std::runtime_error("vulkan: unsupported embedding type");
+        if (type == gguf::GGML_TYPE_Q8_0 && nin % gguf::Q8_0_BLOCK)
+            throw std::runtime_error("vulkan: embedding width is not whole blocks");
+        for (size_t i = 0; i < count; ++i)
+            if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
+        const uint32_t pc[3] = {u32(nin), u32(count), type};
+        // The table is bound twice: as floats for F32 rows, as bytes for
+        // block formats. The shader reads the one the type selects.
+        dispatch(K_EMBED, {bind(dst), bind(table), bind(table), args(ids, count * sizeof(uint32_t))},
+                 pc, sizeof(pc), u32(count));
+    }
+
+    // The matmul and the KV cache arrive with the later sub-steps of
+    // docs/VULKAN.md.
     void matmul(uint32_t, CSlice, CSlice, Slice, size_t, size_t, size_t) override { todo("matmul", 3); }
-    void embed(Slice, uint32_t, CSlice, size_t, size_t, const uint32_t*, size_t) override { todo("embed", 2); }
     KVLayout kv_layout() const override { todo("kv_layout", 4); }
     std::unique_ptr<KVStorage> kv_alloc(size_t, size_t, size_t, size_t) override { todo("kv_alloc", 4); }
     void kv_copy(KVStorage&, int32_t, int32_t) override { todo("kv_copy", 4); }
     void kv_write(size_t, const KVView*, size_t, CSlice, CSlice) override { todo("kv_write", 4); }
     void attention(CSlice, size_t, const KVView*, size_t, Slice, int, int, int) override { todo("attention", 4); }
-    void rms_norm(Slice, CSlice, CSlice, size_t, float) override { todo("rms_norm", 2); }
-    void rms_norm_rows(Slice, CSlice, CSlice, size_t, size_t, size_t, float) override { todo("rms_norm_rows", 2); }
-    void norm_rope_rows(Slice, size_t, size_t, size_t, CSlice, float, CSlice, CSlice, size_t,
-                        const uint32_t*) override { todo("norm_rope_rows", 2); }
-    void silu_mul(Slice, CSlice, CSlice, size_t) override { todo("silu_mul", 2); }
-    void add(Slice, CSlice, size_t) override { todo("add", 2); }
-    void gather_rows(Slice, CSlice, size_t, const uint32_t*, size_t) override { todo("gather_rows", 2); }
 
 private:
     static const uint32_t kRing = 4;
     static const size_t kStagingBytes = size_t(64) << 20;
+    static const uint32_t kPushBytes = 128;
+
+    static uint32_t u32(size_t v) {
+        if (v > 0xffffffffu) throw std::runtime_error("vulkan: dimension exceeds 32 bits");
+        return (uint32_t)v;
+    }
+
+    uint32_t groups(size_t n, size_t per_group) const {
+        const size_t g = (n + per_group - 1) / per_group;
+        if (g > dev_->props.limits.maxComputeWorkGroupCount[0])
+            throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
+        return (uint32_t)g;
+    }
+
+    // Floats from a slice's offset to the end of its buffer.
+    static size_t floats_from(CSlice s) {
+        if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
+        const size_t bytes = s.buffer->size();
+        if (s.offset * sizeof(float) > bytes) throw std::runtime_error("vulkan: operand outside the allocation");
+        return (bytes - s.offset * sizeof(float)) / sizeof(float);
+    }
+
+    // A slice as a storage buffer binding: the buffer at a byte offset of
+    // four times the float offset, which the device's 4-byte alignment
+    // allows, through to the end of the allocation. An empty allocation
+    // binds nothing and nothing reads it.
+    VkDescriptorBufferInfo bind(CSlice s) {
+        if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
+        const VulkanBuffer& b = as_vulkan(*s.buffer);
+        const VkDeviceSize off = (VkDeviceSize)s.offset * sizeof(float);
+        if (off > b.size()) throw std::runtime_error("vulkan: operand outside the allocation");
+        if (!b.size()) return VkDescriptorBufferInfo{VK_NULL_HANDLE, 0, VK_WHOLE_SIZE};
+        return VkDescriptorBufferInfo{b.handle(), off, VK_WHOLE_SIZE};
+    }
+    VkDescriptorBufferInfo bind(Slice s) { return bind(CSlice(s)); }
+
+    // Small per-call inputs the host holds, ids and positions and row lists,
+    // go to the device through a host-visible buffer that lives until the
+    // command buffer it was recorded into has retired.
+    VkDescriptorBufferInfo args(const void* data, size_t bytes) {
+        auto b = std::make_shared<VulkanBuffer>(dev_, bytes, true);
+        std::memcpy(b->mapped(), data, bytes);
+        open();
+        pending_[ring_index_].push_back(b);
+        return VkDescriptorBufferInfo{b->handle(), 0, VK_WHOLE_SIZE};
+    }
+
+    Kernel& kernel(KernelId id) {
+        Kernel& k = kernels_[id];
+        if (k.pipeline) return k;
+        Device& d = *dev_;
+        const KernelSource& src = kKernels[id];
+        VkShaderModuleCreateInfo mi{};
+        mi.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        mi.codeSize = src.bytes;
+        mi.pCode = src.words;
+        check(d.fn.vkCreateShaderModule(d.device, &mi, nullptr, &k.module), "vkCreateShaderModule");
+        std::vector<VkDescriptorSetLayoutBinding> bindings(src.bindings);
+        for (uint32_t i = 0; i < src.bindings; ++i) {
+            bindings[i].binding = i;
+            bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            bindings[i].descriptorCount = 1;
+            bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        }
+        VkDescriptorSetLayoutCreateInfo li{};
+        li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        li.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+        li.bindingCount = src.bindings;
+        li.pBindings = bindings.data();
+        check(d.fn.vkCreateDescriptorSetLayout(d.device, &li, nullptr, &k.set_layout),
+              "vkCreateDescriptorSetLayout");
+        VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, kPushBytes};
+        VkPipelineLayoutCreateInfo pi{};
+        pi.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pi.setLayoutCount = 1;
+        pi.pSetLayouts = &k.set_layout;
+        pi.pushConstantRangeCount = 1;
+        pi.pPushConstantRanges = &range;
+        check(d.fn.vkCreatePipelineLayout(d.device, &pi, nullptr, &k.layout), "vkCreatePipelineLayout");
+        VkComputePipelineCreateInfo ci{};
+        ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        ci.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        ci.stage.module = k.module;
+        ci.stage.pName = "main";
+        ci.layout = k.layout;
+        check(d.fn.vkCreateComputePipelines(d.device, VK_NULL_HANDLE, 1, &ci, nullptr, &k.pipeline),
+              "vkCreateComputePipelines");
+        k.bindings = src.bindings;
+        return k;
+    }
+
+    // One dispatch: bind the pipeline, push the buffers and the constants,
+    // launch `groups` workgroups, and fence it off from the next command.
+    void dispatch(KernelId id, std::initializer_list<VkDescriptorBufferInfo> buffers,
+                  const void* push, size_t push_bytes, uint32_t groups_x) {
+        Kernel& k = kernel(id);
+        if (buffers.size() != k.bindings) throw std::logic_error("vulkan: kernel binding count");
+        if (push_bytes > kPushBytes) throw std::logic_error("vulkan: push constants exceed 128 bytes");
+        for (const auto& b : buffers)
+            if (!b.buffer) throw std::runtime_error("vulkan: dispatch over an empty allocation");
+        VkCommandBuffer cmd = open();
+        std::vector<VkWriteDescriptorSet> writes(buffers.size());
+        uint32_t i = 0;
+        for (const auto& b : buffers) {
+            VkWriteDescriptorSet& w = writes[i];
+            w = VkWriteDescriptorSet{};
+            w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            w.dstBinding = i;
+            w.descriptorCount = 1;
+            w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            w.pBufferInfo = &b;
+            ++i;
+        }
+        dev_->fn.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.pipeline);
+        dev_->fn.vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.layout, 0,
+                                           (uint32_t)writes.size(), writes.data());
+        dev_->fn.vkCmdPushConstants(cmd, k.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                                    (uint32_t)push_bytes, push);
+        dev_->fn.vkCmdDispatch(cmd, groups_x, 1, 1);
+        barrier(cmd);
+    }
 
     [[noreturn]] static void todo(const char* op, int substep) {
         throw std::runtime_error(std::string("vulkan: ") + op +
@@ -573,6 +833,7 @@ private:
     VkCommandBuffer open() {
         if (open_) return ring_[ring_index_];
         wait(ring_ticket_[ring_index_]);
+        pending_[ring_index_].clear();
         VkCommandBuffer cmd = ring_[ring_index_];
         check(dev_->fn.vkResetCommandBuffer(cmd, 0), "vkResetCommandBuffer");
         VkCommandBufferBeginInfo bi{};
@@ -628,6 +889,8 @@ private:
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     Ticket last_ticket_ = 0;
     std::unique_ptr<VulkanBuffer> staging_;
+    std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];
+    Kernel kernels_[K_COUNT];
 };
 
 } // namespace

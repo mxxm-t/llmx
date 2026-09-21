@@ -188,8 +188,11 @@ It does not establish recovery of partially executed model sessions.
 `backend-vulkan` exists only in a build with `LLMX_HAS_BACKEND_VULKAN=ON`. It
 opens device 0, round-trips buffers through adopt, copy, write and read,
 checks zeroed allocations, host-visible memory read in place after a wait
-and monotonic tickets, and exits 77, which CTest reports as skipped, when
-there is no loader or no device.
+and monotonic tickets, then runs every implemented kernel against the CPU
+backend on random inputs with bounds fixed in the test: exact where the
+arithmetic is the same operation in the same order, a stated relative
+tolerance where a transcendental or a reduction order differs. It exits 77,
+which CTest reports as skipped, when there is no loader or no device.
 
 `placement` splits a two-layer model over two CPU backends with a device per
 tensor role (`docs/EXECUTION.md`) and requires the bytes of the same model on

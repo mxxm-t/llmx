@@ -49,8 +49,26 @@ add_dependencies(llmx llmx-build-info)
 # time; the loader is loaded at run time, so nothing links against vulkan-1.
 # One static library so the CLI and the test compile the device code once.
 if(LLMX_HAS_BACKEND_VULKAN)
-    find_package(Vulkan REQUIRED)
+    find_package(Vulkan REQUIRED COMPONENTS glslc)
+    # Shaders are GLSL in the tree, compiled to SPIR-V at build time and
+    # embedded as uint32_t arrays, so the binary carries its kernels.
+    set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
+    set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_rows embed)
+    set(LLMX_VK_SPV)
+    foreach(shader IN LISTS LLMX_VK_SHADERS)
+        set(spv ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan/${shader}.inc)
+        add_custom_command(OUTPUT ${spv}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan
+            COMMAND ${Vulkan_GLSLC_EXECUTABLE} -fshader-stage=compute --target-env=vulkan1.2 -O
+                    -mfmt=num -I ${LLMX_VK_SHADER_DIR} -o ${spv} ${LLMX_VK_SHADER_DIR}/${shader}.comp
+            DEPENDS ${LLMX_VK_SHADER_DIR}/${shader}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
+            COMMENT "glslc ${shader}.comp"
+            VERBATIM)
+        list(APPEND LLMX_VK_SPV ${spv})
+    endforeach()
+    add_custom_target(llmx-vulkan-shaders DEPENDS ${LLMX_VK_SPV})
     add_library(llmx-vulkan STATIC src/backends/vulkan/vulkan_backend.cpp)
+    add_dependencies(llmx-vulkan llmx-vulkan-shaders)
     target_include_directories(llmx-vulkan
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR}/generated
         PRIVATE ${Vulkan_INCLUDE_DIRS})

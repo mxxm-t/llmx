@@ -1,0 +1,37 @@
+#version 450
+// One workgroup per (row, head): per-head RMS norm, then the rotation with
+// the table entry of the row's own position. Element i of the first half
+// pairs with i + half; one thread owns the pair, so nothing is written
+// that another thread still reads.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint stride; uint heads; uint half_dim; float eps; } p;
+layout(set = 0, binding = 0) buffer X { float x[]; };
+layout(set = 0, binding = 1) readonly buffer W { float w[]; };
+layout(set = 0, binding = 2) readonly buffer C { float cs[]; };
+layout(set = 0, binding = 3) readonly buffer S { float sn[]; };
+layout(set = 0, binding = 4) readonly buffer I { uint pos[]; };
+shared float red[256];
+void main() {
+    uint row = gl_WorkGroupID.x / p.heads;
+    uint head = gl_WorkGroupID.x - row * p.heads;
+    uint lid = gl_LocalInvocationID.x;
+    uint dim = 2u * p.half_dim;
+    uint base = row * p.stride + head * dim;
+    float s = 0.0;
+    for (uint i = lid; i < dim; i += 256u) { float v = x[base + i]; s += v * v; }
+    red[lid] = s;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    float r = 1.0 / sqrt(red[0] / float(dim) + p.eps);
+    uint t = pos[row] * p.half_dim;
+    for (uint i = lid; i < p.half_dim; i += 256u) {
+        float a = x[base + i] * r * w[i];
+        float b = x[base + i + p.half_dim] * r * w[i + p.half_dim];
+        float c = cs[t + i], sv = sn[t + i];
+        x[base + i] = a * c - b * sv;
+        x[base + i + p.half_dim] = a * sv + b * c;
+    }
+}

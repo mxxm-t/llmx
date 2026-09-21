@@ -36,9 +36,24 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   minutes and was never broken, since the option is off; the Vulkan tree
   was built and its test run right after, and this commit carries the
   description the previous one lacked.
-- **Left:** sub-step 2, the elementwise kernels, gather, embed and the
-  norms, with the shader build step: GLSL under `src/backends/vulkan/shaders/`
-  compiled by `glslc` at configure time and embedded.
+- **Done: sub-step 2.** Six GLSL compute shaders under
+  `src/backends/vulkan/shaders/`, compiled by `glslc` at build time into
+  the generated include directory as numeric arrays and embedded, with a
+  shared `q.glsl` for block decoding. Pipelines are built on first use
+  with a push-descriptor set layout and 128 bytes of push constants; a
+  dispatch binds, pushes buffers and constants, launches and fences.
+  Elementwise kernels are one invocation per element; the norms are one
+  workgroup per row or per (row, head) with a shared-memory reduction, so
+  they do not depend on the subgroup size; `embed` decodes F32 and Q8_0
+  rows, the table bound once as floats and once as bytes. `backend-vulkan`
+  compares every kernel against the CPU backend on random inputs, bounds
+  fixed in the test before the first run: exact for add, gather and both
+  embed paths, 1e-6 relative for SiLU, 1e-5 for the norms and RoPE;
+  160,688 outputs match on the Radeon VII, and out-of-range rows, positions
+  and ids are refused on the host. The default tree is untouched by any of
+  it.
+- **Left:** sub-step 3, `matmul` for F32 and Q8_0, decode and prefill
+  kernels, then `bench --device vulkan:0`.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

@@ -110,10 +110,15 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   consecutive dispatches is correct and is what the first version does.
   Tracking which buffers an op touches, to let independent dispatches
   overlap, is an optimization with its own measurement.
-- **Descriptors.** Every kernel takes at most four storage buffers and a
+- **Descriptors.** Every kernel takes at most five storage buffers and a
   block of push constants. With push descriptors there is no pool and no
   set allocation per op; a `Slice` becomes a buffer binding with a byte
-  offset of four times its float offset.
+  offset of four times its float offset. Small per-call inputs the host
+  holds, ids, positions and row lists, go through a host-visible buffer
+  allocated per call and kept until the command buffer it was recorded
+  into has retired, which the ring slot tracks. Rows and positions are
+  range-checked on the host before the dispatch, since a shader cannot
+  refuse them.
 - **Threads.** `set_threads` is accepted and ignored; `threads_available`
   reports 0. `run_prefill` is the default.
 
@@ -206,7 +211,7 @@ device is present, so the tree stays green without a GPU.
 | # | Sub-step | Test |
 |---|---|---|
 | 1 | Build gate, loader, device and queue, buffers, `adopt`/`read`/`write`/`copy`, `submit`/`wait`/`sync` (**done**) | `backend-vulkan`: zeroed allocations, adopt and copy round trips at odd offsets, writes into device and host-visible memory, a copy read in place after a wait, monotonic tickets, empty and out-of-range buffers; skips without a device |
-| 2 | Elementwise kernels, `gather_rows`, `embed`, the norms, `norm_rope_rows` | CPU-vs-Vulkan on random inputs, bounds frozen first |
+| 2 | Elementwise kernels, `gather_rows`, `embed` (F32 and Q8_0), the norms, `norm_rope_rows`; the shader build step (**done**) | CPU-vs-Vulkan on random inputs, bounds fixed in the test before the first run: exact for add, gather and embed, 1e-6 relative for SiLU, 1e-5 for the norms and RoPE; 160,688 outputs on the Radeon VII |
 | 3 | `matmul` for F32 and Q8_0, decode and prefill kernels | Same, plus `bench --device vulkan:0` |
 | 4 | KV storage, `kv_write`, `attention` over views | `kv-cache`'s attention reference and the two-view case, on the device |
 | 5 | `--device`; Qwen3-0.6B-Q8_0 end to end | HF baselines with `--device vulkan:0`; matched mx Vulkan floor |

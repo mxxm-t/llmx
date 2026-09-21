@@ -92,6 +92,11 @@ class WindowsMonitor:
             size, count = wt.DWORD(), wt.DWORD()
             status = self.api.PdhGetFormattedCounterArrayW(
                 handle, 0x200 | 0x8000, ct.byref(size), ct.byref(count), None)
+            # PDH_MORE_DATA is the expected answer to a sizing call. Success
+            # means the instance set is empty, which is not an error: recording
+            # it as one made "was this counter available" unreadable.
+            if status == 0:
+                return {"items": []}
             if status != 0x800007d2:
                 return {"error": hex(status), "items": []}
             buffer = ct.create_string_buffer(size.value)

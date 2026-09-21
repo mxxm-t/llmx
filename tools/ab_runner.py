@@ -127,10 +127,13 @@ def cmd_plan(args):
 
 
 def invoke(exe, model, prompt_text, threads, max_tokens):
+    # A hung arm used to hang the whole run, and the generated text is decoded
+    # with the ANSI codepage unless this says otherwise, which raises on any
+    # non-ASCII token.
     proc = subprocess.run(
         [str(exe), "generate", str(model), prompt_text, "-n", str(max_tokens),
          "--temp", "0", "--seed", "1", "--threads", str(threads), "--verbose"],
-        capture_output=True, text=True)
+        capture_output=True, encoding="utf-8", errors="replace", timeout=1800)
     if proc.returncode != 0:
         raise RuntimeError(f"{exe} exited {proc.returncode}: {proc.stderr[-400:]}")
     text = proc.stdout + proc.stderr
@@ -158,7 +161,13 @@ def monitored(out, tag, fn):
         return fn(), log
     finally:
         stop.touch()
-        mon.wait(timeout=30)
+        try:
+            mon.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            # Leaving it running would put an unaccounted process alongside
+            # every later arm, which is exactly what it is here to detect.
+            mon.kill()
+            mon.wait()
         stop.unlink(missing_ok=True)
 
 

@@ -92,8 +92,13 @@ reference for every GPU claim (see #8).
 ### 4b. Vendor backends
 Four vendor targets. Each is opt-in at build time because its SDK is heavy, and
 each is gated by its own `LLMX_HAS_BACKEND_*` in `config.hpp`.
-- **ROCm (HIP)**: first-class target, matches the MI50 (gfx906) rig.
-  `LLMX_HAS_BACKEND_ROCM`
+- **ROCm (HIP)**: first-class target, matches the MI50 (gfx906) rig, and
+  **Linux only**. The Windows HIP SDK supports RDNA3, RDNA3.5 and RDNA4 only
+  and states that it does not support gfx906; no Instinct card appears in its
+  support table. gfx906 also entered ROCm maintenance mode in 5.7 and is
+  deprecated, so even on Linux it needs a community or self-built ROCm. This
+  backend is therefore developed and validated on the rig, never on the
+  Windows workstation. `LLMX_HAS_BACKEND_ROCM`
 - **CUDA**: NVIDIA. `LLMX_HAS_BACKEND_CUDA`
 - **SYCL**: Intel, through oneAPI/DPC++ over Level Zero. This is what llama.cpp
   calls its SYCL backend. `LLMX_HAS_BACKEND_SYCL`

@@ -4,6 +4,20 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## ROCm on Windows is not available for this hardware (2026-09-21)
+
+Checked before planning any GPU work on the workstation. The Windows HIP SDK
+supports RDNA3, RDNA3.5 and RDNA4 only, lists no Instinct card, and states
+that it does not support gfx906 (Vega 20). gfx906 entered ROCm maintenance
+mode in 5.7 and is deprecated on Linux too, where it still runs but AMD no
+longer builds for it.
+
+Consequence for the plan, which it confirms rather than changes: the ROCm
+backend is developed and validated on the rig under Linux. Windows keeps the
+CPU backend. If this workstation ever needs GPU acceleration, the route is
+Vulkan, already the roadmap's portability target and supported by AMD's
+Windows drivers.
+
 ## Device execution step 4b: ops take a buffer and an offset (2026-09-21)
 
 - **Goal:** the eleven ops that still take raw activation pointers take a

@@ -28,9 +28,10 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
   `view.length + b`, so the table must cover `length + nbatch` positions and
   every block it reaches must have been written. The backend owns temporary
   score storage.
-- `Buffer::mutable_host_ptr()`: writable host address, null on a device
-  backend. A bridge while the model still passes raw pointers to ops; it goes
-  when ops take a buffer and an offset.
+- `Slice` / `CSlice`: where an operand lives, a buffer and a float offset.
+  Every op takes these rather than pointers, so nothing outside a backend
+  holds a host address. An empty allocation resolves to no address and is
+  read by nothing, which is how a zero-length batch passes through.
 - `embed(dst, type, table, nin, nrows, ids, count)`: gather `count` embedding
   rows into `dst`, row-major. An op rather than a model-side read because the
   table is a buffer the model cannot address on a device backend. Rejects a

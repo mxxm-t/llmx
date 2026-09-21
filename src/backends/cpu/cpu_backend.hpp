@@ -43,7 +43,6 @@ public:
 
     size_t size() const override { return size_; }
     const void* host_ptr() const override { return ptr_; }
-    void* mutable_host_ptr() override { return ptr_; }
     void* host_address() const { return ptr_; }
 
 private:
@@ -247,9 +246,10 @@ public:
         if (error) std::rethrow_exception(error);
     }
 
-    void embed(float* dst, uint32_t ggml_type, const Buffer& table, size_t nin,
+    void embed(Slice dst_s, uint32_t ggml_type, CSlice table, size_t nin,
                size_t nrows, const uint32_t* ids, size_t count) override {
-        const uint8_t* rows = (const uint8_t*)table.host_ptr();
+        float* dst = at(dst_s);
+        const uint8_t* rows = (const uint8_t*)bytes_at(table);
         if (!rows) throw std::runtime_error("backend: embedding table is not host addressable");
         const quant::QuantType* qt = ggml_type == gguf::GGML_TYPE_F32
                                    ? nullptr : quant::Registry::instance().get(ggml_type);
@@ -289,9 +289,11 @@ public:
                     (const uint8_t*)src.host_ptr() + src_off, bytes);
     }
 
-    void matmul(uint32_t ggml_type, const Buffer& buffer, const float* X, float* Y,
+    void matmul(uint32_t ggml_type, CSlice weights, CSlice X_s, Slice Y_s,
                 size_t nin, size_t nout, size_t nbatch) override {
-        const uint8_t* data = (const uint8_t*)buffer.host_ptr();
+        const uint8_t* data = (const uint8_t*)bytes_at(weights);
+        const float* X = at(X_s);
+        float* Y = at(Y_s);
         // Q8_0 keeps its fused dequant+FMA row dot for the single-column case,
         // which is the decode path and is bandwidth bound rather than load
         // bound, so the extra dequant buffer would buy nothing there.
@@ -425,15 +427,16 @@ public:
     }
 
     void matmul_group(std::initializer_list<Projection> projections,
-                      const float* X, size_t nin, size_t nbatch) override {
+                      CSlice X_s, size_t nin, size_t nbatch) override {
         bool grouped = threads_ > 1 && nbatch == 1 && projections.size() > 1;
         for (const auto& p : projections)
-            if (!p.data) throw std::runtime_error("backend: projection without storage");
+            if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
+        const float* X = projections.size() ? at(X_s) : nullptr;
         for (const auto& p : projections)
             grouped = grouped && p.rows >= size_t(threads_) * 8 &&
                 (p.type == gguf::GGML_TYPE_F32 || p.type == gguf::GGML_TYPE_Q8_0 ||
                  p.type == gguf::GGML_TYPE_Q4_K);
-        if (!grouped) { Backend::matmul_group(projections, X, nin, nbatch); return; }
+        if (!grouped) { Backend::matmul_group(projections, X_s, nin, nbatch); return; }
         run_parallel([&](int w) {
             for (const auto& p : projections) {
                 size_t chunk = (p.rows + size_t(threads_) - 1) / size_t(threads_);
@@ -442,19 +445,20 @@ public:
                     chunk = (chunk + DOT_ROWS - 1) / DOT_ROWS * DOT_ROWS;
                 const size_t first = size_t(w) * chunk;
                 const size_t last = std::min(p.rows, first + chunk);
-                const uint8_t* rows = (const uint8_t*)p.data->host_ptr();
+                const uint8_t* rows = (const uint8_t*)bytes_at(p.data);
+                float* out = at(p.out);
                 if (p.type == gguf::GGML_TYPE_F32) {
                     const float* data = reinterpret_cast<const float*>(rows);
                     for (size_t o = first; o < last; ++o)
-                        p.out[o] = dot_f32(data + o * nin, X, nin);
+                        out[o] = dot_f32(data + o * nin, X, nin);
                 } else if (p.type == gguf::GGML_TYPE_Q8_0) {
                     const size_t blocks = nin / gguf::Q8_0_BLOCK;
                     for (size_t o = first; o < last; ++o)
-                        p.out[o] = dot_row_impl(rows + o * blocks * gguf::Q8_0_TYPESIZE, X, blocks);
+                        out[o] = dot_row_impl(rows + o * blocks * gguf::Q8_0_TYPESIZE, X, blocks);
                 } else {
                     const size_t blocks = nin / gguf::Q4_K_BLOCK;
                     for (size_t o = first; o < last; ++o)
-                        p.out[o] = dot_row_q4_K(rows + o * blocks * gguf::Q4_K_TYPESIZE, X, blocks);
+                        out[o] = dot_row_q4_K(rows + o * blocks * gguf::Q4_K_TYPESIZE, X, blocks);
                 }
             }
         });
@@ -656,7 +660,9 @@ public:
     }
 
     void kv_write(size_t layer, const KVView& view, size_t pos,
-                  const float* k, const float* v, size_t batch) override {
+                  CSlice k_s, CSlice v_s, size_t batch) override {
+        const float* k = at(k_s);
+        const float* v = at(v_s);
         CpuKVStorage& s = storage_of(view);
         const size_t bt = KV_BLOCK_TOKENS, heads = s.heads(), dim = s.dim();
         if (layer >= s.layers() ||
@@ -677,8 +683,10 @@ public:
     // Blocks are walked in table order and every reduction keeps token order:
     // one global softmax over the scores and per-lane value accumulation
     // across block edges, so the arithmetic is that of a contiguous history.
-    void attention(const float* Q, size_t layer, const KVView& view, float* out,
+    void attention(CSlice Q_s, size_t layer, const KVView& view, Slice out_s,
                    int n_head, int n_head_kv, int head_dim, int nbatch) override {
+        const float* Q = at(Q_s);
+        float* out = at(out_s);
         if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 ||
             head_dim <= 0 || nbatch <= 0)
             throw std::runtime_error("backend: invalid attention dimensions");
@@ -897,10 +905,24 @@ private:
     // below are untouched and still see plain float arrays.
     static float* at(Slice s) {
         if (!s.buffer) throw std::runtime_error("backend: operand without storage");
+        // An empty allocation has no address and nothing will read through it;
+        // a zero-length batch reaches here.
+        if (!s.buffer->size()) return nullptr;
         return (float*)host(*s.buffer) + s.offset;
     }
+    // Weights are not float arrays, so their slice resolves to bytes. The
+    // offset is still in floats for one reason: every activation is float and
+    // a weight slice always starts at zero.
+    static const void* bytes_at(CSlice s) {
+        if (!s.buffer) throw std::runtime_error("backend: operand without storage");
+        const void* p = s.buffer->host_ptr();
+        if (!p) throw std::runtime_error("backend: operand is not host addressable");
+        return (const uint8_t*)p + s.offset * sizeof(float);
+    }
+
     static const float* at(CSlice s) {
         if (!s.buffer) throw std::runtime_error("backend: operand without storage");
+        if (!s.buffer->size()) return nullptr;
         const void* p = s.buffer->host_ptr();
         if (!p) throw std::runtime_error("backend: operand is not host addressable");
         return (const float*)p + s.offset;

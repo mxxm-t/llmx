@@ -197,6 +197,11 @@ public:
                 (size_t)cfg.n_embd, (size_t)cfg.n_embd, (size_t)q_dim_, KV, KV,
                 (size_t)q_dim_, (size_t)cfg.n_ff, (size_t)cfg.n_ff, (size_t)cfg.n_ff};
             decode_arena_ = alloc_arena(counts, decode_offset_);
+            // The vocabulary projection writes here, then one read hands the
+            // caller a plain vector. A device backend has nowhere else to put
+            // it, and this is the one point per forward pass that must be
+            // host-visible.
+            logits_buf_ = b_->alloc(output_.nout * sizeof(float));
         }
 
         // Budget: the whole context. The backend turns tokens into blocks and
@@ -256,7 +261,9 @@ public:
             step_body(token_id, pos);
             b_->rms_norm(sh(), sx(), output_norm_.slice(), cfg.n_embd, cfg.rms_eps);
             logits.assign(output_.nout, 0.0f);
-            matvec(output_, h(), logits.data());
+            matvec(output_, sh(), {logits_buf_.get(), 0});
+            logits.assign(output_.nout, 0.0f);
+            b_->read(*logits_buf_, 0, logits.data(), output_.nout * sizeof(float));
         } catch (...) {
             kv_seq_.abort();
             throw;
@@ -274,7 +281,7 @@ public:
         // to it shifted the generated layout enough to cost 8% of 0.6B prefill
         // for work measured at 0.0014 ms (docs/STATUS.md).
         embed_id_ = (uint32_t)token_id;
-        b_->embed(x(), token_embd_.type, *token_embd_.data, token_embd_.nin,
+        b_->embed(sx(), token_embd_.type, token_embd_.slice(), token_embd_.nin,
                   token_embd_.nout, &embed_id_, 1);
 
         for (int l = 0; l < cfg.n_layer; l++) {
@@ -284,10 +291,10 @@ public:
             b_->rms_norm(sh(), sx(), w.attn_norm.slice(), cfg.n_embd, cfg.rms_eps);
 
             // q,k,v projections
-            b_->matmul_group({projection(w.attn_q, q()),
-                              projection(w.attn_k, kv()),
-                              projection(w.attn_v, v())},
-                             h(), cfg.n_embd, 1);
+            b_->matmul_group({projection(w.attn_q, sq()),
+                              projection(w.attn_k, skv()),
+                              projection(w.attn_v, sv())},
+                             sh(), cfg.n_embd, 1);
 
             // per-head q/k norms + rope
             {
@@ -300,13 +307,12 @@ public:
                                    w.attn_k_norm.slice(), cfg.rms_eps, cs, sn, half);
             }
 
-            b_->kv_write(l, view, (size_t)pos, kv(), v(), 1);
-            b_->attention(q(), l, view, attn(),
+            b_->kv_write(l, view, (size_t)pos, skv(), sv(), 1);
+            b_->attention(sq(), l, view, sattn(),
                           cfg.n_head, cfg.n_head_kv, cfg.head_dim, 1);
 
             // attn_output projection + residual
-            std::memset(h(), 0, (size_t)cfg.n_embd * sizeof(float));
-            matvec(w.attn_output, attn(), h());
+            matvec(w.attn_output, sattn(), sh());
             b_->add(sx(), sh(), cfg.n_embd);
 
             // ffn norm
@@ -315,13 +321,12 @@ public:
             // gate/up (SwiGLU). Buffers are members: allocating these per layer
             // per token cost 108 heap allocations of n_ff floats on a 36-layer
             // model, every token.
-            b_->matmul_group({projection(w.ffn_gate, gate()),
-                              projection(w.ffn_up, up())},
-                             h(), cfg.n_embd, 1);
+            b_->matmul_group({projection(w.ffn_gate, sgate()),
+                              projection(w.ffn_up, sup())},
+                             sh(), cfg.n_embd, 1);
             b_->silu_mul(sffn(), sgate(), sup(), cfg.n_ff);
             // down projection + residual
-            std::memset(h(), 0, (size_t)cfg.n_embd * sizeof(float));
-            matvec(w.ffn_down, ffn(), h());
+            matvec(w.ffn_down, sffn(), sh());
             b_->add(sx(), sh(), cfg.n_embd);
         }
     }
@@ -386,7 +391,7 @@ private:
 
     uint32_t embed_id_ = 0;
     static const size_t kArenaSlots = 9;
-    backend::BufferPtr decode_arena_;
+    backend::BufferPtr decode_arena_, logits_buf_;
     size_t decode_offset_[kArenaSlots] = {0};
     backend::BufferPtr arena_;
     size_t arena_batch_ = 0;
@@ -481,24 +486,8 @@ private:
                 throw std::runtime_error("inference: activation arena size overflows");
             total = (total + bytes + 63) / 64 * 64;
         }
-        auto arena = b_->alloc(total);
-        std::memset(arena->mutable_host_ptr(), 0, total);
-        return arena;
+        return b_->alloc(total);
     }
-
-    static float* slot_of(const backend::BufferPtr& arena, size_t offset) {
-        return (float*)((uint8_t*)arena->mutable_host_ptr() + offset);
-    }
-
-    float* x() const { return slot_of(decode_arena_, decode_offset_[0]); }
-    float* h() const { return slot_of(decode_arena_, decode_offset_[1]); }
-    float* q() const { return slot_of(decode_arena_, decode_offset_[2]); }
-    float* kv() const { return slot_of(decode_arena_, decode_offset_[3]); }
-    float* v() const { return slot_of(decode_arena_, decode_offset_[4]); }
-    float* attn() const { return slot_of(decode_arena_, decode_offset_[5]); }
-    float* gate() const { return slot_of(decode_arena_, decode_offset_[6]); }
-    float* up() const { return slot_of(decode_arena_, decode_offset_[7]); }
-    float* ffn() const { return slot_of(decode_arena_, decode_offset_[8]); }
 
     // The same nine, as locations the backend can resolve itself.
     backend::Slice ds(size_t i) const {
@@ -546,16 +535,6 @@ private:
         arena_batch_ = B;
     }
 
-    float* slot(size_t i) const { return slot_of(arena_, arena_offset_[i]); }
-    float* xb() const { return slot(0); }
-    float* hb() const { return slot(1); }
-    float* qb() const { return slot(2); }
-    float* kb() const { return slot(3); }
-    float* vb() const { return slot(4); }
-    float* attnb() const { return slot(5); }
-    float* gateb() const { return slot(6); }
-    float* upb() const { return slot(7); }
-    float* ffnb() const { return slot(8); }
 
     void forward_batch(const uint32_t* ids, int B, std::vector<float>* out_logits) {
         const int pos0 = n_tokens_;
@@ -572,7 +551,9 @@ private:
                                  (size_t)(B - 1) * (size_t)cfg.n_embd},
                              output_norm_.slice(), cfg.n_embd, cfg.rms_eps);
                 out_logits->assign(output_.nout, 0.0f);
-                matvec(output_, h(), out_logits->data());
+                matvec(output_, sh(), {logits_buf_.get(), 0});
+                out_logits->assign(output_.nout, 0.0f);
+                b_->read(*logits_buf_, 0, out_logits->data(), output_.nout * sizeof(float));
             }
         } catch (...) {
             kv_seq_.abort();
@@ -588,7 +569,7 @@ private:
         const size_t half = (size_t)HD / 2;
         const size_t KV = (size_t)cfg.n_head_kv * HD;
 
-        b_->embed(xb(), token_embd_.type, *token_embd_.data, token_embd_.nin,
+        b_->embed(sxb(), token_embd_.type, token_embd_.slice(), token_embd_.nin,
                   token_embd_.nout, ids, (size_t)B);
 
         for (int l = 0; l < cfg.n_layer; l++) {
@@ -597,9 +578,9 @@ private:
             b_->rms_norm_rows(shb(), sxb(), w.attn_norm.slice(),
                               (size_t)B, (size_t)E, (size_t)E, cfg.rms_eps);
 
-            b_->matmul_group({projection(w.attn_q, qb()),
-                              projection(w.attn_k, kb()),
-                              projection(w.attn_v, vb())}, hb(), E, B);
+            b_->matmul_group({projection(w.attn_q, sqb()),
+                              projection(w.attn_k, skb()),
+                              projection(w.attn_v, svb())}, shb(), E, B);
 
             const float* cs = rope_cos_.data() + (size_t)pos0 * half;
             const float* sn = rope_sin_.data() + (size_t)pos0 * half;
@@ -608,20 +589,20 @@ private:
             b_->norm_rope_rows(skb(), (size_t)B, KV, cfg.n_head_kv,
                                w.attn_k_norm.slice(), cfg.rms_eps, cs, sn, half);
 
-            b_->kv_write(l, view, (size_t)pos0, kb(), vb(), (size_t)B);
-            b_->attention(qb(), l, view, attnb(),
+            b_->kv_write(l, view, (size_t)pos0, skb(), svb(), (size_t)B);
+            b_->attention(sqb(), l, view, sattnb(),
                           cfg.n_head, cfg.n_head_kv, cfg.head_dim, B);
 
-            matmul(w.attn_output, attnb(), hb(), B);
+            matmul(w.attn_output, sattnb(), shb(), B);
             b_->add(sxb(), shb(), (size_t)B * E);
 
             b_->rms_norm_rows(shb(), sxb(), w.ffn_norm.slice(),
                               (size_t)B, (size_t)E, (size_t)E, cfg.rms_eps);
 
-            b_->matmul_group({projection(w.ffn_gate, gateb()),
-                              projection(w.ffn_up, upb())}, hb(), E, B);
+            b_->matmul_group({projection(w.ffn_gate, sgateb()),
+                              projection(w.ffn_up, supb())}, shb(), E, B);
             b_->silu_mul(sffnb(), sgateb(), supb(), (size_t)B * cfg.n_ff);
-            matmul(w.ffn_down, ffnb(), hb(), B);
+            matmul(w.ffn_down, sffnb(), shb(), B);
             b_->add(sxb(), shb(), (size_t)B * E);
         }
     }
@@ -629,21 +610,21 @@ private:
     // The buffer is passed by raw pointer, not by handle: three projections
     // per layer per token is nearly two hundred refcount pairs a token if a
     // shared pointer is copied here instead.
-    static backend::Projection projection(const Weight& w, float* out) {
-        return {w.type, w.data.get(), out, w.nout};
+    static backend::Projection projection(const Weight& w, backend::Slice out) {
+        return {w.type, {w.data.get(), 0}, out, w.nout};
     }
 
     // Batched matmul. The backend dispatches on the quant type, so every
     // block format takes the same path; there is no per-type branch here.
-    void matmul(const Weight& w, const float* X, float* Y, int nbatch) {
-        b_->matmul(w.type, *w.data, X, Y, w.nin, w.nout, (size_t)nbatch);
+    void matmul(const Weight& w, backend::CSlice X, backend::Slice Y, int nbatch) {
+        b_->matmul(w.type, w.slice(), X, Y, w.nin, w.nout, (size_t)nbatch);
     }
 
     // out = W^T x for a single column. Same backend entry point as the
     // batched form, so there is one dispatch path and one place that knows
     // about quant types.
-    void matvec(const Weight& w, const float* x, float* out) {
-        b_->matmul(w.type, *w.data, x, out, w.nin, w.nout, 1);
+    void matvec(const Weight& w, backend::CSlice x, backend::Slice out) {
+        b_->matmul(w.type, w.slice(), x, out, w.nin, w.nout, 1);
     }
 
 };

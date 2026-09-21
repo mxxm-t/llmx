@@ -28,8 +28,14 @@ Windows drivers.
   offsets in one allocation made at construction, sharing the allocation
   helper with prefill so both move together. Native 17/17, Python suite
   11/11, logits byte-identical.
-- **Left:** the signatures, one op family per change so each stays
-  reviewable; then the bridge accessor goes.
+- **Done:** every op takes a buffer and a float offset (`Slice`/`CSlice`).
+  The model holds no host address at all: `grep host_ptr` outside
+  `src/backends/` returns nothing. Logits leave through one `read` per
+  forward pass, which is the single point that must be host-visible. The
+  bridge accessor is deleted, and `alloc` is documented as zero-filled,
+  which removed two redundant fills the model was doing.
+- **Left:** the gate, with both arms built the same way. Then step 5, KV
+  blocks on buffers, and step 6, enqueue and sync.
 - **Gotchas:** attention and `kv_write` already take a view rather than
   pointers, so they need only their query and output arguments moved.
   `embed` writes to an activation and reads a weight buffer, so it takes two

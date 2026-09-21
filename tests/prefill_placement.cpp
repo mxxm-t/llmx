@@ -161,8 +161,11 @@ struct Matrix {
         std::vector<float> y(rows * batch + 2, 123456.0f);
         const void* rows_ptr = f32 ? (const void*)weights.data() : (const void*)q8.data();
         const size_t bytes = f32 ? weights.size() * sizeof(float) : q8.size();
+        const auto wb = cpu.adopt(rows_ptr, bytes);
+        const auto xb = cpu.adopt(x.data(), x.size() * sizeof(float));
+        const auto yb = cpu.adopt(y.data(), y.size() * sizeof(float));
         cpu.matmul(f32 ? gguf::GGML_TYPE_F32 : gguf::GGML_TYPE_Q8_0,
-            *cpu.adopt(rows_ptr, bytes), x.data(), y.data() + 1, n, rows, batch);
+            {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 1}, n, rows, batch);
         require(y.front() == 123456.0f && y.back() == 123456.0f, "output guards changed");
         for (size_t i = 1; i + 1 < y.size(); ++i) require(std::isfinite(y[i]), "nonfinite output");
         return {y.begin() + 1, y.end() - 1};

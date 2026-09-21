@@ -172,7 +172,7 @@ struct ObservedCpu : backend::CpuBackend {
         else backend::CpuBackend::run_prefill(std::ref(body));
     }
 
-    void matmul_group(std::initializer_list<backend::Projection> p, const float* x,
+    void matmul_group(std::initializer_list<backend::Projection> p, backend::CSlice x,
                       size_t nin, size_t nbatch) override {
         if (check_graph) {
             require(inside, "model projection outside prefill scope");
@@ -181,7 +181,7 @@ struct ObservedCpu : backend::CpuBackend {
         backend::CpuBackend::matmul_group(p, x, nin, nbatch);
     }
 
-    void matmul(uint32_t type, const backend::Buffer& data, const float* x, float* y,
+    void matmul(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
                 size_t nin, size_t nout, size_t nbatch) override {
         if (check_graph) require(inside, "model matmul outside prefill scope");
         backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch);

@@ -112,7 +112,10 @@ int run_type(uint32_t type, const char* tname) {
         long double exact = 0.0L;
         for (size_t i = 0; i < nin; i++) exact += (long double)q * d * x[i];
 
-        cpu.matmul(type, *cpu.adopt(w.data(), w.size()), x.data(), y.data(), nin, 1, 1);
+        const auto w_buf = cpu.adopt(w.data(), w.size());
+        const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
+        const auto y_buf = cpu.adopt(y.data(), y.size() * sizeof(float));
+        cpu.matmul(type, {w_buf.get(), 0}, {x_buf.get(), 0}, {y_buf.get(), 0}, nin, 1, 1);
 
         require(std::isfinite(y[0]),
                 std::string(tname) + " / " + c.name + ": produced a nonfinite result");

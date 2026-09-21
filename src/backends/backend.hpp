@@ -38,10 +38,6 @@ public:
     // device backend returns nullptr and the caller must use read/write.
     virtual const void* host_ptr() const = 0;
 
-    // Writable host address, same rule. This exists only while the model
-    // still hands raw pointers to ops; once ops take a buffer and an offset
-    // (docs/DEVICE-EXECUTION.md step 4) nothing outside a backend needs it.
-    virtual void* mutable_host_ptr() = 0;
 };
 using BufferPtr = std::shared_ptr<Buffer>;
 
@@ -63,8 +59,8 @@ struct CSlice {
 
 struct Projection {
     uint32_t type;
-    const Buffer* data;
-    float* out;
+    CSlice data;
+    Slice out;
     size_t rows;
 };
 
@@ -112,7 +108,7 @@ public:
     // Invoke once on the caller and complete all cleanup before returning.
     virtual void run_prefill(const std::function<void()>& work) { work(); }
 
-    // Uninitialized backend storage.
+    // Zero-filled backend storage.
     virtual BufferPtr alloc(size_t bytes) = 0;
 
     // Make `src` reachable by this backend, by whatever means it needs. The
@@ -133,24 +129,24 @@ public:
     // Type-generic: the quant type is looked up in quant::Registry, so every
     // block format gets the batched path, not just Q8_0. Rows are iterated
     // outer and the batch inner so each weight row is read once per block.
-    virtual void matmul(uint32_t ggml_type, const Buffer& data, const float* X,
-                        float* Y, size_t nin, size_t nout, size_t nbatch) = 0;
+    virtual void matmul(uint32_t ggml_type, CSlice data, CSlice X,
+                        Slice Y, size_t nin, size_t nout, size_t nbatch) = 0;
 
     // Gather `count` rows of an embedding table into `dst`, row-major, `nin`
     // floats each. This is an op rather than a model-side read because the
     // table is a Buffer: a device backend holds it in its own memory and the
     // model cannot address it.
-    virtual void embed(float* dst, uint32_t ggml_type, const Buffer& table,
+    virtual void embed(Slice dst, uint32_t ggml_type, CSlice table,
                        size_t nin, size_t nrows, const uint32_t* ids,
                        size_t count) = 0;
 
     // Independent projections of the same X; outputs must not overlap each
     // other, X, or any weights. All outputs are complete on return.
     virtual void matmul_group(std::initializer_list<Projection> projections,
-                              const float* X, size_t nin, size_t nbatch) {
+                              CSlice X, size_t nin, size_t nbatch) {
         for (const auto& p : projections) {
-            if (!p.data) throw std::runtime_error("backend: projection without storage");
-            matmul(p.type, *p.data, X, p.out, nin, p.rows, nbatch);
+            if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
+            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);
         }
     }
 
@@ -166,12 +162,12 @@ public:
     // Store `batch` token-major [batch, n_head_kv, head_dim] rows at
     // positions pos .. pos+batch of the view's sequence.
     virtual void kv_write(size_t layer, const KVView& view, size_t pos,
-                          const float* k, const float* v, size_t batch) = 0;
+                          CSlice k, CSlice v, size_t batch) = 0;
 
     // Causal GQA over the view: Q/out are [nbatch, n_head, head_dim] and
     // query b attends through view.length + b.
-    virtual void attention(const float* Q, size_t layer, const KVView& view,
-                           float* out, int n_head, int n_head_kv, int head_dim,
+    virtual void attention(CSlice Q, size_t layer, const KVView& view,
+                           Slice out, int n_head, int n_head_kv, int head_dim,
                            int nbatch) = 0;
 
     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm).

@@ -151,7 +151,9 @@ void append(backend::CpuBackend& cpu, backend::KVStorage& st, infer::KVSequence&
                     k[i] = expected(layer, h, pos + b, d, seed);
                     v[i] = -k[i];
                 }
-        cpu.kv_write(layer, view, pos, k.data(), v.data(), batch);
+        const auto kb = cpu.adopt(k.data(), k.size() * sizeof(float));
+        const auto vb = cpu.adopt(v.data(), v.size() * sizeof(float));
+        cpu.kv_write(layer, view, pos, {kb.get(), 0}, {vb.get(), 0}, batch);
     }
     seq.commit();
 }
@@ -207,9 +209,10 @@ void storage_growth_and_reset() {
         {
             const backend::KVView view = seq.view(st.get());
             std::vector<float> row(heads * width, 0.0f);
-            rejects([&] { cpu.kv_write(3, view, 0, row.data(), row.data(), 1); },
+            const auto rowb = cpu.adopt(row.data(), row.size() * sizeof(float));
+            rejects([&] { cpu.kv_write(3, view, 0, {rowb.get(), 0}, {rowb.get(), 0}, 1); },
                     "layer outside storage accepted");
-            rejects([&] { cpu.kv_write(0, view, limit, row.data(), row.data(), 1); },
+            rejects([&] { cpu.kv_write(0, view, limit, {rowb.get(), 0}, {rowb.get(), 0}, 1); },
                     "position outside the view accepted");
         }
         // Reset returns the blocks but keeps the storage they occupied.
@@ -252,18 +255,22 @@ void attention_over_blocks() {
                 }
                 infer::KVSequence seq(&pool, bt);
                 seq.prepare(n_past);
-                cpu.kv_write(0, seq.view(st.get()), 0, K.data(), V.data(), n_past);
+                const auto Kb = cpu.adopt(K.data(), K.size() * sizeof(float));
+                const auto Vb = cpu.adopt(V.data(), V.size() * sizeof(float));
+                const auto Qb = cpu.adopt(Q.data(), Q.size() * sizeof(float));
+                cpu.kv_write(0, seq.view(st.get()), 0, {Kb.get(), 0}, {Vb.get(), 0}, n_past);
                 seq.commit();
                 seq.prepare((size_t)nbatch);
                 const backend::KVView view = seq.view(st.get());
-                cpu.kv_write(0, view, n_past, K.data() + n_past * n_head_kv * head_dim,
-                             V.data() + n_past * n_head_kv * head_dim, (size_t)nbatch);
+                const size_t tail = n_past * (size_t)n_head_kv * (size_t)head_dim;
+                cpu.kv_write(0, view, n_past, {Kb.get(), tail}, {Vb.get(), tail}, (size_t)nbatch);
                 std::vector<float> out(Q.size(), 0.0f);
-                cpu.attention(Q.data(), 0, view, out.data(), n_head, n_head_kv, head_dim, nbatch);
+                const auto ob = cpu.adopt(out.data(), out.size() * sizeof(float));
+                cpu.attention({Qb.get(), 0}, 0, view, {ob.get(), 0}, n_head, n_head_kv, head_dim, nbatch);
                 if (n_past == 0 && churn == 0) {
                     infer::KVSequence shorter(&pool, bt);
                     rejects([&] {
-                        cpu.attention(Q.data(), 0, shorter.view(st.get()), out.data(),
+                        cpu.attention({Qb.get(), 0}, 0, shorter.view(st.get()), {ob.get(), 0},
                                       n_head, n_head_kv, head_dim, nbatch);
                     }, "attention over an empty view accepted");
                 }
@@ -346,7 +353,7 @@ gguf::GGUFModel fixture() {
 struct FailingCpu : backend::CpuBackend {
     bool fail_output = false;
     int outputs = 0;
-    void matmul(uint32_t type, const backend::Buffer& data, const float* x, float* y,
+    void matmul(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
                 size_t nin, size_t nout, size_t nbatch) override {
         if (nout == 16) {
             ++outputs;

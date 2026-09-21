@@ -585,15 +585,16 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
     for (int i = 0; i < size / 2; i++) { cos[i] = std::cos(0.1f); sin[i] = std::sin(0.1f); }
 
     const auto weights = b->adopt(mat.data(), mat.size());
+    const auto x_buf = b->adopt(x.data(), x.size() * sizeof(float));
+    const auto dst_buf = b->adopt(dst.data(), dst.size() * sizeof(float));
 
     using clock = std::chrono::steady_clock;
     auto t0 = clock::now();
     for (int it = 0; it < iters; it++)
-        b->matmul(gguf::GGML_TYPE_Q8_0, *weights, x.data(), dst.data(),
-                  (size_t)size, (size_t)size, 1);
+        b->matmul(gguf::GGML_TYPE_Q8_0, {weights.get(), 0}, {x_buf.get(), 0},
+                  {dst_buf.get(), 0}, (size_t)size, (size_t)size, 1);
     double mm_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 
-    const auto dst_buf = b->adopt(dst.data(), dst.size() * sizeof(float));
     const auto src_buf = b->adopt(src.data(), src.size() * sizeof(float));
     const auto w_buf = b->adopt(w.data(), w.size() * sizeof(float));
 

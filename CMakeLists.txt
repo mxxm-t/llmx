@@ -55,15 +55,31 @@ if(LLMX_HAS_BACKEND_VULKAN)
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
     set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_rows embed matmul_row
         kv_write attention attention_merge matmul_tile)
+    # A variant is the same source compiled with a define, "name=source=DEFINE":
+    # the row kernel is one module per family of types because the register
+    # demand of every family's branches in one module cost the Q8_0 path 40
+    # percent of its decode throughput.
+    set(LLMX_VK_VARIANTS matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k=matmul_row=LLMX_KQUANT)
     set(LLMX_VK_SPV)
-    foreach(shader IN LISTS LLMX_VK_SHADERS)
+    foreach(entry IN LISTS LLMX_VK_SHADERS LLMX_VK_VARIANTS)
+        string(REPLACE "=" ";" parts ${entry})
+        list(GET parts 0 shader)
+        set(source ${shader})
+        set(define)
+        list(LENGTH parts nparts)
+        if(nparts EQUAL 3)
+            list(GET parts 1 source)
+            list(GET parts 2 define)
+            set(define -D${define})
+        endif()
         set(spv ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan/${shader}.inc)
         add_custom_command(OUTPUT ${spv}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan
             COMMAND ${Vulkan_GLSLC_EXECUTABLE} -fshader-stage=compute --target-env=vulkan1.2 -O
-                    -mfmt=num -I ${LLMX_VK_SHADER_DIR} -o ${spv} ${LLMX_VK_SHADER_DIR}/${shader}.comp
-            DEPENDS ${LLMX_VK_SHADER_DIR}/${shader}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
-            COMMENT "glslc ${shader}.comp"
+                    -mfmt=num -I ${LLMX_VK_SHADER_DIR} ${define} -o ${spv} ${LLMX_VK_SHADER_DIR}/${source}.comp
+            DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
+                    ${LLMX_VK_SHADER_DIR}/qdecode.glsl
+            COMMENT "glslc ${shader}"
             VERBATIM)
         list(APPEND LLMX_VK_SPV ${spv})
     endforeach()

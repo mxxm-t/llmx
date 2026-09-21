@@ -12,6 +12,7 @@
 #include <functional>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <random>
@@ -80,7 +81,10 @@ size_t close(const std::vector<float>& a, const std::vector<float>& b, double re
     require(a.size() == b.size(), what);
     for (size_t i = 0; i < a.size(); ++i) {
         require(std::isfinite(b[i]), "nonfinite device output");
-        require(std::fabs((double)a[i] - b[i]) <= rel * (1.0 + std::fabs((double)a[i])), what);
+        if (!(std::fabs((double)a[i] - b[i]) <= rel * (1.0 + std::fabs((double)a[i])))) {
+            std::fprintf(stderr, "  [%zu] cpu %.9g device %.9g\n", i, a[i], b[i]);
+            require(false, what);
+        }
     }
     return a.size();
 }
@@ -215,6 +219,23 @@ size_t check_kernels(backend::Backend& vk) {
         p.vk.embed(d4.vs(), gguf::GGML_TYPE_Q4_0, t4.vs(), nin, nrows, ids, 3);
         auto r4 = p.results(d4);
         values += exact(r4.first, r4.second, "embed Q4_0 differs");
+
+        // Q6_K rows of 256 from fixed bytes, decoded by both.
+        {
+            const size_t n6 = 512;
+            std::vector<uint8_t> q6(nrows * (n6 / 256) * gguf::Q6_K_TYPESIZE);
+            for (size_t i = 0; i < q6.size(); ++i) q6[i] = uint8_t(i * 37 + 11);
+            for (size_t b = 0; b < nrows * (n6 / 256); ++b) {
+                q6[b * gguf::Q6_K_TYPESIZE + 208] = 0x00;
+                q6[b * gguf::Q6_K_TYPESIZE + 209] = 0x30;
+            }
+            Pair::In t6 = p.in(q6.data(), q6.size());
+            Pair::Out d6 = p.out(n6 * 3);
+            p.cpu.embed(d6.cs(), gguf::GGML_TYPE_Q6_K, t6.cs(), n6, nrows, ids, 3);
+            p.vk.embed(d6.vs(), gguf::GGML_TYPE_Q6_K, t6.vs(), n6, nrows, ids, 3);
+            auto r6 = p.results(d6);
+            values += exact(r6.first, r6.second, "embed Q6_K differs");
+        }
         const uint32_t beyond[1] = {10};
         bool rejected = false;
         try { p.vk.embed(d.vs(), gguf::GGML_TYPE_F32, t.vs(), nin, nrows, beyond, 1); }
@@ -239,23 +260,51 @@ size_t check_kernels(backend::Backend& vk) {
             quant::quantize_row_q4_0(wf.data() + row * nin,
                                      w4.data() + row * (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE,
                                      nin / gguf::Q4_0_BLOCK);
+        std::vector<uint8_t> w41(nout * (nin / gguf::Q4_1_BLOCK) * gguf::Q4_1_TYPESIZE);
+        for (size_t row = 0; row < nout; ++row)
+            quant::quantize_row_q4_1(wf.data() + row * nin,
+                                     w41.data() + row * (nin / gguf::Q4_1_BLOCK) * gguf::Q4_1_TYPESIZE,
+                                     nin / gguf::Q4_1_BLOCK);
+        // No Q6_K quantizer exists here, and none is needed: any bytes are
+        // a valid block, and both backends decode the same bytes. The half
+        // scale is 2^-10 so the values sit in the range of the other types;
+        // at 2^-4 the sub-scales of up to 127 gave 1024-term sums whose
+        // reduction-order rounding alone exceeded the tolerance.
+        std::vector<uint8_t> w6(nout * (nin / 256) * gguf::Q6_K_TYPESIZE);
+        for (size_t i = 0; i < w6.size(); ++i) w6[i] = uint8_t(i * 131 + 7);
+        for (size_t row = 0; row < nout * (nin / 256); ++row) {
+            // Keep the half scale finite and small.
+            w6[row * gguf::Q6_K_TYPESIZE + 208] = 0x00;
+            w6[row * gguf::Q6_K_TYPESIZE + 209] = 0x14;
+        }
         Pair::In wfi = p.in(wf), wqi = p.in(wq.data(), wq.size()), w4i = p.in(w4.data(), w4.size());
+        Pair::In w41i = p.in(w41.data(), w41.size()), w6i = p.in(w6.data(), w6.size());
         // 1 to 13 take the row kernel; 16, 64, 100 and 247 the tile kernel,
         // on, inside and past its 64-column tiles.
         for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(16), size_t(64),
                               size_t(100), size_t(247)}) {
             const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
-            for (int q = 0; q < 3; ++q) {
-                const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0 : gguf::GGML_TYPE_F32;
-                const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : wfi;
+            for (int q = 0; q < 5; ++q) {
+                if (q == 4 && nin % 256) continue;   // Q6_K blocks are 256 wide
+                const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0
+                                    : q == 3 ? gguf::GGML_TYPE_Q4_1 : q == 4 ? gguf::GGML_TYPE_Q6_K
+                                    : gguf::GGML_TYPE_F32;
+                const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i : wfi;
                 Pair::Out d = p.out(nbatch * nout);
                 p.cpu.matmul(type, wi.cs(), xi.cs(), d.cs(), nin, nout, nbatch);
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
                 auto r = p.results(d);
-                values += close(r.first, r.second, 1e-4, q == 1 ? "Q8_0 matmul differs beyond 1e-4"
-                                                        : q == 2 ? "Q4_0 matmul differs beyond 1e-4"
-                                                                 : "F32 matmul differs beyond 1e-4");
+                try {
+                    values += close(r.first, r.second, 1e-4, q == 1 ? "Q8_0 matmul differs beyond 1e-4"
+                                                            : q == 2 ? "Q4_0 matmul differs beyond 1e-4"
+                                                            : q == 3 ? "Q4_1 matmul differs beyond 1e-4"
+                                                            : q == 4 ? "Q6_K matmul differs beyond 1e-4"
+                                                                     : "F32 matmul differs beyond 1e-4");
+                } catch (const std::runtime_error&) {
+                    std::fprintf(stderr, "  matmul type %u nin %zu nbatch %zu\n", type, nin, nbatch);
+                    throw;
+                }
             }
         }
         bool rejected = false;
@@ -402,25 +451,38 @@ size_t check_kernels(backend::Backend& vk) {
     }
     // The row kernel at the projection shapes of Qwen3-0.6B and 8B, one
     // column, reported: the small shapes say whether a decoded token is
-    // bound by bandwidth or by per-kernel latency.
-    for (auto shape : {std::pair<size_t, size_t>{1024, 1024}, {1024, 2048}, {1024, 3072},
-                       {3072, 1024}, {4096, 4096}, {4096, 12288}, {12288, 4096}}) {
-        const size_t nin = shape.first, nout = shape.second;
-        std::vector<uint8_t> wq(nout * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
+    // bound by bandwidth or by per-kernel latency. Every quantized type
+    // the kernel decodes, at the shapes the fixtures use it for; the
+    // 151936-row Q6_K is the tied head of the Q4_0 fixture.
+    struct Timed { uint32_t type; const char* name; size_t nin, nout; };
+    for (const Timed& t : {Timed{gguf::GGML_TYPE_Q8_0, "Q8_0", 1024, 1024}, {gguf::GGML_TYPE_Q8_0, "Q8_0", 1024, 2048},
+                           {gguf::GGML_TYPE_Q8_0, "Q8_0", 1024, 3072}, {gguf::GGML_TYPE_Q8_0, "Q8_0", 3072, 1024},
+                           {gguf::GGML_TYPE_Q8_0, "Q8_0", 4096, 4096}, {gguf::GGML_TYPE_Q8_0, "Q8_0", 4096, 12288},
+                           {gguf::GGML_TYPE_Q8_0, "Q8_0", 12288, 4096},
+                           {gguf::GGML_TYPE_Q4_0, "Q4_0", 1024, 3072}, {gguf::GGML_TYPE_Q4_0, "Q4_0", 4096, 12288},
+                           {gguf::GGML_TYPE_Q4_1, "Q4_1", 3072, 1024}, {gguf::GGML_TYPE_Q4_1, "Q4_1", 12288, 4096},
+                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 1024, 3072}, {gguf::GGML_TYPE_Q6_K, "Q6_K", 4096, 12288},
+                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 1024, 151936}}) {
+        const size_t nin = t.nin, nout = t.nout;
+        const size_t block = t.type == gguf::GGML_TYPE_Q6_K ? gguf::Q6_K_BLOCK : 32;
+        const size_t bytes = t.type == gguf::GGML_TYPE_Q8_0 ? gguf::Q8_0_TYPESIZE
+                           : t.type == gguf::GGML_TYPE_Q4_0 ? gguf::Q4_0_TYPESIZE
+                           : t.type == gguf::GGML_TYPE_Q4_1 ? gguf::Q4_1_TYPESIZE : gguf::Q6_K_TYPESIZE;
+        std::vector<uint8_t> wq(nout * (nin / block) * bytes);
         for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 7 + 3);
         const auto x = uniform(nin, 15);
         const auto w = vk.adopt(wq.data(), wq.size());
         const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
         const auto y = vk.alloc(nout * sizeof(float), backend::Memory::device);
-        vk.matmul(gguf::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, 1);
+        vk.matmul(t.type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, 1);
         vk.sync();
         const int iters = 100;
         const auto t0 = std::chrono::steady_clock::now();
         for (int i = 0; i < iters; ++i)
-            vk.matmul(gguf::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, 1);
+            vk.matmul(t.type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, 1);
         vk.sync();
         const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / iters;
-        std::cout << "backend-vulkan: Q8_0 matvec " << nin << "x" << nout << " " << us << " us, "
+        std::cout << "backend-vulkan: " << t.name << " matvec " << nin << "x" << nout << " " << us << " us, "
                   << (double)wq.size() / us / 1e3 << " GB/s\n";
     }
     // Decode attention and the small kernels at the Qwen3-0.6B shape over a

@@ -113,6 +113,12 @@ const uint32_t kSpvEmbed[] = {
 const uint32_t kSpvMatmulRow[] = {
 #include "vulkan/matmul_row.inc"
 };
+const uint32_t kSpvMatmulRowQ4[] = {
+#include "vulkan/matmul_row_q4.inc"
+};
+const uint32_t kSpvMatmulRowK[] = {
+#include "vulkan/matmul_row_k.inc"
+};
 const uint32_t kSpvKvWrite[] = {
 #include "vulkan/kv_write.inc"
 };
@@ -127,7 +133,8 @@ const uint32_t kSpvMatmulTile[] = {
 };
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
-                K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_COUNT };
+                K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
+                K_MATMUL_ROW_K, K_COUNT };
 
 // A kernel's bindings; `counts` gives the array length of each, one for a
 // plain buffer. The buffers of a dispatch are listed binding by binding,
@@ -153,6 +160,8 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvAttention, sizeof(kSpvAttention), 6, nullptr},
     {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 2, nullptr},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
+    {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 6, kMatmulRowCounts},
+    {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 6, kMatmulRowCounts},
 };
 
 // 64 tokens per KV block: half the CPU's, since the attention workgroup
@@ -778,9 +787,8 @@ public:
                const uint32_t* ids, size_t count) override {
         if (count && !ids) throw std::runtime_error("vulkan: embed without ids");
         if (!count || !nin) return;
-        if (type != gguf::GGML_TYPE_F32 && type != gguf::GGML_TYPE_Q8_0 && type != gguf::GGML_TYPE_Q4_0)
-            throw std::runtime_error("vulkan: unsupported embedding type");
-        if (type != gguf::GGML_TYPE_F32 && nin % 32)
+        if (!row_bytes_of(type, nin)) throw std::runtime_error("vulkan: unsupported embedding type");
+        if (nin % block_values_of(type))
             throw std::runtime_error("vulkan: embedding width is not whole blocks");
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
@@ -820,15 +828,12 @@ public:
         std::vector<const Projection*> live;
         for (const Projection& pr : projections) {
             if (!pr.data.buffer) throw std::runtime_error("vulkan: projection without storage");
-            if (pr.type != gguf::GGML_TYPE_F32 && pr.type != gguf::GGML_TYPE_Q8_0 &&
-                pr.type != gguf::GGML_TYPE_Q4_0)
+            const size_t row_bytes = row_bytes_of(pr.type, nin);
+            if (!row_bytes)
                 throw std::runtime_error("vulkan: unsupported matrix type " + std::to_string(pr.type) +
                                          " (docs/VULKAN.md sub-step 6)");
-            if (pr.type != gguf::GGML_TYPE_F32 && nin % 32)
+            if (nin % block_values_of(pr.type))
                 throw std::runtime_error("vulkan: matrix width is not whole blocks");
-            const size_t row_bytes = pr.type == gguf::GGML_TYPE_Q8_0 ? (nin / 32) * gguf::Q8_0_TYPESIZE
-                                   : pr.type == gguf::GGML_TYPE_Q4_0 ? (nin / 32) * gguf::Q4_0_TYPESIZE
-                                                                     : nin * sizeof(float);
             if (bytes_from(pr.data) < pr.rows * row_bytes || floats_from(pr.out) < nbatch * pr.rows)
                 throw std::runtime_error("vulkan: matmul operand outside its allocation");
             if (pr.rows) live.push_back(&pr);
@@ -850,20 +855,45 @@ public:
         // One cluster size serves the dispatch, so every projection must
         // take the same path: the types are the same in the models here,
         // and a mixed group falls back to one dispatch each.
-        const size_t nblocks = nin / gguf::Q8_0_BLOCK;
-        auto wide_of = [&](uint32_t type) {
-            return type == gguf::GGML_TYPE_Q8_0 && nblocks % 2 == 0 && nblocks / 2 >= kLanesPerPair &&
-                   dev_->subgroup_size >= kLanesPerPair ? 1u : 0u;
-        };
         for (size_t i = 1; i < live.size(); ++i)
             if (live[i]->type != live[0]->type) {
                 for (const Projection* pr : live) matmul_group({*pr}, X, nin, nbatch);
                 return;
             }
-        const uint32_t type = live[0]->type, wide = wide_of(type);
-        const uint32_t lpp = kLanesPerPair;
-        const size_t units = type == gguf::GGML_TYPE_Q8_0 ? (wide ? nblocks / 2 * lpp : nblocks) : nin;
-        uint32_t cluster = wide ? lpp : 1;
+        // The row kernel's work units and the lanes that share one, per
+        // type (matmul_row.comp): Q8_0 pairs over four lanes and Q4_0
+        // pairs over two when the block count is even, Q4_1 blocks over
+        // one, Q6_K blocks over sixteen, else one unit per block or value.
+        const uint32_t type = live[0]->type;
+        const size_t nblocks = nin / block_values_of(type);
+        uint32_t wide = 0, lanes = 1;
+        size_t units = nin;
+        KernelId kernel = K_MATMUL_ROW;
+        switch (type) {
+        case gguf::GGML_TYPE_Q8_0:
+            wide = nblocks % 2 == 0 && nblocks / 2 >= kLanesPerPair && dev_->subgroup_size >= kLanesPerPair;
+            lanes = wide ? kLanesPerPair : 1;
+            units = wide ? nblocks / 2 * lanes : nblocks;
+            break;
+        case gguf::GGML_TYPE_Q4_0:
+            wide = nblocks % 2 == 0;
+            lanes = wide ? 2 : 1;
+            units = wide ? nblocks / 2 * lanes : nblocks;
+            kernel = K_MATMUL_ROW_Q4;
+            break;
+        case gguf::GGML_TYPE_Q4_1:
+            units = nblocks;
+            kernel = K_MATMUL_ROW_Q4;
+            break;
+        case gguf::GGML_TYPE_Q6_K:
+            if (dev_->subgroup_size < 16) throw std::runtime_error("vulkan: Q6_K needs a subgroup of 16 lanes");
+            lanes = 16;
+            units = nblocks * lanes;
+            kernel = K_MATMUL_ROW_K;
+            break;
+        default: break;
+        }
+        uint32_t cluster = lanes;
         while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
         const uint32_t rows_per_sg = dev_->subgroup_size / cluster;
         const uint32_t rows_per_group = (256 / dev_->subgroup_size) * rows_per_sg;
@@ -888,7 +918,7 @@ public:
                                      nout[0], type, wide, start[0],
                                      nout[1], type, wide, start[1],
                                      nout[2], type, wide, start[2]};
-            dispatch(K_MATMUL_ROW,
+            dispatch(kernel,
                      {bind(a.out), bind(b.out), bind(c.out),
                       bind(a.data), bind(b.data), bind(c.data),
                       bind(a.data), bind(b.data), bind(c.data),
@@ -1025,6 +1055,22 @@ private:
         auto* s = dynamic_cast<VulkanKVStorage*>(&storage);
         if (!s) throw std::runtime_error("vulkan: KV storage of another backend");
         return *s;
+    }
+
+    // Bytes per row of a matrix type the kernels decode, zero for a type
+    // they do not; the values per block of it.
+    static size_t block_values_of(uint32_t type) {
+        return type == gguf::GGML_TYPE_Q6_K ? gguf::Q6_K_BLOCK : type == gguf::GGML_TYPE_F32 ? 1 : 32;
+    }
+    static size_t row_bytes_of(uint32_t type, size_t nin) {
+        switch (type) {
+        case gguf::GGML_TYPE_F32: return nin * sizeof(float);
+        case gguf::GGML_TYPE_Q8_0: return (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE;
+        case gguf::GGML_TYPE_Q4_0: return (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE;
+        case gguf::GGML_TYPE_Q4_1: return (nin / gguf::Q4_1_BLOCK) * gguf::Q4_1_TYPESIZE;
+        case gguf::GGML_TYPE_Q6_K: return (nin / gguf::Q6_K_BLOCK) * gguf::Q6_K_TYPESIZE;
+        default: return 0;
+        }
     }
 
     static uint32_t u32(size_t v) {

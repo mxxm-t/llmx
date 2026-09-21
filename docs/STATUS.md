@@ -85,7 +85,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   and sharded HF cases, the chat and thread goldens, and the real Qwen3
   Q8_0 baselines, whose top logits and all four perplexity cases match the
   CPU's numbers to the digit (PPL 28.8371 continuous, 38.2140 at c=123).
-  Q4_0 is skipped until sub-step 6.
+  Q4_0 was skipped until sub-step 6 gave the device its Q4_1 and Q6_K
+  decoders; it passes now, see below.
 
   Throughput after the arena fix, 247-token prompt and 32 greedy tokens,
   one run each, no gate: 0.6B prefill 382 tok/s and decode 67.6, against
@@ -110,6 +111,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   |---|---|---:|---:|---:|
   | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 1195 (three runs within 1%) | 181% |
   | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 111 | 56% |
+  | Qwen3-0.6B-Q4_0 | prefill | 636 tok/s | 1110 (997, 1110, 1110) | 175% |
+  | Qwen3-0.6B-Q4_0 | decode | 209 tok/s | 107 (90, 106, 108) | 51% |
   | Qwen3-8B-Q8_0 | prefill | 99 tok/s | 220 | 222% |
   | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 32.7 | 82% |
 
@@ -156,12 +159,38 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   sixteen give 200, 190, 336, 295 and 185 GB/s at the 8B shapes, so four
   it is, each lane with five loads in flight over 16 contiguous bytes.
   8B decode 29.3 to 32.7 tok/s.
-- **Left:** decode, at 56 and 82 percent of the reference. On 8B the
+  Eighth, sub-step 6 for the Q4_0 fixture: Q4_0, Q4_1 and Q6_K in
+  `embed`, the tile kernel and the row kernel, checked against the CPU
+  (exact for embed, 1e-4 for the matmuls; 599,588 outputs), and the
+  fixture's HF baselines pass on the device with the CPU's numbers
+  (PPL 32.8463 continuous, 42.5740 at c=123). Two findings on the way.
+  The first version put every type's branch in the one row module and
+  Q8_0 decode fell from 105 to 65 tok/s with no change to any executed
+  Q8_0 instruction, the register demand of the whole module setting the
+  occupancy of every path; the row kernel is now one module per family
+  of types, F32 and Q8_0, Q4_0 and Q4_1, Q6_K, built from one source with
+  a define, and Q8_0 is back at 110 to 112 against the parent commit's
+  110 to 112 in an interleaved run. The second: byte loads with scalar
+  activation loads gave Q4_0 17 GB/s, Q4_1 35 and Q6_K 6 to 17 at the 8B
+  shapes, and the Q6_K head of the fixture, 151,936 rows, took 22 ms of a
+  38 ms token. The word paths read the quants as 32-bit words, Q4_0 as a
+  block per lane over the 9-word pair with the first block's nibble
+  words assembled from two loads, Q4_1 as one lane per 5-word block,
+  Q6_K as sixteen lanes per block each holding three words of quants,
+  two of sub-scales and the scale, with every other block's words
+  assembled from two loads since 210 bytes is not a multiple of four;
+  and the activations as aligned 16-byte vectors, one load for four.
+  Now 149, 188 and 170 GB/s at the 8B shapes and the head at 102 GB/s,
+  1.25 ms. Q4_0 decode 26 to 107 tok/s; llama.cpp does 209 on the same
+  file.
+- **Left:** decode, at 56, 51 and 82 percent of the reference. On 8B the
   matvec's 336 GB/s against a 1 TB/s memory is still most of the story;
-  on 0.6B it is the 14 dispatches of a layer at their latency floors.
-  Then sub-step 6, the remaining quant kernels, which the Q4_0 fixture
-  and the K-quant models need. Every number above is a single run and
-  none is claimed until a paired comparison is recorded.
+  on 0.6B it is the 14 dispatches of a layer at their latency floors,
+  and on the Q4_0 file the four bytes per value of activations now cost
+  as much as the two of weights. Then Q4_K and Q5_K, the rest of
+  sub-step 6, which the K-quant models need. Every number above is a
+  single run unless the runs are listed, and none is claimed until a
+  paired comparison is recorded.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

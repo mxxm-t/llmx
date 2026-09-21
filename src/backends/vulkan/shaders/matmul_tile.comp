@@ -16,6 +16,8 @@ layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
 layout(set = 0, binding = 3) readonly buffer X { float x[]; };
 layout(set = 0, binding = 4) readonly buffer W8 { uint8_t w8[]; };
+#define QBYTES w8
+#include "qdecode.glsl"
 shared float ws[64][33];
 shared float xs[64][33];
 
@@ -48,7 +50,23 @@ void main() {
                 float d = half_at(w8[o], w8[o + 1u]);
                 for (uint i = 0u; i < 8u; ++i) {
                     uint k = seg * 8u + i;
-                    ws[lr][k] = Q4_0_VALUE(w8, o, k, d);
+                    ws[lr][k] = q4_0_at(o, k, d);
+                }
+            } else if (p.type == TYPE_Q4_1) {
+                uint o = (row * nblocks + k0 / 32u) * Q4_1_BYTES;
+                float d = half_at(w8[o], w8[o + 1u]), m = half_at(w8[o + 2u], w8[o + 3u]);
+                for (uint i = 0u; i < 8u; ++i) {
+                    uint k = seg * 8u + i;
+                    ws[lr][k] = q4_1_at(o, k, d, m);
+                }
+            } else if (p.type == TYPE_Q6_K) {
+                // 256-value blocks: this 32-wide step is a slice of one.
+                uint o = (row * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * Q6_K_BYTES;
+                float d = half_at(w8[o + 208u], w8[o + 209u]);
+                uint k_in = k0 - (k0 / Q6_K_BLOCK) * Q6_K_BLOCK;
+                for (uint i = 0u; i < 8u; ++i) {
+                    uint k = seg * 8u + i;
+                    ws[lr][k] = q6_k_at(o, k_in + k, d);
                 }
             } else {
                 for (uint i = 0u; i < 8u; ++i) {

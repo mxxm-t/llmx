@@ -7,6 +7,8 @@ layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer TF { float table_f[]; };
 layout(set = 0, binding = 2) readonly buffer TB { uint8_t table_b[]; };
 layout(set = 0, binding = 3) readonly buffer I { uint ids[]; };
+#define QBYTES table_b
+#include "qdecode.glsl"
 void main() {
     uint i = gl_WorkGroupID.x;
     uint lid = gl_LocalInvocationID.x;
@@ -24,14 +26,19 @@ void main() {
             uint8_t sb[2] = uint8_t[2](table_b[o], table_b[o + 1u]);
             dst[out_base + j] = q8_0_scale(sb) * float(int(table_b[o + 2u + k]) - ((int(table_b[o + 2u + k]) >= 128) ? 256 : 0));
         }
-    } else if (p.type == TYPE_Q4_0) {
-        uint blocks = p.nin / Q4_0_BLOCK;
-        uint base = id * blocks * Q4_0_BYTES;
+    } else {
+        // Q4_0, Q4_1 and Q6_K, one value at a time through the decoders.
+        uint bv = block_values(p.type), bb = block_bytes(p.type);
+        uint base = id * (p.nin / bv) * bb;
         for (uint j = lid; j < p.nin; j += 256u) {
-            uint b = j / Q4_0_BLOCK, k = j - b * Q4_0_BLOCK;
-            uint o = base + b * Q4_0_BYTES;
-            float d = half_at(table_b[o], table_b[o + 1u]);
-            dst[out_base + j] = Q4_0_VALUE(table_b, o, k, d);
+            uint b = j / bv, k = j - b * bv;
+            uint o = base + b * bb;
+            float v;
+            if (p.type == TYPE_Q4_0) v = q4_0_at(o, k, half_at(table_b[o], table_b[o + 1u]));
+            else if (p.type == TYPE_Q4_1) v = q4_1_at(o, k, half_at(table_b[o], table_b[o + 1u]),
+                                                      half_at(table_b[o + 2u], table_b[o + 3u]));
+            else v = q6_k_at(o, k, half_at(table_b[o + 208u], table_b[o + 209u]));
+            dst[out_base + j] = v;
         }
     }
 }

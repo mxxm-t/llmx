@@ -275,7 +275,7 @@ public:
     std::string decode(const std::vector<uint32_t>& ids) const {
         std::string out;
         for (uint32_t id : ids) {
-            const std::string& tok = vocab[id];
+            const std::string& tok = vocab.at(id);
             for (size_t i = 0; i < tok.size(); ) {
                 size_t l = utf8_char_len((unsigned char)tok[i]);
                 std::string ch = tok.substr(i, l);

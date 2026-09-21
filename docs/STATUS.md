@@ -4,6 +4,23 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Device execution step 4: activation arena (2026-09-21)
+
+- **Goal:** the nine prefill activation vectors become offsets into one
+  backend buffer. Device allocators handle a few large allocations far better
+  than many small ones, and a `--ubatch` change becomes one reallocation
+  instead of nine.
+- **Done:** block opened before the code.
+- **Left:** one `alloc` in `ensure_batch_buffers` with an offset per vector;
+  the model reads and writes through the buffer rather than owning nine
+  `std::vector`s. Ops taking buffer plus offset is the second half and lands
+  separately, since it touches every signature.
+- **Gotchas:** until ops take an offset, the model still needs a writable
+  host address, so `Buffer` gains a mutable accessor that a device backend
+  returns null for. That is a bridge and is documented as one. Alignment
+  matters: each vector starts at a 64-byte boundary so the AVX2 kernels see
+  what they saw when each vector was its own allocation.
+
 ## Code layout moves this benchmark more than the rule allows (2026-09-21)
 
 Moving the embedding gather into the backend measured -8.03% on 0.6B prefill,

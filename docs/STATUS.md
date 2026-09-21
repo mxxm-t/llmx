@@ -13,6 +13,9 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Done:** one `alloc` in `ensure_batch_buffers` with a 64-byte-aligned
   offset per vector; the nine `std::vector`s are gone and `--ubatch` resizes
   one allocation. Native 17/17, Python suite 11/11, logits byte-identical.
+  Gate with both arms built the same way, no cell failing: 0.6B +3.53%
+  prefill and -0.94% decode, 8B -0.41% and -0.23%. The 0.6B prefill gain is
+  inside the layout band measured above and is **not** claimed as a win.
 - **Left:** ops taking buffer plus offset, which touches every signature and
   removes the mutable host accessor below. Then step 6, enqueue and sync.
 - **Gotchas:** until ops take an offset, the model still needs a writable

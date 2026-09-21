@@ -15,6 +15,20 @@ sections record follow-up results without pooling separate timing sessions.
 > below become a cache the tool manages. Until then, this file is the record of
 > what is on this machine.
 
+## Benchmark evidence files
+
+`docs/benchmarks/` holds the numbers, not the raw bytes. Where a run produced
+a large payload, per-sample traces, monitor logs, tar archives, the file here
+is a summary: every scalar and short list verbatim, long lists and large maps
+replaced by a count with their first and last entries, long strings truncated
+with their length. Each summary records `raw_archive`, `raw_bytes` and
+`raw_sha256` so the original can be located and verified.
+
+Raw payloads live outside the repository, under
+`C:/Users/Marko/Desktop/Projects/llmx-evidence/`. A source tree should not
+carry 119 MB of measurement traces that every clone pays for; it should carry
+what the documents cite.
+
 ## Current-source placement follow-up and 8B supplement (2026-09-20)
 
 The supplement to `d846115` uses the same frozen `291ce2c` control/candidate
@@ -3249,7 +3263,7 @@ or a completed adoption/merge. Placement is still scratch at this checkpoint.
 The [analysis and manifest](benchmarks/prefill-monitored-20260920.json) retain
 all mean/median rates and elapsed times, paired ranges/deviations/intervals,
 load associations, phase activity/unknown counts, vector hashes and both
-workload disclosures. The [compressed raw archive](benchmarks/prefill-monitored-20260920-raw.tar.gz)
+workload disclosures. The [compressed raw archive](benchmarks/prefill-monitored-20260920-raw.raw-archive.json)
 preserves original state, telemetry, stdout/stderr, plans, scripts and the
 two current-source stopped preflights; its per-file hashes are in the manifest.
 Executable/model/vector payloads remain local with recorded hashes. Existing
@@ -3403,7 +3417,7 @@ full corpus, maximum context or long 8B behavior.
 
 Full final summaries and the disclosed overlap are in
 [`prefill-final-20260920.json`](benchmarks/prefill-final-20260920.json).
-The [raw archive](benchmarks/prefill-final-20260920-raw.tar.gz) retains plans,
+The [raw archive](benchmarks/prefill-final-20260920-raw.raw-archive.json) retains plans,
 runner/analyzer sources, stdout/stderr, activity records, source snapshots and
 vector identities. Large model/binary/vector payloads remain local; their hashes
 are retained for reproduction. The earlier eight-round archive stays separate.
@@ -3478,7 +3492,7 @@ telemetry can miss bursts during subsecond loads, and disk activity includes
 the loader itself. No competing developer workload was identified by the
 monitor, which is not proof that every external process was observable.
 
-The [raw archive](benchmarks/hf-pull-checkpoint-20260920-raw.tar.gz) contains
+The [raw archive](benchmarks/hf-pull-checkpoint-20260920-raw.raw-archive.json) contains
 139 records, including plans, harness/source snapshots, test logs and activity.
 Its 1,165,130 bytes have SHA256
 `30edc384b192ab35f7963bac42ae7660a3ad7ab3b4de6092da8e2d676002fb86`.

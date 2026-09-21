@@ -557,6 +557,7 @@ public:
         Device& d = *dev_;
         d.fn.vkDeviceWaitIdle(d.device);
         for (auto& p : pending_) p.clear();
+        for (auto& a : arena_) a.buffer.reset();
         for (Kernel& k : kernels_) {
             if (k.pipeline) d.fn.vkDestroyPipeline(d.device, k.pipeline, nullptr);
             if (k.layout) d.fn.vkDestroyPipelineLayout(d.device, k.layout, nullptr);
@@ -896,7 +897,13 @@ public:
 private:
     static const uint32_t kRing = 4;
     static const size_t kStagingBytes = size_t(64) << 20;
+    static const size_t kArenaBytes = size_t(1) << 20;
     static const uint32_t kPushBytes = 128;
+
+    struct Arena {
+        std::unique_ptr<VulkanBuffer> buffer;
+        size_t used = 0;
+    };
 
     static VulkanKVStorage& storage_of(KVStorage& storage) {
         auto* s = dynamic_cast<VulkanKVStorage*>(&storage);
@@ -945,14 +952,34 @@ private:
     VkDescriptorBufferInfo bind(Slice s) { return bind(CSlice(s)); }
 
     // Small per-call inputs the host holds, ids and positions and row lists,
-    // go to the device through a host-visible buffer that lives until the
-    // command buffer it was recorded into has retired.
+    // go to the device through a host-visible arena per ring slot, bumped
+    // per call and reset when the slot's command buffer has retired. An
+    // allocation per call was over a hundred vkAllocateMemory calls per
+    // decoded token, which was most of the token on Qwen3-0.6B. A call
+    // larger than the arena gets its own buffer, kept the same way.
     VkDescriptorBufferInfo args(const void* data, size_t bytes) {
-        auto b = std::make_shared<VulkanBuffer>(dev_, bytes, true);
-        std::memcpy(b->mapped(), data, bytes);
         open();
-        pending_[ring_index_].push_back(b);
-        return VkDescriptorBufferInfo{b->handle(), 0, VK_WHOLE_SIZE};
+        Arena& a = arena_[ring_index_];
+        const size_t need = (bytes + 15) / 16 * 16;
+        if (need > kArenaBytes) {
+            auto b = std::make_shared<VulkanBuffer>(dev_, bytes, true);
+            std::memcpy(b->mapped(), data, bytes);
+            pending_[ring_index_].push_back(b);
+            return VkDescriptorBufferInfo{b->handle(), 0, VK_WHOLE_SIZE};
+        }
+        if (!a.buffer) a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
+        if (a.used + need > kArenaBytes) {
+            // The slot's arena is full before its command buffer retired;
+            // the overflow gets a second arena kept alongside, and the
+            // slot starts a fresh one.
+            pending_[ring_index_].push_back(std::shared_ptr<VulkanBuffer>(std::move(a.buffer)));
+            a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
+            a.used = 0;
+        }
+        std::memcpy((uint8_t*)a.buffer->mapped() + a.used, data, bytes);
+        const VkDescriptorBufferInfo info{a.buffer->handle(), a.used, bytes};
+        a.used += need;
+        return info;
     }
 
     Kernel& kernel(KernelId id) {
@@ -1043,6 +1070,7 @@ private:
         if (open_) return ring_[ring_index_];
         wait(ring_ticket_[ring_index_]);
         pending_[ring_index_].clear();
+        arena_[ring_index_].used = 0;
         VkCommandBuffer cmd = ring_[ring_index_];
         check(dev_->fn.vkResetCommandBuffer(cmd, 0), "vkResetCommandBuffer");
         VkCommandBufferBeginInfo bi{};
@@ -1099,6 +1127,7 @@ private:
     Ticket last_ticket_ = 0;
     std::unique_ptr<VulkanBuffer> staging_;
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];
+    Arena arena_[kRing];
     Kernel kernels_[K_COUNT];
 };
 

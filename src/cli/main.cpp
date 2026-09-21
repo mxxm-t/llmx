@@ -26,6 +26,9 @@
 #endif
 
 #include "config.hpp"
+#if LLMX_HAS_BACKEND_VULKAN
+#include "backends/vulkan/vulkan_backend.hpp"
+#endif
 #include "core/fp16.hpp"
 #include "core/json.hpp"
 #include "hub/pull.hpp"
@@ -331,12 +334,37 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
     return 0;
 }
 
+// The backend a --device spec names. "cpu" is the default; "vulkan:N" is
+// device N as the loader lists them, in a build with that backend. Any
+// other spec, or a device the build lacks, is an error the user can act on
+// rather than a silent fallback.
+backend::BackendPtr make_backend(const std::string& spec) {
+    if (spec == "cpu") return backend::make_cpu_backend();
+    const size_t colon = spec.find(':');
+    const std::string name = spec.substr(0, colon);
+    int index = 0;
+    if (colon != std::string::npos) {
+        const std::string rest = spec.substr(colon + 1);
+        if (rest.empty() || rest.find_first_not_of("0123456789") != std::string::npos)
+            throw std::runtime_error("--device: invalid device index in '" + spec + "'");
+        index = std::atoi(rest.c_str());
+    }
+    if (name == "vulkan") {
+#if LLMX_HAS_BACKEND_VULKAN
+        return backend::make_vulkan_backend(index);
+#else
+        throw std::runtime_error("--device vulkan: this build has no Vulkan backend (LLMX_HAS_BACKEND_VULKAN)");
+#endif
+    }
+    throw std::runtime_error("--device: unknown backend '" + name + "' (cpu, vulkan:N)");
+}
+
 int cmd_generate(const std::string& model_path, const std::string& prompt,
                  const infer::GenParams& gp) {
     const bool progress = show_progress(gp);
     gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
-    infer::Model model(m);
+    infer::Model model(m, make_backend(gp.device));
     if (gp.threads > 0) model.set_threads(gp.threads);
     const int decode_threads = model.threads_available();
     model.set_ubatch(gp.ubatch);
@@ -384,7 +412,7 @@ int cmd_logits(const std::string& model_path, const std::string& text,
                int topn, const infer::GenParams& gp) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
-    infer::Model model(m);
+    infer::Model model(m, make_backend(gp.device));
     if (gp.threads > 0) model.set_threads(gp.threads);
     model.set_ubatch(gp.ubatch);
 
@@ -421,7 +449,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const infer::GenParams& gp, int context_size, int chunks) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
-    infer::Model model(m);
+    infer::Model model(m, make_backend(gp.device));
     if (gp.threads > 0) model.set_threads(gp.threads);
     model.set_ubatch(gp.ubatch);
 
@@ -444,7 +472,7 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     const bool progress = show_progress(gp);
     gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
-    infer::Model model(m);
+    infer::Model model(m, make_backend(gp.device));
     if (gp.threads > 0) model.set_threads(gp.threads);
     const int decode_threads = model.threads_available();
     model.set_ubatch(gp.ubatch);
@@ -576,8 +604,9 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
 // Micro-benchmark of the backend hot paths (matmul, RMSNorm, norm+RoPE) plus
 // end-to-end prefill/decode TPS on a synthetic Qwen3 model. Used by
 // tests/perf.py as the perf-regression gate for hot-path changes.
-int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
-    auto b = backend::make_cpu_backend();
+int cmd_bench(int size, int iters, int threads, int prefill, int decode,
+              const std::string& device) {
+    auto b = make_backend(device);
     if (threads > 0) b->set_threads(threads);
     std::cout << "bench: threads " << b->threads_available() << "\n";
 
@@ -672,8 +701,9 @@ void print_usage() {
         << "                      --chunks N  maximum windows (default: all)\n"
         << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
-        << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N]\n"
+        << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]\n"
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
+        << "           --device D  backend: cpu (default) or vulkan:N in a build with it\n"
         << "           --ubatch N  prefill physical batch (default 512)\n"
         << "           -tb/--threads-batch N  threads for prefill (default: --threads)\n"
         << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
@@ -790,6 +820,7 @@ int main(int argc, char** argv) {
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
+                else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
                 else if (a == "--system") system = (i + 1 < argc) ? argv[++i] : system;
                 else if (a == "--verbose") gp.show_prompt_tokens = true;
                 else if (a == "--think") gp.show_thinking = true;
@@ -835,6 +866,7 @@ int main(int argc, char** argv) {
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
+                else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];
@@ -842,7 +874,7 @@ int main(int argc, char** argv) {
         }
 
         if (cmd == "logits") {
-            if (argc < 4) { std::cerr << "usage: llmx logits <model.gguf> \"<text>\" [--top N] [--threads N]\n"; return 2; }
+            if (argc < 4) { std::cerr << "usage: llmx logits <model.gguf> \"<text>\" [--top N] [--threads N] [--device D]\n"; return 2; }
             infer::GenParams gp;
             int topn = 10;
             for (int i = 4; i < argc; i++) {
@@ -850,6 +882,7 @@ int main(int argc, char** argv) {
                 if (a2 == "--top") topn = (i + 1 < argc) ? std::atoi(argv[++i]) : topn;
                 else if (a2 == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a2 == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
+                else if (a2 == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
                 else { std::cerr << "unknown flag: " << a2 << "\n"; return 2; }
             }
             if (topn <= 0) topn = 10;
@@ -881,9 +914,11 @@ int main(int argc, char** argv) {
         }
         if (cmd == "bench") {
             int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64;
+            std::string device = "cpu";
             for (int i = 2; i < argc; i++) {
                 std::string a = argv[i];
                 if (a == "--size") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;
+                else if (a == "--device") device = (i + 1 < argc) ? argv[++i] : device;
                 else if (a == "--iters") iters = (i + 1 < argc) ? std::atoi(argv[++i]) : iters;
                 else if (a == "--threads") threads = (i + 1 < argc) ? std::atoi(argv[++i]) : threads;
                 else if (a == "--p") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;
@@ -895,7 +930,7 @@ int main(int argc, char** argv) {
             if (iters <= 0 || prefill <= 0 || decode <= 0) {
                 std::cerr << "bench: --iters, --p and --n must be positive\n"; return 2;
             }
-            return cmd_bench(size, iters, threads, prefill, decode);
+            return cmd_bench(size, iters, threads, prefill, decode, device);
         }
         print_usage();
         return 1;

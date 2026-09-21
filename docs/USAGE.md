@@ -146,7 +146,7 @@ comma-separated list on one line.
 
 Decode a comma- or space-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> "<text>" [--top N] [--threads N] [--ubatch N]`
+## `llmx logits <in.gguf> "<text>" [--top N] [--threads N] [--ubatch N] [--device D]`
 
 Print the top-N next-token logits for `text`, one `id value` pair per line
 after a `tokens:` header. `--top` defaults to 10.
@@ -225,8 +225,19 @@ before decode. Other configurations use the normal scheduler. See the
 
 For planned GPU backends these flags retain their CPU-worker meaning; they
 will not select GPU workgroup sizes or launch dimensions. `--ubatch` controls
-prompt tokens per forward pass across backends. Device selection and GPU
-execution are separate ROADMAP #4 work, not implemented flags today.
+prompt tokens per forward pass across backends.
+
+## Device selection (`--device`)
+
+`--device cpu` is the default. `--device vulkan:N` runs the model on Vulkan
+device `N`, counted as the loader lists them, in a build configured with
+`-DLLMX_HAS_BACKEND_VULKAN=ON` (`docs/VULKAN.md`); a build without it says
+so rather than falling back. `generate`, `chat`, `logits`, `perplexity` and
+`bench` take the flag. On a device `--threads` and `--threads-batch` do
+nothing and `--verbose` reports 0 threads; `--ubatch` keeps its meaning.
+Placement across several devices, such as some layers on the CPU, is
+implemented in the model layer and waits for a flag until the device
+backend runs the real models.
 
 ## Physical batch (`--ubatch`)
 
@@ -275,6 +286,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
 | `--ubatch N`            | prefill physical batch (llama.cpp `n_ubatch` / `-ub`) | 512     |
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
+| `--device D`            | backend: `cpu`, or `vulkan:N` in a build with it     | `cpu`   |
 | `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--think`               | disable legacy reasoning-token filtering             | off     |
@@ -305,7 +317,7 @@ Enter `My name is Marko. Remember it.`, wait for the reply, then enter
 `What is my name?`. Each line continues the same conversation; starting a new
 process starts a new history. Press Ctrl+C to exit.
 
-## `llmx bench [--size N] [--iters N] [--threads N] [--p N] [--n N]`
+## `llmx bench [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]`
 
 Micro-benchmark of the backend hot paths, plus end-to-end TPS:
 

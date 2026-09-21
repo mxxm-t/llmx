@@ -33,6 +33,7 @@ struct GenParams {
     int threads = 0;        // 0 = auto; used for generation (decode)
     int threads_batch = 0;  // 0 = same as threads; used for prefill
     int ubatch = 0;         // physical batch for prefill (0 = default 512)
+    std::string device = "cpu"; // backend: cpu, or vulkan:N when built with it
     float penalty = 1.0f;   // repetition penalty (>= 1)
     uint64_t seed = 0;      // 0 = non-deterministic
     std::string stop;       // stop generating when decoded output contains this

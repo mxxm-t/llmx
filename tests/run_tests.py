@@ -27,9 +27,12 @@ def main():
     parser.add_argument("--exe", default=common.EXE, help="path to the built llmx executable")
     parser.add_argument("--no-perf-floor", action="store_true", help="report timings without workstation-specific floors")
     parser.add_argument("--require-baseline", action="store_true", help="fail if either real-model fixture is absent")
+    parser.add_argument("--device", default=None, help="run every command that takes --device on this backend, e.g. vulkan:0")
     args = parser.parse_args()
     common.EXE = os.path.abspath(args.exe)
     common.exe_path()
+    if args.device:
+        os.environ["LLMX_DEVICE"] = args.device
     if args.require_baseline:
         missing = [s["file"] for s in baseline.BASELINE_MODELS if not baseline.find_fixture(s)]
         if missing:

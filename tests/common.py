@@ -15,9 +15,21 @@ def exe_path():
     return EXE
 
 
+# Commands that take --device. LLMX_DEVICE is test configuration, like
+# LLMX_BASELINE_GGUF: it never reaches the binary except as this flag.
+DEVICE_COMMANDS = {"generate", "chat", "logits", "perplexity", "bench"}
+
+
+def device_args(args):
+    device = os.environ.get("LLMX_DEVICE")
+    if device and args and args[0] in DEVICE_COMMANDS and "--device" not in args:
+        return list(args) + ["--device", device]
+    return list(args)
+
+
 def run(args, cwd=None):
     """Run the llmx CLI, returning (returncode, stdout_text)."""
-    p = subprocess.run([exe_path()] + args, capture_output=True, text=True,
+    p = subprocess.run([exe_path()] + device_args(args), capture_output=True, text=True,
                        encoding="utf-8", cwd=cwd or ROOT)
     return p.returncode, p.stdout
 

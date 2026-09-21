@@ -24,5 +24,14 @@ void main() {
             uint8_t sb[2] = uint8_t[2](table_b[o], table_b[o + 1u]);
             dst[out_base + j] = q8_0_scale(sb) * float(int(table_b[o + 2u + k]) - ((int(table_b[o + 2u + k]) >= 128) ? 256 : 0));
         }
+    } else if (p.type == TYPE_Q4_0) {
+        uint blocks = p.nin / Q4_0_BLOCK;
+        uint base = id * blocks * Q4_0_BYTES;
+        for (uint j = lid; j < p.nin; j += 256u) {
+            uint b = j / Q4_0_BLOCK, k = j - b * Q4_0_BLOCK;
+            uint o = base + b * Q4_0_BYTES;
+            float d = half_at(table_b[o], table_b[o + 1u]);
+            dst[out_base + j] = Q4_0_VALUE(table_b, o, k, d);
+        }
     }
 }

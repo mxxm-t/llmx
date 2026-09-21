@@ -15,6 +15,7 @@ layout(set = 0, binding = 0) writeonly buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
 layout(set = 0, binding = 3) readonly buffer X { float x[]; };
+layout(set = 0, binding = 4) readonly buffer W8 { uint8_t w8[]; };
 shared float ws[64][33];
 shared float xs[64][33];
 
@@ -29,7 +30,7 @@ void main() {
     uint lr = tid / 4u, seg = tid - lr * 4u;    // loader: row or column lr, k segment seg*8..+8
     float acc[4][4];
     for (uint i = 0u; i < 4u; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
-    uint nblocks = p.nin / Q8_0_BLOCK;
+    uint nblocks = p.nin / 32u;   // Q8_0 and Q4_0 both have 32-value blocks
     for (uint k0 = 0u; k0 < p.nin; k0 += 32u) {
         // W tile: 64 rows x 32 values.
         uint row = row_base + lr;
@@ -41,6 +42,13 @@ void main() {
                     uint word = uint(w16[o + 1u + seg * 4u + i]);
                     ws[lr][seg * 8u + 2u * i] = scale * float(lo8(word));
                     ws[lr][seg * 8u + 2u * i + 1u] = scale * float(hi8(word));
+                }
+            } else if (p.type == TYPE_Q4_0) {
+                uint o = (row * nblocks + k0 / Q4_0_BLOCK) * Q4_0_BYTES;
+                float d = half_at(w8[o], w8[o + 1u]);
+                for (uint i = 0u; i < 8u; ++i) {
+                    uint k = seg * 8u + i;
+                    ws[lr][k] = Q4_0_VALUE(w8, o, k, d);
                 }
             } else {
                 for (uint i = 0u; i < 8u; ++i) {

@@ -203,6 +203,18 @@ size_t check_kernels(backend::Backend& vk) {
         p.vk.embed(dq.vs(), gguf::GGML_TYPE_Q8_0, tq.vs(), nin, nrows, ids, 3);
         auto rq = p.results(dq);
         values += exact(rq.first, rq.second, "embed Q8_0 differs");
+
+        std::vector<uint8_t> q4(nrows * (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE);
+        for (size_t row = 0; row < nrows; ++row)
+            quant::quantize_row_q4_0(table.data() + row * nin,
+                                     q4.data() + row * (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE,
+                                     nin / gguf::Q4_0_BLOCK);
+        Pair::In t4 = p.in(q4.data(), q4.size());
+        Pair::Out d4 = p.out(nin * 3);
+        p.cpu.embed(d4.cs(), gguf::GGML_TYPE_Q4_0, t4.cs(), nin, nrows, ids, 3);
+        p.vk.embed(d4.vs(), gguf::GGML_TYPE_Q4_0, t4.vs(), nin, nrows, ids, 3);
+        auto r4 = p.results(d4);
+        values += exact(r4.first, r4.second, "embed Q4_0 differs");
         const uint32_t beyond[1] = {10};
         bool rejected = false;
         try { p.vk.embed(d.vs(), gguf::GGML_TYPE_F32, t.vs(), nin, nrows, beyond, 1); }
@@ -222,26 +234,32 @@ size_t check_kernels(backend::Backend& vk) {
             quant::quantize_row_q8_0(wf.data() + row * nin,
                                      wq.data() + row * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE,
                                      nin / gguf::Q8_0_BLOCK);
-        Pair::In wfi = p.in(wf), wqi = p.in(wq.data(), wq.size());
+        std::vector<uint8_t> w4(nout * (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE);
+        for (size_t row = 0; row < nout; ++row)
+            quant::quantize_row_q4_0(wf.data() + row * nin,
+                                     w4.data() + row * (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE,
+                                     nin / gguf::Q4_0_BLOCK);
+        Pair::In wfi = p.in(wf), wqi = p.in(wq.data(), wq.size()), w4i = p.in(w4.data(), w4.size());
         // 1 to 13 take the row kernel; 16, 64, 100 and 247 the tile kernel,
         // on, inside and past its 64-column tiles.
         for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(16), size_t(64),
                               size_t(100), size_t(247)}) {
             const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
-            for (int q = 0; q < 2; ++q) {
-                const uint32_t type = q ? gguf::GGML_TYPE_Q8_0 : gguf::GGML_TYPE_F32;
-                const Pair::In& wi = q ? wqi : wfi;
+            for (int q = 0; q < 3; ++q) {
+                const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0 : gguf::GGML_TYPE_F32;
+                const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : wfi;
                 Pair::Out d = p.out(nbatch * nout);
                 p.cpu.matmul(type, wi.cs(), xi.cs(), d.cs(), nin, nout, nbatch);
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
                 auto r = p.results(d);
-                values += close(r.first, r.second, 1e-4, q ? "Q8_0 matmul differs beyond 1e-4"
-                                                            : "F32 matmul differs beyond 1e-4");
+                values += close(r.first, r.second, 1e-4, q == 1 ? "Q8_0 matmul differs beyond 1e-4"
+                                                        : q == 2 ? "Q4_0 matmul differs beyond 1e-4"
+                                                                 : "F32 matmul differs beyond 1e-4");
             }
         }
         bool rejected = false;
-        try { p.vk.matmul(gguf::GGML_TYPE_Q4_0, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
+        try { p.vk.matmul(gguf::GGML_TYPE_Q4_K, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "unsupported matrix type accepted");
         // Three projections in one dispatch equal the same three one at a

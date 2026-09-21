@@ -40,6 +40,7 @@ layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; } w16s[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
 layout(set = 0, binding = 3) readonly buffer WF { float wf[]; } wfs[3];
 layout(set = 0, binding = 4) readonly buffer X { float x[]; };
+layout(set = 0, binding = 5) readonly buffer W8 { uint8_t w8[]; } w8s[3];
 
 int b0(uint w) { return (int(w << 24u)) >> 24; }
 int b1(uint w) { return (int(w << 16u)) >> 24; }
@@ -131,6 +132,27 @@ void main() {
                     }
                 }
                 for (uint c = 0u; c < p.ncols; ++c) acc[c] += scale * part[c];
+            }
+        } else if (type == TYPE_Q4_0) {
+            // Byte loads over 18-byte blocks: correct first, and the shape
+            // the Q8_0 path started from before its layout was measured.
+            uint nblocks = p.nin / Q4_0_BLOCK;
+            uint wbase = row * nblocks * Q4_0_BYTES;
+            for (uint b = l; b < nblocks; b += p.cluster) {
+                uint o = wbase + b * Q4_0_BYTES;
+                float d = half_at(w8s[pi].w8[o], w8s[pi].w8[o + 1u]);
+                uint xb = b * Q4_0_BLOCK;
+                float part[8];
+                for (uint c = 0u; c < 8u; ++c) part[c] = 0.0;
+                for (uint k = 0u; k < 16u; ++k) {
+                    uint byte = uint(w8s[pi].w8[o + 2u + k]);
+                    float lo = float(byte & 15u) - 8.0, hi = float(byte >> 4u) - 8.0;
+                    for (uint c = 0u; c < p.ncols; ++c) {
+                        uint xo = (p.col0 + c) * p.nin + xb + k;
+                        part[c] += lo * x[xo] + hi * x[xo + 16u];
+                    }
+                }
+                for (uint c = 0u; c < p.ncols; ++c) acc[c] += d * part[c];
             }
         } else {
             uint wbase = row * p.nin;

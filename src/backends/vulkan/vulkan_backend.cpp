@@ -139,7 +139,7 @@ struct KernelSource {
     const uint32_t* counts;
 };
 
-const uint32_t kMatmulRowCounts[5] = {3, 3, 3, 3, 1};
+const uint32_t kMatmulRowCounts[6] = {3, 3, 3, 3, 1, 3};
 
 const KernelSource kKernels[K_COUNT] = {
     {kSpvAdd, sizeof(kSpvAdd), 2, nullptr},
@@ -148,11 +148,11 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 3, nullptr},
     {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5, nullptr},
     {kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr},
-    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 5, kMatmulRowCounts},
+    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 6, kMatmulRowCounts},
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
     {kSpvAttention, sizeof(kSpvAttention), 6, nullptr},
     {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 2, nullptr},
-    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 4, nullptr},
+    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
 };
 
 // 64 tokens per KV block: half the CPU's, since the attention workgroup
@@ -778,9 +778,9 @@ public:
                const uint32_t* ids, size_t count) override {
         if (count && !ids) throw std::runtime_error("vulkan: embed without ids");
         if (!count || !nin) return;
-        if (type != gguf::GGML_TYPE_F32 && type != gguf::GGML_TYPE_Q8_0)
+        if (type != gguf::GGML_TYPE_F32 && type != gguf::GGML_TYPE_Q8_0 && type != gguf::GGML_TYPE_Q4_0)
             throw std::runtime_error("vulkan: unsupported embedding type");
-        if (type == gguf::GGML_TYPE_Q8_0 && nin % gguf::Q8_0_BLOCK)
+        if (type != gguf::GGML_TYPE_F32 && nin % 32)
             throw std::runtime_error("vulkan: embedding width is not whole blocks");
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
@@ -820,13 +820,15 @@ public:
         std::vector<const Projection*> live;
         for (const Projection& pr : projections) {
             if (!pr.data.buffer) throw std::runtime_error("vulkan: projection without storage");
-            if (pr.type != gguf::GGML_TYPE_F32 && pr.type != gguf::GGML_TYPE_Q8_0)
+            if (pr.type != gguf::GGML_TYPE_F32 && pr.type != gguf::GGML_TYPE_Q8_0 &&
+                pr.type != gguf::GGML_TYPE_Q4_0)
                 throw std::runtime_error("vulkan: unsupported matrix type " + std::to_string(pr.type) +
                                          " (docs/VULKAN.md sub-step 6)");
-            if (pr.type == gguf::GGML_TYPE_Q8_0 && nin % gguf::Q8_0_BLOCK)
+            if (pr.type != gguf::GGML_TYPE_F32 && nin % 32)
                 throw std::runtime_error("vulkan: matrix width is not whole blocks");
-            const size_t row_bytes = pr.type == gguf::GGML_TYPE_Q8_0
-                ? (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE : nin * sizeof(float);
+            const size_t row_bytes = pr.type == gguf::GGML_TYPE_Q8_0 ? (nin / 32) * gguf::Q8_0_TYPESIZE
+                                   : pr.type == gguf::GGML_TYPE_Q4_0 ? (nin / 32) * gguf::Q4_0_TYPESIZE
+                                                                     : nin * sizeof(float);
             if (bytes_from(pr.data) < pr.rows * row_bytes || floats_from(pr.out) < nbatch * pr.rows)
                 throw std::runtime_error("vulkan: matmul operand outside its allocation");
             if (pr.rows) live.push_back(&pr);
@@ -840,7 +842,7 @@ public:
                 const size_t gy = (nbatch + 63) / 64;
                 if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
                     throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
-                dispatch(K_MATMUL_TILE, {bind(pr->out), bind(pr->data), bind(pr->data), bind(X)},
+                dispatch(K_MATMUL_TILE, {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data)},
                          pc, sizeof(pc), gx, (uint32_t)gy);
             }
             return;
@@ -891,7 +893,8 @@ public:
                       bind(a.data), bind(b.data), bind(c.data),
                       bind(a.data), bind(b.data), bind(c.data),
                       bind(a.data), bind(b.data), bind(c.data),
-                      bind(X)},
+                      bind(X),
+                      bind(a.data), bind(b.data), bind(c.data)},
                      pc, sizeof(pc), total);
         }
     }

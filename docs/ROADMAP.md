@@ -118,9 +118,18 @@ each is gated by its own `LLMX_HAS_BACKEND_*` in `config.hpp`.
   on hardware nobody has run it on.
 - Runtime device selection: `--device rocm:0`, `--device cuda:0`,
   `--device sycl:0`, `--device vulkan:0`.
-- Kernels are hand-written - no cuBLAS / rocBLAS / oneMKL / CLBlast. The SDK is
-  the dependency exception `config.hpp` already carves out; vendor math
-  libraries are not.
+- Kernels are hand-written first. Decode is a memory-bound dot product over
+  quantized weights, which no vendor BLAS has a kernel for: using one means
+  dequantizing to F16 and streaming two or three times the bytes, so it is
+  never the answer there. Prefill is a compute-bound GEMM, where a vendor
+  library on a card with matrix cores is hard to match. A vendor library
+  (rocBLAS, hipBLASLt, cuBLAS, oneMKL) is therefore admissible for one
+  specific kernel only when the matched comparison against mx-llama.cpp on
+  the same card shows the hand-written kernel cannot reach the floor, and
+  that is decided per kernel with the numbers in hand, not in advance. The
+  SDK is the dependency exception `config.hpp` carves out and the library
+  ships inside it; gfx906 has no matrix cores, so no such case is expected
+  on the hardware here.
 
 ## 5. Multi-device split **[design]**
 Split a single model across several backends on one machine. Designed in

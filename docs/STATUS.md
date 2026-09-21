@@ -108,10 +108,10 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   | model | phase | llama.cpp b11075 Vulkan | llmx Vulkan | llmx share |
   |---|---|---:|---:|---:|
-  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 1210 | 183% |
-  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 104 | 53% |
+  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 988 to 1210 across runs | 150 to 183% |
+  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 110 | 56% |
   | Qwen3-8B-Q8_0 | prefill | 99 tok/s | 220 | 222% |
-  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 28.1 | 71% |
+  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 29.3 | 74% |
 
   Prefill clears the reference on both models since the tile kernel;
   decode is at about half of it, and the roadmap's bar is the reference,
@@ -145,12 +145,18 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   variants measured and rejected: a generic loop over words with
   accumulator arrays indexed by column spilled to scratch and ran at 27
   GB/s, and two pairs per iteration cost occupancy and lost a few percent.
-- **Left:** decode, still at about half the reference on 0.6B, where the
-  seven matvecs of a layer are 16 to 30 us each and mostly latency: the
-  next change runs the q, k and v projections, and gate and up, as one
-  dispatch each. Then sub-step 6, the remaining quant kernels. Every
-  number above is a single run and none is claimed until a paired
-  comparison is recorded.
+  Sixth, grouped projections: the row kernel takes up to three
+  projections of one X in one dispatch, workgroups handed to projections
+  in order so a workgroup's buffers are selected once, which is dynamic
+  indexing of a storage buffer array and a device feature the backend
+  now requires. q, k and v are one dispatch, gate and up another, checked
+  bit for bit against the same projections one at a time. Decode 104 to
+  110 tok/s on 0.6B and 28.1 to 29.3 on 8B.
+- **Left:** decode, at 56 and 74 percent of the reference. On 8B the
+  matvec's 290 GB/s against a 1 TB/s memory is the whole story; on 0.6B
+  it is the 14 dispatches of a layer at their latency floors. Then
+  sub-step 6, the remaining quant kernels. Every number above is a single
+  run and none is claimed until a paired comparison is recorded.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

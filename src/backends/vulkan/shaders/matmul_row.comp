@@ -1,10 +1,13 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b). A subgroup handles `rows_per_sg`
-// rows at once, each on a cluster of `cluster` lanes: the cluster's lanes
-// stride over the row's work units and reduce with xor shuffles. Each lane
-// keeps up to eight batch columns in registers so a weight is read once
-// per chunk of columns. This is the decode kernel; the tile kernel takes
-// wide batches (docs/VULKAN.md).
+// Y[b*nout + o] = dot(row o, X column b) for up to three projections of
+// the same X in one dispatch: the q, k and v projections of a layer, or
+// gate and up. Workgroups are handed out to projections in order, so a
+// workgroup's projection is uniform and its buffers are selected once.
+// A subgroup handles `rows_per_sg` rows at once, each on a cluster of
+// `cluster` lanes: the cluster's lanes stride over the row's work units
+// and reduce with xor shuffles. Each lane keeps up to eight batch columns
+// in registers so a weight is read once per chunk of columns. This is the
+// decode kernel; the tile kernel takes wide batches (docs/VULKAN.md).
 //
 // Q8_0 rows with at least eight block pairs take the wide path: a pair is
 // 68 bytes, 17 words, and eight consecutive lanes share one pair, lane t
@@ -24,15 +27,16 @@
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
-    uint nin; uint nout; uint nbatch; uint type; uint col0; uint ncols; uint wide;
-    uint cluster; uint rows_per_sg; uint lpp;
+    uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
+    uint nout0; uint type0; uint wide0; uint start0;
+    uint nout1; uint type1; uint wide1; uint start1;
+    uint nout2; uint type2; uint wide2; uint start2;
 } p;
-layout(set = 0, binding = 0) writeonly buffer Y { float y[]; };
-layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
-layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; };
-layout(set = 0, binding = 3) readonly buffer WF { float wf[]; };
+layout(set = 0, binding = 0) writeonly buffer Y { float y[]; } ys[3];
+layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; } w16s[3];
+layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
+layout(set = 0, binding = 3) readonly buffer WF { float wf[]; } wfs[3];
 layout(set = 0, binding = 4) readonly buffer X { float x[]; };
-layout(set = 0, binding = 5) readonly buffer X4 { vec4 x4[]; };
 
 int b0(uint w) { return (int(w << 24u)) >> 24; }
 int b1(uint w) { return (int(w << 16u)) >> 24; }
@@ -61,14 +65,24 @@ void word_dot(uint w, uint d, uint xb, uint col_base, inout float p0, inout floa
 }
 
 void main() {
+    // Which projection this workgroup belongs to, uniform across it.
+    uint wg = gl_WorkGroupID.x;
+    uint pi = 0u;
+    if (p.nproj > 1u && wg >= p.start1) pi = 1u;
+    if (p.nproj > 2u && wg >= p.start2) pi = 2u;
+    uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
+    uint type = pi == 0u ? p.type0 : (pi == 1u ? p.type1 : p.type2);
+    uint wide = pi == 0u ? p.wide0 : (pi == 1u ? p.wide1 : p.wide2);
+    uint local_wg = wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2));
+
     uint lane = gl_SubgroupInvocationID;
     uint rsub = lane / p.cluster;      // which of the subgroup's rows
     uint l = lane - rsub * p.cluster;  // lane within the row's cluster
-    uint row = (gl_WorkGroupID.x * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
+    uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
     float acc[8];
     for (uint c = 0u; c < 8u; ++c) acc[c] = 0.0;
-    if (row < p.nout) {
-        if (p.type == TYPE_Q8_0 && p.wide != 0u) {
+    if (row < nout) {
+        if (type == TYPE_Q8_0 && wide != 0u) {
             uint nblocks = p.nin / Q8_0_BLOCK;
             uint npairs = nblocks / 2u;
             uint wbase = row * nblocks * 17u / 2u;   // words: a pair is 17
@@ -76,11 +90,11 @@ void main() {
             uint groups = p.cluster / 8u;
             for (uint j = group; j < npairs; j += groups) {
                 uint o = wbase + j * 17u;
-                uint wa = w32[o + t];
-                uint wb = w32[o + t + 8u];
-                uint wc = (t == 0u) ? w32[o + 16u] : 0u;
-                float s0 = unpackHalf2x16(w32[o]).x;
-                float s1 = unpackHalf2x16(w32[o + 8u]).y;
+                uint wa = w32s[pi].w32[o + t];
+                uint wb = w32s[pi].w32[o + t + 8u];
+                uint wc = (t == 0u) ? w32s[pi].w32[o + 16u] : 0u;
+                float s0 = unpackHalf2x16(w32s[pi].w32[o]).x;
+                float s1 = unpackHalf2x16(w32s[pi].w32[o + 8u]).y;
                 uint xb = j * 64u;
                 for (uint c = 0u; c < p.ncols; ++c) {
                     uint col_base = (p.col0 + c) * p.nin;
@@ -91,17 +105,17 @@ void main() {
                     acc[c] += s0 * p0 + s1 * p1;
                 }
             }
-        } else if (p.type == TYPE_Q8_0) {
+        } else if (type == TYPE_Q8_0) {
             uint nblocks = p.nin / Q8_0_BLOCK;
             uint wbase = row * nblocks * 17u;
             for (uint b = l; b < nblocks; b += p.cluster) {
                 uint o = wbase + b * 17u;
-                float scale = unpackHalf2x16(uint(w16[o])).x;
+                float scale = unpackHalf2x16(uint(w16s[pi].w16[o])).x;
                 uint xb = b * Q8_0_BLOCK;
                 float part[8];
                 for (uint c = 0u; c < 8u; ++c) part[c] = 0.0;
                 for (uint k = 0u; k < 16u; ++k) {
-                    uint word = uint(w16[o + 1u + k]);
+                    uint word = uint(w16s[pi].w16[o + 1u + k]);
                     int q0 = b0(word);
                     int q1 = b1(word);
                     for (uint c = 0u; c < p.ncols; ++c) {
@@ -114,7 +128,7 @@ void main() {
         } else {
             uint wbase = row * p.nin;
             for (uint i = l; i < p.nin; i += p.cluster) {
-                float w = wf[wbase + i];
+                float w = wfs[pi].wf[wbase + i];
                 for (uint c = 0u; c < p.ncols; ++c) acc[c] += w * x[(p.col0 + c) * p.nin + i];
             }
         }
@@ -124,6 +138,6 @@ void main() {
     for (uint c = 0u; c < 8u; ++c) {
         float s = acc[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
-        if (l == 0u && row < p.nout && c < p.ncols) y[(p.col0 + c) * p.nout + row] = s;
+        if (l == 0u && row < nout && c < p.ncols) ys[pi].y[(p.col0 + c) * nout + row] = s;
     }
 }

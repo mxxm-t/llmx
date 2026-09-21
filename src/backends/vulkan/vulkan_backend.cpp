@@ -129,24 +129,30 @@ const uint32_t kSpvMatmulTile[] = {
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_COUNT };
 
+// A kernel's bindings; `counts` gives the array length of each, one for a
+// plain buffer. The buffers of a dispatch are listed binding by binding,
+// array elements consecutively.
 struct KernelSource {
     const uint32_t* words;
     size_t bytes;
     uint32_t bindings;
+    const uint32_t* counts;
 };
 
+const uint32_t kMatmulRowCounts[5] = {3, 3, 3, 3, 1};
+
 const KernelSource kKernels[K_COUNT] = {
-    {kSpvAdd, sizeof(kSpvAdd), 2},
-    {kSpvSiluMul, sizeof(kSpvSiluMul), 3},
-    {kSpvGatherRows, sizeof(kSpvGatherRows), 3},
-    {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 3},
-    {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5},
-    {kSpvEmbed, sizeof(kSpvEmbed), 4},
-    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 6},
-    {kSpvKvWrite, sizeof(kSpvKvWrite), 5},
-    {kSpvAttention, sizeof(kSpvAttention), 6},
-    {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 2},
-    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 4},
+    {kSpvAdd, sizeof(kSpvAdd), 2, nullptr},
+    {kSpvSiluMul, sizeof(kSpvSiluMul), 3, nullptr},
+    {kSpvGatherRows, sizeof(kSpvGatherRows), 3, nullptr},
+    {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 3, nullptr},
+    {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5, nullptr},
+    {kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr},
+    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 5, kMatmulRowCounts},
+    {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
+    {kSpvAttention, sizeof(kSpvAttention), 6, nullptr},
+    {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 2, nullptr},
+    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 4, nullptr},
 };
 
 // 64 tokens per KV block: half the CPU's, since the attention workgroup
@@ -212,6 +218,7 @@ struct Kernel {
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
     uint32_t bindings = 0;
+    uint32_t buffers = 0;   // sum of the bindings' array lengths
 };
 
 const char* vk_result_name(VkResult r) {
@@ -498,6 +505,11 @@ public:
         VkPhysicalDeviceFeatures2 e2{};
         e2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         e2.pNext = &e11;
+        // The row kernel selects one of three projections' buffers per
+        // workgroup, which is dynamic indexing of a storage buffer array.
+        if (!f2.features.shaderStorageBufferArrayDynamicIndexing)
+            throw std::runtime_error("vulkan: " + d.name + " cannot index storage buffer arrays dynamically");
+        e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
 
         uint32_t ext_count = 0;
         check(fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &ext_count, nullptr),
@@ -779,59 +791,108 @@ public:
                  pc, sizeof(pc), u32(count));
     }
 
-    // One subgroup per output row, columns in chunks of eight so a weight
-    // is read once per chunk. Every column beyond the first chunk re-reads
-    // the weights; the tile kernel for wide batches is what removes that.
     void matmul(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
                 size_t nbatch) override {
-        if (!nout || !nbatch) return;
-        if (type != gguf::GGML_TYPE_F32 && type != gguf::GGML_TYPE_Q8_0)
-            throw std::runtime_error("vulkan: unsupported matrix type " + std::to_string(type) +
-                                     " (docs/VULKAN.md sub-step 6)");
-        if (type == gguf::GGML_TYPE_Q8_0 && nin % gguf::Q8_0_BLOCK)
-            throw std::runtime_error("vulkan: matrix width is not whole blocks");
-        const size_t row_bytes = type == gguf::GGML_TYPE_Q8_0
-            ? (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE : nin * sizeof(float);
-        if (bytes_from(w) < nout * row_bytes ||
-            floats_from(X) < nbatch * nin || floats_from(Y) < nbatch * nout)
-            throw std::runtime_error("vulkan: matmul operand outside its allocation");
-        // Wide batches go to the tile kernel, which reads a weight once per
-        // pass; the row kernel below reads it once per eight columns.
-        if (nbatch >= 16) {
-            const uint32_t pc[4] = {u32(nin), u32(nout), u32(nbatch), type};
-            const uint32_t gx = groups(nout, 64);
-            const size_t gy = (nbatch + 63) / 64;
-            if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
-                throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
-            dispatch(K_MATMUL_TILE, {bind(Y), bind(w), bind(w), bind(X)}, pc, sizeof(pc), gx, (uint32_t)gy);
+        const Projection one{type, w, Y, nout};
+        matmul_group({one}, X, nin, nbatch);
+    }
+
+    // Up to three projections of one X in one dispatch when the batch is
+    // narrow, which is what a decode layer's q, k and v, and gate and up,
+    // are: the row kernel hands workgroups to projections in order. Wide
+    // batches go to the tile kernel, one dispatch per projection, which
+    // reads a weight once per pass.
+    void matmul_group(std::initializer_list<Projection> projections, CSlice X,
+                      size_t nin, size_t nbatch) override {
+        if (projections.size() > 3) {
+            // The kernel's limit, and no caller passes more; split.
+            std::vector<Projection> all(projections);
+            for (size_t i = 0; i < all.size(); i += 3) {
+                std::initializer_list<Projection> part =
+                    i + 3 <= all.size() ? std::initializer_list<Projection>{all[i], all[i + 1], all[i + 2]}
+                    : (i + 2 == all.size() ? std::initializer_list<Projection>{all[i], all[i + 1]}
+                                           : std::initializer_list<Projection>{all[i]});
+                matmul_group(part, X, nin, nbatch);
+            }
             return;
         }
-        // The word-wide path needs every row to start on a word boundary,
-        // which an even block count gives, and X columns on 16 bytes, which
-        // a column width that is whole blocks gives.
-        // The wide path takes eight lanes per block pair and needs at
-        // least eight pairs, an even block count so every row starts on a
-        // word boundary, and a subgroup of at least eight.
+        if (!nbatch) return;
+        std::vector<const Projection*> live;
+        for (const Projection& pr : projections) {
+            if (!pr.data.buffer) throw std::runtime_error("vulkan: projection without storage");
+            if (pr.type != gguf::GGML_TYPE_F32 && pr.type != gguf::GGML_TYPE_Q8_0)
+                throw std::runtime_error("vulkan: unsupported matrix type " + std::to_string(pr.type) +
+                                         " (docs/VULKAN.md sub-step 6)");
+            if (pr.type == gguf::GGML_TYPE_Q8_0 && nin % gguf::Q8_0_BLOCK)
+                throw std::runtime_error("vulkan: matrix width is not whole blocks");
+            const size_t row_bytes = pr.type == gguf::GGML_TYPE_Q8_0
+                ? (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE : nin * sizeof(float);
+            if (bytes_from(pr.data) < pr.rows * row_bytes || floats_from(pr.out) < nbatch * pr.rows)
+                throw std::runtime_error("vulkan: matmul operand outside its allocation");
+            if (pr.rows) live.push_back(&pr);
+        }
+        if (floats_from(X) < nbatch * nin) throw std::runtime_error("vulkan: matmul operand outside its allocation");
+        if (live.empty()) return;
+        if (nbatch >= 16) {
+            for (const Projection* pr : live) {
+                const uint32_t pc[4] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type};
+                const uint32_t gx = groups(pr->rows, 64);
+                const size_t gy = (nbatch + 63) / 64;
+                if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
+                    throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
+                dispatch(K_MATMUL_TILE, {bind(pr->out), bind(pr->data), bind(pr->data), bind(X)},
+                         pc, sizeof(pc), gx, (uint32_t)gy);
+            }
+            return;
+        }
+        // One cluster size serves the dispatch, so every projection must
+        // take the same path: the types are the same in the models here,
+        // and a mixed group falls back to one dispatch each.
         const size_t nblocks = nin / gguf::Q8_0_BLOCK;
-        const uint32_t wide = type == gguf::GGML_TYPE_Q8_0 && nblocks % 2 == 0 && nblocks / 2 >= kLanesPerPair &&
-                              dev_->subgroup_size >= kLanesPerPair ? 1u : 0u;
-        // A row's work units: lanes over block pairs, blocks, or floats. A
-        // cluster of lanes takes one row, sized to the units so a narrow
-        // row does not idle most of a subgroup, and a subgroup takes
-        // several rows.
+        auto wide_of = [&](uint32_t type) {
+            return type == gguf::GGML_TYPE_Q8_0 && nblocks % 2 == 0 && nblocks / 2 >= kLanesPerPair &&
+                   dev_->subgroup_size >= kLanesPerPair ? 1u : 0u;
+        };
+        for (size_t i = 1; i < live.size(); ++i)
+            if (live[i]->type != live[0]->type) {
+                for (const Projection* pr : live) matmul_group({*pr}, X, nin, nbatch);
+                return;
+            }
+        const uint32_t type = live[0]->type, wide = wide_of(type);
         const uint32_t lpp = kLanesPerPair;
         const size_t units = type == gguf::GGML_TYPE_Q8_0 ? (wide ? nblocks / 2 * lpp : nblocks) : nin;
         uint32_t cluster = wide ? lpp : 1;
         while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
         const uint32_t rows_per_sg = dev_->subgroup_size / cluster;
         const uint32_t rows_per_group = (256 / dev_->subgroup_size) * rows_per_sg;
-        const uint32_t g = groups(nout, rows_per_group);
+        uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
+        uint32_t total = 0;
+        for (size_t i = 0; i < live.size(); ++i) {
+            nout[i] = u32(live[i]->rows);
+            start[i] = total;
+            total += groups(live[i]->rows, rows_per_group);
+        }
+        if (total > dev_->props.limits.maxComputeWorkGroupCount[0])
+            throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
+        // Unused projection slots bind the first one's buffers; no
+        // workgroup reaches them.
+        const Projection& a = *live[0];
+        const Projection& b = live.size() > 1 ? *live[1] : a;
+        const Projection& c = live.size() > 2 ? *live[2] : a;
         for (size_t col0 = 0; col0 < nbatch; col0 += 8) {
             const size_t ncols = std::min<size_t>(8, nbatch - col0);
-            const uint32_t pc[10] = {u32(nin), u32(nout), u32(nbatch), type, u32(col0), u32(ncols), wide,
-                                     cluster, rows_per_sg, lpp};
-            dispatch(K_MATMUL_ROW, {bind(Y), bind(w), bind(w), bind(w), bind(X), bind(X)},
-                     pc, sizeof(pc), g);
+            const uint32_t pc[19] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), cluster, rows_per_sg,
+                                     (uint32_t)live.size(),
+                                     nout[0], type, wide, start[0],
+                                     nout[1], type, wide, start[1],
+                                     nout[2], type, wide, start[2]};
+            dispatch(K_MATMUL_ROW,
+                     {bind(a.out), bind(b.out), bind(c.out),
+                      bind(a.data), bind(b.data), bind(c.data),
+                      bind(a.data), bind(b.data), bind(c.data),
+                      bind(a.data), bind(b.data), bind(c.data),
+                      bind(X)},
+                     pc, sizeof(pc), total);
         }
     }
     KVLayout kv_layout() const override { return KVLayout{kVkBlockTokens}; }
@@ -1045,11 +1106,13 @@ private:
         mi.pCode = src.words;
         check(d.fn.vkCreateShaderModule(d.device, &mi, nullptr, &k.module), "vkCreateShaderModule");
         std::vector<VkDescriptorSetLayoutBinding> bindings(src.bindings);
+        k.buffers = 0;
         for (uint32_t i = 0; i < src.bindings; ++i) {
             bindings[i].binding = i;
             bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            bindings[i].descriptorCount = 1;
+            bindings[i].descriptorCount = src.counts ? src.counts[i] : 1;
             bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            k.buffers += bindings[i].descriptorCount;
         }
         VkDescriptorSetLayoutCreateInfo li{};
         li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1084,22 +1147,23 @@ private:
     void dispatch(KernelId id, std::initializer_list<VkDescriptorBufferInfo> buffers,
                   const void* push, size_t push_bytes, uint32_t groups_x, uint32_t groups_y = 1) {
         Kernel& k = kernel(id);
-        if (buffers.size() != k.bindings) throw std::logic_error("vulkan: kernel binding count");
+        if (buffers.size() != k.buffers) throw std::logic_error("vulkan: kernel binding count");
         if (push_bytes > kPushBytes) throw std::logic_error("vulkan: push constants exceed 128 bytes");
         for (const auto& b : buffers)
             if (!b.buffer) throw std::runtime_error("vulkan: dispatch over an empty allocation");
         VkCommandBuffer cmd = open();
-        std::vector<VkWriteDescriptorSet> writes(buffers.size());
-        uint32_t i = 0;
-        for (const auto& b : buffers) {
+        const KernelSource& src = kKernels[id];
+        std::vector<VkWriteDescriptorSet> writes(k.bindings);
+        const VkDescriptorBufferInfo* next = buffers.begin();
+        for (uint32_t i = 0; i < k.bindings; ++i) {
             VkWriteDescriptorSet& w = writes[i];
             w = VkWriteDescriptorSet{};
             w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             w.dstBinding = i;
-            w.descriptorCount = 1;
+            w.descriptorCount = src.counts ? src.counts[i] : 1;
             w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            w.pBufferInfo = &b;
-            ++i;
+            w.pBufferInfo = next;
+            next += w.descriptorCount;
         }
         dev_->fn.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.pipeline);
         dev_->fn.vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.layout, 0,

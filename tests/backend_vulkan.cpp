@@ -244,6 +244,28 @@ size_t check_kernels(backend::Backend& vk) {
         try { p.vk.matmul(gguf::GGML_TYPE_Q4_0, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "unsupported matrix type accepted");
+        // Three projections in one dispatch equal the same three one at a
+        // time, bit for bit, since each row's work is unchanged; rows are
+        // uneven so the workgroup ranges do not line up.
+        for (size_t nbatch : {size_t(1), size_t(3)}) {
+            const auto x = uniform(nbatch * nin, 30 + (uint32_t)nbatch);
+            Pair::In xi = p.in(x);
+            const size_t rows[3] = {nout, 5, 33};
+            Pair::Out sep[3] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1]), p.out(nbatch * rows[2])};
+            Pair::Out grp[3] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1]), p.out(nbatch * rows[2])};
+            for (int i = 0; i < 3; ++i)
+                p.vk.matmul(gguf::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), sep[i].vs(), nin, rows[i], nbatch);
+            p.vk.matmul_group({{gguf::GGML_TYPE_Q8_0, wqi.vs(), grp[0].vs(), rows[0]},
+                               {gguf::GGML_TYPE_Q8_0, wqi.vs(), grp[1].vs(), rows[1]},
+                               {gguf::GGML_TYPE_Q8_0, wqi.vs(), grp[2].vs(), rows[2]}},
+                              xi.vs(), nin, nbatch);
+            for (int i = 0; i < 3; ++i) {
+                std::vector<float> a(sep[i].n), b(grp[i].n);
+                p.vk.read(*sep[i].v, 0, a.data(), a.size() * sizeof(float));
+                p.vk.read(*grp[i].v, 0, b.data(), b.size() * sizeof(float));
+                values += exact(a, b, "grouped projections differ from separate ones");
+            }
+        }
     }
     // The KV cache: the same token-major rows written through each backend's
     // own storage and block size, then attention over each backend's own

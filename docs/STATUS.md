@@ -10,10 +10,12 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   buffer and an offset instead, so nothing outside a backend needs a host
   address. That removes `Buffer::mutable_host_ptr`, the bridge added in 4a,
   and is the last thing between this interface and a device backend.
-- **Done:** block opened before the code.
-- **Left:** decode activations into an arena as prefill already is; then the
-  signatures, in one change per op family so each stays reviewable; then the
-  bridge accessor goes.
+- **Done:** decode activations are in an arena too, nine 64-byte-aligned
+  offsets in one allocation made at construction, sharing the allocation
+  helper with prefill so both move together. Native 17/17, Python suite
+  11/11, logits byte-identical.
+- **Left:** the signatures, one op family per change so each stays
+  reviewable; then the bridge accessor goes.
 - **Gotchas:** attention and `kv_write` already take a view rather than
   pointers, so they need only their query and output arguments moved.
   `embed` writes to an activation and reads a weight buffer, so it takes two

@@ -193,15 +193,13 @@ public:
         resolve_tensors();
 
         // buffers
-        x_.assign(cfg.n_embd, 0.0f);
-        h_.assign(cfg.n_embd, 0.0f);
-        q_.assign(q_dim_, 0.0f);
-        kv_.assign((size_t)cfg.n_head_kv * cfg.head_dim, 0.0f);
-        v_.assign((size_t)cfg.n_head_kv * cfg.head_dim, 0.0f);
-        attn_.assign(q_dim_, 0.0f);
-        gate_.assign(cfg.n_ff, 0.0f);
-        up_.assign(cfg.n_ff, 0.0f);
-        ffn_.assign(cfg.n_ff, 0.0f);
+        {
+            const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
+            const size_t counts[kArenaSlots] = {
+                (size_t)cfg.n_embd, (size_t)cfg.n_embd, (size_t)q_dim_, KV, KV,
+                (size_t)q_dim_, (size_t)cfg.n_ff, (size_t)cfg.n_ff, (size_t)cfg.n_ff};
+            decode_arena_ = alloc_arena(counts, decode_offset_);
+        }
 
         // Budget: the whole context. The backend turns tokens into blocks and
         // bytes; storage is backed on demand, so a short chat does not
@@ -258,9 +256,9 @@ public:
         std::vector<float> logits;
         try {
             step_body(token_id, pos);
-            b_->rms_norm(h_.data(), x_.data(), output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
+            b_->rms_norm(h(), x(), output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
             logits.assign(output_.nout, 0.0f);
-            matvec(output_, h_.data(), logits.data());
+            matvec(output_, h(), logits.data());
         } catch (...) {
             kv_seq_.abort();
             throw;
@@ -278,55 +276,55 @@ public:
         // to it shifted the generated layout enough to cost 8% of 0.6B prefill
         // for work measured at 0.0014 ms (docs/STATUS.md).
         embed_id_ = (uint32_t)token_id;
-        b_->embed(x_.data(), token_embd_.type, *token_embd_.data, token_embd_.nin,
+        b_->embed(x(), token_embd_.type, *token_embd_.data, token_embd_.nin,
                   token_embd_.nout, &embed_id_, 1);
 
         for (int l = 0; l < cfg.n_layer; l++) {
             const LayerWeights& w = layers_[l];
 
             // attn norm
-            b_->rms_norm(h_.data(), x_.data(), w.attn_norm.f32(), cfg.n_embd, cfg.rms_eps);
+            b_->rms_norm(h(), x(), w.attn_norm.f32(), cfg.n_embd, cfg.rms_eps);
 
             // q,k,v projections
-            b_->matmul_group({projection(w.attn_q, q_.data()),
-                              projection(w.attn_k, kv_.data()),
-                              projection(w.attn_v, v_.data())},
-                             h_.data(), cfg.n_embd, 1);
+            b_->matmul_group({projection(w.attn_q, q()),
+                              projection(w.attn_k, kv()),
+                              projection(w.attn_v, v())},
+                             h(), cfg.n_embd, 1);
 
             // per-head q/k norms + rope
             {
                 const size_t half = cfg.head_dim / 2;
                 const float* cs = rope_cos_.data() + (size_t)pos * half;
                 const float* sn = rope_sin_.data() + (size_t)pos * half;
-                b_->norm_rope_rows(q_.data(), 1, 0, cfg.n_head,
+                b_->norm_rope_rows(q(), 1, 0, cfg.n_head,
                                    w.attn_q_norm.f32(), cfg.rms_eps, cs, sn, half);
-                b_->norm_rope_rows(kv_.data(), 1, 0, cfg.n_head_kv,
+                b_->norm_rope_rows(kv(), 1, 0, cfg.n_head_kv,
                                    w.attn_k_norm.f32(), cfg.rms_eps, cs, sn, half);
             }
 
-            b_->kv_write(l, view, (size_t)pos, kv_.data(), v_.data(), 1);
-            b_->attention(q_.data(), l, view, attn_.data(),
+            b_->kv_write(l, view, (size_t)pos, kv(), v(), 1);
+            b_->attention(q(), l, view, attn(),
                           cfg.n_head, cfg.n_head_kv, cfg.head_dim, 1);
 
             // attn_output projection + residual
-            std::fill(h_.begin(), h_.end(), 0.0f);
-            matvec(w.attn_output, attn_.data(), h_.data());
-            b_->add(x_.data(), h_.data(), cfg.n_embd);
+            std::memset(h(), 0, (size_t)cfg.n_embd * sizeof(float));
+            matvec(w.attn_output, attn(), h());
+            b_->add(x(), h(), cfg.n_embd);
 
             // ffn norm
-            b_->rms_norm(h_.data(), x_.data(), w.ffn_norm.f32(), cfg.n_embd, cfg.rms_eps);
+            b_->rms_norm(h(), x(), w.ffn_norm.f32(), cfg.n_embd, cfg.rms_eps);
 
             // gate/up (SwiGLU). Buffers are members: allocating these per layer
             // per token cost 108 heap allocations of n_ff floats on a 36-layer
             // model, every token.
-            b_->matmul_group({projection(w.ffn_gate, gate_.data()),
-                              projection(w.ffn_up, up_.data())},
-                             h_.data(), cfg.n_embd, 1);
-            b_->silu_mul(ffn_.data(), gate_.data(), up_.data(), cfg.n_ff);
+            b_->matmul_group({projection(w.ffn_gate, gate()),
+                              projection(w.ffn_up, up())},
+                             h(), cfg.n_embd, 1);
+            b_->silu_mul(ffn(), gate(), up(), cfg.n_ff);
             // down projection + residual
-            std::fill(h_.begin(), h_.end(), 0.0f);
-            matvec(w.ffn_down, ffn_.data(), h_.data());
-            b_->add(x_.data(), h_.data(), cfg.n_embd);
+            std::memset(h(), 0, (size_t)cfg.n_embd * sizeof(float));
+            matvec(w.ffn_down, ffn(), h());
+            b_->add(x(), h(), cfg.n_embd);
         }
     }
 
@@ -389,9 +387,9 @@ private:
     Weight token_embd_, output_norm_, output_;
 
     uint32_t embed_id_ = 0;
-    std::vector<float> x_, h_, q_, kv_, v_, attn_;
-    std::vector<float> gate_, up_, ffn_;
     static const size_t kArenaSlots = 9;
+    backend::BufferPtr decode_arena_;
+    size_t decode_offset_[kArenaSlots] = {0};
     backend::BufferPtr arena_;
     size_t arena_batch_ = 0;
     size_t arena_offset_[kArenaSlots] = {0};
@@ -471,11 +469,39 @@ private:
     // Readiness is published only once every buffer exists: the new set is
     // built aside and swapped in together, so a failed allocation part way
     // leaves the old set intact and a retry allocates again.
-    // One backend allocation holding every prefill activation, each vector at
-    // a 64-byte boundary so the AVX2 kernels see the alignment they saw when
-    // each was its own allocation. Nine allocations became one because device
-    // allocators handle a few large blocks far better than many small ones,
-    // and a --ubatch change is now a single reallocation.
+    // One backend allocation holding a set of activations, each at a 64-byte
+    // boundary so the AVX2 kernels see the alignment they saw when every
+    // vector was its own allocation. Device allocators handle a few large
+    // blocks far better than many small ones, and resizing is one call.
+    backend::BufferPtr alloc_arena(const size_t (&counts)[kArenaSlots],
+                                   size_t (&offsets)[kArenaSlots]) const {
+        size_t total = 0;
+        for (size_t i = 0; i < kArenaSlots; ++i) {
+            offsets[i] = total;
+            const size_t bytes = counts[i] * sizeof(float);
+            if (bytes / sizeof(float) != counts[i] || total > (size_t)-1 - bytes - 63)
+                throw std::runtime_error("inference: activation arena size overflows");
+            total = (total + bytes + 63) / 64 * 64;
+        }
+        auto arena = b_->alloc(total);
+        std::memset(arena->mutable_host_ptr(), 0, total);
+        return arena;
+    }
+
+    static float* slot_of(const backend::BufferPtr& arena, size_t offset) {
+        return (float*)((uint8_t*)arena->mutable_host_ptr() + offset);
+    }
+
+    float* x() const { return slot_of(decode_arena_, decode_offset_[0]); }
+    float* h() const { return slot_of(decode_arena_, decode_offset_[1]); }
+    float* q() const { return slot_of(decode_arena_, decode_offset_[2]); }
+    float* kv() const { return slot_of(decode_arena_, decode_offset_[3]); }
+    float* v() const { return slot_of(decode_arena_, decode_offset_[4]); }
+    float* attn() const { return slot_of(decode_arena_, decode_offset_[5]); }
+    float* gate() const { return slot_of(decode_arena_, decode_offset_[6]); }
+    float* up() const { return slot_of(decode_arena_, decode_offset_[7]); }
+    float* ffn() const { return slot_of(decode_arena_, decode_offset_[8]); }
+
     void ensure_batch_buffers(size_t want) {
         const size_t B = std::min((size_t)ubatch(), std::max<size_t>(want, 1));
         if (arena_ && arena_batch_ >= B) return;
@@ -491,25 +517,11 @@ private:
             B * (size_t)cfg.n_ff,     // upb
             B * (size_t)cfg.n_ff,     // ffnb
         };
-        size_t total = 0;
-        size_t offsets[kArenaSlots];
-        for (size_t i = 0; i < kArenaSlots; ++i) {
-            offsets[i] = total;
-            const size_t bytes = counts[i] * sizeof(float);
-            if (bytes / sizeof(float) != counts[i] || total > (size_t)-1 - bytes)
-                throw std::runtime_error("inference: activation arena size overflows");
-            total = (total + bytes + 63) / 64 * 64;
-        }
-        auto arena = b_->alloc(total);
-        std::memset(arena->mutable_host_ptr(), 0, total);
-        arena_ = arena;
+        arena_ = alloc_arena(counts, arena_offset_);
         arena_batch_ = B;
-        for (size_t i = 0; i < kArenaSlots; ++i) arena_offset_[i] = offsets[i];
     }
 
-    float* slot(size_t i) const {
-        return (float*)((uint8_t*)arena_->mutable_host_ptr() + arena_offset_[i]);
-    }
+    float* slot(size_t i) const { return slot_of(arena_, arena_offset_[i]); }
     float* xb() const { return slot(0); }
     float* hb() const { return slot(1); }
     float* qb() const { return slot(2); }
@@ -529,10 +541,10 @@ private:
         try {
             forward_batch_body(ids, B, pos0);
             if (out_logits) {
-                b_->rms_norm(h_.data(), xb() + (size_t)(B - 1) * cfg.n_embd,
+                b_->rms_norm(h(), xb() + (size_t)(B - 1) * cfg.n_embd,
                              output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
                 out_logits->assign(output_.nout, 0.0f);
-                matvec(output_, h_.data(), out_logits->data());
+                matvec(output_, h(), out_logits->data());
             }
         } catch (...) {
             kv_seq_.abort();

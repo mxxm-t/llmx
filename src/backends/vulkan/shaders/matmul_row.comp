@@ -414,7 +414,7 @@ void main() {
     }
     // Reduce within each cluster of lanes; every lane joins every shuffle
     // and lanes past the last row add zero.
-    for (uint c = 0u; c < 8u; ++c) {
+    for (uint c = 0u; c < p.ncols; ++c) {
         float s = acc[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
         if (l == 0u && row < nout && c < p.ncols) ys[pi].y[(p.col0 + c) * nout + row] = s;

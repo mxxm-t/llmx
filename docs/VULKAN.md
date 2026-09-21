@@ -104,6 +104,12 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   returns the ticket. `wait(t)` is `vkWaitSemaphores` on that value;
   `sync()` waits on the latest and, per contract, aborts on device loss.
   Command buffers are a ring; one is reused once its ticket has retired.
+  A pass of several hundred dispatches is submitted in chunks of 64 as
+  it is recorded, so the device starts on the first chunk while the host
+  records the rest; the timeline is ordered, so the last chunk's ticket
+  covers them all. Recording a Qwen3-0.6B decode token costs the host
+  about 0.5 ms against 6 ms on the device, and chunks of 64 measured
+  best of 16, 32, 64, 128 and 256.
   `read` records a copy into staging, submits, waits, and copies out.
 - **Barriers.** A pass is a chain, so every op reads what the previous op
   wrote. One memory barrier, compute write to compute read, between
@@ -160,7 +166,12 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   with every other block's words assembled from two loads since 210
   bytes is not a multiple of four. All of them read the activations as
   aligned 16-byte vectors. At the 8B shapes on the Radeon VII: Q4_0 149
-  GB/s, Q4_1 188, Q4_K 135, Q5_K 123, Q6_K 163, against Q8_0's 313.
+  GB/s, Q4_1 188, Q4_K 135, Q5_K 123, Q6_K 163, against Q8_0's 313; the
+  K-quant figures predate the reduction fix below. The final xor-shuffle
+  reduction runs over the live columns only: reducing all eight slots
+  for one column was 48 shuffles per lane after five loads and cost the
+  1024-square matvec a quarter of its time (17.1 to 13.2 us) and the 8B
+  shapes 313 to 373 GB/s.
 - **matmul, prefill** (`nbatch` of 16 and up): a workgroup computes a
   64 x 64 output tile, walking the inner dimension 32 at a time; each
   step stages the dequantized W tile and the X tile in shared memory and

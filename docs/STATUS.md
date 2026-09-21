@@ -219,18 +219,50 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-0.6B-Q8_0, session end | decode | 182 tok/s | 102.7 to 106.5 | 56 to 59% |
   | Qwen3-0.6B-Q4_0, session end | prefill | 624 tok/s | 878 to 1056 | 141 to 169% |
   | Qwen3-0.6B-Q4_0, session end | decode | 209 tok/s | 95.7 to 97.4 | 46% |
-- **Left:** decode, at 56, 51, 42 and 82 percent of the reference. On 8B
-  the matvec's 336 GB/s against a 1 TB/s memory is still most of the
-  story; on 0.6B it is the 14 dispatches of a layer at their latency
-  floors, and on the 4- and 5-bit files the four bytes per value of
-  activations now cost as much as the weights. The K-quant row paths
-  are the first correct version and sit at 123 to 163 GB/s against
-  Q8_0's 313. Then, once decode is at the floor, the two checks the
-  user asked for on 2026-09-21: a 16384-token prompt with 512 generated
-  tokens beside the 247/32 excerpt, with llama.cpp beside it, and a
-  greedy-output hash of the device against the CPU on the same file.
-  Every number above is a single run unless the runs are listed, and
-  none is claimed until a paired comparison is recorded.
+  Tenth, two decode wins found by timing the host against the device.
+  Temporary instrumentation put a 0.6B decode token at 0.5 ms of host
+  recording and 7.4 ms of device time over 396 dispatches, so the
+  device is the story, and the row kernel's final reduction turned out
+  to run its xor-shuffle chain over all eight column slots whether one
+  column was live or eight: 48 shuffles per lane after five loads.
+  Reducing only the live columns took the 1024-square Q8_0 matvec from
+  17.1 to 13.2 us, 1024x3072 from 33 to 22 us and the 8B shapes from 313
+  to 373 GB/s, and 0.6B decode from 122 to 145 tok/s over 128 tokens.
+  Then the pass is submitted in chunks of 64 dispatches as it is
+  recorded, so the device starts while the host records the rest: 145
+  to 158 tok/s; chunks of 16, 32, 64, 128 and 256 gave 150, 156, 158,
+  152 and 149, and 8B prefill is unchanged by it (203 to 208 either
+  way). Both changes leave every kernel output identical and the greedy
+  text the same. Three interleaved rounds of the four files afterwards:
+
+  | model | phase | llama.cpp b11075 Vulkan | llmx Vulkan | llmx share |
+  |---|---|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 1029, 1105, 1109 | 156 to 168% |
+  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 137.9, 137.1, 136.5 | 69% |
+  | Qwen3-0.6B-Q4_0 | prefill | 636 tok/s | 934, 962, 1040 | 147 to 164% |
+  | Qwen3-0.6B-Q4_0 | decode | 209 tok/s | 128.2, 129.4, 127.3 | 61% |
+  | Qwen3-0.6B-Q5_K_M | prefill | 492 tok/s | 681, 736, 742 | 138 to 151% |
+  | Qwen3-0.6B-Q5_K_M | decode | 205 tok/s | 122.1, 110.5, 118.4 | 54 to 60% |
+  | Qwen3-8B-Q8_0 | prefill | 99 tok/s | 208, 208, 209 | 210% |
+  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 35.5, 35.5, 35.7 | 89% |
+
+  Decode over 128 tokens reads higher than over 32 (158 against 138 on
+  0.6B Q8_0) because the first tokens carry the clock ramp; llama-bench
+  warms up before its 32, so the 32-token llmx figure is the
+  conservative one and the table keeps it.
+- **Left:** decode, at 69, 61, 57 and 89 percent of the reference. A
+  0.6B layer is still 14 dispatches; the residual add, the norm before
+  each matmul and the q/k norm-rope plus KV write are the fusions to
+  measure next, each an op the model asks for and each backend
+  implements its own way. On 8B the matvec's 373 GB/s against a 1 TB/s
+  memory is most of the story. The K-quant row paths are the first
+  correct version and sit at 123 to 163 GB/s against Q8_0's 373. Then,
+  once decode is at the floor, the two checks the user asked for on
+  2026-09-21: a 16384-token prompt with 512 generated tokens beside the
+  247/32 excerpt, with llama.cpp beside it, and a greedy-output hash of
+  the device against the CPU on the same file. Every number above is a
+  single run unless the runs are listed, and none is claimed until a
+  paired comparison is recorded.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

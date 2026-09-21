@@ -634,6 +634,7 @@ public:
 
     Ticket submit() override {
         VkCommandBuffer cmd = open();
+        chunk_ = 0;
         check(dev_->fn.vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
         const Ticket ticket = ++last_ticket_;
         VkTimelineSemaphoreSubmitInfo tsi{};
@@ -1052,6 +1053,8 @@ public:
 
 private:
     static const uint32_t kRing = 4;
+    static const uint32_t kChunk = 64;
+    uint32_t chunk_ = 0;
     static const uint32_t kLanesPerPair = 4;
     static const size_t kStagingBytes = size_t(64) << 20;
     static const size_t kArenaBytes = size_t(1) << 20;
@@ -1235,6 +1238,13 @@ private:
                                     (uint32_t)push_bytes, push);
         dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
         barrier(cmd);
+        // A pass of several hundred dispatches is submitted in chunks so
+        // the device starts on the first while the host records the rest;
+        // the timeline is ordered, so the ticket of the last chunk covers
+        // them all. Recording a decode token of Qwen3-0.6B takes the host
+        // about 0.5 ms against 6 ms on the device; chunks of 64 measured
+        // best of 16, 32, 64, 128 and 256 (150, 156, 158, 152, 149 tok/s).
+        if (++chunk_ >= kChunk) submit();
     }
 
     [[noreturn]] static void todo(const char* op, int substep) {

@@ -31,7 +31,8 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   measurement exists yet. See `docs/DEVICE-EXECUTION.md` step 1.
 - `Model`: loads tensors from a `GGUFModel`, owns one sequence's logical token
   count, a `BlockPool` and `KVSequence` for the logical cache, and the
-  backend's `KVStorage` for the physical blocks. A step, and a whole prompt
+  backend's `KVStorage` for the physical blocks. Prefill activations live in
+  one backend allocation, each vector at a 64-byte offset into it. A step, and a whole prompt
   across its microbatches, is one transaction: length and position advance
   only after the logits exist, and a failure rolls the history back.
   - `set_threads(n)`, `threads_available()`, `n_tokens()`, `head_dim()`,

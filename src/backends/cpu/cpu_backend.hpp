@@ -43,7 +43,8 @@ public:
 
     size_t size() const override { return size_; }
     const void* host_ptr() const override { return ptr_; }
-    void* mutable_host_ptr() const { return ptr_; }
+    void* mutable_host_ptr() override { return ptr_; }
+    void* host_address() const { return ptr_; }
 
 private:
     std::vector<uint8_t> owned_;
@@ -879,7 +880,7 @@ public:
 
 private:
     static void* host(const Buffer& b) {
-        void* p = dynamic_cast<const CpuBuffer&>(b).mutable_host_ptr();
+        void* p = dynamic_cast<const CpuBuffer&>(b).host_address();
         if (!p) throw std::runtime_error("backend: buffer is not host addressable");
         return p;
     }

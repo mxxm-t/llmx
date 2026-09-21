@@ -37,6 +37,11 @@ public:
     // Non-null only where the host can address the allocation directly. A
     // device backend returns nullptr and the caller must use read/write.
     virtual const void* host_ptr() const = 0;
+
+    // Writable host address, same rule. This exists only while the model
+    // still hands raw pointers to ops; once ops take a buffer and an offset
+    // (docs/DEVICE-EXECUTION.md step 4) nothing outside a backend needs it.
+    virtual void* mutable_host_ptr() = 0;
 };
 using BufferPtr = std::shared_ptr<Buffer>;
 

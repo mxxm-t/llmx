@@ -233,7 +233,9 @@ public:
     void set_threads(int n) { b_->set_threads(n); }
     int threads_available() const { return b_->threads_available(); }
     // 0 keeps the default. Changing it invalidates the scratch buffers.
-    void set_ubatch(int n) { if (n > 0 && n != ubatch_) { ubatch_ = n; xb_.clear(); } }
+    void set_ubatch(int n) {
+        if (n > 0 && n != ubatch_) { ubatch_ = n; arena_.reset(); arena_batch_ = 0; }
+    }
 
     int n_tokens() const { return n_tokens_; }
     int head_dim() const { return cfg.head_dim; }
@@ -389,7 +391,10 @@ private:
     uint32_t embed_id_ = 0;
     std::vector<float> x_, h_, q_, kv_, v_, attn_;
     std::vector<float> gate_, up_, ffn_;
-    std::vector<float> xb_, hb_, qb_, kb_, vb_, attnb_, gateb_, upb_, ffnb_;
+    static const size_t kArenaSlots = 9;
+    backend::BufferPtr arena_;
+    size_t arena_batch_ = 0;
+    size_t arena_offset_[kArenaSlots] = {0};
     std::unique_ptr<backend::KVStorage> kv_storage_;
     BlockPool kv_pool_;
     KVSequence kv_seq_;
@@ -466,17 +471,54 @@ private:
     // Readiness is published only once every buffer exists: the new set is
     // built aside and swapped in together, so a failed allocation part way
     // leaves the old set intact and a retry allocates again.
+    // One backend allocation holding every prefill activation, each vector at
+    // a 64-byte boundary so the AVX2 kernels see the alignment they saw when
+    // each was its own allocation. Nine allocations became one because device
+    // allocators handle a few large blocks far better than many small ones,
+    // and a --ubatch change is now a single reallocation.
     void ensure_batch_buffers(size_t want) {
         const size_t B = std::min((size_t)ubatch(), std::max<size_t>(want, 1));
-        if (xb_.size() >= B * (size_t)cfg.n_embd) return;
+        if (arena_ && arena_batch_ >= B) return;
         const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
-        std::vector<float> xb(B * cfg.n_embd, 0.0f), hb(B * cfg.n_embd, 0.0f);
-        std::vector<float> qb(B * (size_t)q_dim_, 0.0f), kb(B * KV, 0.0f), vb(B * KV, 0.0f);
-        std::vector<float> attnb(B * (size_t)q_dim_, 0.0f);
-        std::vector<float> gateb(B * cfg.n_ff, 0.0f), upb(B * cfg.n_ff, 0.0f), ffnb(B * cfg.n_ff, 0.0f);
-        xb_.swap(xb); hb_.swap(hb); qb_.swap(qb); kb_.swap(kb); vb_.swap(vb);
-        attnb_.swap(attnb); gateb_.swap(gateb); upb_.swap(upb); ffnb_.swap(ffnb);
+        const size_t counts[kArenaSlots] = {
+            B * (size_t)cfg.n_embd,   // xb
+            B * (size_t)cfg.n_embd,   // hb
+            B * (size_t)q_dim_,       // qb
+            B * KV,                   // kb
+            B * KV,                   // vb
+            B * (size_t)q_dim_,       // attnb
+            B * (size_t)cfg.n_ff,     // gateb
+            B * (size_t)cfg.n_ff,     // upb
+            B * (size_t)cfg.n_ff,     // ffnb
+        };
+        size_t total = 0;
+        size_t offsets[kArenaSlots];
+        for (size_t i = 0; i < kArenaSlots; ++i) {
+            offsets[i] = total;
+            const size_t bytes = counts[i] * sizeof(float);
+            if (bytes / sizeof(float) != counts[i] || total > (size_t)-1 - bytes)
+                throw std::runtime_error("inference: activation arena size overflows");
+            total = (total + bytes + 63) / 64 * 64;
+        }
+        auto arena = b_->alloc(total);
+        std::memset(arena->mutable_host_ptr(), 0, total);
+        arena_ = arena;
+        arena_batch_ = B;
+        for (size_t i = 0; i < kArenaSlots; ++i) arena_offset_[i] = offsets[i];
     }
+
+    float* slot(size_t i) const {
+        return (float*)((uint8_t*)arena_->mutable_host_ptr() + arena_offset_[i]);
+    }
+    float* xb() const { return slot(0); }
+    float* hb() const { return slot(1); }
+    float* qb() const { return slot(2); }
+    float* kb() const { return slot(3); }
+    float* vb() const { return slot(4); }
+    float* attnb() const { return slot(5); }
+    float* gateb() const { return slot(6); }
+    float* upb() const { return slot(7); }
+    float* ffnb() const { return slot(8); }
 
     void forward_batch(const uint32_t* ids, int B, std::vector<float>* out_logits) {
         const int pos0 = n_tokens_;
@@ -487,7 +529,7 @@ private:
         try {
             forward_batch_body(ids, B, pos0);
             if (out_logits) {
-                b_->rms_norm(h_.data(), xb_.data() + (size_t)(B - 1) * cfg.n_embd,
+                b_->rms_norm(h_.data(), xb() + (size_t)(B - 1) * cfg.n_embd,
                              output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
                 out_logits->assign(output_.nout, 0.0f);
                 matvec(output_, h_.data(), out_logits->data());
@@ -506,41 +548,41 @@ private:
         const size_t half = (size_t)HD / 2;
         const size_t KV = (size_t)cfg.n_head_kv * HD;
 
-        b_->embed(xb_.data(), token_embd_.type, *token_embd_.data, token_embd_.nin,
+        b_->embed(xb(), token_embd_.type, *token_embd_.data, token_embd_.nin,
                   token_embd_.nout, ids, (size_t)B);
 
         for (int l = 0; l < cfg.n_layer; l++) {
             const LayerWeights& w = layers_[l];
 
-            b_->rms_norm_rows(hb_.data(), xb_.data(), w.attn_norm.f32(),
+            b_->rms_norm_rows(hb(), xb(), w.attn_norm.f32(),
                               (size_t)B, (size_t)E, (size_t)E, cfg.rms_eps);
 
-            b_->matmul_group({projection(w.attn_q, qb_.data()),
-                              projection(w.attn_k, kb_.data()),
-                              projection(w.attn_v, vb_.data())}, hb_.data(), E, B);
+            b_->matmul_group({projection(w.attn_q, qb()),
+                              projection(w.attn_k, kb()),
+                              projection(w.attn_v, vb())}, hb(), E, B);
 
             const float* cs = rope_cos_.data() + (size_t)pos0 * half;
             const float* sn = rope_sin_.data() + (size_t)pos0 * half;
-            b_->norm_rope_rows(qb_.data(), (size_t)B, (size_t)q_dim_, cfg.n_head,
+            b_->norm_rope_rows(qb(), (size_t)B, (size_t)q_dim_, cfg.n_head,
                                w.attn_q_norm.f32(), cfg.rms_eps, cs, sn, half);
-            b_->norm_rope_rows(kb_.data(), (size_t)B, KV, cfg.n_head_kv,
+            b_->norm_rope_rows(kb(), (size_t)B, KV, cfg.n_head_kv,
                                w.attn_k_norm.f32(), cfg.rms_eps, cs, sn, half);
 
-            b_->kv_write(l, view, (size_t)pos0, kb_.data(), vb_.data(), (size_t)B);
-            b_->attention(qb_.data(), l, view, attnb_.data(),
+            b_->kv_write(l, view, (size_t)pos0, kb(), vb(), (size_t)B);
+            b_->attention(qb(), l, view, attnb(),
                           cfg.n_head, cfg.n_head_kv, cfg.head_dim, B);
 
-            matmul(w.attn_output, attnb_.data(), hb_.data(), B);
-            b_->add(xb_.data(), hb_.data(), (size_t)B * E);
+            matmul(w.attn_output, attnb(), hb(), B);
+            b_->add(xb(), hb(), (size_t)B * E);
 
-            b_->rms_norm_rows(hb_.data(), xb_.data(), w.ffn_norm.f32(),
+            b_->rms_norm_rows(hb(), xb(), w.ffn_norm.f32(),
                               (size_t)B, (size_t)E, (size_t)E, cfg.rms_eps);
 
-            b_->matmul_group({projection(w.ffn_gate, gateb_.data()),
-                              projection(w.ffn_up, upb_.data())}, hb_.data(), E, B);
-            b_->silu_mul(ffnb_.data(), gateb_.data(), upb_.data(), (size_t)B * cfg.n_ff);
-            matmul(w.ffn_down, ffnb_.data(), hb_.data(), B);
-            b_->add(xb_.data(), hb_.data(), (size_t)B * E);
+            b_->matmul_group({projection(w.ffn_gate, gateb()),
+                              projection(w.ffn_up, upb())}, hb(), E, B);
+            b_->silu_mul(ffnb(), gateb(), upb(), (size_t)B * cfg.n_ff);
+            matmul(w.ffn_down, ffnb(), hb(), B);
+            b_->add(xb(), hb(), (size_t)B * E);
         }
     }
 

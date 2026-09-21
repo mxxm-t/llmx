@@ -10,11 +10,11 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   backend buffer. Device allocators handle a few large allocations far better
   than many small ones, and a `--ubatch` change becomes one reallocation
   instead of nine.
-- **Done:** block opened before the code.
-- **Left:** one `alloc` in `ensure_batch_buffers` with an offset per vector;
-  the model reads and writes through the buffer rather than owning nine
-  `std::vector`s. Ops taking buffer plus offset is the second half and lands
-  separately, since it touches every signature.
+- **Done:** one `alloc` in `ensure_batch_buffers` with a 64-byte-aligned
+  offset per vector; the nine `std::vector`s are gone and `--ubatch` resizes
+  one allocation. Native 17/17, Python suite 11/11, logits byte-identical.
+- **Left:** ops taking buffer plus offset, which touches every signature and
+  removes the mutable host accessor below. Then step 6, enqueue and sync.
 - **Gotchas:** until ops take an offset, the model still needs a writable
   host address, so `Buffer` gains a mutable accessor that a device backend
   returns null for. That is a bridge and is documented as one. Alignment

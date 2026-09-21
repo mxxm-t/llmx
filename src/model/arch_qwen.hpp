@@ -6,7 +6,6 @@
 #include <string>
 #include <unordered_map>
 #include <cmath>
-#include <thread>
 #include <stdexcept>
 #include <limits>
 
@@ -260,9 +259,9 @@ public:
         try {
             step_body(token_id, pos);
             b_->rms_norm(sh(), sx(), output_norm_.slice(), cfg.n_embd, cfg.rms_eps);
-            logits.assign(output_.nout, 0.0f);
             matvec(output_, sh(), {logits_buf_.get(), 0});
-            logits.assign(output_.nout, 0.0f);
+            // read fills every element, so this only has to size the vector.
+            logits.resize(output_.nout);
             b_->read(*logits_buf_, 0, logits.data(), output_.nout * sizeof(float));
         } catch (...) {
             kv_seq_.abort();
@@ -406,9 +405,6 @@ private:
         if (it == tindex_.end()) throw std::runtime_error("inference: missing tensor " + name);
         return m_->tensors[it->second];
     }
-    const uint8_t* tensor_data(const std::string& name) const {
-        return m_->tensor_data(tindex_.at(name));
-    }
 
     // Validate every tensor this architecture needs and resolve it to a
     // Weight in the same pass, so a resolved handle is well-formed by
@@ -466,16 +462,12 @@ private:
     int ubatch() const { return ubatch_; }
 
 
-    // Sized to the largest chunk this prompt will actually use, so a short
-    // prompt does not allocate scratch for a full ubatch (at n_ff 12288 a
-    // 512-wide gate/up/ffn is about 25 MB each).
-    // Readiness is published only once every buffer exists: the new set is
-    // built aside and swapped in together, so a failed allocation part way
-    // leaves the old set intact and a retry allocates again.
     // One backend allocation holding a set of activations, each at a 64-byte
     // boundary so the AVX2 kernels see the alignment they saw when every
     // vector was its own allocation. Device allocators handle a few large
-    // blocks far better than many small ones, and resizing is one call.
+    // blocks far better than many small ones, and resizing is one call. The
+    // caller only publishes the result once this returns, so an allocation
+    // that throws leaves the previous arena intact and a retry allocates again.
     backend::BufferPtr alloc_arena(const size_t (&counts)[kArenaSlots],
                                    size_t (&offsets)[kArenaSlots]) const {
         size_t total = 0;
@@ -516,6 +508,9 @@ private:
     backend::Slice supb() const { return bs(7); }
     backend::Slice sffnb() const { return bs(8); }
 
+    // Sized to the largest chunk this prompt will actually use, so a short
+    // prompt does not allocate scratch for a full ubatch (at n_ff 12288 a
+    // 512-wide gate/up/ffn is about 25 MB each).
     void ensure_batch_buffers(size_t want) {
         const size_t B = std::min((size_t)ubatch(), std::max<size_t>(want, 1));
         if (arena_ && arena_batch_ >= B) return;
@@ -550,9 +545,8 @@ private:
                                  arena_offset_[0] / sizeof(float) +
                                  (size_t)(B - 1) * (size_t)cfg.n_embd},
                              output_norm_.slice(), cfg.n_embd, cfg.rms_eps);
-                out_logits->assign(output_.nout, 0.0f);
                 matvec(output_, sh(), {logits_buf_.get(), 0});
-                out_logits->assign(output_.nout, 0.0f);
+                out_logits->resize(output_.nout);
                 b_->read(*logits_buf_, 0, out_logits->data(), output_.nout * sizeof(float));
             }
         } catch (...) {

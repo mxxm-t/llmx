@@ -594,7 +594,7 @@ private:
     std::vector<Device*> storages_;              // the devices that run attention
     QwenConfig cfg;
     int q_dim_ = 0;
-    int ubatch_ = 512;   // default matches llama.cpp
+    int ubatch_ = 512;   // the conventional default
     std::string out_name_;
     std::unordered_map<std::string, size_t> tindex_;
     std::vector<LayerWeights> layers_;
@@ -662,7 +662,7 @@ private:
     }
 
     // Physical batch: how many tokens go through ONE forward pass of the
-    // graph. This is llama.cpp's n_ubatch (-ub), not n_batch: it sets the GEMM
+    // graph. This is the physical batch (-ub), not a logical one: it sets the GEMM
     // width and the scratch buffer sizes. llmx has no logical batch, since
     // there is one sequence and no queue; that distinction only starts to
     // matter with the multi-user server in ROADMAP #7.
@@ -794,9 +794,8 @@ private:
         b.attention(q, layer, views.data(), n_views, attn,
                     cfg.n_head, cfg.n_head_kv, cfg.head_dim);
 
-        b.matmul(w.attn_output.type, w.attn_output.slice(), attn, h,
-                 w.attn_output.nin, w.attn_output.nout, rows);
-        b.add(x, h, rows * E);
+        b.matmul_add(w.attn_output.type, w.attn_output.slice(), attn, x,
+                     w.attn_output.nin, w.attn_output.nout, rows);
     }
 
     void ffn_half(ExecContext& ctx, size_t dev, int l, size_t rows) {
@@ -811,9 +810,8 @@ private:
         b.matmul_group({projection(w.ffn_gate, gate),
                         projection(w.ffn_up, up)}, h, E, rows);
         b.silu_mul(ffn, gate, up, rows * (size_t)cfg.n_ff);
-        b.matmul(w.ffn_down.type, w.ffn_down.slice(), ffn, h,
-                 w.ffn_down.nin, w.ffn_down.nout, rows);
-        b.add(x, h, rows * E);
+        b.matmul_add(w.ffn_down.type, w.ffn_down.slice(), ffn, x,
+                     w.ffn_down.nin, w.ffn_down.nout, rows);
     }
 
     // A block returns to the pool only once the backend has retired every

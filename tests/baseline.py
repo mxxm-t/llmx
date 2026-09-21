@@ -32,7 +32,7 @@ GOLDEN_PPL = os.path.join(HERE, "data", "baseline_perplexity.json")
 # to reach against the FULL-PRECISION reference. Coarser quantization reorders
 # more of the tail, so the bound is per-model and measured, not guessed.
 #
-# The Q4_0 entry is not redundant. A "Q4_0" file from llama.cpp is mixed, and
+# The Q4_0 entry is not redundant. A published "Q4_0" file is mixed, and
 # its token_embd is Q6_K whose super-block scale is a SUBNORMAL half. The Q8_0
 # fixture has almost no subnormal scales (0.0061% of blocks, against 5.89% in
 # Qwen3-8B), so it is structurally blind to the f16 subnormal bug class - the

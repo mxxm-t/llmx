@@ -376,7 +376,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
 
     // Prefill is compute bound and wants every thread; decode is memory
     // bandwidth bound and usually peaks well below the logical core count,
-    // so the two phases get their own thread counts (llama.cpp's -t / -tb).
+    // so the two phases get their own thread counts (-t / -tb).
     const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;
     model.set_threads(tb);
     if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
@@ -680,6 +680,58 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     return 0;
 }
 
+// The matched real-model measurement: a warm-up of each test, then R
+// repeats of prompt processing P tokens in one batch into an empty history
+// and of generating G tokens one at a time from an empty history, model
+// time only, token ids fixed and sampling excluded. Reported as mean and
+// standard deviation of tokens per second, so a reference runtime's
+// figures for the same P and G compare directly.
+int cmd_bench_model(const std::string& path, const std::string& device, int threads,
+                    int P, int G, int R) {
+    gguf::GGUFModel m = load_model(path, false);
+    infer::Model model(m, make_backend(device));
+    if (threads > 0) model.set_threads(threads);
+    // Ids below 1000 exist in every vocabulary the runtime loads.
+    auto ids_from = [](uint32_t seed, size_t n) {
+        std::vector<uint32_t> ids(n);
+        for (auto& t : ids) { seed = seed * 1664525u + 1013904223u; t = (seed >> 8) % 1000; }
+        return ids;
+    };
+    const std::vector<uint32_t> prompt = ids_from(12345u, (size_t)P), gen = ids_from(777u, (size_t)G);
+    using clock = std::chrono::steady_clock;
+    auto ms_since = [](clock::time_point t0) {
+        return std::chrono::duration<double, std::milli>(clock::now() - t0).count();
+    };
+    auto pp = [&] {
+        model.reset();
+        const auto t0 = clock::now();
+        model.prefill(prompt);
+        return (double)P / (ms_since(t0) / 1e3);
+    };
+    auto tg = [&] {
+        model.reset();
+        const auto t0 = clock::now();
+        for (uint32_t t : gen) model.step((int)t);
+        return (double)G / (ms_since(t0) / 1e3);
+    };
+    auto report = [&](const char* what, int n, const std::vector<double>& v) {
+        double mean = 0, var = 0;
+        for (double x : v) mean += x;
+        mean /= (double)v.size();
+        for (double x : v) var += (x - mean) * (x - mean);
+        const double sd = v.size() > 1 ? std::sqrt(var / (double)(v.size() - 1)) : 0.0;
+        printf("bench: %s%d  %8.2f +- %.2f tok/s  (%zu runs)\n", what, n, mean, sd, v.size());
+    };
+    pp();
+    tg();
+    std::vector<double> ppv, tgv;
+    for (int r = 0; r < R; r++) ppv.push_back(pp());
+    for (int r = 0; r < R; r++) tgv.push_back(tg());
+    report("pp", P, ppv);
+    report("tg", G, tgv);
+    return 0;
+}
+
 void print_usage() {
     std::cout
         << "llmx " << LLMX_VERSION_STRING << " - ground-up GGUF runtime (no external libs)\n"
@@ -702,6 +754,8 @@ void print_usage() {
         << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]\n"
+        << "  llmx bench      --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D]\n"
+        << "                  (warm-up, then R repeats of pp N and tg N, model time only)\n"
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
         << "           --device D  backend: cpu (default) or vulkan:N in a build with it\n"
         << "           --ubatch N  prefill physical batch (default 512)\n"
@@ -913,8 +967,8 @@ int main(int argc, char** argv) {
             return cmd_info(argv[2]);
         }
         if (cmd == "bench") {
-            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64;
-            std::string device = "cpu";
+            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3;
+            std::string device = "cpu", model_path;
             for (int i = 2; i < argc; i++) {
                 std::string a = argv[i];
                 if (a == "--size") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;
@@ -923,13 +977,16 @@ int main(int argc, char** argv) {
                 else if (a == "--threads") threads = (i + 1 < argc) ? std::atoi(argv[++i]) : threads;
                 else if (a == "--p") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;
                 else if (a == "--n") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;
+                else if (a == "--r") repeats = (i + 1 < argc) ? std::atoi(argv[++i]) : repeats;
+                else if (a == "--model") model_path = (i + 1 < argc) ? argv[++i] : model_path;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             if (size <= 0 || size % 32 != 0) { std::cerr << "bench: --size must be positive and a multiple of 32\n"; return 2; }
             // Each of these divides a measured duration or token count.
-            if (iters <= 0 || prefill <= 0 || decode <= 0) {
-                std::cerr << "bench: --iters, --p and --n must be positive\n"; return 2;
+            if (iters <= 0 || prefill <= 0 || decode <= 0 || repeats <= 0) {
+                std::cerr << "bench: --iters, --p, --n and --r must be positive\n"; return 2;
             }
+            if (!model_path.empty()) return cmd_bench_model(model_path, device, threads, prefill, decode, repeats);
             return cmd_bench(size, iters, threads, prefill, decode, device);
         }
         print_usage();

@@ -811,7 +811,17 @@ public:
     void matmul(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
                 size_t nbatch) override {
         const Projection one{type, w, Y, nout};
-        matmul_group({one}, X, nin, nbatch);
+        matmul_group_impl({one}, X, nin, nbatch, false);
+    }
+    // The residual add folded into the kernels' store: Y += W X.
+    void matmul_add(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
+                    size_t nbatch) override {
+        const Projection one{type, w, Y, nout};
+        matmul_group_impl({one}, X, nin, nbatch, true);
+    }
+    void matmul_group(std::initializer_list<Projection> projections, CSlice X,
+                      size_t nin, size_t nbatch) override {
+        matmul_group_impl(projections, X, nin, nbatch, false);
     }
 
     // Up to three projections of one X in one dispatch when the batch is
@@ -819,8 +829,8 @@ public:
     // are: the row kernel hands workgroups to projections in order. Wide
     // batches go to the tile kernel, one dispatch per projection, which
     // reads a weight once per pass.
-    void matmul_group(std::initializer_list<Projection> projections, CSlice X,
-                      size_t nin, size_t nbatch) override {
+    void matmul_group_impl(std::initializer_list<Projection> projections, CSlice X,
+                           size_t nin, size_t nbatch, bool accumulate) {
         if (projections.size() > 3) {
             // The kernel's limit, and no caller passes more; split.
             std::vector<Projection> all(projections);
@@ -829,7 +839,7 @@ public:
                     i + 3 <= all.size() ? std::initializer_list<Projection>{all[i], all[i + 1], all[i + 2]}
                     : (i + 2 == all.size() ? std::initializer_list<Projection>{all[i], all[i + 1]}
                                            : std::initializer_list<Projection>{all[i]});
-                matmul_group(part, X, nin, nbatch);
+                matmul_group_impl(part, X, nin, nbatch, accumulate);
             }
             return;
         }
@@ -851,7 +861,7 @@ public:
         if (live.empty()) return;
         if (nbatch >= 16) {
             for (const Projection* pr : live) {
-                const uint32_t pc[4] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type};
+                const uint32_t pc[5] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u};
                 const uint32_t gx = groups(pr->rows, 64);
                 const size_t gy = (nbatch + 63) / 64;
                 if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
@@ -866,7 +876,7 @@ public:
         // and a mixed group falls back to one dispatch each.
         for (size_t i = 1; i < live.size(); ++i)
             if (live[i]->type != live[0]->type) {
-                for (const Projection* pr : live) matmul_group({*pr}, X, nin, nbatch);
+                for (const Projection* pr : live) matmul_group_impl({*pr}, X, nin, nbatch, accumulate);
                 return;
             }
         // The row kernel's work units and the lanes that share one, per
@@ -925,11 +935,11 @@ public:
         const Projection& c = live.size() > 2 ? *live[2] : a;
         for (size_t col0 = 0; col0 < nbatch; col0 += 8) {
             const size_t ncols = std::min<size_t>(8, nbatch - col0);
-            const uint32_t pc[19] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), cluster, rows_per_sg,
+            const uint32_t pc[20] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), cluster, rows_per_sg,
                                      (uint32_t)live.size(),
                                      nout[0], type, wide, start[0],
                                      nout[1], type, wide, start[1],
-                                     nout[2], type, wide, start[2]};
+                                     nout[2], type, wide, start[2], accumulate ? 1u : 0u};
             dispatch(kernel,
                      {bind(a.out), bind(b.out), bind(c.out),
                       bind(a.data), bind(b.data), bind(c.data),

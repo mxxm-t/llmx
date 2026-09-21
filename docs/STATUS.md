@@ -250,19 +250,50 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   0.6B Q8_0) because the first tokens carry the clock ramp; llama-bench
   warms up before its 32, so the 32-token llmx figure is the
   conservative one and the table keeps it.
-- **Left:** decode, at 69, 61, 57 and 89 percent of the reference. A
-  0.6B layer is still 14 dispatches; the residual add, the norm before
-  each matmul and the q/k norm-rope plus KV write are the fusions to
-  measure next, each an op the model asks for and each backend
-  implements its own way. On 8B the matvec's 373 GB/s against a 1 TB/s
-  memory is most of the story. The K-quant row paths are the first
-  correct version and sit at 123 to 163 GB/s against Q8_0's 373. Then,
-  once decode is at the floor, the two checks the user asked for on
-  2026-09-21: a 16384-token prompt with 512 generated tokens beside the
-  247/32 excerpt, with llama.cpp beside it, and a greedy-output hash of
-  the device against the CPU on the same file. Every number above is a
-  single run unless the runs are listed, and none is claimed until a
-  paired comparison is recorded.
+  Eleventh, the residual add folded into the matmul's store. The model
+  asks for `matmul_add`, Y += W X, and each backend produces it its own
+  way: the CPU computes into scratch and adds, the same arithmetic as
+  before to the bit, the device sets a flag in the row and tile kernels'
+  push constants and the store becomes an accumulate. Two dispatches
+  fewer per layer; 0.6B Q8_0 decode 137 to 140-146 tok/s, 8B 35.5 to
+  35.8, checked against the CPU at batch widths 1, 3 and 64.
+
+  Twelfth, and the one that changes the reading of every table above:
+  the user asked whether the measurement was right, and it was not
+  matched. The reference's bench tool warms up, then averages three
+  repeats of prompt processing into an empty history and of generating
+  32 tokens from an empty history, model time only. `generate --verbose`
+  gave one cold run whose decode came after the 247-token prompt, so
+  with attention over 250 to 280 tokens every step, with sampling and
+  text output inside the timer and the clock ramp in the first tokens.
+  `llmx bench --model` now runs the reference's protocol (docs/USAGE.md),
+  and the same binary that read 138 tok/s under `generate` reads 202
+  under it. Both arms in the same minutes, same card and files:
+
+  | model | phase | reference b11075 Vulkan | llmx Vulkan | llmx share |
+  |---|---|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | pp247 | 651.2 +- 4.3 tok/s | 1507.6 +- 5.1 | 232% |
+  | Qwen3-0.6B-Q8_0 | tg32 | 195.1 +- 0.6 tok/s | 201.9 +- 0.2 | 103% |
+  | Qwen3-0.6B-Q4_0 | pp247 | 669.7 +- 3.1 tok/s | 1367.1 +- 5.0 | 204% |
+  | Qwen3-0.6B-Q4_0 | tg32 | 220.8 +- 0.9 tok/s | 194.8 +- 1.5 | 88% |
+  | Qwen3-0.6B-Q5_K_M | pp247 | 518.1 +- 1.6 tok/s | 875.1 +- 3.5 | 169% |
+  | Qwen3-0.6B-Q5_K_M | tg32 | 219.8 +- 1.0 tok/s | 169.4 +- 0.7 | 77% |
+  | Qwen3-8B-Q8_0 | pp247 | 97.0 +- 0.5 tok/s | 232.5 +- 0.4 | 240% |
+  | Qwen3-8B-Q8_0 | tg32 | 38.8 +- 0.1 tok/s | 40.6 +- 0.1 | 105% |
+
+  Q8_0 decode is at the floor on both models under the matched protocol.
+  The earlier tables stand as what `generate --verbose` measured, both
+  arms' figures at the time; they are not the floor comparison.
+- **Left:** decode on the 4- and 5-bit files, at 88 and 77 percent of the
+  reference under the matched protocol; their row kernels are the first
+  correct version at 123 to 163 GB/s against Q8_0's 373, and the four
+  bytes per value of activations now cost as much as the weights. Then
+  the remaining fusions, the norm before each matmul and the q/k
+  norm-rope plus KV write, each an op the model asks for and each
+  backend implements its own way, measured on all four files. Then the
+  two checks the user asked for on 2026-09-21: a 16384-token prompt with
+  512 generated tokens beside the 247/32 case, reference beside it, and
+  a greedy-output hash of the device against the CPU on the same file.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

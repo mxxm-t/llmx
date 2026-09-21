@@ -184,6 +184,13 @@ public:
     virtual void matmul(uint32_t type, CSlice data, CSlice X,
                         Slice Y, size_t nin, size_t nout, size_t nbatch) = 0;
 
+    // Y += W X, the projection whose output joins the residual stream: the
+    // model asks for the sum and each backend produces it its own way. The
+    // CPU computes the product into scratch and adds; a device folds the
+    // add into the matmul's store, one dispatch fewer per projection.
+    virtual void matmul_add(uint32_t type, CSlice data, CSlice X,
+                            Slice Y, size_t nin, size_t nout, size_t nbatch) = 0;
+
     // Gather `count` rows of an embedding table into `dst`, row-major, `nin`
     // floats each. This is an op rather than a model-side read because the
     // table is a Buffer: a device backend holds it in its own memory and the

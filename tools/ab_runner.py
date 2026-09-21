@@ -115,7 +115,7 @@ def cmd_plan(args):
         "limits": "One model and one prompt. Host load is recorded, not "
                   "controlled. This runner covers only the regression half of "
                   "the bar, baseline against candidate. The external "
-                  "mx-llama.cpp floor is a separate matched comparison and is "
+                  "reference floor is a separate matched comparison and is "
                   "NOT run here; a step that passes this runner still has to "
                   "clear that floor.",
     }

@@ -340,6 +340,20 @@ size_t check_kernels(backend::Backend& vk) {
                 }
             }
         }
+        // matmul_add: the product joins what Y already holds, on the row
+        // kernel and on the tile kernel, against the CPU's scratch-and-add.
+        for (size_t nbatch : {size_t(1), size_t(3), size_t(64)}) {
+            const auto xa = uniform(nbatch * nin, 20 + (uint32_t)nbatch);
+            Pair::In xi = p.in(xa);
+            const auto y0 = uniform(nbatch * nout, 21 + (uint32_t)nbatch);
+            Pair::Out d = p.out(nbatch * nout);
+            p.cpu.write(*d.c, 0, y0.data(), y0.size() * sizeof(float));
+            p.vk.write(*d.v, 0, y0.data(), y0.size() * sizeof(float));
+            p.cpu.matmul_add(gguf::GGML_TYPE_Q8_0, wqi.cs(), xi.cs(), d.cs(), nin, nout, nbatch);
+            p.vk.matmul_add(gguf::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
+            auto r = p.results(d);
+            values += close(r.first, r.second, 1e-4, "matmul_add differs beyond 1e-4");
+        }
         bool rejected = false;
         try { p.vk.matmul(1u /* F16, no kernel */, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
         catch (const std::runtime_error&) { rejected = true; }

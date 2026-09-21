@@ -182,7 +182,7 @@ inline void register_builtins() {
     r.add(gguf::GGML_TYPE_Q4_1,
           { "Q4_1", gguf::Q4_1_BLOCK, gguf::Q4_1_TYPESIZE,
             quantize_row_q4_1, dequantize_row_q4_1 });
-    // Q6_K is read-only: llama.cpp upgrades a few tensors to it inside an
+    // Q6_K is read-only: converters upgrade a few tensors to it inside an
     // otherwise Q4_0 file, so llmx needs to LOAD it, but nothing here produces
     // it and a quantizer would be unused code.
     r.add(gguf::GGML_TYPE_Q4_K,

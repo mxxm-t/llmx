@@ -322,6 +322,21 @@ public:
                     (const uint8_t*)src.host_ptr() + src_off, bytes);
     }
 
+    // The product lands in a scratch buffer kept across calls and is added
+    // to Y, so the arithmetic is the separate matmul and add exactly.
+    void matmul_add(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
+                    size_t nin, size_t nout, size_t nbatch) override {
+        const size_t bytes = nout * nbatch * sizeof(float);
+        if (!add_scratch_ || add_scratch_bytes_ < bytes) {
+            add_scratch_ = alloc(bytes, Memory::device);
+            add_scratch_bytes_ = bytes;
+        }
+        matmul(type, weights, X_s, {add_scratch_.get(), 0}, nin, nout, nbatch);
+        add(Y_s, {add_scratch_.get(), 0}, nout * nbatch);
+    }
+    BufferPtr add_scratch_;
+    size_t add_scratch_bytes_ = 0;
+
     void matmul(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
                 size_t nin, size_t nout, size_t nbatch) override {
         const uint8_t* data = (const uint8_t*)bytes_at(weights);

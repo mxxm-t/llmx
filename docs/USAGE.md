@@ -202,14 +202,14 @@ Flags:
 Perplexity evaluates one token at a time to obtain every target's logits.
 `--ubatch` and `--threads-batch` / `-tb` remain accepted for compatibility but
 do not affect this command. This all-target window policy differs from
-llama.cpp modes that exclude a warmup half-window; compare scores only with
+scoring modes elsewhere that exclude a warmup half-window; compare scores only with
 identical input bytes, token IDs, window boundaries and target selection.
 
 ## Threads: generation vs prefill
 
 For `generate` and `chat`, `--threads` is the CPU worker count for **decode** and
 `--threads-batch` / `-tb` is the count for **prefill**, defaulting to
-`--threads`. These are llama.cpp's `-t` and `-tb`.
+`--threads`. The short forms are `-t` and `-tb`.
 
 Prefill and decode can favor different counts. Measure the chosen model and
 hardware; the matched thread-scaling tables in ASSETS record the tested cases.
@@ -245,7 +245,7 @@ backend runs the real models.
 graph. It sets the matmul width and the size of the prefill scratch buffers,
 and it only affects prompt processing; generation is one token at a time.
 
-It is llama.cpp's `n_ubatch` (`-ub`), not `n_batch`. llmx has no logical batch:
+It is the physical batch (`-ub`), not a logical batch. llmx has no logical batch:
 there is one sequence and no queue, so the prompt is the batch. That
 distinction starts to matter only with the multi-user server in
 `docs/ROADMAP.md` #7, where tokens from different sequences are merged into one
@@ -284,7 +284,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--topp F`              | top-p nucleus truncation (1.0 = off)                 | 0.95    |
 | `--penalty F`           | repetition penalty (>= 1)                            | 1.0     |
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
-| `--ubatch N`            | prefill physical batch (llama.cpp `n_ubatch` / `-ub`) | 512     |
+| `--ubatch N`            | prefill physical batch (`-ub`)               | 512     |
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
 | `--device D`            | backend: `cpu`, or `vulkan:N` in a build with it     | `cpu`   |
 | `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |
@@ -343,7 +343,25 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-For matched real-model measurements against mx-llama.cpp, use
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D]`
+
+The matched real-model measurement: a warm-up of each test, then `--r`
+repeats (default 3) of prompt-processing `--p` tokens in one batch into an
+empty history (`pp N`) and of generating `--n` tokens one at a time from
+an empty history (`tg N`). Only model time is inside the timer: token ids
+are fixed, sampling and text output are excluded, and every repeat starts
+from a cleared history. The report is the mean and standard deviation of
+tokens per second, the protocol reference runtimes' bench tools use for
+the same `-p N -n N -r R`, so the figures compare directly.
+`generate --verbose` also prints `pp` and `tg`, but its `tg` is a single
+cold run decoding after the prompt with sampling inside the timer, which
+is a different measurement.
+
+```
+llmx bench --model Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --p 247 --n 32 --r 3
+```
+
+For matched CPU measurements against the reference runtime, use
 `tools/compare_cpu.py --llmx PATH --reference PATH --reference-revision SHA
 --model MODEL.gguf --output NEW_DIRECTORY [--threads N] [--rounds N]`.
 The driver sets the same thread count for prefill and decode in both arms,

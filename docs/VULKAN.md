@@ -242,7 +242,16 @@ The two project gates apply unchanged (ROADMAP #8):
   same model, quant and prompt, prefill and decode tokens per second, the
   matched comparison `tools/compare_cpu.py` already makes for the CPU. A
   Vulkan backend slower than the thing it replaces has no claim to being
-  a runtime, exactly as for the CPU.
+  a runtime, exactly as for the CPU. The measurement is `llmx bench
+  --model F --device vulkan:0 --p N --n N --r R` beside the reference's
+  bench tool with the same `-p N -n N -r R`: both warm up, both time
+  model work only, both process the prompt into an empty history and
+  generate from an empty history, and both report the mean of R repeats.
+  `generate --verbose` is not that measurement: its decode figure is one
+  cold run after the prompt with sampling inside the timer, and on
+  Qwen3-0.6B-Q8_0 it read 138 tok/s where the matched protocol reads 202
+  against the reference's 195, so the floor tables below name which
+  protocol each number came from.
 
 There is a third number worth recording but not gating on: the CPU
 backend on the same machine. The Ryzen 7 5800X does 0.6B decode at about

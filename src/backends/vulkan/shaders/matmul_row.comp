@@ -51,8 +51,9 @@ layout(push_constant) uniform P {
     uint nout0; uint type0; uint wide0; uint start0;
     uint nout1; uint type1; uint wide1; uint start1;
     uint nout2; uint type2; uint wide2; uint start2;
+    uint accum;   // Y += rather than Y =, the residual add folded in
 } p;
-layout(set = 0, binding = 0) writeonly buffer Y { float y[]; } ys[3];
+layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; } w16s[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
 layout(set = 0, binding = 3) readonly buffer WF { float wf[]; } wfs[3];
@@ -417,6 +418,9 @@ void main() {
     for (uint c = 0u; c < p.ncols; ++c) {
         float s = acc[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
-        if (l == 0u && row < nout && c < p.ncols) ys[pi].y[(p.col0 + c) * nout + row] = s;
+        if (l == 0u && row < nout && c < p.ncols) {
+            if (p.accum != 0u) ys[pi].y[(p.col0 + c) * nout + row] += s;
+            else ys[pi].y[(p.col0 + c) * nout + row] = s;
+        }
     }
 }

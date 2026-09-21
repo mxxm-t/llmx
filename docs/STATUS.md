@@ -4,6 +4,26 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Device execution step 3: buffers (2026-09-21)
+
+- **Goal:** weights reach the backend as backend-owned handles instead of raw
+  host pointers, so a GPU backend can keep them resident rather than
+  re-uploading per call. Step 3 of the six in
+  [DEVICE-EXECUTION](DEVICE-EXECUTION.md); step 1, pre-resolving tensors,
+  already shipped.
+- **Done:** block opened before the code.
+- **Left:** `Buffer` and `BufferPtr` on the interface with `alloc`, `adopt`,
+  `read`, `write` and `copy`; a CPU buffer that wraps host memory so `adopt`
+  copies nothing; `Weight` holding a handle; `matmul` and `matmul_group`
+  taking it. Retiring `dot_q8_0` and `matvec_q8_0` is separable and comes
+  after, since `bench` still calls one.
+- **Gotchas:** `adopt` must not copy on CPU, or an 8B model doubles peak
+  memory for nothing; the contract is that the source outlives the buffer,
+  which `Model` already requires of the GGUF model. The hot path passes a
+  reference, not a shared pointer: three projections per layer per token is
+  196 handle copies a token if that is got wrong. Expected CPU-neutral; it is
+  a prerequisite, not an optimization.
+
 ## Matched mx gate on a quiet machine (2026-09-21)
 
 The comparison repeated under the rule below, with recorded system CPU of

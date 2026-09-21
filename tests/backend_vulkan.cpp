@@ -212,8 +212,9 @@ size_t check_kernels(backend::Backend& vk) {
     // matmul: F32 and Q8_0 over odd sizes and batch widths that fall
     // inside, on and past the eight-column chunk. The reduction order
     // differs from the CPU's, so a tolerance.
-    for (size_t nin : {size_t(256), size_t(224)}) {
-        // 256 is eight blocks, the word-wide path; 224 is seven, the 16-bit path.
+    for (size_t nin : {size_t(1024), size_t(256), size_t(224)}) {
+        // 1024 is sixteen block pairs, the word-wide path; 256 has too few
+        // pairs for it and 224 an odd block count, both the 16-bit path.
         const size_t nout = 67;
         const auto wf = uniform(nin * nout, 11);
         std::vector<uint8_t> wq(nout * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);

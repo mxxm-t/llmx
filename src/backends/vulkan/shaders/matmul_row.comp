@@ -1,17 +1,22 @@
 #version 450
 // Y[b*nout + o] = dot(row o, X column b). A subgroup handles `rows_per_sg`
 // rows at once, each on a cluster of `cluster` lanes: the cluster's lanes
-// stride over the row's work units and reduce with xor shuffles, so a
-// 1024-wide row no longer leaves three quarters of a subgroup idle. Each
-// lane keeps up to eight batch columns in registers so a weight is read
-// once per chunk of columns. This is the decode kernel; a tile kernel takes
+// stride over the row's work units and reduce with xor shuffles. Each lane
+// keeps up to eight batch columns in registers so a weight is read once
+// per chunk of columns. This is the decode kernel; the tile kernel takes
 // wide batches (docs/VULKAN.md).
 //
-// Q8_0 rows are read as 32-bit words over pairs of blocks: a pair is 68
-// bytes, so a row with an even block count starts every pair on a word
-// boundary, and the activations come in as 16-byte vectors. Rows with an
-// odd block count take the 16-bit path, two values per load. Bytes are
-// sign-extended by a shift up and an arithmetic shift down.
+// Q8_0 rows with at least eight block pairs take the wide path: a pair is
+// 68 bytes, 17 words, and eight consecutive lanes share one pair, lane t
+// loading words t, t + 8 and, for lane 0, word 16, so a load instruction
+// touches 32 contiguous bytes per pair instead of four. The two scales
+// live in words 0 and 8 and every lane of the pair reads them, which the
+// hardware serves as one broadcast. The loop is unrolled by hand and the
+// accumulators are scalars: a generic loop over words with accumulator
+// arrays indexed by column spilled to scratch and ran ten times slower.
+// Rows with fewer or an odd number of blocks take the 16-bit path, two
+// values per load. Bytes are sign-extended by a shift up and an
+// arithmetic shift down.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
@@ -20,7 +25,7 @@
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint nin; uint nout; uint nbatch; uint type; uint col0; uint ncols; uint wide;
-    uint cluster; uint rows_per_sg;
+    uint cluster; uint rows_per_sg; uint lpp;
 } p;
 layout(set = 0, binding = 0) writeonly buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
@@ -34,10 +39,25 @@ int b1(uint w) { return (int(w << 16u)) >> 24; }
 int b2(uint w) { return (int(w << 8u)) >> 24; }
 int b3(uint w) { return int(w) >> 24; }
 
-// Sixteen quantized values in four words against sixteen activations.
-float dot16(uint a, uint b, uint c, uint d, vec4 x0, vec4 x1, vec4 x2, vec4 x3) {
-    return dot(vec4(b0(a), b1(a), b2(a), b3(a)), x0) + dot(vec4(b0(b), b1(b), b2(b), b3(b)), x1) +
-           dot(vec4(b0(c), b1(c), b2(c), b3(c)), x2) + dot(vec4(b0(d), b1(d), b2(d), b3(d)), x3);
+// The four values of word `d` of a pair against the activations of the
+// pair's 64 positions starting at xb. Word 0 holds a scale and values 0
+// and 1 of block 0; words 1..7 hold values 4d-2..4d+1 of block 0; word 8
+// holds values 30 and 31 of block 0 and the second scale; words 9..16 hold
+// values 4d-36..4d-33 of block 1, which is position 32 + that.
+void word_dot(uint w, uint d, uint xb, uint col_base, inout float p0, inout float p1) {
+    if (d == 0u) {
+        p0 += float(b2(w)) * x[col_base + xb] + float(b3(w)) * x[col_base + xb + 1u];
+    } else if (d < 8u) {
+        uint v = xb + 4u * d - 2u;
+        p0 += float(b0(w)) * x[col_base + v] + float(b1(w)) * x[col_base + v + 1u] +
+              float(b2(w)) * x[col_base + v + 2u] + float(b3(w)) * x[col_base + v + 3u];
+    } else if (d == 8u) {
+        p0 += float(b0(w)) * x[col_base + xb + 30u] + float(b1(w)) * x[col_base + xb + 31u];
+    } else {
+        uint v = xb + 4u * d - 4u;
+        p1 += float(b0(w)) * x[col_base + v] + float(b1(w)) * x[col_base + v + 1u] +
+              float(b2(w)) * x[col_base + v + 2u] + float(b3(w)) * x[col_base + v + 3u];
+    }
 }
 
 void main() {
@@ -52,33 +72,23 @@ void main() {
             uint nblocks = p.nin / Q8_0_BLOCK;
             uint npairs = nblocks / 2u;
             uint wbase = row * nblocks * 17u / 2u;   // words: a pair is 17
-            for (uint j = l; j < npairs; j += p.cluster) {
+            uint group = l / 8u, t = l - group * 8u;   // eight lanes per pair
+            uint groups = p.cluster / 8u;
+            for (uint j = group; j < npairs; j += groups) {
                 uint o = wbase + j * 17u;
-                uint w0 = w32[o], w1 = w32[o + 1u], w2 = w32[o + 2u], w3 = w32[o + 3u];
-                uint w4 = w32[o + 4u], w5 = w32[o + 5u], w6 = w32[o + 6u], w7 = w32[o + 7u];
-                uint w8 = w32[o + 8u], w9 = w32[o + 9u], w10 = w32[o + 10u], w11 = w32[o + 11u];
-                uint w12 = w32[o + 12u], w13 = w32[o + 13u], w14 = w32[o + 14u], w15 = w32[o + 15u];
-                uint w16v = w32[o + 16u];
-                float s0 = unpackHalf2x16(w0).x;
-                float s1 = unpackHalf2x16(w8).y;
-                // Block 0's values are bytes 2..33: the top half of w0, w1..w7,
-                // the low half of w8. Re-pack them into whole words.
-                uint a0 = (w0 >> 16u) | (w1 << 16u);
-                uint a1 = (w1 >> 16u) | (w2 << 16u);
-                uint a2 = (w2 >> 16u) | (w3 << 16u);
-                uint a3 = (w3 >> 16u) | (w4 << 16u);
-                uint a4 = (w4 >> 16u) | (w5 << 16u);
-                uint a5 = (w5 >> 16u) | (w6 << 16u);
-                uint a6 = (w6 >> 16u) | (w7 << 16u);
-                uint a7 = (w7 >> 16u) | (w8 << 16u);
-                uint xq = j * 16u;   // vec4 index of the pair's 64 activations
+                uint wa = w32[o + t];
+                uint wb = w32[o + t + 8u];
+                uint wc = (t == 0u) ? w32[o + 16u] : 0u;
+                float s0 = unpackHalf2x16(w32[o]).x;
+                float s1 = unpackHalf2x16(w32[o + 8u]).y;
+                uint xb = j * 64u;
                 for (uint c = 0u; c < p.ncols; ++c) {
-                    uint xo = ((p.col0 + c) * p.nin) / 4u + xq;
-                    float d0 = dot16(a0, a1, a2, a3, x4[xo], x4[xo + 1u], x4[xo + 2u], x4[xo + 3u]) +
-                               dot16(a4, a5, a6, a7, x4[xo + 4u], x4[xo + 5u], x4[xo + 6u], x4[xo + 7u]);
-                    float d1 = dot16(w9, w10, w11, w12, x4[xo + 8u], x4[xo + 9u], x4[xo + 10u], x4[xo + 11u]) +
-                               dot16(w13, w14, w15, w16v, x4[xo + 12u], x4[xo + 13u], x4[xo + 14u], x4[xo + 15u]);
-                    acc[c] += s0 * d0 + s1 * d1;
+                    uint col_base = (p.col0 + c) * p.nin;
+                    float p0 = 0.0, p1 = 0.0;
+                    word_dot(wa, t, xb, col_base, p0, p1);
+                    word_dot(wb, t + 8u, xb, col_base, p0, p1);
+                    if (t == 0u) word_dot(wc, 16u, xb, col_base, p0, p1);
+                    acc[c] += s0 * p0 + s1 * p1;
                 }
             }
         } else if (p.type == TYPE_Q8_0) {

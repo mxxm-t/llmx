@@ -108,10 +108,10 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   | model | phase | llama.cpp b11075 Vulkan | llmx Vulkan | llmx share |
   |---|---|---:|---:|---:|
-  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 1025 | 155% |
-  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 101 | 51% |
+  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 1210 | 183% |
+  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 104 | 53% |
   | Qwen3-8B-Q8_0 | prefill | 99 tok/s | 220 | 222% |
-  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 21.8 | 55% |
+  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 28.1 | 71% |
 
   Prefill clears the reference on both models since the tile kernel;
   decode is at about half of it, and the roadmap's bar is the reference,
@@ -136,11 +136,21 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   rather than once per eight columns; batches of 16 and up take it.
   Prefill 449 to 1025 tok/s on 0.6B and 40 to 220 on 8B, checked against
   the CPU at batch widths 16, 64, 100 and 247 at 1e-4.
-- **Left:** decode, where the matvec streams the 8B matrices at about
-  210 GB/s on a 1 TB/s card because consecutive lanes read 68 bytes
-  apart; then sub-step 6, the remaining quant kernels. Every number
-  above is a single run and none is claimed until a paired comparison is
-  recorded.
+  Fifth, the matvec's access pattern: eight consecutive lanes share one
+  block pair, lane t loading words t, t + 8 and, for lane 0, word 16, so
+  a load instruction touches 32 contiguous bytes per pair instead of
+  four, and every lane reads the two scales directly, which the hardware
+  serves as one broadcast and which beat a shuffle. The 8B matrices went
+  from 210 to about 295 GB/s and 8B decode from 21.8 to 28.1 tok/s. Two
+  variants measured and rejected: a generic loop over words with
+  accumulator arrays indexed by column spilled to scratch and ran at 27
+  GB/s, and two pairs per iteration cost occupancy and lost a few percent.
+- **Left:** decode, still at about half the reference on 0.6B, where the
+  seven matvecs of a layer are 16 to 30 us each and mostly latency: the
+  next change runs the q, k and v projections, and gate and up, as one
+  dispatch each. Then sub-step 6, the remaining quant kernels. Every
+  number above is a single run and none is claimed until a paired
+  comparison is recorded.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

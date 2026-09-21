@@ -809,22 +809,27 @@ public:
         // The word-wide path needs every row to start on a word boundary,
         // which an even block count gives, and X columns on 16 bytes, which
         // a column width that is whole blocks gives.
-        const uint32_t wide = type == gguf::GGML_TYPE_Q8_0 && (nin / gguf::Q8_0_BLOCK) % 2 == 0 &&
-                              X.offset % 4 == 0 ? 1u : 0u;
-        // A row's work units: block pairs, blocks, or floats. A cluster of
-        // lanes takes one row, sized to the units so a narrow row does not
-        // idle most of a subgroup, and a subgroup takes several rows.
-        const size_t units = type == gguf::GGML_TYPE_Q8_0
-            ? (wide ? nin / gguf::Q8_0_BLOCK / 2 : nin / gguf::Q8_0_BLOCK) : nin;
-        uint32_t cluster = 1;
+        // The wide path takes eight lanes per block pair and needs at
+        // least eight pairs, an even block count so every row starts on a
+        // word boundary, and a subgroup of at least eight.
+        const size_t nblocks = nin / gguf::Q8_0_BLOCK;
+        const uint32_t wide = type == gguf::GGML_TYPE_Q8_0 && nblocks % 2 == 0 && nblocks / 2 >= kLanesPerPair &&
+                              dev_->subgroup_size >= kLanesPerPair ? 1u : 0u;
+        // A row's work units: lanes over block pairs, blocks, or floats. A
+        // cluster of lanes takes one row, sized to the units so a narrow
+        // row does not idle most of a subgroup, and a subgroup takes
+        // several rows.
+        const uint32_t lpp = kLanesPerPair;
+        const size_t units = type == gguf::GGML_TYPE_Q8_0 ? (wide ? nblocks / 2 * lpp : nblocks) : nin;
+        uint32_t cluster = wide ? lpp : 1;
         while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
         const uint32_t rows_per_sg = dev_->subgroup_size / cluster;
         const uint32_t rows_per_group = (256 / dev_->subgroup_size) * rows_per_sg;
         const uint32_t g = groups(nout, rows_per_group);
         for (size_t col0 = 0; col0 < nbatch; col0 += 8) {
             const size_t ncols = std::min<size_t>(8, nbatch - col0);
-            const uint32_t pc[9] = {u32(nin), u32(nout), u32(nbatch), type, u32(col0), u32(ncols), wide,
-                                    cluster, rows_per_sg};
+            const uint32_t pc[10] = {u32(nin), u32(nout), u32(nbatch), type, u32(col0), u32(ncols), wide,
+                                     cluster, rows_per_sg, lpp};
             dispatch(K_MATMUL_ROW, {bind(Y), bind(w), bind(w), bind(w), bind(X), bind(X)},
                      pc, sizeof(pc), g);
         }
@@ -942,6 +947,7 @@ public:
 
 private:
     static const uint32_t kRing = 4;
+    static const uint32_t kLanesPerPair = 8;
     static const size_t kStagingBytes = size_t(64) << 20;
     static const size_t kArenaBytes = size_t(1) << 20;
     static const uint32_t kPushBytes = 128;

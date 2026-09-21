@@ -985,12 +985,23 @@ public:
             }
             return;
         }
-        // One cluster size serves the dispatch, so every projection must
-        // take the same path: the types are the same in the models here,
-        // and a mixed group falls back to one dispatch each.
+        // One cluster size and one module serve a dispatch, so every
+        // projection in it has the same type. A mixed group, such as the
+        // Q5_K q and k beside the Q6_K v of a Q5_K_M file, is partitioned
+        // by type and each partition is one dispatch: two for that group
+        // rather than three.
         for (size_t i = 1; i < live.size(); ++i)
             if (live[i]->type != live[0]->type) {
-                for (const Projection* pr : live) matmul_group_impl({*pr}, X, nin, nbatch, accumulate);
+                std::vector<Projection> same, rest;
+                for (const Projection* pr : live)
+                    (pr->type == live[0]->type ? same : rest).push_back(*pr);
+                auto run = [&](const std::vector<Projection>& v) {
+                    if (v.size() == 1) matmul_group_impl({v[0]}, X, nin, nbatch, accumulate);
+                    else if (v.size() == 2) matmul_group_impl({v[0], v[1]}, X, nin, nbatch, accumulate);
+                    else matmul_group_impl({v[0], v[1], v[2]}, X, nin, nbatch, accumulate);
+                };
+                run(same);
+                run(rest);
                 return;
             }
         // The row kernel's work units and the lanes that share one, per

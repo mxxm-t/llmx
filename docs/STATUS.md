@@ -417,12 +417,25 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   The default stays f32 for now: the flags exist, the gate passes with
   f16, and switching the default is a separate decision recorded when it
   is taken.
-- **Left:** decode on the 4- and 5-bit files, at 93 and 80 percent of
-  the reference under the matched protocol; their row kernels are the
-  first correct version at 123 to 163 GB/s against Q8_0's 373. The tiled
-  attention does not yet share a K/V tile across the query heads of a KV
-  group. And the question of the default cache type, f16 being the
-  reference's default and passing the gate here.
+  Nineteenth, mixed groups partitioned by type. A Q5_K_M layer's q and k
+  are Q5_K and its v is Q6_K, and a group of mixed types fell back to
+  one dispatch per projection; it is now one dispatch per type, two for
+  that group instead of three. Q5_K_M tg32 176.7 to 185.7 +- 0.5 tok/s
+  (84 percent of the reference's 219.8); Q4_0, whose groups are pure,
+  read 211.2 +- 0.3 in the same minutes against 205.4 earlier, which is
+  the session's drift, not the change. After the reduction fix the row
+  kernel's per-type readings at the 8B shapes are Q8_0 415 GB/s, Q6_K
+  215, Q5_K 179, Q4_0 178, Q4_K 167, and the Q6_K head of the 0.6B
+  files, 151,936 rows of 1024, takes 693 us at 184 GB/s, 7 percent of a
+  Q5_K_M token; at 1024 wide every row's lanes re-read the whole
+  activation row, 620 MB of cache traffic against 127 MB of weights.
+- **Left:** decode on the 4- and 5-bit files, at 93 and 84 percent of
+  the reference under the matched protocol: the Q6_K head and the
+  K-quant row kernels at 1024 wide, where the activation re-read per row
+  is the traffic. The tiled attention does not yet share a K/V tile
+  across the query heads of a KV group. And the question of the default
+  cache type, f16 being the reference's default and passing the gate
+  here.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

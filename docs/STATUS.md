@@ -32,10 +32,12 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   A/A on that cell spans -5.94% to +3.03%, which is the spread this sits in.
   Treat a median that disagrees with its own mean as a signal to take more
   pairs rather than to accept or reject.
-- **Left:** `dequant_row` is the last place the model reads weight bytes
-  itself, for the embedding lookup; it goes away when `embed` becomes a
-  backend op. Retiring `dot_q8_0` and `matvec_q8_0` is separable, since
-  `bench` still calls one.
+- **Done (embedding):** `embed` is a backend op and `dequant_row` is gone,
+  so the model no longer reads weight bytes anywhere. The op takes the row
+  count and rejects an out-of-range token id, which the model-side version
+  never checked. Native 17/17, Python suite 11/11, logits byte-identical.
+- **Left:** retiring `dot_q8_0` and `matvec_q8_0` is separable, since `bench`
+  still calls one. Then step 4, the activation arena.
 - **Gotchas:** `adopt` must not copy on CPU, or an 8B model doubles peak
   memory for nothing; the contract is that the source outlives the buffer,
   which `Model` already requires of the GGUF model. The hot path passes a

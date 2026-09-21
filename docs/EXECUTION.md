@@ -27,6 +27,12 @@ guessed:
 5. **Overlap where it pays.** The device must not idle while the host
    samples, and a second device must not wait for the first at every
    microbatch.
+6. **Architectures this project does not run yet.** Hybrid compressed
+   attention, mixture of experts, lookup-table memory and residual mixing
+   are current designs (DeepSeek V4 and V4.1 carry all four), and the
+   interface must not bake in the dense-Qwen assumptions that would have to
+   be undone for them. The section "Beyond dense Qwen" lists which
+   assumptions those are; the steps below are written to avoid them.
 
 **Per-row (tensor-parallel) split is dropped from the roadmap.** It moves
 data between devices at every projection of every layer, so it only pays
@@ -139,6 +145,15 @@ gone because both follow from the view. The CPU implementation is a loop
 over views around the code it has now; a device backend gets all sequences
 in one launch, which is what continuous batching needs from it.
 
+`length` and the block table are counted in the **entries of that
+storage**, which for the dense cache is tokens. A storage whose entry
+stands for several tokens (compressed attention) has a shorter table with
+the same contract. Nothing in the view says what an entry contains; the
+storage that was allocated does, and `kv_alloc` describes an entry by its
+key and value widths rather than by a head count and a head dimension, so
+a latent-attention row (one wide key, a narrower value, no heads) is the
+same call with different numbers.
+
 Logits are wanted for every decode row but only the last row of a prefill
 entry. A batch mixing both selects rows that are not contiguous, so one op
 compacts them before the output norm and head:
@@ -156,8 +171,10 @@ The server needs the first shared and the rest per request and per pass:
 ```
 Model         config, placement, weights per device, RoPE tables per device,
               the backends. Read-only after construction; shared.
-Sequence      one request's history: a KVSequence per device that holds
-              layers, the committed length, the ticket of its last pass.
+Sequence      one request's history: a KVSequence per storage, the
+              committed length, the ticket of its last pass. A device may
+              host several storages (one per attention kind), which is why
+              the table is per storage and not per device.
 ExecContext   one pass in flight: an activation arena per device, the
               host-visible logits buffer, a host staging vector for
               transfers, and its tickets.
@@ -179,18 +196,30 @@ against a device pass, so that gain is measured before it is claimed.
 
 ### Placement
 
+Placement is a device per **tensor role**, not per layer: a layer's
+attention, its feed-forward block, the embedding table, the output head.
+The roles a dense model has are few, and the struct starts with those:
+
 ```cpp
 struct Placement {
-    std::vector<int> layer_device;   // device index per layer
+    std::vector<int> attn_device;   // per layer
+    std::vector<int> ffn_device;    // per layer; the routed experts of an MoE layer
     int embed_device;
     int output_device;
 };
 ```
 
-Each device hosts the layers placed on it, in its own `KVStorage`, with its
-own block size and its own pool; a `Sequence` therefore holds one block
-table per device and prepares, commits and aborts them together. Weights
-are adopted by the backend that hosts them.
+Splitting attention from feed-forward at the outset is what expert offload
+needs later: on a mixture-of-experts model the routed experts are most of
+the parameters while few are active per token, so attention stays on the
+device and the experts run on the CPU from the mapped file, and the
+placement that expresses it is the same struct with a different value.
+
+Each device hosts the storages for the layers placed on it, with its own
+block size and its own pool; a `Sequence` therefore holds one block table
+per storage and prepares, commits and aborts them together. Weights are
+adopted by the backend that hosts them, which on the CPU is the mapped
+GGUF bytes and costs no RAM.
 
 Wherever two consecutive graph nodes sit on different devices the residual
 stream crosses: `read` from the source into the context's staging vector,
@@ -210,8 +239,17 @@ Flags follow llama.cpp's names so the vocabulary carries over: `--device`
 selects the backend (`cpu`, `vulkan:0`, `rocm:0`), `--n-gpu-layers N` puts
 the last `N` layers on it and the rest on CPU, and the embedding table
 stays on CPU unless every layer is on the device. `--tensor-split` waits
-for a second device to exist. The flags land with the placement, in
-`docs/USAGE.md` and `print_usage` together.
+for a second device to exist, and an expert override waits for a model
+with experts. The flags land with the placement, in `docs/USAGE.md` and
+`print_usage` together. Choosing a fit automatically needs each backend to
+report its free memory; that query is added with the first device backend
+that can answer it.
+
+Two implementation notes for the crossing itself. A `read` whose
+destination is host-addressable lands directly in it, so a device-to-CPU
+crossing is one copy. And what the design does not do is stream weights
+into the device per token: moving an expert's bytes across the bus every
+token is slower than running it where it is.
 
 ## Order of work
 
@@ -236,6 +274,46 @@ counts, one holding layers 0 to k and the other the rest, must produce the
 same bytes as one backend, because per-layer arithmetic is unchanged and
 only the residual stream crosses. That checks every piece of the plumbing
 before a device is involved.
+
+## Beyond dense Qwen
+
+The models this project will be asked to run next do four things dense
+Qwen does not, and each is an addition on top of the interface above
+rather than a change to it, provided the steps do not assume otherwise.
+The assumptions to avoid are marked.
+
+- **Hybrid compressed attention** (DeepSeek V4: layers that pool every 4
+  or 128 tokens into one entry, a lightning indexer choosing the top
+  entries per query, a 128-token sliding window over raw tokens; V4.1
+  shares one layer's entries and indices across following layers). Needs:
+  several storages per model with different entries per token, which the
+  per-storage table above allows; a per-sequence **state** for the window
+  and for tokens not yet forming a full group, which is fixed-size,
+  private and overwritten, so it is not paged history and is copied on
+  fork rather than shared; a compress op, an indexer plus top-k op, and an
+  attention variant taking a selected index list. Cross-layer reuse is a
+  view naming another layer's entries, which the view can already do. Do
+  not assume one entry per token, one storage per device, or that a
+  sequence holds only refcounted blocks.
+- **Mixture of experts.** A routed matmul over the experts each token
+  selected, and expert placement, which the per-role placement above
+  carries. Do not assume the feed-forward block is on the layer's device.
+- **Lookup-table memory** (Engram: hashed n-gram tables, 196B parameters
+  on V4.1-Flash). An embed-like gather over a table that on any hardware
+  here lives in host memory; per-tensor placement is what puts it there.
+- **Residual mixing** (mHC: the residual add becomes a per-token mix over
+  several parallel streams). The residual stream is wider and the `add` op
+  becomes a mixing op. Do not assume the arena holds one residual row of
+  `n_embd` per token.
+- **Low-precision cache rows.** The storage contract already leaves dtype
+  to the backend; the CPU cache implements F32 only, and FP8 or FP4 rows
+  with per-group scales are a kernel addition with its own HF gate.
+
+The correctness gate for any of these is the HF reference, and the models
+themselves exceed this hardware by an order of magnitude. The gate is
+therefore a tiny random-weight model of the real architecture generated
+through HF modeling code, which is how `tests/f32.py` already works, and
+a small released member of the family when one exists.
 
 ## Not chosen
 

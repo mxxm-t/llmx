@@ -18,6 +18,13 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   before Vulkan. ROADMAP #4a marked done, #5 rewritten without per-row, #7
   pointed at the design; stale "steps 5 and 6 remain" claims corrected in
   ARCHITECTURE, DEVICE-EXECUTION, README and the backend page.
+- **Done:** amended for architectures beyond dense Qwen (hybrid compressed
+  attention, MoE, lookup-table memory, residual mixing): tables are per
+  storage counted in that storage's entries, `kv_alloc` describes an entry
+  by key and value widths, placement is per tensor role with attention and
+  feed-forward separate, and a sequence may hold private unpaged state.
+  The "Beyond dense Qwen" section lists the assumptions steps 3, 4 and 6
+  must not make.
 - **Left:** step 1 (RoPE table as a buffer, per-row positions, delete
   `rope`), gated. Then 2 to 4, then the Vulkan page.
 - **Gotchas:** step 1 touches the decode path and the layout band applies:

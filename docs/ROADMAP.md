@@ -42,6 +42,12 @@ The `infer::Model` layer is Qwen3-specific today. Generalize to an architecture
 registry keyed by `general.architecture`:
 - Llama (GQA + RoPE, close to Qwen3)
 - Mistral, Gemma (rotary/context differences), Phi
+- DeepSeek V4-class: hybrid compressed sparse attention, mixture of
+  experts, lookup-table memory, residual mixing. What each needs from the
+  execution model, and the assumptions the model layer must not make so
+  they stay additive, is in `docs/EXECUTION.md`, "Beyond dense Qwen".
+  Their released sizes exceed the hardware here; the gate is a tiny
+  random-weight model of the real architecture through HF modeling code.
 - Each arch = a forward-graph file under `model/`, selected at load from metadata
 
 ## 3. More formats

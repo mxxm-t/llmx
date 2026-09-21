@@ -98,7 +98,7 @@ each is gated by its own `LLMX_HAS_BACKEND_*` in `config.hpp`.
   and states that it does not support gfx906; no Instinct card appears in its
   support table. gfx906 also entered ROCm maintenance mode in 5.7 and is
   deprecated, so even on Linux it needs a community or self-built ROCm. This
-  backend is therefore developed and validated on the rig, never on the
+  backend is therefore developed and validated on the Linux machine, never on the
   Windows workstation. `LLMX_HAS_BACKEND_ROCM`
 - **CUDA**: NVIDIA. `LLMX_HAS_BACKEND_CUDA`
 - **SYCL**: Intel, through oneAPI/DPC++ over Level Zero. This is what llama.cpp

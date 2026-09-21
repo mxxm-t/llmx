@@ -13,7 +13,7 @@ mode in 5.7 and is deprecated on Linux too, where it still runs but AMD no
 longer builds for it.
 
 Consequence for the plan, which it confirms rather than changes: the ROCm
-backend is developed and validated on the rig under Linux. Windows keeps the
+backend is developed and validated on the Linux machine. Windows keeps the
 CPU backend. If this workstation ever needs GPU acceleration, the route is
 Vulkan, already the roadmap's portability target and supported by AMD's
 Windows drivers.
@@ -416,11 +416,11 @@ that harness times model inference only and excludes sampling.
 - **Done:** isolated cold, shuffled paging microbenchmark, seven paired
   repeats, two geometries, three lengths: block 16 costs +25-33% on decode
   attention, 128 costs +5-10%, 256 costs +1-3%. Design in
-  [KV-CACHE](KV-CACHE.md), opened for XDEV agreement.
+  [KV-CACHE](KV-CACHE.md), opened for review by the second developer.
 - **Done (step 1):** `model/kv_cache.hpp` (`BlockPool`, `KVSequence`),
   backend `kv_layout`/`kv_alloc`/`kv_write` and view-form `attention`,
   `CpuKVStorage` backed on demand, `HostKVCache` and the raw-pointer
-  attention removed. XDEV's review findings folded in: each step and each
+  attention removed. The review findings are folded in: each step and each
   prompt is one transaction, bookkeeping vectors are reserved so failure
   paths never allocate, pool and sequence own their ids (non-copyable,
   release on destruction), retain rejects free ids, growth copies into
@@ -437,7 +437,7 @@ that harness times model inference only and excludes sampling.
   [KV-CACHE](KV-CACHE.md). Prefill +79.8% (0.6B) and +82.7% (8B) over mx,
   8/8 pairs; decode -0.2% and -3.5%. The 8B decode cell is under the floor
   and is the existing decode bandwidth item, not a paging cost.
-- **Left:** XDEV re-review of the final revision; a decision on the 8B
+- **Left:** re-review of the final revision; a decision on the 8B
   decode cell; then main integration. Fork/COW and device buffers are later
   steps. F16 KV is out of scope.
 - **Gotchas:** the microbenchmark is isolated attention with a cold cache and
@@ -686,15 +686,15 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 ### K-quant and device execution work (separate developer branch)
 
 - **Goal:** improve the remaining K-quant decode path and continue ROADMAP #4a without overlapping this release/placement work.
-- **Done:** LDEV owns the separate `design/device-execution-model` branch and K-quant experiments. Its changes are not incorporated by this release. TUI measurements and source identities must be reviewed before adoption. LDEV reports that quantized-activation commits `357d68d` and `97d52e8` fail `backend-group`; they remain isolated and are not merge-ready. Arithmetic-preserving dispatch work is being separated onto a passing base.
+- **Done:** the separate `design/device-execution-model` branch and the K-quant experiments are not incorporated by this release. Their measurements and source identities must be reviewed before adoption. Quantized-activation commits `357d68d` and `97d52e8` fail `backend-group`; they remain isolated and are not merge-ready. Arithmetic-preserving dispatch work is being separated onto a passing base.
 - **Left:** prospective correctness/performance validation for any new quantized-activation path; backend-owned weights/activations and execution lifetime before vendor GPU kernels. Coordinate rebases after release and announce timing reservations.
 - **Gotchas:** earlier grouped Q16 failed the unchanged native double-dot accuracy contract. Do not reuse it as a lossless baseline or weaken bounds after observing results. CPU Q8 results do not establish K-quant parity.
 
 ## Working rules and ownership
 
-XDEV owns native HF download/cache and sharded GGUF loading. LDEV owns its
-separate K-quant/device work. Coordination uses the TUI on port 8181 and the
-shared devlog; the notification watcher is polled explicitly. Builds and tests
+One developer owns native HF download/cache and sharded GGUF loading; the other owns its
+separate K-quant/device work. Coordination happens in a shared log outside
+this repository. Builds and tests
 may run in parallel when no timing reservation is active. Keep every planned
 performance sample, record ordinary machine activity, and report missing
 telemetry honestly. GitHub receives main only; feature checkpoints stay on Gitea.
@@ -735,7 +735,7 @@ telemetry honestly. GitHub receives main only; feature checkpoints stay on Gitea
 
 ### Prefill placement reassessment with machine activity monitoring
 
-- **Method clarification after LDEV review:** the frozen runner rotates and
+- **Method clarification after review:** the frozen runner rotates and
   reverses the three arm orders inside each model/workload block; model and
   workload order also rotate across one warmup and eight measured rounds.
   Report mean/median rates and elapsed time, paired ranges, sample deviation
@@ -2182,7 +2182,7 @@ feature ships, delete its block and mark the row `Done` above.
   afterwards. Options: re-measure with more pairs under a NEW prospective plan,
   or keep decode on the single-row ops so only prefill changes.
 - **Left:** step 1 still has no admissible measurement of its own; it was timed
-  off-protocol during 57294 (13:33:05-13:52:07 +0300, disclosed in the devlog).
+  off-protocol during 57294 (13:33:05-13:52:07 +0300, disclosed at the time).
   Expected neutral, unproven.
 - **Left:** the external mx-llama.cpp floor is untouched by this runner and
   still applies to any step that advances.
@@ -2190,7 +2190,8 @@ feature ships, delete its block and mark the row `Done` above.
   vendor backend is writable until step 6. Step 3 was started as interface
   plumbing only and reverted: `Buffer` with no caller is a speculative seam,
   which `AGENTS.md` forbids. It must land together with the weight conversion
-  that uses it, which means touching `arch_qwen.hpp` and waiting for XDEV's
+  that uses it, which means touching `arch_qwen.hpp` and waiting for the other
+  developer's
   stack.
 - **Gotchas:**
   - Step 2's first decode reading of +3.40% was an artifact: its two winning
@@ -2224,7 +2225,7 @@ feature ships, delete its block and mark the row `Done` above.
   | Prefill | - | - | -0.93% | -0.64% | 10/15 |
 
   Evidence: `benchmarks/fused-q5k-decode-20260920.json`.
-  **Corrected 2026-09-20 by XDEV's recomputation of all 15 pairs**: the arm
+  **Corrected 2026-09-20 by an independent recomputation of all 15 pairs**: the arm
   means were 8.424 and 12.751333 tok/s, not 8.96 and 13.33. The paired
   +51.369% is unchanged, and Q6_K recomputes to +68.0186%. The original
   figures were read from a single round rather than the arm means.
@@ -2269,7 +2270,7 @@ feature ships, delete its block and mark the row `Done` above.
   built or measured. Expect the same floor gap to remain afterwards.
 - **Left:** propose adding `Qwen3-0.6B-Q5_K_M.gguf` to `BASELINE_MODELS` so
   the external gate covers Q5_K/Q6_K permanently. Deliberately not done here:
-  that list drives `tools/fetch_test_models.py`, which XDEV owns while fixing
+  that list drives `tools/fetch_test_models.py`, which is owned elsewhere while fixing
   CI rate limits, and a third fixture is a third download.
 - **Gotchas:**
   - Prefill does not benefit and cannot: the fused dot only fires at

@@ -394,7 +394,7 @@ ordinary suite still needs only Python's standard library and the built runtime.
 
 The local 8B GGUF is not an independent HF reference. On 2026-09-20, original
 `Qwen/Qwen3-8B` weights/config at revision
-`b968826d9c46dd6066d109eabc6255188de91218` were verified and used on the rig
+`b968826d9c46dd6066d109eabc6255188de91218` were verified and used on the Linux machine
 to generate separate CPU FP32 eager references. The official GGUF repository
 declares that base model and its Q8 LFS digest matches the local file, but its
 exact original conversion revision remains undocumented. The optional consumer
@@ -3234,7 +3234,7 @@ duration and are not an exact coverage measure or subsecond CPU attribution.
 | 8B / followup1 | 502.73% | 488.87% | 489.37% |
 | 8B / followup9 | 488.38% | 495.28% | 523.50% |
 
-Protocol deviation: LDEV later disclosed six MSVC builds, approximately 57
+Protocol deviation: six MSVC builds were later disclosed, approximately 57
 sixteen-thread generation invocations and two suites around 13:33-13:52:07
 +0300. The original disclosure said 14:00; the correction uses artifact
 timestamps, not exact process logs. Both are retained. These jobs violated

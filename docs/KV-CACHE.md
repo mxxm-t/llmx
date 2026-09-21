@@ -2,7 +2,7 @@
 
 Design for the KV cache that the multi-user server (ROADMAP #7) and the device
 execution model (ROADMAP #4a) both need. Status: direction agreed by both
-developers on 2026-09-20; the contract conditions XDEV set are recorded in
+developers on 2026-09-20; the contract conditions the reviewing developer set are recorded in
 their sections below. Step 1 is implemented on the design branch and the
 block-size screening below fixed the CPU block at 128 tokens.
 
@@ -302,7 +302,7 @@ either way.
 
 ## Agreement record
 
-XDEV agreed the direction on 2026-09-20 with six conditions, all accepted
+The reviewing developer agreed the direction on 2026-09-20 with six conditions, all accepted
 and folded into the sections above: 64 stays in the real-model screening;
 the raw-pointer overload goes only after every caller migrates; the byte
 budget is a limit that storage grows toward, with no CLI flag yet; views

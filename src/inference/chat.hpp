@@ -289,6 +289,8 @@ struct Call : Expr { std::shared_ptr<Expr> callee; std::vector<std::shared_ptr<E
         if (name == "replace" && args.size() >= 2) {
             const std::string& f = args[0].to_str();
             const std::string& r = args[1].to_str();
+            // An empty needle matches at the cursor without advancing it.
+            if (f.empty()) return Value::str(s);
             size_t pos = 0; std::string out;
             while ((pos = s.find(f, pos)) != std::string::npos) { out += s.substr(0, pos) + r; s.erase(0, pos + f.size()); pos = 0; }
             out += s;
@@ -296,6 +298,7 @@ struct Call : Expr { std::shared_ptr<Expr> callee; std::vector<std::shared_ptr<E
         }
         if (name == "count" && !args.empty()) {
             const std::string& f = args[0].to_str();
+            if (f.empty()) return Value::number(0);
             size_t pos = 0, cnt = 0;
             while ((pos = s.find(f, pos)) != std::string::npos) { cnt++; pos += f.size(); }
             return Value::number((double)cnt);
@@ -303,6 +306,7 @@ struct Call : Expr { std::shared_ptr<Expr> callee; std::vector<std::shared_ptr<E
         if (name == "split" && !args.empty()) {
             Value r = Value::arr();
             const std::string& sep = args[0].to_str();
+            if (sep.empty()) { r.list.push_back(Value::str(s)); return r; }
             size_t pos = 0;
             while (true) {
                 size_t n = s.find(sep, pos);

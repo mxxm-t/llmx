@@ -1,29 +1,37 @@
 #version 450
-// Causal GQA for one view: one workgroup per (query row, head). The
-// workgroup's subgroups take the history's tokens round robin; inside a
-// subgroup each lane owns dim / subgroup_size elements, a token's score is
-// one subgroupAdd, and the softmax is kept online, a running maximum and
-// sum with the value accumulation rescaled as the maximum moves, so a long
-// history needs no score array. The subgroups' partial states merge through
-// shared memory at the end. Row b of the view attends through length + b.
+// Causal GQA for one view: one workgroup per (query row, head, split), a
+// split being a range of the history's tokens. The workgroup's subgroups
+// take the split's tokens round robin; inside a subgroup each lane owns
+// dim / subgroup_size elements, a token's score is one subgroupAdd, and the
+// softmax is kept online, a running maximum and sum with the value
+// accumulation rescaled as the maximum moves, so a long history needs no
+// score array. The subgroups' partial states merge through shared memory.
+// With one split the result is written; with several, each split's state
+// goes to scratch for attention_merge, which is what keeps a decode token
+// over a long history on enough workgroups to fill the device. Row b of
+// the view attends through hist + b.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint hist; uint nq; uint n_head; uint n_head_kv; uint dim; uint bt; uint row0; float scale;
+    uint nsplit; uint chunk;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
 layout(set = 0, binding = 2) readonly buffer K { float kb[]; };
 layout(set = 0, binding = 3) readonly buffer V { float vb[]; };
 layout(set = 0, binding = 4) readonly buffer T { int blocks[]; };
+layout(set = 0, binding = 5) writeonly buffer S { float scratch[]; };
 shared float qs[256];
 shared float ms[8];
 shared float ls[8];
 shared float accs[8][256];
 void main() {
-    uint b = gl_WorkGroupID.x / p.n_head;
-    uint h = gl_WorkGroupID.x - b * p.n_head;
+    uint split = gl_WorkGroupID.x % p.nsplit;
+    uint rh = gl_WorkGroupID.x / p.nsplit;
+    uint b = rh / p.n_head;
+    uint h = rh - b * p.n_head;
     uint kvh = h / (p.n_head / p.n_head_kv);
     uint lid = gl_LocalInvocationID.x;
     uint nsg = 256u / gl_SubgroupSize;
@@ -32,7 +40,8 @@ void main() {
     uint qbase = (p.row0 + b) * qstride + h * p.dim;
     if (lid < p.dim) qs[lid] = q[qbase + lid];
     barrier();
-    uint end = p.hist + b + 1u;
+    uint end = min(p.hist + b + 1u, (split + 1u) * p.chunk);
+    uint start = split * p.chunk;
     uint bf = p.n_head_kv * p.bt * p.dim;
     // This lane's elements: lane, lane + size, ... below dim; at most four.
     float acc0 = 0.0, acc1 = 0.0, acc2 = 0.0, acc3 = 0.0;
@@ -40,7 +49,7 @@ void main() {
     uint d0 = lane, d1 = lane + gl_SubgroupSize, d2 = lane + 2u * gl_SubgroupSize, d3 = lane + 3u * gl_SubgroupSize;
     float q0 = d0 < p.dim ? qs[d0] : 0.0, q1 = d1 < p.dim ? qs[d1] : 0.0;
     float q2 = d2 < p.dim ? qs[d2] : 0.0, q3 = d3 < p.dim ? qs[d3] : 0.0;
-    for (uint t = sg; t < end; t += nsg) {
+    for (uint t = start + sg; t < end; t += nsg) {
         uint base = uint(blocks[t / p.bt]) * bf + (kvh * p.bt + t % p.bt) * p.dim;
         float part = 0.0;
         if (d0 < p.dim) part += q0 * kb[base + d0];
@@ -72,6 +81,13 @@ void main() {
             L += ls[i] * c;
             A += accs[i][lid] * c;
         }
-        o[qbase + lid] = A / L;
+        if (p.nsplit == 1u) {
+            o[qbase + lid] = A / L;
+        } else {
+            // Unnormalized: m, l and the accumulation, dim + 2 floats.
+            uint sbase = (rh * p.nsplit + split) * (p.dim + 2u);
+            scratch[sbase + 2u + lid] = A;
+            if (lid == 0u) { scratch[sbase] = M; scratch[sbase + 1u] = L; }
+        }
     }
 }

@@ -1,9 +1,11 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b), one subgroup per output row.
-// Lanes stride over the row's blocks, each keeping up to eight batch
-// columns in registers so a weight is read once per chunk of columns; the
-// partial sums meet in one subgroupAdd. This is the decode kernel; a tile
-// kernel takes wide batches (docs/VULKAN.md).
+// Y[b*nout + o] = dot(row o, X column b). A subgroup handles `rows_per_sg`
+// rows at once, each on a cluster of `cluster` lanes: the cluster's lanes
+// stride over the row's work units and reduce with xor shuffles, so a
+// 1024-wide row no longer leaves three quarters of a subgroup idle. Each
+// lane keeps up to eight batch columns in registers so a weight is read
+// once per chunk of columns. This is the decode kernel; a tile kernel takes
+// wide batches (docs/VULKAN.md).
 //
 // Q8_0 rows are read as 32-bit words over pairs of blocks: a pair is 68
 // bytes, so a row with an even block count starts every pair on a word
@@ -11,12 +13,15 @@
 // odd block count take the 16-bit path, two values per load. Bytes are
 // sign-extended by a shift up and an arithmetic shift down.
 #extension GL_KHR_shader_subgroup_basic : require
-#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "q.glsl"
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint col0; uint ncols; uint wide; } p;
+layout(push_constant) uniform P {
+    uint nin; uint nout; uint nbatch; uint type; uint col0; uint ncols; uint wide;
+    uint cluster; uint rows_per_sg;
+} p;
 layout(set = 0, binding = 0) writeonly buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; };
@@ -36,8 +41,10 @@ float dot16(uint a, uint b, uint c, uint d, vec4 x0, vec4 x1, vec4 x2, vec4 x3) 
 }
 
 void main() {
-    uint row = gl_WorkGroupID.x * (256u / gl_SubgroupSize) + gl_SubgroupID;
     uint lane = gl_SubgroupInvocationID;
+    uint rsub = lane / p.cluster;      // which of the subgroup's rows
+    uint l = lane - rsub * p.cluster;  // lane within the row's cluster
+    uint row = (gl_WorkGroupID.x * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
     float acc[8];
     for (uint c = 0u; c < 8u; ++c) acc[c] = 0.0;
     if (row < p.nout) {
@@ -45,7 +52,7 @@ void main() {
             uint nblocks = p.nin / Q8_0_BLOCK;
             uint npairs = nblocks / 2u;
             uint wbase = row * nblocks * 17u / 2u;   // words: a pair is 17
-            for (uint j = lane; j < npairs; j += gl_SubgroupSize) {
+            for (uint j = l; j < npairs; j += p.cluster) {
                 uint o = wbase + j * 17u;
                 uint w0 = w32[o], w1 = w32[o + 1u], w2 = w32[o + 2u], w3 = w32[o + 3u];
                 uint w4 = w32[o + 4u], w5 = w32[o + 5u], w6 = w32[o + 6u], w7 = w32[o + 7u];
@@ -77,7 +84,7 @@ void main() {
         } else if (p.type == TYPE_Q8_0) {
             uint nblocks = p.nin / Q8_0_BLOCK;
             uint wbase = row * nblocks * 17u;
-            for (uint b = lane; b < nblocks; b += gl_SubgroupSize) {
+            for (uint b = l; b < nblocks; b += p.cluster) {
                 uint o = wbase + b * 17u;
                 float scale = unpackHalf2x16(uint(w16[o])).x;
                 uint xb = b * Q8_0_BLOCK;
@@ -96,15 +103,17 @@ void main() {
             }
         } else {
             uint wbase = row * p.nin;
-            for (uint i = lane; i < p.nin; i += gl_SubgroupSize) {
+            for (uint i = l; i < p.nin; i += p.cluster) {
                 float w = wf[wbase + i];
                 for (uint c = 0u; c < p.ncols; ++c) acc[c] += w * x[(p.col0 + c) * p.nin + i];
             }
         }
     }
-    // Every lane joins each reduction; lanes past the last row add zero.
+    // Reduce within each cluster of lanes; every lane joins every shuffle
+    // and lanes past the last row add zero.
     for (uint c = 0u; c < 8u; ++c) {
-        float s = subgroupAdd(acc[c]);
-        if (lane == 0u && row < p.nout && c < p.ncols) y[(p.col0 + c) * p.nout + row] = s;
+        float s = acc[c];
+        for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
+        if (l == 0u && row < p.nout && c < p.ncols) y[(p.col0 + c) * p.nout + row] = s;
     }
 }

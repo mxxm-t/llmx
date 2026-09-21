@@ -154,11 +154,15 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   `subgroupAdd`, and the softmax is online, a running maximum and sum with
   the value accumulation rescaled as the maximum moves, so a 40k-token
   history needs no score array. The subgroups' partial states merge
-  through shared memory at the end. Keys are walked through the block
-  table, a small buffer uploaded per call. GQA maps `n_head / n_head_kv`
-  query heads to one KV head. Several views in one call are one dispatch
-  per view today; one launch over all of them is an optimization with its
-  own measurement. Head widths up to 256.
+  through shared memory at the end. When a pass has few (row, head)
+  pairs, a decode token, the history is split into 32-token chunks across
+  workgroups, capped at 64 splits, each writing its unnormalized state to
+  a scratch buffer that `attention_merge` combines; that took a 250-token
+  decode from 134 to 36 us per layer on the Radeon VII. Keys are walked
+  through the block table, a small buffer uploaded per call. GQA maps
+  `n_head / n_head_kv` query heads to one KV head. Several views in one
+  call are one dispatch per view today; one launch over all of them is an
+  optimization with its own measurement. Head widths up to 256.
 - **kv_write**: a scatter of `[rows, n_head_kv, head_dim]` into blocks,
   one lane per float.
 - **norm_rope_rows**: one workgroup per (row, head): the head's sum of

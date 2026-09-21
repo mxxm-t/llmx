@@ -119,9 +119,12 @@ const uint32_t kSpvKvWrite[] = {
 const uint32_t kSpvAttention[] = {
 #include "vulkan/attention.inc"
 };
+const uint32_t kSpvAttentionMerge[] = {
+#include "vulkan/attention_merge.inc"
+};
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
-                K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_COUNT };
+                K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_COUNT };
 
 struct KernelSource {
     const uint32_t* words;
@@ -138,7 +141,8 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvEmbed, sizeof(kSpvEmbed), 4},
     {kSpvMatmulRow, sizeof(kSpvMatmulRow), 6},
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5},
-    {kSpvAttention, sizeof(kSpvAttention), 5},
+    {kSpvAttention, sizeof(kSpvAttention), 6},
+    {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 2},
 };
 
 // 64 tokens per KV block: half the CPU's, since the attention workgroup
@@ -787,16 +791,25 @@ public:
         if (bytes_from(w) < nout * row_bytes ||
             floats_from(X) < nbatch * nin || floats_from(Y) < nbatch * nout)
             throw std::runtime_error("vulkan: matmul operand outside its allocation");
-        const uint32_t rows_per_group = 256 / dev_->subgroup_size;
-        const uint32_t g = groups(nout, rows_per_group);
         // The word-wide path needs every row to start on a word boundary,
         // which an even block count gives, and X columns on 16 bytes, which
         // a column width that is whole blocks gives.
         const uint32_t wide = type == gguf::GGML_TYPE_Q8_0 && (nin / gguf::Q8_0_BLOCK) % 2 == 0 &&
                               X.offset % 4 == 0 ? 1u : 0u;
+        // A row's work units: block pairs, blocks, or floats. A cluster of
+        // lanes takes one row, sized to the units so a narrow row does not
+        // idle most of a subgroup, and a subgroup takes several rows.
+        const size_t units = type == gguf::GGML_TYPE_Q8_0
+            ? (wide ? nin / gguf::Q8_0_BLOCK / 2 : nin / gguf::Q8_0_BLOCK) : nin;
+        uint32_t cluster = 1;
+        while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
+        const uint32_t rows_per_sg = dev_->subgroup_size / cluster;
+        const uint32_t rows_per_group = (256 / dev_->subgroup_size) * rows_per_sg;
+        const uint32_t g = groups(nout, rows_per_group);
         for (size_t col0 = 0; col0 < nbatch; col0 += 8) {
             const size_t ncols = std::min<size_t>(8, nbatch - col0);
-            const uint32_t pc[7] = {u32(nin), u32(nout), u32(nbatch), type, u32(col0), u32(ncols), wide};
+            const uint32_t pc[9] = {u32(nin), u32(nout), u32(nbatch), type, u32(col0), u32(ncols), wide,
+                                    cluster, rows_per_sg};
             dispatch(K_MATMUL_ROW, {bind(Y), bind(w), bind(w), bind(w), bind(X), bind(X)},
                      pc, sizeof(pc), g);
         }
@@ -876,13 +889,31 @@ public:
                     throw std::runtime_error("vulkan: attention over unwritten KV blocks");
             if (floats_from(Q) < (row0 + view.nq) * qstride || floats_from(out) < (row0 + view.nq) * qstride)
                 throw std::runtime_error("vulkan: attention rows outside their allocation");
-            struct { uint32_t length, nq, n_head, n_head_kv, dim, bt, row0; float scale; }
+            // A decode token has few (row, head) pairs, so the history is
+            // split into chunks of 32 tokens across workgroups, enough to
+            // fill the device, capped at 64 splits; a wide pass already
+            // has the workgroups and takes one split.
+            const size_t pairs = view.nq * (size_t)n_head;
+            size_t nsplit = 1;
+            if (pairs < 256) nsplit = std::min<size_t>(64, std::max<size_t>(1, (sequence + 31) / 32));
+            const size_t chunk = (sequence + nsplit - 1) / nsplit;
+            nsplit = (sequence + chunk - 1) / chunk;
+            const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
+            if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
+                scratch_ = std::make_shared<VulkanBuffer>(dev_, scratch_floats * sizeof(float), false);
+            struct { uint32_t length, nq, n_head, n_head_kv, dim, bt, row0; float scale; uint32_t nsplit, chunk; }
                 pc{u32(view.length), u32(view.nq), (uint32_t)n_head, (uint32_t)n_head_kv,
-                   (uint32_t)head_dim, u32(kVkBlockTokens), u32(row0), scale};
+                   (uint32_t)head_dim, u32(kVkBlockTokens), u32(row0), scale, u32(nsplit), u32(chunk)};
+            const VkDescriptorBufferInfo scratch = scratch_
+                ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
             dispatch(K_ATTENTION,
                      {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
-                      args(view.blocks, blocks * sizeof(int32_t))},
-                     &pc, sizeof(pc), groups(view.nq * (size_t)n_head, 1));
+                      args(view.blocks, blocks * sizeof(int32_t)), scratch},
+                     &pc, sizeof(pc), groups(pairs * nsplit, 1));
+            if (nsplit > 1) {
+                const uint32_t mc[5] = {u32(view.nq), (uint32_t)n_head, (uint32_t)head_dim, u32(row0), u32(nsplit)};
+                dispatch(K_ATTENTION_MERGE, {bind(out), scratch}, mc, sizeof(mc), groups(pairs, 1));
+            }
             row0 += view.nq;
         }
     }
@@ -1084,13 +1115,17 @@ private:
     // A pass is a chain, so every op reads what the one before wrote: one
     // full barrier between consecutive commands is correct, and tracking
     // which buffers an op touches is an optimization for later.
+    // Only the compute and transfer stages ever touch a buffer here, so the
+    // barrier names those rather than every stage: on this driver a barrier
+    // over all commands is a full flush and idle between every two kernels.
     void barrier(VkCommandBuffer cmd) {
         VkMemoryBarrier mb{};
         mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-        mb.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
-        mb.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
-        dev_->fn.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                                      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+        mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        mb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT |
+                           VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        const VkPipelineStageFlags stages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
+        dev_->fn.vkCmdPipelineBarrier(cmd, stages, stages, 0, 1, &mb, 0, nullptr, 0, nullptr);
     }
 
     VulkanBuffer& staging() {
@@ -1126,6 +1161,7 @@ private:
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     Ticket last_ticket_ = 0;
     std::unique_ptr<VulkanBuffer> staging_;
+    std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];
     Arena arena_[kRing];
     Kernel kernels_[K_COUNT];

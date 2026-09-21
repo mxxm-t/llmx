@@ -9,6 +9,7 @@
 // a reduction order differs. Exits 77, which CTest reports as skipped, when
 // there is no loader or no device.
 #include <chrono>
+#include <functional>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -338,6 +339,92 @@ size_t check_kernels(backend::Backend& vk) {
                 values += close(a, b, 1e-4, "attention over the device cache differs beyond 1e-4");
             }
         }
+    }
+    // The cost of a dispatch that does almost nothing, reported and not
+    // asserted: a decoded token on Qwen3-0.6B is about four hundred of them.
+    {
+        const size_t n = 64;
+        const auto x = uniform(n, 14);
+        const auto a = vk.adopt(x.data(), n * sizeof(float));
+        const auto d = vk.alloc(n * sizeof(float), backend::Memory::device);
+        vk.add({d.get(), 0}, {a.get(), 0}, n);
+        vk.sync();
+        const int iters = 2000;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < iters; ++i) vk.add({d.get(), 0}, {a.get(), 0}, n);
+        vk.sync();
+        const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / iters;
+        std::cout << "backend-vulkan: tiny dispatch with barrier " << us << " us each over " << iters << "\n";
+    }
+    // The row kernel at the projection shapes of Qwen3-0.6B and 8B, one
+    // column, reported: the small shapes say whether a decoded token is
+    // bound by bandwidth or by per-kernel latency.
+    for (auto shape : {std::pair<size_t, size_t>{1024, 1024}, {1024, 2048}, {1024, 3072},
+                       {3072, 1024}, {4096, 4096}, {4096, 12288}, {12288, 4096}}) {
+        const size_t nin = shape.first, nout = shape.second;
+        std::vector<uint8_t> wq(nout * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
+        for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 7 + 3);
+        const auto x = uniform(nin, 15);
+        const auto w = vk.adopt(wq.data(), wq.size());
+        const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+        const auto y = vk.alloc(nout * sizeof(float), backend::Memory::device);
+        vk.matmul(gguf::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, 1);
+        vk.sync();
+        const int iters = 100;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < iters; ++i)
+            vk.matmul(gguf::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, 1);
+        vk.sync();
+        const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / iters;
+        std::cout << "backend-vulkan: Q8_0 matvec " << nin << "x" << nout << " " << us << " us, "
+                  << (double)wq.size() / us / 1e3 << " GB/s\n";
+    }
+    // Decode attention and the small kernels at the Qwen3-0.6B shape over a
+    // 250-token history, one query, reported.
+    {
+        const int n_head = 16, n_head_kv = 8, head_dim = 128;
+        const size_t hist = 250, kvw = (size_t)n_head_kv * head_dim, qw = (size_t)n_head * head_dim;
+        auto st = vk.kv_alloc(1, n_head_kv, head_dim, 1024);
+        infer::BlockPool pool(st->max_blocks());
+        infer::KVSequence seq(&pool, vk.kv_layout().block_tokens);
+        const auto K = uniform(hist * kvw, 16), V = uniform(hist * kvw, 17), Q = uniform(qw, 18);
+        const auto Kb = vk.adopt(K.data(), K.size() * sizeof(float));
+        const auto Vb = vk.adopt(V.data(), V.size() * sizeof(float));
+        const auto Qb = vk.adopt(Q.data(), Q.size() * sizeof(float));
+        const auto ob = vk.alloc(qw * sizeof(float), backend::Memory::device);
+        seq.prepare(hist);
+        const backend::KVView h = seq.view(st.get());
+        vk.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+        seq.commit();
+        seq.prepare(1);
+        const backend::KVView view = seq.view(st.get());
+        vk.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+        vk.sync();
+        auto time = [&](const char* what, const std::function<void()>& op) {
+            const int iters = 200;
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < iters; ++i) op();
+            vk.sync();
+            const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / iters;
+            std::cout << "backend-vulkan: " << what << " " << us << " us\n";
+        };
+        time("attention 16 heads over 250 tokens", [&] {
+            vk.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+        });
+        const auto w = uniform(1024, 19, 0.5f, 1.5f);
+        const auto wb = vk.adopt(w.data(), w.size() * sizeof(float));
+        const auto xb = vk.alloc(3072 * sizeof(float), backend::Memory::device);
+        time("rms_norm_rows 1x1024", [&] { vk.rms_norm_rows({xb.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, 1, 1024, 1024, 1e-6f); });
+        const auto cs = uniform(1024 * 64, 20), sn = uniform(1024 * 64, 21);
+        const auto cb = vk.adopt(cs.data(), cs.size() * sizeof(float)), sb = vk.adopt(sn.data(), sn.size() * sizeof(float));
+        const auto hw = uniform(128, 22, 0.5f, 1.5f);
+        const auto hwb = vk.adopt(hw.data(), hw.size() * sizeof(float));
+        const uint32_t pos0 = 7;
+        time("norm_rope_rows 1 row 16 heads", [&] {
+            vk.norm_rope_rows({xb.get(), 0}, 1, 0, 16, {hwb.get(), 0}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, 64, &pos0);
+        });
+        time("silu_mul 3072", [&] { vk.silu_mul({xb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, 3072); });
+        time("kv_write 1 row", [&] { vk.kv_write(0, &view, 1, {Kb.get(), 0}, {Vb.get(), 0}); });
     }
     // Decode bandwidth of the row kernel on a Qwen3-8B-sized projection,
     // reported and not asserted: 4096 x 4096 Q8_0 is 17 MiB per column.

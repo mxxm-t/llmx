@@ -96,10 +96,43 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   host-visible arena per ring slot removed that. Prefill on the device is
   the row kernel streaming the weights once per eight columns, which the
   tile kernel is for.
-- **Left:** the matched floor against mx-llama.cpp's Vulkan backend on
-  this card, which is the gate for any claim; the reference is being
-  built from the pinned revision. Then the tile kernel for prefill, and
-  sub-step 6, the remaining quant kernels.
+- **The floor, measured.** The pinned mx revision's Vulkan backend did
+  not build here: its shader generator's nested configure fails under
+  CMake 4.x with "CMAKE_C_COMPILER not set", with both the pip and the
+  Visual Studio CMake, and is left for a CMake 3.x retry. The reference
+  used instead is today's upstream llama.cpp Windows Vulkan release,
+  b11075, which is a stricter bar since its kernels are newer. Same card,
+  same files, 247-token prompt and 32 generated tokens; llmx numbers are
+  single runs after the changes below, the reference is `llama-bench`
+  with three repeats.
+
+  | model | phase | llama.cpp b11075 Vulkan | llmx Vulkan | llmx share |
+  |---|---|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 449 | 68% |
+  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 99.5 | 50% |
+  | Qwen3-8B-Q8_0 | prefill | 99 tok/s | 40.0 | 40% |
+  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 21.6 | 54% |
+
+  Not on the same level, and the roadmap's bar is the reference, not the
+  CPU. Where the time goes, measured per kernel at the 0.6B shapes rather
+  than guessed: a near-empty dispatch with its barrier costs 6.3 us, so
+  the four hundred dispatches of a token are under 3 of its milliseconds;
+  the Q8_0 matvec has a floor of about 17 us at 1 MB and streams at 65 to
+  125 GB/s on the 1 to 3 MB layer matrices and about 210 GB/s at 8B's
+  sizes, on a card whose memory does 1 TB/s; decode attention was 134 us
+  per layer with one workgroup per head walking the whole history. Three
+  changes so far: the inter-dispatch barrier names the compute and
+  transfer stages instead of all commands (decode +14% on 0.6B); a
+  subgroup takes several rows with a lane cluster each, so a 1024-wide
+  row no longer idles three quarters of its lanes (neutral, so occupancy
+  was not the limit); and attention splits the history into 32-token
+  chunks across workgroups with a merge kernel, 134 to 36 us per layer,
+  decode 78 to 99.5 tok/s on 0.6B. `backend-vulkan` reports the per-shape
+  timings so the next change is measured against them.
+- **Left:** the tile kernel for prefill, where the row kernel streams the
+  weights once per eight columns; the matvec's bandwidth on the 8B shapes;
+  then sub-step 6, the remaining quant kernels. Every number above is a
+  single run and none is claimed until a paired comparison is recorded.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

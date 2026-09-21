@@ -80,6 +80,17 @@ Windows drivers.
   than a factor of two. AGENTS.md carries this now; cells are `06-layout*`,
   `06-fp16*`, `06-tok*`, `06-pre*` and `06-mid*` under
   `docs/benchmarks/code-read-20260921/`.
+- **Merged with one performance cell unresolved.** Recorded so nobody later
+  reads this as four green cells. Correctness was green throughout: native
+  18/18, Python 12/12 with both HF models, 260-token logits byte-identical.
+  0.6B prefill came in at -3.87/-1.59/-3.71 across three runs, failing the
+  advance rule twice, while 8B prefill gained 3.56% and both decode cells
+  were flat. The bisection above is why it merged anyway: the loss tracks
+  where the compiler places the code, not work the change added, and the
+  clearest single case is a four-line guard in a function that prefill never
+  calls moving the same number by three points. If a later step finds 0.6B
+  prefill about three points low against an older baseline, this is where it
+  went.
 - **Left:** nothing blocking.
 - **Gotchas:** `Backend::write` and `Backend::copy` are implemented and have
   no caller anywhere, which AGENTS.md forbids. They stay only because step 5

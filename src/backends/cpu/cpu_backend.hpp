@@ -773,7 +773,11 @@ public:
         });
     }
 
-    void rms_norm(float* dst, const float* src, const float* w, size_t n, float eps) override {
+    void rms_norm(Slice dst_s, CSlice src_s, CSlice w_s, size_t n, float eps) override {
+        rms_norm_raw(at(dst_s), at(src_s), at(w_s), n, eps);
+    }
+
+    void rms_norm_raw(float* dst, const float* src, const float* w, size_t n, float eps) {
         if (avx2_) {
             // Sum of squares (vectorized), then a vectorized weighted scale.
             __m256 acc = _mm256_setzero_ps();
@@ -833,16 +837,21 @@ public:
         }
     }
 
-    void rms_norm_rows(float* dst, const float* src, const float* w,
+    void rms_norm_rows(Slice dst_s, CSlice src_s, CSlice w_s,
                        size_t rows, size_t n, size_t stride, float eps) override {
+        float* dst = at(dst_s);
+        const float* src = at(src_s);
+        const float* w = at(w_s);
         spread(rows, [&](size_t r) {
-            rms_norm(dst + r * stride, src + r * stride, w, n, eps);
+            rms_norm_raw(dst + r * stride, src + r * stride, w, n, eps);
         });
     }
 
-    void norm_rope_rows(float* x, size_t rows, size_t stride, size_t heads,
-                        const float* w, float eps, const float* cos,
+    void norm_rope_rows(Slice x_s, size_t rows, size_t stride, size_t heads,
+                        CSlice w_s, float eps, const float* cos,
                         const float* sin, size_t half) override {
+        float* x = at(x_s);
+        const float* w = at(w_s);
         const size_t head_dim = half * 2;
         spread(rows, [&](size_t r) {
             float* row = x + r * stride;
@@ -850,13 +859,16 @@ public:
             const float* s = sin + r * half;
             for (size_t h = 0; h < heads; h++) {
                 float* head = row + h * head_dim;
-                rms_norm(head, head, w, head_dim, eps);
+                rms_norm_raw(head, head, w, head_dim, eps);
                 rope(head, c, s, (int)half);
             }
         });
     }
 
-    void silu_mul(float* dst, const float* gate, const float* up, size_t n) override {
+    void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n) override {
+        float* dst = at(dst_s);
+        const float* gate = at(gate_s);
+        const float* up = at(up_s);
         // std::exp per element, matching the scalar form this replaced: a
         // vectorized approximation would shift logits and is a separate
         // change with its own correctness gate.
@@ -866,7 +878,9 @@ public:
         });
     }
 
-    void add(float* dst, const float* src, size_t n) override {
+    void add(Slice dst_s, CSlice src_s, size_t n) override {
+        float* dst = at(dst_s);
+        const float* src = at(src_s);
         chunk(n, [&](size_t begin, size_t end) {
             size_t i = begin;
             if (avx2_) {
@@ -879,6 +893,19 @@ public:
     }
 
 private:
+    // A slice resolves to a host pointer exactly once per op; the kernels
+    // below are untouched and still see plain float arrays.
+    static float* at(Slice s) {
+        if (!s.buffer) throw std::runtime_error("backend: operand without storage");
+        return (float*)host(*s.buffer) + s.offset;
+    }
+    static const float* at(CSlice s) {
+        if (!s.buffer) throw std::runtime_error("backend: operand without storage");
+        const void* p = s.buffer->host_ptr();
+        if (!p) throw std::runtime_error("backend: operand is not host addressable");
+        return (const float*)p + s.offset;
+    }
+
     static void* host(const Buffer& b) {
         void* p = dynamic_cast<const CpuBuffer&>(b).host_address();
         if (!p) throw std::runtime_error("backend: buffer is not host addressable");

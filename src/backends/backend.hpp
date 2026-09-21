@@ -45,6 +45,22 @@ public:
 };
 using BufferPtr = std::shared_ptr<Buffer>;
 
+// Where an operand lives: a buffer and a float offset into it. Ops take these
+// rather than pointers so a device backend never receives a host address.
+// Offsets are in floats, because every activation is float and a byte offset
+// at each call site would be noise.
+struct Slice {
+    Buffer* buffer = nullptr;
+    size_t offset = 0;
+};
+struct CSlice {
+    const Buffer* buffer = nullptr;
+    size_t offset = 0;
+    CSlice() = default;
+    CSlice(const Buffer* b, size_t o) : buffer(b), offset(o) {}
+    CSlice(const Slice& s) : buffer(s.buffer), offset(s.offset) {}
+};
+
 struct Projection {
     uint32_t type;
     const Buffer* data;
@@ -159,7 +175,7 @@ public:
                            int nbatch) = 0;
 
     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm).
-    virtual void rms_norm(float* dst, const float* src, const float* w,
+    virtual void rms_norm(Slice dst, CSlice src, CSlice w,
                           size_t n, float eps) = 0;
 
     // Rotary position embedding on head_dim floats. `cos`/`sin` point at the
@@ -173,7 +189,7 @@ public:
 
     // RMS norm of `rows` rows of `n` floats against a shared weight. Row r is
     // at src/dst + r*stride. src and dst may alias only if identical.
-    virtual void rms_norm_rows(float* dst, const float* src, const float* w,
+    virtual void rms_norm_rows(Slice dst, CSlice src, CSlice w,
                                size_t rows, size_t n, size_t stride, float eps) = 0;
 
     // Per-head RMS norm followed by RoPE, over a batch of rows. Row r starts
@@ -182,17 +198,16 @@ public:
     // always applies these together and per head, so they are one op: the head
     // stays in registers between the two passes, and a device backend gets one
     // kernel launch per layer rather than rows*heads of them.
-    virtual void norm_rope_rows(float* x, size_t rows, size_t stride,
-                                size_t heads, const float* w, float eps,
+    virtual void norm_rope_rows(Slice x, size_t rows, size_t stride,
+                                size_t heads, CSlice w, float eps,
                                 const float* cos, const float* sin,
                                 size_t half) = 0;
 
     // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage.
-    virtual void silu_mul(float* dst, const float* gate, const float* up,
-                          size_t n) = 0;
+    virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n) = 0;
 
     // dst[i] += src[i], the residual add.
-    virtual void add(float* dst, const float* src, size_t n) = 0;
+    virtual void add(Slice dst, CSlice src, size_t n) = 0;
 };
 
 using BackendPtr = std::shared_ptr<Backend>;

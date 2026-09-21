@@ -140,14 +140,12 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
 struct Weight {
     uint32_t type = 0;
     // A handle, not a pointer: the backend decides where the bytes live. The
-    // model never dereferences it except through f32() below, which only the
-    // host path uses for normalization rows.
+    // model never dereferences it: slice() below names a location, and only a
+    // backend turns that into an address.
     backend::BufferPtr data;
     size_t nin = 0, nout = 0;
     // Normalization weights are F32 by validation, so this is the whole row.
-    const float* f32() const {
-        return reinterpret_cast<const float*>(data->host_ptr());
-    }
+    backend::CSlice slice() const { return {data.get(), 0}; }
 };
 
 struct LayerWeights {
@@ -256,7 +254,7 @@ public:
         std::vector<float> logits;
         try {
             step_body(token_id, pos);
-            b_->rms_norm(h(), x(), output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
+            b_->rms_norm(sh(), sx(), output_norm_.slice(), cfg.n_embd, cfg.rms_eps);
             logits.assign(output_.nout, 0.0f);
             matvec(output_, h(), logits.data());
         } catch (...) {
@@ -283,7 +281,7 @@ public:
             const LayerWeights& w = layers_[l];
 
             // attn norm
-            b_->rms_norm(h(), x(), w.attn_norm.f32(), cfg.n_embd, cfg.rms_eps);
+            b_->rms_norm(sh(), sx(), w.attn_norm.slice(), cfg.n_embd, cfg.rms_eps);
 
             // q,k,v projections
             b_->matmul_group({projection(w.attn_q, q()),
@@ -296,10 +294,10 @@ public:
                 const size_t half = cfg.head_dim / 2;
                 const float* cs = rope_cos_.data() + (size_t)pos * half;
                 const float* sn = rope_sin_.data() + (size_t)pos * half;
-                b_->norm_rope_rows(q(), 1, 0, cfg.n_head,
-                                   w.attn_q_norm.f32(), cfg.rms_eps, cs, sn, half);
-                b_->norm_rope_rows(kv(), 1, 0, cfg.n_head_kv,
-                                   w.attn_k_norm.f32(), cfg.rms_eps, cs, sn, half);
+                b_->norm_rope_rows(sq(), 1, 0, cfg.n_head,
+                                   w.attn_q_norm.slice(), cfg.rms_eps, cs, sn, half);
+                b_->norm_rope_rows(skv(), 1, 0, cfg.n_head_kv,
+                                   w.attn_k_norm.slice(), cfg.rms_eps, cs, sn, half);
             }
 
             b_->kv_write(l, view, (size_t)pos, kv(), v(), 1);
@@ -309,10 +307,10 @@ public:
             // attn_output projection + residual
             std::memset(h(), 0, (size_t)cfg.n_embd * sizeof(float));
             matvec(w.attn_output, attn(), h());
-            b_->add(x(), h(), cfg.n_embd);
+            b_->add(sx(), sh(), cfg.n_embd);
 
             // ffn norm
-            b_->rms_norm(h(), x(), w.ffn_norm.f32(), cfg.n_embd, cfg.rms_eps);
+            b_->rms_norm(sh(), sx(), w.ffn_norm.slice(), cfg.n_embd, cfg.rms_eps);
 
             // gate/up (SwiGLU). Buffers are members: allocating these per layer
             // per token cost 108 heap allocations of n_ff floats on a 36-layer
@@ -320,11 +318,11 @@ public:
             b_->matmul_group({projection(w.ffn_gate, gate()),
                               projection(w.ffn_up, up())},
                              h(), cfg.n_embd, 1);
-            b_->silu_mul(ffn(), gate(), up(), cfg.n_ff);
+            b_->silu_mul(sffn(), sgate(), sup(), cfg.n_ff);
             // down projection + residual
             std::memset(h(), 0, (size_t)cfg.n_embd * sizeof(float));
             matvec(w.ffn_down, ffn(), h());
-            b_->add(x(), h(), cfg.n_embd);
+            b_->add(sx(), sh(), cfg.n_embd);
         }
     }
 
@@ -502,6 +500,33 @@ private:
     float* up() const { return slot_of(decode_arena_, decode_offset_[7]); }
     float* ffn() const { return slot_of(decode_arena_, decode_offset_[8]); }
 
+    // The same nine, as locations the backend can resolve itself.
+    backend::Slice ds(size_t i) const {
+        return {decode_arena_.get(), decode_offset_[i] / sizeof(float)};
+    }
+    backend::Slice sx() const { return ds(0); }
+    backend::Slice sh() const { return ds(1); }
+    backend::Slice sq() const { return ds(2); }
+    backend::Slice skv() const { return ds(3); }
+    backend::Slice sv() const { return ds(4); }
+    backend::Slice sattn() const { return ds(5); }
+    backend::Slice sgate() const { return ds(6); }
+    backend::Slice sup() const { return ds(7); }
+    backend::Slice sffn() const { return ds(8); }
+
+    backend::Slice bs(size_t i) const {
+        return {arena_.get(), arena_offset_[i] / sizeof(float)};
+    }
+    backend::Slice sxb() const { return bs(0); }
+    backend::Slice shb() const { return bs(1); }
+    backend::Slice sqb() const { return bs(2); }
+    backend::Slice skb() const { return bs(3); }
+    backend::Slice svb() const { return bs(4); }
+    backend::Slice sattnb() const { return bs(5); }
+    backend::Slice sgateb() const { return bs(6); }
+    backend::Slice supb() const { return bs(7); }
+    backend::Slice sffnb() const { return bs(8); }
+
     void ensure_batch_buffers(size_t want) {
         const size_t B = std::min((size_t)ubatch(), std::max<size_t>(want, 1));
         if (arena_ && arena_batch_ >= B) return;
@@ -541,8 +566,11 @@ private:
         try {
             forward_batch_body(ids, B, pos0);
             if (out_logits) {
-                b_->rms_norm(h(), xb() + (size_t)(B - 1) * cfg.n_embd,
-                             output_norm_.f32(), cfg.n_embd, cfg.rms_eps);
+                b_->rms_norm(sh(),
+                             backend::CSlice{arena_.get(),
+                                 arena_offset_[0] / sizeof(float) +
+                                 (size_t)(B - 1) * (size_t)cfg.n_embd},
+                             output_norm_.slice(), cfg.n_embd, cfg.rms_eps);
                 out_logits->assign(output_.nout, 0.0f);
                 matvec(output_, h(), out_logits->data());
             }
@@ -566,7 +594,7 @@ private:
         for (int l = 0; l < cfg.n_layer; l++) {
             const LayerWeights& w = layers_[l];
 
-            b_->rms_norm_rows(hb(), xb(), w.attn_norm.f32(),
+            b_->rms_norm_rows(shb(), sxb(), w.attn_norm.slice(),
                               (size_t)B, (size_t)E, (size_t)E, cfg.rms_eps);
 
             b_->matmul_group({projection(w.attn_q, qb()),
@@ -575,26 +603,26 @@ private:
 
             const float* cs = rope_cos_.data() + (size_t)pos0 * half;
             const float* sn = rope_sin_.data() + (size_t)pos0 * half;
-            b_->norm_rope_rows(qb(), (size_t)B, (size_t)q_dim_, cfg.n_head,
-                               w.attn_q_norm.f32(), cfg.rms_eps, cs, sn, half);
-            b_->norm_rope_rows(kb(), (size_t)B, KV, cfg.n_head_kv,
-                               w.attn_k_norm.f32(), cfg.rms_eps, cs, sn, half);
+            b_->norm_rope_rows(sqb(), (size_t)B, (size_t)q_dim_, cfg.n_head,
+                               w.attn_q_norm.slice(), cfg.rms_eps, cs, sn, half);
+            b_->norm_rope_rows(skb(), (size_t)B, KV, cfg.n_head_kv,
+                               w.attn_k_norm.slice(), cfg.rms_eps, cs, sn, half);
 
             b_->kv_write(l, view, (size_t)pos0, kb(), vb(), (size_t)B);
             b_->attention(qb(), l, view, attnb(),
                           cfg.n_head, cfg.n_head_kv, cfg.head_dim, B);
 
             matmul(w.attn_output, attnb(), hb(), B);
-            b_->add(xb(), hb(), (size_t)B * E);
+            b_->add(sxb(), shb(), (size_t)B * E);
 
-            b_->rms_norm_rows(hb(), xb(), w.ffn_norm.f32(),
+            b_->rms_norm_rows(shb(), sxb(), w.ffn_norm.slice(),
                               (size_t)B, (size_t)E, (size_t)E, cfg.rms_eps);
 
             b_->matmul_group({projection(w.ffn_gate, gateb()),
                               projection(w.ffn_up, upb())}, hb(), E, B);
-            b_->silu_mul(ffnb(), gateb(), upb(), (size_t)B * cfg.n_ff);
+            b_->silu_mul(sffnb(), sgateb(), supb(), (size_t)B * cfg.n_ff);
             matmul(w.ffn_down, ffnb(), hb(), B);
-            b_->add(xb(), hb(), (size_t)B * E);
+            b_->add(sxb(), shb(), (size_t)B * E);
         }
     }
 

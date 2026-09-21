@@ -593,9 +593,14 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
                   (size_t)size, (size_t)size, 1);
     double mm_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 
+    const auto dst_buf = b->adopt(dst.data(), dst.size() * sizeof(float));
+    const auto src_buf = b->adopt(src.data(), src.size() * sizeof(float));
+    const auto w_buf = b->adopt(w.data(), w.size() * sizeof(float));
+
     t0 = clock::now();
     for (int it = 0; it < iters; it++)
-        b->rms_norm(dst.data(), src.data(), w.data(), (size_t)size, 1e-6f);
+        b->rms_norm({dst_buf.get(), 0}, {src_buf.get(), 0}, {w_buf.get(), 0},
+                    (size_t)size, 1e-6f);
     double rn_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 
     t0 = clock::now();

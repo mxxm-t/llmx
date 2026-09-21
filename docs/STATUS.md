@@ -284,16 +284,35 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   Q8_0 decode is at the floor on both models under the matched protocol.
   The earlier tables stand as what `generate --verbose` measured, both
   arms' figures at the time; they are not the floor comparison.
-- **Left:** decode on the 4- and 5-bit files, at 88 and 77 percent of the
+
+  Thirteenth, the attention inputs as one op. `norm_rope_kv` is what the
+  model asks for at every layer: q normed and rotated in place, k normed
+  and rotated and written with v into the view's KV blocks. The base
+  class default is the three ops it replaces, which is what the CPU
+  runs, so its arithmetic is unchanged; the device runs one kernel, a
+  workgroup per (row, head) over the q, k and v heads, the k heads
+  written straight into their blocks, three dispatches fewer per layer.
+  Checked against the CPU's three ops with a 70-token history, q
+  directly at 1e-5 and k and v through attention at 1e-4. Under the
+  matched protocol, same session as the table above:
+
+  | model | test | reference b11075 Vulkan | llmx before | llmx now | llmx share |
+  |---|---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | tg32 | 195.1 tok/s | 201.9 | 221.3 +- 0.8 | 113% |
+  | Qwen3-0.6B-Q4_0 | tg32 | 220.8 tok/s | 194.8 | 205.4 +- 0.4 | 93% |
+  | Qwen3-0.6B-Q5_K_M | tg32 | 219.8 tok/s | 169.4 | 176.7 +- 0.4 | 80% |
+  | Qwen3-8B-Q8_0 | tg32 | 38.8 tok/s | 40.6 | 41.0 +- 0.0 | 106% |
+
+  Prefill moved within noise (1494, 1352, 873 and 230 tok/s).
+- **Left:** decode on the 4- and 5-bit files, at 93 and 80 percent of the
   reference under the matched protocol; their row kernels are the first
   correct version at 123 to 163 GB/s against Q8_0's 373, and the four
   bytes per value of activations now cost as much as the weights. Then
-  the remaining fusions, the norm before each matmul and the q/k
-  norm-rope plus KV write, each an op the model asks for and each
-  backend implements its own way, measured on all four files. Then the
-  two checks the user asked for on 2026-09-21: a 16384-token prompt with
-  512 generated tokens beside the 247/32 case, reference beside it, and
-  a greedy-output hash of the device against the CPU on the same file.
+  the last fusion, the norm before each matmul, measured on all four
+  files. Then the two checks the user asked for on 2026-09-21: a
+  16384-token prompt with 512 generated tokens beside the 247/32 case,
+  reference beside it, and a greedy-output hash of the device against
+  the CPU on the same file.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

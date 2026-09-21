@@ -783,14 +783,11 @@ private:
                         projection(w.attn_k, k),
                         projection(w.attn_v, v)}, h, E, rows);
 
-        b.norm_rope_rows(q, rows, (size_t)q_dim_, cfg.n_head,
-                         w.attn_q_norm.slice(), cfg.rms_eps,
-                         {d.rope_cos.get(), 0}, {d.rope_sin.get(), 0}, half, ctx.pos.data());
-        b.norm_rope_rows(k, rows, KV, cfg.n_head_kv,
-                         w.attn_k_norm.slice(), cfg.rms_eps,
-                         {d.rope_cos.get(), 0}, {d.rope_sin.get(), 0}, half, ctx.pos.data());
-
-        b.kv_write(layer, views.data(), n_views, k, v);
+        const backend::Backend::RopeArgs rope{{d.rope_cos.get(), 0}, {d.rope_sin.get(), 0},
+                                              half, ctx.pos.data(), cfg.rms_eps};
+        b.norm_rope_kv(q, (size_t)q_dim_, cfg.n_head, w.attn_q_norm.slice(),
+                       k, v, KV, cfg.n_head_kv, w.attn_k_norm.slice(),
+                       rope, rows, layer, views.data(), n_views);
         b.attention(q, layer, views.data(), n_views, attn,
                     cfg.n_head, cfg.n_head_kv, cfg.head_dim);
 

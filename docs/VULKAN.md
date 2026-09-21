@@ -202,6 +202,14 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
 - **norm_rope_rows**: one workgroup per (row, head): the head's sum of
   squares in a subgroup reduction, then the rotation reading the table at
   the row's position.
+- **norm_rope_kv**: the layer's attention inputs in one dispatch, a
+  workgroup per (row, head) over the q heads, the k heads and the v
+  heads: q normed and rotated in place with norm_rope_rows' arithmetic,
+  k normed and rotated straight into its KV block, v copied into its
+  block. The model asks for the three together (`Backend::norm_rope_kv`,
+  whose default is the three ops and is what the CPU runs); a batch over
+  several views takes that default. Three dispatches fewer per layer,
+  0.6B Q8_0 decode 202 to 221 tok/s under the matched protocol.
 - **rms_norm_rows, silu_mul, add, gather_rows, embed**: elementwise or
   gather kernels, one invocation per output float, `embed` dequantizing
   its row on the way.

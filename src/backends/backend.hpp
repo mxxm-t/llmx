@@ -267,6 +267,27 @@ public:
                                 CSlice cos, CSlice sin, size_t half,
                                 const uint32_t* pos) = 0;
 
+    // A layer's attention inputs together: q normed and rotated in place,
+    // k normed and rotated and written with v into the views' KV blocks,
+    // rows laid out as norm_rope_rows and kv_write take them. The model
+    // always does these three things back to back, so it asks for them as
+    // one op; this default is the three, and a device backend makes one
+    // kernel of them. After it k holds its normed and rotated rows too.
+    struct RopeArgs {
+        CSlice cos, sin;
+        size_t half;
+        const uint32_t* pos;
+        float eps;
+    };
+    virtual void norm_rope_kv(Slice q, size_t q_stride, size_t n_head, CSlice q_w,
+                              Slice k, CSlice v, size_t kv_stride, size_t n_head_kv, CSlice k_w,
+                              const RopeArgs& rope, size_t rows, size_t layer,
+                              const KVView* views, size_t n_views) {
+        norm_rope_rows(q, rows, q_stride, n_head, q_w, rope.eps, rope.cos, rope.sin, rope.half, rope.pos);
+        norm_rope_rows(k, rows, kv_stride, n_head_kv, k_w, rope.eps, rope.cos, rope.sin, rope.half, rope.pos);
+        kv_write(layer, views, n_views, k, v);
+    }
+
     // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage.
     virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n) = 0;
 

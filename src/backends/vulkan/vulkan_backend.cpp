@@ -128,6 +128,9 @@ const uint32_t kSpvMatmulRowK[] = {
 const uint32_t kSpvKvWrite[] = {
 #include "vulkan/kv_write.inc"
 };
+const uint32_t kSpvNormRopeKv[] = {
+#include "vulkan/norm_rope_kv.inc"
+};
 const uint32_t kSpvAttention[] = {
 #include "vulkan/attention.inc"
 };
@@ -140,7 +143,7 @@ const uint32_t kSpvMatmulTile[] = {
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
-                K_MATMUL_ROW_K4, K_MATMUL_ROW_K5, K_MATMUL_ROW_K, K_COUNT };
+                K_MATMUL_ROW_K4, K_MATMUL_ROW_K5, K_MATMUL_ROW_K, K_NORM_ROPE_KV, K_COUNT };
 
 // A kernel's bindings; `counts` gives the array length of each, one for a
 // plain buffer. The buffers of a dispatch are listed binding by binding,
@@ -170,6 +173,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 6, kMatmulRowCounts},
     {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 6, kMatmulRowCounts},
     {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 6, kMatmulRowCounts},
+    {kSpvNormRopeKv, sizeof(kSpvNormRopeKv), 11, nullptr},
 };
 
 // 64 tokens per KV block: half the CPU's, since the attention workgroup
@@ -790,6 +794,46 @@ public:
         dispatch(K_NORM_ROPE_ROWS,
                  {bind(x), bind(w), bind(cos), bind(sin), args(pos, rows * sizeof(uint32_t))},
                  &pc, sizeof(pc), u32(rows * heads));
+    }
+
+    // One kernel for q and k norm-rope and the KV write of one view; a
+    // batch over several views takes the three-dispatch default.
+    void norm_rope_kv(Slice q, size_t q_stride, size_t n_head, CSlice q_w,
+                      Slice k, CSlice v, size_t kv_stride, size_t n_head_kv, CSlice k_w,
+                      const RopeArgs& rope, size_t rows, size_t layer,
+                      const KVView* views, size_t n_views) override {
+        if (n_views != 1 || !rows || !n_head || !n_head_kv || !rope.half) {
+            Backend::norm_rope_kv(q, q_stride, n_head, q_w, k, v, kv_stride, n_head_kv, k_w,
+                                  rope, rows, layer, views, n_views);
+            return;
+        }
+        if (!rope.pos) throw std::runtime_error("vulkan: rope without positions");
+        const size_t table = floats_from(rope.cos) / rope.half;
+        for (size_t r = 0; r < rows; ++r)
+            if (rope.pos[r] >= table) throw std::runtime_error("vulkan: position outside the RoPE table");
+        const KVView& view = views[0];
+        VulkanKVStorage& s = storage_of(*view.storage);
+        const size_t dim = 2 * rope.half, hd = s.heads() * s.dim();
+        if (s.dim() != dim || s.heads() != n_head_kv || view.nq != rows)
+            throw std::runtime_error("vulkan: attention inputs do not match the KV storage");
+        if (layer >= s.layers() ||
+            VulkanKVStorage::blocks_for(VulkanKVStorage::add(view.length, view.nq)) > view.n_blocks)
+            throw std::runtime_error("vulkan: KV write outside the view");
+        if (floats_from(q) < rows * q_stride || floats_from(k) < rows * kv_stride ||
+            floats_from(v) < rows * kv_stride || q_stride < n_head * dim || kv_stride < hd)
+            throw std::runtime_error("vulkan: attention rows outside their allocation");
+        for (size_t t = view.length; t < view.length + view.nq; t += kVkBlockTokens - t % kVkBlockTokens)
+            s.ensure((size_t)view.blocks[t / kVkBlockTokens]);
+        s.ensure((size_t)view.blocks[(view.length + view.nq - 1) / kVkBlockTokens]);
+        struct { uint32_t rows, q_stride, n_head, kv_stride, n_head_kv, half; float eps; uint32_t hist, bt; }
+            pc{u32(rows), u32(q_stride), u32(n_head), u32(kv_stride), u32(n_head_kv), u32(rope.half),
+               rope.eps, u32(view.length), u32(kVkBlockTokens)};
+        dispatch(K_NORM_ROPE_KV,
+                 {bind(q), bind(k), bind(v), bind(q_w), bind(k_w), bind(rope.cos), bind(rope.sin),
+                  args(rope.pos, rows * sizeof(uint32_t)),
+                  bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
+                  args(view.blocks, view.n_blocks * sizeof(int32_t))},
+                 &pc, sizeof(pc), u32(rows * (n_head + 2 * n_head_kv)));
     }
 
     void embed(Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows,

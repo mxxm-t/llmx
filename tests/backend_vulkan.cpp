@@ -340,6 +340,65 @@ size_t check_kernels(backend::Backend& vk) {
                 }
             }
         }
+        // norm_rope_kv: the fused attention inputs against the CPU's three
+        // separate ops; q compared directly, k and v through attention over
+        // the view each backend wrote, after a 70-token history.
+        {
+            const int n_head = 4, n_head_kv = 2, head_dim = 40;
+            const size_t half = head_dim / 2, qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
+            const size_t rows = 3, hist = 70, table = 128;
+            std::vector<float> cs(table * half), sn(table * half);
+            for (size_t t = 0; t < table; ++t)
+                for (size_t i = 0; i < half; ++i) {
+                    const double f = std::pow(10000.0, -2.0 * double(i) / double(head_dim));
+                    cs[t * half + i] = float(std::cos(double(t) * f));
+                    sn[t * half + i] = float(std::sin(double(t) * f));
+                }
+            const auto q0 = uniform(rows * qw, 31), k0 = uniform(rows * kvw, 32), v0 = uniform(rows * kvw, 33);
+            const auto qn = uniform(head_dim, 34, 0.5f, 1.5f), kn = uniform(head_dim, 35, 0.5f, 1.5f);
+            const auto hk = uniform(hist * kvw, 36), hv = uniform(hist * kvw, 37);
+            const uint32_t pos[3] = {70, 71, 72};
+            auto run = [&](backend::Backend& b, std::vector<float>& qout, std::vector<float>& att) {
+                const size_t bt = b.kv_layout().block_tokens;
+                auto st = b.kv_alloc(1, n_head_kv, head_dim, 512);
+                infer::BlockPool pool(st->max_blocks());
+                infer::KVSequence seq(&pool, bt);
+                const auto Kh = b.adopt(hk.data(), hk.size() * sizeof(float));
+                const auto Vh = b.adopt(hv.data(), hv.size() * sizeof(float));
+                seq.prepare(hist);
+                {
+                    const backend::KVView h = seq.view(st.get());
+                    b.kv_write(0, &h, 1, {Kh.get(), 0}, {Vh.get(), 0});
+                }
+                seq.commit();
+                seq.prepare(rows);
+                const backend::KVView view = seq.view(st.get());
+                const auto Qb = b.alloc(q0.size() * sizeof(float), backend::Memory::device);
+                const auto Kb = b.alloc(k0.size() * sizeof(float), backend::Memory::device);
+                const auto Vb = b.alloc(v0.size() * sizeof(float), backend::Memory::device);
+                b.write(*Qb, 0, q0.data(), q0.size() * sizeof(float));
+                b.write(*Kb, 0, k0.data(), k0.size() * sizeof(float));
+                b.write(*Vb, 0, v0.data(), v0.size() * sizeof(float));
+                const auto qnb = b.adopt(qn.data(), qn.size() * sizeof(float));
+                const auto knb = b.adopt(kn.data(), kn.size() * sizeof(float));
+                const auto cb = b.adopt(cs.data(), cs.size() * sizeof(float));
+                const auto sb = b.adopt(sn.data(), sn.size() * sizeof(float));
+                const backend::Backend::RopeArgs rope{{cb.get(), 0}, {sb.get(), 0}, half, pos, 1e-6f};
+                b.norm_rope_kv({Qb.get(), 0}, qw, n_head, {qnb.get(), 0}, {Kb.get(), 0}, {Vb.get(), 0},
+                               kvw, n_head_kv, {knb.get(), 0}, rope, rows, 0, &view, 1);
+                const auto ob = b.alloc(rows * qw * sizeof(float), backend::Memory::device);
+                b.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+                qout.resize(rows * qw);
+                att.resize(rows * qw);
+                b.read(*Qb, 0, qout.data(), qout.size() * sizeof(float));
+                b.read(*ob, 0, att.data(), att.size() * sizeof(float));
+            };
+            std::vector<float> qc, ac, qv, av;
+            run(p.cpu, qc, ac);
+            run(p.vk, qv, av);
+            values += close(qc, qv, 1e-5, "norm_rope_kv q differs beyond 1e-5");
+            values += close(ac, av, 1e-4, "norm_rope_kv attention differs beyond 1e-4");
+        }
         // matmul_add: the product joins what Y already holds, on the row
         // kernel and on the tile kernel, against the CPU's scratch-and-add.
         for (size_t nbatch : {size_t(1), size_t(3), size_t(64)}) {

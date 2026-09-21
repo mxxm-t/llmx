@@ -1,0 +1,79 @@
+#version 450
+// A layer's attention inputs in one dispatch: one workgroup per (row,
+// head) over the q heads, then the k heads, then the v heads. A q head is
+// normed and rotated in place, as norm_rope_rows does; a k head is normed
+// and rotated straight into its KV block at position hist + row; a v head
+// is copied into its block. Three dispatches at their latency floors
+// become one. The arithmetic per head is norm_rope_rows' exactly.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P {
+    uint rows; uint q_stride; uint n_head; uint kv_stride; uint n_head_kv; uint half_dim;
+    float eps; uint hist; uint bt;
+} p;
+layout(set = 0, binding = 0) buffer Q { float q[]; };
+layout(set = 0, binding = 1) readonly buffer K { float k[]; };
+layout(set = 0, binding = 2) readonly buffer V { float v[]; };
+layout(set = 0, binding = 3) readonly buffer QW { float qw[]; };
+layout(set = 0, binding = 4) readonly buffer KW { float kw[]; };
+layout(set = 0, binding = 5) readonly buffer C { float cs[]; };
+layout(set = 0, binding = 6) readonly buffer S { float sn[]; };
+layout(set = 0, binding = 7) readonly buffer I { uint pos[]; };
+layout(set = 0, binding = 8) writeonly buffer KB { float kb[]; };
+layout(set = 0, binding = 9) writeonly buffer VB { float vb[]; };
+layout(set = 0, binding = 10) readonly buffer T { int blocks[]; };
+shared float red[256];
+
+void main() {
+    uint total = p.n_head + 2u * p.n_head_kv;
+    uint row = gl_WorkGroupID.x / total;
+    uint h = gl_WorkGroupID.x - row * total;
+    uint lid = gl_LocalInvocationID.x;
+    uint dim = 2u * p.half_dim;
+    uint t = p.hist + row;
+    uint block = uint(blocks[t / p.bt]);
+    // A block holds [head][token][dim].
+    uint kv_base = block * (p.n_head_kv * p.bt * dim) + (t - (t / p.bt) * p.bt) * dim;
+    if (h >= p.n_head + p.n_head_kv) {
+        uint hv = h - p.n_head - p.n_head_kv;
+        uint src = row * p.kv_stride + hv * dim;
+        uint dst = kv_base + hv * p.bt * dim;
+        for (uint i = lid; i < dim; i += 256u) vb[dst + i] = v[src + i];
+        return;
+    }
+    bool is_q = h < p.n_head;
+    uint hk = is_q ? h : h - p.n_head;
+    uint base = is_q ? row * p.q_stride + h * dim : row * p.kv_stride + hk * dim;
+    float s = 0.0;
+    for (uint i = lid; i < dim; i += 256u) {
+        float val = is_q ? q[base + i] : k[base + i];
+        s += val * val;
+    }
+    red[lid] = s;
+    barrier();
+    for (uint kk = 128u; kk > 0u; kk >>= 1u) {
+        if (lid < kk) red[lid] += red[lid + kk];
+        barrier();
+    }
+    float r = 1.0 / sqrt(red[0] / float(dim) + p.eps);
+    uint tp = pos[row] * p.half_dim;
+    uint dst = kv_base + hk * p.bt * dim;
+    for (uint i = lid; i < p.half_dim; i += 256u) {
+        float a, b;
+        if (is_q) {
+            a = q[base + i] * r * qw[i];
+            b = q[base + i + p.half_dim] * r * qw[i + p.half_dim];
+        } else {
+            a = k[base + i] * r * kw[i];
+            b = k[base + i + p.half_dim] * r * kw[i + p.half_dim];
+        }
+        float c = cs[tp + i], sv = sn[tp + i];
+        float o0 = a * c - b * sv, o1 = a * sv + b * c;
+        if (is_q) {
+            q[base + i] = o0;
+            q[base + i + p.half_dim] = o1;
+        } else {
+            kb[dst + i] = o0;
+            kb[dst + i + p.half_dim] = o1;
+        }
+    }
+}

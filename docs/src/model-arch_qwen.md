@@ -70,6 +70,10 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
     refused.
   - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
     to the pool after waiting on its last ticket.
+  - `fork(sequence)`: a second history with the same committed tokens,
+    sharing every full block on every storage and copying the partial tail
+    through the backend's `kv_copy`. A forked sequence continues exactly as
+    a fresh one fed the same tokens would.
   - `set_threads(n)`, `threads_available()`, `n_tokens()`, `head_dim()`,
     `context_length()`. The thread getter reports the resolved backend count,
     allowing the CLI to restore automatic decode settings after prefill.

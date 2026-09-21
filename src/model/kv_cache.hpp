@@ -69,6 +69,7 @@ public:
 
     size_t in_use() const { return next_ - free_.size(); }
     size_t max_blocks() const { return max_; }
+    uint32_t refs(int32_t id) const { return refs_.at((size_t)id); }
 
 private:
     size_t max_ = 0, next_ = 0;
@@ -102,12 +103,16 @@ public:
     size_t length() const { return length_; }
     size_t n_blocks() const { return blocks_.size(); }
 
-    // Make positions [length, length + n) addressable.
+    // Make positions [length, length + n) addressable. A block another
+    // sequence shares is read-only, so a history that was truncated into a
+    // shared block cannot be appended to; fork it instead.
     void prepare(size_t n) {
         if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");
         if (pending_) throw std::logic_error("KV cache: step already in progress");
         if (n > std::numeric_limits<size_t>::max() - length_)
             throw std::runtime_error("KV cache: sequence length overflow");
+        if (n && length_ % block_tokens_ && pool_->refs(blocks_[length_ / block_tokens_]) > 1)
+            throw std::logic_error("KV cache: append into a block shared with another sequence");
         const size_t total = length_ + n;
         const size_t need = total / block_tokens_ + (total % block_tokens_ != 0);
         // The pool may have been reconfigured larger since this sequence was
@@ -144,6 +149,38 @@ public:
     // Start a new history. Blocks return to the pool; the backend keeps the
     // physical storage they occupied, so a reused sequence does not reallocate.
     void reset() noexcept { truncate(0); }
+
+    // The block a fork's partial tail must be filled from, and the private
+    // block it goes to; -1 when the history ends on a block boundary.
+    struct Tail { int32_t from = -1, to = -1; };
+
+    // A second history with the same committed tokens: every full block is
+    // shared, read-only from now on, and a partial tail gets a fresh block
+    // the caller fills from ours before either sequence appends. The tail
+    // is taken first, so a failure part way leaves nothing retained.
+    KVSequence fork(Tail& tail) const {
+        if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");
+        if (pending_) throw std::logic_error("KV cache: fork during a step");
+        KVSequence f(pool_, block_tokens_);
+        const size_t full = length_ / block_tokens_;
+        tail = Tail{};
+        if (length_ % block_tokens_) {
+            tail.from = blocks_[full];
+            tail.to = pool_->alloc();
+        }
+        try {
+            for (size_t i = 0; i < full; ++i) {
+                pool_->retain(blocks_[i]);
+                f.blocks_.push_back(blocks_[i]);
+            }
+        } catch (...) {
+            if (tail.to >= 0) pool_->release(tail.to);
+            throw;
+        }
+        if (tail.to >= 0) f.blocks_.push_back(tail.to);
+        f.length_ = length_;
+        return f;
+    }
 
     // The rows prepared and not yet committed are this pass's queries.
     backend::KVView view(backend::KVStorage* storage) const {

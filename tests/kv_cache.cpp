@@ -231,6 +231,73 @@ void storage_growth_and_reset() {
     }
 }
 
+// A fork shares every full block, read-only, and copies the partial tail
+// into a private block, so the two histories agree up to the fork and then
+// diverge without touching each other. A history truncated into a shared
+// block cannot be appended to. Releases follow the refcounts.
+void fork_shares_and_copies() {
+    backend::CpuBackend cpu;
+    cpu.set_threads(1);
+    const size_t bt = cpu.kv_layout().block_tokens, heads = 2, width = 8;
+    auto st = cpu.kv_alloc(3, heads, width, 6 * bt);
+    infer::BlockPool pool(st->max_blocks());
+    infer::KVSequence seq(&pool, bt);
+    append(cpu, *st, seq, heads, width, bt + 2, 1);
+
+    infer::KVSequence::Tail tail;
+    infer::KVSequence fork = seq.fork(tail);
+    require(fork.length() == seq.length() && fork.n_blocks() == 2, "fork length or table");
+    const backend::KVView vs = seq.view(st.get()), vf = fork.view(st.get());
+    require(vf.blocks[0] == vs.blocks[0] && pool.refs(vs.blocks[0]) == 2, "full block not shared");
+    require(vf.blocks[1] != vs.blocks[1] && tail.from == vs.blocks[1] && tail.to == vf.blocks[1] &&
+            pool.refs(vs.blocks[1]) == 1 && pool.refs(vf.blocks[1]) == 1, "tail not private");
+    cpu.kv_copy(*st, tail.from, tail.to);
+    check(*st, fork, bt, heads, width, 1);
+
+    // Each history grows on its own; the shared block stays as it was.
+    append(cpu, *st, seq, heads, width, 3, 2);
+    append(cpu, *st, fork, heads, width, 5, 3);
+    const auto& s = dynamic_cast<const backend::CpuKVStorage&>(*st);
+    for (const auto* pair : {&vs, &vf}) {
+        const infer::KVSequence& q = pair == &vs ? seq : fork;
+        const int seed_after = pair == &vs ? 2 : 3;
+        const backend::KVView view = q.view(st.get());
+        for (size_t layer = 0; layer < 3; ++layer)
+            for (size_t pos = 0; pos < q.length(); ++pos)
+                for (size_t h = 0; h < heads; ++h)
+                    for (size_t d = 0; d < width; ++d) {
+                        const float want = expected(layer, h, pos, d, pos < bt + 2 ? 1 : seed_after);
+                        require(s.k(layer, view.blocks[pos / bt])[(h * bt + pos % bt) * width + d] == want,
+                                "history diverged in the wrong place");
+                    }
+    }
+
+    // A fork at a block boundary copies nothing.
+    infer::KVSequence exact_seq(&pool, bt);
+    append(cpu, *st, exact_seq, heads, width, bt, 4);
+    infer::KVSequence::Tail none;
+    infer::KVSequence exact_fork = exact_seq.fork(none);
+    require(none.from == -1 && none.to == -1 && exact_fork.n_blocks() == 1 &&
+            pool.refs(exact_seq.view(st.get()).blocks[0]) == 2, "boundary fork took a tail");
+
+    // Truncating into the shared block and appending would write what the
+    // other sequence reads.
+    seq.truncate(bt / 2);
+    rejects([&] { seq.prepare(1); }, "append into a shared block accepted");
+    require(seq.length() == bt / 2 && pool.refs(vs.blocks[0]) == 2, "refused append changed state");
+
+    // Releases follow the refcounts: the fork's reset frees its private
+    // tail and only drops a reference on the shared block, which stays in
+    // use until the last holder lets go.
+    const size_t held = pool.in_use();
+    fork.reset();
+    require(pool.refs(vs.blocks[0]) == 1 && pool.in_use() == held - 1, "fork reset released the wrong blocks");
+    seq.reset();
+    exact_fork.reset();
+    exact_seq.reset();
+    require(pool.in_use() == 0, "blocks leaked across forks");
+}
+
 // Attention over a shuffled table must equal attention over the same history
 // in a different table bit for bit, and match a double-precision reference.
 void attention_over_blocks() {
@@ -558,6 +625,41 @@ void batched_forward() {
     require(a.length() == 0 && b.length() == 2, "reset touched the other sequence");
 }
 
+// Through the model: a forked sequence continues exactly as a fresh
+// sequence fed the whole history would, and the original continues exactly
+// as if never forked.
+void model_fork() {
+    const auto weights = fixture();
+    auto cpu = std::make_shared<backend::CpuBackend>();
+    cpu->set_threads(1);
+    infer::Model model(weights, cpu);
+    const uint32_t prompt[5] = {1, 2, 3, 4, 5}, six = 6, seven = 7;
+    auto run = [&](infer::Sequence& s, const uint32_t* ids, size_t n, bool want) {
+        infer::ExecContext ctx;
+        const infer::BatchEntry e{&s, ids, n, want};
+        model.forward(ctx, &e, 1);
+        return want ? std::vector<float>(ctx.logits(0), ctx.logits(0) + 16) : std::vector<float>();
+    };
+    infer::Sequence a = model.make_sequence();
+    run(a, prompt, 5, false);
+    infer::Sequence b = model.fork(a);
+    require(b.length() == 5, "fork length");
+    const std::vector<float> la = run(a, &six, 1, true), lb = run(b, &seven, 1, true);
+
+    infer::Sequence c = model.make_sequence(), d = model.make_sequence();
+    run(c, prompt, 5, false);
+    run(d, prompt, 5, false);
+    require(run(c, &six, 1, true) == la, "original after fork differs from an unforked history");
+    require(run(d, &seven, 1, true) == lb, "fork differs from a fresh sequence fed the same history");
+    require(la != lb, "the two continuations agree");
+
+    infer::Model other(weights, cpu);
+    rejects([&] { other.fork(a); }, "fork of another model's sequence accepted");
+    model.reset(b);
+    model.reset(a);
+    require(a.length() == 0 && b.length() == 0, "reset after fork");
+}
+
 // A failure after the KV writes must leave length, position and bytes as
 // they were, and the retried step must produce the logits of an undisturbed
 // model, exactly.
@@ -645,6 +747,8 @@ int main() {
         release_syncs();
         batched_views();
         batched_forward();
+        fork_shares_and_copies();
+        model_fork();
         std::cout << "KV cache: pool, sequence, ownership, on-demand storage, reset, paged attention, "
                      "failed-step transactions and retire-before-release pass\n";
         return 0;

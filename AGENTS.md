@@ -231,9 +231,11 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   block tables against a double-precision reference, two sequences batched
   in one attention call against the same two taken separately, the ticket
   and release contract (one submission per pass, waits and syncs counted on
-  every release path), the model transaction on failure, and a two-entry
-  `forward` against the entries run alone. This oracle supplements the
-  independent HF gate.
+  every release path), the model transaction on failure, a two-entry
+  `forward` against the entries run alone, and forks: shared full blocks,
+  a copied tail, refused appends into shared blocks, refcounted release,
+  and a forked sequence continuing exactly as a fresh one fed the same
+  history. This oracle supplements the independent HF gate.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model.

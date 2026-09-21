@@ -692,6 +692,18 @@ public:
         return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, blocks);
     }
 
+    void kv_copy(KVStorage& storage, int32_t src, int32_t dst) override {
+        auto* s = dynamic_cast<CpuKVStorage*>(&storage);
+        if (!s) throw std::runtime_error("backend: KV storage of another backend");
+        if (src < 0 || dst < 0 || !s->backed((size_t)src) || (size_t)dst >= s->max_blocks())
+            throw std::runtime_error("backend: KV copy outside the storage");
+        s->ensure((size_t)dst);
+        for (size_t l = 0; l < s->layers(); ++l) {
+            std::copy_n(s->k(l, src), s->block_floats(), s->k(l, dst));
+            std::copy_n(s->v(l, src), s->block_floats(), s->v(l, dst));
+        }
+    }
+
     void kv_write(size_t layer, const KVView* views, size_t n_views,
                   CSlice k_s, CSlice v_s) override {
         if (n_views && !views) throw std::runtime_error("backend: KV write without views");

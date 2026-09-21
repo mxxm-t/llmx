@@ -362,6 +362,26 @@ public:
     int context_length() const { return cfg.context_length; }
     const Placement& placement() const { return place_; }
 
+    // A second history with the same committed tokens as `src`, sharing
+    // every full block and copying the partial tail on each storage. The
+    // fork inherits the tickets of the passes that wrote what it shares.
+    // Shared blocks are read-only from now on: a sequence truncated into one
+    // cannot append and has to be forked instead.
+    Sequence fork(const Sequence& src) {
+        if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
+        Sequence f;
+        f.kv_.reserve(storages_.size());
+        for (size_t s = 0; s < storages_.size(); ++s) {
+            KVSequence::Tail tail;
+            f.kv_.push_back(src.kv_[s].fork(tail));
+            if (tail.to >= 0)
+                storages_[s]->b->kv_copy(*storages_[s]->storage, tail.from, tail.to);
+        }
+        f.last_ = src.last_;
+        f.owner_ = this;
+        return f;
+    }
+
     // A fresh history over this model's cache: one table per storage.
     Sequence make_sequence() {
         Sequence s;

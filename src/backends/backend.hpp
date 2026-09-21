@@ -211,6 +211,12 @@ public:
                                                 size_t head_dim,
                                                 size_t max_tokens) = 0;
 
+    // Every layer's K and V of block `src` into block `dst` of the same
+    // storage, enqueued. A fork's private tail is filled this way from the
+    // block it shares up to; the backend owns the layout, so only it can
+    // copy a block.
+    virtual void kv_copy(KVStorage& storage, int32_t src, int32_t dst) = 0;
+
     // Store token-major [rows, n_head_kv, head_dim] rows, laid out in view
     // order: view v owns the next views[v].nq rows and they go to positions
     // length .. length + nq of its sequence. Several views in one call is

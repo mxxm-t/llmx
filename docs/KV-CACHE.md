@@ -169,7 +169,11 @@ the view's block table and its `KVStorage` alive until retirement, not only
 the blocks.
 
 A fork copies only the partial tail block; full blocks are shared read-only.
-A write to a shared full block is a design error and is checked, not handled.
+A write to a shared full block is a design error and is checked, not handled:
+`prepare` refuses to append into a block another sequence holds, which is
+what a history truncated into a shared block would do, and the answer is to
+fork it instead. The tail copy is a backend op, `kv_copy`, because only the
+backend knows a block's layout.
 
 ### Prefix sharing
 
@@ -297,7 +301,7 @@ either way.
 | # | Step | Gate |
 |---|---|---|
 | 1 | `BlockPool`, `KVSequence`, paged host storage, view-form `attention`; one sequence, same outputs | HF gate unchanged; A/B vs contiguous picks `block_tokens` |
-| 2 | Fork with tail copy, refcount release, `kv-cache` CTest extended | Distinct values across shared and private blocks |
+| 2 | Fork with tail copy, refcount release, `kv-cache` CTest extended (**done**) | Distinct values across shared and private blocks; a forked sequence continues exactly as a fresh one fed the same history |
 | 3 | Storage on `Buffer`, completion-gated release | DEVICE-EXECUTION step 5, no CPU regression |
 | 4 | Prefix index, per-request sequences | With the server, ROADMAP #7 |
 

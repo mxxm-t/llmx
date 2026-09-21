@@ -47,6 +47,25 @@ reshuffle it. Splitting the model layer into its own translation unit would
 bound this; AGENTS already allows `.cpp` files with one per logical unit.
 Evidence in `docs/benchmarks/layout-sensitivity-20260921/`.
 
+**Then the confound in my own comparison.** The build embeds the Git
+revision and a dirty marker. The candidate had been built from a dirty tree
+and the baseline from a clean worktree, so the two binaries differed in an
+embedded string as well as in code. Rebuilding both the same way, from
+detached worktrees at their two commits, the same change reads:
+
+| Cell | Paired mean | Paired median | Baseline wins |
+|---|---:|---:|---:|
+| 0.6B prefill | +1.09% | -0.08% | 8/15 |
+| 0.6B decode | +0.13% | -1.37% | 8/15 |
+| 8B prefill | +0.35% | +0.83% | 3/9 |
+| 8B decode | +0.51% | +0.46% | 4/9 |
+
+Dead level, against -8.03% when the arms also differed in build identity.
+The rule for every comparison from here: **build both arms the same way**,
+same source of the version string and same tree state, so the only
+difference is the change. An embedded string is enough to move this
+benchmark by several points.
+
 ## Device execution step 3: buffers (2026-09-21)
 
 - **Goal:** weights reach the backend as backend-owned handles instead of raw

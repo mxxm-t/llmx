@@ -39,6 +39,21 @@ by the plain `build.bat` path. Keep the two in sync when you add build knobs.
   automatically reject it on an isolated per-case cutoff. Preserve all results
   and explain the workload tradeoff. HF correctness and matched mx comparisons
   remain required.
+- **Build both arms the same way.** A comparison is only about the change if
+  nothing else differs between the binaries. The build embeds the Git
+  revision and a dirty marker, and that string alone moved 0.6B prefill by
+  several percent: the same change measured -8.03% with mismatched build
+  identity and -0.08% with both arms built from detached worktrees at their
+  own commits. Build both arms the same way, from the same kind of tree, and
+  record each binary's `--version` alongside its hash.
+- **Code layout is part of the measurement.** In a header-only runtime with
+  one translation unit, an unrelated edit can reshuffle the hot path.
+  Behaviourally identical builds, differing only by an unused function, span
+  about four points of prefill on Qwen3-0.6B, and one of them failed the
+  advance rule outright. Before believing a few-percent result on a hot-path
+  cell, compare against a perturbed build of the same behaviour and check the
+  difference is outside that band. Evidence in
+  `docs/benchmarks/layout-sensitivity-20260921/`.
 - **Check machine contention.** Record timestamped background process CPU use
   and system CPU, disk and GPU activity before and throughout performance runs,
   using the same low-overhead monitoring in every arm. Separate benchmark and

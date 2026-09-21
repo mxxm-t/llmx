@@ -4,6 +4,49 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Code layout moves this benchmark more than the rule allows (2026-09-21)
+
+Moving the embedding gather into the backend measured -8.03% on 0.6B prefill,
+twice. The gather itself measures 0.0014 ms at that shape and the logits are
+byte-identical, so the work cannot account for 38 ms. Builds that behave
+identically, 15 pairs each, against one reference build:
+
+| Build | Prefill | Decode |
+|---|---:|---:|
+| baseline + unused function | -1.34% | -1.35% |
+| baseline + small unused function | -0.50% | -1.18% |
+| baseline + larger unused function | +2.52% | -2.00% |
+| embed as written | -8.03% | -0.84% |
+| embed + that function as dead code | -1.89% | +0.42% |
+| embed, gather forced out of line | -3.75% | -0.90% |
+| embed, prefill body forced out of line | -4.36% | -1.89% |
+| embed, token id in a member slot | -0.60% | -2.21% |
+
+Three things follow, and the second one matters most.
+
+**Layout alone spans about four points of prefill**, wider than the runner's
+3% band. The first probe, an unused function and nothing else, **failed the
+advance rule** on decode at 12 of 15 baseline wins. The rule can therefore
+report a regression for a relink.
+
+**A single-build A/B cannot gate a few-percent change on this cell.** A
+candidate needs comparing against several perturbed builds of the same
+behaviour, not one. Earlier few-percent prefill conclusions on this model
+carry that uncertainty, as does the 0.6B prefill cell's own A/A failure at
+-3.53%.
+
+**The -8% build was still real.** It sits outside the layout band, so it was
+a genuinely poor layout, not noise: one extra local in a very large inline
+body was enough. Forcing functions out of line made it worse; moving the
+local to a member slot restored it to -0.60%, inside the band. That is the
+shipped form, with the reason in the code.
+
+Root cause is structural. The whole runtime is one translation unit of
+headers and the forward pass is one enormous inline body, so any edit can
+reshuffle it. Splitting the model layer into its own translation unit would
+bound this; AGENTS already allows `.cpp` files with one per logical unit.
+Evidence in `docs/benchmarks/layout-sensitivity-20260921/`.
+
 ## Device execution step 3: buffers (2026-09-21)
 
 - **Goal:** weights reach the backend as backend-owned handles instead of raw

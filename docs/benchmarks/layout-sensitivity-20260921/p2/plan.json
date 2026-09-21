@@ -1,0 +1,30 @@
+{
+  "advance": {
+    "alpha": 0.05,
+    "contamination": "A pair is flagged when either arm's whole-run CPU exceeds the session median by 25%. Flags are reported, never used to drop, replace or re-run a pair.",
+    "noise_fraction": 0.03,
+    "rule": "For each phase, over the PAIRED per-round ratios cand/base: both the mean and the median ratio are at least (1 - noise_fraction), AND baseline paired wins are below the smallest count whose one-sided binomial tail under p=0.5 is at most alpha. Ratios are paired so a drift within the run cancels inside each pair; comparing marginal medians instead let a run that drifted 289 -> 222 tok/s report -11.15% on identical code."
+  },
+  "arms": {
+    "base": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\embed\\base-wt\\build\\Release\\llmx.exe",
+      "sha256": "4bf2e2bb2cccefc842a08fbbcf4e54dd1e1d690ca0e74e9e9b94dac7393a0c79"
+    },
+    "cand": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\embed\\p2-wt\\build\\Release\\llmx.exe",
+      "sha256": "759ab14f05bb90581a4b5f10229eb0046d9a4389dfcdafe1f62d21eeb96b2f59"
+    }
+  },
+  "created": "2026-09-21T10:00:02+0300",
+  "kind": "device-execution A/B",
+  "limits": "One model and one prompt. Host load is recorded, not controlled. This runner covers only the regression half of the bar, baseline against candidate. The external mx-llama.cpp floor is a separate matched comparison and is NOT run here; a step that passes this runner still has to clear that floor.",
+  "max_tokens": 32,
+  "measured_rounds": 15,
+  "model": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+  "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+  "order": "arms rotate by one place per round; the rotation reverses on odd rounds",
+  "prompt": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\screen\\p250.txt",
+  "prompt_sha256": "bcf043d4cb9f583da9e79266e616a614ad6f67fcaed03b507b5661042f2c3844",
+  "threads": 6,
+  "warmup_rounds": 1
+}

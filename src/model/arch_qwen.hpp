@@ -271,10 +271,13 @@ public:
     void step_body(int token_id, int pos) {
         const backend::KVView view = kv_seq_.view(kv_storage_.get());
 
-        // embedding
-        const uint32_t embed_id = (uint32_t)token_id;
+        // embedding. The id lives in a member slot rather than on the stack.
+        // step() is a very large inline body in a header, and adding one local
+        // to it shifted the generated layout enough to cost 8% of 0.6B prefill
+        // for work measured at 0.0014 ms (docs/STATUS.md).
+        embed_id_ = (uint32_t)token_id;
         b_->embed(x_.data(), token_embd_.type, *token_embd_.data, token_embd_.nin,
-                  token_embd_.nout, &embed_id, 1);
+                  token_embd_.nout, &embed_id_, 1);
 
         for (int l = 0; l < cfg.n_layer; l++) {
             const LayerWeights& w = layers_[l];
@@ -383,6 +386,7 @@ private:
     std::vector<LayerWeights> layers_;
     Weight token_embd_, output_norm_, output_;
 
+    uint32_t embed_id_ = 0;
     std::vector<float> x_, h_, q_, kv_, v_, attn_;
     std::vector<float> gate_, up_, ffn_;
     std::vector<float> xb_, hb_, qb_, kb_, vb_, attnb_, gateb_, upb_, ffnb_;

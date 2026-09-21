@@ -327,14 +327,50 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   thing to measure before using again. The two norm dispatches per
   layer stay: on 0.6B they are about a tenth of a decode token and no
   fusion tried gets them back.
-- **Left:** decode on the 4- and 5-bit files, at 93 and 80 percent of the
+
+  Fifteenth, the greedy-output hash the user asked for: `generate` with
+  the 247-token excerpt, 128 greedy tokens, on the CPU and on the
+  device, output hashed. Qwen3-0.6B Q8_0, Q4_0 and Q5_K_M give the same
+  hash on both backends (e41aee746cc31abf, c19367d54fb40354,
+  b18a64cda0208547), so the device's reduction-order differences never
+  flipped an argmax over 128 steps on any of the three quantizations,
+  and Qwen3-8B-Q8_0 gives the same hash on both over 64 tokens
+  (379c733a478ec58a). The check is CPU against device on the same file:
+  a greedy sequence from a quantized file cannot be checked against the
+  fp32 reference beyond its first tokens, since quantization legitimately
+  moves the argmax, so HF stays the ranking and NLL gate.
+
+  Sixteenth, the long-context case the user asked for, `bench --model`
+  with 16384 prompt tokens and 512 generated, two repeats after a
+  warm-up, both arms in the same minutes:
+
+  | model | test | reference b11075 Vulkan | llmx Vulkan | llmx share |
+  |---|---|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | pp16384 | 514.1 +- 1.7 tok/s | 155.2 +- 3.7 | 30% |
+  | Qwen3-0.6B-Q8_0 | tg512 | 177.2 +- 0.1 tok/s | 192.5 +- 0.2 | 109% |
+  | Qwen3-8B-Q8_0 | pp16384 | 97.3 +- 0.5 tok/s | bad allocation | - |
+  | Qwen3-8B-Q8_0 | tg512 | 37.6 +- 0.1 tok/s | bad allocation | - |
+
+  Two findings. Decode over a 512-token history still leads, but a
+  16384-token prompt runs at 30 percent of the reference: the device
+  attention kernel is one workgroup per (query row, head) with an
+  online softmax, which is the flash form for decode, but prefill has
+  no query tiling, so every query row re-reads its whole K/V history
+  and the traffic is quadratic. At 247 tokens that is invisible behind
+  the matmuls; at 16384 it is the prompt. And Qwen3-8B does not fit a
+  16k context on the 16 GB card: the KV cache is F32, 16896 tokens of it
+  are about 5 GB on top of 8.7 GB of weights, and the allocation
+  failed, where the reference's f16 KV fits.
+- **Left:** first, the tiled prefill attention: a workgroup takes a block
+  of query rows and streams K/V tiles through shared memory once per
+  tile rather than once per row, gated on pp16384 against the reference
+  and on the same CPU comparison the current kernel passes. Second, an
+  f16 KV storage on the device, which halves the cache and attention's
+  memory traffic and is what lets 8B run a 16k context here; the
+  storage type is the backend's choice, so the model does not change.
+  Then decode on the 4- and 5-bit files, at 93 and 80 percent of the
   reference under the matched protocol; their row kernels are the first
-  correct version at 123 to 163 GB/s against Q8_0's 373, and the four
-  bytes per value of activations now cost as much as the weights. Then
-  the two checks the user asked for on 2026-09-21: a 16384-token prompt
-  with 512 generated tokens beside the 247/32 case, reference beside
-  it, and a greedy-output hash of the device against the CPU on the
-  same file.
+  correct version at 123 to 163 GB/s against Q8_0's 373.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

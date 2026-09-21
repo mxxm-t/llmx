@@ -37,8 +37,17 @@ inline uint16_t f32_to_f16(float f) {
         if (rem > halfway || (rem == halfway && (half & 1u))) half++;
         return (uint16_t)(s | half);
     }
-    uint32_t h = (m >> 13) + ((m & 0x1000u) ? 1u : 0u); // round-to-nearest
-    return (uint16_t)(s | ((uint32_t)es << 10) | h);
+    // Round to nearest, ties to even, matching the subnormal path above.
+    // The exponent is ADDED, not OR-ed: a mantissa that rounds up out of ten
+    // bits carries into the exponent field, and OR-ing dropped that carry
+    // whenever es was odd, which returned exactly half the right value.
+    const uint32_t rem = m & 0x1fffu;              // the 13 bits being dropped
+    uint32_t h = ((uint32_t)es << 10) + (m >> 13);
+    if (rem > 0x1000u || (rem == 0x1000u && (h & 1u))) h++;
+    // Rounding can carry out of the largest finite half, which IEEE 754
+    // resolves to infinity.
+    if (h >= 0x7c00u) return (uint16_t)(s | 0x7c00u);
+    return (uint16_t)(s | h);
 }
 
 inline float f16_to_f32(uint16_t h) {

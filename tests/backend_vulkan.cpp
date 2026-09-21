@@ -222,7 +222,10 @@ size_t check_kernels(backend::Backend& vk) {
                                      wq.data() + row * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE,
                                      nin / gguf::Q8_0_BLOCK);
         Pair::In wfi = p.in(wf), wqi = p.in(wq.data(), wq.size());
-        for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13)}) {
+        // 1 to 13 take the row kernel; 16, 64, 100 and 247 the tile kernel,
+        // on, inside and past its 64-column tiles.
+        for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(16), size_t(64),
+                              size_t(100), size_t(247)}) {
             const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
             for (int q = 0; q < 2; ++q) {

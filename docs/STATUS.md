@@ -108,13 +108,14 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   | model | phase | llama.cpp b11075 Vulkan | llmx Vulkan | llmx share |
   |---|---|---:|---:|---:|
-  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 449 | 68% |
-  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 99.5 | 50% |
-  | Qwen3-8B-Q8_0 | prefill | 99 tok/s | 40.0 | 40% |
-  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 21.6 | 54% |
+  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 1025 | 155% |
+  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 101 | 51% |
+  | Qwen3-8B-Q8_0 | prefill | 99 tok/s | 220 | 222% |
+  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 21.8 | 55% |
 
-  Not on the same level, and the roadmap's bar is the reference, not the
-  CPU. Where the time goes, measured per kernel at the 0.6B shapes rather
+  Prefill clears the reference on both models since the tile kernel;
+  decode is at about half of it, and the roadmap's bar is the reference,
+  not the CPU. Where the time goes, measured per kernel at the 0.6B shapes rather
   than guessed: a near-empty dispatch with its barrier costs 6.3 us, so
   the four hundred dispatches of a token are under 3 of its milliseconds;
   the Q8_0 matvec has a floor of about 17 us at 1 MB and streams at 65 to
@@ -128,11 +129,18 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   was not the limit); and attention splits the history into 32-token
   chunks across workgroups with a merge kernel, 134 to 36 us per layer,
   decode 78 to 99.5 tok/s on 0.6B. `backend-vulkan` reports the per-shape
-  timings so the next change is measured against them.
-- **Left:** the tile kernel for prefill, where the row kernel streams the
-  weights once per eight columns; the matvec's bandwidth on the 8B shapes;
-  then sub-step 6, the remaining quant kernels. Every number above is a
-  single run and none is claimed until a paired comparison is recorded.
+  timings so the next change is measured against them. Fourth, the tile
+  kernel for wide batches: a workgroup computes a 64 x 64 output tile
+  with the weights dequantized once into shared memory and every thread
+  accumulating a 4 x 4 micro-tile, so a weight is read once per pass
+  rather than once per eight columns; batches of 16 and up take it.
+  Prefill 449 to 1025 tok/s on 0.6B and 40 to 220 on 8B, checked against
+  the CPU at batch widths 16, 64, 100 and 247 at 1e-4.
+- **Left:** decode, where the matvec streams the 8B matrices at about
+  210 GB/s on a 1 TB/s card because consecutive lanes read 68 bytes
+  apart; then sub-step 6, the remaining quant kernels. Every number
+  above is a single run and none is claimed until a paired comparison is
+  recorded.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

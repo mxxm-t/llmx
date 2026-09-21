@@ -142,12 +142,16 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   activations as 16-byte vectors; the first version read 16-bit words and
   managed 32 GB/s, this one 201 GB/s on the same 4096-square matvec. Rows
   with an odd block count keep the 16-bit path.
-- **matmul, prefill** (`nbatch` up to `--ubatch`): a workgroup tiles rows
-  by columns, dequantizes its rows once into shared memory, and every lane
-  multiplies that tile against its columns. The 32 KiB of shared memory
-  sets the tile. This is the kernel the CPU-versus-device A/B cares about
-  most, because prefill is where the CPU currently beats mx-llama.cpp by
-  eighty percent.
+- **matmul, prefill** (`nbatch` of 16 and up): a workgroup computes a
+  64 x 64 output tile, walking the inner dimension 32 at a time; each
+  step stages the dequantized W tile and the X tile in shared memory and
+  every thread accumulates a 4 x 4 micro-tile in registers, so a weight
+  is read from memory once per pass. Rows past `nout` and columns past
+  `nbatch` read as zero and are not stored. On the Radeon VII this took
+  prefill from 449 to 1025 tok/s on Qwen3-0.6B-Q8_0 and from 40 to 220
+  on Qwen3-8B-Q8_0, past the upstream llama.cpp Vulkan build's 660 and
+  99; the CPU-versus-device A/B checks it at batch widths 16, 64, 100 and
+  247.
 - **attention**: one workgroup per (query row, head). The workgroup's
   subgroups take the history's tokens round robin; inside a subgroup each
   lane owns `head_dim / subgroup_size` elements, a token's score is one
@@ -225,7 +229,7 @@ device is present, so the tree stays green without a GPU.
 |---|---|---|
 | 1 | Build gate, loader, device and queue, buffers, `adopt`/`read`/`write`/`copy`, `submit`/`wait`/`sync` (**done**) | `backend-vulkan`: zeroed allocations, adopt and copy round trips at odd offsets, writes into device and host-visible memory, a copy read in place after a wait, monotonic tickets, empty and out-of-range buffers; skips without a device |
 | 2 | Elementwise kernels, `gather_rows`, `embed` (F32 and Q8_0), the norms, `norm_rope_rows`; the shader build step (**done**) | CPU-vs-Vulkan on random inputs, bounds fixed in the test before the first run: exact for add, gather and embed, 1e-6 relative for SiLU, 1e-5 for the norms and RoPE; 160,688 outputs on the Radeon VII |
-| 3 | `matmul` for F32 and Q8_0: the row kernel (**done**); the tile kernel for wide batches after the backend runs end to end | Same over batch widths 1, 3, 8 and 13 and both block-count parities, 1e-4 relative; the 4096-square Q8_0 matvec reads at 201 GB/s on the Radeon VII, reported and not gated |
+| 3 | `matmul` for F32 and Q8_0: the row kernel and the tile kernel (**done**) | Against the CPU over batch widths 1, 3, 8 and 13 on the row kernel and 16, 64, 100 and 247 on the tile kernel, both block-count parities, 1e-4 relative; the 4096-square Q8_0 matvec reads at about 200 GB/s on the Radeon VII, reported and not gated |
 | 4 | KV storage, `kv_write`, `kv_copy`, `attention` over views (**done**) | Against the CPU backend through each backend's own storage and block size: histories of 0, 63, 64, 65 and 131 tokens with 1 and 3 queries, two views in one call, a copied block attending like its source; 1e-4 relative |
 | 5 | `--device`; the models end to end (**done** except the floor) | HF baselines with `--device vulkan:0`: Q8_0 logits and all four perplexity cases match the CPU's numbers to the digit; the whole Python suite runs on the device; the matched mx Vulkan floor is the open item |
 | 6 | Q4_0, Q4_1, Q4_K, Q5_K, Q6_K shaders | HF baselines on the Q4_0 and K-quant models |

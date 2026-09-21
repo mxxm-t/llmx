@@ -122,9 +122,12 @@ const uint32_t kSpvAttention[] = {
 const uint32_t kSpvAttentionMerge[] = {
 #include "vulkan/attention_merge.inc"
 };
+const uint32_t kSpvMatmulTile[] = {
+#include "vulkan/matmul_tile.inc"
+};
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
-                K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_COUNT };
+                K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_COUNT };
 
 struct KernelSource {
     const uint32_t* words;
@@ -143,6 +146,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5},
     {kSpvAttention, sizeof(kSpvAttention), 6},
     {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 2},
+    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 4},
 };
 
 // 64 tokens per KV block: half the CPU's, since the attention workgroup
@@ -791,6 +795,17 @@ public:
         if (bytes_from(w) < nout * row_bytes ||
             floats_from(X) < nbatch * nin || floats_from(Y) < nbatch * nout)
             throw std::runtime_error("vulkan: matmul operand outside its allocation");
+        // Wide batches go to the tile kernel, which reads a weight once per
+        // pass; the row kernel below reads it once per eight columns.
+        if (nbatch >= 16) {
+            const uint32_t pc[4] = {u32(nin), u32(nout), u32(nbatch), type};
+            const uint32_t gx = groups(nout, 64);
+            const size_t gy = (nbatch + 63) / 64;
+            if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
+                throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
+            dispatch(K_MATMUL_TILE, {bind(Y), bind(w), bind(w), bind(X)}, pc, sizeof(pc), gx, (uint32_t)gy);
+            return;
+        }
         // The word-wide path needs every row to start on a word boundary,
         // which an even block count gives, and X columns on 16 bytes, which
         // a column width that is whole blocks gives.
@@ -1061,7 +1076,7 @@ private:
     // One dispatch: bind the pipeline, push the buffers and the constants,
     // launch `groups` workgroups, and fence it off from the next command.
     void dispatch(KernelId id, std::initializer_list<VkDescriptorBufferInfo> buffers,
-                  const void* push, size_t push_bytes, uint32_t groups_x) {
+                  const void* push, size_t push_bytes, uint32_t groups_x, uint32_t groups_y = 1) {
         Kernel& k = kernel(id);
         if (buffers.size() != k.bindings) throw std::logic_error("vulkan: kernel binding count");
         if (push_bytes > kPushBytes) throw std::logic_error("vulkan: push constants exceed 128 bytes");
@@ -1085,7 +1100,7 @@ private:
                                            (uint32_t)writes.size(), writes.data());
         dev_->fn.vkCmdPushConstants(cmd, k.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                     (uint32_t)push_bytes, push);
-        dev_->fn.vkCmdDispatch(cmd, groups_x, 1, 1);
+        dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
         barrier(cmd);
     }
 

@@ -54,7 +54,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
     # embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
     set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_rows embed matmul_row
-        kv_write attention attention_merge)
+        kv_write attention attention_merge matmul_tile)
     set(LLMX_VK_SPV)
     foreach(shader IN LISTS LLMX_VK_SHADERS)
         set(spv ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan/${shader}.inc)

@@ -16,8 +16,8 @@ inference/     sampler (RNG + top-k/top-p/temp/penalty), generate loop,
                chat template rendering, perplexity driver
    |
    v
-model/         Qwen3 Model + KV cache; architecture registry planned,
-               Qwen3 forward graph (arch_qwen)
+model/         Qwen3 Model + logical KV cache (block pool, sequence);
+               architecture registry planned, forward graph (arch_qwen)
    |
    v
 backends/      Backend interface (type-generic matmul / attention / RMSNorm /
@@ -134,10 +134,10 @@ boundaries:
   positions and relevant execution configuration match. Mutable suffixes stay
   private, and shared blocks remain alive until all users and operations finish.
 
-These are design constraints, not implemented server features. The current
-CPU cache centralizes concrete storage operations without adding unused paging,
-scheduling or device interfaces. A contiguous CPU layout must
-not become a requirement imposed on future device backends.
+The paging and block ownership above are implemented; per-request sequences,
+scheduling and prefix sharing are not, and wait for their real consumers. The
+CPU block size and intra-block layout are that backend's choices and must not
+become requirements imposed on future device backends.
 
 ## Progress and text delivery
 

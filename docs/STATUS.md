@@ -322,7 +322,8 @@ their own measurements; K-quant optimization remains separate work below.
 | GGUF reader size and tensor extent validation | Done |
 | JSON quantize tensor validation | Done |
 | Qwen model construction validation | Done |
-| Device execution model (GPU prerequisite) | In Progress (LDEV, separate branch) |
+| Paged KV cache (block pool, backend-owned blocks) | Done |
+| Device execution model (GPU prerequisite) | In Progress |
 | GPU backends (ROCm first, Vulkan portability) | Planned |
 | Multi-device split                       | Planned  |
 | Multi-node / cluster                     | Planned  |

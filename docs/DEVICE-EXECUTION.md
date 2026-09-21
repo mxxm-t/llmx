@@ -193,11 +193,17 @@ meaningful for it, or 0.
 
 ### KV cache
 
-`HostKVCache`'s layout arithmetic (head-major, capacity-strided) is
-backend-independent and correct; only its storage is host-specific. It becomes
-`KVCache` holding a `BufferPtr` per layer, with `write` implemented as
-`Backend::copy` from the activation arena. On CPU that is a `memcpy` - the same
-work it does today. On a device the K/V never touch host memory.
+Done, and designed separately in [KV-CACHE](KV-CACHE.md). The cache is paged:
+`model/kv_cache.hpp` owns the logical side, a block pool and a per-sequence
+block table, and the backend owns the physical blocks along with their size
+and layout. `Backend::attention` takes a `KVView` rather than raw pointers,
+so the model layer never computes an offset into KV storage.
+
+What remains for this document is storage placement, not the interface: the
+backend's blocks become a `Buffer` at step 5 below, without changing the view
+contract. The release rule already anticipates it - a block returns to the
+free list only when its refcount is zero **and** the backend has retired
+every submission that read it.
 
 ### Async
 
@@ -228,7 +234,7 @@ benchmarkable against the floor.
 | 2 | Batched elementwise ops (`rms_norm_rows`, `rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` | Expected neutral on decode; `silu_mul` may help prefill, which reads and writes three `n_ff * B` streams |
 | 3 | `Buffer`, `alloc`/`adopt`/`read`/`write`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` | Neutral - CPU buffers wrap host memory, zero-copy |
 | 4 | Activation arena; op signatures take buffer + offset | Neutral to slight win (one allocation, better locality) |
-| 5 | KV cache on buffers via `copy` | Neutral - same `memcpy` |
+| 5 | KV blocks on buffers (the view contract is already in place) | Neutral - same `memcpy` |
 | 6 | `sync()` and the enqueue contract | Neutral - no-op on CPU |
 
 The bar for each step is therefore **no measured regression**, not a win. Each

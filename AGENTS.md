@@ -139,6 +139,14 @@ one-hot inputs with exact expected products, and the three-column prefill
 reduction against ordered scalar FMA across dimension tails and unaligned
 inputs. The independent HF fixtures below remain the external correctness gate.
 
+`fused-dot-overflow` pins the two kernel families apart. `dot_row_impl` folds
+the scale into each weight before the activation, so Q8_0 has no overflow
+window; the fused K-quant dots accumulate first and apply the scale after,
+which is what makes them fast and what lets a large activation reach infinity
+before a small scale could bound it. Those rows fall back to dequantizing.
+Sixteen cases across Q8_0/Q4_K/Q5_K/Q6_K cover tiny and zero scales against
+huge and ordinary inputs.
+
 `prefill-scope` uses self-generated model fixtures to check caller-once execution,
 nesting/thread guards, allocation and microbatch boundaries, error draining and
 scope reuse. Windows-only `prefill-placement` covers real eligible topology,

@@ -72,9 +72,11 @@ call. Before any GPU work:
   residual adds, per-head q/k norms) must run device-side, or every layer pays a
   host round trip. Either add ops to `Backend` or move the graph down a layer.
 - **Attention in the backend (CPU implementation done)**: causal GQA
-  now goes through `Backend::attention` for both decode and prefill. The CPU
-  backend owns score scratch and vectorized computation; model code still
-  owns the host KV cache. A GPU implementation needs device buffers below it.
+  now goes through `Backend::attention` for both decode and prefill, over a
+  `KVView` rather than raw pointers. The CPU backend owns score scratch,
+  vectorized computation and the physical KV blocks; the model layer keeps
+  only the block table and the committed length (`docs/KV-CACHE.md`). A GPU
+  implementation needs device buffers below it.
 - **Async**: a submit / sync concept. `dot_q8_0` returning `float` by value is a
   per-row kernel launch.
 - **Type-generic matmul (done for supported quants)**: dispatch through

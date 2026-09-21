@@ -23,7 +23,7 @@ The project is early; most of that broader execution and serving work is planned
   follow-up chat using a Jinja2-subset template renderer. Text streams as tokens
   arrive; legacy reasoning filters retain buffering. Loading and processing
   status appears on stderr in a terminal or with `--verbose`.
-- Batched prompt processing, a growing CPU KV cache, sampling and windowed
+- Batched prompt processing, a paged KV cache, sampling and windowed
   perplexity. One model instance currently handles one sequence at a time.
 
 See [usage](docs/USAGE.md#llmx-pull-ownerrepoquant) for the download/cache

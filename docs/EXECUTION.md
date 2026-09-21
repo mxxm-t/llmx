@@ -261,7 +261,7 @@ vendor backend, so Vulkan implements each signature once.
 
 | # | Step | Consumer that lands with it | CPU effect |
 |---|---|---|---|
-| 1 | RoPE table as a buffer; per-row positions; delete `rope` | `Model` adopts its table and passes positions | Gated; touches the decode path |
+| 1 | RoPE table as a buffer; per-row positions; delete `rope` (**done**) | `Model` adopts its table and passes positions | Measured neutral over five 0.6B cells and one 8B, with a same-file layout control |
 | 2 | `submit`/`wait`; `Memory::host_visible`; logits read through `host_ptr` | `Model::step` waits a ticket instead of `read`; KV release waits the sequence's ticket | Neutral by construction |
 | 3 | Batched views; `gather_rows` | `Model` passes one view; prefill selects its last row through the gather | Gated |
 | 4 | `Model` / `Sequence` / `ExecContext` / `Batch` | The CLI as one sequence and one context; `kv-cache` and `prefill-scope` tests over `forward` | Gated |

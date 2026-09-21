@@ -25,13 +25,54 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   feed-forward separate, and a sequence may hold private unpaged state.
   The "Beyond dense Qwen" section lists the assumptions steps 3, 4 and 6
   must not make.
-- **Left:** step 1 (RoPE table as a buffer, per-row positions, delete
-  `rope`), gated. Then 2 to 4, then the Vulkan page.
-- **Gotchas:** step 1 touches the decode path and the layout band applies:
-  the control must perturb `arch_qwen.hpp` and `cpu_backend.hpp`, the files
-  it edits. `sync()` stays `noexcept`; `wait` is too. The other developer's
-  last recorded position predates the last four merges to main; the design
-  is posted for review but does not wait on it.
+- **Done: step 1.** `norm_rope_rows` takes the cos/sin tables as buffers
+  and one position per row; the model adopts its table once and passes a
+  slice of an identity position table. `Backend::rope` is deleted; `bench`
+  times `norm_rope_rows` instead of a function the runtime never called.
+  `backend-group` checks three rows at positions 5, 2 and 9 against a
+  double-precision reference reading the table at each row's own position.
+  Native 18/18, Python 12/12 with both HF models.
+- **Done: step 1 gate**, three arms built the same way from detached
+  worktrees: base `f1e0be4`, candidate `7519170`, and a layout control
+  `769761e` that is base plus an unused function appended to each of the
+  two files the change edits (`cpu_backend.hpp`, `arch_qwen.hpp`), per the
+  AGENTS rule that the control must perturb the same files. Qwen3-0.6B-Q8_0
+  five times at 15 pairs, Qwen3-8B-Q8_0 once at 9, six threads, 250-token
+  prompt, 32 generated tokens. Evidence in
+  `docs/benchmarks/rope-positions-20260921/`; raw monitors archived beside
+  the repo and hashed in each cell's `monitor-summary.json`. System CPU
+  averaged 40 to 46 percent across cells against the benchmark's own 37.5,
+  so other activity was present throughout; every sample is kept.
+
+  | cell | phase | candidate mean / median / base wins | control mean / median / base wins |
+  |---|---|---|---|
+  | 0.6B-1 | prefill | +3.83% / +3.84% / 4/15 | -2.61% / -0.42% / 9/15 |
+  | 0.6B-1 | decode  | +1.47% / +1.80% / 5/15 | +0.33% / +3.32% / 5/15 |
+  | 0.6B-2 | prefill | -0.29% / -0.06% / 8/15 | -1.33% / +0.16% / 7/15 |
+  | 0.6B-2 | decode  | +0.46% / +0.91% / 5/15 | +1.45% / +0.87% / 6/15 |
+  | 0.6B-3 | prefill | -0.35% / +2.29% / 6/15 | +0.73% / +0.03% / 7/15 |
+  | 0.6B-3 | decode  | **-2.31% / -1.75% / 13/15 FAIL** | -2.22% / -1.61% / 10/15 |
+  | 0.6B-4 | prefill | +1.60% / +0.06% / 7/15 | +0.78% / +0.38% / 7/15 |
+  | 0.6B-4 | decode  | -0.08% / -0.27% / 8/15 | -1.29% / -1.39% / 10/15 |
+  | 0.6B-5 | prefill | -0.86% / -0.81% / 8/15 | +0.44% / +0.09% / 7/15 |
+  | 0.6B-5 | decode  | +0.51% / +0.34% / 6/15 | +2.06% / +1.84% / 6/15 |
+  | 8B | prefill | +1.85% / +0.23% / 3/9 | +2.01% / +0.08% / 4/9 |
+  | 8B | decode  | +0.14% / +0.45% / 4/9 | +0.75% / +0.45% / 2/9 |
+
+  Fails at 12 of 15 and 8 of 9 base wins. One cell failed, 0.6B-3 decode,
+  on the win count. In that same cell the control, which executes the
+  same instructions as base, lost 2.22 percent with 10 base wins, so the
+  cell moved against both later arms rather than against the change, and
+  the two reruns the goal requires came back at -0.08 and +0.51 with 8 and
+  6 base wins. Over five 0.6B cells the candidate's decode mean is
+  +0.01 percent. Recorded as noise confirmed by rerun, with the failing
+  cell kept. The +3.83 prefill in cell 1 is not claimed either; the
+  control spans -2.61 to +0.78 on the same measurement.
+- **Left:** step 2, `submit`/`wait` tickets and host-visible logits. Then
+  3 and 4, then the Vulkan page.
+- **Gotchas:** `sync()` stays `noexcept`; `wait` is too. The other
+  developer's last recorded position predates the last five merges to
+  main; the design is posted for review but does not wait on it.
 
 ## ROCm on Windows is not available for this hardware (2026-09-21)
 
@@ -552,7 +593,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Designed |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Step 1 of 7 done |
 | GPU backends (Vulkan first to write, ROCm first-class) | Planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |

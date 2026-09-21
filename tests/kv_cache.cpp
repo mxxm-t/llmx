@@ -509,6 +509,55 @@ void release_syncs() {
     require(cpu->reads == 0, "a read op was used where a wait suffices");
 }
 
+// Two sequences in one pass through the model: one decoding a token over a
+// three-token history while the other prefills two tokens. Each row must
+// see its own position and its own history, so the logits of the joint
+// pass match the two sequences run on their own, to float tolerance (the
+// three-row matmul takes a different reduction path than one- and two-row
+// ones). A sequence listed twice is refused with every history unchanged.
+void batched_forward() {
+    const auto weights = fixture();
+    auto cpu = std::make_shared<backend::CpuBackend>();
+    cpu->set_threads(1);
+    infer::Model joint(weights, cpu), alone(weights, cpu);
+    infer::Sequence a = joint.make_sequence(), b = joint.make_sequence();
+    infer::Sequence a2 = alone.make_sequence(), b2 = alone.make_sequence();
+    infer::ExecContext ctx, ctx2;
+    const uint32_t hist[3] = {1, 2, 3}, ta[1] = {4}, tb[2] = {5, 6};
+    const infer::BatchEntry h{&a, hist, 3, false};
+    joint.forward(ctx, &h, 1);
+    require(ctx.n_logits == 0 && a.length() == 3, "history pass produced logits");
+    const infer::BatchEntry h2{&a2, hist, 3, false};
+    alone.forward(ctx2, &h2, 1);
+
+    const infer::BatchEntry both[2] = {{&a, ta, 1, true}, {&b, tb, 2, true}};
+    joint.forward(ctx, both, 2);
+    require(ctx.n_logits == 2 && ctx.width == 16 && a.length() == 4 && b.length() == 2,
+            "joint pass did not commit both sequences");
+    std::vector<float> la, lb;
+    const infer::BatchEntry ea{&a2, ta, 1, true};
+    alone.forward(ctx2, &ea, 1);
+    la.assign(ctx2.logits(0), ctx2.logits(0) + 16);
+    const infer::BatchEntry eb{&b2, tb, 2, true};
+    alone.forward(ctx2, &eb, 1);
+    lb.assign(ctx2.logits(0), ctx2.logits(0) + 16);
+    for (size_t i = 0; i < 16; ++i) {
+        require(std::fabs(ctx.logits(0)[i] - la[i]) <= 1e-5 * (1.0 + std::fabs(la[i])),
+                "decode row of the joint pass differs from the sequence alone");
+        require(std::fabs(ctx.logits(1)[i] - lb[i]) <= 1e-5 * (1.0 + std::fabs(lb[i])),
+                "prefill row of the joint pass differs from the sequence alone");
+    }
+    // Rows in the other order must land in the other order.
+    require(la != lb, "the two sequences produced the same logits");
+
+    const infer::BatchEntry twice[2] = {{&a, ta, 1, true}, {&a, tb, 2, true}};
+    rejects([&] { joint.forward(ctx, twice, 2); }, "a sequence listed twice was accepted");
+    require(a.length() == 4 && b.length() == 2, "refused batch changed a history");
+    rejects([&] { ctx.logits(2); }, "logits row beyond the pass was served");
+    joint.reset(a);
+    require(a.length() == 0 && b.length() == 2, "reset touched the other sequence");
+}
+
 // A failure after the KV writes must leave length, position and bytes as
 // they were, and the retried step must produce the logits of an undisturbed
 // model, exactly.
@@ -595,6 +644,7 @@ int main() {
         model_transaction();
         release_syncs();
         batched_views();
+        batched_forward();
         std::cout << "KV cache: pool, sequence, ownership, on-demand storage, reset, paged attention, "
                      "failed-step transactions and retire-before-release pass\n";
         return 0;

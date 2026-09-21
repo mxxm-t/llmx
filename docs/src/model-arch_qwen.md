@@ -29,27 +29,47 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   every layer of every token. It exists so a device backend can recognize the
   same weight across calls and keep it resident; no admissible CPU performance
   measurement exists yet. See `docs/DEVICE-EXECUTION.md` step 1.
-- `Model`: loads tensors from a `GGUFModel`, owns one sequence's logical token
-  count, a `BlockPool` and `KVSequence` for the logical cache, and the
-  backend's `KVStorage` for the physical blocks. Prefill activations live in
-  one backend allocation, each vector at a 64-byte offset into it. A step, and a whole prompt
-  across its microbatches, is one transaction: length and position advance
-  only after the logits exist, and a failure rolls the history back.
+- `Sequence`: one request's history over a model's cache, made by
+  `Model::make_sequence`: its block table and committed length, and the
+  ticket of the last pass that touched it, which a reset waits on. Movable,
+  not copyable. The server keeps one per request; the CLI's model keeps one.
+- `ExecContext`: one pass in flight, plain data the model fills: the
+  activation arena (nine slots at 64-byte offsets in one backend allocation),
+  the host-visible logits rows and the submission's ticket. Allocated by the
+  first forward that needs it and grown to the largest pass seen. Two
+  contexts let a scheduler keep one pass on the device while it reads
+  another's logits. `logits(i)` is row `i` of the last pass, in entry order.
+- `BatchEntry`: what one sequence contributes to a pass: tokens appended to
+  it and whether the logits after its last token are wanted. A prefill
+  microbatch is one entry with many tokens, a decode batch is many entries
+  with one, and they mix.
+- `Model`: loads tensors from a `GGUFModel`, owns the `BlockPool` and the
+  backend's `KVStorage`, the RoPE tables as adopted buffers, and one default
+  sequence and context for the single-sequence entry points. Read-only
+  after construction apart from pool bookkeeping.
+  - `forward(ctx, entries, n)`: one pass over every entry. Each sequence's
+    tokens go through the graph at their own positions and attend through
+    their own history via one view per entry; the rows that want logits are
+    gathered, normed and projected once; the pass is one submission, waited
+    on only when logits are wanted. It is one transaction: every sequence
+    commits only once the logits exist, and a failure anywhere drains the
+    backend and leaves every history as it was. A sequence listed twice is
+    refused.
+  - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
+    to the pool after waiting on its last ticket.
   - `set_threads(n)`, `threads_available()`, `n_tokens()`, `head_dim()`,
     `context_length()`. The thread getter reports the resolved backend count,
     allowing the CLI to restore automatic decode settings after prefill.
-  - `step(token_id) -> logits`: run one token through the full forward pass
-    (embedding, per-block attention + FFN, output norm + head), updating the KV
-    cache. This is the decode path.
-  - `prefill(ids) -> logits`: run a whole prompt through matrix-matrix matmuls
-    in chunks of `ubatch()` tokens, so each weight row is read once per chunk
-    instead of once per token. Only the final token's logits are produced, so
-    the vocab projection stays a single matvec. The limiting resource depends
-    on the model, batch size, hardware and competing workloads.
+  - `step(token_id) -> logits`: one entry of one token through `forward` on
+    the model's own sequence and context. This is the decode path.
+  - `prefill(ids) -> logits`: the prompt in chunks of `ubatch()` tokens, one
+    entry per chunk, inside one backend prefill scope, so each weight row is
+    read once per chunk instead of once per token. Only the last chunk asks
+    for logits. The prompt is one transaction across its chunks.
   - `set_ubatch(n)` / `ubatch()`: physical batch, llama.cpp's `n_ubatch`, set
     by `--ubatch`. llmx has no logical batch; see `docs/USAGE.md`.
-  - `reset()`: reset logical history while retaining allocated KV capacity.
-    Future attention sees only the newly written sequence extent.
+  - `reset()`: the default sequence's history returns to the pool while
+    allocated KV capacity is retained.
   - Both forward paths call `Backend::attention` over the KV cache; score
     scratch, causal masking and head scheduling belong to the backend.
     Storage grows before the forward pass, preserving the used prefix of

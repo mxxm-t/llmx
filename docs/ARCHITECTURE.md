@@ -97,11 +97,15 @@ submission support.
 
 ## KV state and concurrent execution
 
-Today `Model` combines a reference to model weights, one sequence's KV cache
-and token position, activation scratch, and a backend. It supports one sequence
-at a time. Parallel work inside a forward pass does not make concurrent calls
-to the same `Model` safe. Backend worker dispatch and attention scratch also
-need explicit ownership before concurrent submissions can be supported.
+`Model` holds the weights, the cache's pool and physical storage, and the
+backend, and is read-only after construction apart from pool bookkeeping. A
+`Sequence` is one request's history, an `ExecContext` is one pass in flight
+(activation arena, logits rows, ticket), and `Model::forward` runs one pass
+over a batch of entries, each a sequence with tokens to append. The CLI uses
+one sequence and one context through `step` and `prefill`. Parallel work
+inside a forward pass does not make concurrent calls to the same `Model`
+safe: a backend is driven by one thread at a time, and a server's scheduler
+is that thread.
 
 The KV cache is paged (`docs/KV-CACHE.md`). `model/kv_cache.hpp` owns the
 logical side, a block pool and one sequence's block table and committed

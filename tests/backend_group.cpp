@@ -282,11 +282,36 @@ static size_t check_row_positions(backend::CpuBackend& cpu) {
     return count;
 }
 
+// Rows picked out of order, one of them twice, land in pick order; a row
+// beyond the source is refused before anything is written.
+static size_t check_gather(backend::CpuBackend& cpu) {
+    const size_t width = 7, n = 5;
+    std::vector<float> src(n * width), dst(4 * width, -1.0f);
+    for (size_t i = 0; i < src.size(); ++i) src[i] = float(i) * 0.25f;
+    const uint32_t pick[4] = {4, 1, 1, 0};
+    const auto s = cpu.adopt(src.data(), src.size() * sizeof(float));
+    const auto d = cpu.adopt(dst.data(), dst.size() * sizeof(float));
+    cpu.gather_rows({d.get(), 0}, {s.get(), 0}, width, pick, 4);
+    size_t count = 0;
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < width; ++j) {
+            require(dst[i * width + j] == src[pick[i] * width + j], "gathered row differs");
+            ++count;
+        }
+    const uint32_t beyond[1] = {5};
+    bool rejected = false;
+    try { cpu.gather_rows({d.get(), 0}, {s.get(), 0}, width, beyond, 1); }
+    catch (const std::runtime_error&) { rejected = true; }
+    require(rejected && dst[0] == src[4 * width], "row beyond the source was gathered");
+    return count;
+}
+
 int main() {
     try {
         quant::register_builtins();
         backend::CpuBackend cpu;
         cpu.set_threads(1);
+        const size_t gathered = check_gather(cpu);
         const size_t positions = check_row_positions(cpu);
         const size_t scales = check_q8_scales(cpu);
         const size_t reductions = check_prefill_reduction();
@@ -340,7 +365,8 @@ int main() {
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "
                   << magnitudes << " magnitude-sweep outputs; "
-                  << positions << " per-position norm+RoPE outputs\n";
+                  << positions << " per-position norm+RoPE outputs; "
+                  << gathered << " gathered values\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

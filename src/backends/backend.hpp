@@ -254,6 +254,13 @@ public:
 
     // dst[i] += src[i], the residual add.
     virtual void add(Slice dst, CSlice src, size_t n) = 0;
+
+    // dst row i = src row rows[i], `width` floats each. Compacts the rows of
+    // a pass that want logits, which a batch mixing prefill and decode
+    // entries leaves non-contiguous, so the output head runs once over
+    // exactly those rows.
+    virtual void gather_rows(Slice dst, CSlice src, size_t width,
+                             const uint32_t* rows, size_t count) = 0;
 };
 
 using BackendPtr = std::shared_ptr<Backend>;

@@ -69,6 +69,10 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   op because the model never applies one without the other.
 - `silu_mul(dst, gate, up, n)`: the SwiGLU elementwise stage.
 - `add(dst, src, n)`: the residual add.
+- `gather_rows(dst, src, width, rows, count)`: row `i` of `dst` is row
+  `rows[i]` of `src`. Compacts the rows of a pass that want logits, which a
+  batch mixing prefill and decode entries leaves non-contiguous, so the
+  output head runs once over exactly them.
 - `BackendPtr` / factory (`make_cpu_backend`).
 
 The batched forms exist so the model layer holds no elementwise loops and needs

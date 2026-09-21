@@ -923,6 +923,23 @@ public:
         });
     }
 
+    void gather_rows(Slice dst_s, CSlice src_s, size_t width,
+                     const uint32_t* rows, size_t count) override {
+        if (count && !rows) throw std::runtime_error("backend: gather without rows");
+        if (width && count > (size_t)-1 / width / sizeof(float))
+            throw std::runtime_error("backend: gather size overflows");
+        float* dst = at(dst_s);
+        const float* src = at(src_s);
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), count * width * sizeof(float));
+        for (size_t i = 0; i < count; ++i) {
+            const size_t r = rows[i];
+            if (width && r > (size_t)-1 / width / sizeof(float) - src_s.offset)
+                throw std::runtime_error("backend: gather row outside the allocation");
+            span(*src_s.buffer, (src_s.offset + r * width) * sizeof(float), width * sizeof(float));
+            std::memcpy(dst + i * width, src + r * width, width * sizeof(float));
+        }
+    }
+
     void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n) override {
         float* dst = at(dst_s);
         const float* gate = at(gate_s);

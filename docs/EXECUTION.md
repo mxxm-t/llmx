@@ -188,7 +188,7 @@ ExecContext   one pass in flight: an activation arena per device, the
 Batch         entries of (Sequence*, token ids, want_logits).
 ```
 
-`Model::forward(ExecContext&, const Batch&)` enqueues the whole pass on
+`Model::forward(ExecContext&, const BatchEntry*, n)` enqueues the whole pass on
 every device in layer order, submits, and returns. `ExecContext::logits()`
 waits on the tickets and returns the rows in entry order. A prefill
 microbatch is one entry with many tokens; a decode batch is many entries

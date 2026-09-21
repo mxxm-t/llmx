@@ -70,7 +70,7 @@ public:
     virtual ~Buffer() = default;
     virtual size_t size() const = 0;
     // Non-null only if the allocation is directly addressable by the host.
-    // Device backends return nullptr; callers must use read()/write().
+    // Device backends return nullptr; callers must use read().
     virtual void* host_ptr() = 0;
 };
 using BufferPtr = std::shared_ptr<Buffer>;
@@ -81,7 +81,6 @@ On `Backend`:
 ```cpp
 virtual BufferPtr alloc(size_t bytes) = 0;
 virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
-virtual void write(Buffer&, size_t off, const void* src, size_t bytes) = 0;
 virtual void read(const Buffer&, size_t off, void* dst, size_t bytes) = 0;
 virtual void copy(Buffer& dst, size_t dst_off,
                   const Buffer& src, size_t src_off, size_t bytes) = 0;
@@ -101,7 +100,10 @@ requires the `GGUFModel` to outlive it, so this is free on CPU; a GPU backend
 that copied simply never relies on the guarantee.
 
 `copy` exists for the KV cache, whose writes are device-to-device once
-activations are resident.
+activations are resident. A host-to-device `write` was part of this design and
+has been dropped: weights arrive through `adopt` and every other value is
+produced by an op, so step 5 came and went without giving it a caller. The
+first backend that needs one adds it back alongside that caller.
 
 ### Tensor residency
 
@@ -227,6 +229,39 @@ per forward pass: the logits at the end. One sync per forward pass, not one per
 op. Explicit streams, events and cross-stream dependencies are deferred to #5
 (multi-device), where they are actually needed - building them now would be
 speculative machinery with no consumer.
+
+**Why deferring them costs no performance today, and where it would.** The
+project is performance first, so "minimal" has to be justified on throughput
+rather than on taste. In a single-device forward pass there is nothing to
+overlap: layer N+1 consumes layer N's output, so the graph is a chain and a
+deeper async model has no second thing to run. The one win actually available
+is not draining the pipeline once per op, and a single implicit stream takes
+all of it. Host work that could overlap - sampling, detokenizing - is
+microseconds against matmuls that stream hundreds of MB.
+
+Overlap appears where there are two things to run at once, and both are
+roadmap items rather than this one:
+
+- **#5, multi-device.** Pipeline parallelism runs layer N on one device while
+  layer N-1 of the next microbatch runs on another; tensor parallelism
+  overlaps a reduction with compute. Both need events and cross-stream
+  dependencies, and both are worth real throughput.
+- **#7, the multi-user server.** Continuous batching overlaps one request's
+  prefill with another's decode. That needs a submission queue and completion
+  signalling, not just a drain.
+
+The reason to wait is not that the work is small, it is that the abstraction
+has to sit over vendor models that differ in structure. HIP streams with
+events and Vulkan queues with timeline semaphores and command buffers do not
+share a shape, and choosing one before writing either backend is a guess. One
+vendor backend tells us what the abstraction must support; #5 then builds it
+against two consumers instead of none.
+
+What this step must get right is only that it does not foreclose that. Ops
+enqueue rather than complete, which is the property a richer model extends
+rather than replaces; adding explicit streams later adds a parameter, it does
+not undo anything here. Leaving ops synchronous is the choice that would have
+to be unpicked, which is why this step exists at all.
 
 ## Migration order
 

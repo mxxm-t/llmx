@@ -25,18 +25,29 @@ Windows drivers.
   to invent is allocated through the same path as everything else. The view
   contract does not change: `KVView` still names a storage, a block table and a
   length, and the model still never computes an offset into KV storage.
-- **Done:** nothing yet, block opened before writing code.
-- **Left:** per layer, one K buffer and one V buffer through `Backend::alloc`.
-  Growth allocates the complete new set before publishing any of it, which is
-  the transactional property the vector version already has, and moves the
-  history with `Backend::copy`. The CPU backend resolves a buffer to a host
-  pointer once per op exactly as it does for activations, so `attention` and
-  `kv_write` keep the kernels they have.
-- **Left:** `Backend::write` has no caller and this step does not give it one,
-  because `kv_write` receives its K and V as slices that are already buffers,
-  so the copy is storage to storage. Under the AGENTS.md rule against a seam
-  with no consumer it should be deleted here, and reintroduced by the first
-  backend that actually needs a host-to-device upload.
+- **Done:** one K buffer and one V buffer per layer, allocated through the
+  backend that owns the storage. Growth is `alloc` then `copy`, which gives
+  `Backend::copy` the caller it had been missing since step 3 added it. The
+  complete new set is allocated and already holds the history before any of it
+  is published, so an allocation that throws leaves the storage exactly as it
+  was. A resolved host pointer sits beside each handle because `attention`
+  asks for one per head, per query, per block, which is not a place to put a
+  `dynamic_cast`. `attention` and `kv_write` keep the kernels they had.
+- **Done:** `Backend::write` is deleted. It never had a caller and this step
+  was its last chance to get one: weights arrive through `adopt` and every
+  other value is produced by an op, so there is nothing to upload. The first
+  backend that genuinely needs a host-to-device write adds it back with its
+  caller, per the rule against a seam with no consumer.
+- **Done:** correctness. Native 18/18, Python suite 12/12 with both HF models,
+  260-token logits byte-identical against main, which is the check that says
+  the cache moved without any value in it moving.
+- **Done:** the round-trip test now decodes a quantized payload straight from
+  the format description and requires llmx to match bit for bit, for Q8_0 and
+  Q4_0. It measured what it was asked about along the way: worst error 0.0168
+  for Q8_0 against 0.3043 for Q4_0 on identical data, which is why a Q4_0
+  perplexity sits well above the full-precision reference while Q8_0 does not.
+  A negative control confirms the check fails when the reference is wrong.
+- **Left:** the gate.
 - **Gotchas:** `alloc` is documented zero-filled and the vector version zeroed
   on `resize`, so a newly backed block reads as zeros either way; a test
   depends on that. `allocated_bytes` currently sums `capacity()`, which has no

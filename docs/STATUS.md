@@ -437,14 +437,17 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   traffic saved: the head went from 693 to 1184 us, the 8B shape from
   215 to 129 GB/s, and Q5_K_M tg32 from 185.7 to 161.1 tok/s. The
   activation re-read is the traffic, but the answer is not more state
-  per lane.
+  per lane. Twenty-first, the other way round, a 4 KB shared-memory
+  copy of the activation row per workgroup in the Q6_K module for
+  one-column passes up to 1024 wide, every lane reading from it: also
+  rejected, the head 693 to 771 us, Q5_K_M tg32 185.7 to 180.1, and
+  even the 4096-wide shape, which was not staged, fell from 215 to 175
+  GB/s from the select on every read. The K-quant row kernels at these
+  shapes are not limited by activation traffic in a way either fix can
+  reach; what remains there is the per-dispatch floor and the decode
+  work per lane, and it is left at 84 percent for now.
 - **Left:** decode on the 4- and 5-bit files, at 93 and 84 percent of
-  the reference under the matched protocol: the Q6_K head and the
-  K-quant row kernels at 1024 wide, where the activation re-read per row
-  is the traffic and a shared-memory copy of the row, at 4 KB, is the
-  next thing to measure there specifically, since the 4 KB norm staging
-  lost on Q8_0 but the K-quant lanes read four times as many activation
-  bytes per weight byte. The tiled attention does not yet share a K/V tile
+  the reference under the matched protocol. The tiled attention does not yet share a K/V tile
   across the query heads of a KV group. And the question of the default
   cache type, f16 being the reference's default and passing the gate
   here.

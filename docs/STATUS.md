@@ -68,8 +68,44 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   +0.01 percent. Recorded as noise confirmed by rerun, with the failing
   cell kept. The +3.83 prefill in cell 1 is not claimed either; the
   control spans -2.61 to +0.78 on the same measurement.
-- **Left:** step 2, `submit`/`wait` tickets and host-visible logits. Then
-  3 and 4, then the Vulkan page.
+- **Done: step 2.** `submit()` returns a monotonic ticket and `wait()`
+  blocks on one; `sync()` stays what the failure paths call, because a
+  failed pass has ops queued behind no ticket. `alloc` takes a `Memory`
+  kind; the logits buffer is host visible and the host reads it in place
+  after the wait, so no read op copies a row it can already see. The model
+  submits once per pass, waits on that ticket for the logits, and `reset`
+  waits on the last ticket instead of draining. `kv-cache` counts the
+  calls: one submission waited on once per step, no read op for logits, a
+  three-token prompt at ubatch 2 submitting twice and waiting once, and a
+  reset that waits without a sync. Native 18/18, Python 12/12 with both HF
+  models.
+- **Done: step 2 gate**, same shape as step 1: base `2bbfd34`, candidate
+  `4ee6f48`, layout control `bd0cdc7` perturbing `cpu_backend.hpp` and
+  `arch_qwen.hpp`. Three 0.6B cells at 15 pairs, one 8B at 9. System CPU
+  averaged 37 to 40 percent per cell against the benchmark's own 37.5, so
+  the machine was close to quiet; every sample is kept. Evidence in
+  `docs/benchmarks/tickets-20260921/`, raw monitors archived and hashed.
+
+  | cell | phase | candidate mean / median / base wins | control mean / median / base wins |
+  |---|---|---|---|
+  | 0.6B-1 | prefill | -1.72% / -2.45% / 10/15 | -1.03% / -1.20% / 9/15 |
+  | 0.6B-1 | decode  | +0.58% / +1.04% / 4/15 | +0.79% / +0.21% / 7/15 |
+  | 0.6B-2 | prefill | -1.10% / -1.54% / 9/15 | -1.98% / -0.24% / 9/15 |
+  | 0.6B-2 | decode  | +1.02% / -0.04% / 8/15 | -0.84% / -1.84% / 9/15 |
+  | 0.6B-3 | prefill | -2.02% / -2.84% / 10/15 | +0.21% / -0.43% / 9/15 |
+  | 0.6B-3 | decode  | +0.67% / +1.03% / 6/15 | +2.02% / -0.54% / 8/15 |
+  | 8B | prefill | +0.54% / +0.36% / 3/9 | +0.74% / +1.00% / 1/9 |
+  | 8B | decode  | +0.86% / +0.66% / 3/9 | +0.98% / +0.66% / 2/9 |
+
+  All eight cells pass. The candidate's 0.6B prefill is below base in all
+  three cells, by 1.1 to 2.0 percent on the mean, which is inside the band
+  the control itself spans (-1.98 to +0.21) and the change adds nothing a
+  prefill executes beyond one counter increment per pass. Recorded rather
+  than explained away; if a later step finds 0.6B prefill a point or two
+  low against an older baseline, this is a candidate along with the code
+  read's three points.
+- **Left:** step 3, batched views and `gather_rows`. Then 4, then the
+  Vulkan page.
 - **Gotchas:** `sync()` stays `noexcept`; `wait` is too. The other
   developer's last recorded position predates the last five merges to
   main; the design is posted for review but does not wait on it.
@@ -593,7 +629,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Step 1 of 7 done |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 and 2 of 7 done |
 | GPU backends (Vulkan first to write, ROCm first-class) | Planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |

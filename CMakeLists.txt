@@ -211,6 +211,15 @@ if(BUILD_TESTING)
     add_test(NAME placement COMMAND llmx-placement-test)
     set_tests_properties(placement PROPERTIES TIMEOUT 30)
 
+    add_executable(llmx-http-test tests/http.cpp)
+    target_include_directories(llmx-http-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(WIN32)
+        target_link_libraries(llmx-http-test PRIVATE ws2_32)
+    endif()
+    list(APPEND LLMX_TARGETS llmx-http-test)
+    add_test(NAME http COMMAND llmx-http-test)
+    set_tests_properties(http PROPERTIES TIMEOUT 30)
+
     if(LLMX_HAS_BACKEND_VULKAN)
         # Exits 77 when there is no loader or no device, which CTest reports
         # as skipped rather than passed.

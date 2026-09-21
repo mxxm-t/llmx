@@ -12,6 +12,9 @@ multi-node serving can be added without touching the core.
 cli/           argument parsing, command dispatch, usage text
    |
    v
+server/        HTTP transport; scheduler and routes to come (SERVER.md)
+   |
+   v
 inference/     sampler (RNG + top-k/top-p/temp/penalty), generate loop,
                chat template rendering, perplexity driver
    |
@@ -58,6 +61,7 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass), `kv_cache.hpp` (logical KV: block pool, sequence) |
 | `backends/`     | `backend.hpp` (interface), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/prefill_placement.hpp` (Windows policy)          |
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |
+| `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies); the scheduler and routes of `SERVER.md` follow |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
 
 Source and subsystem documentation lives in `docs/src/`, covering

@@ -12,9 +12,14 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   iteration, streaming responses, prefix reuse through `fork`, admission by
   the KV pool's budget. Dependency-free transport. The design, protocol,
   scheduler loop, gates and order of work are `docs/SERVER.md`.
-- **Done:** the design only. No `server/` directory exists yet.
-- **Left:** SERVER.md's five steps, in order: the HTTP layer with its own
-  CTest; the scheduler and `llmx serve` with `/v1/generate` and
+- **Done:** the design, and step 1: `src/server/http.hpp`, HTTP/1.1 over
+  blocking sockets, Winsock or BSD, a listener, one request with a
+  Content-Length body per connection, a whole response or a chunked
+  stream, and a client for tests; the `http` CTest covers a whole
+  response, an echoed body, a three-chunk stream arriving as written, 413,
+  400, 404 and the listener closed from another thread, on Windows and,
+  compiled with GCC 14 on the rig, on Linux.
+- **Left:** SERVER.md's steps 2 to 5, in order: the scheduler and `llmx serve` with `/v1/generate` and
   `/v1/health`, gated on greedy equality with the CLI alone and beside three
   decoders and on aggregate throughput at 1, 4, 8 and 16 against the
   single-sequence bench and the reference's server; `/v1/chat`; the prefix

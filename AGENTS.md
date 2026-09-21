@@ -199,6 +199,13 @@ arithmetic is the same operation in the same order, a stated relative
 tolerance where a transcendental or a reduction order differs. It exits 77,
 which CTest reports as skipped, when there is no loader or no device.
 
+`http` starts the server's HTTP layer (`src/server/http.hpp`) on a
+system-chosen port from a thread and drives it with the layer's own client:
+a whole response, a body echoed back, a chunked stream whose chunks arrive
+as written, an oversized body refused with 413, a malformed request line
+refused with 400, an unknown route 404, and the listener closed from the
+main thread ending the accept loop. Windows and Linux.
+
 `placement` splits a two-layer model over two CPU backends with a device per
 tensor role (`docs/EXECUTION.md`) and requires the bytes of the same model on
 one backend for a prompt, decode steps, a history across a block edge, a
@@ -305,7 +312,8 @@ wikitext test set) are documented in `docs/ASSETS.md`.
 
 See `docs/ARCHITECTURE.md` for the layer diagram and rules. The rule that
 matters: **each layer depends only on the layers below it** -
-`cli > inference > model > backends > tokenizer > format > quant > core`.
+`cli > server > inference > model > backends > tokenizer > format > quant > core`;
+`server/` uses the inference layer and adds only scheduling and transport.
 
 | Directory    | Contents                                        |
 |--------------|-------------------------------------------------|
@@ -317,6 +325,7 @@ matters: **each layer depends only on the layers below it** -
 | `model/`     | Qwen3 config + forward pass, KV cache          |
 | `backends/`  | Backend interface + cpu/ (AVX2) impl; one worker pool |
 | `inference/` | sampler, generate, perplexity, chat template renderer      |
+| `server/`    | HTTP layer for the multi-user server (`docs/SERVER.md`); scheduler and routes to come |
 | `cli/`       | thin argument parsing + dispatch               |
 
 ## Starting a feature

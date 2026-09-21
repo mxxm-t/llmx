@@ -110,7 +110,8 @@ each is gated by its own `LLMX_HAS_BACKEND_*` in `config.hpp`.
   ROCm on Windows. One set of compute shaders that runs anywhere, used as
   the fallback where no vendor backend is built or available. Lower peak
   throughput than a vendor path is expected; ROCm remains the first-class
-  target on Linux. `LLMX_HAS_BACKEND_VULKAN`
+  target on Linux. Designed in `docs/VULKAN.md` against the Radeon VII's
+  reported properties, with the sub-steps and gates. `LLMX_HAS_BACKEND_VULKAN`
 - Hardware availability sets what can be *claimed*, not what can be written:
   only AMD gfx906 is testable here today, so any NVIDIA or Intel result stays
   marked **untested** until that hardware exists. Do not claim a backend works

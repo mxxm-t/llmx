@@ -178,7 +178,18 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   Decode is positive in every cell, which is the number this step could
   have moved: the decode loop now runs the row-batched graph with one row
   rather than its own path, and it did not cost anything measurable.
-- **Left:** the Vulkan backend page, then the backend itself (step 5).
+- **Done: the Vulkan backend page**, `docs/VULKAN.md`, designed against
+  the Radeon VII's reported properties: wave64, 8- and 16-bit storage,
+  timeline semaphores behind `submit`/`wait`, push descriptors, a 4-byte
+  storage offset alignment that closes the `adopt` alignment question, no
+  cooperative matrix so matmul is subgroup dots, and the memory types each
+  `Memory` kind maps to. Loader loaded at run time so one binary runs
+  without Vulkan; GLSL in the tree compiled by `glslc` at build time and
+  embedded. Seven sub-steps with a CTest that skips without a device.
+- **Left:** the backend itself, sub-step 1 of `docs/VULKAN.md`. This
+  workstation has the loader and `vulkaninfo` but not the SDK: `VULKAN_SDK`
+  is unset and there is no `glslc`, so the LunarG SDK has to be installed
+  before sub-step 1 can build here.
 - **Gotchas:** `sync()` stays `noexcept`; `wait` is too. The other
   developer's last recorded position predates the last five merges to
   main; the design is posted for review but does not wait on it.
@@ -702,7 +713,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 4 of 7 done |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 4 of 7 done; Vulkan page designed |
 | GPU backends (Vulkan first to write, ROCm first-class) | Planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |

@@ -272,7 +272,7 @@ vendor backend, so Vulkan implements each signature once.
 | 2 | `submit`/`wait`; `Memory::host_visible`; logits read through `host_ptr` (**done**) | `Model::step` waits a ticket instead of `read`; reset waits the last ticket | Measured neutral over three 0.6B cells and one 8B, with a same-file layout control |
 | 3 | Batched views (**done**) | `Model` passes one view; `kv-cache` batches two sequences in one call | Measured neutral over three 0.6B cells and one 8B, with a same-file layout control |
 | 4 | `Model` / `Sequence` / `ExecContext` / `Batch`; `gather_rows` (**done**) | The CLI as one sequence and one context; `kv-cache` runs `forward` with two entries | Measured neutral over three 0.6B cells and one 8B, decode positive in all four |
-| 5 | Vulkan backend (#4b) | Its own design page | CPU-vs-Vulkan A/B on identical inputs |
+| 5 | Vulkan backend (#4b) | [VULKAN](VULKAN.md), designed | CPU-vs-Vulkan A/B on identical inputs; the HF gate with `--device vulkan:0`; the matched mx Vulkan floor |
 | 6 | `Placement`, `write`, transfers, flags | Two `CpuBackend` instances splitting layers, bit-identical to one; then CPU plus Vulkan | Gated at a single-device placement |
 | 7 | Scheduler, per-request sequences, prefix index (#7) | The server | Measured against single-sequence decode |
 

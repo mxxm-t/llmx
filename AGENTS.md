@@ -185,6 +185,13 @@ requiring a six-core hosted runner. Neither replaces the independent HF gate.
 before error propagation, and exercises pool reuse and thread reconfiguration.
 It does not establish recovery of partially executed model sessions.
 
+`placement` splits a two-layer model over two CPU backends with a device per
+tensor role (`docs/EXECUTION.md`) and requires the bytes of the same model on
+one backend for a prompt, decode steps, a history across a block edge, a
+reset and a two-sequence pass. It counts reads and writes so the residual
+stream crosses exactly where the placement changes and never on one device,
+and refuses malformed placements and sequences of another model.
+
 Run the Python suite (synthetic fixtures are generated locally; real-model HF
 checks skip when their models are absent):
 ```
@@ -220,9 +227,13 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   delivery, split UTF-8 bytes, legacy filtering and stop/EOS accounting.
 - **KV cache** (`tests/kv_cache.cpp`, CTest `kv-cache`): block pool reuse and
   exhaustion, sequence prepare/commit/abort/reset, on-demand storage growth
-  and retained reset across block boundaries, and paged attention over two
-  block tables against a double-precision reference. This oracle supplements
-  the independent HF gate.
+  and retained reset across block boundaries, paged attention over two
+  block tables against a double-precision reference, two sequences batched
+  in one attention call against the same two taken separately, the ticket
+  and release contract (one submission per pass, waits and syncs counted on
+  every release path), the model transaction on failure, and a two-entry
+  `forward` against the entries run alone. This oracle supplements the
+  independent HF gate.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model.

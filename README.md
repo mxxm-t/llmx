@@ -24,7 +24,9 @@ The project is early; most of that broader execution and serving work is planned
   arrive; legacy reasoning filters retain buffering. Loading and processing
   status appears on stderr in a terminal or with `--verbose`.
 - Batched prompt processing, a paged KV cache, sampling and windowed
-  perplexity. One model instance currently handles one sequence at a time.
+  perplexity. A model runs a batch of sequences per pass, each at its own
+  positions over its own history, and can be placed across several
+  backends; the CLI drives one sequence on the CPU.
 
 See [usage](docs/USAGE.md#llmx-pull-ownerrepoquant) for the download/cache
 interface. ARM, GPU execution, additional model architectures and a multi-user

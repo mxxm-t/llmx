@@ -188,8 +188,8 @@ runs `prefill-placement`: active real topology when available, real fallback
 otherwise, and synthetic topology/failure cases even on small hosted runners.
 These checks do not require a real model or establish performance.
 
-With the prefill tests integrated, native counts are 12 on Windows and 11 on
-Linux/macOS; the Windows-only lifecycle target accounts for the difference.
+Native counts are 19 on Windows and 18 on Linux/macOS; the Windows-only
+`prefill-placement` target accounts for the difference.
 Windows 12/12 and Linux 11/11 pass locally. Placement release `3c5d4b9` also
 passes all five hosted jobs in
 [run 35516912422](https://github.com/mxxm-t/llmx/actions/runs/35516912422), including

@@ -18,11 +18,24 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   before anything reads it, which a null-pointer test case used to reach.
   Native suite 17/17, Python suite 11/11 with both HF models, 260-token
   logits byte-identical to the previous runtime.
+- **No regression, on the second reading.** The bar for each migration step.
+  Both runs are kept; neither is discarded.
+
+| Run | 0.6B pp / tg | 8B pp / tg | Verdict |
+|---|---|---|---|
+| 9 and 5 pairs | +3.64% / -4.21% | +0.47% / -1.11% | 0.6B decode fails |
+| 15 and 9 pairs | +5.63% / +0.98% | +1.27% / +0.43% | passes |
+
+  The failing cell was two outliers, not a shift: its per-pair values were
+  +11.7 -4.9 -6.8 -8.0 -4.2 +11.1 +5.6 -5.5 -2.0, a mean of -0.35% against a
+  median of -4.21%. With more pairs the same cell reads +0.98% median. The
+  A/A on that cell spans -5.94% to +3.03%, which is the spread this sits in.
+  Treat a median that disagrees with its own mean as a signal to take more
+  pairs rather than to accept or reject.
 - **Left:** `dequant_row` is the last place the model reads weight bytes
   itself, for the embedding lookup; it goes away when `embed` becomes a
   backend op. Retiring `dot_q8_0` and `matvec_q8_0` is separable, since
-  `bench` still calls one. No timing yet; the step is expected neutral and
-  has not been measured.
+  `bench` still calls one.
 - **Gotchas:** `adopt` must not copy on CPU, or an 8B model doubles peak
   memory for nothing; the contract is that the source outlives the buffer,
   which `Model` already requires of the GGUF model. The hot path passes a

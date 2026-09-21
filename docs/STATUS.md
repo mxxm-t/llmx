@@ -446,8 +446,17 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   shapes are not limited by activation traffic in a way either fix can
   reach; what remains there is the per-dispatch floor and the decode
   work per lane, and it is left at 84 percent for now.
+
+  Twenty-second, the block-size screening VULKAN.md sub-step 7 asked
+  for, on the device, same session, `bench --model --p 247 --n 512`,
+  two repeats: 32, 64 and 128 tokens per block give 201.4, 200.6 and
+  201.9 tok/s on 0.6B and 40.9, 41.0 and 41.0 on 8B, all within a
+  repeat's spread, every kernel check passing at each size. 64 stays.
 - **Left:** decode on the 4- and 5-bit files, at 93 and 84 percent of
-  the reference under the matched protocol. The tiled attention does not yet share a K/V tile
+  the reference under the matched protocol. The same backend on the
+  rig's MI50s under Linux needs a Vulkan driver and a shader compiler
+  installed there (no ICD, no glslc today), which is a change to the
+  shared machine and waits for the user. The tiled attention does not yet share a K/V tile
   across the query heads of a KV group. And the question of the default
   cache type, f16 being the reference's default and passing the gate
   here.
@@ -1261,10 +1270,10 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 4 and 6 of 7 done; Vulkan sub-step 1 of 7 done |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 6 of 7 done; the server (step 7) remains |
 | KV cache fork (KV-CACHE step 2)          | Done     |
 | Multi-device split (per-layer, per-tensor) | Placement done over CPU backends; flags wait for a device backend |
-| GPU backends (Vulkan first to write, ROCm first-class) | Planned |
+| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, at or above the reference on Q8_0 decode and every prefill, 84 to 96 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Planned  |

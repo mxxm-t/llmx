@@ -1,29 +1,25 @@
 #version 450
-// Causal GQA for one view: one workgroup per (query row, head, split), a
-// split being a range of the history's tokens. The workgroup's subgroups
-// take the split's tokens round robin; inside a subgroup each lane owns
-// dim / subgroup_size elements, a token's score is one subgroupAdd, and the
-// softmax is kept online, a running maximum and sum with the value
-// accumulation rescaled as the maximum moves, so a long history needs no
-// score array. The subgroups' partial states merge through shared memory.
-// With one split the result is written; with several, each split's state
-// goes to scratch for attention_merge, which is what keeps a decode token
-// over a long history on enough workgroups to fill the device. Row b of
-// the view attends through hist + b.
+// Causal GQA over every view of a batch: one workgroup per (batch row,
+// head, split), a split being a range of the row's history. The
+// workgroup's subgroups take the split's tokens round robin; inside a
+// subgroup each lane owns dim / subgroup_size elements, a token's score
+// is one subgroupAdd, and the softmax is kept online, a running maximum
+// and sum with the value accumulation rescaled as the maximum moves, so a
+// long history needs no score array. The subgroups' partial states merge
+// through shared memory. With one split the result is written; with
+// several, each split's state goes to scratch for attention_merge, which
+// is what keeps a decode token over a long history on enough workgroups
+// to fill the device. Row b of a view attends through its hist + b.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
-    uint hist; uint nq; uint n_head; uint n_head_kv; uint dim; uint bt; uint row0; float scale;
-    uint nsplit; uint chunk;
+    uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
-// K and V storage of either type: f32 as floats, f16 as 16-bit words
-// written round-to-nearest and read exactly, chosen per side at build by
-// LLMX_K16 and LLMX_V16 so a variant carries no branch.
 #ifdef LLMX_K16
 layout(set = 0, binding = 2) readonly buffer K { uint16_t kb16[]; };
 float k_load(uint i) { return unpackHalf2x16(uint(kb16[i])).x; }
@@ -38,8 +34,9 @@ float v_load(uint i) { return unpackHalf2x16(uint(vb16[i])).x; }
 layout(set = 0, binding = 3) readonly buffer V { float vb[]; };
 float v_load(uint i) { return vb[i]; }
 #endif
-layout(set = 0, binding = 4) readonly buffer T { int blocks[]; };
+layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 5) writeonly buffer S { float scratch[]; };
+#include "views.glsl"
 shared float qs[256];
 shared float ms[8];
 shared float ls[8];
@@ -47,17 +44,19 @@ shared float accs[8][256];
 void main() {
     uint split = gl_WorkGroupID.x % p.nsplit;
     uint rh = gl_WorkGroupID.x / p.nsplit;
-    uint b = rh / p.n_head;
-    uint h = rh - b * p.n_head;
+    uint g = rh / p.n_head;
+    uint h = rh - g * p.n_head;
+    uint v, b;
+    view_of_row(g, v, b);
     uint kvh = h / (p.n_head / p.n_head_kv);
     uint lid = gl_LocalInvocationID.x;
     uint nsg = 256u / gl_SubgroupSize;
     uint sg = gl_SubgroupID, lane = gl_SubgroupInvocationID;
     uint qstride = p.n_head * p.dim;
-    uint qbase = (p.row0 + b) * qstride + h * p.dim;
+    uint qbase = (view_row0(v) + b) * qstride + h * p.dim;
     if (lid < p.dim) qs[lid] = q[qbase + lid];
     barrier();
-    uint end = min(p.hist + b + 1u, (split + 1u) * p.chunk);
+    uint end = min(view_hist(v) + b + 1u, (split + 1u) * p.chunk);
     uint start = split * p.chunk;
     uint bf = p.n_head_kv * p.bt * p.dim;
     // This lane's elements: lane, lane + size, ... below dim; at most four.
@@ -67,7 +66,7 @@ void main() {
     float q0 = d0 < p.dim ? qs[d0] : 0.0, q1 = d1 < p.dim ? qs[d1] : 0.0;
     float q2 = d2 < p.dim ? qs[d2] : 0.0, q3 = d3 < p.dim ? qs[d3] : 0.0;
     for (uint t = start + sg; t < end; t += nsg) {
-        uint base = uint(blocks[t / p.bt]) * bf + (kvh * p.bt + t % p.bt) * p.dim;
+        uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t % p.bt) * p.dim;
         float part = 0.0;
         if (d0 < p.dim) part += q0 * k_load(base + d0);
         if (d1 < p.dim) part += q1 * k_load(base + d1);
@@ -93,7 +92,10 @@ void main() {
         float M = ms[0];
         for (uint i = 1u; i < nsg; ++i) M = max(M, ms[i]);
         float L = 0.0, A = 0.0;
+        // A subgroup that saw no token holds -inf and zeros; it adds
+        // nothing, and exp(-inf - -inf) must never be formed.
         for (uint i = 0u; i < nsg; ++i) {
+            if (isinf(ms[i])) continue;
             float c = exp(ms[i] - M);
             L += ls[i] * c;
             A += accs[i][lid] * c;

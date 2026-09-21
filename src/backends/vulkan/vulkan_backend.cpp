@@ -214,7 +214,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMatmulRow, sizeof(kSpvMatmulRow), 6, kMatmulRowCounts},
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
     {kSpvAttention, sizeof(kSpvAttention), 6, nullptr},
-    {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 2, nullptr},
+    {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 3, nullptr},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
     {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 6, kMatmulRowCounts},
     {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 6, kMatmulRowCounts},
@@ -872,7 +872,7 @@ public:
                       Slice k, CSlice v, size_t kv_stride, size_t n_head_kv, CSlice k_w,
                       const RopeArgs& rope, size_t rows, size_t layer,
                       const KVView* views, size_t n_views) override {
-        if (n_views != 1 || !rows || !n_head || !n_head_kv || !rope.half) {
+        if (!rows || !n_head || !n_head_kv || !rope.half) {
             Backend::norm_rope_kv(q, q_stride, n_head, q_w, k, v, kv_stride, n_head_kv, k_w,
                                   rope, rows, layer, views, n_views);
             return;
@@ -881,28 +881,24 @@ public:
         const size_t table = floats_from(rope.cos) / rope.half;
         for (size_t r = 0; r < rows; ++r)
             if (rope.pos[r] >= table) throw std::runtime_error("vulkan: position outside the RoPE table");
-        const KVView& view = views[0];
-        VulkanKVStorage& s = storage_of(*view.storage);
+        std::vector<Placed> placed = place_views(views, n_views);
+        ViewTable t = view_table(layer, placed, true);
+        if (!t.storage) return;
+        VulkanKVStorage& s = *t.storage;
         const size_t dim = 2 * rope.half, hd = s.heads() * s.dim();
-        if (s.dim() != dim || s.heads() != n_head_kv || view.nq != rows)
+        if (s.dim() != dim || s.heads() != n_head_kv || t.rows != rows)
             throw std::runtime_error("vulkan: attention inputs do not match the KV storage");
-        if (layer >= s.layers() ||
-            VulkanKVStorage::blocks_for(VulkanKVStorage::add(view.length, view.nq)) > view.n_blocks)
-            throw std::runtime_error("vulkan: KV write outside the view");
         if (floats_from(q) < rows * q_stride || floats_from(k) < rows * kv_stride ||
             floats_from(v) < rows * kv_stride || q_stride < n_head * dim || kv_stride < hd)
             throw std::runtime_error("vulkan: attention rows outside their allocation");
-        for (size_t t = view.length; t < view.length + view.nq; t += kVkBlockTokens - t % kVkBlockTokens)
-            s.ensure((size_t)view.blocks[t / kVkBlockTokens]);
-        s.ensure((size_t)view.blocks[(view.length + view.nq - 1) / kVkBlockTokens]);
-        struct { uint32_t rows, q_stride, n_head, kv_stride, n_head_kv, half; float eps; uint32_t hist, bt; }
+        struct { uint32_t rows, q_stride, n_head, kv_stride, n_head_kv, half; float eps; uint32_t bt; }
             pc{u32(rows), u32(q_stride), u32(n_head), u32(kv_stride), u32(n_head_kv), u32(rope.half),
-               rope.eps, u32(view.length), u32(kVkBlockTokens)};
+               rope.eps, u32(kVkBlockTokens)};
         dispatch(kv_variant(K_NORM_ROPE_KV, K_NORM_ROPE_KV_K16, s),
                  {bind(q), bind(k), bind(v), bind(q_w), bind(k_w), bind(rope.cos), bind(rope.sin),
                   args(rope.pos, rows * sizeof(uint32_t)),
                   bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
-                  args(view.blocks, view.n_blocks * sizeof(int32_t))},
+                  args(t.words.data(), t.words.size() * sizeof(uint32_t))},
                  &pc, sizeof(pc), u32(rows * (n_head + 2 * n_head_kv)));
     }
 
@@ -1102,98 +1098,154 @@ public:
     // One dispatch per view: its rows scatter into its blocks.
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k,
                   CSlice v) override {
-        if (n_views && !views) throw std::runtime_error("vulkan: KV write without views");
-        size_t row0 = 0;
-        for (size_t i = 0; i < n_views; ++i) {
-            const KVView& view = views[i];
-            VulkanKVStorage& s = storage_of(*view.storage);
-            const size_t hd = s.heads() * s.dim();
-            if (layer >= s.layers() ||
-                VulkanKVStorage::blocks_for(VulkanKVStorage::add(view.length, view.nq)) > view.n_blocks)
-                throw std::runtime_error("vulkan: KV write outside the view");
-            if (view.nq) {
-                if (floats_from(k) < (row0 + view.nq) * hd || floats_from(v) < (row0 + view.nq) * hd)
-                    throw std::runtime_error("vulkan: KV rows outside their allocation");
-                for (size_t t = view.length; t < view.length + view.nq; t += kVkBlockTokens - t % kVkBlockTokens)
-                    s.ensure((size_t)view.blocks[t / kVkBlockTokens]);
-                s.ensure((size_t)view.blocks[(view.length + view.nq - 1) / kVkBlockTokens]);
-                const uint32_t pc[6] = {u32(view.length), u32(view.nq), u32(s.heads()), u32(s.dim()),
-                                        u32(kVkBlockTokens), u32(row0)};
-                dispatch(kv_variant(K_KV_WRITE, K_KV_WRITE_K16, s),
-                         {bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
-                          bind(k), bind(v), args(view.blocks, view.n_blocks * sizeof(int32_t))},
-                         pc, sizeof(pc), groups(view.nq * hd, 256));
-            }
-            row0 += view.nq;
-        }
+        std::vector<Placed> placed = place_views(views, n_views);
+        ViewTable t = view_table(layer, placed, true);
+        if (!t.storage || !t.rows) return;
+        VulkanKVStorage& s = *t.storage;
+        const size_t hd = s.heads() * s.dim();
+        if (floats_from(k) < t.rows * hd || floats_from(v) < t.rows * hd)
+            throw std::runtime_error("vulkan: KV rows outside their allocation");
+        const uint32_t pc[4] = {u32(t.rows), u32(s.heads()), u32(s.dim()), u32(kVkBlockTokens)};
+        dispatch(kv_variant(K_KV_WRITE, K_KV_WRITE_K16, s),
+                 {bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
+                  bind(k), bind(v), args(t.words.data(), t.words.size() * sizeof(uint32_t))},
+                 pc, sizeof(pc), groups(t.rows * hd, 256));
     }
 
     // One dispatch per view, one workgroup per (row, head).
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out,
                    int n_head, int n_head_kv, int head_dim) override {
-        if (n_views && !views) throw std::runtime_error("vulkan: attention without views");
         if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 || head_dim <= 0 || head_dim > 256)
             throw std::runtime_error("vulkan: invalid attention dimensions");
+        std::vector<Placed> placed = place_views(views, n_views);
+        if (placed.empty()) return;
+        for (const Placed& pv : placed)
+            if (!pv.view->nq) throw std::runtime_error("vulkan: invalid attention dimensions");
         const size_t qstride = (size_t)n_head * head_dim;
         const float scale = 1.0f / std::sqrt((float)head_dim);
-        size_t row0 = 0;
-        for (size_t i = 0; i < n_views; ++i) {
-            const KVView& view = views[i];
-            if (!view.nq) throw std::runtime_error("vulkan: invalid attention dimensions");
-            VulkanKVStorage& s = storage_of(*view.storage);
-            const size_t sequence = VulkanKVStorage::add(view.length, view.nq);
-            const size_t blocks = VulkanKVStorage::blocks_for(sequence);
-            if (layer >= s.layers() || (size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads() ||
-                blocks > view.n_blocks)
-                throw std::runtime_error("vulkan: attention outside the KV view");
-            for (size_t b = 0; b < blocks; ++b)
-                if (!s.backed((size_t)view.blocks[b]))
-                    throw std::runtime_error("vulkan: attention over unwritten KV blocks");
-            if (floats_from(Q) < (row0 + view.nq) * qstride || floats_from(out) < (row0 + view.nq) * qstride)
-                throw std::runtime_error("vulkan: attention rows outside their allocation");
-            // A wide pass of 128-wide heads takes the tiled kernel: a
-            // workgroup per 32 query rows and head, K/V staged per tile of
-            // tokens once for those rows. Anything else takes the per-row
-            // kernel below.
-            if (view.nq >= kAttentionTileRows && head_dim == 128) {
-                struct { uint32_t length, nq, n_head, n_head_kv, bt, row0; float scale; }
-                    tc{u32(view.length), u32(view.nq), (uint32_t)n_head, (uint32_t)n_head_kv,
-                       u32(kVkBlockTokens), u32(row0), scale};
-                const size_t tiles = (view.nq + kAttentionTileRows - 1) / kAttentionTileRows;
-                dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
-                         {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
-                          args(view.blocks, blocks * sizeof(int32_t))},
-                         &tc, sizeof(tc), u32(tiles * (size_t)n_head));
-                row0 += view.nq;
-                continue;
-            }
-            // A decode token has few (row, head) pairs, so the history is
-            // split into chunks of 32 tokens across workgroups, enough to
-            // fill the device, capped at 64 splits; a wide pass already
-            // has the workgroups and takes one split.
-            const size_t pairs = view.nq * (size_t)n_head;
+        const size_t rows = placed.back().row0 + placed.back().view->nq;
+        if (floats_from(Q) < rows * qstride || floats_from(out) < rows * qstride)
+            throw std::runtime_error("vulkan: attention rows outside their allocation");
+        // Views of 128-wide heads with 32 rows or more take the tiled kernel,
+        // the rest the per-row kernel: at most two dispatches per layer
+        // whatever the batch, and a decode row never sits in a tile that
+        // would stage its whole history for one live row.
+        std::vector<Placed> wide, narrow;
+        for (const Placed& pv : placed)
+            (pv.view->nq >= kAttentionTileRows && head_dim == 128 ? wide : narrow).push_back(pv);
+        if (!wide.empty()) {
+            ViewTable t = view_table(layer, wide, false);
+            VulkanKVStorage& s = *t.storage;
+            check_storage(s, layer, n_head_kv, head_dim);
+            size_t tiles = 0;
+            for (const Placed& pv : wide) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
+            struct { uint32_t rows, n_head, n_head_kv, bt; float scale; }
+                tc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale};
+            dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
+                     {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
+                      args(t.words.data(), t.words.size() * sizeof(uint32_t))},
+                     &tc, sizeof(tc), u32(tiles * (size_t)n_head));
+        }
+        if (!narrow.empty()) {
+            ViewTable t = view_table(layer, narrow, false);
+            VulkanKVStorage& s = *t.storage;
+            check_storage(s, layer, n_head_kv, head_dim);
+            // Few (row, head) pairs, as in a decode step, split the
+            // longest history into chunks of 32 tokens across workgroups,
+            // enough to fill the device, capped at 64 splits; a batch with
+            // the pairs already takes one split.
+            size_t longest = 0;
+            for (const Placed& pv : narrow)
+                longest = std::max(longest, VulkanKVStorage::add(pv.view->length, pv.view->nq));
+            const size_t pairs = t.rows * (size_t)n_head;
             size_t nsplit = 1;
-            if (pairs < 256) nsplit = std::min<size_t>(64, std::max<size_t>(1, (sequence + 31) / 32));
-            const size_t chunk = (sequence + nsplit - 1) / nsplit;
-            nsplit = (sequence + chunk - 1) / chunk;
+            if (pairs < 256) nsplit = std::min<size_t>(64, std::max<size_t>(1, (longest + 31) / 32));
+            const size_t chunk = (longest + nsplit - 1) / nsplit;
+            nsplit = (longest + chunk - 1) / chunk;
             const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
             if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
                 scratch_ = std::make_shared<VulkanBuffer>(dev_, scratch_floats * sizeof(float), false);
-            struct { uint32_t length, nq, n_head, n_head_kv, dim, bt, row0; float scale; uint32_t nsplit, chunk; }
-                pc{u32(view.length), u32(view.nq), (uint32_t)n_head, (uint32_t)n_head_kv,
-                   (uint32_t)head_dim, u32(kVkBlockTokens), u32(row0), scale, u32(nsplit), u32(chunk)};
+            struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk; }
+                pc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, (uint32_t)head_dim, u32(kVkBlockTokens),
+                   scale, u32(nsplit), u32(chunk)};
             const VkDescriptorBufferInfo scratch = scratch_
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
+            const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));
             dispatch(kv_variant(K_ATTENTION, K_ATTENTION_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
-                      args(view.blocks, blocks * sizeof(int32_t)), scratch},
+                      table, scratch},
                      &pc, sizeof(pc), groups(pairs * nsplit, 1));
             if (nsplit > 1) {
-                const uint32_t mc[5] = {u32(view.nq), (uint32_t)n_head, (uint32_t)head_dim, u32(row0), u32(nsplit)};
-                dispatch(K_ATTENTION_MERGE, {bind(out), scratch}, mc, sizeof(mc), groups(pairs, 1));
+                const uint32_t mc[4] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit)};
+                dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table}, mc, sizeof(mc), groups(pairs, 1));
             }
-            row0 += view.nq;
         }
+    }
+
+    // A view with the batch row its rows start at.
+    struct Placed {
+        const KVView* view;
+        size_t row0;
+    };
+    static std::vector<Placed> place_views(const KVView* views, size_t n_views) {
+        if (n_views && !views) throw std::runtime_error("vulkan: cache op without views");
+        std::vector<Placed> placed;
+        size_t row0 = 0;
+        for (size_t i = 0; i < n_views; ++i) {
+            placed.push_back(Placed{&views[i], row0});
+            row0 += views[i].nq;
+        }
+        return placed;
+    }
+    // The table the batched cache kernels read (shaders/views.glsl), for a
+    // subset of a batch's views: six words per view, then every view's
+    // block ids. Every view is checked against the storage; a writing op
+    // backs the blocks its rows land in, a reading op requires them
+    // written. One storage per call, which is how the model calls.
+    struct ViewTable {
+        std::vector<uint32_t> words;
+        size_t rows = 0;
+        VulkanKVStorage* storage = nullptr;
+    };
+    ViewTable view_table(size_t layer, const std::vector<Placed>& placed, bool writing) {
+        ViewTable t;
+        t.words.push_back(u32(placed.size()));
+        std::vector<uint32_t> blocks;
+        size_t local = 0;
+        for (const Placed& pv : placed) {
+            const KVView& view = *pv.view;
+            VulkanKVStorage& s = storage_of(*view.storage);
+            if (t.storage && t.storage != &s) throw std::runtime_error("vulkan: views of two storages in one call");
+            t.storage = &s;
+            const size_t sequence = VulkanKVStorage::add(view.length, view.nq);
+            const size_t used = VulkanKVStorage::blocks_for(sequence);
+            if (layer >= s.layers() || used > view.n_blocks)
+                throw std::runtime_error(writing ? "vulkan: KV write outside the view" : "vulkan: attention outside the KV view");
+            if (writing) {
+                for (size_t tk = view.length; tk < sequence; tk += kVkBlockTokens - tk % kVkBlockTokens)
+                    s.ensure((size_t)view.blocks[tk / kVkBlockTokens]);
+                if (view.nq) s.ensure((size_t)view.blocks[(sequence - 1) / kVkBlockTokens]);
+            } else {
+                for (size_t b = 0; b < used; ++b)
+                    if (!s.backed((size_t)view.blocks[b]))
+                        throw std::runtime_error("vulkan: attention over unwritten KV blocks");
+            }
+            t.words.push_back(u32(pv.row0));
+            t.words.push_back(u32(local));
+            t.words.push_back(u32(view.nq));
+            t.words.push_back(u32(view.length));
+            t.words.push_back(u32(blocks.size()));
+            t.words.push_back(u32(used));
+            for (size_t b = 0; b < used; ++b) blocks.push_back((uint32_t)view.blocks[b]);
+            local += view.nq;
+        }
+        t.words.insert(t.words.end(), blocks.begin(), blocks.end());
+        t.rows = local;
+        return t;
+    }
+    static void check_storage(const VulkanKVStorage& s, size_t layer, int n_head_kv, int head_dim) {
+        if (layer >= s.layers() || (size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads())
+            throw std::runtime_error("vulkan: attention outside the KV view");
     }
 
     // Storage growth hands the buffers a copy reads from here, so they live

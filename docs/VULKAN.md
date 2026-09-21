@@ -204,6 +204,18 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   shuffles, the softmax is online per row. It took a 16384-token prompt
   on Qwen3-0.6B from 155 to 513 tok/s, level with the reference's 514.
   Other head widths and narrow passes take the per-row kernel.
+- **The view table** (`views.glsl`): every cache kernel takes one
+  dispatch per layer over every view of a batch. The host writes a table
+  into the args arena, per view its batch row, dispatch-local row, row
+  count, history length, block-table offset and length, then every
+  view's block ids, and a workgroup or thread finds its view by walking
+  the entries. Attention splits a batch into the views the tiled kernel
+  takes and the rest for the per-row kernel, two dispatches at most, so
+  a decode row never sits in a tile staging its history for one live
+  row; the merge kernel reads the same table since a dispatch's rows
+  need not be a prefix of the batch. This is what took the server from
+  81 to 109 percent of the reference's server at eight concurrent
+  requests.
 - **kv_write**: a scatter of `[rows, n_head_kv, head_dim]` into blocks,
   one lane per float.
 - **norm_rope_rows**: one workgroup per (row, head): the head's sum of

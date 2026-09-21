@@ -46,16 +46,40 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | 8 | 453.3 tok/s | 369.1 | 81% |
   | 16 | 237.1 tok/s | 244.9 | 103% |
 
-  Per step llmx costs about 4 ms more per extra sequence, which is the
-  device's multi-view path: `kv_write` and `attention` dispatch once per
-  view, and `norm_rope_kv` fuses only a single view and falls back to its
-  three-op default for a batch, so a sixteen-sequence step is on the
-  order of a thousand dispatches. That is the next kernel item, and the
-  throughput gate stays open until it lands.
-- **Left:** one dispatch per layer for `kv_write`, `attention` and
-  `norm_rope_kv` over every view of a batch, then the throughput gate
-  again at 1, 4, 8 and 16; SERVER.md steps 4 and 5, the prefix index and
-  the second execution context if measured to help.
+  Per step llmx cost about 4 ms more per extra sequence, which was the
+  device's multi-view path: `kv_write` and `attention` dispatched once
+  per view, and `norm_rope_kv` fused only a single view and fell back to
+  its three-op default for a batch, so a sixteen-sequence step was on the
+  order of a thousand dispatches. SERVER.md step 3a closed it: every
+  cache kernel now takes a view table (`shaders/views.glsl`: per view its
+  batch row, dispatch-local row, row count, history, block-table offset
+  and length, then every view's block ids, uploaded through the args
+  arena) and runs once per layer over every view; attention splits a
+  batch into the views the tiled kernel takes (32 rows or more, 128-wide
+  heads) and the rest for the per-row kernel, at most two dispatches, so
+  a decode row never sits in a tile staging its whole history for one
+  live row; the merge kernel reads the same table since a dispatch's rows
+  need not be a prefix of the batch. On the way a latent hazard surfaced:
+  a split or subgroup that saw no token held -inf and its state came out
+  as exp(-inf - -inf); both merges now skip such a part, which the
+  kv-cache checks over two views had not reached before. Every kernel
+  check, the HF gate on the device and the server component pass; the
+  same load again, both servers in the same minutes:
+
+  | concurrency | reference server | `llmx serve` before | `llmx serve` now | llmx share |
+  |---|---:|---:|---:|---:|
+  | 1 | 177.5 tok/s | 210.6 | 209.0 | 118% |
+  | 4 | 365.6 tok/s | 328.9 | 409.2 | 112% |
+  | 8 | 462.6 tok/s | 369.1 | 504.3 | 109% |
+  | 16 | 237.1 tok/s | 244.9 | 297.1 | 125% |
+
+  The throughput gate is met at every level. Both servers fall at 16:
+  for llmx the row kernel holds eight columns per dispatch, so sixteen
+  sequences stream the weights twice per matmul, which is recorded, not
+  fixed.
+- **Left:** SERVER.md steps 4 and 5, the prefix index and the second
+  execution context if measured to help; the 16-column row kernel if
+  sixteen-way batches turn out to matter.
 - **Gotchas:** the scheduler thread is the only caller of `forward` for its
   devices, by contract; connection threads queue and drain. A request is
   admitted only when the pool holds its prompt plus `max_tokens`; nothing is

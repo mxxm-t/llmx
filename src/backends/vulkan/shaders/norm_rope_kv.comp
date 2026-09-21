@@ -1,17 +1,18 @@
 #version 450
-// A layer's attention inputs in one dispatch: one workgroup per (row,
-// head) over the q heads, then the k heads, then the v heads. A q head is
-// normed and rotated in place, as norm_rope_rows does; a k head is normed
-// and rotated straight into its KV block at position hist + row; a v head
-// is copied into its block. Three dispatches at their latency floors
-// become one. The arithmetic per head is norm_rope_rows' exactly.
+// A layer's attention inputs in one dispatch for every view of a batch:
+// one workgroup per (batch row, head) over the q heads, then the k
+// heads, then the v heads. A q head is normed and rotated in place, as
+// norm_rope_rows does; a k head is normed and rotated straight into its
+// KV block at position hist + b of its view; a v head is copied into its
+// block. Three dispatches at their latency floors become one. The
+// arithmetic per head is norm_rope_rows' exactly.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "f16.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint rows; uint q_stride; uint n_head; uint kv_stride; uint n_head_kv; uint half_dim;
-    float eps; uint hist; uint bt;
+    float eps; uint bt;
 } p;
 layout(set = 0, binding = 0) buffer Q { float q[]; };
 layout(set = 0, binding = 1) readonly buffer K { float k[]; };
@@ -21,28 +22,22 @@ layout(set = 0, binding = 4) readonly buffer KW { float kw[]; };
 layout(set = 0, binding = 5) readonly buffer C { float cs[]; };
 layout(set = 0, binding = 6) readonly buffer S { float sn[]; };
 layout(set = 0, binding = 7) readonly buffer I { uint pos[]; };
-// K and V storage of either type: f32 as floats, f16 as 16-bit words
-// written round-to-nearest and read exactly, chosen per side at build by
-// LLMX_K16 and LLMX_V16 so a variant carries no branch.
 #ifdef LLMX_K16
 layout(set = 0, binding = 8) buffer KB { uint16_t kb16[]; };
-float k_load(uint i) { return unpackHalf2x16(uint(kb16[i])).x; }
-void k_store(uint i, float v) { kb16[i] = uint16_t(f16_bits(v)); }
+void k_store(uint i, float x) { kb16[i] = uint16_t(f16_bits(x)); }
 #else
 layout(set = 0, binding = 8) buffer KB { float kb[]; };
-float k_load(uint i) { return kb[i]; }
-void k_store(uint i, float v) { kb[i] = v; }
+void k_store(uint i, float x) { kb[i] = x; }
 #endif
 #ifdef LLMX_V16
 layout(set = 0, binding = 9) buffer VB { uint16_t vb16[]; };
-float v_load(uint i) { return unpackHalf2x16(uint(vb16[i])).x; }
-void v_store(uint i, float v) { vb16[i] = uint16_t(f16_bits(v)); }
+void v_store(uint i, float x) { vb16[i] = uint16_t(f16_bits(x)); }
 #else
 layout(set = 0, binding = 9) buffer VB { float vb[]; };
-float v_load(uint i) { return vb[i]; }
-void v_store(uint i, float v) { vb[i] = v; }
+void v_store(uint i, float x) { vb[i] = x; }
 #endif
-layout(set = 0, binding = 10) readonly buffer T { int blocks[]; };
+layout(set = 0, binding = 10) readonly buffer T { uint tab[]; };
+#include "views.glsl"
 shared float red[256];
 
 void main() {
@@ -51,8 +46,11 @@ void main() {
     uint h = gl_WorkGroupID.x - row * total;
     uint lid = gl_LocalInvocationID.x;
     uint dim = 2u * p.half_dim;
-    uint t = p.hist + row;
-    uint block = uint(blocks[t / p.bt]);
+    uint vi, b;
+    view_of_row(row, vi, b);
+    row = view_row0(vi) + b;   // the batch row, for the inputs and positions
+    uint t = view_hist(vi) + b;
+    uint block = view_block(vi, t / p.bt);
     // A block holds [head][token][dim].
     uint kv_base = block * (p.n_head_kv * p.bt * dim) + (t - (t / p.bt) * p.bt) * dim;
     if (h >= p.n_head + p.n_head_kv) {
@@ -80,16 +78,16 @@ void main() {
     uint tp = pos[row] * p.half_dim;
     uint dst = kv_base + hk * p.bt * dim;
     for (uint i = lid; i < p.half_dim; i += 256u) {
-        float a, b;
+        float a, bb;
         if (is_q) {
             a = q[base + i] * r * qw[i];
-            b = q[base + i + p.half_dim] * r * qw[i + p.half_dim];
+            bb = q[base + i + p.half_dim] * r * qw[i + p.half_dim];
         } else {
             a = k[base + i] * r * kw[i];
-            b = k[base + i + p.half_dim] * r * kw[i + p.half_dim];
+            bb = k[base + i + p.half_dim] * r * kw[i + p.half_dim];
         }
         float c = cs[tp + i], sv = sn[tp + i];
-        float o0 = a * c - b * sv, o1 = a * sv + b * c;
+        float o0 = a * c - bb * sv, o1 = a * sv + bb * c;
         if (is_q) {
             q[base + i] = o0;
             q[base + i + p.half_dim] = o1;

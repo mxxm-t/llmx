@@ -73,14 +73,14 @@ struct Pair {
 
 size_t exact(const std::vector<float>& a, const std::vector<float>& b, const char* what) {
     require(a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0, what);
-    for (float v : b) require(std::isfinite(v), "nonfinite device output");
+    for (float v : b) require(std::isfinite(v), (std::string("nonfinite device output: ") + what).c_str());
     return a.size();
 }
 
 size_t close(const std::vector<float>& a, const std::vector<float>& b, double rel, const char* what) {
     require(a.size() == b.size(), what);
     for (size_t i = 0; i < a.size(); ++i) {
-        require(std::isfinite(b[i]), "nonfinite device output");
+        if (!std::isfinite(b[i])) throw std::runtime_error(std::string("nonfinite device output: ") + what);
         if (!(std::fabs((double)a[i] - b[i]) <= rel * (1.0 + std::fabs((double)a[i])))) {
             std::fprintf(stderr, "  [%zu] cpu %.9g device %.9g\n", i, a[i], b[i]);
             require(false, what);
@@ -639,7 +639,7 @@ size_t check_kernels(backend::Backend& vk) {
                 run(vk, K, V, Q, b, true);
                 double worst = 0; size_t at = 0;
                 for (size_t i = 0; i < a.size() && i < b.size(); ++i) {
-                    const double d = std::fabs((double)a[i] - b[i]) / (1.0 + std::fabs((double)a[i]));
+                    const double d = std::isfinite(b[i]) ? std::fabs((double)a[i] - b[i]) / (1.0 + std::fabs((double)a[i])) : 1e9;
                     if (d > worst) { worst = d; at = i; }
                 }
                 if (worst > 1e-4 || a.size() != b.size())

@@ -1,46 +1,47 @@
 #version 450
-// Scatter nq token-major [heads, dim] rows into the blocks of one view at
-// positions length .. length + nq. A block holds [head][token][dim], so a
-// head's history inside it is contiguous for the attention lanes.
+// Scatter the token-major [heads, dim] rows of every view of a batch into
+// their blocks, row b of a view at position hist + b of its sequence. A
+// block holds [head][token][dim], so a head's history inside it is
+// contiguous for the attention lanes. One dispatch per layer whatever the
+// number of views.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "f16.glsl"
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint hist; uint nq; uint heads; uint dim; uint bt; uint row0; } p;
+layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint bt; } p;
 // K and V storage of either type: f32 as floats, f16 as 16-bit words
 // written round-to-nearest and read exactly, chosen per side at build by
 // LLMX_K16 and LLMX_V16 so a variant carries no branch.
 #ifdef LLMX_K16
 layout(set = 0, binding = 0) buffer K { uint16_t kb16[]; };
-float k_load(uint i) { return unpackHalf2x16(uint(kb16[i])).x; }
 void k_store(uint i, float v) { kb16[i] = uint16_t(f16_bits(v)); }
 #else
 layout(set = 0, binding = 0) buffer K { float kb[]; };
-float k_load(uint i) { return kb[i]; }
 void k_store(uint i, float v) { kb[i] = v; }
 #endif
 #ifdef LLMX_V16
 layout(set = 0, binding = 1) buffer V { uint16_t vb16[]; };
-float v_load(uint i) { return unpackHalf2x16(uint(vb16[i])).x; }
 void v_store(uint i, float v) { vb16[i] = uint16_t(f16_bits(v)); }
 #else
 layout(set = 0, binding = 1) buffer V { float vb[]; };
-float v_load(uint i) { return vb[i]; }
 void v_store(uint i, float v) { vb[i] = v; }
 #endif
 layout(set = 0, binding = 2) readonly buffer KI { float kin[]; };
 layout(set = 0, binding = 3) readonly buffer VI { float vin[]; };
-layout(set = 0, binding = 4) readonly buffer T { int blocks[]; };
+layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
+#include "views.glsl"
 void main() {
     uint i = gl_GlobalInvocationID.x;
     uint hd = p.heads * p.dim;
-    if (i >= p.nq * hd) return;
-    uint r = i / hd, rem = i - r * hd;
+    if (i >= p.rows * hd) return;
+    uint g = i / hd, rem = i - g * hd;
     uint h = rem / p.dim, d = rem - h * p.dim;
-    uint t = p.hist + r;
-    uint block = uint(blocks[t / p.bt]);
-    uint o = block * (p.heads * p.bt * p.dim) + (h * p.bt + t % p.bt) * p.dim + d;
-    uint src = (p.row0 + r) * hd + rem;
+    uint v, b;
+    view_of_row(g, v, b);
+    uint t = view_hist(v) + b;
+    uint block = view_block(v, t / p.bt);
+    uint o = block * (p.heads * p.bt * p.dim) + (h * p.bt + t - (t / p.bt) * p.bt) * p.dim + d;
+    uint src = (view_row0(v) + b) * hd + rem;
     k_store(o, kin[src]);
     v_store(o, vin[src]);
 }

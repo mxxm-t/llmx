@@ -1,26 +1,34 @@
 #version 450
-// Merge the split states of attention for one (row, head): the softmax's
-// maximum and sum across splits, then the accumulation rescaled to it. A
-// split with no tokens carries -inf and zero and contributes nothing.
+// Merge the split states of attention for one (row, head) of a batch: the
+// softmax's maximum and sum across splits, then the accumulation rescaled
+// to it. A split with no tokens carries -inf and zero and contributes
+// nothing. The row is found through the same view table as the split
+// kernel, since a dispatch's rows need not be a prefix of the batch.
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint nq; uint n_head; uint dim; uint row0; uint nsplit; } p;
+layout(push_constant) uniform P { uint rows; uint n_head; uint dim; uint nsplit; } p;
 layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
 layout(set = 0, binding = 1) readonly buffer S { float scratch[]; };
+layout(set = 0, binding = 2) readonly buffer T { uint tab[]; };
+#include "views.glsl"
 void main() {
     uint rh = gl_WorkGroupID.x;
-    uint b = rh / p.n_head;
-    uint h = rh - b * p.n_head;
+    uint g = rh / p.n_head;
+    uint h = rh - g * p.n_head;
     uint lid = gl_LocalInvocationID.x;
     if (lid >= p.dim) return;
+    uint v, b;
+    view_of_row(g, v, b);
     uint stride = p.dim + 2u;
     uint base = rh * p.nsplit * stride;
     float M = scratch[base];
     for (uint i = 1u; i < p.nsplit; ++i) M = max(M, scratch[base + i * stride]);
     float L = 0.0, A = 0.0;
     for (uint i = 0u; i < p.nsplit; ++i) {
-        float c = exp(scratch[base + i * stride] - M);
+        float mi = scratch[base + i * stride];
+        if (isinf(mi)) continue;   // a split with no tokens
+        float c = exp(mi - M);
         L += scratch[base + i * stride + 1u] * c;
         A += scratch[base + i * stride + 2u + lid] * c;
     }
-    o[(p.row0 + b) * p.n_head * p.dim + h * p.dim + lid] = A / L;
+    o[(view_row0(v) + b) * p.n_head * p.dim + h * p.dim + lid] = A / L;
 }

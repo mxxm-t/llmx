@@ -1,29 +1,28 @@
 #version 450
-// Causal GQA for a wide pass: one workgroup per (tile of 32 query rows,
-// head). The K and V of the head's KV group are streamed through shared
-// memory in tiles of 16 tokens, so a tile is read from memory once per 32
-// query rows rather than once per row, which is what the per-row kernel
-// costs over a long prompt. Eight lanes share a query row, each owning 16
-// elements of it; a token's score is the lanes' partial dots combined
-// with three xor shuffles, and the softmax is online per row as in
-// attention.comp, so no score array exists. Row b of the view attends
-// through hist + b; tokens past that are masked in the tile that holds
-// them and later tiles are not read. The head width is fixed at 128 so
-// the per-lane arrays stay in registers; other widths take the per-row
-// kernel.
+// Causal GQA for a wide pass over every view of a batch: one workgroup
+// per (tile of 32 query rows of one view, head). The K and V of the
+// head's KV group are streamed through shared memory in tiles of 16
+// tokens, so a tile is read from memory once per 32 query rows rather
+// than once per row, which is what the per-row kernel costs over a long
+// prompt. Eight lanes share a query row, each owning 16 elements of it; a
+// token's score is the lanes' partial dots combined with three xor
+// shuffles, and the softmax is online per row as in attention.comp, so
+// no score array exists. Row b of a view attends through its hist + b;
+// tokens past that are masked in the tile that holds them and later tiles
+// are not read. The head width is fixed at 128 so the per-lane arrays
+// stay in registers; other widths take the per-row kernel. Workgroups
+// are laid out view by view, ceil(nq / 32) tiles each times the heads, so
+// a tile never straddles two views.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
-    uint hist; uint nq; uint n_head; uint n_head_kv; uint bt; uint row0; float scale;
+    uint rows; uint n_head; uint n_head_kv; uint bt; float scale;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
-// K and V storage of either type: f32 as floats, f16 as 16-bit words
-// written round-to-nearest and read exactly, chosen per side at build by
-// LLMX_K16 and LLMX_V16 so a variant carries no branch.
 #ifdef LLMX_K16
 layout(set = 0, binding = 2) readonly buffer K { uint16_t kb16[]; };
 float k_load(uint i) { return unpackHalf2x16(uint(kb16[i])).x; }
@@ -38,21 +37,32 @@ float v_load(uint i) { return unpackHalf2x16(uint(vb16[i])).x; }
 layout(set = 0, binding = 3) readonly buffer V { float vb[]; };
 float v_load(uint i) { return vb[i]; }
 #endif
-layout(set = 0, binding = 4) readonly buffer T { int blocks[]; };
+layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
+#include "views.glsl"
 const uint DIM = 128u, TQ = 32u, TK = 16u, LANES = 8u, PER = DIM / LANES;
 shared float ks[TK * DIM];
 shared float vs[TK * DIM];
 
 void main() {
-    uint tile = gl_WorkGroupID.x / p.n_head;
-    uint h = gl_WorkGroupID.x - tile * p.n_head;
+    uint wg = gl_WorkGroupID.x;
+    uint n = view_count();
+    uint v = 0u, first = 0u;
+    for (uint i = 0u; i < n; ++i) {
+        uint tiles = (view_nq(i) + TQ - 1u) / TQ;
+        if (wg < first + tiles * p.n_head) { v = i; break; }
+        first += tiles * p.n_head;
+    }
+    uint local = wg - first;
+    uint tile = local / p.n_head;
+    uint h = local - tile * p.n_head;
+    uint nq = view_nq(v), hist = view_hist(v), row0 = view_row0(v);
     uint kvh = h / (p.n_head / p.n_head_kv);
     uint lid = gl_LocalInvocationID.x;
     uint r = lid / LANES, lane = lid - r * LANES;   // query row of the tile, lane within it
     uint b = tile * TQ + r;                          // row of the view
-    bool live = b < p.nq;
+    bool live = b < nq;
     uint qstride = p.n_head * DIM;
-    uint qbase = (p.row0 + min(b, p.nq - 1u)) * qstride + h * DIM;
+    uint qbase = (row0 + min(b, nq - 1u)) * qstride + h * DIM;
     uint d0 = lane * PER;
     float qv[PER];
     for (uint i = 0u; i < PER; ++i) qv[i] = q[qbase + d0 + i];
@@ -60,8 +70,8 @@ void main() {
     for (uint i = 0u; i < PER; ++i) acc[i] = 0.0;
     float m = -1.0 / 0.0, l = 0.0;
     // The last token any row of this tile attends, exclusive.
-    uint tile_end = min(p.hist + tile * TQ + TQ, p.hist + p.nq);
-    uint my_end = p.hist + b + 1u;
+    uint tile_end = min(hist + tile * TQ + TQ, hist + nq);
+    uint my_end = hist + b + 1u;
     uint bf = p.n_head_kv * p.bt * DIM;
     for (uint t0 = 0u; t0 < tile_end; t0 += TK) {
         // Stage the tile: token t0 + j at row j of ks and vs, 8 floats a thread.
@@ -69,14 +79,14 @@ void main() {
             uint j = i / DIM, d = i - j * DIM;
             uint t = t0 + j;
             if (t < tile_end) {
-                uint base = uint(blocks[t / p.bt]) * bf + (kvh * p.bt + t - (t / p.bt) * p.bt) * DIM + d;
+                uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t - (t / p.bt) * p.bt) * DIM + d;
                 ks[i] = k_load(base);
                 vs[i] = v_load(base);
             }
         }
         barrier();
-        uint n = min(TK, tile_end - t0);
-        for (uint j = 0u; j < n; ++j) {
+        uint cnt = min(TK, tile_end - t0);
+        for (uint j = 0u; j < cnt; ++j) {
             float part = 0.0;
             for (uint i = 0u; i < PER; ++i) part += qv[i] * ks[j * DIM + d0 + i];
             part += subgroupShuffleXor(part, 1u);

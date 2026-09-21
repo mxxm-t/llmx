@@ -30,6 +30,10 @@ gguf::GGUFModel fixture(const std::vector<uint32_t>& sequence, bool legacy) {
         tokens.arr.push_back(token);
     }
     m.kv.push_back({"tokenizer.ggml.tokens", tokens});
+    gguf::MetaValue eos;
+    eos.vtype = gguf::V_UINT32;
+    eos.u = 0;                  // vocab[0] is "EOS" above
+    m.kv.push_back({"tokenizer.ggml.eos_token_id", eos});
     auto add = [&](const std::string& name, std::vector<uint64_t> shape, const std::vector<float>& data) {
         m.tensors.push_back({name, shape, gguf::GGML_TYPE_F32, 0});
         std::vector<uint8_t> bytes(data.size() * sizeof(float));

@@ -39,7 +39,10 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
                                       const infer::GenParams& gp, infer::RNG& rng,
                                       std::vector<float> logits,
                                       const std::function<void(const std::string&)>& emit = {}) {
-    uint32_t eos = (uint32_t)((tok.eos_id >= 0) ? tok.eos_id : 0);
+    // A model without an EOS id has no stop token at all. Folding that to 0
+    // made token zero, which is an ordinary token, end every generation.
+    const bool has_eos = tok.eos_id >= 0;
+    const uint32_t eos = has_eos ? (uint32_t)tok.eos_id : 0;
     const int tstart = gp.show_thinking ? -1 : find_token_by_substr(tok, "thinking_start");
     const int tend = gp.show_thinking ? -1 : find_token_by_substr(tok, "thinking_end");
     const int astart = gp.show_thinking ? -1 : find_token_by_substr(tok, "answer_start");
@@ -49,7 +52,7 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
     std::string decoded;
     for (int t = 0; t < gp.max_tokens; t++) {
         uint32_t id = infer::sample(logits, gp.temp, gp.top_k, gp.top_p, gp.penalty, gen, rng);
-        if (id == eos) break;
+        if (has_eos && id == eos) break;
         gen.push_back(id);
         const std::string text = tok.decode({ id });
         if (emit && !buffered) emit(text);
@@ -61,7 +64,10 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
     size_t begin = 0;
     size_t end = gen.size();
     if (buffered) {
-        if (tstart >= 0) {
+        // Both markers have to exist for the filter to mean anything. With a
+        // start and no end, the search for (uint32_t)-1 failed and the whole
+        // reply was dropped rather than the reasoning block.
+        if (tstart >= 0 && tend >= 0) {
             auto ts = std::find(gen.begin(), gen.end(), (uint32_t)tstart);
             if (ts != gen.end()) {
                 auto te = std::find(gen.begin(), gen.end(), (uint32_t)tend);

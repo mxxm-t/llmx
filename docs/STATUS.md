@@ -4,6 +4,23 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Device execution step 4b: ops take a buffer and an offset (2026-09-21)
+
+- **Goal:** the eleven ops that still take raw activation pointers take a
+  buffer and an offset instead, so nothing outside a backend needs a host
+  address. That removes `Buffer::mutable_host_ptr`, the bridge added in 4a,
+  and is the last thing between this interface and a device backend.
+- **Done:** block opened before the code.
+- **Left:** decode activations into an arena as prefill already is; then the
+  signatures, in one change per op family so each stays reviewable; then the
+  bridge accessor goes.
+- **Gotchas:** attention and `kv_write` already take a view rather than
+  pointers, so they need only their query and output arguments moved.
+  `embed` writes to an activation and reads a weight buffer, so it takes two
+  buffers. The CPU backend resolves an offset to a pointer once per call and
+  the kernels are untouched; if any kernel arithmetic changes, the byte-exact
+  logits check catches it.
+
 ## Device execution step 4: activation arena (2026-09-21)
 
 - **Goal:** the nine prefill activation vectors become offsets into one

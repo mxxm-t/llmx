@@ -272,7 +272,9 @@ public:
         const backend::KVView view = kv_seq_.view(kv_storage_.get());
 
         // embedding
-        dequant_row(token_embd_, token_id, x_.data());
+        const uint32_t embed_id = (uint32_t)token_id;
+        b_->embed(x_.data(), token_embd_.type, *token_embd_.data, token_embd_.nin,
+                  token_embd_.nout, &embed_id, 1);
 
         for (int l = 0; l < cfg.n_layer; l++) {
             const LayerWeights& w = layers_[l];
@@ -500,8 +502,8 @@ private:
         const size_t half = (size_t)HD / 2;
         const size_t KV = (size_t)cfg.n_head_kv * HD;
 
-        for (int b = 0; b < B; b++)
-            dequant_row(token_embd_, ids[b], xb_.data() + (size_t)b * E);
+        b_->embed(xb_.data(), token_embd_.type, *token_embd_.data, token_embd_.nin,
+                  token_embd_.nout, ids, (size_t)B);
 
         for (int l = 0; l < cfg.n_layer; l++) {
             const LayerWeights& w = layers_[l];
@@ -556,25 +558,6 @@ private:
     // about quant types.
     void matvec(const Weight& w, const float* x, float* out) {
         b_->matmul(w.type, *w.data, x, out, w.nin, w.nout, 1);
-    }
-
-    // Dequantize row `r` of a quantized matrix (nin fastest) into `out`,
-    // dispatching on the tensor's type via the quant registry.
-    //
-    // The only place the model still reads weight bytes itself, for the
-    // embedding lookup. It goes away when `embed` becomes a backend op; until
-    // then it requires host-addressable storage and says so.
-    void dequant_row(const Weight& w, size_t r, float* out) const {
-        const uint8_t* rows = (const uint8_t*)w.data->host_ptr();
-        if (!rows) throw std::runtime_error("inference: embedding needs host-addressable weights");
-        if (w.type == gguf::GGML_TYPE_F32) {
-            std::memcpy(out, rows + r * w.nin * sizeof(float), w.nin * sizeof(float));
-            return;
-        }
-        const quant::QuantType* qt = quant::Registry::instance().get(w.type);
-        if (!qt || !qt->dequantize) throw std::runtime_error("unsupported tensor type in dequant_row");
-        qt->dequantize(rows + r * (w.nin / qt->block_size) * qt->type_size,
-                       out, w.nin / qt->block_size);
     }
 
 };

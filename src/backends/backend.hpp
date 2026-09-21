@@ -123,6 +123,14 @@ public:
     virtual void matmul(uint32_t ggml_type, const Buffer& data, const float* X,
                         float* Y, size_t nin, size_t nout, size_t nbatch) = 0;
 
+    // Gather `count` rows of an embedding table into `dst`, row-major, `nin`
+    // floats each. This is an op rather than a model-side read because the
+    // table is a Buffer: a device backend holds it in its own memory and the
+    // model cannot address it.
+    virtual void embed(float* dst, uint32_t ggml_type, const Buffer& table,
+                       size_t nin, size_t nrows, const uint32_t* ids,
+                       size_t count) = 0;
+
     // Independent projections of the same X; outputs must not overlap each
     // other, X, or any weights. All outputs are complete on return.
     virtual void matmul_group(std::initializer_list<Projection> projections,

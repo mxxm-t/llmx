@@ -30,6 +30,10 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
   `view.length + b`, so the table must cover `length + nbatch` positions and
   every block it reaches must have been written. The backend owns temporary
   score storage.
+- `embed(dst, type, table, nin, nrows, ids, count)`: gather `count` embedding
+  rows into `dst`, row-major. An op rather than a model-side read because the
+  table is a buffer the model cannot address on a device backend. Rejects a
+  token id at or beyond `nrows`.
 - `rms_norm(dst, src, w, n, eps)`: RMS norm of one row.
 - `rope(x, cos, sin, half)`: rotary position embedding on one head.
 - `rms_norm_rows(dst, src, w, rows, n, stride, eps)`: RMS norm of `rows` rows

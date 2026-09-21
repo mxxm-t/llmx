@@ -246,6 +246,23 @@ public:
         if (error) std::rethrow_exception(error);
     }
 
+    void embed(float* dst, uint32_t ggml_type, const Buffer& table, size_t nin,
+               size_t nrows, const uint32_t* ids, size_t count) override {
+        const uint8_t* rows = (const uint8_t*)table.host_ptr();
+        if (!rows) throw std::runtime_error("backend: embedding table is not host addressable");
+        const quant::QuantType* qt = ggml_type == gguf::GGML_TYPE_F32
+                                   ? nullptr : quant::Registry::instance().get(ggml_type);
+        if (ggml_type != gguf::GGML_TYPE_F32 && (!qt || !qt->dequantize))
+            throw std::runtime_error("backend: unsupported embedding type");
+        const size_t stride = qt ? (nin / qt->block_size) * qt->type_size : nin * sizeof(float);
+        for (size_t i = 0; i < count; ++i) {
+            if (ids[i] >= nrows) throw std::runtime_error("backend: embedding row out of range");
+            const uint8_t* row = rows + (size_t)ids[i] * stride;
+            if (qt) qt->dequantize(row, dst + i * nin, nin / qt->block_size);
+            else std::memcpy(dst + i * nin, row, nin * sizeof(float));
+        }
+    }
+
     BufferPtr alloc(size_t bytes) override { return std::make_shared<CpuBuffer>(bytes); }
 
     BufferPtr adopt(const void* src, size_t bytes) override {

@@ -18,118 +18,38 @@ CPU backend. If this workstation ever needs GPU acceleration, the route is
 Vulkan, already the roadmap's portability target and supported by AMD's
 Windows drivers.
 
-## Device execution step 6: enqueue and sync (2026-09-21)
+## Device execution model complete (ROADMAP #4a) (2026-09-21)
 
-- **Goal:** ops stop being synchronous. Each enqueues on the backend's single
-  implicit stream and returns; `sync()` blocks until everything enqueued has
-  finished; `read()` syncs first. The CPU backend runs each op to completion as
-  it is called, so its `sync()` returns immediately and the host path is
-  unchanged by construction. Last step before a vendor backend.
-- **Done:** the interface documents the enqueue contract, `sync()` is on it,
-  and the CPU backend implements it as the no-op its eagerness makes it. The
-  four release sites retire first: `reset`, the truncate on a failed prefill,
-  and the abort on a failed step or batch. 260-token logits byte-identical.
-- **Done:** the test counts `sync` calls on those paths, since nothing on an
-  eager backend would notice their absence. Removing the `reset` sync fails it
-  by name. It also asserts a successful step does *not* sync, because that
-  path commits rather than releases and the logits read is the one ordering
-  point per pass.
-- **Done:** gated against 3bdf542, both arms from detached worktrees at their
-  own commits. Eight cells, none failing.
+All six steps are merged. Weights and activations are `Buffer` handles, every
+op takes a buffer and a float offset, KV blocks are buffers the backend
+allocates, and ops enqueue with one sync per forward pass. The model layer
+holds no host address and computes no offset into KV storage. Per-step blocks
+are deleted per the checkpoint rule; the plan and the step table live in
+[DEVICE-EXECUTION](DEVICE-EXECUTION.md) and every gate's evidence is under
+`docs/benchmarks/`.
 
-  | cell | prefill mean | prefill median | decode mean | decode median |
-  |---|---:|---:|---:|---:|
-  | 0.6B run 1 | +6.31% | +3.58% | +1.63% | +1.18% |
-  | 0.6B run 2 | +1.32% | -0.33% | -1.05% | -0.73% |
-  | 0.6B run 3 | +5.45% | +5.22% | +1.99% | +0.95% |
-  | 8B         | +0.31% | +0.76% | -1.21% | -0.46% |
+What a vendor backend supplies: `alloc`, `adopt`, `read` and `copy` over its
+own allocator, `kv_alloc` and a `KVStorage` it owns, the ops, and a `sync()`
+that means it. What it does not have to invent is a place for activations or
+a cache layout.
 
-  The 0.6B prefill gain is **not** claimed. This change adds a virtual call on
-  four paths that a successful pass never takes and does nothing else, so
-  there is no work it could have saved. It is the same layout swing that cost
-  three points in the other direction during the code read, and the honest
-  reading of both is that a few percent of 0.6B prefill on this tree means
-  nothing without a control. 8B, where the effect is far weaker, sits at
-  +0.31%, which is what a no-op should look like.
-- **Was left:** the method is the easy half. The hard half is its caller, because a
-  `sync()` nothing calls is the seam `Backend::write` was deleted for one step
-  ago. The caller is returning KV blocks to the pool. [KV-CACHE](KV-CACHE.md)
-  already states that a block returns to the free list only when its refcount
-  is zero **and** the backend has retired every submission that read it, and
-  nothing enforces the second half because the CPU backend is eager. On a
-  device it is a real corruption rather than a formality: a sequence aborts,
-  its blocks go back, a later sequence takes the same id, and an in-flight
-  write from the failed pass lands in the new history. Four sites release
-  blocks while the pool outlives them, and each syncs first: `reset`, the
-  truncate on a failed prefill, and the abort on a failed step or batch.
-- **Left:** a test that the sync actually happens on those paths, otherwise
-  this lands with the same problem it is meant to avoid.
-- **Gotchas:** three of the four sites are exception paths, so a `sync()` that
-  threw would replace the error that got there with a less useful one, and the
-  sequence would be left half-released. `sync()` is therefore `noexcept` by
-  contract: the caller frees storage on the strength of it, so a backend that
-  cannot guarantee its outstanding work has finished must fail hard rather than
-  report something nobody at this layer can act on. The Model destructor is not
-  one of the four: the pool is destroyed with the sequence, so no later
-  allocation can collide with in-flight work. `read()` is documented to sync,
-  but the CPU implementation does not call `sync()` to get there, because it is
-  already ordered and a test that counts syncs should not have to subtract one
-  per forward pass.
+Three things are worth carrying forward rather than rediscovering.
 
-## Device execution step 5: KV blocks on buffers (2026-09-21)
+- **`sync()` is `noexcept` by contract.** Three of its four callers are
+  exception paths releasing KV blocks, so a sync that threw would replace the
+  error that got there and leave the sequence half-released. A backend that
+  cannot establish that its work finished must fail hard.
+- **A few percent of Qwen3-0.6B prefill means nothing on this tree without a
+  control.** The same measurement moved -3 points during the code read and +6
+  at step 6, both times from code placement rather than work. AGENTS.md
+  carries the rule and the evidence; the short version is that the control
+  has to perturb the same file the change does.
+- **`Backend::write` was deleted** after step 5 declined to give it a caller.
+  Weights arrive through `adopt` and every other value is produced by an op.
+  The first backend that genuinely needs a host-to-device write adds it back
+  alongside that caller.
 
-- **Goal:** the CPU backend's KV blocks move from `std::vector<float>` per
-  layer into `Buffer` handles, so the last storage a device backend would have
-  to invent is allocated through the same path as everything else. The view
-  contract does not change: `KVView` still names a storage, a block table and a
-  length, and the model still never computes an offset into KV storage.
-- **Done:** one K buffer and one V buffer per layer, allocated through the
-  backend that owns the storage. Growth is `alloc` then `copy`, which gives
-  `Backend::copy` the caller it had been missing since step 3 added it. The
-  complete new set is allocated and already holds the history before any of it
-  is published, so an allocation that throws leaves the storage exactly as it
-  was. A resolved host pointer sits beside each handle because `attention`
-  asks for one per head, per query, per block, which is not a place to put a
-  `dynamic_cast`. `attention` and `kv_write` keep the kernels they had.
-- **Done:** `Backend::write` is deleted. It never had a caller and this step
-  was its last chance to get one: weights arrive through `adopt` and every
-  other value is produced by an op, so there is nothing to upload. The first
-  backend that genuinely needs a host-to-device write adds it back with its
-  caller, per the rule against a seam with no consumer.
-- **Done:** correctness. Native 18/18, Python suite 12/12 with both HF models,
-  260-token logits byte-identical against main, which is the check that says
-  the cache moved without any value in it moving.
-- **Done:** the round-trip test now decodes a quantized payload straight from
-  the format description and requires llmx to match bit for bit, for Q8_0 and
-  Q4_0. It measured what it was asked about along the way: worst error 0.0168
-  for Q8_0 against 0.3043 for Q4_0 on identical data, which is why a Q4_0
-  perplexity sits well above the full-precision reference while Q8_0 does not.
-  A negative control confirms the check fails when the reference is wrong.
-- **Done:** gated against 1e7d648, both arms built from detached worktrees at
-  their own commits. Eight cells, all passing. The 0.6B model was run three
-  times rather than once, because this tree has shown a three-point prefill
-  swing between behaviourally identical builds and one run decides nothing.
 
-  | cell | prefill mean | prefill median | decode mean | decode median |
-  |---|---:|---:|---:|---:|
-  | 0.6B run 1 | +0.66% | -2.77% | +0.76% | +1.90% |
-  | 0.6B run 2 | +0.07% | +1.99% | +2.66% | +0.48% |
-  | 0.6B run 3 | -2.26% | -1.58% | -2.48% | -1.78% |
-  | 8B         | +0.72% | +1.10% | +0.88% | -0.68% |
-
-  The spread across three runs of one unchanged comparison is itself the
-  measurement to remember: prefill means of +0.66, +0.07 and -2.26 on the same
-  pair of binaries. Nothing here is claimed as a win.
-- **Left:** nothing. Step 6, the enqueue and sync contract, is next and is the
-  last step before a vendor backend.
-- **Gotchas:** `alloc` is documented zero-filled and the vector version zeroed
-  on `resize`, so a newly backed block reads as zeros either way; a test
-  depends on that. `allocated_bytes` currently sums `capacity()`, which has no
-  buffer equivalent, so it becomes the sum of buffer sizes and the growth
-  pattern it reports changes from vector doubling to explicit doubling. The
-  peak accounting has to keep counting old plus new across a growth, since
-  both are held while the copy runs. Expect CPU-neutral: the same bytes move,
-  through `memcpy` either way.
 ## Full code read before the first vendor backend (2026-09-21)
 
 - **Goal:** read every line of `src/`, `tests/` and `tools/` before starting a
@@ -221,72 +141,6 @@ Windows drivers.
   path, since the CLI writes only q8_0 and q4_0; `metadata_u64`,
   `Tokenizer::token_id` and `pad_id` have no callers.
 
-## Device execution step 4b: ops take a buffer and an offset (2026-09-21)
-
-- **Goal:** the eleven ops that still take raw activation pointers take a
-  buffer and an offset instead, so nothing outside a backend needs a host
-  address. That removes `Buffer::mutable_host_ptr`, the bridge added in 4a,
-  and is the last thing between this interface and a device backend.
-- **Done:** decode activations are in an arena too, nine 64-byte-aligned
-  offsets in one allocation made at construction, sharing the allocation
-  helper with prefill so both move together. Native 17/17, Python suite
-  11/11, logits byte-identical.
-- **Done:** every op takes a buffer and a float offset (`Slice`/`CSlice`).
-  The model holds no host address at all: `grep host_ptr` outside
-  `src/backends/` returns nothing. Logits leave through one `read` per
-  forward pass, which is the single point that must be host-visible. The
-  bridge accessor is deleted, and `alloc` is documented as zero-filled,
-  which removed two redundant fills the model was doing.
-- **Done:** gated against d261369, both arms built from detached worktrees at
-  their own commits, 15 paired rounds on Qwen3-0.6B-Q8_0 and 9 on
-  Qwen3-8B-Q8_0, six threads, 250-token prompt, 32 generated tokens. No cell
-  regressed. Evidence in `docs/benchmarks/buffer-offset-ops-20260921/`; raw
-  monitors are archived beside the repo and listed with their hashes in each
-  cell's `monitor-summary.json`.
-
-  | cell | phase | paired mean | paired median | baseline wins | fails at |
-  |---|---|---|---|---|---|
-  | 0.6B | prefill | -1.14% | -1.43% | 10/15 | 12 |
-  | 0.6B | decode  | -0.16% | -0.42% | 10/15 | 12 |
-  | 8B   | prefill | -0.72% | -0.57% | 6/9   | 8 |
-  | 8B   | decode  | +0.16% | +0.92% | 3/9   | 8 |
-
-  A sign convention note: the runner reports the candidate's paired ratio, so
-  a negative number here is the baseline being that much faster, inside the
-  3% noise band the frozen plan allows.
-- **Done:** re-gated after the commit was amended to carry the test files it
-  had left behind. The amendment changed no file that `llmx.exe` compiles, so
-  the measurement above stands, but the merged commit should be the measured
-  one. The recheck cells are `06-recheck` and `8b-recheck` in the same
-  directory and all four pass: 0.6B -1.79%/-2.10%, 8B -1.69%/+0.36%.
-- **Left:** step 5, KV blocks on buffers, and step 6, enqueue and sync.
-- **Gotchas:** attention and `kv_write` already take a view rather than
-  pointers, so they need only their query and output arguments moved.
-  `embed` writes to an activation and reads a weight buffer, so it takes two
-  buffers. The CPU backend resolves an offset to a pointer once per call and
-  the kernels are untouched; if any kernel arithmetic changes, the byte-exact
-  logits check catches it.
-
-## Device execution step 4: activation arena (2026-09-21)
-
-- **Goal:** the nine prefill activation vectors become offsets into one
-  backend buffer. Device allocators handle a few large allocations far better
-  than many small ones, and a `--ubatch` change becomes one reallocation
-  instead of nine.
-- **Done:** one `alloc` in `ensure_batch_buffers` with a 64-byte-aligned
-  offset per vector; the nine `std::vector`s are gone and `--ubatch` resizes
-  one allocation. Native 17/17, Python suite 11/11, logits byte-identical.
-  Gate with both arms built the same way, no cell failing: 0.6B +3.53%
-  prefill and -0.94% decode, 8B -0.41% and -0.23%. The 0.6B prefill gain is
-  inside the layout band measured above and is **not** claimed as a win.
-- **Left:** ops taking buffer plus offset, which touches every signature and
-  removes the mutable host accessor below. Then step 6, enqueue and sync.
-- **Gotchas:** until ops take an offset, the model still needs a writable
-  host address, so `Buffer` gains a mutable accessor that a device backend
-  returns null for. That is a bridge and is documented as one. Alignment
-  matters: each vector starts at a 64-byte boundary so the AVX2 kernels see
-  what they saw when each vector was its own allocation.
-
 ## Code layout moves this benchmark more than the rule allows (2026-09-21)
 
 Moving the embedding gather into the backend measured -8.03% on 0.6B prefill,
@@ -348,54 +202,6 @@ The rule for every comparison from here: **build both arms the same way**,
 same source of the version string and same tree state, so the only
 difference is the change. An embedded string is enough to move this
 benchmark by several points.
-
-## Device execution step 3: buffers (2026-09-21)
-
-- **Goal:** weights reach the backend as backend-owned handles instead of raw
-  host pointers, so a GPU backend can keep them resident rather than
-  re-uploading per call. Step 3 of the six in
-  [DEVICE-EXECUTION](DEVICE-EXECUTION.md); step 1, pre-resolving tensors,
-  already shipped.
-- **Done:** `Buffer`/`BufferPtr` with `alloc`, `adopt`, `read`, `write`,
-  `copy`; `CpuBuffer` wraps host memory so `adopt` copies nothing; `Weight`
-  holds a handle and every tensor is adopted once at resolution; `matmul` and
-  `Projection` take a buffer. A projection without storage is now rejected
-  before anything reads it, which a null-pointer test case used to reach.
-  Native suite 17/17, Python suite 11/11 with both HF models, 260-token
-  logits byte-identical to the previous runtime.
-- **No regression, on the second reading.** The bar for each migration step.
-  Both runs are kept; neither is discarded.
-
-| Run | 0.6B pp / tg | 8B pp / tg | Verdict |
-|---|---|---|---|
-| 9 and 5 pairs | +3.64% / -4.21% | +0.47% / -1.11% | 0.6B decode fails |
-| 15 and 9 pairs | +5.63% / +0.98% | +1.27% / +0.43% | passes |
-
-  The failing cell was two outliers, not a shift: its per-pair values were
-  +11.7 -4.9 -6.8 -8.0 -4.2 +11.1 +5.6 -5.5 -2.0, a mean of -0.35% against a
-  median of -4.21%. With more pairs the same cell reads +0.98% median. The
-  A/A on that cell spans -5.94% to +3.03%, which is the spread this sits in.
-  Treat a median that disagrees with its own mean as a signal to take more
-  pairs rather than to accept or reject.
-- **Done (embedding):** `embed` is a backend op and `dequant_row` is gone,
-  so the model no longer reads weight bytes anywhere. The op takes the row
-  count and rejects an out-of-range token id, which the model-side version
-  never checked. Native 17/17, Python suite 11/11, logits byte-identical.
-- **Done (per-row entries):** `dot_q8_0` and `matvec_q8_0` are off the
-  interface. `bench` and one test were the last callers and both go through
-  `matmul` on an adopted buffer now; the Q8_0 single-column path survives as
-  a private detail of the CPU backend. A scalar return per row is one kernel
-  launch per row on a device, which is why they could not stay. Both arms
-  built the same way, no cell failing: 0.6B +1.76% prefill and -0.07%
-  decode, 8B +0.43% and +0.46%.
-- **Left:** step 4, the activation arena, then the enqueue and sync
-  contract.
-- **Gotchas:** `adopt` must not copy on CPU, or an 8B model doubles peak
-  memory for nothing; the contract is that the source outlives the buffer,
-  which `Model` already requires of the GGUF model. The hot path passes a
-  reference, not a shared pointer: three projections per layer per token is
-  196 handle copies a token if that is got wrong. Expected CPU-neutral; it is
-  a prerequisite, not an optimization.
 
 ## Matched mx gate on a quiet machine (2026-09-21)
 
@@ -716,7 +522,7 @@ their own measurements; K-quant optimization remains separate work below.
 | JSON quantize tensor validation | Done |
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
-| Device execution model (GPU prerequisite) | In Progress |
+| Device execution model (ROADMAP #4a)     | Done     |
 | GPU backends (ROCm first, Vulkan portability) | Planned |
 | Multi-device split                       | Planned  |
 | Multi-node / cluster                     | Planned  |

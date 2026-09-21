@@ -38,15 +38,15 @@ remain on feature branches while their performance gates are open; see
 |---|---|
 | Model coverage | Llama, Mistral, Gemma and Phi; additional quantizations |
 | Hugging Face | Safetensors, BF16/F16 tensors, HF tokenizer/config files |
-| Device execution | Backend-owned buffers, resident activations and asynchronous submission |
-| GPU backends | ROCm as a first-class target; CUDA and SYCL; Vulkan for portability |
+| Execution model | Tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
+| GPU backends | Vulkan first, since both machines run it; ROCm first-class on Linux; CUDA and SYCL |
 | Multiple devices/nodes | Model splitting across devices and cluster nodes |
 | Serving | Shared read-only weights, independent request/KV state, continuous batching and streaming |
 | Hub kernels | Optional later work: port suitable kernel source or distribute llmx kernels through the Hub |
 
-Device execution must be refactored before useful GPU backends can be added.
-The existing synchronous host-pointer backend interface is a starting point.
-CPU worker parallelism does not make a model instance safe for concurrent users.
+The device execution model is complete: the backend interface is buffer-based
+and asynchronous, so a GPU backend is writable. CPU worker parallelism does
+not make a model instance safe for concurrent users.
 
 The runtime has no external libraries today. Planned GPU SDKs are a deliberate
 build dependency; vendor math libraries are outside the design. HF download

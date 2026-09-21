@@ -3,10 +3,20 @@
 Device-agnostic compute abstraction in namespace `backend`. The inference graph
 runs its primitive ops through a `Backend` so the same model code can target CPU
 now. Operands are a `Buffer` and a float offset (`Slice` / `CSlice`), so the
-backend owns its storage and the model never dereferences it. ROCm / CUDA /
-Vulkan / SYCL still need the rest of the device execution refactor in
-`docs/ROADMAP.md` #4a: KV blocks on buffers, and an enqueue/sync contract in
-place of the synchronous calls here.
+backend owns its storage and the model never dereferences it. Every op
+enqueues on the backend's single implicit stream; `sync()` drains it and
+`read` syncs first, so the model syncs once per forward pass. This is the
+complete device execution model of `docs/DEVICE-EXECUTION.md`; the
+extensions for batching and placement are designed in `docs/EXECUTION.md`.
+
+- `alloc(bytes)`, `adopt(src, bytes)`, `read(src, off, dst, bytes)`,
+  `copy(dst, dst_off, src, src_off, bytes)`: backend-owned storage. `adopt`
+  makes host data reachable without copying on a host backend; the source
+  must outlive the handle. There is no host-to-device `write` until a caller
+  needs one.
+- `sync()`: `noexcept`, blocks until every enqueued op has retired. The
+  model calls it before returning KV blocks to the pool; three of those
+  callers are exception paths, which is why it cannot throw.
 
 - `set_threads(n)`, `threads_available()`: worker-thread control.
 - `matmul(ggml_type, data, X, Y, nin, nout, nbatch)`: the type-generic matmul.
@@ -57,10 +67,10 @@ per head per row. `parallel_for` is therefore NOT on this interface - a host
 callback across host threads has no device implementation. It remains public on
 `CpuBackend`, which its own tests use.
 
-Multi-device placement is planned. Device buffers and resident activations are
-in place; asynchronous execution still requires interface changes. Attention is
-a backend operation taking a `KVView` and slices, so the model layer never
-computes an offset into KV storage, but the call is still synchronous.
+Multi-device placement and batching across sequences are planned; the
+signatures they change (`norm_rope_rows` taking per-row positions,
+`attention` and `kv_write` taking several views, `submit`/`wait` tickets)
+are in `docs/EXECUTION.md`.
 
 `run_prefill(work)` invokes the body once on the caller after successful setup
 and completes cleanup before returning. Setup or reentrancy errors can reject

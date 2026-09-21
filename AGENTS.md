@@ -359,13 +359,15 @@ reports the embedded value, with `unknown` for builds without Git metadata.
 ## Roadmap
 
 `docs/ROADMAP.md` lists: more quant formats, more architectures, more formats,
-backends (ROCm first-class, Vulkan for portability), multi-device split,
-multi-node cluster, a multi-user server, and Hugging Face integration (`llmx
-pull` plus reading what the Hub actually hosts). Follow the roadmap before
-inventing new directions.
+backends (Vulkan written first, ROCm first-class on Linux), per-layer and
+per-tensor multi-device split, multi-node cluster, a multi-user server, and
+Hugging Face integration (`llmx pull` plus reading what the Hub actually
+hosts). Follow the roadmap before inventing new directions.
 
-GPU backends are **not** drop-in the way a quant type is. They require the
-device execution model refactor in `docs/ROADMAP.md` #4a - device buffers,
-resident activations, attention moved into the backend, async submit/sync -
-before any vendor backend is worth writing. Don't pick up "add the ROCm
-backend" expecting the "one file + one registry entry" experience Q4_0 had.
+GPU backends are **not** drop-in the way a quant type is. The device
+execution model (`docs/ROADMAP.md` #4a, `docs/DEVICE-EXECUTION.md`) is
+complete, so a vendor backend is writable, but it implements the whole
+`Backend` interface over its own allocator, and the interface changes in
+`docs/EXECUTION.md` steps 1 to 4 land first so it is written once. Don't
+pick up "add the Vulkan backend" expecting the "one file + one registry
+entry" experience Q4_0 had.

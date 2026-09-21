@@ -59,36 +59,31 @@ do not build GPU code yet. The vendor targets are ROCm, CUDA, SYCL
 (Intel) and Vulkan. This splits into two phases - the device
 execution model has to land before any vendor backend is worth writing.
 
-### 4a. Device execution model (prerequisite, backend-agnostic)
-Designed in `docs/DEVICE-EXECUTION.md`: interface shape, the six-step migration
-order, and the scope boundary against #5. Not implemented.
-`Backend` took raw host pointers and returned scalars synchronously, so a
-device backend would have re-uploaded weights and round-tripped activations on
-every call. Steps 1 to 4 below are done; the remaining two are what a vendor
-backend still waits on. Before any GPU work:
-- **Device buffers (done)**: `Buffer` handles on `Backend` with `alloc`,
-  `adopt`, `read`, `write` and `copy`. Weights are adopted once when tensors
-  are resolved and the model passes handles, never pointers. `adopt` does not
-  copy on the host; the caller guarantees the source outlives the handle.
-- **Resident activations**: the elementwise work in `Model::step` (SiLU, the
-  two residual adds, per-head q/k norms) is on the backend, and so is the
-  embedding gather. What remains is the arena: activations are still host
-  arrays the backend writes through, not device storage.
-- **Attention in the backend (CPU implementation done)**: causal GQA
-  now goes through `Backend::attention` for both decode and prefill, over a
-  `KVView` rather than raw pointers. The CPU backend owns score scratch,
-  vectorized computation and the physical KV blocks; the model layer keeps
-  only the block table and the committed length (`docs/KV-CACHE.md`). A GPU
-  implementation needs device buffers below it.
-- **Async**: a submit / sync concept. Still the open piece: every op returns
-  when its work is done, so a device backend would round-trip per call.
-- **Type-generic matmul (done for supported quants)**: dispatch through
-  `Backend::matmul` and `quant::Registry`; F32 matrices use direct rows.
-- **Batched prefill (done on CPU)**: `Model::prefill` batches tokens with
-  `--ubatch`. Device-resident execution still needs the refactor above.
+### 4a. Device execution model (prerequisite, backend-agnostic) [done]
+Designed in `docs/DEVICE-EXECUTION.md` and complete: all six migration steps
+are merged and gated. `Backend` took raw host pointers and returned scalars
+synchronously, so a device backend would have re-uploaded weights and
+round-tripped activations on every call. Now:
+- **Device buffers**: `Buffer` handles on `Backend` with `alloc`, `adopt`,
+  `read` and `copy`. Weights are adopted once when tensors are resolved and
+  the model passes handles, never pointers. `adopt` does not copy on the
+  host; the caller guarantees the source outlives the handle.
+- **Resident activations**: one arena per model; every elementwise stage,
+  the embedding gather and the RMS norms are backend ops over it.
+- **Attention in the backend**: causal GQA goes through `Backend::attention`
+  over a `KVView`; the backend owns the physical KV blocks as buffers, their
+  size and layout, and the model layer computes no offset into them
+  (`docs/KV-CACHE.md`).
+- **Async**: ops enqueue on one implicit stream; `sync()` drains and `read`
+  syncs. One sync per forward pass.
+- **Type-generic matmul**: dispatch through `Backend::matmul` and
+  `quant::Registry`; F32 matrices use direct rows.
+- **Batched prefill**: `Model::prefill` batches tokens with `--ubatch`.
 
-The CPU backend stays correct and fast through this refactor: it is the A/B
-reference for every GPU claim (see #8).
+The CPU backend stayed correct and fast through the refactor and is the A/B
+reference for every GPU claim (see #8). What #5 and #7 still need from the
+interface is designed in `docs/EXECUTION.md` and lands before the first
+vendor backend, so each signature is implemented on a device once.
 
 ### 4b. Vendor backends
 Four vendor targets. Each is opt-in at build time because its SDK is heavy, and
@@ -103,12 +98,13 @@ each is gated by its own `LLMX_HAS_BACKEND_*` in `config.hpp`.
 - **CUDA**: NVIDIA. `LLMX_HAS_BACKEND_CUDA`
 - **SYCL**: Intel, through oneAPI/DPC++ over Level Zero. This is what llama.cpp
   calls its SYCL backend. `LLMX_HAS_BACKEND_SYCL`
-- **Vulkan**: the portability backend, explicitly *not* first-class. One set of
-  compute shaders that runs anywhere, used as the fallback where no vendor
-  backend is built or available. Lower peak throughput than a vendor path -
-  the point is breadth, not speed. It can be developed and validated on the
-  MI50 (gfx906 supports Vulkan), so it needs no new hardware.
-  `LLMX_HAS_BACKEND_VULKAN`
+- **Vulkan**: the portability backend, and the **first one written**, because
+  it is the only GPU path both machines can run: the Windows workstation's
+  Radeon VII and the Linux MI50 are the same gfx906 silicon and neither has
+  ROCm on Windows. One set of compute shaders that runs anywhere, used as
+  the fallback where no vendor backend is built or available. Lower peak
+  throughput than a vendor path is expected; ROCm remains the first-class
+  target on Linux. `LLMX_HAS_BACKEND_VULKAN`
 - Hardware availability sets what can be *claimed*, not what can be written:
   only AMD gfx906 is testable here today, so any NVIDIA or Intel result stays
   marked **untested** until that hardware exists. Do not claim a backend works
@@ -120,12 +116,20 @@ each is gated by its own `LLMX_HAS_BACKEND_*` in `config.hpp`.
   libraries are not.
 
 ## 5. Multi-device split **[design]**
-Split a single model across several backends on one machine.
-- **per-layer**: consecutive layers to different devices (pipeline)
-- **per-tensor**: independent tensors (embeddings, norms) on different devices
-- **per-row**: row-parallel matmul across devices
-- BackendManager owns one Backend per device; model routes tensors by placement
-- All are runtime parameters, not build options
+Split a single model across several backends on one machine. Designed in
+`docs/EXECUTION.md` (placement, transfers, order of work).
+- **per-layer**: consecutive layers to different devices (pipeline). The
+  residual stream crosses once per pass through `read` and `write`; the
+  overlap that makes two devices worth it is a scheduler loop over tickets.
+- **per-tensor**: the embedding table and the output head placed
+  independently of the layers, so a large table can stay in host memory.
+- **per-row** (row-parallel matmul) is **dropped**. It needs peer copies and
+  cross-device events at every projection, was the only item forcing that
+  machinery into the interface, and the one- and two-device workloads here
+  are served by a layer split under continuous batching.
+- `Model` holds one Backend per device and a `Placement`; runtime flags
+  (`--device`, `--n-gpu-layers`), not build options. `--tensor-split` waits
+  for a second device to exist.
 
 ## 6. Multi-node / cluster **[design]**
 - `node_id` on each Backend, message layer for cross-node tensor exchange
@@ -144,9 +148,14 @@ Split a single model across several backends on one machine.
   sequence state and mutable KV histories (see ARCHITECTURE.md, KV state and
   concurrent execution). Prefix reuse shares immutable KV only, with explicit
   lifetime tracking; it must not share a user's mutable history.
-- Continuous batching, generation queues, `/generate` streaming
+- Continuous batching, generation queues, `/generate` streaming. The model
+  layer's side of this, `Model` / `Sequence` / `ExecContext` / `Batch` and
+  the batched attention views, is designed in `docs/EXECUTION.md` and lands
+  before the server so the CLI and the server run the same forward pass.
 - Separate execution scratch ownership and safe backend scheduling; internal
   worker parallelism does not make the current `Model` concurrently callable.
+  A `Backend` is driven by one thread at a time; the scheduler is the single
+  submitter per device.
 - `server/` directory is the planned home (not yet created - avoid empty stubs)
 
 ## 8. Correctness & perf gates

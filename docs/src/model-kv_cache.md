@@ -26,7 +26,7 @@ computes an offset into them.
   movable for the same reason.
 
 `Model` owns one pool and one sequence today. The server keeps one sequence per
-request over a shared pool; fork, prefix sharing and completion-gated release
+request over a shared pool; fork and prefix sharing
 are the later steps in the design, not implemented here.
 
 CTest's `kv-cache` test covers pool reuse and exhaustion, sequence

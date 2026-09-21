@@ -4,6 +4,28 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Execution model for batching and placement (ROADMAP #5, #7) (2026-09-21)
+
+- **Goal:** fix what the backend interface and the model layer need for the
+  per-layer and per-tensor splits and for continuous batching, now that both
+  are scoped and per-row split is dropped, so the first vendor backend
+  implements each signature once.
+- **Done:** the design, `docs/EXECUTION.md`: `submit`/`wait` tickets with
+  no events, host-visible memory and `write` returning with the transfer as
+  its caller, per-row positions with the RoPE table as a buffer, batched KV
+  views with `gather_rows`, and `Model` / `Sequence` / `ExecContext` /
+  `Batch`. Seven ordered steps; steps 1 to 4 change the interface and go
+  before Vulkan. ROADMAP #4a marked done, #5 rewritten without per-row, #7
+  pointed at the design; stale "steps 5 and 6 remain" claims corrected in
+  ARCHITECTURE, DEVICE-EXECUTION, README and the backend page.
+- **Left:** step 1 (RoPE table as a buffer, per-row positions, delete
+  `rope`), gated. Then 2 to 4, then the Vulkan page.
+- **Gotchas:** step 1 touches the decode path and the layout band applies:
+  the control must perturb `arch_qwen.hpp` and `cpu_backend.hpp`, the files
+  it edits. `sync()` stays `noexcept`; `wait` is too. The other developer's
+  last recorded position predates the last four merges to main; the design
+  is posted for review but does not wait on it.
+
 ## ROCm on Windows is not available for this hardware (2026-09-21)
 
 Checked before planning any GPU work on the workstation. The Windows HIP SDK
@@ -523,8 +545,9 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| GPU backends (ROCm first, Vulkan portability) | Planned |
-| Multi-device split                       | Planned  |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Designed |
+| GPU backends (Vulkan first to write, ROCm first-class) | Planned |
+| Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Planned  |
 | Chat follow-up cache validation          | Done |
@@ -605,7 +628,7 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 - **Goal:** improve the remaining K-quant decode path and continue ROADMAP #4a without overlapping this release/placement work.
 - **Done:** the separate `design/device-execution-model` branch and the K-quant experiments are not incorporated by this release. Their measurements and source identities must be reviewed before adoption. Quantized-activation commits `357d68d` and `97d52e8` fail `backend-group`; they remain isolated and are not merge-ready. Arithmetic-preserving dispatch work is being separated onto a passing base.
-- **Left:** prospective correctness/performance validation for any new quantized-activation path; backend-owned weights/activations and execution lifetime before vendor GPU kernels. Coordinate rebases after release and announce timing reservations.
+- **Left:** prospective correctness/performance validation for any new quantized-activation path. The device execution model is complete on main (see the 2026-09-21 block above); K-quant decode remains. Coordinate rebases and announce timing reservations.
 - **Gotchas:** earlier grouped Q16 failed the unchanged native double-dot accuracy contract. Do not reuse it as a lossless baseline or weaken bounds after observing results. CPU Q8 results do not establish K-quant parity.
 
 ## Working rules and ownership

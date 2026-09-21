@@ -3,8 +3,10 @@
 Design for ROADMAP #4a. This is the prerequisite for every vendor backend in
 #4b (ROCm, CUDA, SYCL, Vulkan): until it lands, a GPU backend would re-upload
 weights and round-trip activations through host memory on every call, which
-costs more than it saves. Steps 1 to 4 of the migration order below are done
-and gated; steps 5 and 6 are not.
+costs more than it saves. All six steps of the migration order below are done
+and gated. What ROADMAP #5 and #7 need on top of this interface is designed in
+[EXECUTION](EXECUTION.md), which supersedes the deferrals in the async
+section below.
 
 The constraint that shapes the whole design: **the CPU backend must stay the
 correctness and performance reference throughout.** It is the A/B baseline for
@@ -256,6 +258,11 @@ events and Vulkan queues with timeline semaphores and command buffers do not
 share a shape, and choosing one before writing either backend is a guess. One
 vendor backend tells us what the abstraction must support; #5 then builds it
 against two consumers instead of none.
+
+Since this was written, per-row split was dropped from the roadmap, which
+closed the requirements enough to design the async extension before the
+first vendor backend rather than after: tickets from `submit`/`wait`, with
+no events, in [EXECUTION](EXECUTION.md).
 
 What this step must get right is only that it does not foreclose that. Ops
 enqueue rather than complete, which is the property a richer model extends

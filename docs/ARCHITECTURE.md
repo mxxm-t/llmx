@@ -134,8 +134,10 @@ boundaries:
   positions and relevant execution configuration match. Mutable suffixes stay
   private, and shared blocks remain alive until all users and operations finish.
 
-The paging and block ownership above are implemented; per-request sequences,
-scheduling and prefix sharing are not, and wait for their real consumers. The
+The paging and block ownership above are implemented, and a block returns to
+the pool only after the backend has retired the work that read it;
+per-request sequences, scheduling and prefix sharing are not, and wait for
+their real consumers. The
 CPU block size and intra-block layout are that backend's choices and must not
 become requirements imposed on future device backends.
 
@@ -188,14 +190,16 @@ request/session recovery rather than treating the CLI's process-level catch as r
 ## Multi-device / multi-node design notes
 
 The `backend::Backend` interface is device-agnostic in *shape* - nothing in it
-names a vendor - and, since steps 1 to 4 of the device execution migration,
-in substance too: weights and activations are `Buffer` handles, every op takes
-a buffer and an offset, and the model layer holds no host address. Two things
-remain before a GPU backend is worth writing: KV blocks still live in the CPU
-backend's own vectors rather than buffers, and every op is still synchronous,
-so there is no way to enqueue work and sync once per forward pass. Those are
-steps 5 and 6 in `ROADMAP.md` #4a and `DEVICE-EXECUTION.md`.
+names a vendor - and, since the device execution migration
+(`DEVICE-EXECUTION.md`, complete), in substance too: weights, activations and
+KV blocks are `Buffer` handles, every op takes a buffer and an offset, ops
+enqueue on one implicit stream with one `sync()` per forward pass, and the
+model layer holds no host address.
 
-Once it has, a model can be split across several Backends - one per device, or
-per cluster node - using strategies at the model layer (per-layer, per-tensor,
-per-row). None of that is implemented yet. See `ROADMAP.md` for the plan.
+A model can then be split across several Backends, one per device or per
+cluster node, by placement at the model layer: per-layer and per-tensor.
+Per-row split is not planned. The interface extensions this and the
+multi-user server need (tickets, batched sequence views, host-visible
+memory, `write`) and the `Model` / `Sequence` / `ExecContext` split are
+designed in `EXECUTION.md`. None of it is implemented yet; `ROADMAP.md`
+#5 and #7 carry the plan.

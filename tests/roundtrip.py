@@ -146,12 +146,73 @@ def check_tensor_extents(d):
               "integral spellings and empty model [ok]" % (qtype, len(invalid)))
 
 
+# Decoding straight from the format description, so the check below compares
+# llmx against the spec rather than against itself. Both layouts are a 2-byte
+# f16 scale followed by the payload: Q8_0 stores 32 signed bytes and decodes as
+# d*q; Q4_0 packs 32 values into 16 bytes, where the low nibble of byte j is
+# value j and the high nibble is value j+16, each decoding as d*(nibble-8).
+def decode_blocks(payload, qtype, count):
+    block, typesize = (32, 34) if qtype == "q8_0" else (32, 18)
+    out = []
+    for b in range(count // block):
+        blk = payload[b * typesize:(b + 1) * typesize]
+        d = struct.unpack("<e", blk[0:2])[0]
+        if qtype == "q8_0":
+            out.extend(d * v for v in struct.unpack("<32b", blk[2:34]))
+        else:
+            lo = [d * ((blk[2 + j] & 0x0F) - 8) for j in range(16)]
+            hi = [d * ((blk[2 + j] >> 4) - 8) for j in range(16)]
+            out.extend(lo + hi)
+    return out
+
+
+# A single-tensor model puts the payload at the end of the file, so this needs
+# no GGUF parser of its own to find it. The suite's own parser is not used on
+# purpose: a check that shares a reader with the thing it checks is not
+# independent of it.
+def check_independent_decode(d):
+    count = 4096
+    values = [((i * 37 % 199) - 99) / 23.0 for i in range(count)]
+    mj = os.path.join(d, "one.json")
+    mb = os.path.join(d, "one.bin")
+    with open(mb, "wb") as f:
+        f.write(struct.pack("<%df" % count, *values))
+    with open(mj, "w", encoding="utf-8") as f:
+        json.dump({"name": "one", "tensors": [{"name": "w", "shape": [count]}]}, f)
+
+    for qtype, typesize in (("q8_0", 34), ("q4_0", 18)):
+        mg = os.path.join(d, "one_%s.gguf" % qtype)
+        oj = os.path.join(d, "one_%s.json" % qtype)
+        ob = os.path.join(d, "one_%s.bin" % qtype)
+        rc, _ = cli(["quantize", mj, mb, mg, qtype])
+        assert rc == 0, "independent decode: quantize (%s) failed" % qtype
+        rc, _ = cli(["dequantize", mg, oj, ob])
+        assert rc == 0, "independent decode: dequantize (%s) failed" % qtype
+
+        with open(mg, "rb") as f:
+            raw = f.read()
+        payload = raw[len(raw) - (count // 32) * typesize:]
+        reference = decode_blocks(payload, qtype, count)
+        got = read_bin_floats(ob)
+        assert len(got) == count, "independent decode: %s element count" % qtype
+        differing = [i for i, (x, y) in enumerate(zip(reference, got))
+                     if struct.pack("<f", x) != struct.pack("<f", y)]
+        assert not differing, (
+            "%s decode differs from the format description at %d of %d values, "
+            "first at index %d: spec %r, llmx %r"
+            % (qtype, len(differing), count, differing[0],
+               reference[differing[0]], got[differing[0]]))
+        loss = max(abs(x - y) for x, y in zip(values, got))
+        print("roundtrip: %s decode matches the format description on %d values, "
+              "format loss %.6f  [ok]" % (qtype, count, loss))
+
+
 def run():
     d = tempfile.mkdtemp(prefix="llmx_rt_")
     try:
         original = make_fixtures(d)
         mj, mb, mg = (os.path.join(d, n) for n in ("model.json", "model.bin", "model.gguf"))
-        oo, oj, ob = (os.path.join(d, n) for n in ("out.json", "out.bin", "out.gguf"))
+        oj, ob = (os.path.join(d, n) for n in ("out.json", "out.bin"))
 
         for qtype, bound in (("q8_0", 0.05), ("q4_0", 1.0)):
             rc, _ = cli(["quantize", mj, mb, mg, qtype])
@@ -186,6 +247,7 @@ def run():
             print("roundtrip: %s, %d elements, max abs err = %.6f, "
                   "subnormal-scale rel err = %.6f  [ok]" % (
                       qtype, len(got), err, tiny_err))
+        check_independent_decode(d)
         check_tensor_extents(d)
         return True
     finally:

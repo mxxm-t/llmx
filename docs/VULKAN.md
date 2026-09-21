@@ -57,9 +57,8 @@ backends, and it is needed at **build time only**: `vulkan.h` for the
 declarations, and `glslc` to compile the shaders. The runtime needs the
 loader, `vulkan-1.dll` or `libvulkan.so.1`, which the driver installs.
 
-The workstation has the loader and `vulkaninfo` and does **not** have the
-SDK: `VULKAN_SDK` is unset and there is no `glslc`. Installing the LunarG
-SDK is the one setup step before sub-step 1 below can build.
+The workstation has the LunarG SDK 1.4.357 at `C:\VulkanSDK`, installed
+for this work; CMake finds it through `VULKAN_SDK`.
 
 - **The loader is loaded at run time**, `LoadLibrary` or `dlopen`, and
   entry points are fetched through `vkGetInstanceProcAddr`. No import
@@ -206,7 +205,7 @@ device is present, so the tree stays green without a GPU.
 
 | # | Sub-step | Test |
 |---|---|---|
-| 1 | Build gate, loader, device and queue, buffers, `adopt`/`read`/`copy`, `submit`/`wait`/`sync` | Round trip a buffer; a ticket retires in order; no device skips |
+| 1 | Build gate, loader, device and queue, buffers, `adopt`/`read`/`write`/`copy`, `submit`/`wait`/`sync` (**done**) | `backend-vulkan`: zeroed allocations, adopt and copy round trips at odd offsets, writes into device and host-visible memory, a copy read in place after a wait, monotonic tickets, empty and out-of-range buffers; skips without a device |
 | 2 | Elementwise kernels, `gather_rows`, `embed`, the norms, `norm_rope_rows` | CPU-vs-Vulkan on random inputs, bounds frozen first |
 | 3 | `matmul` for F32 and Q8_0, decode and prefill kernels | Same, plus `bench --device vulkan:0` |
 | 4 | KV storage, `kv_write`, `attention` over views | `kv-cache`'s attention reference and the two-view case, on the device |

@@ -4,6 +4,42 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Vulkan backend, sub-step 1 of docs/VULKAN.md (2026-09-21)
+
+- **Goal:** the first vendor backend over the Radeon VII: storage and
+  submission first, kernels in the following sub-steps.
+- **Done:** `src/backends/vulkan/vulkan_backend.cpp`, the one translation
+  unit outside the header-only runtime, built as a static library only
+  with `LLMX_HAS_BACKEND_VULKAN=ON`. The loader is loaded at run time and
+  every entry point fetched through it, so nothing links against
+  `vulkan-1` and a build without the option is byte-for-byte what it was.
+  One instance, the physical device by index, one compute queue without
+  graphics, timeline semaphores required and 8- and 16-bit storage and
+  arithmetic enabled where present, push descriptors enabled where
+  present. Buffers are one `VkBuffer` on their own memory: device-local
+  and not host-visible for `Memory::device`, host-visible, coherent and
+  cached for `Memory::host_visible`, mapped for their lifetime. `adopt`,
+  `write` and `read` go through a 64 MiB staging buffer in chunks;
+  `alloc` zero-fills in stream order; `copy` is a device copy. `submit`
+  ends the open command buffer and signals the timeline with the ticket,
+  `wait` blocks on the value, `sync` submits what is open and waits on the
+  last ticket, and a ring of four command buffers is reused as tickets
+  retire. One full barrier between consecutive commands. The compute ops
+  throw naming their sub-step. `backend-vulkan` passes 13 checks on the
+  Radeon VII and exits 77, which CTest reports as skipped, without a
+  loader or device. The CMake option-to-flag conversion that the generated
+  config needed is exercised by every configure and the default tree is
+  unchanged: 19/19 native, Python 12/12.
+- **Slip, recorded:** these files were swept into `757dee9`, the commit
+  that recorded the fork gate, before they had been built, by a `git add
+  -A` that should have been scoped. The default tree was verified within
+  minutes and was never broken, since the option is off; the Vulkan tree
+  was built and its test run right after, and this commit carries the
+  description the previous one lacked.
+- **Left:** sub-step 2, the elementwise kernels, gather, embed and the
+  norms, with the shader build step: GLSL under `src/backends/vulkan/shaders/`
+  compiled by `glslc` at configure time and embedded.
+
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 
 - **Goal:** a second history with the same committed tokens, sharing every
@@ -26,8 +62,10 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   original continues exactly as if never forked. Native 19/19, Python
   12/12 with both HF models.
 - **Done: gate**, base `c85aa9d`, candidate `215ad24`, layout control
-  `d8d508e`. Five 0.6B cells at 15 pairs, one 8B at 9. System CPU per cell
-  37 to 40 percent against the benchmark's own 37.5. Evidence in
+  `d8d508e`. Five 0.6B cells at 15 pairs, one 8B at 9. System CPU averaged
+  47 and 43 percent in the first two 0.6B cells and 38 to 39 in the rest,
+  against the benchmark's own 37.5, so other activity was present during
+  the two cells that moved most. Evidence in
   `docs/benchmarks/kv-fork-20260921/`, raw monitors archived and hashed;
   every sample kept.
 
@@ -811,7 +849,8 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 4 and 6 of 7 done; Vulkan page designed |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 4 and 6 of 7 done; Vulkan sub-step 1 of 7 done |
+| KV cache fork (KV-CACHE step 2)          | Done     |
 | Multi-device split (per-layer, per-tensor) | Placement done over CPU backends; flags wait for a device backend |
 | GPU backends (Vulkan first to write, ROCm first-class) | Planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |

@@ -56,7 +56,7 @@ int main() {
         std::vector<uint8_t> src = pattern(3 * mib + 12345, 1);
         const std::vector<uint8_t> kept = src;
         const auto adopted = b->adopt(src.data(), src.size());
-        std::fill(src.begin(), src.end(), 0);
+        std::fill(src.begin(), src.end(), uint8_t(0));
         out.assign(kept.size(), 0);
         b->read(*adopted, 0, out.data(), kept.size());
         require(out == kept, "adopted bytes differ after upload");

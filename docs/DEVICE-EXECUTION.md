@@ -232,7 +232,7 @@ benchmarkable against the floor.
 |---|---|---|
 | 1 | Pre-resolve tensors into `LayerWeights` | Expected neutral; no admissible measurement yet |
 | 2 | Batched elementwise ops (`rms_norm_rows`, `rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` | Expected neutral on decode; `silu_mul` may help prefill, which reads and writes three `n_ff * B` streams |
-| 3 | `Buffer`, `alloc`/`adopt`/`read`/`write`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` | Neutral - CPU buffers wrap host memory, zero-copy |
+| 3 | `Buffer`, `alloc`/`adopt`/`read`/`write`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` (**done**) | Measured neutral over 15 and 9 pairs |
 | 4 | Activation arena; op signatures take buffer + offset | Neutral to slight win (one allocation, better locality) |
 | 5 | KV blocks on buffers (the view contract is already in place) | Neutral - same `memcpy` |
 | 6 | `sync()` and the enqueue contract | Neutral - no-op on CPU |
@@ -272,10 +272,10 @@ Explicitly **not** part of #4a:
 
 ## Open questions
 
-- **`bench` after step 3.** Removing `matvec_q8_0` removes what the `bench`
-  command measures. It should be reframed onto `matmul` with a type argument,
-  which also makes it generic across quants instead of Q8_0-only - consistent
-  with the type-generic direction the rest of the code already took.
+- **`bench` after step 3 (settled).** `bench` now calls `matmul` on an
+  adopted buffer, so removing the per-row entries cost it nothing. It is
+  still Q8_0-only in what it constructs; making it generic across quants is a
+  separate, smaller change.
 - **`adopt` alignment.** GGUF tensor offsets are float-aligned. Device
   backends may want stricter alignment for coalesced access; whether `adopt`
   may re-align (and therefore must copy on every backend) is unresolved.

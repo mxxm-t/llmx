@@ -187,12 +187,12 @@ public:
         }
     }
 
-    float dot_q8_0(const uint8_t* row, const float* x, size_t nblocks) override {
-        return dot_row_impl(row, x, nblocks);
-    }
-
+    // The Q8_0 single-column path, kept as a private detail of this backend
+    // now that the interface is type-generic. A scalar return per row was one
+    // kernel launch per row for a device backend, which is why it left the
+    // interface; it is still the right shape for the host.
     void matvec_q8_0(const uint8_t* data, const float* x, float* out,
-                     size_t nblocks, size_t nout) override {
+                     size_t nblocks, size_t nout) {
         const int nt = threads_;
         // Small problems are not worth waking the pool.
         if (nt <= 1 || nout < (size_t)nt * 8) {

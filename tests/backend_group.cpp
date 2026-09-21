@@ -56,7 +56,9 @@ static size_t check_q8_scales(backend::CpuBackend& cpu) {
             // A one-hot input makes every finite f16 scale times int8 exact
             // in f32, independently of the SIMD reduction order.
             const float expected = f16_to_f32(uint16_t(h)) * float(q);
-            const float actual = cpu.dot_q8_0(row.data(), x.data(), 1);
+            float actual = 0.0f;
+            cpu.matmul(gguf::GGML_TYPE_Q8_0, *cpu.adopt(row.data(), row.size()),
+                       x.data(), &actual, gguf::Q8_0_BLOCK, 1, 1);
             require(std::isfinite(actual) && actual == expected, "Q8 scale or signed weight differs");
             ++count;
         }

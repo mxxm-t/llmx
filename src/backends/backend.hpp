@@ -107,14 +107,6 @@ public:
     virtual void copy(Buffer& dst, size_t dst_off,
                       const Buffer& src, size_t src_off, size_t bytes) = 0;
 
-    // Dot product of one Q8_0 block row (nblocks*32 values) against `x`.
-    virtual float dot_q8_0(const uint8_t* row, const float* x, size_t nblocks) = 0;
-
-    // out[o] = dot(row_o, x) for all rows o in [0, nout). Row o starts at
-    // data + o * nblocks * Q8_0_TYPESIZE.
-    virtual void matvec_q8_0(const uint8_t* data, const float* x, float* out,
-                             size_t nblocks, size_t nout) = 0;
-
     // Y[b*nout + o] = dot(row_o, X + b*nin), for all b in [0,nbatch) and o in
     // [0,nout). X and Y are row-major with nbatch rows.
     // Type-generic: the quant type is looked up in quant::Registry, so every

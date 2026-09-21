@@ -98,8 +98,13 @@ benchmark by several points.
   so the model no longer reads weight bytes anywhere. The op takes the row
   count and rejects an out-of-range token id, which the model-side version
   never checked. Native 17/17, Python suite 11/11, logits byte-identical.
-- **Left:** retiring `dot_q8_0` and `matvec_q8_0` is separable, since `bench`
-  still calls one. Then step 4, the activation arena.
+- **Done (per-row entries):** `dot_q8_0` and `matvec_q8_0` are off the
+  interface. `bench` and one test were the last callers and both go through
+  `matmul` on an adopted buffer now; the Q8_0 single-column path survives as
+  a private detail of the CPU backend. A scalar return per row is one kernel
+  launch per row on a device, which is why they could not stay.
+- **Left:** step 4, the activation arena, then the enqueue and sync
+  contract.
 - **Gotchas:** `adopt` must not copy on CPU, or an 8B model doubles peak
   memory for nothing; the contract is that the source outlives the buffer,
   which `Model` already requires of the GGUF model. The hot path passes a

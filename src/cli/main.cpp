@@ -584,10 +584,13 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
     std::vector<float> cos(size / 2), sin(size / 2);
     for (int i = 0; i < size / 2; i++) { cos[i] = std::cos(0.1f); sin[i] = std::sin(0.1f); }
 
+    const auto weights = b->adopt(mat.data(), mat.size());
+
     using clock = std::chrono::steady_clock;
     auto t0 = clock::now();
     for (int it = 0; it < iters; it++)
-        b->matvec_q8_0(mat.data(), x.data(), dst.data(), nblocks, (size_t)size);
+        b->matmul(gguf::GGML_TYPE_Q8_0, *weights, x.data(), dst.data(),
+                  (size_t)size, (size_t)size, 1);
     double mm_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 
     t0 = clock::now();

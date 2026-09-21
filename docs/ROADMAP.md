@@ -65,20 +65,22 @@ order, and the scope boundary against #5. Not implemented.
 Today's `Backend` takes raw host pointers and returns scalars synchronously, so
 a device backend would re-upload weights and round-trip activations on every
 call. Before any GPU work:
-- **Device buffers**: allocate / upload / free handles on `Backend`, so weights
-  are uploaded once at load and stay resident. Today `Model::matvec` passes a
-  fresh host pointer per call (`model/arch_qwen.hpp`).
-- **Resident activations**: the elementwise work in `Model::step` (SiLU, the two
-  residual adds, per-head q/k norms) must run device-side, or every layer pays a
-  host round trip. Either add ops to `Backend` or move the graph down a layer.
+- **Device buffers (done)**: `Buffer` handles on `Backend` with `alloc`,
+  `adopt`, `read`, `write` and `copy`. Weights are adopted once when tensors
+  are resolved and the model passes handles, never pointers. `adopt` does not
+  copy on the host; the caller guarantees the source outlives the handle.
+- **Resident activations**: the elementwise work in `Model::step` (SiLU, the
+  two residual adds, per-head q/k norms) is on the backend, and so is the
+  embedding gather. What remains is the arena: activations are still host
+  arrays the backend writes through, not device storage.
 - **Attention in the backend (CPU implementation done)**: causal GQA
   now goes through `Backend::attention` for both decode and prefill, over a
   `KVView` rather than raw pointers. The CPU backend owns score scratch,
   vectorized computation and the physical KV blocks; the model layer keeps
   only the block table and the committed length (`docs/KV-CACHE.md`). A GPU
   implementation needs device buffers below it.
-- **Async**: a submit / sync concept. `dot_q8_0` returning `float` by value is a
-  per-row kernel launch.
+- **Async**: a submit / sync concept. Still the open piece: every op returns
+  when its work is done, so a device backend would round-trip per call.
 - **Type-generic matmul (done for supported quants)**: dispatch through
   `Backend::matmul` and `quant::Registry`; F32 matrices use direct rows.
 - **Batched prefill (done on CPU)**: `Model::prefill` batches tokens with

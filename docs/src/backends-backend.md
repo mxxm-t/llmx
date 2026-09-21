@@ -6,8 +6,6 @@ now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
 `docs/ROADMAP.md` #4a: current operations take host pointers synchronously.
 
 - `set_threads(n)`, `threads_available()`: worker-thread control.
-- `dot_q8_0(row, x, nblocks)`: dot product of one Q8_0 block row with `x`.
-- `matvec_q8_0(data, x, out, nblocks, nout)`: `out[o] = dot(row_o, x)`.
 - `matmul(ggml_type, data, X, Y, nin, nout, nbatch)`: the type-generic matmul.
   The quant type is resolved through `quant::Registry`, so every block format
   gets the batched path and a new type needs no backend change. `nbatch == 1`
@@ -62,10 +60,11 @@ the call before body entry. Its default implementation invokes the body directly
 Backends may use this boundary to scope execution policy across all prompt
 microbatches without putting platform details in the model layer.
 
-The replacement interface is designed in `docs/DEVICE-EXECUTION.md`. Two
-members above do not survive it: `parallel_for` takes a host callback and has
-no device implementation, and `dot_q8_0` / `matvec_q8_0` are type-specific,
-The replacement interface is designed in `docs/DEVICE-EXECUTION.md`.
-`dot_q8_0` / `matvec_q8_0` do not survive it: they are type-specific,
-single-row leftovers that `matmul` replaced everywhere except the `bench`
-command, and a scalar return per row is one kernel launch per row on a device.
+`parallel_for` is not on this interface: a host callback across host threads
+has no device implementation. It remains public on `CpuBackend`, which its own
+tests use.
+
+`dot_q8_0` and `matvec_q8_0` are gone. They were Q8_0-specific single-row
+leftovers that `matmul` replaced everywhere, and a scalar return per row is
+one kernel launch per row on a device. The Q8_0 single-column path survives
+as a private detail of the CPU backend, reached through `matmul`.

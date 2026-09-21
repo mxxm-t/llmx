@@ -102,7 +102,9 @@ benchmark by several points.
   interface. `bench` and one test were the last callers and both go through
   `matmul` on an adopted buffer now; the Q8_0 single-column path survives as
   a private detail of the CPU backend. A scalar return per row is one kernel
-  launch per row on a device, which is why they could not stay.
+  launch per row on a device, which is why they could not stay. Both arms
+  built the same way, no cell failing: 0.6B +1.76% prefill and -0.07%
+  decode, 8B +0.43% and +0.46%.
 - **Left:** step 4, the activation arena, then the enqueue and sync
   contract.
 - **Gotchas:** `adopt` must not copy on CPU, or an 8B model doubles peak

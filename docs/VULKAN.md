@@ -148,13 +148,17 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   sets the tile. This is the kernel the CPU-versus-device A/B cares about
   most, because prefill is where the CPU currently beats mx-llama.cpp by
   eighty percent.
-- **attention**: one workgroup per (query row, head). Keys are walked
-  through the block table, which is a small storage buffer uploaded per
-  call, with online softmax: running maximum and sum, so a 40k-token
-  history needs no score array, and the value accumulation follows in the
-  same pass. GQA maps `n_head / n_head_kv` query heads to one KV head.
-  Several views in one call are several workgroup ranges, one per view,
-  which is what the batched signature was for.
+- **attention**: one workgroup per (query row, head). The workgroup's
+  subgroups take the history's tokens round robin; inside a subgroup each
+  lane owns `head_dim / subgroup_size` elements, a token's score is one
+  `subgroupAdd`, and the softmax is online, a running maximum and sum with
+  the value accumulation rescaled as the maximum moves, so a 40k-token
+  history needs no score array. The subgroups' partial states merge
+  through shared memory at the end. Keys are walked through the block
+  table, a small buffer uploaded per call. GQA maps `n_head / n_head_kv`
+  query heads to one KV head. Several views in one call are one dispatch
+  per view today; one launch over all of them is an optimization with its
+  own measurement. Head widths up to 256.
 - **kv_write**: a scatter of `[rows, n_head_kv, head_dim]` into blocks,
   one lane per float.
 - **norm_rope_rows**: one workgroup per (row, head): the head's sum of
@@ -218,7 +222,7 @@ device is present, so the tree stays green without a GPU.
 | 1 | Build gate, loader, device and queue, buffers, `adopt`/`read`/`write`/`copy`, `submit`/`wait`/`sync` (**done**) | `backend-vulkan`: zeroed allocations, adopt and copy round trips at odd offsets, writes into device and host-visible memory, a copy read in place after a wait, monotonic tickets, empty and out-of-range buffers; skips without a device |
 | 2 | Elementwise kernels, `gather_rows`, `embed` (F32 and Q8_0), the norms, `norm_rope_rows`; the shader build step (**done**) | CPU-vs-Vulkan on random inputs, bounds fixed in the test before the first run: exact for add, gather and embed, 1e-6 relative for SiLU, 1e-5 for the norms and RoPE; 160,688 outputs on the Radeon VII |
 | 3 | `matmul` for F32 and Q8_0: the row kernel (**done**); the tile kernel for wide batches after the backend runs end to end | Same over batch widths 1, 3, 8 and 13 and both block-count parities, 1e-4 relative; the 4096-square Q8_0 matvec reads at 201 GB/s on the Radeon VII, reported and not gated |
-| 4 | KV storage, `kv_write`, `attention` over views | `kv-cache`'s attention reference and the two-view case, on the device |
+| 4 | KV storage, `kv_write`, `kv_copy`, `attention` over views (**done**) | Against the CPU backend through each backend's own storage and block size: histories of 0, 63, 64, 65 and 131 tokens with 1 and 3 queries, two views in one call, a copied block attending like its source; 1e-4 relative |
 | 5 | `--device`; Qwen3-0.6B-Q8_0 end to end | HF baselines with `--device vulkan:0`; matched mx Vulkan floor |
 | 6 | Q4_0, Q4_1, Q4_K, Q5_K, Q6_K shaders | HF baselines on the Q4_0 and K-quant models |
 | 7 | Block-size screening; barrier tracking if the profile says so | The KV screening method, on the device |

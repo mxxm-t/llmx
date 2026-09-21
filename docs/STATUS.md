@@ -61,12 +61,25 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   the 16-bit path. The subgroup size is queried and must divide 256.
   Checked against the CPU backend over batch widths 1, 3, 8 and 13 and
   both parities at 1e-4 relative; 167,388 kernel outputs match in all.
-- **Left:** sub-step 4, the KV storage, `kv_write`, `kv_copy` and
-  `attention` over views, then `--device` and the model end to end
-  (sub-step 5). The tile kernel for wide batches, which stops the row
-  kernel re-reading the weights once per eight columns, comes after that
-  with its own measurement; until then prefill on the device streams the
-  weights `nbatch / 8` times per layer.
+- **Done: sub-step 4.** KV blocks on the device, one K and one V buffer
+  per layer holding `[kv_head][token][head_dim]` in 64-token blocks, grown
+  by allocate and copy on the queue with the buffers the copy reads from
+  kept alive until it retires. `kv_write` scatters a view's rows; `kv_copy`
+  copies a block within each layer's buffer; `attention` is one workgroup
+  per (row, head) with the subgroups taking tokens round robin, one
+  `subgroupAdd` per token for the score, an online softmax so no score
+  array is needed, and a shared-memory merge of the subgroups. Checked
+  against the CPU backend through each backend's own storage and block
+  size on histories of 0, 63, 64, 65 and 131 tokens with 1 and 3 queries,
+  two views in one call, and a copied block attending like its source, at
+  1e-4 relative; 179,228 kernel outputs match in all. The device's bounds
+  checks caught a query offset in the test that the CPU backend reads
+  through silently.
+- **Left:** sub-step 5, `--device vulkan:N` and the model end to end on
+  Qwen3-0.6B-Q8_0, then the HF baselines with the flag and the matched mx
+  Vulkan floor. The tile kernel for wide batches comes after that with its
+  own measurement; until then prefill on the device streams the weights
+  `nbatch / 8` times per layer.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

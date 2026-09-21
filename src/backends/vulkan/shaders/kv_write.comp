@@ -1,0 +1,24 @@
+#version 450
+// Scatter nq token-major [heads, dim] rows into the blocks of one view at
+// positions length .. length + nq. A block holds [head][token][dim], so a
+// head's history inside it is contiguous for the attention lanes.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint hist; uint nq; uint heads; uint dim; uint bt; uint row0; } p;
+layout(set = 0, binding = 0) writeonly buffer K { float kb[]; };
+layout(set = 0, binding = 1) writeonly buffer V { float vb[]; };
+layout(set = 0, binding = 2) readonly buffer KI { float kin[]; };
+layout(set = 0, binding = 3) readonly buffer VI { float vin[]; };
+layout(set = 0, binding = 4) readonly buffer T { int blocks[]; };
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    uint hd = p.heads * p.dim;
+    if (i >= p.nq * hd) return;
+    uint r = i / hd, rem = i - r * hd;
+    uint h = rem / p.dim, d = rem - h * p.dim;
+    uint t = p.hist + r;
+    uint block = uint(blocks[t / p.bt]);
+    uint o = block * (p.heads * p.bt * p.dim) + (h * p.bt + t % p.bt) * p.dim + d;
+    uint src = (p.row0 + r) * hd + rem;
+    kb[o] = kin[src];
+    vb[o] = vin[src];
+}

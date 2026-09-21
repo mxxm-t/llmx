@@ -18,6 +18,7 @@
 #include <vector>
 #include "backends/cpu/cpu_backend.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
+#include "model/kv_cache.hpp"
 #include "quant/quant.hpp"
 
 namespace {
@@ -238,6 +239,105 @@ size_t check_kernels(backend::Backend& vk) {
         try { p.vk.matmul(gguf::GGML_TYPE_Q4_0, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "unsupported matrix type accepted");
+    }
+    // The KV cache: the same token-major rows written through each backend's
+    // own storage and block size, then attention over each backend's own
+    // view. Histories straddle the device's 64-token blocks and the CPU's
+    // 128; two views in one call; a block copied with kv_copy attends like
+    // the original. The online softmax orders the arithmetic differently
+    // from the CPU's global softmax, so a tolerance.
+    {
+        const int n_head = 4, n_head_kv = 2, head_dim = 40;
+        const size_t kvw = (size_t)n_head_kv * head_dim, qw = (size_t)n_head * head_dim, layers = 2;
+        for (size_t n_past : {size_t(0), size_t(63), size_t(64), size_t(65), size_t(131)}) {
+            for (size_t nq : {size_t(1), size_t(3)}) {
+                auto run = [&](backend::Backend& b, const std::vector<float>& K, const std::vector<float>& V,
+                               const std::vector<float>& Q, std::vector<float>& out, bool split) {
+                    const size_t bt = b.kv_layout().block_tokens;
+                    auto st = b.kv_alloc(layers, n_head_kv, head_dim, 8 * 128);
+                    infer::BlockPool pool(st->max_blocks());
+                    infer::KVSequence seq(&pool, bt), other(&pool, bt);
+                    const auto Kb = b.adopt(K.data(), K.size() * sizeof(float));
+                    const auto Vb = b.adopt(V.data(), V.size() * sizeof(float));
+                    const auto Qb = b.adopt(Q.data(), Q.size() * sizeof(float));
+                    const auto ob = b.alloc(out.size() * sizeof(float), backend::Memory::device);
+                    // The history, then the queries' own rows, on every layer.
+                    seq.prepare(n_past);
+                    for (size_t l = 0; l < layers; ++l) {
+                        const backend::KVView h = seq.view(st.get());
+                        b.kv_write(l, &h, 1, {Kb.get(), l * (n_past + nq) * kvw}, {Vb.get(), l * (n_past + nq) * kvw});
+                    }
+                    seq.commit();
+                    if (split) {
+                        // A second sequence with a two-token history shares
+                        // the call: its rows come after the first view's.
+                        other.prepare(2);
+                        for (size_t l = 0; l < layers; ++l) {
+                            const backend::KVView h = other.view(st.get());
+                            b.kv_write(l, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                        }
+                        other.commit();
+                    }
+                    seq.prepare(nq);
+                    const backend::KVView view = seq.view(st.get());
+                    for (size_t l = 0; l < layers; ++l) {
+                        const size_t tail = (l * (n_past + nq) + n_past) * kvw;
+                        b.kv_write(l, &view, 1, {Kb.get(), tail}, {Vb.get(), tail});
+                        b.attention({Qb.get(), l * nq * qw}, l, &view, 1, {ob.get(), l * nq * qw},
+                                    n_head, n_head_kv, head_dim);
+                    }
+                    if (split) {
+                        other.prepare(1);
+                        const backend::KVView views[2] = {seq.view(st.get()), other.view(st.get())};
+                        std::vector<float> two((nq + 1) * qw, 0.0f);
+                        const auto tb = b.alloc(two.size() * sizeof(float), backend::Memory::device);
+                        std::vector<float> qq(Q.begin(), Q.begin() + nq * qw);
+                        qq.insert(qq.end(), Q.begin(), Q.begin() + qw);
+                        const auto qqb = b.adopt(qq.data(), qq.size() * sizeof(float));
+                        b.attention({qqb.get(), 0}, 0, views, 2, {tb.get(), 0}, n_head, n_head_kv, head_dim);
+                        b.read(*tb, 0, two.data(), two.size() * sizeof(float));
+                        out.insert(out.end(), two.begin(), two.end());
+                        other.abort();
+                    }
+                    std::vector<float> got(layers * nq * qw);
+                    b.read(*ob, 0, got.data(), got.size() * sizeof(float));
+                    std::copy(got.begin(), got.end(), out.begin());
+                    seq.commit();
+                    // A copied block attends like the block it came from.
+                    if (n_past >= 128) {   // both backends have a full first block
+                        const backend::KVView v0 = seq.view(st.get());
+                        const int32_t spare = pool.alloc();
+                        b.kv_copy(*st, v0.blocks[0], spare);
+                        std::vector<int32_t> table(v0.blocks, v0.blocks + v0.n_blocks);
+                        table[0] = spare;
+                        backend::KVView copied{st.get(), table.data(), table.size(), n_past, nq};
+                        std::vector<float> again(nq * qw, 0.0f);
+                        const auto ab = b.alloc(again.size() * sizeof(float), backend::Memory::device);
+                        b.attention({Qb.get(), 0}, 0, &copied, 1, {ab.get(), 0}, n_head, n_head_kv, head_dim);
+                        b.read(*ab, 0, again.data(), again.size() * sizeof(float));
+                        out.insert(out.end(), again.begin(), again.end());
+                        pool.release(spare);
+                    }
+                };
+                const size_t seq_len = n_past + nq;
+                const auto K = uniform(layers * seq_len * kvw, 20 + (uint32_t)n_past);
+                const auto V = uniform(layers * seq_len * kvw, 21 + (uint32_t)n_past);
+                const auto Q = uniform(layers * nq * qw, 22 + (uint32_t)nq);
+                std::vector<float> a(layers * nq * qw), b(layers * nq * qw);
+                run(p.cpu, K, V, Q, a, true);
+                run(vk, K, V, Q, b, true);
+                double worst = 0; size_t at = 0;
+                for (size_t i = 0; i < a.size() && i < b.size(); ++i) {
+                    const double d = std::fabs((double)a[i] - b[i]) / (1.0 + std::fabs((double)a[i]));
+                    if (d > worst) { worst = d; at = i; }
+                }
+                if (worst > 1e-4 || a.size() != b.size())
+                    std::cerr << "attention n_past " << n_past << " nq " << nq << " sizes " << a.size() << "/" << b.size()
+                              << " worst " << worst << " at " << at << " cpu " << a[at] << " vk " << b[at]
+                              << " (layer region " << at / (nq * qw) << ")\n";
+                values += close(a, b, 1e-4, "attention over the device cache differs beyond 1e-4");
+            }
+        }
     }
     // Decode bandwidth of the row kernel on a Qwen3-8B-sized projection,
     // reported and not asserted: 4096 x 4096 Q8_0 is 17 MiB per column.

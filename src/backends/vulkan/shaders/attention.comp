@@ -1,0 +1,77 @@
+#version 450
+// Causal GQA for one view: one workgroup per (query row, head). The
+// workgroup's subgroups take the history's tokens round robin; inside a
+// subgroup each lane owns dim / subgroup_size elements, a token's score is
+// one subgroupAdd, and the softmax is kept online, a running maximum and
+// sum with the value accumulation rescaled as the maximum moves, so a long
+// history needs no score array. The subgroups' partial states merge through
+// shared memory at the end. Row b of the view attends through length + b.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P {
+    uint hist; uint nq; uint n_head; uint n_head_kv; uint dim; uint bt; uint row0; float scale;
+} p;
+layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 2) readonly buffer K { float kb[]; };
+layout(set = 0, binding = 3) readonly buffer V { float vb[]; };
+layout(set = 0, binding = 4) readonly buffer T { int blocks[]; };
+shared float qs[256];
+shared float ms[8];
+shared float ls[8];
+shared float accs[8][256];
+void main() {
+    uint b = gl_WorkGroupID.x / p.n_head;
+    uint h = gl_WorkGroupID.x - b * p.n_head;
+    uint kvh = h / (p.n_head / p.n_head_kv);
+    uint lid = gl_LocalInvocationID.x;
+    uint nsg = 256u / gl_SubgroupSize;
+    uint sg = gl_SubgroupID, lane = gl_SubgroupInvocationID;
+    uint qstride = p.n_head * p.dim;
+    uint qbase = (p.row0 + b) * qstride + h * p.dim;
+    if (lid < p.dim) qs[lid] = q[qbase + lid];
+    barrier();
+    uint end = p.hist + b + 1u;
+    uint bf = p.n_head_kv * p.bt * p.dim;
+    // This lane's elements: lane, lane + size, ... below dim; at most four.
+    float acc0 = 0.0, acc1 = 0.0, acc2 = 0.0, acc3 = 0.0;
+    float m = -1.0 / 0.0, l = 0.0;
+    uint d0 = lane, d1 = lane + gl_SubgroupSize, d2 = lane + 2u * gl_SubgroupSize, d3 = lane + 3u * gl_SubgroupSize;
+    float q0 = d0 < p.dim ? qs[d0] : 0.0, q1 = d1 < p.dim ? qs[d1] : 0.0;
+    float q2 = d2 < p.dim ? qs[d2] : 0.0, q3 = d3 < p.dim ? qs[d3] : 0.0;
+    for (uint t = sg; t < end; t += nsg) {
+        uint base = uint(blocks[t / p.bt]) * bf + (kvh * p.bt + t % p.bt) * p.dim;
+        float part = 0.0;
+        if (d0 < p.dim) part += q0 * kb[base + d0];
+        if (d1 < p.dim) part += q1 * kb[base + d1];
+        if (d2 < p.dim) part += q2 * kb[base + d2];
+        if (d3 < p.dim) part += q3 * kb[base + d3];
+        float s = subgroupAdd(part) * p.scale;
+        float mn = max(m, s);
+        float corr = exp(m - mn), w = exp(s - mn);
+        l = l * corr + w;
+        if (d0 < p.dim) acc0 = acc0 * corr + w * vb[base + d0];
+        if (d1 < p.dim) acc1 = acc1 * corr + w * vb[base + d1];
+        if (d2 < p.dim) acc2 = acc2 * corr + w * vb[base + d2];
+        if (d3 < p.dim) acc3 = acc3 * corr + w * vb[base + d3];
+        m = mn;
+    }
+    if (lane == 0u) { ms[sg] = m; ls[sg] = l; }
+    if (d0 < p.dim) accs[sg][d0] = acc0;
+    if (d1 < p.dim) accs[sg][d1] = acc1;
+    if (d2 < p.dim) accs[sg][d2] = acc2;
+    if (d3 < p.dim) accs[sg][d3] = acc3;
+    barrier();
+    if (lid < p.dim) {
+        float M = ms[0];
+        for (uint i = 1u; i < nsg; ++i) M = max(M, ms[i]);
+        float L = 0.0, A = 0.0;
+        for (uint i = 0u; i < nsg; ++i) {
+            float c = exp(ms[i] - M);
+            L += ls[i] * c;
+            A += accs[i][lid] * c;
+        }
+        o[qbase + lid] = A / L;
+    }
+}

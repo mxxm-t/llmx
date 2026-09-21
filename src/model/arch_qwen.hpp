@@ -264,6 +264,7 @@ public:
             logits.resize(output_.nout);
             b_->read(*logits_buf_, 0, logits.data(), output_.nout * sizeof(float));
         } catch (...) {
+            retire();
             kv_seq_.abort();
             throw;
         }
@@ -355,6 +356,7 @@ public:
         try {
             b_->run_prefill(std::ref(work));
         } catch (...) {
+            retire();
             kv_seq_.truncate((size_t)start);
             n_tokens_ = start;
             throw;
@@ -365,6 +367,7 @@ public:
     // Start a new conversation. Blocks return to the pool; their storage is
     // retained for the next history.
     void reset() {
+        retire();
         kv_seq_.reset();
         n_tokens_ = 0;
     }
@@ -550,6 +553,7 @@ private:
                 b_->read(*logits_buf_, 0, out_logits->data(), output_.nout * sizeof(float));
             }
         } catch (...) {
+            retire();
             kv_seq_.abort();
             throw;
         }
@@ -600,6 +604,14 @@ private:
             b_->add(sxb(), shb(), (size_t)B * E);
         }
     }
+
+    // A block returns to the pool only once the backend has retired every
+    // submission that touched it (docs/KV-CACHE.md). The CPU backend is eager
+    // so this costs nothing; on a device, releasing a block while a write to
+    // it is still queued hands a later sequence someone else's history. Three
+    // of the four callers are exception paths, which is why sync() cannot
+    // throw.
+    void retire() noexcept { b_->sync(); }
 
     // The buffer is passed by raw pointer, not by handle: three projections
     // per layer per token is nearly two hundred refcount pairs a token if a

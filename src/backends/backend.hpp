@@ -120,7 +120,20 @@ public:
     // and a backend that copies simply never relies on the guarantee.
     virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
 
-    // Host-visible copy out. One call per forward pass, for the logits.
+    // Every op below enqueues on this backend's single implicit stream and
+    // returns. Results are observable only after sync() or read(), and the
+    // model needs host-side data at exactly one point per forward pass, so
+    // that is one sync per pass rather than one per op.
+    //
+    // noexcept by contract, because a caller frees storage on the strength of
+    // it: a backend that cannot establish that its outstanding work has
+    // finished must fail hard rather than report something nobody at this
+    // layer can act on. The CPU backend runs each op to completion as it is
+    // called, so this returns immediately.
+    virtual void sync() noexcept = 0;
+
+    // Host-visible copy out, for the logits. Syncs first: what it returns has
+    // to include every op enqueued before it.
     virtual void read(const Buffer& src, size_t off, void* dst, size_t bytes) = 0;
 
     // Storage to storage, within this backend. The KV cache grows with it.

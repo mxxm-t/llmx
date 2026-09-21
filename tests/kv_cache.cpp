@@ -359,6 +359,7 @@ gguf::GGUFModel fixture() {
 struct FailingCpu : backend::CpuBackend {
     bool fail_output = false;
     int outputs = 0;
+    int syncs = 0;
     void matmul(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
                 size_t nin, size_t nout, size_t nbatch) override {
         if (nout == 16) {
@@ -367,7 +368,42 @@ struct FailingCpu : backend::CpuBackend {
         }
         backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch);
     }
+    void sync() noexcept override { ++syncs; backend::CpuBackend::sync(); }
 };
+
+// Every path that hands blocks back to the pool has to retire the backend's
+// outstanding work first, or a device backend gives whichever sequence takes
+// that id next a write from the failed one (docs/KV-CACHE.md). The CPU backend
+// is eager, so nothing here would fail without the sync; counting the calls is
+// what keeps the contract from quietly lapsing.
+void release_syncs() {
+    const auto weights = fixture();
+    auto cpu = std::make_shared<FailingCpu>();
+    cpu->set_threads(1);
+    infer::Model model(weights, cpu);
+    model.set_ubatch(2);
+
+    model.step(1);
+    int before = cpu->syncs;
+    cpu->fail_output = true;
+    rejects([&] { model.step(2); }, "injected decode failure did not propagate");
+    require(cpu->syncs > before, "a failed step released blocks without retiring work");
+
+    before = cpu->syncs;
+    model.reset();
+    require(cpu->syncs > before, "reset released blocks without retiring work");
+
+    before = cpu->syncs;
+    cpu->fail_output = true;
+    rejects([&] { model.prefill({4, 5, 6}); }, "injected prefill failure did not propagate");
+    require(cpu->syncs > before, "a failed prefill released blocks without retiring work");
+
+    // A step that succeeds commits rather than releases, so it needs no sync of
+    // its own: the read of the logits is the one ordering point per pass.
+    before = cpu->syncs;
+    model.step(7);
+    require(cpu->syncs == before, "a successful step retired work it did not have to");
+}
 
 // A failure after the KV writes must leave length, position and bytes as
 // they were, and the retried step must produce the logits of an undisturbed
@@ -453,8 +489,9 @@ int main() {
         storage_growth_and_reset();
         attention_over_blocks();
         model_transaction();
-        std::cout << "KV cache: pool, sequence, ownership, on-demand storage, reset, paged attention "
-                     "and failed-step transactions pass\n";
+        release_syncs();
+        std::cout << "KV cache: pool, sequence, ownership, on-demand storage, reset, paged attention, "
+                     "failed-step transactions and retire-before-release pass\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

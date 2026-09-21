@@ -296,6 +296,10 @@ public:
         return std::make_shared<CpuBuffer>(src, bytes);
     }
 
+    // Eager: an op has completed by the time it returns, so there is never
+    // anything outstanding to wait for.
+    void sync() noexcept override {}
+
     void read(const Buffer& src, size_t off, void* dst, size_t bytes) override {
         span(src, off, bytes);
         std::memcpy(dst, (const uint8_t*)src.host_ptr() + off, bytes);

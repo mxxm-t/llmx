@@ -4,7 +4,30 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## The matched mx comparison ran under background load (2026-09-21)
+## Matched mx gate on a quiet machine (2026-09-21)
+
+The comparison repeated under the rule below, with recorded system CPU of
+39% on 8B and 43% on 0.6B against the benchmark's own 37.5%. Eight pairs per
+model, alternating arms, llmx from `0c0dec7`, mx `5542318e74`. Evidence in
+`docs/benchmarks/kv-mx-quiet-20260921/`.
+
+| Model | Phase | llmx | mx | Paired median | llmx wins |
+|---|---|---:|---:|---:|---:|
+| 0.6B Q8_0 | prefill | 524.57 | 277.54 | +85.64% | 8/8 |
+| 0.6B Q8_0 | decode | 49.09 | 47.77 | +3.91% | 7/8 |
+| 8B Q8_0 | prefill | 40.77 | 22.16 | +84.54% | 8/8 |
+| 8B Q8_0 | decode | 4.64 | 4.67 | -1.53% | 3/8 |
+
+Three of four cells clear the floor, prefill by a wide margin on both models.
+8B decode is 1.53% under it, against a harness A/A of 0.06% on that cell, so
+the sign is outside harness noise; but llmx wins 3 of 8 pairs and the
+per-pair spread runs -7.5% to +1.2%, so the size is not well determined. The
+earlier figure of -3.5% came from the loaded run and overstated it.
+
+This is the current state of ROADMAP #8's performance gate: met everywhere
+except 8B decode, which is under by roughly one and a half percent.
+
+## The matched mx comparison ran under background load (2026-09-20 run)
 
 `tools/compare_cpu.py` passes its own A/A: one binary as both arms moves at
 most 0.80%, and 0.06% on the 8B decode cell. The harness is sound.

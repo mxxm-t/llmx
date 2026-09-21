@@ -36,18 +36,21 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   Outputs must be disjoint from one another, inputs and weights. The default
   calls `matmul` sequentially; all outputs are ready when the call returns.
 - `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, max_tokens)`,
-  `kv_write(layer, view, pos, k, v, batch)`: the backend-owned half of the
+  `kv_write(layer, views, n_views, k, v)`: the backend-owned half of the
   paged KV cache in `docs/KV-CACHE.md`. The backend chooses the block size and
-  the layout inside a block; the model layer hands it a `KVView` (storage
-  handle, block table, committed length) and never computes an offset.
-  Storage is backed on demand up to the blocks `max_tokens` needs; it reports
-  retained bytes and the peak held during a growth copy.
-- `attention(Q, layer, view, out, n_head, n_head_kv, head_dim, nbatch)`:
-  causal GQA over the view, shared by decode and prefill. Queries/output have
-  shape `[nbatch, n_head, head_dim]`; query `b` sees positions through
-  `view.length + b`, so the table must cover `length + nbatch` positions and
-  every block it reaches must have been written. The backend owns temporary
-  score storage.
+  the layout inside a block; the model layer hands it `KVView`s (storage
+  handle, block table, committed length, `nq` rows of this pass) and never
+  computes an offset. Rows are laid out in view order and view `v`'s rows go
+  to positions `length .. length + nq` of its sequence. Storage is backed on
+  demand up to the blocks `max_tokens` needs; it reports retained bytes and
+  the peak held during a growth copy.
+- `attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)`:
+  causal GQA over every view, shared by decode and prefill. Queries/output
+  have shape `[rows, n_head, head_dim]` in view order; row `b` of view `v`
+  sees positions through `v.length + b`, so each table must cover
+  `length + nq` positions and every block it reaches must have been written.
+  Several views in one call is what a batch of sequences needs; the model
+  passes one. The backend owns temporary score storage.
 - `Slice` / `CSlice`: where an operand lives, a buffer and a float offset.
   Every op takes these rather than pointers, so nothing outside a backend
   holds a host address. An empty allocation resolves to no address and is
@@ -74,9 +77,8 @@ per head per row. `parallel_for` is therefore NOT on this interface - a host
 callback across host threads has no device implementation. It remains public on
 `CpuBackend`, which its own tests use.
 
-Multi-device placement and batching across sequences are planned; the
-signatures they still change (`attention` and `kv_write` taking several
-views) are in `docs/EXECUTION.md`.
+Multi-device placement and batching across sequences are planned in
+`docs/EXECUTION.md`; the interface already carries what they need from it.
 
 `run_prefill(work)` invokes the body once on the caller after successful setup
 and completes cleanup before returning. Setup or reentrancy errors can reject

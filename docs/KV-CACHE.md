@@ -126,10 +126,11 @@ so a failed step leaves the previous history valid.
 ```
 KVLayout   { block_tokens }                      queried once, backend-chosen
 KVStorage  handle from kv_alloc; owns the physical blocks of one cache
-KVView     { storage, blocks, n_blocks, length } one sequence, one layer
+KVView     { storage, blocks, n_blocks, length, nq } one sequence's history
+           and its nq rows of the current pass
 kv_alloc(layers, max_tokens) -> KVStorage        grows on demand
-kv_write(layer, view, pos, k, v, batch)          model -> storage
-attention(Q, layer, view, out, n_head, n_head_kv, head_dim, nbatch)
+kv_write(layer, views, n_views, k, v)            model -> storage, rows in view order
+attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)
 ```
 
 A view names its storage: block ids are only meaningful inside one

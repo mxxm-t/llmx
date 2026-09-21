@@ -313,9 +313,9 @@ public:
                                    rope_cos(), rope_sin(), half, positions_.data() + pos);
             }
 
-            b_->kv_write(l, view, (size_t)pos, skv(), sv(), 1);
-            b_->attention(sq(), l, view, sattn(),
-                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, 1);
+            b_->kv_write(l, &view, 1, skv(), sv());
+            b_->attention(sq(), l, &view, 1, sattn(),
+                          cfg.n_head, cfg.n_head_kv, cfg.head_dim);
 
             // attn_output projection + residual
             matvec(w.attn_output, sattn(), sh());
@@ -603,9 +603,9 @@ private:
                                w.attn_k_norm.slice(), cfg.rms_eps,
                                rope_cos(), rope_sin(), half, positions_.data() + pos0);
 
-            b_->kv_write(l, view, (size_t)pos0, skb(), svb(), (size_t)B);
-            b_->attention(sqb(), l, view, sattnb(),
-                          cfg.n_head, cfg.n_head_kv, cfg.head_dim, B);
+            b_->kv_write(l, &view, 1, skb(), svb());
+            b_->attention(sqb(), l, &view, 1, sattnb(),
+                          cfg.n_head, cfg.n_head_kv, cfg.head_dim);
 
             matmul(w.attn_output, sattnb(), shb(), B);
             b_->add(sxb(), shb(), (size_t)B * E);

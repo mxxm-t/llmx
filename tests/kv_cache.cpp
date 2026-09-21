@@ -159,7 +159,7 @@ void append(backend::CpuBackend& cpu, backend::KVStorage& st, infer::KVSequence&
                 }
         const auto kb = cpu.adopt(k.data(), k.size() * sizeof(float));
         const auto vb = cpu.adopt(v.data(), v.size() * sizeof(float));
-        cpu.kv_write(layer, view, pos, {kb.get(), 0}, {vb.get(), 0}, batch);
+        cpu.kv_write(layer, &view, 1, {kb.get(), 0}, {vb.get(), 0});
     }
     seq.commit();
 }
@@ -213,12 +213,14 @@ void storage_growth_and_reset() {
         require(seq.length() == limit && pool.in_use() == 3, "failed append changed the sequence");
         check(*st, seq, bt, heads, width, 1);
         {
-            const backend::KVView view = seq.view(st.get());
+            // A view claiming one more row than its table covers.
+            backend::KVView view = seq.view(st.get());
+            view.nq = 1;
             std::vector<float> row(heads * width, 0.0f);
             const auto rowb = cpu.adopt(row.data(), row.size() * sizeof(float));
-            rejects([&] { cpu.kv_write(3, view, 0, {rowb.get(), 0}, {rowb.get(), 0}, 1); },
+            rejects([&] { cpu.kv_write(3, &view, 1, {rowb.get(), 0}, {rowb.get(), 0}); },
                     "layer outside storage accepted");
-            rejects([&] { cpu.kv_write(0, view, limit, {rowb.get(), 0}, {rowb.get(), 0}, 1); },
+            rejects([&] { cpu.kv_write(0, &view, 1, {rowb.get(), 0}, {rowb.get(), 0}); },
                     "position outside the view accepted");
         }
         // Reset returns the blocks but keeps the storage they occupied.
@@ -264,20 +266,22 @@ void attention_over_blocks() {
                 const auto Kb = cpu.adopt(K.data(), K.size() * sizeof(float));
                 const auto Vb = cpu.adopt(V.data(), V.size() * sizeof(float));
                 const auto Qb = cpu.adopt(Q.data(), Q.size() * sizeof(float));
-                cpu.kv_write(0, seq.view(st.get()), 0, {Kb.get(), 0}, {Vb.get(), 0}, n_past);
+                const backend::KVView history = seq.view(st.get());
+                cpu.kv_write(0, &history, 1, {Kb.get(), 0}, {Vb.get(), 0});
                 seq.commit();
                 seq.prepare((size_t)nbatch);
                 const backend::KVView view = seq.view(st.get());
                 const size_t tail = n_past * (size_t)n_head_kv * (size_t)head_dim;
-                cpu.kv_write(0, view, n_past, {Kb.get(), tail}, {Vb.get(), tail}, (size_t)nbatch);
+                cpu.kv_write(0, &view, 1, {Kb.get(), tail}, {Vb.get(), tail});
                 std::vector<float> out(Q.size(), 0.0f);
                 const auto ob = cpu.adopt(out.data(), out.size() * sizeof(float));
-                cpu.attention({Qb.get(), 0}, 0, view, {ob.get(), 0}, n_head, n_head_kv, head_dim, nbatch);
+                cpu.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
                 if (n_past == 0 && churn == 0) {
                     infer::KVSequence shorter(&pool, bt);
+                    const backend::KVView empty = shorter.view(st.get());
                     rejects([&] {
-                        cpu.attention({Qb.get(), 0}, 0, shorter.view(st.get()), {ob.get(), 0},
-                                      n_head, n_head_kv, head_dim, nbatch);
+                        cpu.attention({Qb.get(), 0}, 0, &empty, 1, {ob.get(), 0},
+                                      n_head, n_head_kv, head_dim);
                     }, "attention over an empty view accepted");
                 }
                 outs.push_back(out);
@@ -312,6 +316,75 @@ void attention_over_blocks() {
                 }
         }
     }
+}
+
+// Two sequences in one pass: their rows concatenated in view order through
+// one kv_write and one attention call must equal the same two sequences
+// written and attended separately, bit for bit, since the per-view work is
+// the single-sequence work. Histories straddle a block edge and differ in
+// length so a row offset or a length taken from the wrong view shows.
+void batched_views() {
+    backend::CpuBackend cpu;
+    cpu.set_threads(2);
+    const size_t bt = cpu.kv_layout().block_tokens;
+    const int n_head = 4, n_head_kv = 2, head_dim = 24;
+    const size_t kvw = (size_t)n_head_kv * head_dim, qw = (size_t)n_head * head_dim;
+    const size_t past[2] = {5, bt + 3}, nq[2] = {2, 3};
+    std::mt19937 rng(11);
+    std::uniform_real_distribution<float> uni(-1.0f, 1.0f);
+    std::vector<float> K[2], V[2], Q[2];
+    for (int i = 0; i < 2; ++i) {
+        K[i].resize((past[i] + nq[i]) * kvw); V[i].resize(K[i].size()); Q[i].resize(nq[i] * qw);
+        for (auto& x : K[i]) x = uni(rng);
+        for (auto& x : V[i]) x = uni(rng);
+        for (auto& x : Q[i]) x = uni(rng);
+    }
+    // Separate: each sequence written and attended on its own.
+    std::vector<float> separate;
+    std::vector<float> joint;
+    for (int mode = 0; mode < 2; ++mode) {
+        auto st = cpu.kv_alloc(1, n_head_kv, head_dim, 8 * bt);
+        infer::BlockPool pool(st->max_blocks());
+        infer::KVSequence seq[2] = {infer::KVSequence(&pool, bt), infer::KVSequence(&pool, bt)};
+        backend::BufferPtr keep[8];
+        for (int i = 0; i < 2; ++i) {
+            seq[i].prepare(past[i]);
+            const backend::KVView h = seq[i].view(st.get());
+            keep[i * 2] = cpu.adopt(K[i].data(), K[i].size() * sizeof(float));
+            keep[i * 2 + 1] = cpu.adopt(V[i].data(), V[i].size() * sizeof(float));
+            cpu.kv_write(0, &h, 1, {keep[i * 2].get(), 0}, {keep[i * 2 + 1].get(), 0});
+            seq[i].commit();
+            seq[i].prepare(nq[i]);
+        }
+        const backend::KVView views[2] = {seq[0].view(st.get()), seq[1].view(st.get())};
+        std::vector<float> out((nq[0] + nq[1]) * qw, 0.0f);
+        const auto ob = cpu.adopt(out.data(), out.size() * sizeof(float));
+        if (mode == 0) {
+            for (int i = 0; i < 2; ++i) {
+                const size_t tail = past[i] * kvw;
+                const auto qb = cpu.adopt(Q[i].data(), Q[i].size() * sizeof(float));
+                cpu.kv_write(0, &views[i], 1, {keep[i * 2].get(), tail}, {keep[i * 2 + 1].get(), tail});
+                cpu.attention({qb.get(), 0}, 0, &views[i], 1, {ob.get(), i ? nq[0] * qw : 0},
+                              n_head, n_head_kv, head_dim);
+            }
+            separate = out;
+        } else {
+            std::vector<float> k, v, q;
+            for (int i = 0; i < 2; ++i) {
+                k.insert(k.end(), K[i].begin() + past[i] * kvw, K[i].end());
+                v.insert(v.end(), V[i].begin() + past[i] * kvw, V[i].end());
+                q.insert(q.end(), Q[i].begin(), Q[i].end());
+            }
+            const auto kb = cpu.adopt(k.data(), k.size() * sizeof(float));
+            const auto vb = cpu.adopt(v.data(), v.size() * sizeof(float));
+            const auto qb = cpu.adopt(q.data(), q.size() * sizeof(float));
+            cpu.kv_write(0, views, 2, {kb.get(), 0}, {vb.get(), 0});
+            cpu.attention({qb.get(), 0}, 0, views, 2, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+            joint = out;
+        }
+    }
+    require(!separate.empty() && separate == joint,
+            "two views in one call differ from the sequences taken separately");
 }
 
 // A one-layer Qwen3-shaped F32 model, deterministic weights, for the
@@ -521,6 +594,7 @@ int main() {
         attention_over_blocks();
         model_transaction();
         release_syncs();
+        batched_views();
         std::cout << "KV cache: pool, sequence, ownership, on-demand storage, reset, paged attention, "
                      "failed-step transactions and retire-before-release pass\n";
         return 0;

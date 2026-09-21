@@ -686,127 +686,147 @@ public:
         return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, blocks);
     }
 
-    void kv_write(size_t layer, const KVView& view, size_t pos,
-                  CSlice k_s, CSlice v_s, size_t batch) override {
+    void kv_write(size_t layer, const KVView* views, size_t n_views,
+                  CSlice k_s, CSlice v_s) override {
+        if (n_views && !views) throw std::runtime_error("backend: KV write without views");
         const float* k = at(k_s);
         const float* v = at(v_s);
-        CpuKVStorage& s = storage_of(view);
-        const size_t bt = KV_BLOCK_TOKENS, heads = s.heads(), dim = s.dim();
-        if (layer >= s.layers() ||
-            CpuKVStorage::blocks_for(CpuKVStorage::add(pos, batch)) > view.n_blocks)
-            throw std::runtime_error("backend: KV write outside the view");
-        for (size_t b = 0; b < batch; ++b) {
-            const size_t t = pos + b;
-            const int32_t id = view.blocks[t / bt];
-            s.ensure((size_t)id);
-            for (size_t h = 0; h < heads; ++h) {
-                const size_t in = (b * heads + h) * dim;
-                const size_t out = (h * bt + t % bt) * dim;
-                std::copy_n(k + in, dim, s.k(layer, id) + out);
-                std::copy_n(v + in, dim, s.v(layer, id) + out);
+        size_t row0 = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const KVView& view = views[vi];
+            CpuKVStorage& s = storage_of(view);
+            const size_t bt = KV_BLOCK_TOKENS, heads = s.heads(), dim = s.dim();
+            const size_t pos = view.length, batch = view.nq;
+            if (layer >= s.layers() ||
+                CpuKVStorage::blocks_for(CpuKVStorage::add(pos, batch)) > view.n_blocks)
+                throw std::runtime_error("backend: KV write outside the view");
+            for (size_t b = 0; b < batch; ++b) {
+                const size_t t = pos + b;
+                const int32_t id = view.blocks[t / bt];
+                s.ensure((size_t)id);
+                for (size_t h = 0; h < heads; ++h) {
+                    const size_t in = ((row0 + b) * heads + h) * dim;
+                    const size_t out = (h * bt + t % bt) * dim;
+                    std::copy_n(k + in, dim, s.k(layer, id) + out);
+                    std::copy_n(v + in, dim, s.v(layer, id) + out);
+                }
             }
+            row0 += batch;
         }
     }
 
     // Blocks are walked in table order and every reduction keeps token order:
     // one global softmax over the scores and per-lane value accumulation
     // across block edges, so the arithmetic is that of a contiguous history.
-    void attention(CSlice Q_s, size_t layer, const KVView& view, Slice out_s,
-                   int n_head, int n_head_kv, int head_dim, int nbatch) override {
-        const float* Q = at(Q_s);
-        float* out = at(out_s);
-        if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 ||
-            head_dim <= 0 || nbatch <= 0)
+    // Views are taken one after another: the per-view work is what it was
+    // for one sequence, so a single view computes exactly what it did before
+    // the batch form existed.
+    void attention(CSlice Q_s, size_t layer, const KVView* views, size_t n_views,
+                   Slice out_s, int n_head, int n_head_kv, int head_dim) override {
+        if (n_views && !views) throw std::runtime_error("backend: attention without views");
+        const float* Q_all = at(Q_s);
+        float* out_all = at(out_s);
+        if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 || head_dim <= 0)
             throw std::runtime_error("backend: invalid attention dimensions");
-        const CpuKVStorage& s = storage_of(view);
-        const size_t bt = KV_BLOCK_TOKENS;
-        const size_t sequence = CpuKVStorage::add(view.length, (size_t)nbatch);
-        const size_t blocks = CpuKVStorage::blocks_for(sequence);
-        if (layer >= s.layers() || (size_t)head_dim != s.dim() ||
-            (size_t)n_head_kv != s.heads() || blocks > view.n_blocks)
-            throw std::runtime_error("backend: attention outside the KV view");
-        for (size_t i = 0; i < blocks; ++i)
-            if (!s.backed((size_t)view.blocks[i]))
-                throw std::runtime_error("backend: attention over unwritten KV blocks");
         const size_t q_stride = (size_t)n_head * head_dim;
         const size_t hd = (size_t)head_dim;
         const int ratio = n_head / n_head_kv;
         const float scale = 1.0f / std::sqrt((float)head_dim);
-        attention_scores_.resize((size_t)n_head * sequence);
-        parallel_for(n_head, [&](int h) {
-            const size_t kvh = (size_t)(h / ratio);
-            float* scores = attention_scores_.data() + (size_t)h * sequence;
-            for (int b = 0; b < nbatch; ++b) {
-                const size_t end = view.length + (size_t)b + 1;
-                const float* q = Q + (size_t)b * q_stride + (size_t)h * hd;
-                float max_score = -std::numeric_limits<float>::infinity();
-                for (size_t t0 = 0; t0 < end; t0 += bt) {
-                    const float* kb = s.k(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
-                    const size_t n = std::min(bt, end - t0);
-                    for (size_t j = 0; j < n; ++j) {
-                        const float* k = kb + j * hd;
-                        float score = 0.0f;
-                        if (avx2_) score = dot_f32(q, k, hd);
-                        else for (size_t d = 0; d < hd; ++d) score += q[d] * k[d];
-                        scores[t0 + j] = score * scale;
-                        max_score = std::max(max_score, scores[t0 + j]);
-                    }
-                }
-                float sum = 0.0f;
-                for (size_t t = 0; t < end; ++t) {
-                    scores[t] = std::exp(scores[t] - max_score);
-                    sum += scores[t];
-                }
-                float* dst = out + (size_t)b * q_stride + (size_t)h * hd;
-                // Normalize once; each lane then keeps sequence order while
-                // its partial sum stays in a register across KV rows.
-                for (size_t t = 0; t < end; ++t) scores[t] /= sum;
-                const auto vblock = [&](size_t t0) {
-                    return s.v(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
-                };
-                size_t d = 0;
-                if (avx2_) {
-                    for (; d + 32 <= hd; d += 32) {
-                        __m256 a0 = _mm256_setzero_ps(), a1 = _mm256_setzero_ps();
-                        __m256 a2 = _mm256_setzero_ps(), a3 = _mm256_setzero_ps();
-                        for (size_t t0 = 0; t0 < end; t0 += bt) {
-                            const float* vb = vblock(t0) + d;
-                            const size_t n = std::min(bt, end - t0);
-                            for (size_t j = 0; j < n; ++j) {
-                                const float* v = vb + j * hd;
-                                const __m256 sw = _mm256_set1_ps(scores[t0 + j]);
-                                a0 = _mm256_add_ps(a0, _mm256_mul_ps(sw, _mm256_loadu_ps(v)));
-                                a1 = _mm256_add_ps(a1, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 8)));
-                                a2 = _mm256_add_ps(a2, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 16)));
-                                a3 = _mm256_add_ps(a3, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 24)));
-                            }
-                        }
-                        _mm256_storeu_ps(dst + d, a0); _mm256_storeu_ps(dst + d + 8, a1);
-                        _mm256_storeu_ps(dst + d + 16, a2); _mm256_storeu_ps(dst + d + 24, a3);
-                    }
-                    for (; d + 8 <= hd; d += 8) {
-                        __m256 acc = _mm256_setzero_ps();
-                        for (size_t t0 = 0; t0 < end; t0 += bt) {
-                            const float* vb = vblock(t0) + d;
-                            const size_t n = std::min(bt, end - t0);
-                            for (size_t j = 0; j < n; ++j)
-                                acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
-                                                                       _mm256_loadu_ps(vb + j * hd)));
-                        }
-                        _mm256_storeu_ps(dst + d, acc);
-                    }
-                }
-                for (; d < hd; ++d) {
-                    float acc = 0.0f;
+        size_t row0 = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const KVView& view = views[vi];
+            if (!view.nq || view.nq > (size_t)std::numeric_limits<int>::max())
+                throw std::runtime_error("backend: invalid attention dimensions");
+            const int nbatch = (int)view.nq;
+            const float* Q = Q_all + row0 * q_stride;
+            float* out = out_all + row0 * q_stride;
+            const CpuKVStorage& s = storage_of(view);
+            const size_t bt = KV_BLOCK_TOKENS;
+            const size_t sequence = CpuKVStorage::add(view.length, view.nq);
+            const size_t blocks = CpuKVStorage::blocks_for(sequence);
+            if (layer >= s.layers() || (size_t)head_dim != s.dim() ||
+                (size_t)n_head_kv != s.heads() || blocks > view.n_blocks)
+                throw std::runtime_error("backend: attention outside the KV view");
+            for (size_t i = 0; i < blocks; ++i)
+                if (!s.backed((size_t)view.blocks[i]))
+                    throw std::runtime_error("backend: attention over unwritten KV blocks");
+            attention_scores_.resize((size_t)n_head * sequence);
+            parallel_for(n_head, [&](int h) {
+                const size_t kvh = (size_t)(h / ratio);
+                float* scores = attention_scores_.data() + (size_t)h * sequence;
+                for (int b = 0; b < nbatch; ++b) {
+                    const size_t end = view.length + (size_t)b + 1;
+                    const float* q = Q + (size_t)b * q_stride + (size_t)h * hd;
+                    float max_score = -std::numeric_limits<float>::infinity();
                     for (size_t t0 = 0; t0 < end; t0 += bt) {
-                        const float* vb = vblock(t0) + d;
+                        const float* kb = s.k(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
                         const size_t n = std::min(bt, end - t0);
-                        for (size_t j = 0; j < n; ++j) acc += scores[t0 + j] * vb[j * hd];
+                        for (size_t j = 0; j < n; ++j) {
+                            const float* k = kb + j * hd;
+                            float score = 0.0f;
+                            if (avx2_) score = dot_f32(q, k, hd);
+                            else for (size_t d = 0; d < hd; ++d) score += q[d] * k[d];
+                            scores[t0 + j] = score * scale;
+                            max_score = std::max(max_score, scores[t0 + j]);
+                        }
                     }
-                    dst[d] = acc;
+                    float sum = 0.0f;
+                    for (size_t t = 0; t < end; ++t) {
+                        scores[t] = std::exp(scores[t] - max_score);
+                        sum += scores[t];
+                    }
+                    float* dst = out + (size_t)b * q_stride + (size_t)h * hd;
+                    // Normalize once; each lane then keeps sequence order while
+                    // its partial sum stays in a register across KV rows.
+                    for (size_t t = 0; t < end; ++t) scores[t] /= sum;
+                    const auto vblock = [&](size_t t0) {
+                        return s.v(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
+                    };
+                    size_t d = 0;
+                    if (avx2_) {
+                        for (; d + 32 <= hd; d += 32) {
+                            __m256 a0 = _mm256_setzero_ps(), a1 = _mm256_setzero_ps();
+                            __m256 a2 = _mm256_setzero_ps(), a3 = _mm256_setzero_ps();
+                            for (size_t t0 = 0; t0 < end; t0 += bt) {
+                                const float* vb = vblock(t0) + d;
+                                const size_t n = std::min(bt, end - t0);
+                                for (size_t j = 0; j < n; ++j) {
+                                    const float* v = vb + j * hd;
+                                    const __m256 sw = _mm256_set1_ps(scores[t0 + j]);
+                                    a0 = _mm256_add_ps(a0, _mm256_mul_ps(sw, _mm256_loadu_ps(v)));
+                                    a1 = _mm256_add_ps(a1, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 8)));
+                                    a2 = _mm256_add_ps(a2, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 16)));
+                                    a3 = _mm256_add_ps(a3, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 24)));
+                                }
+                            }
+                            _mm256_storeu_ps(dst + d, a0); _mm256_storeu_ps(dst + d + 8, a1);
+                            _mm256_storeu_ps(dst + d + 16, a2); _mm256_storeu_ps(dst + d + 24, a3);
+                        }
+                        for (; d + 8 <= hd; d += 8) {
+                            __m256 acc = _mm256_setzero_ps();
+                            for (size_t t0 = 0; t0 < end; t0 += bt) {
+                                const float* vb = vblock(t0) + d;
+                                const size_t n = std::min(bt, end - t0);
+                                for (size_t j = 0; j < n; ++j)
+                                    acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
+                                                                           _mm256_loadu_ps(vb + j * hd)));
+                            }
+                            _mm256_storeu_ps(dst + d, acc);
+                        }
+                    }
+                    for (; d < hd; ++d) {
+                        float acc = 0.0f;
+                        for (size_t t0 = 0; t0 < end; t0 += bt) {
+                            const float* vb = vblock(t0) + d;
+                            const size_t n = std::min(bt, end - t0);
+                            for (size_t j = 0; j < n; ++j) acc += scores[t0 + j] * vb[j * hd];
+                        }
+                        dst[d] = acc;
+                    }
                 }
-            }
-        });
+            });
+            row0 += view.nq;
+        }
     }
 
     void rms_norm(Slice dst_s, CSlice src_s, CSlice w_s, size_t n, float eps) override {

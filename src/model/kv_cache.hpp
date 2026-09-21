@@ -145,8 +145,9 @@ public:
     // physical storage they occupied, so a reused sequence does not reallocate.
     void reset() noexcept { truncate(0); }
 
+    // The rows prepared and not yet committed are this pass's queries.
     backend::KVView view(backend::KVStorage* storage) const {
-        return {storage, blocks_.data(), blocks_.size(), length_};
+        return {storage, blocks_.data(), blocks_.size(), length_, pending_};
     }
 
 private:

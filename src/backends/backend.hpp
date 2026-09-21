@@ -96,13 +96,17 @@ public:
 };
 
 // One sequence's history in one storage: logical block i is physical block
-// blocks[i], and `length` tokens are committed. A batch of nbatch queries
-// attends through length + b, so the table must cover length + nbatch.
+// blocks[i], `length` entries are committed, and `nq` rows of the current
+// pass belong to this sequence. Row b of those is at position length + b
+// and attends through it, so the table must cover length + nq. Entries are
+// whatever the storage was allocated to hold, tokens for the dense cache
+// (docs/EXECUTION.md).
 struct KVView {
     KVStorage* storage;
     const int32_t* blocks;
     size_t n_blocks;
     size_t length;
+    size_t nq;
 };
 
 class Backend {
@@ -202,16 +206,20 @@ public:
                                                 size_t head_dim,
                                                 size_t max_tokens) = 0;
 
-    // Store `batch` token-major [batch, n_head_kv, head_dim] rows at
-    // positions pos .. pos+batch of the view's sequence.
-    virtual void kv_write(size_t layer, const KVView& view, size_t pos,
-                          CSlice k, CSlice v, size_t batch) = 0;
+    // Store token-major [rows, n_head_kv, head_dim] rows, laid out in view
+    // order: view v owns the next views[v].nq rows and they go to positions
+    // length .. length + nq of its sequence. Several views in one call is
+    // what a batch carrying rows from several sequences needs, and one view
+    // is the case the model passes today.
+    virtual void kv_write(size_t layer, const KVView* views, size_t n_views,
+                          CSlice k, CSlice v) = 0;
 
-    // Causal GQA over the view: Q/out are [nbatch, n_head, head_dim] and
-    // query b attends through view.length + b.
-    virtual void attention(CSlice Q, size_t layer, const KVView& view,
-                           Slice out, int n_head, int n_head_kv, int head_dim,
-                           int nbatch) = 0;
+    // Causal GQA: Q/out are [rows, n_head, head_dim] in the same view order,
+    // and row b of view v attends through views[v].length + b. A device
+    // backend gets every sequence of the pass in one launch.
+    virtual void attention(CSlice Q, size_t layer, const KVView* views,
+                           size_t n_views, Slice out,
+                           int n_head, int n_head_kv, int head_dim) = 0;
 
     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm).
     virtual void rms_norm(Slice dst, CSlice src, CSlice w,

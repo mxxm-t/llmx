@@ -163,6 +163,13 @@ virtual void gather_rows(Slice dst, CSlice src, size_t width,
                          const uint32_t* rows, size_t count) = 0;
 ```
 
+It lands with step 4 rather than with the views: until a `Batch` can carry
+two entries, the only caller would be a prefill selecting its last row,
+which a slice offset already does for free, and an op with a contrived
+caller is the seam AGENTS.md forbids. The `kv-cache` test is what gives
+the views their second consumer today, two sequences in one call against
+the same two taken separately.
+
 ### 5. The model layer splits into three
 
 `Model` today is weights, one sequence, activation scratch and a backend.

@@ -37,6 +37,7 @@ namespace {
     X(vkDestroyInstance) \
     X(vkEnumeratePhysicalDevices) \
     X(vkGetPhysicalDeviceProperties) \
+    X(vkGetPhysicalDeviceProperties2) \
     X(vkGetPhysicalDeviceQueueFamilyProperties) \
     X(vkGetPhysicalDeviceMemoryProperties) \
     X(vkGetPhysicalDeviceFeatures2) \
@@ -109,8 +110,12 @@ const uint32_t kSpvNormRopeRows[] = {
 const uint32_t kSpvEmbed[] = {
 #include "vulkan/embed.inc"
 };
+const uint32_t kSpvMatmulRow[] = {
+#include "vulkan/matmul_row.inc"
+};
 
-enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED, K_COUNT };
+enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
+                K_MATMUL_ROW, K_COUNT };
 
 struct KernelSource {
     const uint32_t* words;
@@ -125,6 +130,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 3},
     {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5},
     {kSpvEmbed, sizeof(kSpvEmbed), 4},
+    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 6},
 };
 
 // A compiled kernel: module, layout with `bindings` storage buffers pushed
@@ -203,6 +209,7 @@ struct Device {
     uint32_t queue_family = 0;
     VkPhysicalDeviceProperties props{};
     VkPhysicalDeviceMemoryProperties memory{};
+    uint32_t subgroup_size = 0;
     std::string name;
     bool push_descriptor = false;
     bool int8 = false, float16 = false, storage8 = false, storage16 = false;
@@ -355,6 +362,19 @@ public:
         d.physical = devices[(size_t)index];
         fn.vkGetPhysicalDeviceProperties(d.physical, &d.props);
         fn.vkGetPhysicalDeviceMemoryProperties(d.physical, &d.memory);
+        VkPhysicalDeviceSubgroupProperties sg{};
+        sg.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+        VkPhysicalDeviceProperties2 p2{};
+        p2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+        p2.pNext = &sg;
+        fn.vkGetPhysicalDeviceProperties2(d.physical, &p2);
+        d.subgroup_size = sg.subgroupSize;
+        // The row kernel places one subgroup per row inside a workgroup of
+        // 256, which needs the subgroup size to divide it.
+        if (!d.subgroup_size || 256 % d.subgroup_size ||
+            !(sg.supportedOperations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT))
+            throw std::runtime_error("vulkan: " + std::string(d.props.deviceName) +
+                                     " has an unsupported subgroup size or no subgroup arithmetic");
         d.name = d.props.deviceName;
         if (d.props.apiVersion < VK_API_VERSION_1_2)
             throw std::runtime_error("vulkan: " + d.name + " is older than Vulkan 1.2");
@@ -687,9 +707,37 @@ public:
                  pc, sizeof(pc), u32(count));
     }
 
-    // The matmul and the KV cache arrive with the later sub-steps of
-    // docs/VULKAN.md.
-    void matmul(uint32_t, CSlice, CSlice, Slice, size_t, size_t, size_t) override { todo("matmul", 3); }
+    // One subgroup per output row, columns in chunks of eight so a weight
+    // is read once per chunk. Every column beyond the first chunk re-reads
+    // the weights; the tile kernel for wide batches is what removes that.
+    void matmul(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
+                size_t nbatch) override {
+        if (!nout || !nbatch) return;
+        if (type != gguf::GGML_TYPE_F32 && type != gguf::GGML_TYPE_Q8_0)
+            throw std::runtime_error("vulkan: unsupported matrix type " + std::to_string(type) +
+                                     " (docs/VULKAN.md sub-step 6)");
+        if (type == gguf::GGML_TYPE_Q8_0 && nin % gguf::Q8_0_BLOCK)
+            throw std::runtime_error("vulkan: matrix width is not whole blocks");
+        const size_t row_bytes = type == gguf::GGML_TYPE_Q8_0
+            ? (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE : nin * sizeof(float);
+        if (bytes_from(w) < nout * row_bytes ||
+            floats_from(X) < nbatch * nin || floats_from(Y) < nbatch * nout)
+            throw std::runtime_error("vulkan: matmul operand outside its allocation");
+        const uint32_t rows_per_group = 256 / dev_->subgroup_size;
+        const uint32_t g = groups(nout, rows_per_group);
+        // The word-wide path needs every row to start on a word boundary,
+        // which an even block count gives, and X columns on 16 bytes, which
+        // a column width that is whole blocks gives.
+        const uint32_t wide = type == gguf::GGML_TYPE_Q8_0 && (nin / gguf::Q8_0_BLOCK) % 2 == 0 &&
+                              X.offset % 4 == 0 ? 1u : 0u;
+        for (size_t col0 = 0; col0 < nbatch; col0 += 8) {
+            const size_t ncols = std::min<size_t>(8, nbatch - col0);
+            const uint32_t pc[7] = {u32(nin), u32(nout), u32(nbatch), type, u32(col0), u32(ncols), wide};
+            dispatch(K_MATMUL_ROW, {bind(Y), bind(w), bind(w), bind(w), bind(X), bind(X)},
+                     pc, sizeof(pc), g);
+        }
+    }
+    // The KV cache arrives with sub-step 4 of docs/VULKAN.md.
     KVLayout kv_layout() const override { todo("kv_layout", 4); }
     std::unique_ptr<KVStorage> kv_alloc(size_t, size_t, size_t, size_t) override { todo("kv_alloc", 4); }
     void kv_copy(KVStorage&, int32_t, int32_t) override { todo("kv_copy", 4); }
@@ -713,7 +761,13 @@ private:
         return (uint32_t)g;
     }
 
-    // Floats from a slice's offset to the end of its buffer.
+    // Bytes, and whole floats, from a slice's offset to the end of its buffer.
+    static size_t bytes_from(CSlice s) {
+        if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
+        const size_t bytes = s.buffer->size();
+        if (s.offset * sizeof(float) > bytes) throw std::runtime_error("vulkan: operand outside the allocation");
+        return bytes - s.offset * sizeof(float);
+    }
     static size_t floats_from(CSlice s) {
         if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
         const size_t bytes = s.buffer->size();

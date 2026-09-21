@@ -1,0 +1,110 @@
+#version 450
+// Y[b*nout + o] = dot(row o, X column b), one subgroup per output row.
+// Lanes stride over the row's blocks, each keeping up to eight batch
+// columns in registers so a weight is read once per chunk of columns; the
+// partial sums meet in one subgroupAdd. This is the decode kernel; a tile
+// kernel takes wide batches (docs/VULKAN.md).
+//
+// Q8_0 rows are read as 32-bit words over pairs of blocks: a pair is 68
+// bytes, so a row with an even block count starts every pair on a word
+// boundary, and the activations come in as 16-byte vectors. Rows with an
+// odd block count take the 16-bit path, two values per load. Bytes are
+// sign-extended by a shift up and an arithmetic shift down.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#include "q.glsl"
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint col0; uint ncols; uint wide; } p;
+layout(set = 0, binding = 0) writeonly buffer Y { float y[]; };
+layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
+layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; };
+layout(set = 0, binding = 3) readonly buffer WF { float wf[]; };
+layout(set = 0, binding = 4) readonly buffer X { float x[]; };
+layout(set = 0, binding = 5) readonly buffer X4 { vec4 x4[]; };
+
+int b0(uint w) { return (int(w << 24u)) >> 24; }
+int b1(uint w) { return (int(w << 16u)) >> 24; }
+int b2(uint w) { return (int(w << 8u)) >> 24; }
+int b3(uint w) { return int(w) >> 24; }
+
+// Sixteen quantized values in four words against sixteen activations.
+float dot16(uint a, uint b, uint c, uint d, vec4 x0, vec4 x1, vec4 x2, vec4 x3) {
+    return dot(vec4(b0(a), b1(a), b2(a), b3(a)), x0) + dot(vec4(b0(b), b1(b), b2(b), b3(b)), x1) +
+           dot(vec4(b0(c), b1(c), b2(c), b3(c)), x2) + dot(vec4(b0(d), b1(d), b2(d), b3(d)), x3);
+}
+
+void main() {
+    uint row = gl_WorkGroupID.x * (256u / gl_SubgroupSize) + gl_SubgroupID;
+    uint lane = gl_SubgroupInvocationID;
+    float acc[8];
+    for (uint c = 0u; c < 8u; ++c) acc[c] = 0.0;
+    if (row < p.nout) {
+        if (p.type == TYPE_Q8_0 && p.wide != 0u) {
+            uint nblocks = p.nin / Q8_0_BLOCK;
+            uint npairs = nblocks / 2u;
+            uint wbase = row * nblocks * 17u / 2u;   // words: a pair is 17
+            for (uint j = lane; j < npairs; j += gl_SubgroupSize) {
+                uint o = wbase + j * 17u;
+                uint w0 = w32[o], w1 = w32[o + 1u], w2 = w32[o + 2u], w3 = w32[o + 3u];
+                uint w4 = w32[o + 4u], w5 = w32[o + 5u], w6 = w32[o + 6u], w7 = w32[o + 7u];
+                uint w8 = w32[o + 8u], w9 = w32[o + 9u], w10 = w32[o + 10u], w11 = w32[o + 11u];
+                uint w12 = w32[o + 12u], w13 = w32[o + 13u], w14 = w32[o + 14u], w15 = w32[o + 15u];
+                uint w16v = w32[o + 16u];
+                float s0 = unpackHalf2x16(w0).x;
+                float s1 = unpackHalf2x16(w8).y;
+                // Block 0's values are bytes 2..33: the top half of w0, w1..w7,
+                // the low half of w8. Re-pack them into whole words.
+                uint a0 = (w0 >> 16u) | (w1 << 16u);
+                uint a1 = (w1 >> 16u) | (w2 << 16u);
+                uint a2 = (w2 >> 16u) | (w3 << 16u);
+                uint a3 = (w3 >> 16u) | (w4 << 16u);
+                uint a4 = (w4 >> 16u) | (w5 << 16u);
+                uint a5 = (w5 >> 16u) | (w6 << 16u);
+                uint a6 = (w6 >> 16u) | (w7 << 16u);
+                uint a7 = (w7 >> 16u) | (w8 << 16u);
+                uint xq = j * 16u;   // vec4 index of the pair's 64 activations
+                for (uint c = 0u; c < p.ncols; ++c) {
+                    uint xo = ((p.col0 + c) * p.nin) / 4u + xq;
+                    float d0 = dot16(a0, a1, a2, a3, x4[xo], x4[xo + 1u], x4[xo + 2u], x4[xo + 3u]) +
+                               dot16(a4, a5, a6, a7, x4[xo + 4u], x4[xo + 5u], x4[xo + 6u], x4[xo + 7u]);
+                    float d1 = dot16(w9, w10, w11, w12, x4[xo + 8u], x4[xo + 9u], x4[xo + 10u], x4[xo + 11u]) +
+                               dot16(w13, w14, w15, w16v, x4[xo + 12u], x4[xo + 13u], x4[xo + 14u], x4[xo + 15u]);
+                    acc[c] += s0 * d0 + s1 * d1;
+                }
+            }
+        } else if (p.type == TYPE_Q8_0) {
+            uint nblocks = p.nin / Q8_0_BLOCK;
+            uint wbase = row * nblocks * 17u;
+            for (uint b = lane; b < nblocks; b += gl_SubgroupSize) {
+                uint o = wbase + b * 17u;
+                float scale = unpackHalf2x16(uint(w16[o])).x;
+                uint xb = b * Q8_0_BLOCK;
+                float part[8];
+                for (uint c = 0u; c < 8u; ++c) part[c] = 0.0;
+                for (uint k = 0u; k < 16u; ++k) {
+                    uint word = uint(w16[o + 1u + k]);
+                    int q0 = b0(word);
+                    int q1 = b1(word);
+                    for (uint c = 0u; c < p.ncols; ++c) {
+                        uint xo = (p.col0 + c) * p.nin + xb + 2u * k;
+                        part[c] += float(q0) * x[xo] + float(q1) * x[xo + 1u];
+                    }
+                }
+                for (uint c = 0u; c < p.ncols; ++c) acc[c] += scale * part[c];
+            }
+        } else {
+            uint wbase = row * p.nin;
+            for (uint i = lane; i < p.nin; i += gl_SubgroupSize) {
+                float w = wf[wbase + i];
+                for (uint c = 0u; c < p.ncols; ++c) acc[c] += w * x[(p.col0 + c) * p.nin + i];
+            }
+        }
+    }
+    // Every lane joins each reduction; lanes past the last row add zero.
+    for (uint c = 0u; c < 8u; ++c) {
+        float s = subgroupAdd(acc[c]);
+        if (lane == 0u && row < p.nout && c < p.ncols) y[(p.col0 + c) * p.nout + row] = s;
+    }
+}

@@ -136,7 +136,12 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
 - **matmul, decode** (`nbatch` small): one subgroup per output row, each
   lane accumulating a stride of blocks, one `subgroupAdd` at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
-  block is read once per batch.
+  block is read once per chunk of eight columns. Q8_0 rows are read as
+  32-bit words over pairs of blocks, since a pair is 68 bytes and a row
+  with an even block count starts every pair on a word boundary, with the
+  activations as 16-byte vectors; the first version read 16-bit words and
+  managed 32 GB/s, this one 201 GB/s on the same 4096-square matvec. Rows
+  with an odd block count keep the 16-bit path.
 - **matmul, prefill** (`nbatch` up to `--ubatch`): a workgroup tiles rows
   by columns, dequantizes its rows once into shared memory, and every lane
   multiplies that tile against its columns. The 32 KiB of shared memory
@@ -212,7 +217,7 @@ device is present, so the tree stays green without a GPU.
 |---|---|---|
 | 1 | Build gate, loader, device and queue, buffers, `adopt`/`read`/`write`/`copy`, `submit`/`wait`/`sync` (**done**) | `backend-vulkan`: zeroed allocations, adopt and copy round trips at odd offsets, writes into device and host-visible memory, a copy read in place after a wait, monotonic tickets, empty and out-of-range buffers; skips without a device |
 | 2 | Elementwise kernels, `gather_rows`, `embed` (F32 and Q8_0), the norms, `norm_rope_rows`; the shader build step (**done**) | CPU-vs-Vulkan on random inputs, bounds fixed in the test before the first run: exact for add, gather and embed, 1e-6 relative for SiLU, 1e-5 for the norms and RoPE; 160,688 outputs on the Radeon VII |
-| 3 | `matmul` for F32 and Q8_0, decode and prefill kernels | Same, plus `bench --device vulkan:0` |
+| 3 | `matmul` for F32 and Q8_0: the row kernel (**done**); the tile kernel for wide batches after the backend runs end to end | Same over batch widths 1, 3, 8 and 13 and both block-count parities, 1e-4 relative; the 4096-square Q8_0 matvec reads at 201 GB/s on the Radeon VII, reported and not gated |
 | 4 | KV storage, `kv_write`, `attention` over views | `kv-cache`'s attention reference and the two-view case, on the device |
 | 5 | `--device`; Qwen3-0.6B-Q8_0 end to end | HF baselines with `--device vulkan:0`; matched mx Vulkan floor |
 | 6 | Q4_0, Q4_1, Q4_K, Q5_K, Q6_K shaders | HF baselines on the Q4_0 and K-quant models |

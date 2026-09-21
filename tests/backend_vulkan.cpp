@@ -8,6 +8,7 @@
 // gather, embed), and a stated relative tolerance where a transcendental or
 // a reduction order differs. Exits 77, which CTest reports as skipped, when
 // there is no loader or no device.
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -205,6 +206,59 @@ size_t check_kernels(backend::Backend& vk) {
         try { p.vk.embed(d.vs(), gguf::GGML_TYPE_F32, t.vs(), nin, nrows, beyond, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "embedding row beyond the table accepted");
+    }
+    // matmul: F32 and Q8_0 over odd sizes and batch widths that fall
+    // inside, on and past the eight-column chunk. The reduction order
+    // differs from the CPU's, so a tolerance.
+    for (size_t nin : {size_t(256), size_t(224)}) {
+        // 256 is eight blocks, the word-wide path; 224 is seven, the 16-bit path.
+        const size_t nout = 67;
+        const auto wf = uniform(nin * nout, 11);
+        std::vector<uint8_t> wq(nout * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
+        for (size_t row = 0; row < nout; ++row)
+            quant::quantize_row_q8_0(wf.data() + row * nin,
+                                     wq.data() + row * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE,
+                                     nin / gguf::Q8_0_BLOCK);
+        Pair::In wfi = p.in(wf), wqi = p.in(wq.data(), wq.size());
+        for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13)}) {
+            const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
+            Pair::In xi = p.in(x);
+            for (int q = 0; q < 2; ++q) {
+                const uint32_t type = q ? gguf::GGML_TYPE_Q8_0 : gguf::GGML_TYPE_F32;
+                const Pair::In& wi = q ? wqi : wfi;
+                Pair::Out d = p.out(nbatch * nout);
+                p.cpu.matmul(type, wi.cs(), xi.cs(), d.cs(), nin, nout, nbatch);
+                p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
+                auto r = p.results(d);
+                values += close(r.first, r.second, 1e-4, q ? "Q8_0 matmul differs beyond 1e-4"
+                                                            : "F32 matmul differs beyond 1e-4");
+            }
+        }
+        bool rejected = false;
+        try { p.vk.matmul(gguf::GGML_TYPE_Q4_0, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
+        catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, "unsupported matrix type accepted");
+    }
+    // Decode bandwidth of the row kernel on a Qwen3-8B-sized projection,
+    // reported and not asserted: 4096 x 4096 Q8_0 is 17 MiB per column.
+    {
+        const size_t n = 4096;
+        std::vector<uint8_t> wq(n * (n / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
+        for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 7 + 3);
+        const auto x = uniform(n, 13);
+        const auto w = vk.adopt(wq.data(), wq.size());
+        const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+        const auto y = vk.alloc(n * sizeof(float), backend::Memory::device);
+        vk.matmul(gguf::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, n, n, 1);
+        vk.sync();
+        const int iters = 50;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < iters; ++i)
+            vk.matmul(gguf::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, n, n, 1);
+        vk.sync();
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / iters;
+        std::cout << "backend-vulkan: Q8_0 matvec 4096x4096 " << ms << " ms, "
+                  << (double)wq.size() / ms / 1e6 << " GB/s\n";
     }
     return values;
 }

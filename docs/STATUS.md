@@ -52,8 +52,21 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   160,688 outputs match on the Radeon VII, and out-of-range rows, positions
   and ids are refused on the host. The default tree is untouched by any of
   it.
-- **Left:** sub-step 3, `matmul` for F32 and Q8_0, decode and prefill
-  kernels, then `bench --device vulkan:0`.
+- **Done: sub-step 3, the row kernel.** `matmul` for F32 and Q8_0: one
+  subgroup per output row, lanes striding over blocks, batch columns in
+  chunks of eight held in registers, one `subgroupAdd` per column. Q8_0
+  rows with an even block count are read as 32-bit words over block pairs
+  with the activations as 16-byte vectors, which took the 4096-square Q8_0
+  matvec from 32 GB/s to 201 GB/s on the Radeon VII; odd block counts keep
+  the 16-bit path. The subgroup size is queried and must divide 256.
+  Checked against the CPU backend over batch widths 1, 3, 8 and 13 and
+  both parities at 1e-4 relative; 167,388 kernel outputs match in all.
+- **Left:** sub-step 4, the KV storage, `kv_write`, `kv_copy` and
+  `attention` over views, then `--device` and the model end to end
+  (sub-step 5). The tile kernel for wide batches, which stops the row
+  kernel re-reading the weights once per eight columns, comes after that
+  with its own measurement; until then prefill on the device streams the
+  weights `nbatch / 8` times per layer.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

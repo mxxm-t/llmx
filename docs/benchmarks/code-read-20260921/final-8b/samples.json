@@ -1,0 +1,222 @@
+[
+  {
+    "round": 0,
+    "arm": "base",
+    "measured": false,
+    "pp": 38.85,
+    "tg": 4.56,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r0-base.jsonl"
+  },
+  {
+    "round": 0,
+    "arm": "cand",
+    "measured": false,
+    "pp": 39.13,
+    "tg": 4.5,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r0-cand.jsonl"
+  },
+  {
+    "round": 1,
+    "arm": "base",
+    "measured": true,
+    "pp": 37.81,
+    "tg": 4.47,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r1-base.jsonl"
+  },
+  {
+    "round": 1,
+    "arm": "cand",
+    "measured": true,
+    "pp": 39.46,
+    "tg": 4.47,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r1-cand.jsonl"
+  },
+  {
+    "round": 2,
+    "arm": "base",
+    "measured": true,
+    "pp": 39.05,
+    "tg": 4.5,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r2-base.jsonl"
+  },
+  {
+    "round": 2,
+    "arm": "cand",
+    "measured": true,
+    "pp": 39.34,
+    "tg": 4.58,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r2-cand.jsonl"
+  },
+  {
+    "round": 3,
+    "arm": "base",
+    "measured": true,
+    "pp": 31.41,
+    "tg": 4.51,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r3-base.jsonl"
+  },
+  {
+    "round": 3,
+    "arm": "cand",
+    "measured": true,
+    "pp": 39.11,
+    "tg": 4.49,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r3-cand.jsonl"
+  },
+  {
+    "round": 4,
+    "arm": "base",
+    "measured": true,
+    "pp": 38.06,
+    "tg": 4.35,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r4-base.jsonl"
+  },
+  {
+    "round": 4,
+    "arm": "cand",
+    "measured": true,
+    "pp": 39.45,
+    "tg": 4.47,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r4-cand.jsonl"
+  },
+  {
+    "round": 5,
+    "arm": "base",
+    "measured": true,
+    "pp": 38.89,
+    "tg": 4.5,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r5-base.jsonl"
+  },
+  {
+    "round": 5,
+    "arm": "cand",
+    "measured": true,
+    "pp": 38.9,
+    "tg": 4.45,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r5-cand.jsonl"
+  },
+  {
+    "round": 6,
+    "arm": "base",
+    "measured": true,
+    "pp": 39.32,
+    "tg": 4.51,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r6-base.jsonl"
+  },
+  {
+    "round": 6,
+    "arm": "cand",
+    "measured": true,
+    "pp": 38.87,
+    "tg": 4.46,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r6-cand.jsonl"
+  },
+  {
+    "round": 7,
+    "arm": "base",
+    "measured": true,
+    "pp": 40.08,
+    "tg": 4.41,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r7-base.jsonl"
+  },
+  {
+    "round": 7,
+    "arm": "cand",
+    "measured": true,
+    "pp": 39.61,
+    "tg": 4.49,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r7-cand.jsonl"
+  },
+  {
+    "round": 8,
+    "arm": "base",
+    "measured": true,
+    "pp": 39.39,
+    "tg": 4.48,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r8-base.jsonl"
+  },
+  {
+    "round": 8,
+    "arm": "cand",
+    "measured": true,
+    "pp": 39.86,
+    "tg": 4.57,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r8-cand.jsonl"
+  },
+  {
+    "round": 9,
+    "arm": "base",
+    "measured": true,
+    "pp": 39.83,
+    "tg": 4.5,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r9-base.jsonl"
+  },
+  {
+    "round": 9,
+    "arm": "cand",
+    "measured": true,
+    "pp": 39.79,
+    "tg": 4.51,
+    "kv_allocated": 150994944,
+    "kv_peak": 226492416,
+    "kv_used": 82280448,
+    "monitor": "monitor-r9-cand.jsonl"
+  }
+]

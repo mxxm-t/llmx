@@ -18,6 +18,86 @@ CPU backend. If this workstation ever needs GPU acceleration, the route is
 Vulkan, already the roadmap's portability target and supported by AMD's
 Windows drivers.
 
+## Full code read before the first vendor backend (2026-09-21)
+
+- **Goal:** read every line of `src/`, `tests/` and `tools/` before starting a
+  GPU backend, fix what is actually broken, record the rest. Steps 1 to 4 of
+  the device execution migration had landed and it was the right point to stop
+  and look at the whole tree.
+- **Done:** the read. `src/model/kv_cache.hpp` is the only file with nothing
+  to report.
+- **Done: two real bugs.** `f32_to_f16` OR-ed the rounding carry into the
+  exponent field instead of adding it, so any value whose mantissa rounded up
+  out of ten bits came back exactly half the right size whenever the exponent
+  was odd; 1.999756 encoded to 1.0 rather than 2.0. It reached only
+  `llmx quantize`, where it scales a whole block, and nothing had ever
+  compared that direction against a reference. `tests/fp16.cpp` now does,
+  using binary16 as its own oracle over the whole finite range. Separately,
+  `bpe::Tokenizer::decode` indexed the vocabulary with an unchecked id, which
+  `llmx detokenize <id>` passes straight from the command line.
+- **Done: two hangs and a silent truncation reachable from a model file.**
+  A chat template calling `replace`, `count` or `split` with an empty needle
+  looped forever, because each advanced its cursor by the needle's length.
+  The template is GGUF metadata, so that was untrusted input reaching an
+  unkillable loop. A model declaring no EOS id had token zero, an ordinary
+  token, treated as the stop token; and a reasoning-start marker with no
+  matching end marker suppressed the entire reply.
+- **Done: three tests asserted less than they claimed.** Two were coverage
+  this project lost to its own activation-arena change and did not notice:
+  `prefill-scope` counted 64- and 96-byte allocations that stopped existing
+  when nine vectors became one arena, and `kv-cache` aimed an injected
+  allocation failure at "the second large batch buffer" for the same reason.
+  The third predates it: the tokenizer fixture typed its special token 2,
+  which is GGUF's *unknown* rather than *control*, so the special-token path
+  its docstring advertises was never exercised, and its unicode case checked
+  only an exit code.
+- **Done:** the vocabulary vector was zero filled twice per forward pass with
+  a `read` overwriting all of it immediately after, an extra 608 KB per
+  decoded token on Qwen3-8B; comments across the backend, the CPU backend and
+  the model still described the pre-migration interface; `ARCHITECTURE`,
+  `ROADMAP`, `DEVICE-EXECUTION` and the backend page said the interface takes
+  raw host pointers, which stopped being true at step 4.
+- **Done: the gate failed, and the cause was code layout, not the change.**
+  Worth reading before the next few-percent argument. The first 0.6B prefill
+  cell came in at -4.58% and failed the advance rule. Reruns gave -0.81,
+  -2.52, -1.92 and -2.33, so two thirds failed and it was clearly not simple
+  noise. A layout control built by appending an unused function to
+  `cpu_backend.hpp` moved the same number by only -1.16/+0.63/-1.13/+0.33,
+  which made the candidate look like a real regression sitting outside the
+  band.
+
+  Bisecting the seven commits found it. The f16 commit alone was clean at
+  -0.56% mean. Adding the next commit, a four-line bounds check inside
+  `Tokenizer::decode`, produced -3.13/-2.17/-3.09. `Model::prefill` never
+  calls `decode`; the prefill timer cannot execute one instruction of it. The
+  entire measured difference came from where those four lines pushed the code
+  that follows them in the single translation unit.
+
+  Two things follow. The check is now `vocab.at(id)`, one token instead of
+  four lines, with the readable message at the CLI call site where the caller
+  knows the vocabulary size. And the control has to perturb the same file as
+  the change: appending to a different header understated the band by more
+  than a factor of two. AGENTS.md carries this now; cells are `06-layout*`,
+  `06-fp16*`, `06-tok*`, `06-pre*` and `06-mid*` under
+  `docs/benchmarks/code-read-20260921/`.
+- **Left:** nothing blocking.
+- **Gotchas:** `Backend::write` and `Backend::copy` are implemented and have
+  no caller anywhere, which AGENTS.md forbids. They stay only because step 5
+  is their consumer and is next; if step 5 does not use `write`, delete it
+  there. `Backend::rope` is the last op taking raw host pointers, and its only
+  caller outside the CPU backend is `bench`, which therefore measures a
+  function the runtime never calls; `norm_rope_rows` is what the model runs
+  and it still takes raw `cos`/`sin` pointers. Moving both is a measured
+  change and belongs in its own gated commit, not this one.
+
+  Known and deliberately not fixed: `strip_ws` in the template renderer eats a
+  leading unary minus, so `{{ -1 }}` renders `1`; `{% for k, v in x %}` binds
+  one variable literally named "k, v" rather than unpacking; `quant/` includes
+  `format/gguf.hpp`, which reaches up one layer and is already recorded in
+  ARCHITECTURE as a known exception; `quantize_row_q4_1` has no production
+  path, since the CLI writes only q8_0 and q4_0; `metadata_u64`,
+  `Tokenizer::token_id` and `pad_id` have no callers.
+
 ## Device execution step 4b: ops take a buffer and an offset (2026-09-21)
 
 - **Goal:** the eleven ops that still take raw activation pointers take a

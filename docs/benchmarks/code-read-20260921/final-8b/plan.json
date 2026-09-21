@@ -1,0 +1,30 @@
+{
+  "advance": {
+    "alpha": 0.05,
+    "contamination": "A pair is flagged when either arm's whole-run CPU exceeds the session median by 25%. Flags are reported, never used to drop, replace or re-run a pair.",
+    "noise_fraction": 0.03,
+    "rule": "For each phase, over the PAIRED per-round ratios cand/base: both the mean and the median ratio are at least (1 - noise_fraction), AND baseline paired wins are below the smallest count whose one-sided binomial tail under p=0.5 is at most alpha. Ratios are paired so a drift within the run cancels inside each pair; comparing marginal medians instead let a run that drifted 289 -> 222 tok/s report -11.15% on identical code."
+  },
+  "arms": {
+    "base": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\codered\\base-wt\\build\\Release\\llmx.exe",
+      "sha256": "df1aca7027db95c9b525dba88d5c8d9f3579f25f24342d9158a6b231e36f8d94"
+    },
+    "cand": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\codered\\cand-wt\\build\\Release\\llmx.exe",
+      "sha256": "b51f6d4d6d27310aaa6549e222e71e35ffe5e3cf80436d7810bc29154c597017"
+    }
+  },
+  "created": "2026-09-21T13:08:44+0300",
+  "kind": "device-execution A/B",
+  "limits": "One model and one prompt. Host load is recorded, not controlled. This runner covers only the regression half of the bar, baseline against candidate. The external mx-llama.cpp floor is a separate matched comparison and is NOT run here; a step that passes this runner still has to clear that floor.",
+  "max_tokens": 32,
+  "measured_rounds": 9,
+  "model": "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+  "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+  "order": "arms rotate by one place per round; the rotation reverses on odd rounds",
+  "prompt": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\screen\\p250.txt",
+  "prompt_sha256": "bcf043d4cb9f583da9e79266e616a614ad6f67fcaed03b507b5661042f2c3844",
+  "threads": 6,
+  "warmup_rounds": 1
+}

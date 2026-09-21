@@ -54,6 +54,19 @@ by the plain `build.bat` path. Keep the two in sync when you add build knobs.
   cell, compare against a perturbed build of the same behaviour and check the
   difference is outside that band. Evidence in
   `docs/benchmarks/layout-sensitivity-20260921/`.
+
+  **How big the band is depends on where you edit, so choose the control to
+  match.** Appending an unused function to the end of `cpu_backend.hpp` moved
+  0.6B prefill by -1.16/+0.63/-1.13/+0.33 percent over four runs. Adding a
+  four-line bounds check inside `Tokenizer::decode`, a function that
+  `Model::prefill` never calls, moved the same measurement by
+  -3.13/-2.17/-3.09 percent and failed the advance rule twice. Same tree, same
+  binaries built the same way, no change to any executed instruction of the
+  measured path. A control that perturbs a different file than your change
+  will understate the band and convince you a layout artifact is a
+  regression; that is what happened here before the cause was bisected.
+  Evidence in `docs/benchmarks/code-read-20260921/`, cells `06-layout*` and
+  `06-tok*`.
 - **Check machine contention.** Record timestamped background process CPU use
   and system CPU, disk and GPU activity before and throughout performance runs,
   using the same low-overhead monitoring in every arm. Separate benchmark and

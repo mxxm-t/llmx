@@ -10,16 +10,18 @@
 // (matmul, attention, RMSNorm, RoPE) through a Backend so the same model code
 // can target CPU now and ROCm / Vulkan later.
 //
-// This interface is device-agnostic in shape, but host-pointer based: every
-// call takes raw host pointers and returns synchronously, so a backend cannot
-// own device memory, keep activations resident, or run async. Adding that is
-// the prerequisite for any GPU backend -- see docs/DEVICE-EXECUTION.md, which
-// designs the replacement, and docs/ROADMAP.md #4a.
+// Operands are a Buffer and an offset rather than host pointers, so the
+// backend owns its storage and the model layer never dereferences it. That is
+// what lets a device backend keep weights and activations resident. Two things
+// remain before a vendor backend is writable: KV blocks on buffers, and the
+// enqueue/sync contract that makes ops asynchronous. They are steps 5 and 6 of
+// docs/DEVICE-EXECUTION.md, which designs the whole migration, and
+// docs/ROADMAP.md #4a.
 //
 // Host parallelism is deliberately NOT on this interface: a callback run
 // across host threads has no device implementation. Backends parallelize
-// inside their own ops. `threads_available` remains only so the CLI can
-// report what a backend is using.
+// inside their own ops. `threads_available` remains so the CLI can report what
+// a backend is using.
 //
 // Multi-device / multi-node: the split strategies (per-layer, per-tensor,
 // per-row) live at the model layer and are documented in docs/ROADMAP.md; they
@@ -37,7 +39,6 @@ public:
     // Non-null only where the host can address the allocation directly. A
     // device backend returns nullptr and the caller must use read/write.
     virtual const void* host_ptr() const = 0;
-
 };
 using BufferPtr = std::shared_ptr<Buffer>;
 
@@ -101,8 +102,8 @@ public:
     virtual void set_threads(int n) = 0;
 
     // Number of worker threads this backend will actually use (after the last
-    // set_threads, or auto-detected). Used to size parallelism that happens in
-    // the model layer (e.g. attention heads).
+    // set_threads, or auto-detected). Reported by the CLI; a device backend
+    // returns whatever is meaningful for it, or 0.
     virtual int threads_available() const = 0;
 
     // Invoke once on the caller and complete all cleanup before returning.

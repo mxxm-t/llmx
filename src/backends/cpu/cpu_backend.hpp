@@ -29,8 +29,6 @@
 
 namespace backend {
 
-// CPU implementation of the Backend interface. Uses AVX2 fused dequant+FMA for
-// Q8_0 matmuls when the host supports it, otherwise a scalar fallback.
 // Host storage. `adopt` keeps the caller's pointer, which is the whole point:
 // the weights are already resident in the GGUF payload and copying an 8 GB
 // model to make it a buffer would double peak memory for nothing. `alloc`
@@ -66,6 +64,8 @@ class CpuKVStorage final : public KVStorage {
 public:
     CpuKVStorage(size_t layers, size_t heads, size_t dim, size_t max_blocks)
         : heads_(heads), dim_(dim), max_(max_blocks), k_(layers), v_(layers) {
+        // Called for its overflow throw, not its value: block_floats()
+        // recomputes this on every access and must not wrap.
         mul(mul(heads, KV_BLOCK_TOKENS), dim);
     }
 
@@ -130,6 +130,8 @@ private:
     std::vector<std::vector<float>> k_, v_;
 };
 
+// CPU implementation of the Backend interface. Uses AVX2 fused dequant+FMA for
+// quantized matmuls where the host supports it, otherwise a scalar fallback.
 class CpuBackend : public Backend {
 public:
     CpuBackend() {
@@ -250,7 +252,6 @@ public:
                size_t nrows, const uint32_t* ids, size_t count) override {
         float* dst = at(dst_s);
         const uint8_t* rows = (const uint8_t*)bytes_at(table);
-        if (!rows) throw std::runtime_error("backend: embedding table is not host addressable");
         const quant::QuantType* qt = ggml_type == gguf::GGML_TYPE_F32
                                    ? nullptr : quant::Registry::instance().get(ggml_type);
         if (ggml_type != gguf::GGML_TYPE_F32 && (!qt || !qt->dequantize))
@@ -673,9 +674,10 @@ public:
             const int32_t id = view.blocks[t / bt];
             s.ensure((size_t)id);
             for (size_t h = 0; h < heads; ++h) {
-                const size_t in = (b * heads + h) * dim, at = (h * bt + t % bt) * dim;
-                std::copy_n(k + in, dim, s.k(layer, id) + at);
-                std::copy_n(v + in, dim, s.v(layer, id) + at);
+                const size_t in = (b * heads + h) * dim;
+                const size_t out = (h * bt + t % bt) * dim;
+                std::copy_n(k + in, dim, s.k(layer, id) + out);
+                std::copy_n(v + in, dim, s.v(layer, id) + out);
             }
         }
     }
@@ -979,7 +981,7 @@ private:
     // std::threads on every matvec call, which is once per matmul per layer per
     // token; at 36 layers that is thousands of thread creations per token.
     std::vector<std::thread> pool_;
-    // Per-worker dequantized weight-row scratch for matmul_q8_0.
+    // Per-worker dequantized weight-row scratch for the batched matmul path.
     std::vector<std::vector<float>> rowbuf_;
     std::vector<float> attention_scores_;
     std::mutex m_;
@@ -1094,11 +1096,9 @@ private:
 #endif
     }
 
-    // Dot product of one Q8_0 row (nblocks blocks, nin = nblocks*32) with x.
-    // Uses an AVX2 fused dequant+FMA path when available, else scalar.
-    // Fused Q4_K row dot. The generic path dequantizes a whole row into f32
-    // scratch and then dots it, which is why Q4_K decoded at half the speed of
-    // Q8_0 despite a smaller file: it is compute bound on unpacking, not
+    // Fused K-quant row dots. The generic path dequantizes a whole row into
+    // f32 scratch and then dots it, which is why Q4_K decoded at half the speed
+    // of Q8_0 despite a smaller file: it is compute bound on unpacking, not
     // bandwidth bound.
     //
     // No dequantized value is ever materialised here. A Q4_K sub-block value is
@@ -1347,6 +1347,8 @@ private:
         return f16_to_f32(h);
     }
 
+    // Dot product of one Q8_0 row (nblocks blocks, nin = nblocks*32) with x.
+    // Uses an AVX2 fused dequant+FMA path when available, else scalar.
     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {
         if (avx2_) {
             // Four independent accumulators. A single chained accumulator

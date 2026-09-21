@@ -2,8 +2,11 @@
 
 Device-agnostic compute abstraction in namespace `backend`. The inference graph
 runs its primitive ops through a `Backend` so the same model code can target CPU
-now. ROCm / CUDA / Vulkan / SYCL need the device execution refactor in
-`docs/ROADMAP.md` #4a: current operations take host pointers synchronously.
+now. Operands are a `Buffer` and a float offset (`Slice` / `CSlice`), so the
+backend owns its storage and the model never dereferences it. ROCm / CUDA /
+Vulkan / SYCL still need the rest of the device execution refactor in
+`docs/ROADMAP.md` #4a: KV blocks on buffers, and an enqueue/sync contract in
+place of the synchronous calls here.
 
 - `set_threads(n)`, `threads_available()`: worker-thread control.
 - `matmul(ggml_type, data, X, Y, nin, nout, nbatch)`: the type-generic matmul.
@@ -54,9 +57,10 @@ per head per row. `parallel_for` is therefore NOT on this interface - a host
 callback across host threads has no device implementation. It remains public on
 `CpuBackend`, which its own tests use.
 
-Multi-device placement is planned. Device buffers, resident activations,
-and asynchronous execution still require interface changes. Attention is a
-backend operation now, but still takes synchronous host pointers.
+Multi-device placement is planned. Device buffers and resident activations are
+in place; asynchronous execution still requires interface changes. Attention is
+a backend operation taking a `KVView` and slices, so the model layer never
+computes an offset into KV storage, but the call is still synchronous.
 
 `run_prefill(work)` invokes the body once on the caller after successful setup
 and completes cleanup before returning. Setup or reentrancy errors can reject

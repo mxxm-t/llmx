@@ -320,6 +320,13 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer t(m);
     std::vector<uint32_t> ids = parse_token_ids(ids_arg);
+    // decode() rejects an out-of-range id, but only the caller knows which
+    // id it was and how large the vocabulary is.
+    for (uint32_t id : ids)
+        if (id >= t.vocab.size())
+            throw std::runtime_error("detokenize: token id " + std::to_string(id) +
+                                     " is outside the vocabulary of " +
+                                     std::to_string(t.vocab.size()) + " tokens");
     std::cout << t.decode(ids) << "\n";
     return 0;
 }
@@ -640,7 +647,7 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
 
 void print_usage() {
     std::cout
-        << "llmx " << LLMX_VERSION_STRING << " - ground-up GGUF Q8_0 CLI (no external libs)\n"
+        << "llmx " << LLMX_VERSION_STRING << " - ground-up GGUF runtime (no external libs)\n"
         << "\n"
         << "Usage:\n"
         << "  llmx --version  print release version and build revision\n"
@@ -878,6 +885,10 @@ int main(int argc, char** argv) {
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             if (size <= 0 || size % 32 != 0) { std::cerr << "bench: --size must be positive and a multiple of 32\n"; return 2; }
+            // Each of these divides a measured duration or token count.
+            if (iters <= 0 || prefill <= 0 || decode <= 0) {
+                std::cerr << "bench: --iters, --p and --n must be positive\n"; return 2;
+            }
             return cmd_bench(size, iters, threads, prefill, decode);
         }
         print_usage();

@@ -3,7 +3,8 @@
 Design for ROADMAP #4a. This is the prerequisite for every vendor backend in
 #4b (ROCm, CUDA, SYCL, Vulkan): until it lands, a GPU backend would re-upload
 weights and round-trip activations through host memory on every call, which
-costs more than it saves. Nothing here is implemented yet.
+costs more than it saves. Steps 1 to 4 of the migration order below are done
+and gated; steps 5 and 6 are not.
 
 The constraint that shapes the whole design: **the CPU backend must stay the
 correctness and performance reference throughout.** It is the A/B baseline for
@@ -12,8 +13,12 @@ independently benchmarkable, and several are CPU wins on their own.
 
 ## The problem
 
-`Backend` today is device-agnostic in *shape* but host-pointer based in
-*substance*. Three properties make it unimplementable on a device:
+This section describes the interface as it stood when the design was written,
+and is kept because the migration order below is answering it point by point.
+Points 1 and 2 are addressed as of step 4; point 3 is what step 6 is for.
+
+`Backend` was device-agnostic in *shape* but host-pointer based in
+*substance*. Three properties made it unimplementable on a device:
 
 1. **Weights are passed as host pointers, per call.** `Model::matvec` and
    `Model::matmul` call `m_->tensor_data(tindex_.at(t.name))` on every
@@ -233,7 +238,7 @@ benchmarkable against the floor.
 | 1 | Pre-resolve tensors into `LayerWeights` | Expected neutral; no admissible measurement yet |
 | 2 | Batched elementwise ops (`rms_norm_rows`, `rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` | Expected neutral on decode; `silu_mul` may help prefill, which reads and writes three `n_ff * B` streams |
 | 3 | `Buffer`, `alloc`/`adopt`/`read`/`write`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` (**done**) | Measured neutral over 15 and 9 pairs |
-| 4 | Activation arena; op signatures take buffer + offset | Neutral to slight win (one allocation, better locality) |
+| 4 | Activation arena; op signatures take buffer + offset (**done**) | Measured neutral over 15 and 9 pairs, twice |
 | 5 | KV blocks on buffers (the view contract is already in place) | Neutral - same `memcpy` |
 | 6 | `sync()` and the enqueue contract | Neutral - no-op on CPU |
 

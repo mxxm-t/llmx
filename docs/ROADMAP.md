@@ -62,9 +62,10 @@ execution model has to land before any vendor backend is worth writing.
 ### 4a. Device execution model (prerequisite, backend-agnostic)
 Designed in `docs/DEVICE-EXECUTION.md`: interface shape, the six-step migration
 order, and the scope boundary against #5. Not implemented.
-Today's `Backend` takes raw host pointers and returns scalars synchronously, so
-a device backend would re-upload weights and round-trip activations on every
-call. Before any GPU work:
+`Backend` took raw host pointers and returned scalars synchronously, so a
+device backend would have re-uploaded weights and round-tripped activations on
+every call. Steps 1 to 4 below are done; the remaining two are what a vendor
+backend still waits on. Before any GPU work:
 - **Device buffers (done)**: `Buffer` handles on `Backend` with `alloc`,
   `adopt`, `read`, `write` and `copy`. Weights are adopted once when tensors
   are resolved and the model passes handles, never pointers. `adopt` does not

@@ -188,11 +188,13 @@ request/session recovery rather than treating the CLI's process-level catch as r
 ## Multi-device / multi-node design notes
 
 The `backend::Backend` interface is device-agnostic in *shape* - nothing in it
-names a vendor - but it is host-pointer based today: every call takes raw host
-pointers and returns synchronously, so a backend cannot own device memory or
-keep activations resident. That is a prerequisite, not a detail. See
-`ROADMAP.md` #4a (device execution model), which has to land before any GPU
-backend is worth writing.
+names a vendor - and, since steps 1 to 4 of the device execution migration,
+in substance too: weights and activations are `Buffer` handles, every op takes
+a buffer and an offset, and the model layer holds no host address. Two things
+remain before a GPU backend is worth writing: KV blocks still live in the CPU
+backend's own vectors rather than buffers, and every op is still synchronous,
+so there is no way to enqueue work and sync once per forward pass. Those are
+steps 5 and 6 in `ROADMAP.md` #4a and `DEVICE-EXECUTION.md`.
 
 Once it has, a model can be split across several Backends - one per device, or
 per cluster node - using strategies at the model layer (per-layer, per-tensor,

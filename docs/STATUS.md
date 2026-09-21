@@ -4,13 +4,20 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## The matched mx comparison runs under memory contention (2026-09-21)
+## The matched mx comparison ran under background load (2026-09-21)
 
 `tools/compare_cpu.py` passes its own A/A: one binary as both arms moves at
-most 0.80%, and 0.06% on the 8B decode cell. The harness is sound. What it
-does not control is that llmx copies the 8.7 GB model into the heap while mx
-maps it, so alternating the arms wants about 17 GB on a machine with 16.5 GB
-free. Medians, tok/s:
+most 0.80%, and 0.06% on the 8B decode cell. The harness is sound.
+
+**Corrected cause.** This block first blamed memory contention between the
+two arms, because llmx copies the model into the heap while mx maps it. That
+was a hypothesis and it is wrong. Two things refute it. The same depression
+appears on Qwen3-0.6B, where both processes together need about 1.2 GB on a
+32 GB machine, so there is no pressure to have. And the recorded monitors
+give the real answer: the comparison ran at 55% mean system CPU against the
+benchmark's own 37.5%, while the later A/A runs sat at 36 to 40%. Roughly a
+fifth of the machine was doing something else during the comparison, which
+is why both arms were slow. Medians, tok/s:
 
 | Condition | 0.6B pp | 0.6B tg | 8B pp | 8B tg |
 |---|---:|---:|---:|---:|
@@ -19,20 +26,22 @@ free. Medians, tok/s:
 | llmx alternating with itself | 548.42 | 50.94 | 41.49 | 4.73 |
 | mx alternating with itself | 278.13 | 49.64 | 21.45 | 4.78 |
 
-Both binaries lose about a fifth of 8B decode to the contention, llmx 3.89 to
-4.73 and mx 4.02 to 4.78, so the paired comparison is not grossly one-sided.
-But its absolute rates are not what a single process sees, and the 8B decode
-deficit reads -3.2% paired under contention against -1.0% uncontended. The
-uncontended figure compares two separate runs and is **not paired**, which is
-the comparison this project has been burned by before, so it is the weaker of
-the two. The honest range is a deficit between about 1% and 3.5%, still under
-the floor, smaller than first reported, and not attributable to the KV work.
+Both binaries lose about a fifth under that load, llmx 3.89 against 4.73 and
+mx 4.02 against 4.78, and no drift appears across pairs, so it is not heat
+building up. Pairing is what makes the comparison survive this: both arms
+alternate inside the same conditions, so the relative result holds even
+though the absolute rates do not represent a quiet machine. The 8B decode
+deficit reads -3.2% paired under load against -1.0% unpaired when quiet, and
+the unpaired figure compares two runs three hours apart, which is the
+comparison this project has been burned by. The honest statement is a
+deficit of roughly 1% to 3.5%, still under the floor, smaller than first
+reported, and not caused by the KV work.
 
-Prefill is unaffected by the question: llmx is roughly double mx in both
-conditions on both models.
+Prefill is unaffected: llmx is roughly double mx in every condition measured.
 
-A paired 8B comparison needs either more free memory or arms that do not
-evict each other. 0.6B pairs cleanly. Evidence in
+What this changes for method: the runner already records activity, but
+nothing acted on it. A comparison worth publishing should be repeated when
+the recorded system CPU is near the benchmark's own share. Evidence in
 `docs/benchmarks/mx-harness-aa-20260921/`.
 
 ## A/A calibration of the A/B runner (2026-09-20)

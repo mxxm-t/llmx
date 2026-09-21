@@ -841,7 +841,7 @@ public:
         for (size_t i = 0; i < n; i++) dst[i] = src[i] * r * w[i];
     }
 
-    void rope(float* x, const float* cos, const float* sin, int half) override {
+    void rope_raw(float* x, const float* cos, const float* sin, int half) const {
         if (avx2_) {
             int i = 0;
             for (; i + 8 <= half; i += 8) {
@@ -881,19 +881,21 @@ public:
     }
 
     void norm_rope_rows(Slice x_s, size_t rows, size_t stride, size_t heads,
-                        CSlice w_s, float eps, const float* cos,
-                        const float* sin, size_t half) override {
+                        CSlice w_s, float eps, CSlice cos_s, CSlice sin_s,
+                        size_t half, const uint32_t* pos) override {
         float* x = at(x_s);
         const float* w = at(w_s);
+        const float* cos = at(cos_s);
+        const float* sin = at(sin_s);
         const size_t head_dim = half * 2;
         spread(rows, [&](size_t r) {
             float* row = x + r * stride;
-            const float* c = cos + r * half;
-            const float* s = sin + r * half;
+            const float* c = cos + (size_t)pos[r] * half;
+            const float* s = sin + (size_t)pos[r] * half;
             for (size_t h = 0; h < heads; h++) {
                 float* head = row + h * head_dim;
                 rms_norm_raw(head, head, w, head_dim, eps);
-                rope(head, c, s, (int)half);
+                rope_raw(head, c, s, (int)half);
             }
         });
     }

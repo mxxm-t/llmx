@@ -50,13 +50,13 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   table is a buffer the model cannot address on a device backend. Rejects a
   token id at or beyond `nrows`.
 - `rms_norm(dst, src, w, n, eps)`: RMS norm of one row.
-- `rope(x, cos, sin, half)`: rotary position embedding on one head.
 - `rms_norm_rows(dst, src, w, rows, n, stride, eps)`: RMS norm of `rows` rows
   against a shared weight.
-- `norm_rope_rows(x, rows, stride, heads, w, eps, cos, sin, half)`: per-head
-  RMS norm followed by RoPE over a batch of rows. Row `r` is at position
-  `pos0 + r` and reads `cos`/`sin + r*half`. The two are one op because the
-  model never applies one without the other.
+- `norm_rope_rows(x, rows, stride, heads, w, eps, cos, sin, half, pos)`:
+  per-head RMS norm followed by RoPE over a batch of rows. `cos`/`sin` are
+  buffers holding the per-position tables; row `r` reads entry `pos[r]` of
+  each, so a batch may carry rows from several sequences. The two are one
+  op because the model never applies one without the other.
 - `silu_mul(dst, gate, up, n)`: the SwiGLU elementwise stage.
 - `add(dst, src, n)`: the residual add.
 - `BackendPtr` / factory (`make_cpu_backend`).
@@ -68,9 +68,8 @@ callback across host threads has no device implementation. It remains public on
 `CpuBackend`, which its own tests use.
 
 Multi-device placement and batching across sequences are planned; the
-signatures they change (`norm_rope_rows` taking per-row positions,
-`attention` and `kv_write` taking several views, `submit`/`wait` tickets)
-are in `docs/EXECUTION.md`.
+signatures they still change (`attention` and `kv_write` taking several
+views, `submit`/`wait` tickets) are in `docs/EXECUTION.md`.
 
 `run_prefill(work)` invokes the body once on the caller after successful setup
 and completes cleanup before returning. Setup or reentrancy errors can reject

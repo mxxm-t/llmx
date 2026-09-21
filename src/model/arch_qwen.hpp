@@ -212,7 +212,11 @@ public:
         kv_seq_ = KVSequence(&kv_pool_, b_->kv_layout().block_tokens);
 
         // Precompute the RoPE cos/sin table for every position up to the
-        // context length. Indexed as [pos*(head_dim/2) + i].
+        // context length. Indexed as [pos*(head_dim/2) + i]. The backend
+        // reads it through adopted buffers, so the host vectors stay alive
+        // for the model's lifetime; on CPU that is the same memory. The
+        // position table is the identity, because every row of a pass is
+        // at a consecutive position while the model runs one sequence.
         int half = cfg.head_dim / 2;
         rope_cos_.assign((size_t)cfg.context_length * half, 0.0f);
         rope_sin_.assign((size_t)cfg.context_length * half, 0.0f);
@@ -223,6 +227,10 @@ public:
                 rope_sin_[(size_t)pos * half + i] = std::sin((float)pos * fre);
             }
         }
+        rope_cos_buf_ = b_->adopt(rope_cos_.data(), rope_cos_.size() * sizeof(float));
+        rope_sin_buf_ = b_->adopt(rope_sin_.data(), rope_sin_.size() * sizeof(float));
+        positions_.resize((size_t)cfg.context_length);
+        for (size_t p = 0; p < positions_.size(); ++p) positions_[p] = (uint32_t)p;
     }
 
     // One sequence owns one pool through a raw pointer; moving the model
@@ -299,12 +307,12 @@ public:
             // per-head q/k norms + rope
             {
                 const size_t half = cfg.head_dim / 2;
-                const float* cs = rope_cos_.data() + (size_t)pos * half;
-                const float* sn = rope_sin_.data() + (size_t)pos * half;
                 b_->norm_rope_rows(sq(), 1, 0, cfg.n_head,
-                                   w.attn_q_norm.slice(), cfg.rms_eps, cs, sn, half);
+                                   w.attn_q_norm.slice(), cfg.rms_eps,
+                                   rope_cos(), rope_sin(), half, positions_.data() + pos);
                 b_->norm_rope_rows(skv(), 1, 0, cfg.n_head_kv,
-                                   w.attn_k_norm.slice(), cfg.rms_eps, cs, sn, half);
+                                   w.attn_k_norm.slice(), cfg.rms_eps,
+                                   rope_cos(), rope_sin(), half, positions_.data() + pos);
             }
 
             b_->kv_write(l, view, (size_t)pos, skv(), sv(), 1);
@@ -402,7 +410,11 @@ private:
     BlockPool kv_pool_;
     KVSequence kv_seq_;
     std::vector<float> rope_cos_, rope_sin_;
+    backend::BufferPtr rope_cos_buf_, rope_sin_buf_;
+    std::vector<uint32_t> positions_;
     int n_tokens_ = 0;
+    backend::CSlice rope_cos() const { return {rope_cos_buf_.get(), 0}; }
+    backend::CSlice rope_sin() const { return {rope_sin_buf_.get(), 0}; }
     const gguf::TensorInfo& tensor(const std::string& name) const {
         auto it = tindex_.find(name);
         if (it == tindex_.end()) throw std::runtime_error("inference: missing tensor " + name);
@@ -580,12 +592,12 @@ private:
                               projection(w.attn_k, skb()),
                               projection(w.attn_v, svb())}, shb(), E, B);
 
-            const float* cs = rope_cos_.data() + (size_t)pos0 * half;
-            const float* sn = rope_sin_.data() + (size_t)pos0 * half;
             b_->norm_rope_rows(sqb(), (size_t)B, (size_t)q_dim_, cfg.n_head,
-                               w.attn_q_norm.slice(), cfg.rms_eps, cs, sn, half);
+                               w.attn_q_norm.slice(), cfg.rms_eps,
+                               rope_cos(), rope_sin(), half, positions_.data() + pos0);
             b_->norm_rope_rows(skb(), (size_t)B, KV, cfg.n_head_kv,
-                               w.attn_k_norm.slice(), cfg.rms_eps, cs, sn, half);
+                               w.attn_k_norm.slice(), cfg.rms_eps,
+                               rope_cos(), rope_sin(), half, positions_.data() + pos0);
 
             b_->kv_write(l, view, (size_t)pos0, skb(), svb(), (size_t)B);
             b_->attention(sqb(), l, view, sattnb(),

@@ -235,11 +235,59 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
     return values;
 }
 
+// Rows of a batch carry their own positions. Three rows at positions that
+// are neither consecutive nor ordered, two heads each and a padded stride,
+// against a double-precision norm-then-rotate reference reading the same
+// table at the row's own position.
+static size_t check_row_positions(backend::CpuBackend& cpu) {
+    const size_t rows = 3, heads = 2, half = 4, head_dim = 2 * half;
+    const size_t stride = heads * head_dim + 3, table = 12;
+    const uint32_t pos[rows] = {5, 2, 9};
+    std::vector<float> x(rows * stride), w(head_dim), cs(table * half), sn(table * half);
+    for (size_t i = 0; i < x.size(); ++i) x[i] = float(int((i * 37 + 11) % 97) - 48) / 17.0f;
+    for (size_t i = 0; i < head_dim; ++i) w[i] = 0.5f + 0.125f * float(i);
+    for (size_t p = 0; p < table; ++p)
+        for (size_t i = 0; i < half; ++i) {
+            const double f = std::pow(10000.0, -2.0 * double(i) / double(head_dim));
+            cs[p * half + i] = float(std::cos(double(p) * f));
+            sn[p * half + i] = float(std::sin(double(p) * f));
+        }
+    const std::vector<float> in = x;
+    const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
+    const auto w_buf = cpu.adopt(w.data(), w.size() * sizeof(float));
+    const auto c_buf = cpu.adopt(cs.data(), cs.size() * sizeof(float));
+    const auto s_buf = cpu.adopt(sn.data(), sn.size() * sizeof(float));
+    cpu.norm_rope_rows({x_buf.get(), 0}, rows, stride, heads, {w_buf.get(), 0}, 1e-6f,
+                       {c_buf.get(), 0}, {s_buf.get(), 0}, half, pos);
+    size_t count = 0;
+    for (size_t r = 0; r < rows; ++r)
+        for (size_t h = 0; h < heads; ++h) {
+            const float* src = in.data() + r * stride + h * head_dim;
+            double ss = 0.0;
+            for (size_t i = 0; i < head_dim; ++i) ss += double(src[i]) * src[i];
+            const double inv = 1.0 / std::sqrt(ss / double(head_dim) + 1e-6);
+            for (size_t i = 0; i < half; ++i) {
+                const double a = src[i] * inv * w[i], b = src[i + half] * inv * w[i + half];
+                const double c = cs[pos[r] * half + i], s = sn[pos[r] * half + i];
+                const double want[2] = {a * c - b * s, a * s + b * c};
+                const float* got = x.data() + r * stride + h * head_dim;
+                for (int k = 0; k < 2; ++k) {
+                    const double g = got[k ? i + half : i];
+                    require(std::fabs(g - want[k]) <= 1e-5 * (1.0 + std::fabs(want[k])),
+                            "norm_rope_rows differs from the per-position reference");
+                    ++count;
+                }
+            }
+        }
+    return count;
+}
+
 int main() {
     try {
         quant::register_builtins();
         backend::CpuBackend cpu;
         cpu.set_threads(1);
+        const size_t positions = check_row_positions(cpu);
         const size_t scales = check_q8_scales(cpu);
         const size_t reductions = check_prefill_reduction();
         const size_t magnitudes = check_magnitudes(cpu);
@@ -291,7 +339,8 @@ int main() {
                   << " outputs checked against separate calls and double dots; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "
-                  << magnitudes << " magnitude-sweep outputs\n";
+                  << magnitudes << " magnitude-sweep outputs; "
+                  << positions << " per-position norm+RoPE outputs\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

@@ -573,7 +573,7 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
     return m;
 }
 
-// Micro-benchmark of the backend hot paths (matmul, RMSNorm, RoPE) plus
+// Micro-benchmark of the backend hot paths (matmul, RMSNorm, norm+RoPE) plus
 // end-to-end prefill/decode TPS on a synthetic Qwen3 model. Used by
 // tests/perf.py as the perf-regression gate for hot-path changes.
 int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
@@ -611,15 +611,21 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode) {
                     (size_t)size, 1e-6f);
     double rn_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 
+    // The op the model runs: one row of one head of `size` floats, at
+    // position 0 of a one-entry table.
+    const auto cos_buf = b->adopt(cos.data(), cos.size() * sizeof(float));
+    const auto sin_buf = b->adopt(sin.data(), sin.size() * sizeof(float));
+    const uint32_t pos0 = 0;
     t0 = clock::now();
     for (int it = 0; it < iters; it++)
-        b->rope(dst.data(), cos.data(), sin.data(), size / 2);
+        b->norm_rope_rows({dst_buf.get(), 0}, 1, 0, 1, {w_buf.get(), 0}, 1e-6f,
+                          {cos_buf.get(), 0}, {sin_buf.get(), 0}, (size_t)size / 2, &pos0);
     double rp_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 
     double mm_gflops = 2.0 * (double)size * (double)size / (mm_ms * 1e6);
     printf("bench: matmul %dx%d  %8.3f ms  %8.2f GFLOPS\n", size, size, mm_ms, mm_gflops);
     printf("bench: rms_norm n=%d  %8.3f ms\n", size, rn_ms);
-    printf("bench: rope     n=%d  %8.3f ms\n", size, rp_ms);
+    printf("bench: norm_rope n=%d  %8.3f ms\n", size, rp_ms);
 
     // End-to-end TPS on a small synthetic Qwen3 model (2 layers, 256 embd).
     {

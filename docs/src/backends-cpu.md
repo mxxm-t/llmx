@@ -57,7 +57,8 @@ the compiled binary portable to older CPUs.
   finite. Do not "simplify" the Q8_0 kernel into the same shape: measured at
   q=127 and x=2^123 the accumulate-first form reaches 4.3e40 where the exact
   answer is finite. `tests/fused_dot_overflow.cpp` pins both families.
-- `rms_norm`, `rope`: AVX2 vectorized with scalar tails for non-multiples of 8.
+- `rms_norm`, and the `rope_raw` helper under `norm_rope_rows`: AVX2
+  vectorized with scalar tails for non-multiples of 8.
 - `rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`: the batched forms the
   model calls. Two private helpers decide dispatch. `spread` keeps a stage on
   the calling thread below two rows per worker; `chunk` keeps elementwise spans

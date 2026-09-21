@@ -59,7 +59,7 @@ def run(enforce_floor=True):
     assert not enforce_floor or res["decode_tps"] >= FLOOR_DECODE_TPS, (
         "decode %.1f tok/s below floor %.1f" % (res["decode_tps"], FLOOR_DECODE_TPS))
     print("perf: matmul %.2f GFLOPS (%.3f ms), prefill %.0f tok/s, decode %.0f tok/s, "
-          "rms_norm %.3f ms, rope %.3f ms  [ok]"
+          "rms_norm %.3f ms, norm_rope %.3f ms  [ok]"
           % (res["matmul_gflops"], res["matmul_ms"], res["prefill_tps"], res["decode_tps"],
              res["rms_norm_ms"], res["rope_ms"]))
     if not enforce_floor:

@@ -312,7 +312,8 @@ Micro-benchmark of the backend hot paths, plus end-to-end TPS:
 - `matmul`: Q8_0 matvec on an `N x N` matrix (`--size`, default 1024). Reports
   ms and GFLOPS.
 - `rms_norm`: RMSNorm on `N` elements.
-- `rope`: rotary position embedding on `N/2` pairs.
+- `norm_rope`: per-head RMS norm followed by rotary position embedding on
+  one row of `N` floats, the op the model runs.
 - End-to-end: prompt-process `--p` tokens (default 64) into a fresh KV cache
   by repeated single-token `step()` calls and report pp tok/s, then decode
   `--n` tokens (default 64) over the warm cache and

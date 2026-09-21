@@ -196,10 +196,6 @@ public:
     virtual void rms_norm(Slice dst, CSlice src, CSlice w,
                           size_t n, float eps) = 0;
 
-    // Rotary position embedding on head_dim floats. `cos`/`sin` point at the
-    // per-position table (half entries each); the halves of x are interleaved.
-    virtual void rope(float* x, const float* cos, const float* sin, int half) = 0;
-
     // The batched forms below exist so the model layer holds no elementwise
     // loops and needs no host parallelism of its own. Each is one call per
     // layer instead of one per row (or per head, per row), which is what makes
@@ -211,15 +207,18 @@ public:
                                size_t rows, size_t n, size_t stride, float eps) = 0;
 
     // Per-head RMS norm followed by RoPE, over a batch of rows. Row r starts
-    // at x + r*stride and holds `heads` contiguous heads of `2*half` floats;
-    // it is at position pos0 + r, so it reads cos/sin + r*half. The model
-    // always applies these together and per head, so they are one op: the head
-    // stays in registers between the two passes, and a device backend gets one
-    // kernel launch per layer rather than rows*heads of them.
+    // at x + r*stride and holds `heads` contiguous heads of `2*half` floats.
+    // `cos`/`sin` are the per-position tables, `half` floats per position;
+    // row r is at position pos[r] and reads entry pos[r] of each. Positions
+    // are per row rather than a base plus r because a batch may carry rows
+    // from several sequences (docs/EXECUTION.md). The model always applies
+    // norm and RoPE together and per head, so they are one op: the head
+    // stays in registers between the two passes, and a device backend gets
+    // one kernel launch per layer rather than rows*heads of them.
     virtual void norm_rope_rows(Slice x, size_t rows, size_t stride,
                                 size_t heads, CSlice w, float eps,
-                                const float* cos, const float* sin,
-                                size_t half) = 0;
+                                CSlice cos, CSlice sin, size_t half,
+                                const uint32_t* pos) = 0;
 
     // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage.
     virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n) = 0;

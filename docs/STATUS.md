@@ -25,8 +25,17 @@ Windows drivers.
   finished; `read()` syncs first. The CPU backend runs each op to completion as
   it is called, so its `sync()` returns immediately and the host path is
   unchanged by construction. Last step before a vendor backend.
-- **Done:** nothing yet, block opened before writing code.
-- **Left:** the method is the easy half. The hard half is its caller, because a
+- **Done:** the interface documents the enqueue contract, `sync()` is on it,
+  and the CPU backend implements it as the no-op its eagerness makes it. The
+  four release sites retire first: `reset`, the truncate on a failed prefill,
+  and the abort on a failed step or batch. 260-token logits byte-identical.
+- **Done:** the test counts `sync` calls on those paths, since nothing on an
+  eager backend would notice their absence. Removing the `reset` sync fails it
+  by name. It also asserts a successful step does *not* sync, because that
+  path commits rather than releases and the logits read is the one ordering
+  point per pass.
+- **Left:** the gate.
+- **Was left:** the method is the easy half. The hard half is its caller, because a
   `sync()` nothing calls is the seam `Backend::write` was deleted for one step
   ago. The caller is returning KV blocks to the pool. [KV-CACHE](KV-CACHE.md)
   already states that a block returns to the free list only when its refcount

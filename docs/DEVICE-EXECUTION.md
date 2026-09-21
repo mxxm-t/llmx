@@ -274,8 +274,8 @@ benchmarkable against the floor.
 | 2 | Batched elementwise ops (`rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` (**done**) | Measured; `silu_mul` helps prefill, which reads and writes three `n_ff * B` streams |
 | 3 | `Buffer`, `alloc`/`adopt`/`read`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` (**done**) | Measured neutral over 15 and 9 pairs |
 | 4 | Activation arena; op signatures take buffer + offset (**done**) | Measured neutral over 15 and 9 pairs, twice |
-| 5 | KV blocks on buffers (the view contract is already in place) (**in progress**) | Expected neutral - the same bytes move, through `memcpy` either way |
-| 6 | `sync()` and the enqueue contract | Neutral - no-op on CPU |
+| 5 | KV blocks on buffers (the view contract is already in place) (**done**) | Measured neutral over three 15-pair runs and one of 9 |
+| 6 | `sync()` and the enqueue contract (**done**) | Neutral - no-op on CPU |
 
 Where to follow along: this table is the plan and `docs/STATUS.md` is the
 state. STATUS carries one block per step, newest first, each with what is
@@ -295,7 +295,13 @@ mx-llama.cpp column, all slow samples retained, and per-pair reporting. A mean
 hides two contaminated rounds carrying the whole effect - how step 2's first
 decode number went wrong.
 
-A vendor backend (#4b) is only writable after step 6.
+A vendor backend (#4b) is only writable after step 6. All six are done, so it
+is writable now. What a vendor backend has to supply is the whole `Backend`
+interface over its own allocator: `alloc`, `adopt`, `read` and `copy` against
+device memory, `kv_alloc` and a `KVStorage` it owns, the ops themselves, and a
+`sync()` that means it. What it does not have to do is invent a place for
+activations or a cache layout, because the model layer holds no address and
+computes no offset into KV storage.
 
 **No step lands without its consumer.** Adding `Buffer` and its five methods
 while the model still passes host pointers would be a seam with no caller and

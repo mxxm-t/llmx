@@ -18,6 +18,33 @@ CPU backend. If this workstation ever needs GPU acceleration, the route is
 Vulkan, already the roadmap's portability target and supported by AMD's
 Windows drivers.
 
+## Device execution step 5: KV blocks on buffers (2026-09-21)
+
+- **Goal:** the CPU backend's KV blocks move from `std::vector<float>` per
+  layer into `Buffer` handles, so the last storage a device backend would have
+  to invent is allocated through the same path as everything else. The view
+  contract does not change: `KVView` still names a storage, a block table and a
+  length, and the model still never computes an offset into KV storage.
+- **Done:** nothing yet, block opened before writing code.
+- **Left:** per layer, one K buffer and one V buffer through `Backend::alloc`.
+  Growth allocates the complete new set before publishing any of it, which is
+  the transactional property the vector version already has, and moves the
+  history with `Backend::copy`. The CPU backend resolves a buffer to a host
+  pointer once per op exactly as it does for activations, so `attention` and
+  `kv_write` keep the kernels they have.
+- **Left:** `Backend::write` has no caller and this step does not give it one,
+  because `kv_write` receives its K and V as slices that are already buffers,
+  so the copy is storage to storage. Under the AGENTS.md rule against a seam
+  with no consumer it should be deleted here, and reintroduced by the first
+  backend that actually needs a host-to-device upload.
+- **Gotchas:** `alloc` is documented zero-filled and the vector version zeroed
+  on `resize`, so a newly backed block reads as zeros either way; a test
+  depends on that. `allocated_bytes` currently sums `capacity()`, which has no
+  buffer equivalent, so it becomes the sum of buffer sizes and the growth
+  pattern it reports changes from vector doubling to explicit doubling. The
+  peak accounting has to keep counting old plus new across a growth, since
+  both are held while the copy runs. Expect CPU-neutral: the same bytes move,
+  through `memcpy` either way.
 ## Full code read before the first vendor backend (2026-09-21)
 
 - **Goal:** read every line of `src/`, `tests/` and `tools/` before starting a

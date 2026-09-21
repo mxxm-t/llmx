@@ -104,8 +104,41 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   than explained away; if a later step finds 0.6B prefill a point or two
   low against an older baseline, this is a candidate along with the code
   read's three points.
-- **Left:** step 3, batched views and `gather_rows`. Then 4, then the
-  Vulkan page.
+- **Done: step 3.** `attention` and `kv_write` take an array of `KVView`s
+  laid out in row order, and a view carries `nq`, the rows of the pass that
+  are its own; `pos` and `batch` are gone because both follow from the
+  view, and the sequence fills `nq` from what it has prepared and not
+  committed. The CPU backend takes the views one after another around the
+  code it had, so one view computes what it did before. `kv-cache` checks
+  two sequences with histories of different lengths across a block edge,
+  written and attended in one call, against the same two taken separately,
+  bit for bit. `gather_rows` is deferred to step 4, where a `Batch` gives
+  it a real caller. Native 18/18, Python 12/12 with both HF models.
+- **Done: step 3 gate**, base `c850149`, candidate `8a3ff82`, layout
+  control `a09c584` perturbing the two edited files. Three 0.6B cells at
+  15 pairs, one 8B at 9. System CPU averaged 37 to 39 percent per cell
+  against the benchmark's own 37.5; every sample is kept. Evidence in
+  `docs/benchmarks/views-20260921/`, raw monitors archived and hashed.
+
+  | cell | phase | candidate mean / median / base wins | control mean / median / base wins |
+  |---|---|---|---|
+  | 0.6B-1 | prefill | -0.60% / -0.32% / 8/15 | +0.97% / +0.81% / 6/15 |
+  | 0.6B-1 | decode  | **-1.21% / -1.59% / 12/15 FAIL** | -0.76% / -0.53% / 8/15 |
+  | 0.6B-2 | prefill | +1.83% / +2.08% / 5/15 | +2.98% / +1.27% / 7/15 |
+  | 0.6B-2 | decode  | +0.10% / +0.18% / 7/15 | +0.52% / +0.81% / 5/15 |
+  | 0.6B-3 | prefill | +1.82% / +1.37% / 4/15 | +2.45% / +2.25% / 4/15 |
+  | 0.6B-3 | decode  | +1.75% / +2.59% / 5/15 | +2.12% / +1.98% / 5/15 |
+  | 8B | prefill | +1.60% / +0.03% / 4/9 | +1.42% / -0.31% / 6/9 |
+  | 8B | decode  | -0.10% / +0.22% / 4/9 | -0.08% / -0.65% / 5/9 |
+
+  One cell failed, 0.6B-1 decode, on the win count alone at exactly the
+  threshold; its mean and median are inside the noise band and the control
+  was negative in the same cell. The two cells run after it, identical in
+  plan, came back at +0.10 and +1.75 with 7 and 5 base wins, and 8B decode
+  is flat. Recorded as noise confirmed by rerun, with the failing cell
+  kept.
+- **Left:** step 4, `Model` / `Sequence` / `ExecContext` / `Batch` with
+  `gather_rows`. Then the Vulkan page.
 - **Gotchas:** `sync()` stays `noexcept`; `wait` is too. The other
   developer's last recorded position predates the last five merges to
   main; the design is posted for review but does not wait on it.
@@ -629,7 +662,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 and 2 of 7 done |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 3 of 7 done |
 | GPU backends (Vulkan first to write, ROCm first-class) | Planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |

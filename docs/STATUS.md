@@ -429,10 +429,22 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   files, 151,936 rows of 1024, takes 693 us at 184 GB/s, 7 percent of a
   Q5_K_M token; at 1024 wide every row's lanes re-read the whole
   activation row, 620 MB of cache traffic against 127 MB of weights.
+  Twentieth, two rows per lane cluster in the Q6_K module, tried and
+  rejected, not committed: each lane decoded its sixteenth of two rows'
+  blocks and applied both to the activation vectors it had loaded once,
+  halving the activation re-read. The second row's quants and scales
+  doubled the live registers and the occupancy lost outweighed the
+  traffic saved: the head went from 693 to 1184 us, the 8B shape from
+  215 to 129 GB/s, and Q5_K_M tg32 from 185.7 to 161.1 tok/s. The
+  activation re-read is the traffic, but the answer is not more state
+  per lane.
 - **Left:** decode on the 4- and 5-bit files, at 93 and 84 percent of
   the reference under the matched protocol: the Q6_K head and the
   K-quant row kernels at 1024 wide, where the activation re-read per row
-  is the traffic. The tiled attention does not yet share a K/V tile
+  is the traffic and a shared-memory copy of the row, at 4 KB, is the
+  next thing to measure there specifically, since the 4 KB norm staging
+  lost on Q8_0 but the K-quant lanes read four times as many activation
+  bytes per weight byte. The tiled attention does not yet share a K/V tile
   across the query heads of a KV group. And the question of the default
   cache type, f16 being the reference's default and passing the gate
   here.

@@ -1334,7 +1334,7 @@ their own measurements; K-quant optimization remains separate work below.
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, at or above the reference on Q8_0 decode and every prefill, 84 to 96 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
-| Multi-user server                        | Designed (`docs/SERVER.md`); code not started |
+| Multi-user server                        | `llmx serve` in the tree (`docs/SERVER.md` steps 1 to 3): correctness gates pass on both backends; throughput 81 to 119 percent of the reference server at 1 to 16 concurrent on the device, the multi-view device kernels open |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |

@@ -34,7 +34,23 @@ Windows drivers.
   by name. It also asserts a successful step does *not* sync, because that
   path commits rather than releases and the logits read is the one ordering
   point per pass.
-- **Left:** the gate.
+- **Done:** gated against 3bdf542, both arms from detached worktrees at their
+  own commits. Eight cells, none failing.
+
+  | cell | prefill mean | prefill median | decode mean | decode median |
+  |---|---:|---:|---:|---:|
+  | 0.6B run 1 | +6.31% | +3.58% | +1.63% | +1.18% |
+  | 0.6B run 2 | +1.32% | -0.33% | -1.05% | -0.73% |
+  | 0.6B run 3 | +5.45% | +5.22% | +1.99% | +0.95% |
+  | 8B         | +0.31% | +0.76% | -1.21% | -0.46% |
+
+  The 0.6B prefill gain is **not** claimed. This change adds a virtual call on
+  four paths that a successful pass never takes and does nothing else, so
+  there is no work it could have saved. It is the same layout swing that cost
+  three points in the other direction during the code read, and the honest
+  reading of both is that a few percent of 0.6B prefill on this tree means
+  nothing without a control. 8B, where the effect is far weaker, sits at
+  +0.31%, which is what a no-op should look like.
 - **Was left:** the method is the easy half. The hard half is its caller, because a
   `sync()` nothing calls is the seam `Backend::write` was deleted for one step
   ago. The caller is returning KV blocks to the pool. [KV-CACHE](KV-CACHE.md)

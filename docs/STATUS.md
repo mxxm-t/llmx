@@ -47,7 +47,23 @@ Windows drivers.
   for Q8_0 against 0.3043 for Q4_0 on identical data, which is why a Q4_0
   perplexity sits well above the full-precision reference while Q8_0 does not.
   A negative control confirms the check fails when the reference is wrong.
-- **Left:** the gate.
+- **Done:** gated against 1e7d648, both arms built from detached worktrees at
+  their own commits. Eight cells, all passing. The 0.6B model was run three
+  times rather than once, because this tree has shown a three-point prefill
+  swing between behaviourally identical builds and one run decides nothing.
+
+  | cell | prefill mean | prefill median | decode mean | decode median |
+  |---|---:|---:|---:|---:|
+  | 0.6B run 1 | +0.66% | -2.77% | +0.76% | +1.90% |
+  | 0.6B run 2 | +0.07% | +1.99% | +2.66% | +0.48% |
+  | 0.6B run 3 | -2.26% | -1.58% | -2.48% | -1.78% |
+  | 8B         | +0.72% | +1.10% | +0.88% | -0.68% |
+
+  The spread across three runs of one unchanged comparison is itself the
+  measurement to remember: prefill means of +0.66, +0.07 and -2.26 on the same
+  pair of binaries. Nothing here is claimed as a win.
+- **Left:** nothing. Step 6, the enqueue and sync contract, is next and is the
+  last step before a vendor backend.
 - **Gotchas:** `alloc` is documented zero-filled and the vector version zeroed
   on `resize`, so a newly backed block reads as zeros either way; a test
   depends on that. `allocated_bytes` currently sums `capacity()`, which has no

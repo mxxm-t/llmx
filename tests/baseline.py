@@ -8,6 +8,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import common
 from common import run as cli
 
 # Correctness baseline: compare llmx against golden fixtures generated once
@@ -87,8 +88,14 @@ def run_logits():
             continue
         ran += 1
         failures, ordered = [], 0
+        skipped = False
         for case in doc["cases"]:
             rc, out = cli(["logits", model, case["text"], "--top", "10"])
+            if common.device_lacks_kernel(rc, out):
+                print("baseline-logits[%s]: SKIP - %s has no kernel for this model's matrices"
+                      % (spec["file"], os.environ["LLMX_DEVICE"]))
+                skipped = True
+                break
             if rc != 0:
                 failures.append((case["text"], "exit %d" % rc))
                 continue
@@ -108,6 +115,8 @@ def run_logits():
                 elif ids[:5] == want[:5]:
                     ordered += 1
 
+        if skipped:
+            continue
         n = len(doc["cases"])
         if failures:
             print("baseline-logits[%s]: %d/%d prompts agree, %d differ:"
@@ -151,6 +160,10 @@ def run_perplexity():
                 if case["max_chunks"]:
                     args += ["--chunks", str(case["max_chunks"])]
                 rc, out = cli(args)
+                if common.device_lacks_kernel(rc, out):
+                    print("baseline-ppl[%s]: SKIP - %s has no kernel for this model's matrices"
+                          % (spec["file"], os.environ["LLMX_DEVICE"]))
+                    break
                 assert rc == 0, "perplexity failed (exit %d): %s" % (rc, out)
                 fields = dict(line.split(":", 1) for line in out.splitlines() if ":" in line)
                 required = {"tokens", "used tokens", "scored tokens", "chunks", "context size", "mean NLL", "perplexity"}

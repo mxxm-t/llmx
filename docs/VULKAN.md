@@ -223,7 +223,7 @@ device is present, so the tree stays green without a GPU.
 | 2 | Elementwise kernels, `gather_rows`, `embed` (F32 and Q8_0), the norms, `norm_rope_rows`; the shader build step (**done**) | CPU-vs-Vulkan on random inputs, bounds fixed in the test before the first run: exact for add, gather and embed, 1e-6 relative for SiLU, 1e-5 for the norms and RoPE; 160,688 outputs on the Radeon VII |
 | 3 | `matmul` for F32 and Q8_0: the row kernel (**done**); the tile kernel for wide batches after the backend runs end to end | Same over batch widths 1, 3, 8 and 13 and both block-count parities, 1e-4 relative; the 4096-square Q8_0 matvec reads at 201 GB/s on the Radeon VII, reported and not gated |
 | 4 | KV storage, `kv_write`, `kv_copy`, `attention` over views (**done**) | Against the CPU backend through each backend's own storage and block size: histories of 0, 63, 64, 65 and 131 tokens with 1 and 3 queries, two views in one call, a copied block attending like its source; 1e-4 relative |
-| 5 | `--device`; Qwen3-0.6B-Q8_0 end to end | HF baselines with `--device vulkan:0`; matched mx Vulkan floor |
+| 5 | `--device`; the models end to end (**done** except the floor) | HF baselines with `--device vulkan:0`: Q8_0 logits and all four perplexity cases match the CPU's numbers to the digit; the whole Python suite runs on the device; the matched mx Vulkan floor is the open item |
 | 6 | Q4_0, Q4_1, Q4_K, Q5_K, Q6_K shaders | HF baselines on the Q4_0 and K-quant models |
 | 7 | Block-size screening; barrier tracking if the profile says so | The KV screening method, on the device |
 

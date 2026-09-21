@@ -111,8 +111,10 @@ do not want while measuring.
 - **The runtime credential exception is `HF_TOKEN`** for `llmx pull` gated-repo
   access. It is not a tuning knob and must not appear in child argv or logs.
 - **Test configuration**: `LLMX_BASELINE_GGUF` points
-  `tests/baseline.py` at a fixture model. That is test configuration, not
-  runtime configuration, and it never reaches the binary.
+  `tests/baseline.py` at a fixture model, and `LLMX_DEVICE`, set by
+  `run_tests.py --device`, appends `--device` to every command that takes
+  it so the suite runs on a device backend. That is test configuration,
+  not runtime configuration, and it reaches the binary only as the flag.
 
 If you add a flag, add it to `docs/USAGE.md` and to `print_usage` in the same
 change, or it does not exist as far as a user is concerned.

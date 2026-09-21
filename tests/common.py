@@ -31,7 +31,16 @@ def run(args, cwd=None):
     """Run the llmx CLI, returning (returncode, stdout_text)."""
     p = subprocess.run([exe_path()] + device_args(args), capture_output=True, text=True,
                        encoding="utf-8", cwd=cwd or ROOT)
-    return p.returncode, p.stdout
+    # A failure's diagnostic is on stderr; hand it back with the output so a
+    # caller can tell a missing device kernel from a wrong answer.
+    return p.returncode, p.stdout if p.returncode == 0 else p.stdout + p.stderr
+
+
+def device_lacks_kernel(rc, out):
+    """True when the selected device refused the model for want of a kernel,
+    which a test reports as skipped rather than failed."""
+    return (rc != 0 and bool(os.environ.get("LLMX_DEVICE")) and
+            ("unsupported matrix type" in out or "unsupported embedding type" in out))
 
 
 def write_bin(path, floats):

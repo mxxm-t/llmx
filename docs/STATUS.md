@@ -75,11 +75,31 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   1e-4 relative; 179,228 kernel outputs match in all. The device's bounds
   checks caught a query offset in the test that the CPU backend reads
   through silently.
-- **Left:** sub-step 5, `--device vulkan:N` and the model end to end on
-  Qwen3-0.6B-Q8_0, then the HF baselines with the flag and the matched mx
-  Vulkan floor. The tile kernel for wide batches comes after that with its
-  own measurement; until then prefill on the device streams the weights
-  `nbatch / 8` times per layer.
+- **Done: sub-step 5, all but the floor.** `--device cpu|vulkan:N` on
+  `generate`, `chat`, `logits`, `perplexity` and `bench`; a build without
+  the backend says so rather than falling back. The Python suite takes
+  `--device` and passes it through `LLMX_DEVICE`, test configuration like
+  `LLMX_BASELINE_GGUF`; a fixture the device has no kernel for is reported
+  as skipped, with the reason, rather than failed. On the Radeon VII the
+  whole suite passes with every command on the device: the synthetic F32
+  and sharded HF cases, the chat and thread goldens, and the real Qwen3
+  Q8_0 baselines, whose top logits and all four perplexity cases match the
+  CPU's numbers to the digit (PPL 28.8371 continuous, 38.2140 at c=123).
+  Q4_0 is skipped until sub-step 6.
+
+  Throughput after the arena fix, 247-token prompt and 32 greedy tokens,
+  one run each, no gate: 0.6B prefill 382 tok/s and decode 67.6, against
+  the CPU's 431 and 46.7 at six threads; 8B prefill 40.3 and decode 21.3,
+  against the CPU's 37 and about 4. The first numbers were 19 and 10.9
+  tok/s decode, because every dispatch taking ids or positions allocated
+  a device buffer, over a hundred `vkAllocateMemory` calls per token; a
+  host-visible arena per ring slot removed that. Prefill on the device is
+  the row kernel streaming the weights once per eight columns, which the
+  tile kernel is for.
+- **Left:** the matched floor against mx-llama.cpp's Vulkan backend on
+  this card, which is the gate for any claim; the reference is being
+  built from the pinned revision. Then the tile kernel for prefill, and
+  sub-step 6, the remaining quant kernels.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

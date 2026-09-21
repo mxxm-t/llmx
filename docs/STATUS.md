@@ -108,10 +108,10 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   | model | phase | llama.cpp b11075 Vulkan | llmx Vulkan | llmx share |
   |---|---|---:|---:|---:|
-  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 988 to 1210 across runs | 150 to 183% |
-  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 110 | 56% |
+  | Qwen3-0.6B-Q8_0 | prefill | 660 tok/s | 1195 (three runs within 1%) | 181% |
+  | Qwen3-0.6B-Q8_0 | decode | 198 tok/s | 111 | 56% |
   | Qwen3-8B-Q8_0 | prefill | 99 tok/s | 220 | 222% |
-  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 29.3 | 74% |
+  | Qwen3-8B-Q8_0 | decode | 39.7 tok/s | 32.7 | 82% |
 
   Prefill clears the reference on both models since the tile kernel;
   decode is at about half of it, and the roadmap's bar is the reference,
@@ -152,11 +152,16 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   now requires. q, k and v are one dispatch, gate and up another, checked
   bit for bit against the same projections one at a time. Decode 104 to
   110 tok/s on 0.6B and 28.1 to 29.3 on 8B.
-- **Left:** decode, at 56 and 74 percent of the reference. On 8B the
-  matvec's 290 GB/s against a 1 TB/s memory is the whole story; on 0.6B
-  it is the 14 dispatches of a layer at their latency floors. Then
-  sub-step 6, the remaining quant kernels. Every number above is a single
-  run and none is claimed until a paired comparison is recorded.
+  Seventh, the lanes per block pair swept: one, two, four, eight and
+  sixteen give 200, 190, 336, 295 and 185 GB/s at the 8B shapes, so four
+  it is, each lane with five loads in flight over 16 contiguous bytes.
+  8B decode 29.3 to 32.7 tok/s.
+- **Left:** decode, at 56 and 82 percent of the reference. On 8B the
+  matvec's 336 GB/s against a 1 TB/s memory is still most of the story;
+  on 0.6B it is the 14 dispatches of a layer at their latency floors.
+  Then sub-step 6, the remaining quant kernels, which the Q4_0 fixture
+  and the K-quant models need. Every number above is a single run and
+  none is claimed until a paired comparison is recorded.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

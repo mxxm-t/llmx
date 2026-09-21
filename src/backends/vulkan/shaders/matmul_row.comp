@@ -9,17 +9,20 @@
 // in registers so a weight is read once per chunk of columns. This is the
 // decode kernel; the tile kernel takes wide batches (docs/VULKAN.md).
 //
-// Q8_0 rows with at least eight block pairs take the wide path: a pair is
-// 68 bytes, 17 words, and eight consecutive lanes share one pair, lane t
-// loading words t, t + 8 and, for lane 0, word 16, so a load instruction
-// touches 32 contiguous bytes per pair instead of four. The two scales
-// live in words 0 and 8 and every lane of the pair reads them, which the
-// hardware serves as one broadcast. The loop is unrolled by hand and the
-// accumulators are scalars: a generic loop over words with accumulator
-// arrays indexed by column spilled to scratch and ran ten times slower.
-// Rows with fewer or an odd number of blocks take the 16-bit path, two
-// values per load. Bytes are sign-extended by a shift up and an
-// arithmetic shift down.
+// Q8_0 rows with at least four block pairs take the wide path: a pair is
+// 68 bytes, 17 words, and four consecutive lanes share one pair, lane t
+// loading words t, t + 4, t + 8, t + 12 and, for lane 0, word 16, so a
+// load instruction touches 16 contiguous bytes per pair and every lane
+// has five loads in flight. On the Radeon VII that is the optimum of
+// one, two, four, eight and sixteen lanes per pair, measured at the 8B
+// shapes: 200, 190, 336, 295 and 185 GB/s. The two scales live in words
+// 0 and 8 and every lane of the pair reads them, which the hardware
+// serves as one broadcast and which measured faster than a shuffle. The
+// loop is unrolled by hand and the accumulators are scalars: a generic
+// loop over words with accumulator arrays indexed by column spilled to
+// scratch and ran ten times slower. Rows with fewer or an odd number of
+// blocks take the 16-bit path, two values per load. Bytes are
+// sign-extended by a shift up and an arithmetic shift down.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
@@ -86,13 +89,15 @@ void main() {
             uint nblocks = p.nin / Q8_0_BLOCK;
             uint npairs = nblocks / 2u;
             uint wbase = row * nblocks * 17u / 2u;   // words: a pair is 17
-            uint group = l / 8u, t = l - group * 8u;   // eight lanes per pair
-            uint groups = p.cluster / 8u;
+            uint group = l / 4u, t = l - group * 4u;   // four lanes per pair
+            uint groups = p.cluster / 4u;
             for (uint j = group; j < npairs; j += groups) {
                 uint o = wbase + j * 17u;
                 uint wa = w32s[pi].w32[o + t];
-                uint wb = w32s[pi].w32[o + t + 8u];
-                uint wc = (t == 0u) ? w32s[pi].w32[o + 16u] : 0u;
+                uint wb = w32s[pi].w32[o + t + 4u];
+                uint wc = w32s[pi].w32[o + t + 8u];
+                uint wd = w32s[pi].w32[o + t + 12u];
+                uint we = (t == 0u) ? w32s[pi].w32[o + 16u] : 0u;
                 float s0 = unpackHalf2x16(w32s[pi].w32[o]).x;
                 float s1 = unpackHalf2x16(w32s[pi].w32[o + 8u]).y;
                 uint xb = j * 64u;
@@ -100,8 +105,10 @@ void main() {
                     uint col_base = (p.col0 + c) * p.nin;
                     float p0 = 0.0, p1 = 0.0;
                     word_dot(wa, t, xb, col_base, p0, p1);
-                    word_dot(wb, t + 8u, xb, col_base, p0, p1);
-                    if (t == 0u) word_dot(wc, 16u, xb, col_base, p0, p1);
+                    word_dot(wb, t + 4u, xb, col_base, p0, p1);
+                    word_dot(wc, t + 8u, xb, col_base, p0, p1);
+                    word_dot(wd, t + 12u, xb, col_base, p0, p1);
+                    if (t == 0u) word_dot(we, 16u, xb, col_base, p0, p1);
                     acc[c] += s0 * p0 + s1 * p1;
                 }
             }

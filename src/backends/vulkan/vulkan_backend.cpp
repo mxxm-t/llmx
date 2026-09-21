@@ -1008,7 +1008,7 @@ public:
 
 private:
     static const uint32_t kRing = 4;
-    static const uint32_t kLanesPerPair = 8;
+    static const uint32_t kLanesPerPair = 4;
     static const size_t kStagingBytes = size_t(64) << 20;
     static const size_t kArenaBytes = size_t(1) << 20;
     static const uint32_t kPushBytes = 128;

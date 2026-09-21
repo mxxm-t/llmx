@@ -4,6 +4,63 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## KV cache fork, step 2 of the KV design (2026-09-21)
+
+- **Goal:** a second history with the same committed tokens, sharing every
+  full block and copying the partial tail, which the server needs for
+  prefix reuse and branching and which the fork rule in KV-CACHE.md had
+  described without implementing.
+- **Done:** `KVSequence::fork` retains every full block and takes a fresh
+  block for a partial tail, reporting the ids so the caller fills it;
+  `Backend::kv_copy` copies every layer's K and V of one block into
+  another, because only the backend knows the layout; `Model::fork` does
+  both on every storage and the fork inherits the tickets of the passes
+  that wrote what it shares. Shared blocks are read-only: `prepare`
+  refuses to append into one, which a history truncated into a shared
+  block would do, so such a history is forked again instead. `kv-cache`
+  checks a fork across a block edge (shared block at refcount two, tail
+  private and copied, both histories diverging without touching the
+  shared block, a boundary fork taking no tail, the refused append,
+  releases following the refcounts) and, through the model, that a forked
+  sequence continues exactly as a fresh one fed the same tokens while the
+  original continues exactly as if never forked. Native 19/19, Python
+  12/12 with both HF models.
+- **Done: gate**, base `c85aa9d`, candidate `215ad24`, layout control
+  `d8d508e`. Five 0.6B cells at 15 pairs, one 8B at 9. System CPU per cell
+  37 to 40 percent against the benchmark's own 37.5. Evidence in
+  `docs/benchmarks/kv-fork-20260921/`, raw monitors archived and hashed;
+  every sample kept.
+
+  | cell | phase | candidate mean / median / base wins | control mean / median / base wins |
+  |---|---|---|---|
+  | 0.6B-1 | prefill | -1.39% / -2.54% / 9/15 | -1.59% / -1.05% / 9/15 |
+  | 0.6B-1 | decode  | +3.38% / +2.15% / 5/15 | +3.23% / +0.95% / 7/15 |
+  | 0.6B-2 | prefill | **-3.92% / -3.51% / 11/15 FAIL** | +1.53% / +2.26% / 5/15 |
+  | 0.6B-2 | decode  | **-3.66% / -4.01% / 12/15 FAIL** | +1.31% / -0.16% / 8/15 |
+  | 0.6B-3 | prefill | -0.76% / -2.13% / 9/15 | +1.45% / +1.36% / 6/15 |
+  | 0.6B-3 | decode  | -1.12% / -0.06% / 8/15 | -0.24% / -0.39% / 8/15 |
+  | 0.6B-4 | prefill | -2.20% / -2.35% / 11/15 | -1.45% / -0.74% / 9/15 |
+  | 0.6B-4 | decode  | +0.01% / +0.55% / 7/15 | +0.28% / -0.21% / 8/15 |
+  | 0.6B-5 | prefill | -1.77% / -1.53% / 10/15 | -0.48% / -0.97% / 8/15 |
+  | 0.6B-5 | decode  | -0.60% / -0.40% / 10/15 | -1.96% / -2.10% / 10/15 |
+  | 8B | prefill | -0.23% / +1.08% / 4/9 | +0.01% / +0.55% / 4/9 |
+  | 8B | decode  | +0.31% / +0.00% / 4/9 | -1.00% / -0.22% / 6/9 |
+
+  Cell 2 failed both phases at about -3.8 percent with the control positive
+  in the same cell; the three cells after it pass and 8B is flat. What the
+  measured path gained from this change is one refcount comparison per
+  pass in `prepare`. Two things are written down rather than argued away.
+  0.6B decode, the phase that comparison sits on, is flat over five cells:
+  +3.38, -3.66, -1.12, +0.01, -0.60, mean -0.4 against a control mean of
+  +0.5. 0.6B prefill is under base in all five cells, mean -2.0 against a
+  control mean of -0.1, which is the same size and sign as the step 2 gate
+  and the opposite of the step 6 gate on changes of the same character;
+  it is inside the band AGENTS.md documents for this file and this model,
+  and it joins the running list of candidates if 0.6B prefill is ever
+  found a few points low against an older baseline.
+- **Left:** nothing. The prefix index is step 4 of the KV design and lands
+  with the server.
+
 ## Execution model for batching and placement (ROADMAP #5, #7) (2026-09-21)
 
 - **Goal:** fix what the backend interface and the model layer need for the

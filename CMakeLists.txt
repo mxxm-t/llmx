@@ -20,8 +20,15 @@ target_include_directories(llmx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Generate src/config.hpp from src/config.hpp.in-style template. The committed
 # src/config.hpp is the fallback for plain build.bat; CMake produces a fresh one
-# with the cache options baked in.
+# with the cache options baked in. Options are ON/OFF; the header wants 0/1.
 set(LLMX_CPU 1)
+foreach(gpu ROCM CUDA SYCL VULKAN)
+    if(LLMX_HAS_BACKEND_${gpu})
+        set(LLMX_BACKEND_${gpu}_FLAG 1)
+    else()
+        set(LLMX_BACKEND_${gpu}_FLAG 0)
+    endif()
+endforeach()
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/llmx-config.hpp.in
     ${CMAKE_CURRENT_BINARY_DIR}/generated/config.hpp
@@ -38,8 +45,24 @@ add_custom_target(llmx-build-info
 )
 add_dependencies(llmx llmx-build-info)
 
+# The Vulkan backend (docs/VULKAN.md). The SDK supplies the headers at build
+# time; the loader is loaded at run time, so nothing links against vulkan-1.
+# One static library so the CLI and the test compile the device code once.
+if(LLMX_HAS_BACKEND_VULKAN)
+    find_package(Vulkan REQUIRED)
+    add_library(llmx-vulkan STATIC src/backends/vulkan/vulkan_backend.cpp)
+    target_include_directories(llmx-vulkan
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR}/generated
+        PRIVATE ${Vulkan_INCLUDE_DIRS})
+    target_link_libraries(llmx-vulkan PUBLIC ${CMAKE_DL_LIBS})
+    target_link_libraries(llmx PRIVATE llmx-vulkan)
+endif()
+
 include(CTest)
 set(LLMX_TARGETS llmx)
+if(LLMX_HAS_BACKEND_VULKAN)
+    list(APPEND LLMX_TARGETS llmx-vulkan)
+endif()
 if(BUILD_TESTING)
     add_executable(llmx-hub-manifest-test tests/hub_manifest.cpp)
     target_include_directories(llmx-hub-manifest-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -145,6 +168,16 @@ if(BUILD_TESTING)
     list(APPEND LLMX_TARGETS llmx-placement-test)
     add_test(NAME placement COMMAND llmx-placement-test)
     set_tests_properties(placement PROPERTIES TIMEOUT 30)
+
+    if(LLMX_HAS_BACKEND_VULKAN)
+        # Exits 77 when there is no loader or no device, which CTest reports
+        # as skipped rather than passed.
+        add_executable(llmx-backend-vulkan-test tests/backend_vulkan.cpp)
+        target_link_libraries(llmx-backend-vulkan-test PRIVATE llmx-vulkan)
+        list(APPEND LLMX_TARGETS llmx-backend-vulkan-test)
+        add_test(NAME backend-vulkan COMMAND llmx-backend-vulkan-test)
+        set_tests_properties(backend-vulkan PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+    endif()
 endif()
 
 find_package(Threads REQUIRED)

@@ -41,6 +41,7 @@ remain on feature branches while their performance gates are open; see
 | Model coverage | Llama, Mistral, Gemma and Phi; additional quantizations |
 | Hugging Face | Safetensors, BF16/F16 tensors, HF tokenizer/config files |
 | Execution model | Tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
+| Server | Designed, not started: continuous batching over that execution model, streaming HTTP without dependencies (`docs/SERVER.md`) |
 | GPU backends | Vulkan, in the tree (`-DLLMX_HAS_BACKEND_VULKAN=ON`, `--device vulkan:N`), at or above the reference on Q8_0 on the Radeon VII; ROCm first-class on Linux; CUDA and SYCL |
 | Multiple devices/nodes | Model splitting across devices and cluster nodes |
 | Serving | Shared read-only weights, independent request/KV state, continuous batching and streaming |

@@ -172,7 +172,9 @@ Split a single model across several backends on one machine. Designed in
   worker parallelism does not make the current `Model` concurrently callable.
   A `Backend` is driven by one thread at a time; the scheduler is the single
   submitter per device.
-- `server/` directory is the planned home (not yet created - avoid empty stubs)
+- `server/` directory is the planned home (not yet created - avoid empty stubs).
+  The design, the protocol, the scheduler loop, the gates and the order of
+  work are in `docs/SERVER.md`.
 
 ## 8. Correctness & perf gates
 Two standards, both EXTERNAL. Neither may be replaced by a self-consistency

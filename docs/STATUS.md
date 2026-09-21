@@ -4,6 +4,27 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Multi-user server (ROADMAP #7, EXECUTION step 7) (2026-09-22)
+
+- **Goal:** the HTTP front-end over the model layer the execution plan
+  built for it: one shared model, a `Sequence` per request, continuous
+  batching with chunked prefill through one `Model::forward` per scheduler
+  iteration, streaming responses, prefix reuse through `fork`, admission by
+  the KV pool's budget. Dependency-free transport. The design, protocol,
+  scheduler loop, gates and order of work are `docs/SERVER.md`.
+- **Done:** the design only. No `server/` directory exists yet.
+- **Left:** SERVER.md's five steps, in order: the HTTP layer with its own
+  CTest; the scheduler and `llmx serve` with `/v1/generate` and
+  `/v1/health`, gated on greedy equality with the CLI alone and beside three
+  decoders and on aggregate throughput at 1, 4, 8 and 16 against the
+  single-sequence bench and the reference's server; `/v1/chat`; the prefix
+  index; the second execution context if measured to help.
+- **Gotchas:** the scheduler thread is the only caller of `forward` for its
+  devices, by contract; connection threads queue and drain. A request is
+  admitted only when the pool holds its prompt plus `max_tokens`; nothing is
+  evicted. Per-request seeded sampling keeps a request reproducible whatever
+  it is batched with.
+
 ## Vulkan backend, sub-step 1 of docs/VULKAN.md (2026-09-21)
 
 - **Goal:** the first vendor backend over the Radeon VII: storage and
@@ -1276,7 +1297,7 @@ their own measurements; K-quant optimization remains separate work below.
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, at or above the reference on Q8_0 decode and every prefill, 84 to 96 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
-| Multi-user server                        | Planned  |
+| Multi-user server                        | Designed (`docs/SERVER.md`); code not started |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |

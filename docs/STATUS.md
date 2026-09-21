@@ -11,12 +11,18 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   re-uploading per call. Step 3 of the six in
   [DEVICE-EXECUTION](DEVICE-EXECUTION.md); step 1, pre-resolving tensors,
   already shipped.
-- **Done:** block opened before the code.
-- **Left:** `Buffer` and `BufferPtr` on the interface with `alloc`, `adopt`,
-  `read`, `write` and `copy`; a CPU buffer that wraps host memory so `adopt`
-  copies nothing; `Weight` holding a handle; `matmul` and `matmul_group`
-  taking it. Retiring `dot_q8_0` and `matvec_q8_0` is separable and comes
-  after, since `bench` still calls one.
+- **Done:** `Buffer`/`BufferPtr` with `alloc`, `adopt`, `read`, `write`,
+  `copy`; `CpuBuffer` wraps host memory so `adopt` copies nothing; `Weight`
+  holds a handle and every tensor is adopted once at resolution; `matmul` and
+  `Projection` take a buffer. A projection without storage is now rejected
+  before anything reads it, which a null-pointer test case used to reach.
+  Native suite 17/17, Python suite 11/11 with both HF models, 260-token
+  logits byte-identical to the previous runtime.
+- **Left:** `dequant_row` is the last place the model reads weight bytes
+  itself, for the embedding lookup; it goes away when `embed` becomes a
+  backend op. Retiring `dot_q8_0` and `matvec_q8_0` is separable, since
+  `bench` still calls one. No timing yet; the step is expected neutral and
+  has not been measured.
 - **Gotchas:** `adopt` must not copy on CPU, or an 8B model doubles peak
   memory for nothing; the contract is that the source outlives the buffer,
   which `Model` already requires of the GGUF model. The hot path passes a

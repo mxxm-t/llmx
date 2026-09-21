@@ -76,6 +76,9 @@ struct Matrix {
         return type == gguf::GGML_TYPE_F32
             ? reinterpret_cast<const uint8_t*>(weights.data()) : packed.data();
     }
+    size_t bytes() const {
+        return type == gguf::GGML_TYPE_F32 ? weights.size() * sizeof(float) : packed.size();
+    }
 
     Matrix(uint32_t t, size_t n, size_t width, size_t batch) : type(t), rows(n) {
         weights.resize(rows * width);
@@ -105,9 +108,15 @@ struct Matrix {
         grouped = separate;
     }
 
-    backend::Projection projection() {
-        return {type, data(), grouped.data() + 1, rows};
+    // Adopted once per matrix; the fixture outlives the handle.
+    backend::BufferPtr buffer(backend::CpuBackend& cpu) {
+        if (!handle) handle = cpu.adopt(data(), bytes());
+        return handle;
     }
+    backend::Projection projection(backend::CpuBackend& cpu) {
+        return {type, buffer(cpu).get(), grouped.data() + 1, rows};
+    }
+    backend::BufferPtr handle;
 };
 
 static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
@@ -121,9 +130,9 @@ static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
         x[i] = float(int((i * 19 + 7) % 101) - 50) / 32.0f;
     const auto original = x;
     for (auto& m : matrices)
-        cpu.matmul(m.type, m.data(), x.data(), m.separate.data() + 1, width, m.rows, batch);
-    cpu.matmul_group({matrices[0].projection(), matrices[1].projection(), matrices[2].projection()},
-                     x.data(), width, batch);
+        cpu.matmul(m.type, *m.buffer(cpu), x.data(), m.separate.data() + 1, width, m.rows, batch);
+    cpu.matmul_group({matrices[0].projection(cpu), matrices[1].projection(cpu),
+                      matrices[2].projection(cpu)}, x.data(), width, batch);
     require(x == original, "grouped matmul modified activations");
     size_t count = 0;
     for (const auto& m : matrices) {
@@ -148,7 +157,7 @@ static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
     }
     auto& first = matrices[0];
     std::fill(first.grouped.begin() + 1, first.grouped.end() - 1, 123456.0f);
-    cpu.matmul_group({first.projection()}, x.data(), width, batch);
+    cpu.matmul_group({first.projection(cpu)}, x.data(), width, batch);
     require(first.grouped == first.separate, "single-projection fallback differs");
     return count;
 }
@@ -176,7 +185,7 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
             for (size_t i = 0; i < width; ++i)
                 x[i] = mag >= 1e30f ? mag
                      : mag * float(int((i * 19 + 7) % 101) - 50) / 50.0f;
-            cpu.matmul(m.type, m.data(), x.data(), m.separate.data() + 1, width, m.rows, 1);
+            cpu.matmul(m.type, *m.buffer(cpu), x.data(), m.separate.data() + 1, width, m.rows, 1);
             for (size_t o = 0; o < m.rows; ++o) {
                 double expected = 0, magnitude = 0;
                 for (size_t i = 0; i < width; ++i) {
@@ -235,10 +244,24 @@ int main() {
                 }
             }
         }
+        // An unknown quant type must be rejected, with real storage behind
+        // the projection so the type is what fails.
+        std::vector<uint8_t> scratch(65 * 256, 0);
+        const auto storage = cpu.adopt(scratch.data(), scratch.size());
+        std::vector<float> sink(67, 0.0f);
         bool rejected = false;
-        try { cpu.matmul_group({{9999, nullptr, nullptr, 65}, {9999, nullptr, nullptr, 67}}, nullptr, 256, 1); }
-        catch (const std::runtime_error&) { rejected = true; }
+        try {
+            cpu.matmul_group({{9999, storage.get(), sink.data(), 65},
+                              {9999, storage.get(), sink.data(), 67}}, nullptr, 256, 1);
+        } catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "invalid quant type was not rejected on caller");
+        // A projection without storage is rejected before anything reads it.
+        rejected = false;
+        try {
+            cpu.matmul_group({{gguf::GGML_TYPE_Q8_0, nullptr, sink.data(), 65},
+                              {gguf::GGML_TYPE_Q8_0, nullptr, sink.data(), 67}}, nullptr, 256, 1);
+        } catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, "projection without storage was accepted");
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
                   << scales << " exact finite Q8 scale/weight cases; "

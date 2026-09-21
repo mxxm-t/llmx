@@ -346,7 +346,7 @@ gguf::GGUFModel fixture() {
 struct FailingCpu : backend::CpuBackend {
     bool fail_output = false;
     int outputs = 0;
-    void matmul(uint32_t type, const uint8_t* data, const float* x, float* y,
+    void matmul(uint32_t type, const backend::Buffer& data, const float* x, float* y,
                 size_t nin, size_t nout, size_t nbatch) override {
         if (nout == 16) {
             ++outputs;

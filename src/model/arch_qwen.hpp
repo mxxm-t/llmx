@@ -139,10 +139,15 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
 // calls, which is the prerequisite for residency (docs/DEVICE-EXECUTION.md).
 struct Weight {
     uint32_t type = 0;
-    const uint8_t* data = nullptr;
+    // A handle, not a pointer: the backend decides where the bytes live. The
+    // model never dereferences it except through f32() below, which only the
+    // host path uses for normalization rows.
+    backend::BufferPtr data;
     size_t nin = 0, nout = 0;
     // Normalization weights are F32 by validation, so this is the whole row.
-    const float* f32() const { return reinterpret_cast<const float*>(data); }
+    const float* f32() const {
+        return reinterpret_cast<const float*>(data->host_ptr());
+    }
 };
 
 struct LayerWeights {
@@ -413,7 +418,10 @@ private:
             }
             for (size_t d = norm ? 1 : 2; d < t.ne.size(); ++d) valid = valid && t.ne[d] == 1;
             if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + name);
-            return Weight{t.type, m_->tensor_data(tindex_.at(t.name)),
+            // adopt, not copy: the payload is already resident and the
+            // GGUF model outlives this one by contract.
+            const size_t i = tindex_.at(t.name);
+            return Weight{t.type, b_->adopt(m_->tensor_data(i), m_->tensor_bytes(i)),
                           (size_t)input, (size_t)output};
         };
         token_embd_ = check("token_embd.weight", cfg.n_embd, vocab);
@@ -530,33 +538,42 @@ private:
         }
     }
 
+    // The buffer is passed by raw pointer, not by handle: three projections
+    // per layer per token is nearly two hundred refcount pairs a token if a
+    // shared pointer is copied here instead.
     static backend::Projection projection(const Weight& w, float* out) {
-        return {w.type, w.data, out, w.nout};
+        return {w.type, w.data.get(), out, w.nout};
     }
 
     // Batched matmul. The backend dispatches on the quant type, so every
     // block format takes the same path; there is no per-type branch here.
     void matmul(const Weight& w, const float* X, float* Y, int nbatch) {
-        b_->matmul(w.type, w.data, X, Y, w.nin, w.nout, (size_t)nbatch);
+        b_->matmul(w.type, *w.data, X, Y, w.nin, w.nout, (size_t)nbatch);
     }
 
     // out = W^T x for a single column. Same backend entry point as the
     // batched form, so there is one dispatch path and one place that knows
     // about quant types.
     void matvec(const Weight& w, const float* x, float* out) {
-        b_->matmul(w.type, w.data, x, out, w.nin, w.nout, 1);
+        b_->matmul(w.type, *w.data, x, out, w.nin, w.nout, 1);
     }
 
     // Dequantize row `r` of a quantized matrix (nin fastest) into `out`,
     // dispatching on the tensor's type via the quant registry.
+    //
+    // The only place the model still reads weight bytes itself, for the
+    // embedding lookup. It goes away when `embed` becomes a backend op; until
+    // then it requires host-addressable storage and says so.
     void dequant_row(const Weight& w, size_t r, float* out) const {
+        const uint8_t* rows = (const uint8_t*)w.data->host_ptr();
+        if (!rows) throw std::runtime_error("inference: embedding needs host-addressable weights");
         if (w.type == gguf::GGML_TYPE_F32) {
-            std::memcpy(out, w.data + r * w.nin * sizeof(float), w.nin * sizeof(float));
+            std::memcpy(out, rows + r * w.nin * sizeof(float), w.nin * sizeof(float));
             return;
         }
         const quant::QuantType* qt = quant::Registry::instance().get(w.type);
         if (!qt || !qt->dequantize) throw std::runtime_error("unsupported tensor type in dequant_row");
-        qt->dequantize(w.data + r * (w.nin / qt->block_size) * qt->type_size,
+        qt->dequantize(rows + r * (w.nin / qt->block_size) * qt->type_size,
                        out, w.nin / qt->block_size);
     }
 

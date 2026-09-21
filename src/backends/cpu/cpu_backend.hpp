@@ -31,6 +31,26 @@ namespace backend {
 
 // CPU implementation of the Backend interface. Uses AVX2 fused dequant+FMA for
 // Q8_0 matmuls when the host supports it, otherwise a scalar fallback.
+// Host storage. `adopt` keeps the caller's pointer, which is the whole point:
+// the weights are already resident in the GGUF payload and copying an 8 GB
+// model to make it a buffer would double peak memory for nothing. `alloc`
+// owns its bytes instead.
+class CpuBuffer final : public Buffer {
+public:
+    explicit CpuBuffer(size_t bytes) : owned_(bytes), size_(bytes) { ptr_ = owned_.data(); }
+    CpuBuffer(const void* adopted, size_t bytes)
+        : size_(bytes), ptr_(const_cast<void*>(adopted)) {}
+
+    size_t size() const override { return size_; }
+    const void* host_ptr() const override { return ptr_; }
+    void* mutable_host_ptr() const { return ptr_; }
+
+private:
+    std::vector<uint8_t> owned_;
+    size_t size_ = 0;
+    void* ptr_ = nullptr;
+};
+
 // 128 tokens per KV block: chosen by the real-model screening recorded in
 // docs/KV-CACHE.md. 64 lost prefill consistently; 256 was not separable
 // from 128 on decode and doubles the partial-tail waste.
@@ -226,8 +246,34 @@ public:
         if (error) std::rethrow_exception(error);
     }
 
-    void matmul(uint32_t ggml_type, const uint8_t* data, const float* X, float* Y,
+    BufferPtr alloc(size_t bytes) override { return std::make_shared<CpuBuffer>(bytes); }
+
+    BufferPtr adopt(const void* src, size_t bytes) override {
+        if (!src && bytes) throw std::runtime_error("backend: adopting null storage");
+        return std::make_shared<CpuBuffer>(src, bytes);
+    }
+
+    void write(Buffer& dst, size_t off, const void* src, size_t bytes) override {
+        span(dst, off, bytes);
+        std::memcpy((uint8_t*)host(dst) + off, src, bytes);
+    }
+
+    void read(const Buffer& src, size_t off, void* dst, size_t bytes) override {
+        span(src, off, bytes);
+        std::memcpy(dst, (const uint8_t*)src.host_ptr() + off, bytes);
+    }
+
+    void copy(Buffer& dst, size_t dst_off, const Buffer& src, size_t src_off,
+              size_t bytes) override {
+        span(dst, dst_off, bytes);
+        span(src, src_off, bytes);
+        std::memcpy((uint8_t*)host(dst) + dst_off,
+                    (const uint8_t*)src.host_ptr() + src_off, bytes);
+    }
+
+    void matmul(uint32_t ggml_type, const Buffer& buffer, const float* X, float* Y,
                 size_t nin, size_t nout, size_t nbatch) override {
+        const uint8_t* data = (const uint8_t*)buffer.host_ptr();
         // Q8_0 keeps its fused dequant+FMA row dot for the single-column case,
         // which is the decode path and is bandwidth bound rather than load
         // bound, so the extra dequant buffer would buy nothing there.
@@ -364,6 +410,8 @@ public:
                       const float* X, size_t nin, size_t nbatch) override {
         bool grouped = threads_ > 1 && nbatch == 1 && projections.size() > 1;
         for (const auto& p : projections)
+            if (!p.data) throw std::runtime_error("backend: projection without storage");
+        for (const auto& p : projections)
             grouped = grouped && p.rows >= size_t(threads_) * 8 &&
                 (p.type == gguf::GGML_TYPE_F32 || p.type == gguf::GGML_TYPE_Q8_0 ||
                  p.type == gguf::GGML_TYPE_Q4_K);
@@ -376,18 +424,19 @@ public:
                     chunk = (chunk + DOT_ROWS - 1) / DOT_ROWS * DOT_ROWS;
                 const size_t first = size_t(w) * chunk;
                 const size_t last = std::min(p.rows, first + chunk);
+                const uint8_t* rows = (const uint8_t*)p.data->host_ptr();
                 if (p.type == gguf::GGML_TYPE_F32) {
-                    const float* data = reinterpret_cast<const float*>(p.data);
+                    const float* data = reinterpret_cast<const float*>(rows);
                     for (size_t o = first; o < last; ++o)
                         p.out[o] = dot_f32(data + o * nin, X, nin);
                 } else if (p.type == gguf::GGML_TYPE_Q8_0) {
                     const size_t blocks = nin / gguf::Q8_0_BLOCK;
                     for (size_t o = first; o < last; ++o)
-                        p.out[o] = dot_row_impl(p.data + o * blocks * gguf::Q8_0_TYPESIZE, X, blocks);
+                        p.out[o] = dot_row_impl(rows + o * blocks * gguf::Q8_0_TYPESIZE, X, blocks);
                 } else {
                     const size_t blocks = nin / gguf::Q4_K_BLOCK;
                     for (size_t o = first; o < last; ++o)
-                        p.out[o] = dot_row_q4_K(p.data + o * blocks * gguf::Q4_K_TYPESIZE, X, blocks);
+                        p.out[o] = dot_row_q4_K(rows + o * blocks * gguf::Q4_K_TYPESIZE, X, blocks);
                 }
             }
         });
@@ -812,6 +861,16 @@ public:
     }
 
 private:
+    static void* host(const Buffer& b) {
+        void* p = dynamic_cast<const CpuBuffer&>(b).mutable_host_ptr();
+        if (!p) throw std::runtime_error("backend: buffer is not host addressable");
+        return p;
+    }
+    static void span(const Buffer& b, size_t off, size_t bytes) {
+        if (off > b.size() || bytes > b.size() - off)
+            throw std::runtime_error("backend: buffer range outside the allocation");
+    }
+
     static CpuKVStorage& storage_of(const KVView& view) {
         auto* s = dynamic_cast<CpuKVStorage*>(view.storage);
         if (!s) throw std::runtime_error("backend: KV view does not belong to the CPU backend");

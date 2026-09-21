@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstddef>
+#include <stdexcept>
 #include <memory>
 #include <functional>
 #include <initializer_list>
@@ -26,9 +27,22 @@
 
 namespace backend {
 
+// Storage owned by the backend that allocated it. The model layer holds
+// handles and never dereferences them, so a device backend can keep weights
+// resident instead of receiving a host pointer on every call.
+class Buffer {
+public:
+    virtual ~Buffer() = default;
+    virtual size_t size() const = 0;
+    // Non-null only where the host can address the allocation directly. A
+    // device backend returns nullptr and the caller must use read/write.
+    virtual const void* host_ptr() const = 0;
+};
+using BufferPtr = std::shared_ptr<Buffer>;
+
 struct Projection {
     uint32_t type;
-    const uint8_t* data;
+    const Buffer* data;
     float* out;
     size_t rows;
 };
@@ -77,6 +91,22 @@ public:
     // Invoke once on the caller and complete all cleanup before returning.
     virtual void run_prefill(const std::function<void()>& work) { work(); }
 
+    // Uninitialized backend storage.
+    virtual BufferPtr alloc(size_t bytes) = 0;
+
+    // Make `src` reachable by this backend, by whatever means it needs. The
+    // name is not "upload": a host backend must not copy, or adopting an 8 GB
+    // model would double peak memory for nothing. The contract that allows
+    // that is the caller's: **src must outlive the returned buffer**. Model
+    // already requires the GGUF model to outlive it, so this is free on CPU,
+    // and a backend that copies simply never relies on the guarantee.
+    virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
+
+    virtual void write(Buffer& dst, size_t off, const void* src, size_t bytes) = 0;
+    virtual void read(const Buffer& src, size_t off, void* dst, size_t bytes) = 0;
+    virtual void copy(Buffer& dst, size_t dst_off,
+                      const Buffer& src, size_t src_off, size_t bytes) = 0;
+
     // Dot product of one Q8_0 block row (nblocks*32 values) against `x`.
     virtual float dot_q8_0(const uint8_t* row, const float* x, size_t nblocks) = 0;
 
@@ -90,15 +120,17 @@ public:
     // Type-generic: the quant type is looked up in quant::Registry, so every
     // block format gets the batched path, not just Q8_0. Rows are iterated
     // outer and the batch inner so each weight row is read once per block.
-    virtual void matmul(uint32_t ggml_type, const uint8_t* data, const float* X,
+    virtual void matmul(uint32_t ggml_type, const Buffer& data, const float* X,
                         float* Y, size_t nin, size_t nout, size_t nbatch) = 0;
 
     // Independent projections of the same X; outputs must not overlap each
     // other, X, or any weights. All outputs are complete on return.
     virtual void matmul_group(std::initializer_list<Projection> projections,
                               const float* X, size_t nin, size_t nbatch) {
-        for (const auto& p : projections)
-            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);
+        for (const auto& p : projections) {
+            if (!p.data) throw std::runtime_error("backend: projection without storage");
+            matmul(p.type, *p.data, X, p.out, nin, p.rows, nbatch);
+        }
     }
 
     virtual KVLayout kv_layout() const = 0;

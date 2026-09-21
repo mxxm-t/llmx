@@ -181,7 +181,7 @@ struct ObservedCpu : backend::CpuBackend {
         backend::CpuBackend::matmul_group(p, x, nin, nbatch);
     }
 
-    void matmul(uint32_t type, const uint8_t* data, const float* x, float* y,
+    void matmul(uint32_t type, const backend::Buffer& data, const float* x, float* y,
                 size_t nin, size_t nout, size_t nbatch) override {
         if (check_graph) require(inside, "model matmul outside prefill scope");
         backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch);

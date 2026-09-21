@@ -159,9 +159,10 @@ struct Matrix {
     void input(int seed) { for (size_t i = 0; i < x.size(); ++i) x[i] = float((int(i) * 7 + seed * 11) % 37 - 18) / float(seed + 19); }
     std::vector<float> run(backend::CpuBackend& cpu, bool f32) {
         std::vector<float> y(rows * batch + 2, 123456.0f);
+        const void* rows_ptr = f32 ? (const void*)weights.data() : (const void*)q8.data();
+        const size_t bytes = f32 ? weights.size() * sizeof(float) : q8.size();
         cpu.matmul(f32 ? gguf::GGML_TYPE_F32 : gguf::GGML_TYPE_Q8_0,
-            f32 ? reinterpret_cast<const uint8_t*>(weights.data()) : q8.data(),
-            x.data(), y.data() + 1, n, rows, batch);
+            *cpu.adopt(rows_ptr, bytes), x.data(), y.data() + 1, n, rows, batch);
         require(y.front() == 123456.0f && y.back() == 123456.0f, "output guards changed");
         for (size_t i = 1; i + 1 < y.size(); ++i) require(std::isfinite(y[i]), "nonfinite output");
         return {y.begin() + 1, y.end() - 1};

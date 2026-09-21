@@ -18,6 +18,39 @@ CPU backend. If this workstation ever needs GPU acceleration, the route is
 Vulkan, already the roadmap's portability target and supported by AMD's
 Windows drivers.
 
+## Device execution step 6: enqueue and sync (2026-09-21)
+
+- **Goal:** ops stop being synchronous. Each enqueues on the backend's single
+  implicit stream and returns; `sync()` blocks until everything enqueued has
+  finished; `read()` syncs first. The CPU backend runs each op to completion as
+  it is called, so its `sync()` returns immediately and the host path is
+  unchanged by construction. Last step before a vendor backend.
+- **Done:** nothing yet, block opened before writing code.
+- **Left:** the method is the easy half. The hard half is its caller, because a
+  `sync()` nothing calls is the seam `Backend::write` was deleted for one step
+  ago. The caller is returning KV blocks to the pool. [KV-CACHE](KV-CACHE.md)
+  already states that a block returns to the free list only when its refcount
+  is zero **and** the backend has retired every submission that read it, and
+  nothing enforces the second half because the CPU backend is eager. On a
+  device it is a real corruption rather than a formality: a sequence aborts,
+  its blocks go back, a later sequence takes the same id, and an in-flight
+  write from the failed pass lands in the new history. Four sites release
+  blocks while the pool outlives them, and each syncs first: `reset`, the
+  truncate on a failed prefill, and the abort on a failed step or batch.
+- **Left:** a test that the sync actually happens on those paths, otherwise
+  this lands with the same problem it is meant to avoid.
+- **Gotchas:** three of the four sites are exception paths, so a `sync()` that
+  threw would replace the error that got there with a less useful one, and the
+  sequence would be left half-released. `sync()` is therefore `noexcept` by
+  contract: the caller frees storage on the strength of it, so a backend that
+  cannot guarantee its outstanding work has finished must fail hard rather than
+  report something nobody at this layer can act on. The Model destructor is not
+  one of the four: the pool is destroyed with the sequence, so no later
+  allocation can collide with in-flight work. `read()` is documented to sync,
+  but the CPU implementation does not call `sync()` to get there, because it is
+  already ordered and a test that counts syncs should not have to subtract one
+  per forward pass.
+
 ## Device execution step 5: KV blocks on buffers (2026-09-21)
 
 - **Goal:** the CPU backend's KV blocks move from `std::vector<float>` per

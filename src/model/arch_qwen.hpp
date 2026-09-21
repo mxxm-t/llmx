@@ -1,5 +1,7 @@
 #pragma once
 #include <algorithm>
+#include <memory>
+#include <functional>
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
@@ -156,28 +158,38 @@ struct LayerWeights {
     Weight ffn_norm, ffn_gate, ffn_up, ffn_down;
 };
 
-// One request's history in a model's cache: its block table and committed
-// length, and the ticket of the last pass that touched it, which is what a
-// release waits on rather than draining the device (docs/EXECUTION.md).
-// Made by Model::make_sequence so it is bound to that model's pool and block
-// size. Movable, not copyable; the server keeps one per request.
+// Where each tensor role runs, as an index into the model's backends. Per
+// role rather than per layer, so a layer's attention and its feed-forward
+// block can sit on different devices; that is what expert offload needs
+// later (docs/EXECUTION.md). Empty means everything on device 0.
+struct Placement {
+    std::vector<int> attn_device, ffn_device;
+    int embed_device = 0, output_device = 0;
+};
+
+// One request's history in a model's cache: a block table per storage and
+// the committed length, and per device the ticket of the last pass that
+// touched it, which is what a release waits on rather than draining the
+// device (docs/EXECUTION.md). Made by Model::make_sequence so it is bound to
+// that model's pools and block sizes. Movable, not copyable; the server
+// keeps one per request.
 class Sequence {
 public:
     Sequence() = default;
-    size_t length() const { return kv_.length(); }
+    size_t length() const { return kv_.empty() ? 0 : kv_[0].length(); }
 private:
     friend class Model;
-    explicit Sequence(KVSequence kv) : kv_(std::move(kv)), bound_(true) {}
-    KVSequence kv_;
-    backend::Ticket last_ = 0;
-    bool bound_ = false;
+    std::vector<KVSequence> kv_;
+    std::vector<backend::Ticket> last_;
+    const Model* owner_ = nullptr;
 };
 
-// One pass in flight: the activation arena, the host-visible logits rows and
-// the ticket of its submission. Storage is allocated by the first forward
-// that needs it and grows to the largest pass seen. Two contexts are what
-// let a scheduler keep one pass on the device while it reads another's
-// logits; the CLI has one. Plain data that Model fills.
+// One pass in flight: an activation arena per device, the host-visible
+// logits rows on the output device, the staging vector a crossing goes
+// through, and the tickets of its submissions. Storage is allocated by the
+// first forward that needs it and grows to the largest pass seen. Two
+// contexts are what let a scheduler keep one pass on the device while it
+// reads another's logits; the CLI has one. Plain data that Model fills.
 struct ExecContext {
     // Row i of the logits the last forward produced, in entry order, valid
     // until the next forward through this context. The first read waits on
@@ -198,11 +210,18 @@ struct ExecContext {
     bool pending = false;
 
     static constexpr size_t kSlots = 9;
-    backend::BufferPtr arena, logits_buf;
-    size_t rows = 0, logit_rows = 0;
-    size_t offset[kSlots] = {0};
+    struct Scratch {
+        backend::BufferPtr arena;
+        size_t rows = 0;
+        size_t offset[kSlots] = {0};
+    };
+    std::vector<Scratch> scratch;              // per device
+    backend::BufferPtr logits_buf;
+    size_t logit_rows = 0;
     std::vector<uint32_t> ids, pos, pick;
-    std::vector<backend::KVView> views;
+    std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
+    std::vector<backend::Ticket> tickets;      // per device
+    std::vector<float> staging;
 };
 
 // What one sequence contributes to a pass: `n` tokens appended to `seq`, and
@@ -218,19 +237,55 @@ struct BatchEntry {
 
 class Model {
 public:
-    // Construct the model over a GGUF model, using the given backend (defaults
-    // to the CPU backend). The model owns a reference to the model data, which
-    // must outlive the Model.
+    // Construct the model over a GGUF model on one backend (defaults to the
+    // CPU backend). The model owns a reference to the model data, which must
+    // outlive the Model.
     explicit Model(const gguf::GGUFModel& m,
                    backend::BackendPtr backend = backend::make_cpu_backend())
-        : m_(&m), b_(std::move(backend)) {
-        if (!b_) throw std::runtime_error("inference: missing backend");
+        : Model(m, std::vector<backend::BackendPtr>{std::move(backend)}, Placement{}) {}
+
+    // Construct over several backends with a placement of every role.
+    Model(const gguf::GGUFModel& m, std::vector<backend::BackendPtr> backends,
+          Placement placement)
+        : m_(&m), place_(std::move(placement)) {
+        if (backends.empty()) throw std::runtime_error("inference: missing backend");
+        for (const auto& b : backends)
+            if (!b) throw std::runtime_error("inference: missing backend");
         quant::register_builtins(); // populate the quant registry (idempotent)
         cfg = load_config(m);
         // The attention projection width is n_head*head_dim, which only equals
         // n_embd by coincidence on some models (Qwen3-8B: 32*128 == 4096).
         // Qwen3-0.6B/1.7B/4B have head_dim 128 with a smaller n_embd.
         q_dim_ = cfg.n_head * cfg.head_dim;
+
+        if (place_.attn_device.empty() && place_.ffn_device.empty()) {
+            place_.attn_device.assign((size_t)cfg.n_layer, 0);
+            place_.ffn_device.assign((size_t)cfg.n_layer, 0);
+        }
+        if (place_.attn_device.size() != (size_t)cfg.n_layer ||
+            place_.ffn_device.size() != (size_t)cfg.n_layer)
+            throw std::runtime_error("inference: placement does not cover every layer");
+        auto device_index = [&](int d) {
+            if (d < 0 || (size_t)d >= backends.size())
+                throw std::runtime_error("inference: placement names a device the model does not have");
+            return (size_t)d;
+        };
+        devices_.reserve(backends.size());
+        for (auto& b : backends) {
+            devices_.push_back(std::make_unique<Device>());
+            devices_.back()->b = std::move(b);
+            devices_.back()->local_layer.assign((size_t)cfg.n_layer, -1);
+        }
+        device_index(place_.embed_device);
+        device_index(place_.output_device);
+        devices_[(size_t)place_.embed_device]->used = true;
+        devices_[(size_t)place_.output_device]->used = true;
+        for (int l = 0; l < cfg.n_layer; ++l) {
+            Device& a = *devices_[device_index(place_.attn_device[(size_t)l])];
+            a.local_layer[(size_t)l] = a.attn_layers++;
+            a.used = true;
+            devices_[device_index(place_.ffn_device[(size_t)l])]->used = true;
+        }
 
         if (m.offsets.size() != m.tensors.size())
             throw std::runtime_error("inference: tensor storage count mismatch");
@@ -252,18 +307,26 @@ public:
         out_name_ = tindex_.count("output.weight") ? "output.weight" : "token_embd.weight";
         resolve_tensors();
 
-        // Budget: the whole context. The backend turns tokens into blocks and
-        // bytes; storage is backed on demand, so a short chat does not
+        // Each device that runs attention gets a storage for exactly its
+        // layers, with its own block size and pool. Budget: the whole
+        // context; storage is backed on demand, so a short chat does not
         // allocate it.
-        kv_storage_ = b_->kv_alloc(cfg.n_layer, cfg.n_head_kv, cfg.head_dim,
-                                   (size_t)cfg.context_length);
-        kv_pool_.configure(kv_storage_->max_blocks());
+        for (auto& dp : devices_) {
+            Device& d = *dp;
+            if (!d.attn_layers) continue;
+            d.storage = d.b->kv_alloc((size_t)d.attn_layers, cfg.n_head_kv, cfg.head_dim,
+                                      (size_t)cfg.context_length);
+            d.pool.configure(d.storage->max_blocks());
+            d.storage_index = (int)storages_.size();
+            storages_.push_back(&d);
+        }
         seq_ = make_sequence();
 
         // Precompute the RoPE cos/sin table for every position up to the
-        // context length. Indexed as [pos*(head_dim/2) + i]. The backend
-        // reads it through adopted buffers, so the host vectors stay alive
-        // for the model's lifetime; on CPU that is the same memory.
+        // context length. Indexed as [pos*(head_dim/2) + i]. Every device
+        // that runs attention reads it through an adopted buffer, so the
+        // host vectors stay alive for the model's lifetime; on CPU that is
+        // the same memory.
         int half = cfg.head_dim / 2;
         rope_cos_.assign((size_t)cfg.context_length * half, 0.0f);
         rope_sin_.assign((size_t)cfg.context_length * half, 0.0f);
@@ -274,17 +337,22 @@ public:
                 rope_sin_[(size_t)pos * half + i] = std::sin((float)pos * fre);
             }
         }
-        rope_cos_buf_ = b_->adopt(rope_cos_.data(), rope_cos_.size() * sizeof(float));
-        rope_sin_buf_ = b_->adopt(rope_sin_.data(), rope_sin_.size() * sizeof(float));
+        for (Device* d : storages_) {
+            d->rope_cos = d->b->adopt(rope_cos_.data(), rope_cos_.size() * sizeof(float));
+            d->rope_sin = d->b->adopt(rope_sin_.data(), rope_sin_.size() * sizeof(float));
+        }
     }
 
-    // Sequences hold the pool's address; moving the model would leave them
-    // pointing at the old one. Nothing moves a Model today.
+    // Sequences hold the pools' addresses; moving the model would leave them
+    // pointing at the old ones. Nothing moves a Model today.
     Model(const Model&) = delete;
     Model& operator=(const Model&) = delete;
 
-    void set_threads(int n) { b_->set_threads(n); }
-    int threads_available() const { return b_->threads_available(); }
+    // CPU worker counts, applied to every backend; a device backend ignores
+    // them. The count reported is device 0's, which is the host when a
+    // model spans a CPU and a device.
+    void set_threads(int n) { for (auto& d : devices_) d->b->set_threads(n); }
+    int threads_available() const { return devices_[0]->b->threads_available(); }
     // 0 keeps the default. Sets how a prompt is chunked; storage follows the
     // passes actually run.
     void set_ubatch(int n) { if (n > 0) ubatch_ = n; }
@@ -292,26 +360,35 @@ public:
     int n_tokens() const { return (int)seq_.length(); }
     int head_dim() const { return cfg.head_dim; }
     int context_length() const { return cfg.context_length; }
+    const Placement& placement() const { return place_; }
 
-    // A fresh history over this model's cache.
+    // A fresh history over this model's cache: one table per storage.
     Sequence make_sequence() {
-        return Sequence(KVSequence(&kv_pool_, b_->kv_layout().block_tokens));
+        Sequence s;
+        s.kv_.reserve(storages_.size());
+        for (Device* d : storages_)
+            s.kv_.emplace_back(&d->pool, d->b->kv_layout().block_tokens);
+        s.last_.assign(devices_.size(), 0);
+        s.owner_ = this;
+        return s;
     }
 
     // One pass over every entry: each sequence's tokens go through the graph
     // at their own positions and attend through their own history, and the
     // logits after the last token of every entry that wants them land in
-    // the context, in entry order. The pass is one submission. It is one
-    // transaction as well: every sequence commits its tokens only once the
-    // pass is submitted, and a failure before that leaves every history as
-    // it was. The context reads the logits after waiting on the ticket.
+    // the context, in entry order. The residual stream crosses to another
+    // device wherever the placement changes, through the context's staging
+    // vector. The pass is one submission per device. It is one transaction
+    // as well: every sequence commits its tokens only once the pass is
+    // submitted, and a failure before that leaves every history as it was.
+    // The context reads the logits after waiting on the output device.
     void forward(ExecContext& ctx, const BatchEntry* entries, size_t n_entries) {
         if (!entries || !n_entries) throw std::runtime_error("inference: empty batch");
         size_t rows = 0, want = 0;
         for (size_t e = 0; e < n_entries; ++e) {
             const BatchEntry& en = entries[e];
-            if (!en.seq || !en.seq->bound_)
-                throw std::runtime_error("inference: batch entry without a sequence");
+            if (!en.seq || en.seq->owner_ != this)
+                throw std::runtime_error("inference: batch entry without a sequence of this model");
             if (!en.ids || !en.n)
                 throw std::runtime_error("inference: batch entry without tokens");
             // The RoPE table is precomputed for [0, context_length); a row
@@ -327,17 +404,20 @@ public:
         ctx.ids.resize(rows);
         ctx.pos.resize(rows);
         ctx.pick.resize(want);
-        ctx.views.resize(n_entries);
+        ctx.views.resize(storages_.size());
+        for (auto& v : ctx.views) v.resize(n_entries);
 
-        // Blocks are taken for every entry before anything runs. A sequence
-        // listed twice fails here, since its second prepare finds the first
-        // still pending.
+        // Blocks are taken on every storage for every entry before anything
+        // runs. A sequence listed twice fails here, since its second prepare
+        // finds the first still pending.
         size_t prepared = 0;
         try {
-            for (; prepared < n_entries; ++prepared)
-                entries[prepared].seq->kv_.prepare(entries[prepared].n);
+            for (; prepared < n_entries * storages_.size(); ++prepared)
+                entries[prepared / storages_.size()].seq->kv_[prepared % storages_.size()]
+                    .prepare(entries[prepared / storages_.size()].n);
         } catch (...) {
-            for (size_t e = 0; e < prepared; ++e) entries[e].seq->kv_.abort();
+            for (size_t i = 0; i < prepared; ++i)
+                entries[i / storages_.size()].seq->kv_[i % storages_.size()].abort();
             throw;
         }
         size_t r = 0, w = 0;
@@ -348,46 +428,67 @@ public:
                 ctx.ids[r + b] = en.ids[b];
                 ctx.pos[r + b] = (uint32_t)(len + b);
             }
-            ctx.views[e] = en.seq->kv_.view(kv_storage_.get());
+            for (size_t s = 0; s < storages_.size(); ++s)
+                ctx.views[s][e] = en.seq->kv_[s].view(storages_[s]->storage.get());
             r += en.n;
             if (en.want_logits) ctx.pick[w++] = (uint32_t)(r - 1);
         }
 
         try {
-            body(ctx, rows, n_entries);
+            const size_t E = (size_t)cfg.n_embd;
+            size_t cur = (size_t)place_.embed_device;
+            devices_[cur]->b->embed(slot(ctx, cur, 0), token_embd_.type, token_embd_.slice(),
+                                    token_embd_.nin, token_embd_.nout, ctx.ids.data(), rows);
+            for (int l = 0; l < cfg.n_layer; l++) {
+                const size_t a = (size_t)place_.attn_device[(size_t)l];
+                if (a != cur) { cross(ctx, cur, a, rows * E); cur = a; }
+                attention_half(ctx, cur, l, rows, n_entries);
+                const size_t f = (size_t)place_.ffn_device[(size_t)l];
+                if (f != cur) { cross(ctx, cur, f, rows * E); cur = f; }
+                ffn_half(ctx, cur, l, rows);
+            }
+            const size_t o = (size_t)place_.output_device;
+            if (o != cur) { cross(ctx, cur, o, rows * E); cur = o; }
             if (want) {
                 // The rows that want logits are not contiguous once entries
                 // mix, so they are compacted first and the head runs once
                 // over exactly those rows.
-                const size_t E = (size_t)cfg.n_embd;
-                b_->gather_rows(slot(ctx, 1), slot(ctx, 0), E, ctx.pick.data(), want);
-                b_->rms_norm_rows(slot(ctx, 1), slot(ctx, 1), output_norm_.slice(),
-                                  want, E, E, cfg.rms_eps);
-                b_->matmul(output_.type, output_.slice(), slot(ctx, 1),
-                           {ctx.logits_buf.get(), 0}, output_.nin, output_.nout, want);
+                backend::Backend& b = *devices_[cur]->b;
+                b.gather_rows(slot(ctx, cur, 1), slot(ctx, cur, 0), E, ctx.pick.data(), want);
+                b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), output_norm_.slice(),
+                                want, E, E, cfg.rms_eps);
+                b.matmul(output_.type, output_.slice(), slot(ctx, cur, 1),
+                         {ctx.logits_buf.get(), 0}, output_.nin, output_.nout, want);
             }
-            ctx.ticket = b_->submit();
+            for (size_t d = 0; d < devices_.size(); ++d)
+                if (devices_[d]->used) ctx.tickets[d] = devices_[d]->b->submit();
         } catch (...) {
             retire();
-            for (size_t e = 0; e < n_entries; ++e) entries[e].seq->kv_.abort();
+            for (size_t e = 0; e < n_entries; ++e)
+                for (auto& kv : entries[e].seq->kv_) kv.abort();
             throw;
         }
         ctx.n_logits = want;
-        ctx.backend = b_.get();
+        ctx.backend = devices_[(size_t)place_.output_device]->b.get();
+        ctx.ticket = ctx.tickets[(size_t)place_.output_device];
         ctx.pending = want > 0;
         for (size_t e = 0; e < n_entries; ++e) {
-            entries[e].seq->kv_.commit();
-            entries[e].seq->last_ = ctx.ticket;
+            for (auto& kv : entries[e].seq->kv_) kv.commit();
+            for (size_t d = 0; d < devices_.size(); ++d)
+                if (devices_[d]->used) entries[e].seq->last_[d] = ctx.tickets[d];
         }
     }
 
-    // Start a new history. Blocks return to the pool; their storage is
+    // Start a new history. Blocks return to every pool; their storage is
     // retained. Every pass ends in a submit or, on failure, a sync, so the
-    // sequence's last ticket covers everything that could still be touching
-    // a block: this waits for that and no more.
+    // sequence's last tickets cover everything that could still be touching
+    // a block: this waits for those and no more.
     void reset(Sequence& s) {
-        b_->wait(s.last_);
-        s.kv_.reset();
+        if (s.owner_ != this)
+            throw std::runtime_error("inference: sequence of another model");
+        for (size_t d = 0; d < devices_.size(); ++d)
+            if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
+        for (auto& kv : s.kv_) kv.reset();
     }
 
     // The single-sequence entry points the CLI uses: one sequence and one
@@ -426,10 +527,10 @@ public:
             }
         };
         try {
-            b_->run_prefill(std::ref(work));
+            scoped(0, work);
         } catch (...) {
             retire();
-            seq_.kv_.truncate(start);
+            for (auto& kv : seq_.kv_) kv.truncate(start);
             throw;
         }
         return row(ctx_, 0);
@@ -437,17 +538,40 @@ public:
 
     void reset() { reset(seq_); }
 
-    // Allocated is what the backend backs; used is the committed history.
+    // Allocated is what the backends back; used is the committed history.
     // The gap is the paging cost in memory (docs/KV-CACHE.md).
-    size_t kv_allocated_bytes() const { return kv_storage_->allocated_bytes(); }
-    size_t kv_peak_bytes() const { return kv_storage_->peak_bytes(); }
+    size_t kv_allocated_bytes() const {
+        size_t n = 0;
+        for (Device* d : storages_) n += d->storage->allocated_bytes();
+        return n;
+    }
+    size_t kv_peak_bytes() const {
+        size_t n = 0;
+        for (Device* d : storages_) n += d->storage->peak_bytes();
+        return n;
+    }
     size_t kv_used_bytes() const {
         return seq_.length() * cfg.n_layer * 2 * cfg.n_head_kv * cfg.head_dim * sizeof(float);
     }
 
 private:
+    // One backend and what the placement put on it. A pool is not movable,
+    // because sequences hold its address, so devices live behind pointers.
+    struct Device {
+        backend::BackendPtr b;
+        bool used = false;
+        int attn_layers = 0;
+        int storage_index = -1;
+        std::vector<int> local_layer;            // model layer -> layer in storage
+        std::unique_ptr<backend::KVStorage> storage;
+        BlockPool pool;
+        backend::BufferPtr rope_cos, rope_sin;
+    };
+
     const gguf::GGUFModel* m_;
-    backend::BackendPtr b_;
+    Placement place_;
+    std::vector<std::unique_ptr<Device>> devices_;
+    std::vector<Device*> storages_;              // the devices that run attention
     QwenConfig cfg;
     int q_dim_ = 0;
     int ubatch_ = 512;   // default matches llama.cpp
@@ -455,15 +579,9 @@ private:
     std::unordered_map<std::string, size_t> tindex_;
     std::vector<LayerWeights> layers_;
     Weight token_embd_, output_norm_, output_;
-    std::unique_ptr<backend::KVStorage> kv_storage_;
-    BlockPool kv_pool_;
     std::vector<float> rope_cos_, rope_sin_;
-    backend::BufferPtr rope_cos_buf_, rope_sin_buf_;
     Sequence seq_;
     ExecContext ctx_;
-
-    backend::CSlice rope_cos() const { return {rope_cos_buf_.get(), 0}; }
-    backend::CSlice rope_sin() const { return {rope_sin_buf_.get(), 0}; }
 
     const gguf::TensorInfo& tensor(const std::string& name) const {
         auto it = tindex_.find(name);
@@ -474,14 +592,15 @@ private:
     // Validate every tensor this architecture needs and resolve it to a
     // Weight in the same pass, so a resolved handle is well-formed by
     // construction and the forward pass never looks a tensor up by name.
+    // Each weight is adopted by the backend that hosts its role.
     void resolve_tensors() {
         const auto& embedding = tensor("token_embd.weight");
         if (embedding.ne.size() < 2 || !embedding.ne[1] ||
             embedding.ne[1] > uint64_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: invalid vocabulary dimension");
         const uint64_t vocab = embedding.ne[1];
-        auto check = [&](const std::string& name, uint64_t input, uint64_t output,
-                         bool norm = false) -> Weight {
+        auto check = [&](size_t device, const std::string& name, uint64_t input,
+                         uint64_t output, bool norm = false) -> Weight {
             const auto& t = tensor(name);
             bool valid = !t.ne.empty() && t.ne[0] == input;
             if (norm) {
@@ -494,28 +613,31 @@ private:
             // adopt, not copy: the payload is already resident and the
             // GGUF model outlives this one by contract.
             const size_t i = tindex_.at(t.name);
-            return Weight{t.type, b_->adopt(m_->tensor_data(i), m_->tensor_bytes(i)),
+            return Weight{t.type, devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i)),
                           (size_t)input, (size_t)output};
         };
-        token_embd_ = check("token_embd.weight", cfg.n_embd, vocab);
-        output_ = check(out_name_, cfg.n_embd, vocab);
-        output_norm_ = check("output_norm.weight", cfg.n_embd, 1, true);
+        const size_t ed = (size_t)place_.embed_device, od = (size_t)place_.output_device;
+        token_embd_ = check(ed, "token_embd.weight", cfg.n_embd, vocab);
+        output_ = check(od, out_name_, cfg.n_embd, vocab);
+        output_norm_ = check(od, "output_norm.weight", cfg.n_embd, 1, true);
         const uint64_t kv_width = uint64_t(cfg.n_head_kv) * cfg.head_dim;
         layers_.resize(cfg.n_layer);
         for (int l = 0; l < cfg.n_layer; ++l) {
             const std::string pre = "blk." + std::to_string(l) + ".";
+            const size_t a = (size_t)place_.attn_device[(size_t)l];
+            const size_t f = (size_t)place_.ffn_device[(size_t)l];
             LayerWeights& w = layers_[l];
-            w.attn_norm   = check(pre + "attn_norm.weight", cfg.n_embd, 1, true);
-            w.attn_q_norm = check(pre + "attn_q_norm.weight", cfg.head_dim, 1, true);
-            w.attn_k_norm = check(pre + "attn_k_norm.weight", cfg.head_dim, 1, true);
-            w.attn_q      = check(pre + "attn_q.weight", cfg.n_embd, q_dim_);
-            w.attn_k      = check(pre + "attn_k.weight", cfg.n_embd, kv_width);
-            w.attn_v      = check(pre + "attn_v.weight", cfg.n_embd, kv_width);
-            w.attn_output = check(pre + "attn_output.weight", q_dim_, cfg.n_embd);
-            w.ffn_norm    = check(pre + "ffn_norm.weight", cfg.n_embd, 1, true);
-            w.ffn_gate    = check(pre + "ffn_gate.weight", cfg.n_embd, cfg.n_ff);
-            w.ffn_up      = check(pre + "ffn_up.weight", cfg.n_embd, cfg.n_ff);
-            w.ffn_down    = check(pre + "ffn_down.weight", cfg.n_ff, cfg.n_embd);
+            w.attn_norm   = check(a, pre + "attn_norm.weight", cfg.n_embd, 1, true);
+            w.attn_q_norm = check(a, pre + "attn_q_norm.weight", cfg.head_dim, 1, true);
+            w.attn_k_norm = check(a, pre + "attn_k_norm.weight", cfg.head_dim, 1, true);
+            w.attn_q      = check(a, pre + "attn_q.weight", cfg.n_embd, q_dim_);
+            w.attn_k      = check(a, pre + "attn_k.weight", cfg.n_embd, kv_width);
+            w.attn_v      = check(a, pre + "attn_v.weight", cfg.n_embd, kv_width);
+            w.attn_output = check(a, pre + "attn_output.weight", q_dim_, cfg.n_embd);
+            w.ffn_norm    = check(f, pre + "ffn_norm.weight", cfg.n_embd, 1, true);
+            w.ffn_gate    = check(f, pre + "ffn_gate.weight", cfg.n_embd, cfg.n_ff);
+            w.ffn_up      = check(f, pre + "ffn_up.weight", cfg.n_embd, cfg.n_ff);
+            w.ffn_down    = check(f, pre + "ffn_down.weight", cfg.n_ff, cfg.n_embd);
         }
     }
 
@@ -526,13 +648,23 @@ private:
     // matter with the multi-user server in ROADMAP #7.
     int ubatch() const { return ubatch_; }
 
+    // The CPU prefill scope is per backend, so a prompt enters one on every
+    // device it runs on, nested. A device backend's scope is the default
+    // and just runs the body.
+    void scoped(size_t d, const std::function<void()>& work) {
+        while (d < devices_.size() && !devices_[d]->used) ++d;
+        if (d >= devices_.size()) { work(); return; }
+        devices_[d]->b->run_prefill([&] { scoped(d + 1, work); });
+    }
+
     // One backend allocation holding the nine activations of a pass, each at
     // a 64-byte boundary so the AVX2 kernels see the alignment they saw when
     // every vector was its own allocation. Device allocators handle a few
     // large blocks far better than many small ones, and resizing is one
     // call. The caller only publishes the result once this returns, so an
     // allocation that throws leaves the previous arena intact.
-    backend::BufferPtr alloc_arena(const size_t (&counts)[ExecContext::kSlots],
+    backend::BufferPtr alloc_arena(backend::Backend& b,
+                                   const size_t (&counts)[ExecContext::kSlots],
                                    size_t (&offsets)[ExecContext::kSlots]) const {
         size_t total = 0;
         for (size_t i = 0; i < ExecContext::kSlots; ++i) {
@@ -542,19 +674,24 @@ private:
                 throw std::runtime_error("inference: activation arena size overflows");
             total = (total + bytes + 63) / 64 * 64;
         }
-        return b_->alloc(total);
+        return b.alloc(total);
     }
 
-    // Storage for a pass of `rows` rows with `want` logits rows: grown when
-    // a pass needs more than the context holds, never shrunk. Each is
-    // allocated whole before it replaces what the context had.
+    // Storage for a pass of `rows` rows with `want` logits rows, on every
+    // device the placement uses: grown when a pass needs more than the
+    // context holds, never shrunk. Each is allocated whole before it
+    // replaces what the context had.
     void ensure(ExecContext& ctx, size_t rows, size_t want) {
         auto mul = [](size_t a, size_t b) {
             if (b && a > (size_t)-1 / b)
                 throw std::runtime_error("inference: activation arena size overflows");
             return a * b;
         };
-        if (!ctx.arena || ctx.rows < rows) {
+        ctx.scratch.resize(devices_.size());
+        ctx.tickets.resize(devices_.size(), 0);
+        for (size_t d = 0; d < devices_.size(); ++d) {
+            ExecContext::Scratch& sc = ctx.scratch[d];
+            if (!devices_[d]->used || (sc.arena && sc.rows >= rows)) continue;
             const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
             const size_t counts[ExecContext::kSlots] = {
                 mul(rows, (size_t)cfg.n_embd),   // x
@@ -568,16 +705,16 @@ private:
                 mul(rows, (size_t)cfg.n_ff),     // ffn
             };
             size_t offsets[ExecContext::kSlots];
-            backend::BufferPtr arena = alloc_arena(counts, offsets);
-            ctx.arena = std::move(arena);
-            std::copy(offsets, offsets + ExecContext::kSlots, ctx.offset);
-            ctx.rows = rows;
+            backend::BufferPtr arena = alloc_arena(*devices_[d]->b, counts, offsets);
+            sc.arena = std::move(arena);
+            std::copy(offsets, offsets + ExecContext::kSlots, sc.offset);
+            sc.rows = rows;
         }
         if (want && (!ctx.logits_buf || ctx.logit_rows < want)) {
             // The head writes here and the host reads it in place once the
             // pass has retired: the one point per pass that must be host
             // visible, and the one wait per pass.
-            backend::BufferPtr logits = b_->alloc(
+            backend::BufferPtr logits = devices_[(size_t)place_.output_device]->b->alloc(
                 mul(mul(want, output_.nout), sizeof(float)), backend::Memory::host_visible);
             ctx.logits_buf = std::move(logits);
             ctx.logit_rows = want;
@@ -585,8 +722,9 @@ private:
         }
     }
 
-    static backend::Slice slot(const ExecContext& ctx, size_t i) {
-        return {ctx.arena.get(), ctx.offset[i] / sizeof(float)};
+    static backend::Slice slot(const ExecContext& ctx, size_t device, size_t i) {
+        const ExecContext::Scratch& sc = ctx.scratch[device];
+        return {sc.arena.get(), sc.offset[i] / sizeof(float)};
     }
 
     static std::vector<float> row(ExecContext& ctx, size_t i) {
@@ -594,49 +732,68 @@ private:
         return std::vector<float>(p, p + ctx.width);
     }
 
-    // The graph over `rows` rows and the views of the entries they came
-    // from. Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn.
-    void body(ExecContext& ctx, size_t rows, size_t n_views) {
+    // The residual stream moves from one device's x slot to another's,
+    // through host memory: a read, which waits for the source, then a
+    // write, which is enqueued on the destination. Once per placement
+    // boundary per pass; `n_embd * rows` floats, a few kilobytes on a
+    // decode token.
+    void cross(ExecContext& ctx, size_t from, size_t to, size_t floats) {
+        const size_t bytes = floats * sizeof(float);
+        ctx.staging.resize(floats);
+        const backend::Slice src = slot(ctx, from, 0), dst = slot(ctx, to, 0);
+        devices_[from]->b->read(*src.buffer, src.offset * sizeof(float), ctx.staging.data(), bytes);
+        devices_[to]->b->write(*dst.buffer, dst.offset * sizeof(float), ctx.staging.data(), bytes);
+    }
+
+    // Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn.
+    void attention_half(ExecContext& ctx, size_t dev, int l, size_t rows, size_t n_views) {
+        Device& d = *devices_[dev];
+        backend::Backend& b = *d.b;
+        const LayerWeights& w = layers_[(size_t)l];
         const size_t E = (size_t)cfg.n_embd, half = (size_t)cfg.head_dim / 2;
         const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
-        const backend::Slice x = slot(ctx, 0), h = slot(ctx, 1), q = slot(ctx, 2),
-                             k = slot(ctx, 3), v = slot(ctx, 4), attn = slot(ctx, 5),
-                             gate = slot(ctx, 6), up = slot(ctx, 7), ffn = slot(ctx, 8);
+        const backend::Slice x = slot(ctx, dev, 0), h = slot(ctx, dev, 1), q = slot(ctx, dev, 2),
+                             k = slot(ctx, dev, 3), v = slot(ctx, dev, 4), attn = slot(ctx, dev, 5);
+        const size_t layer = (size_t)d.local_layer[(size_t)l];
+        const std::vector<backend::KVView>& views = ctx.views[(size_t)d.storage_index];
 
-        b_->embed(x, token_embd_.type, token_embd_.slice(), token_embd_.nin,
-                  token_embd_.nout, ctx.ids.data(), rows);
+        b.rms_norm_rows(h, x, w.attn_norm.slice(), rows, E, E, cfg.rms_eps);
 
-        for (int l = 0; l < cfg.n_layer; l++) {
-            const LayerWeights& w = layers_[l];
+        b.matmul_group({projection(w.attn_q, q),
+                        projection(w.attn_k, k),
+                        projection(w.attn_v, v)}, h, E, rows);
 
-            b_->rms_norm_rows(h, x, w.attn_norm.slice(), rows, E, E, cfg.rms_eps);
+        b.norm_rope_rows(q, rows, (size_t)q_dim_, cfg.n_head,
+                         w.attn_q_norm.slice(), cfg.rms_eps,
+                         {d.rope_cos.get(), 0}, {d.rope_sin.get(), 0}, half, ctx.pos.data());
+        b.norm_rope_rows(k, rows, KV, cfg.n_head_kv,
+                         w.attn_k_norm.slice(), cfg.rms_eps,
+                         {d.rope_cos.get(), 0}, {d.rope_sin.get(), 0}, half, ctx.pos.data());
 
-            b_->matmul_group({projection(w.attn_q, q),
-                              projection(w.attn_k, k),
-                              projection(w.attn_v, v)}, h, E, rows);
+        b.kv_write(layer, views.data(), n_views, k, v);
+        b.attention(q, layer, views.data(), n_views, attn,
+                    cfg.n_head, cfg.n_head_kv, cfg.head_dim);
 
-            b_->norm_rope_rows(q, rows, (size_t)q_dim_, cfg.n_head,
-                               w.attn_q_norm.slice(), cfg.rms_eps,
-                               rope_cos(), rope_sin(), half, ctx.pos.data());
-            b_->norm_rope_rows(k, rows, KV, cfg.n_head_kv,
-                               w.attn_k_norm.slice(), cfg.rms_eps,
-                               rope_cos(), rope_sin(), half, ctx.pos.data());
+        b.matmul(w.attn_output.type, w.attn_output.slice(), attn, h,
+                 w.attn_output.nin, w.attn_output.nout, rows);
+        b.add(x, h, rows * E);
+    }
 
-            b_->kv_write(l, ctx.views.data(), n_views, k, v);
-            b_->attention(q, l, ctx.views.data(), n_views, attn,
-                          cfg.n_head, cfg.n_head_kv, cfg.head_dim);
+    void ffn_half(ExecContext& ctx, size_t dev, int l, size_t rows) {
+        backend::Backend& b = *devices_[dev]->b;
+        const LayerWeights& w = layers_[(size_t)l];
+        const size_t E = (size_t)cfg.n_embd;
+        const backend::Slice x = slot(ctx, dev, 0), h = slot(ctx, dev, 1),
+                             gate = slot(ctx, dev, 6), up = slot(ctx, dev, 7), ffn = slot(ctx, dev, 8);
 
-            matmul(w.attn_output, attn, h, rows);
-            b_->add(x, h, rows * E);
+        b.rms_norm_rows(h, x, w.ffn_norm.slice(), rows, E, E, cfg.rms_eps);
 
-            b_->rms_norm_rows(h, x, w.ffn_norm.slice(), rows, E, E, cfg.rms_eps);
-
-            b_->matmul_group({projection(w.ffn_gate, gate),
-                              projection(w.ffn_up, up)}, h, E, rows);
-            b_->silu_mul(ffn, gate, up, rows * (size_t)cfg.n_ff);
-            matmul(w.ffn_down, ffn, h, rows);
-            b_->add(x, h, rows * E);
-        }
+        b.matmul_group({projection(w.ffn_gate, gate),
+                        projection(w.ffn_up, up)}, h, E, rows);
+        b.silu_mul(ffn, gate, up, rows * (size_t)cfg.n_ff);
+        b.matmul(w.ffn_down.type, w.ffn_down.slice(), ffn, h,
+                 w.ffn_down.nin, w.ffn_down.nout, rows);
+        b.add(x, h, rows * E);
     }
 
     // A block returns to the pool only once the backend has retired every
@@ -644,21 +801,18 @@ private:
     // so this costs nothing; on a device, releasing a block while a write to
     // it is still queued hands a later sequence someone else's history. The
     // callers are the exception paths, where a failed pass has ops queued
-    // behind no ticket, so this drains rather than waits; reset() has a
-    // ticket and waits on it. sync() cannot throw for the same reason.
-    void retire() noexcept { b_->sync(); }
+    // behind no ticket, so this drains every device rather than waiting;
+    // reset() has tickets and waits on them. sync() cannot throw for the
+    // same reason.
+    void retire() noexcept {
+        for (auto& d : devices_) if (d->used) d->b->sync();
+    }
 
     // The buffer is passed by raw pointer, not by handle: three projections
     // per layer per token is nearly two hundred refcount pairs a token if a
     // shared pointer is copied here instead.
     static backend::Projection projection(const Weight& w, backend::Slice out) {
         return {w.type, {w.data.get(), 0}, out, w.nout};
-    }
-
-    // Batched matmul. The backend dispatches on the quant type, so every
-    // block format takes the same path; there is no per-type branch here.
-    void matmul(const Weight& w, backend::CSlice X, backend::Slice Y, size_t nbatch) {
-        b_->matmul(w.type, w.slice(), X, Y, w.nin, w.nout, nbatch);
     }
 };
 

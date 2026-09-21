@@ -139,6 +139,12 @@ if(BUILD_TESTING)
     list(APPEND LLMX_TARGETS llmx-kv-cache-test)
     add_test(NAME kv-cache COMMAND llmx-kv-cache-test)
     set_tests_properties(kv-cache PROPERTIES TIMEOUT 30)
+
+    add_executable(llmx-placement-test tests/placement.cpp)
+    target_include_directories(llmx-placement-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-placement-test)
+    add_test(NAME placement COMMAND llmx-placement-test)
+    set_tests_properties(placement PROPERTIES TIMEOUT 30)
 endif()
 
 find_package(Threads REQUIRED)

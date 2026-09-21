@@ -200,10 +200,11 @@ KV blocks are `Buffer` handles, every op takes a buffer and an offset, ops
 enqueue on one implicit stream with one `sync()` per forward pass, and the
 model layer holds no host address.
 
-A model can then be split across several Backends, one per device or per
-cluster node, by placement at the model layer: per-layer and per-tensor.
-Per-row split is not planned. The interface extensions this and the
-multi-user server need (tickets, batched sequence views, host-visible
-memory, `write`) and the `Model` / `Sequence` / `ExecContext` split are
-designed in `EXECUTION.md`. None of it is implemented yet; `ROADMAP.md`
-#5 and #7 carry the plan.
+A model is split across several Backends by a `Placement` at the model
+layer: a device per tensor role, so per-layer and per-tensor splits are the
+same mechanism and the CPU is one of the devices. The residual stream
+crosses at a boundary through `read` and `write`. Per-row split is not
+planned. This, the tickets, the batched views and the `Model` /
+`Sequence` / `ExecContext` split are designed in `EXECUTION.md` and
+implemented; a second device backend, the placement flags and the
+multi-user server are what `ROADMAP.md` #4b, #5 and #7 still carry.

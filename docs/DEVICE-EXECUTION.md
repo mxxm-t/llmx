@@ -102,10 +102,10 @@ requires the `GGUFModel` to outlive it, so this is free on CPU; a GPU backend
 that copied simply never relies on the guarantee.
 
 `copy` exists for the KV cache, whose writes are device-to-device once
-activations are resident. A host-to-device `write` was part of this design and
-has been dropped: weights arrive through `adopt` and every other value is
-produced by an op, so step 5 came and went without giving it a caller. The
-first backend that needs one adds it back alongside that caller.
+activations are resident. A host-to-device `write` was part of this design,
+was dropped when step 5 gave it no caller, and returned with one at
+[EXECUTION](EXECUTION.md) step 6: the residual stream crossing to another
+device at a placement boundary.
 
 ### Tensor residency
 

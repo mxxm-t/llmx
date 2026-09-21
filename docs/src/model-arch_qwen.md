@@ -29,10 +29,16 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   every layer of every token. It exists so a device backend can recognize the
   same weight across calls and keep it resident; no admissible CPU performance
   measurement exists yet. See `docs/DEVICE-EXECUTION.md` step 1.
+- `Placement`: a device index per tensor role: each layer's attention and
+  feed-forward block, the embedding table and the output head. Empty means
+  everything on device 0. Per role rather than per layer so expert offload
+  can later put a layer's experts on the CPU while its attention stays on
+  the device (`docs/EXECUTION.md`).
 - `Sequence`: one request's history over a model's cache, made by
-  `Model::make_sequence`: its block table and committed length, and the
-  ticket of the last pass that touched it, which a reset waits on. Movable,
-  not copyable. The server keeps one per request; the CLI's model keeps one.
+  `Model::make_sequence`: a block table per storage and the committed
+  length, and per device the ticket of the last pass that touched it, which
+  a reset waits on. Movable, not copyable. The server keeps one per request;
+  the CLI's model keeps one.
 - `ExecContext`: one pass in flight, plain data the model fills: the
   activation arena (nine slots at 64-byte offsets in one backend allocation),
   the host-visible logits rows and the submission's ticket. Allocated by the
@@ -43,15 +49,22 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   it and whether the logits after its last token are wanted. A prefill
   microbatch is one entry with many tokens, a decode batch is many entries
   with one, and they mix.
-- `Model`: loads tensors from a `GGUFModel`, owns the `BlockPool` and the
-  backend's `KVStorage`, the RoPE tables as adopted buffers, and one default
-  sequence and context for the single-sequence entry points. Read-only
-  after construction apart from pool bookkeeping.
+- `Model`: loads tensors from a `GGUFModel` over one backend, or over
+  several with a `Placement`. Each weight is adopted by the backend that
+  hosts its role, which on the CPU is the mapped file and costs no RAM.
+  Each device that runs attention gets a `KVStorage` for exactly its layers
+  with its own pool, block size and adopted RoPE tables. The residual
+  stream crosses devices wherever the placement changes, through the
+  context's staging vector: a `read` from the source, a `write` into the
+  destination, once per boundary per pass. One default sequence and context
+  serve the single-sequence entry points. Read-only after construction
+  apart from pool bookkeeping.
   - `forward(ctx, entries, n)`: one pass over every entry. Each sequence's
     tokens go through the graph at their own positions and attend through
-    their own history via one view per entry; the rows that want logits are
-    gathered, normed and projected once; the pass is one submission, waited
-    on only when logits are wanted. It is one transaction: every sequence
+    their own history via one view per entry and per storage; the rows that
+    want logits are gathered, normed and projected once on the output
+    device; the pass is one submission per device, waited on only when
+    logits are wanted. It is one transaction: every sequence
     commits only once the logits exist, and a failure anywhere drains the
     backend and leaves every history as it was. A sequence listed twice is
     refused.

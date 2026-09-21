@@ -25,7 +25,8 @@ computes an offset into them.
   never allocate and cannot fail half way. `Model` is not copyable or
   movable for the same reason.
 
-`Model` owns one pool and one sequence today. The server keeps one sequence per
+`Model` owns one pool per device that runs attention, and one default
+sequence; a `Sequence` holds a table per storage. The server keeps one sequence per
 request over a shared pool; fork and prefix sharing
 are the later steps in the design, not implemented here.
 

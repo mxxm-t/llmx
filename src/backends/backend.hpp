@@ -162,11 +162,16 @@ public:
     virtual void read(const Buffer& src, size_t off, void* dst, size_t bytes) = 0;
 
     // Storage to storage, within this backend. The KV cache grows with it.
-    // There is deliberately no host-to-device write: weights arrive through
-    // adopt and everything else is produced by an op, so nothing needs one.
-    // The first backend that does should add it back with its caller.
     virtual void copy(Buffer& dst, size_t dst_off,
                       const Buffer& src, size_t src_off, size_t bytes) = 0;
+
+    // Host to storage. Enqueued like every op; the caller's bytes are
+    // consumed before this returns, so a staging buffer can be reused at
+    // once. Its caller is the residual stream crossing to another device at
+    // a placement boundary (docs/EXECUTION.md): weights arrive through
+    // adopt and every other value is produced by an op, so nothing else
+    // needs one.
+    virtual void write(Buffer& dst, size_t off, const void* src, size_t bytes) = 0;
 
     // Y[b*nout + o] = dot(row_o, X + b*nin), for all b in [0,nbatch) and o in
     // [0,nout). X and Y are row-major with nbatch rows.

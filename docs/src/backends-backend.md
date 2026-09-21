@@ -14,8 +14,10 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   is `Memory::device` or `Memory::host_visible`; the logits live in the
   latter and the host reads them through `host_ptr()` after a wait, with no
   copy op. `adopt` makes host data reachable without copying on a host
-  backend; the source must outlive the handle. There is no host-to-device
-  `write` until a caller needs one.
+  backend; the source must outlive the handle.
+- `write(dst, off, src, bytes)`: host to storage, enqueued, the source
+  consumed before it returns. Its caller is the residual stream crossing
+  to another device at a placement boundary; nothing else needs one.
 - `submit()` returns a monotonic `Ticket` for everything enqueued so far;
   `wait(t)` blocks until that submission has retired. The model submits
   once per forward pass, waits on that ticket for the logits, and waits on

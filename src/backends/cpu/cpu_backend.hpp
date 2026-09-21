@@ -308,6 +308,12 @@ public:
         std::memcpy(dst, (const uint8_t*)src.host_ptr() + off, bytes);
     }
 
+    void write(Buffer& dst, size_t off, const void* src, size_t bytes) override {
+        if (!src && bytes) throw std::runtime_error("backend: writing from null storage");
+        span(dst, off, bytes);
+        std::memcpy((uint8_t*)host(dst) + off, src, bytes);
+    }
+
     void copy(Buffer& dst, size_t dst_off, const Buffer& src, size_t src_off,
               size_t bytes) override {
         span(dst, dst_off, bytes);

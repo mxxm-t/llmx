@@ -359,7 +359,8 @@ gguf::GGUFModel fixture() {
 struct FailingCpu : backend::CpuBackend {
     bool fail_output = false;
     int outputs = 0;
-    int syncs = 0;
+    int syncs = 0, submits = 0, waits = 0, reads = 0;
+    backend::Ticket last_wait = 0;
     void matmul(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
                 size_t nin, size_t nout, size_t nbatch) override {
         if (nout == 16) {
@@ -369,13 +370,25 @@ struct FailingCpu : backend::CpuBackend {
         backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch);
     }
     void sync() noexcept override { ++syncs; backend::CpuBackend::sync(); }
+    backend::Ticket submit() override { ++submits; return backend::CpuBackend::submit(); }
+    void wait(backend::Ticket t) noexcept override {
+        ++waits;
+        last_wait = t;
+        backend::CpuBackend::wait(t);
+    }
+    void read(const backend::Buffer& src, size_t off, void* dst, size_t bytes) override {
+        ++reads;
+        backend::CpuBackend::read(src, off, dst, bytes);
+    }
 };
 
 // Every path that hands blocks back to the pool has to retire the backend's
 // outstanding work first, or a device backend gives whichever sequence takes
-// that id next a write from the failed one (docs/KV-CACHE.md). The CPU backend
-// is eager, so nothing here would fail without the sync; counting the calls is
-// what keeps the contract from quietly lapsing.
+// that id next a write from the failed one (docs/KV-CACHE.md). A failed pass
+// has ops queued behind no ticket, so its paths drain with sync(); reset()
+// follows a completed pass and waits on that pass's ticket instead. The CPU
+// backend is eager, so nothing here would fail without either; counting the
+// calls is what keeps the contract from quietly lapsing.
 void release_syncs() {
     const auto weights = fixture();
     auto cpu = std::make_shared<FailingCpu>();
@@ -383,26 +396,44 @@ void release_syncs() {
     infer::Model model(weights, cpu);
     model.set_ubatch(2);
 
+    // A successful pass is one submission, waited on for its logits, which
+    // leave through host-visible memory rather than a read op.
     model.step(1);
+    require(cpu->submits == 1 && cpu->waits == 1 && cpu->last_wait == 1,
+            "a pass is one submission waited on once");
+    require(cpu->reads == 0, "logits were copied out with a read op");
+
     int before = cpu->syncs;
     cpu->fail_output = true;
     rejects([&] { model.step(2); }, "injected decode failure did not propagate");
     require(cpu->syncs > before, "a failed step released blocks without retiring work");
 
-    before = cpu->syncs;
+    before = cpu->waits;
+    const int syncs = cpu->syncs;
     model.reset();
-    require(cpu->syncs > before, "reset released blocks without retiring work");
+    require(cpu->waits > before && cpu->last_wait == 1,
+            "reset released blocks without waiting on the last pass");
+    require(cpu->syncs == syncs, "reset drained instead of waiting on its ticket");
 
     before = cpu->syncs;
     cpu->fail_output = true;
     rejects([&] { model.prefill({4, 5, 6}); }, "injected prefill failure did not propagate");
     require(cpu->syncs > before, "a failed prefill released blocks without retiring work");
 
-    // A step that succeeds commits rather than releases, so it needs no sync of
-    // its own: the read of the logits is the one ordering point per pass.
+    // A prompt of three tokens at ubatch 2 is two passes: two submissions,
+    // one wait, for the last pass only.
+    const int submits = cpu->submits, waits = cpu->waits;
+    model.prefill({4, 5, 6});
+    require(cpu->submits == submits + 2 && cpu->waits == waits + 1 &&
+            cpu->last_wait == backend::Ticket(submits + 2),
+            "a prompt submits once per pass and waits once, on the last");
+
+    // A step that succeeds commits rather than releases, so it needs no sync
+    // of its own: its ticket is the one ordering point per pass.
     before = cpu->syncs;
     model.step(7);
     require(cpu->syncs == before, "a successful step retired work it did not have to");
+    require(cpu->reads == 0, "a read op was used where a wait suffices");
 }
 
 // A failure after the KV writes must leave length, position and bytes as

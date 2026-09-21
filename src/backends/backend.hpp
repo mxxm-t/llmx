@@ -36,11 +36,22 @@ class Buffer {
 public:
     virtual ~Buffer() = default;
     virtual size_t size() const = 0;
-    // Non-null only where the host can address the allocation directly. A
-    // device backend returns nullptr and the caller must use read/write.
+    // Non-null where the host can address the allocation directly: always
+    // for Memory::host_visible, and for everything on a host backend. What
+    // it points at is current only after wait() or sync().
     virtual const void* host_ptr() const = 0;
 };
 using BufferPtr = std::shared_ptr<Buffer>;
+
+// Where an allocation lives. `device` is the default and may be unreachable
+// from the host; `host_visible` is memory an op can write and the host can
+// read through host_ptr() after a wait, which is how the logits leave the
+// backend without a copy op. On a host backend the two are the same memory.
+enum class Memory { device, host_visible };
+
+// A submission. `submit()` hands everything enqueued so far to the device
+// and returns one; `wait()` blocks until that submission has retired.
+using Ticket = uint64_t;
 
 // Where an operand lives: a buffer and a float offset into it. Ops take these
 // rather than pointers so a device backend never receives a host address.
@@ -110,7 +121,7 @@ public:
     virtual void run_prefill(const std::function<void()>& work) { work(); }
 
     // Zero-filled backend storage.
-    virtual BufferPtr alloc(size_t bytes) = 0;
+    virtual BufferPtr alloc(size_t bytes, Memory where = Memory::device) = 0;
 
     // Make `src` reachable by this backend, by whatever means it needs. The
     // name is not "upload": a host backend must not copy, or adopting an 8 GB
@@ -121,19 +132,29 @@ public:
     virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
 
     // Every op below enqueues on this backend's single implicit stream and
-    // returns. Results are observable only after sync() or read(), and the
-    // model needs host-side data at exactly one point per forward pass, so
-    // that is one sync per pass rather than one per op.
+    // returns. submit() flushes what has been enqueued and returns a ticket
+    // that is monotonic within this backend; wait(t) blocks until that
+    // submission and everything before it has retired. The model submits
+    // once per forward pass and waits on that ticket for the logits, so a
+    // pass is one submission rather than one per op, and a caller with two
+    // things in flight (docs/EXECUTION.md) waits for exactly the one it
+    // needs. Results are observable only after wait(), sync() or read().
     //
-    // noexcept by contract, because a caller frees storage on the strength of
-    // it: a backend that cannot establish that its outstanding work has
-    // finished must fail hard rather than report something nobody at this
-    // layer can act on. The CPU backend runs each op to completion as it is
-    // called, so this returns immediately.
+    // sync() waits for everything, including work enqueued after the last
+    // submit, which is what an error path needs: a failed pass has ops
+    // queued behind no ticket. wait() and sync() are noexcept by contract,
+    // because a caller frees storage on the strength of them: a backend
+    // that cannot establish that its work has finished must fail hard
+    // rather than report something nobody at this layer can act on. The
+    // CPU backend runs each op to completion as it is called, so both
+    // return immediately and submit only counts.
+    virtual Ticket submit() = 0;
+    virtual void wait(Ticket t) noexcept = 0;
     virtual void sync() noexcept = 0;
 
-    // Host-visible copy out, for the logits. Syncs first: what it returns has
-    // to include every op enqueued before it.
+    // Copy out to host memory. Syncs first: what it returns has to include
+    // every op enqueued before it. This is the transfer and test path; the
+    // logits leave through a host_visible buffer and a wait instead.
     virtual void read(const Buffer& src, size_t off, void* dst, size_t bytes) = 0;
 
     // Storage to storage, within this backend. The KV cache grows with it.

@@ -196,11 +196,11 @@ public:
                 (size_t)cfg.n_embd, (size_t)cfg.n_embd, (size_t)q_dim_, KV, KV,
                 (size_t)q_dim_, (size_t)cfg.n_ff, (size_t)cfg.n_ff, (size_t)cfg.n_ff};
             decode_arena_ = alloc_arena(counts, decode_offset_);
-            // The vocabulary projection writes here, then one read hands the
-            // caller a plain vector. A device backend has nowhere else to put
-            // it, and this is the one point per forward pass that must be
-            // host-visible.
-            logits_buf_ = b_->alloc(output_.nout * sizeof(float));
+            // The vocabulary projection writes here and the host reads it
+            // in place once the pass has retired: the one point per forward
+            // pass that must be host-visible, and the one wait per pass.
+            logits_buf_ = b_->alloc(output_.nout * sizeof(float),
+                                    backend::Memory::host_visible);
         }
 
         // Budget: the whole context. The backend turns tokens into blocks and
@@ -268,9 +268,7 @@ public:
             step_body(token_id, pos);
             b_->rms_norm(sh(), sx(), output_norm_.slice(), cfg.n_embd, cfg.rms_eps);
             matvec(output_, sh(), {logits_buf_.get(), 0});
-            // read fills every element, so this only has to size the vector.
-            logits.resize(output_.nout);
-            b_->read(*logits_buf_, 0, logits.data(), output_.nout * sizeof(float));
+            take_logits(logits);
         } catch (...) {
             retire();
             kv_seq_.abort();
@@ -373,9 +371,11 @@ public:
     }
 
     // Start a new conversation. Blocks return to the pool; their storage is
-    // retained for the next history.
+    // retained for the next history. Every pass ends in a submit or, on
+    // failure, a sync, so the last ticket covers everything that could
+    // still be touching a block: this waits for that and no more.
     void reset() {
-        retire();
+        b_->wait(last_ticket_);
         kv_seq_.reset();
         n_tokens_ = 0;
     }
@@ -412,6 +412,7 @@ private:
     std::vector<float> rope_cos_, rope_sin_;
     backend::BufferPtr rope_cos_buf_, rope_sin_buf_;
     std::vector<uint32_t> positions_;
+    backend::Ticket last_ticket_ = 0;
     int n_tokens_ = 0;
     backend::CSlice rope_cos() const { return {rope_cos_buf_.get(), 0}; }
     backend::CSlice rope_sin() const { return {rope_sin_buf_.get(), 0}; }
@@ -561,8 +562,11 @@ private:
                                  (size_t)(B - 1) * (size_t)cfg.n_embd},
                              output_norm_.slice(), cfg.n_embd, cfg.rms_eps);
                 matvec(output_, sh(), {logits_buf_.get(), 0});
-                out_logits->resize(output_.nout);
-                b_->read(*logits_buf_, 0, out_logits->data(), output_.nout * sizeof(float));
+                take_logits(*out_logits);
+            } else {
+                // One submission per pass either way; only the last pass of
+                // a prompt has a reader.
+                last_ticket_ = b_->submit();
             }
         } catch (...) {
             retire();
@@ -620,10 +624,23 @@ private:
     // A block returns to the pool only once the backend has retired every
     // submission that touched it (docs/KV-CACHE.md). The CPU backend is eager
     // so this costs nothing; on a device, releasing a block while a write to
-    // it is still queued hands a later sequence someone else's history. Three
-    // of the four callers are exception paths, which is why sync() cannot
-    // throw.
+    // it is still queued hands a later sequence someone else's history. The
+    // callers are the exception paths, where a failed pass has ops queued
+    // behind no ticket, so this drains rather than waits; reset() has a
+    // ticket and waits on it. sync() cannot throw for the same reason.
     void retire() noexcept { b_->sync(); }
+
+    // The pass is complete once submitted and retired; the logits are then
+    // current in host-visible memory and copied out of it. No read op: on a
+    // device that would be a second copy of a row the host can already see.
+    void take_logits(std::vector<float>& out) {
+        last_ticket_ = b_->submit();
+        b_->wait(last_ticket_);
+        const void* p = logits_buf_->host_ptr();
+        if (!p) throw std::runtime_error("inference: logits are not host visible");
+        out.resize(output_.nout);
+        std::memcpy(out.data(), p, output_.nout * sizeof(float));
+    }
 
     // The buffer is passed by raw pointer, not by handle: three projections
     // per layer per token is nearly two hundred refcount pairs a token if a

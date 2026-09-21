@@ -9,14 +9,21 @@ enqueues on the backend's single implicit stream; `sync()` drains it and
 complete device execution model of `docs/DEVICE-EXECUTION.md`; the
 extensions for batching and placement are designed in `docs/EXECUTION.md`.
 
-- `alloc(bytes)`, `adopt(src, bytes)`, `read(src, off, dst, bytes)`,
-  `copy(dst, dst_off, src, src_off, bytes)`: backend-owned storage. `adopt`
-  makes host data reachable without copying on a host backend; the source
-  must outlive the handle. There is no host-to-device `write` until a caller
-  needs one.
-- `sync()`: `noexcept`, blocks until every enqueued op has retired. The
-  model calls it before returning KV blocks to the pool; three of those
-  callers are exception paths, which is why it cannot throw.
+- `alloc(bytes, where)`, `adopt(src, bytes)`, `read(src, off, dst, bytes)`,
+  `copy(dst, dst_off, src, src_off, bytes)`: backend-owned storage. `where`
+  is `Memory::device` or `Memory::host_visible`; the logits live in the
+  latter and the host reads them through `host_ptr()` after a wait, with no
+  copy op. `adopt` makes host data reachable without copying on a host
+  backend; the source must outlive the handle. There is no host-to-device
+  `write` until a caller needs one.
+- `submit()` returns a monotonic `Ticket` for everything enqueued so far;
+  `wait(t)` blocks until that submission has retired. The model submits
+  once per forward pass, waits on that ticket for the logits, and waits on
+  the last one again when a conversation is reset.
+- `sync()`: `noexcept`, like `wait`, and blocks until everything has
+  retired, including ops queued behind no ticket. The model calls it on the
+  failure paths before returning KV blocks to the pool, which is why it
+  cannot throw.
 
 - `set_threads(n)`, `threads_available()`: worker-thread control.
 - `matmul(ggml_type, data, X, Y, nin, nout, nbatch)`: the type-generic matmul.
@@ -69,7 +76,7 @@ callback across host threads has no device implementation. It remains public on
 
 Multi-device placement and batching across sequences are planned; the
 signatures they still change (`attention` and `kv_write` taking several
-views, `submit`/`wait` tickets) are in `docs/EXECUTION.md`.
+views) are in `docs/EXECUTION.md`.
 
 `run_prefill(work)` invokes the body once on the caller after successful setup
 and completes cleanup before returning. Setup or reentrancy errors can reject

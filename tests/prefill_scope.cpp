@@ -157,9 +157,9 @@ struct ObservedCpu : backend::CpuBackend {
     // Activations are one backend allocation, so counting the calls is exact.
     // Matching their byte size instead stopped detecting anything the moment
     // the nine vectors became one arena.
-    backend::BufferPtr alloc(size_t bytes) override {
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
         if (before_scope) ++early_allocs;
-        return backend::CpuBackend::alloc(bytes);
+        return backend::CpuBackend::alloc(bytes, where);
     }
 
     void run_prefill(const std::function<void()>& work) override {

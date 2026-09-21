@@ -289,7 +289,8 @@ public:
         }
     }
 
-    BufferPtr alloc(size_t bytes) override { return std::make_shared<CpuBuffer>(bytes); }
+    // Host memory is host visible whatever was asked for.
+    BufferPtr alloc(size_t bytes, Memory) override { return std::make_shared<CpuBuffer>(bytes); }
 
     BufferPtr adopt(const void* src, size_t bytes) override {
         if (!src && bytes) throw std::runtime_error("backend: adopting null storage");
@@ -297,7 +298,9 @@ public:
     }
 
     // Eager: an op has completed by the time it returns, so there is never
-    // anything outstanding to wait for.
+    // anything outstanding to wait for, and a ticket only counts.
+    Ticket submit() override { return ++ticket_; }
+    void wait(Ticket) noexcept override {}
     void sync() noexcept override {}
 
     void read(const Buffer& src, size_t off, void* dst, size_t bytes) override {
@@ -999,6 +1002,7 @@ private:
 
     int threads_ = 1;
     bool avx2_ = false;
+    Ticket ticket_ = 0;
     bool f16c_ = false;
     bool prefill_active_ = false;
 

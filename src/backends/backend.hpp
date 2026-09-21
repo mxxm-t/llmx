@@ -120,8 +120,13 @@ public:
     // and a backend that copies simply never relies on the guarantee.
     virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
 
-    virtual void write(Buffer& dst, size_t off, const void* src, size_t bytes) = 0;
+    // Host-visible copy out. One call per forward pass, for the logits.
     virtual void read(const Buffer& src, size_t off, void* dst, size_t bytes) = 0;
+
+    // Storage to storage, within this backend. The KV cache grows with it.
+    // There is deliberately no host-to-device write: weights arrive through
+    // adopt and everything else is produced by an op, so nothing needs one.
+    // The first backend that does should add it back with its caller.
     virtual void copy(Buffer& dst, size_t dst_off,
                       const Buffer& src, size_t src_off, size_t bytes) = 0;
 

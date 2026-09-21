@@ -235,12 +235,17 @@ benchmarkable against the floor.
 
 | # | Step | CPU effect |
 |---|---|---|
-| 1 | Pre-resolve tensors into `LayerWeights` | Expected neutral; no admissible measurement yet |
-| 2 | Batched elementwise ops (`rms_norm_rows`, `rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` | Expected neutral on decode; `silu_mul` may help prefill, which reads and writes three `n_ff * B` streams |
-| 3 | `Buffer`, `alloc`/`adopt`/`read`/`write`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` (**done**) | Measured neutral over 15 and 9 pairs |
+| 1 | Pre-resolve tensors into `LayerWeights` (**done**) | Expected neutral; no admissible measurement |
+| 2 | Batched elementwise ops (`rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` (**done**) | Measured; `silu_mul` helps prefill, which reads and writes three `n_ff * B` streams |
+| 3 | `Buffer`, `alloc`/`adopt`/`read`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` (**done**) | Measured neutral over 15 and 9 pairs |
 | 4 | Activation arena; op signatures take buffer + offset (**done**) | Measured neutral over 15 and 9 pairs, twice |
-| 5 | KV blocks on buffers (the view contract is already in place) | Neutral - same `memcpy` |
+| 5 | KV blocks on buffers (the view contract is already in place) (**in progress**) | Expected neutral - the same bytes move, through `memcpy` either way |
 | 6 | `sync()` and the enqueue contract | Neutral - no-op on CPU |
+
+Where to follow along: this table is the plan and `docs/STATUS.md` is the
+state. STATUS carries one block per step, newest first, each with what is
+done, what is left, the gate numbers and the gotchas found on the way. A
+step's block is deleted and its row marked here when it ships.
 
 The bar for each step is therefore **no measured regression**, not a win. Each
 must be A/B'd against the previous binary interleaved, never sequentially: on a

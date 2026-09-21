@@ -54,16 +54,22 @@ private:
 // from 128 on decode and doubles the partial-tail waste.
 static const size_t KV_BLOCK_TOKENS = 128;
 
-// Host KV blocks. Per layer, block id b of K or V starts at b*block_floats()
-// and holds [kv_head][token][head_dim], so a head's history is contiguous
-// inside the block. Blocks are backed in doubling steps as ids are first
-// written; ids come dense from the model's pool. Growth copies the history
-// into exact-size buffers, as the contiguous cache did, and allocated_bytes
-// reports the capacity actually retained.
+// KV blocks, one K buffer and one V buffer per layer. Block id b starts at
+// b*block_floats() and holds [kv_head][token][head_dim], so a head's history
+// is contiguous inside the block. Blocks are backed in doubling steps as ids
+// are first written; ids come dense from the model's pool.
+//
+// The storage allocates through the backend that owns it rather than holding
+// vectors of its own, which is what lets a device backend put the cache in
+// device memory without the view contract changing. Growth is therefore alloc
+// then copy. A resolved host pointer per layer is cached alongside the handle
+// because attention asks for one per head, per query, per block.
 class CpuKVStorage final : public KVStorage {
 public:
-    CpuKVStorage(size_t layers, size_t heads, size_t dim, size_t max_blocks)
-        : heads_(heads), dim_(dim), max_(max_blocks), k_(layers), v_(layers) {
+    CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim,
+                 size_t max_blocks)
+        : owner_(&owner), heads_(heads), dim_(dim), max_(max_blocks),
+          k_(layers), v_(layers), kp_(layers, nullptr), vp_(layers, nullptr) {
         // Called for its overflow throw, not its value: block_floats()
         // recomputes this on every access and must not wrap.
         mul(mul(heads, KV_BLOCK_TOKENS), dim);
@@ -86,9 +92,10 @@ public:
 
     size_t max_blocks() const override { return max_; }
     size_t allocated_bytes() const override {
-        size_t floats = 0;
-        for (size_t l = 0; l < k_.size(); ++l) floats += k_[l].capacity() + v_[l].capacity();
-        return floats * sizeof(float);
+        size_t bytes = 0;
+        for (size_t l = 0; l < k_.size(); ++l)
+            if (k_[l]) bytes += k_[l]->size() + v_[l]->size();
+        return bytes;
     }
     size_t peak_bytes() const override { return peak_; }
     size_t layers() const { return k_.size(); }
@@ -97,37 +104,54 @@ public:
     size_t block_floats() const { return heads_ * KV_BLOCK_TOKENS * dim_; }
     bool backed(size_t id) const { return id < backed_; }
 
-    // Every layer grows into a fresh buffer before any is published, so a
-    // failed allocation leaves the storage exactly as it was.
+    // The complete new set is allocated and already holds the history before
+    // any of it is published, so an allocation that throws leaves the storage
+    // exactly as it was and a retry starts over. alloc is zero-filled, which
+    // is what leaves a newly backed block reading as zeros.
     void ensure(size_t id) {
         if (id < backed_) return;
         if (id >= max_) throw std::runtime_error("backend: KV block outside the budget");
         const size_t want = std::max(id + 1, std::min(max_, backed_ * 2));
-        const size_t floats = mul(want, block_floats());
-        std::vector<std::vector<float>> nk(k_.size()), nv(v_.size());
+        const size_t bytes = mul(mul(want, block_floats()), sizeof(float));
+        const size_t held = mul(mul(bytes, 2), k_.size());
+        std::vector<BufferPtr> nk(k_.size()), nv(v_.size());
+        std::vector<float*> nkp(k_.size()), nvp(v_.size());
         for (size_t l = 0; l < k_.size(); ++l) {
-            nk[l].reserve(floats);
-            nk[l].assign(k_[l].begin(), k_[l].end());
-            nk[l].resize(floats);
-            nv[l].reserve(floats);
-            nv[l].assign(v_[l].begin(), v_[l].end());
-            nv[l].resize(floats);
+            nk[l] = owner_->alloc(bytes);
+            nv[l] = owner_->alloc(bytes);
+            if (k_[l]) {
+                owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
+                owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
+            }
+            nkp[l] = host_floats(*nk[l]);
+            nvp[l] = host_floats(*nv[l]);
         }
-        peak_ = std::max(peak_, add(allocated_bytes(),
-                                    mul(mul(floats, sizeof(float) * 2), k_.size())));
+        peak_ = std::max(peak_, add(allocated_bytes(), held));
         k_.swap(nk);
         v_.swap(nv);
+        kp_.swap(nkp);
+        vp_.swap(nvp);
         backed_ = want;
     }
 
-    float* k(size_t layer, int32_t id) { return k_[layer].data() + (size_t)id * block_floats(); }
-    float* v(size_t layer, int32_t id) { return v_[layer].data() + (size_t)id * block_floats(); }
-    const float* k(size_t layer, int32_t id) const { return k_[layer].data() + (size_t)id * block_floats(); }
-    const float* v(size_t layer, int32_t id) const { return v_[layer].data() + (size_t)id * block_floats(); }
+    float* k(size_t layer, int32_t id) { return kp_[layer] + (size_t)id * block_floats(); }
+    float* v(size_t layer, int32_t id) { return vp_[layer] + (size_t)id * block_floats(); }
+    const float* k(size_t layer, int32_t id) const { return kp_[layer] + (size_t)id * block_floats(); }
+    const float* v(size_t layer, int32_t id) const { return vp_[layer] + (size_t)id * block_floats(); }
 
 private:
+    // Resolved once per growth rather than per access: attention walks the
+    // block table for every head of every query.
+    static float* host_floats(Buffer& b) {
+        auto* cpu = dynamic_cast<CpuBuffer*>(&b);
+        if (!cpu) throw std::runtime_error("backend: KV storage needs host blocks");
+        return (float*)cpu->host_address();
+    }
+
+    Backend* owner_;
     size_t heads_, dim_, max_, backed_ = 0, peak_ = 0;
-    std::vector<std::vector<float>> k_, v_;
+    std::vector<BufferPtr> k_, v_;
+    std::vector<float*> kp_, vp_;
 };
 
 // CPU implementation of the Backend interface. Uses AVX2 fused dequant+FMA for
@@ -270,11 +294,6 @@ public:
     BufferPtr adopt(const void* src, size_t bytes) override {
         if (!src && bytes) throw std::runtime_error("backend: adopting null storage");
         return std::make_shared<CpuBuffer>(src, bytes);
-    }
-
-    void write(Buffer& dst, size_t off, const void* src, size_t bytes) override {
-        span(dst, off, bytes);
-        std::memcpy((uint8_t*)host(dst) + off, src, bytes);
     }
 
     void read(const Buffer& src, size_t off, void* dst, size_t bytes) override {
@@ -657,7 +676,7 @@ public:
         using S = CpuKVStorage;
         S::mul(S::mul(S::mul(S::mul(blocks, layers), 2), n_head_kv),
                S::mul(S::mul(KV_BLOCK_TOKENS, head_dim), sizeof(float)));
-        return std::make_unique<CpuKVStorage>(layers, n_head_kv, head_dim, blocks);
+        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, blocks);
     }
 
     void kv_write(size_t layer, const KVView& view, size_t pos,

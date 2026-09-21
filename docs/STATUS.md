@@ -304,15 +304,37 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-8B-Q8_0 | tg32 | 38.8 tok/s | 40.6 | 41.0 +- 0.0 | 106% |
 
   Prefill moved within noise (1494, 1352, 873 and 230 tok/s).
+
+  Fourteenth, the norm folded into the matmul, tried three ways and
+  rejected, not committed. The op was `matmul_group_normed`, the RMS
+  norm of X against w and the projections in one call, the CPU norming
+  into scratch first and the device folding it into the row kernel for
+  one column. (1) The column staged in 16 KB of shared memory per
+  workgroup, normed there, every read from it: 8B decode 41.0 to 13.4
+  tok/s and 0.6B 221 to 101, with the plain modules carrying the array
+  too; in separate normed modules, so the plain ones had none, 8B 22.3
+  and 0.6B 165. Sixteen KB of shared memory per workgroup caps what a
+  compute unit holds. (2) No staging, each read scaled by the row's
+  factor and w on the way in: 8B 12.5, 0.6B 137; with the reduction
+  removed and the scale alone left, 8B 11.7, so the per-read scale and
+  its second load are what the tuned Q8_0 load pattern cannot absorb.
+  (3) A 4 KB staging for rows up to 1024 wide: 0.6B Q8_0 203, Q4_0 199,
+  Q5_K_M 176 against 221, 205 and 177 unfused. Every variant also
+  moved the prefill's norm into a backend scratch buffer, and that
+  alone cost 8B prefill 232 to 166 tok/s; the buffer was device-local
+  and allocated once, and the cause was not found before the whole
+  change was reverted, so a backend-allocated activation buffer is a
+  thing to measure before using again. The two norm dispatches per
+  layer stay: on 0.6B they are about a tenth of a decode token and no
+  fusion tried gets them back.
 - **Left:** decode on the 4- and 5-bit files, at 93 and 80 percent of the
   reference under the matched protocol; their row kernels are the first
   correct version at 123 to 163 GB/s against Q8_0's 373, and the four
   bytes per value of activations now cost as much as the weights. Then
-  the last fusion, the norm before each matmul, measured on all four
-  files. Then the two checks the user asked for on 2026-09-21: a
-  16384-token prompt with 512 generated tokens beside the 247/32 case,
-  reference beside it, and a greedy-output hash of the device against
-  the CPU on the same file.
+  the two checks the user asked for on 2026-09-21: a 16384-token prompt
+  with 512 generated tokens beside the 247/32 case, reference beside
+  it, and a greedy-output hash of the device against the CPU on the
+  same file.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

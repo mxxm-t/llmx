@@ -4,9 +4,11 @@
 // product finite: d*Inf is Inf, and 0*Inf is NaN. Dequantizing first
 // multiplies the scale into each weight and stays finite.
 //
-// These cases come from the release audit that caught the regression. Every
-// decoded weight is q=31 with unit group scales, so the exact answer is known
-// in closed form and no oracle library is needed.
+// These cases come from the release audit that caught the regression. Each
+// type's weights are set to one repeated value with unit group scales, so the
+// exact answer is known in closed form and no oracle library is needed. That
+// value is the type's largest magnitude: 127 for Q8_0, 15 for Q4_K, 31 for
+// Q5_K and Q6_K.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -63,7 +65,6 @@ std::vector<uint8_t> block_q5_K(uint16_t half) {
     std::vector<uint8_t> b(gguf::Q5_K_TYPESIZE, 0);
     put16(b, 0, half);          // d
     put16(b, 2, 0);             // dmin: no min contribution
-    for (int i = 0; i < 12; i++) b[4 + i] = 0;
     for (int g = 0; g < 8; g++) {   // 6-bit scale 1, min 0, for all 8 groups
         if (g < 4) b[4 + g] = 1; else { b[4 + 8 + (g - 4)] = 1; }
     }
@@ -81,7 +82,7 @@ std::vector<uint8_t> block_q6_K(uint16_t half) {
     return b;                                        // (15|3<<4) - 32 = 31
 }
 
-struct Case { const char* name; uint16_t half; float x; bool huge; };
+struct Case { const char* name; uint16_t half; bool huge; };
 
 int run_type(uint32_t type, const char* tname) {
     const size_t nin = 256;
@@ -89,10 +90,10 @@ int run_type(uint32_t type, const char* tname) {
     cpu.set_threads(1);
 
     const Case cases[] = {
-        {"tiny scale, huge input", 0x0001, 0.0f, true},
-        {"zero scale, huge input", 0x0000, 0.0f, true},
-        {"ordinary scale/input",   0x3555, 0.0f, false},
-        {"tiny scale, ordinary",   0x0001, 0.0f, false},
+        {"tiny scale, huge input", 0x0001, true},
+        {"zero scale, huge input", 0x0000, true},
+        {"ordinary scale/input",   0x3555, false},
+        {"tiny scale, ordinary",   0x0001, false},
     };
     int checked = 0;
     for (const auto& c : cases) {

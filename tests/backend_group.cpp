@@ -45,6 +45,12 @@ static size_t check_q8_scales(backend::CpuBackend& cpu) {
     size_t count = 0;
     std::array<uint8_t, 34> row{};
     std::array<float, 32> x{};
+    // The CPU backend adopts the caller's pointer rather than copying, so one
+    // handle per array stays valid while the sweep rewrites them in place.
+    float actual = 0.0f;
+    const auto row_buf = cpu.adopt(row.data(), row.size());
+    const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
+    const auto out_buf = cpu.adopt(&actual, sizeof(float));
     for (unsigned h = 0; h < 65536; ++h) {
         if ((h & 0x7c00) == 0x7c00) continue;
         row[0] = uint8_t(h);
@@ -56,10 +62,7 @@ static size_t check_q8_scales(backend::CpuBackend& cpu) {
             // A one-hot input makes every finite f16 scale times int8 exact
             // in f32, independently of the SIMD reduction order.
             const float expected = f16_to_f32(uint16_t(h)) * float(q);
-            float actual = 0.0f;
-            const auto row_buf = cpu.adopt(row.data(), row.size());
-            const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
-            const auto out_buf = cpu.adopt(&actual, sizeof(float));
+            actual = 0.0f;
             cpu.matmul(gguf::GGML_TYPE_Q8_0, {row_buf.get(), 0}, {x_buf.get(), 0},
                        {out_buf.get(), 0}, gguf::Q8_0_BLOCK, 1, 1);
             require(std::isfinite(actual) && actual == expected, "Q8 scale or signed weight differs");

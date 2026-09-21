@@ -8,11 +8,8 @@
 #include "model/arch_qwen.hpp"
 
 static thread_local bool before_scope = false, fail_body_allocation = false;
-static thread_local size_t early_buffers = 0;
 
 void* operator new(std::size_t size) {
-    // The fixture's two-token embedding and FFN buffers occupy 64 and 96 bytes.
-    if (before_scope && (size == 64 || size == 96)) ++early_buffers;
     if (fail_body_allocation) {
         fail_body_allocation = false;
         throw std::bad_alloc();
@@ -154,7 +151,16 @@ gguf::GGUFModel fixture(bool tied) {
 struct ObservedCpu : backend::CpuBackend {
     int entries = 0, bodies = 0;
     bool inside = false, passthrough = false, check_graph = false, fail_allocation = false;
+    size_t early_allocs = 0;
     std::vector<size_t> batches;
+
+    // Activations are one backend allocation, so counting the calls is exact.
+    // Matching their byte size instead stopped detecting anything the moment
+    // the nine vectors became one arena.
+    backend::BufferPtr alloc(size_t bytes) override {
+        if (before_scope) ++early_allocs;
+        return backend::CpuBackend::alloc(bytes);
+    }
 
     void run_prefill(const std::function<void()>& work) override {
         before_scope = false;
@@ -199,13 +205,13 @@ void check_model(bool tied) {
     require(caught && cpu->entries == 0 && model.n_tokens() == 0, "empty prompt entered scope");
 
     const std::vector<uint32_t> first{1, 2, 3};
-    const size_t initial_early = early_buffers;
+    const size_t initial_early = cpu->early_allocs;
     caught = false;
     cpu->fail_allocation = true;
     before_scope = true;
     try { model.prefill(first); } catch (const std::bad_alloc&) { caught = true; }
     before_scope = false;
-    require(early_buffers == initial_early, "initial batch buffers allocated before scope entry");
+    require(cpu->early_allocs == initial_early, "initial batch buffers allocated before scope entry");
     require(caught && cpu->entries == 1 && cpu->bodies == 1 && !cpu->inside && model.n_tokens() == 0,
             "first body allocation failure escaped scope contract");
     cpu->fail_allocation = false;
@@ -214,11 +220,11 @@ void check_model(bool tied) {
         model.reset(); control.reset();
         const int entries = cpu->entries, bodies = cpu->bodies;
         cpu->batches.clear(); cpu->check_graph = true;
-        const size_t early = early_buffers;
+        const size_t early = cpu->early_allocs;
         before_scope = true;
         const auto actual = model.prefill(prompt);
         before_scope = false;
-        require(early_buffers == early, "batch buffers allocated before scope entry");
+        require(cpu->early_allocs == early, "batch buffers allocated before scope entry");
         exact(control.prefill(prompt), actual);
         require(cpu->entries == entries + 1 && cpu->bodies == bodies + 1, "prefill not wrapped exactly once");
         std::vector<size_t> expected;

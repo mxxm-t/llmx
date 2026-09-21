@@ -85,7 +85,7 @@ def run():
 
         # merges: "h e" -> "he", "he llo" -> "hello", "hello world" -> "helloworld"
         merges = ["h e", "he llo", "hello world"]
-        specials = [(eos_id, 2)]  # 2 = control
+        specials = [(eos_id, 3)]  # GGUF token types: 3 = control
 
         gguf = os.path.join(d, "tok.gguf")
         build_tokenizer_gguf(gguf, tokens, merges, specials)
@@ -101,11 +101,24 @@ def run():
 
         # unicode
         rc, out3 = cli(["tokenize", gguf, "h\u00e9llo"])
-        assert rc == 0
+        assert rc == 0, "unicode tokenize failed"
         rc, out4 = cli(["detokenize", gguf, out3.strip()])
-        assert rc == 0
+        assert rc == 0, "unicode detokenize failed"
+        assert out4.strip() == "h\u00e9llo", \
+            "unicode round-trip %r != %r" % (out4.strip(), "h\u00e9llo")
 
-        print("tokenizer: encode->decode round-trip 'hello' -> %s  [ok]" % out2.strip())
+        # special token: encodes to a single id and decodes back unchanged
+        rc, out5 = cli(["tokenize", gguf, "<|endoftext|>"])
+        assert rc == 0, "special tokenize failed"
+        special = [int(x) for x in out5.split(",") if x.strip()]
+        assert len(special) == 1, "special token split into %d ids" % len(special)
+        rc, out6 = cli(["detokenize", gguf, str(special[0])])
+        assert rc == 0, "special detokenize failed"
+        assert out6.strip() == "<|endoftext|>", \
+            "special round-trip %r" % out6.strip()
+
+        print("tokenizer: encode->decode round-trip 'hello' -> %s, unicode and "
+              "special token  [ok]" % out2.strip())
         return True
     finally:
         import shutil

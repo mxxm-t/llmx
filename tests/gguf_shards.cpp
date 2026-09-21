@@ -356,12 +356,15 @@ int main(int argc, char** argv) {
         } catch (const std::ios_base::failure&) { failed = true; }
         require(failed && !seen.empty() && seen.back() < 34 + big_size, "truncation reported success");
         ++cases;
-        for (const auto& entry : std::filesystem::directory_iterator(directory)) std::filesystem::remove(entry.path());
-        std::filesystem::remove(directory);
+        std::filesystem::remove_all(directory);
         std::cout << "GGUF shards: " << cases << " cases pass\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
+        // Leaving the fixture behind makes every later run fail on the
+        // create_directory guard rather than on what actually broke.
+        std::error_code ignored;
+        std::filesystem::remove_all(directory, ignored);
         return 1;
     }
 }

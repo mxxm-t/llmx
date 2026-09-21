@@ -17,7 +17,8 @@
 #include "model/kv_cache.hpp"
 
 // Fails the Nth allocation of at least `min_bytes` after arming, once. Used
-// to break the batch-scratch allocation part way through.
+// to fail the prefill activation arena, which is one allocation large enough
+// that no other allocation on the path reaches the threshold.
 static thread_local size_t fail_large_after = 0, fail_min_bytes = 0;
 
 void* operator new(std::size_t n) {
@@ -37,9 +38,14 @@ void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
 }
 
+// Deliberately narrower than std::exception: this file injects bad_alloc of
+// its own, and catching that here would let an allocation failure stand in for
+// the budget or bounds error each case is checking for.
 template <class F> void rejects(F fn, const char* what) {
     bool failed = false;
-    try { fn(); } catch (const std::exception&) { failed = true; }
+    try { fn(); }
+    catch (const std::bad_alloc&) { throw; }
+    catch (const std::exception&) { failed = true; }
     require(failed, what);
 }
 
@@ -417,8 +423,8 @@ void model_transaction() {
     require(model.step(11) == control.step(11), "step after block-crossing retry differs");
     require(model.n_tokens() == (int)bt + 2, "position after block-crossing retry");
 
-    // Partial scratch allocation: the second large batch buffer fails, the
-    // retry must allocate the whole set and match the control exactly.
+    // The prefill activation arena fails to allocate; the retry must allocate
+    // it again and match the control exactly.
     model.reset();
     control.reset();
     model.set_ubatch(3);
@@ -426,8 +432,10 @@ void model_transaction() {
     {
         infer::Model fresh(weights, plain);
         fresh.set_ubatch(3);
-        fail_min_bytes = 3 * 8 * sizeof(float);
-        fail_large_after = 2;
+        // The arena for ubatch 3 on this fixture is 1216 bytes; nothing else
+        // allocated during prefill comes close, so this selects it alone.
+        fail_min_bytes = 1024;
+        fail_large_after = 1;
         bool failed = false;
         try { fresh.prefill({1, 2, 3}); } catch (const std::bad_alloc&) { failed = true; }
         fail_min_bytes = 0;

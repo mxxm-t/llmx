@@ -186,10 +186,51 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   `Memory` kind maps to. Loader loaded at run time so one binary runs
   without Vulkan; GLSL in the tree compiled by `glslc` at build time and
   embedded. Seven sub-steps with a CTest that skips without a device.
-- **Left:** the backend itself, sub-step 1 of `docs/VULKAN.md`. This
+- **Done: step 6, placement**, taken ahead of the Vulkan backend because
+  its first test needs no device. `Model` takes several backends and a
+  `Placement`, a device per tensor role: each layer's attention and
+  feed-forward block, the embedding table and the output head. Each weight
+  is adopted by the backend that hosts its role; each device that runs
+  attention gets a `KVStorage` for exactly its layers with its own pool,
+  block size and adopted RoPE tables; a `Sequence` holds a table per
+  storage and a ticket per device, and records the model that made it.
+  Wherever the placement changes, the residual stream crosses through the
+  context's staging vector, a `read` then a `write`, which gives `write`
+  its caller. The `placement` CTest splits a two-layer model over two CPU
+  backends so both crossings fall inside a layer and requires the bytes of
+  one backend for a prompt, decode steps, a history across a block edge, a
+  reset and a two-sequence pass; it counts reads and writes so crossings
+  are exactly where the placement changes and absent on one device. No
+  flag selects a placement yet: with the CPU as the only backend there is
+  nothing to place, so `--device` and `--n-gpu-layers` land with Vulkan.
+  Native 19/19, Python 12/12 with both HF models.
+- **Done: step 6 gate**, base `6514b17`, candidate `3a5aa7b`, layout
+  control `c6743a1`. Three 0.6B cells at 15 pairs, one 8B at 9, all eight
+  pass. Evidence in `docs/benchmarks/placement-20260921/`, raw monitors
+  archived and hashed; every sample kept.
+
+  | cell | phase | candidate mean / median / base wins | control mean / median / base wins |
+  |---|---|---|---|
+  | 0.6B-1 | prefill | +2.92% / +3.09% / 4/15 | +0.44% / +0.61% / 7/15 |
+  | 0.6B-1 | decode  | -1.16% / +0.08% / 7/15 | -1.05% / -1.28% / 9/15 |
+  | 0.6B-2 | prefill | +2.03% / +1.37% / 3/15 | +0.70% / -0.15% / 10/15 |
+  | 0.6B-2 | decode  | +0.96% / +0.55% / 6/15 | +1.08% / +0.46% / 6/15 |
+  | 0.6B-3 | prefill | +2.61% / +3.05% / 1/15 | +0.46% / +0.97% / 7/15 |
+  | 0.6B-3 | decode  | +0.32% / +0.12% / 6/15 | -0.35% / -1.07% / 8/15 |
+  | 8B | prefill | +0.28% / +0.67% / 3/9 | +0.51% / +0.92% / 3/9 |
+  | 8B | decode  | -0.21% / -0.43% / 5/9 | +0.04% / +0.22% / 4/9 |
+
+  0.6B prefill is two to three percent up in every cell against a control
+  under one percent, with base wins of 4, 3 and 1 of 15. Not claimed as a
+  win: the single-device path adds a role lookup per layer and nothing it
+  could have saved, and the step 2 gate had the same measurement two
+  percent the other way on a change of the same character. It is the
+  layout band again, this time in the candidate's favour, and the two
+  cancel.
+- **Left:** the Vulkan backend, sub-step 1 of `docs/VULKAN.md`. This
   workstation has the loader and `vulkaninfo` but not the SDK: `VULKAN_SDK`
   is unset and there is no `glslc`, so the LunarG SDK has to be installed
-  before sub-step 1 can build here.
+  before sub-step 1 can build here. Then the placement flags with it.
 - **Gotchas:** `sync()` stays `noexcept`; `wait` is too. The other
   developer's last recorded position predates the last five merges to
   main; the design is posted for review but does not wait on it.
@@ -713,7 +754,8 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 4 of 7 done; Vulkan page designed |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 4 and 6 of 7 done; Vulkan page designed |
+| Multi-device split (per-layer, per-tensor) | Placement done over CPU backends; flags wait for a device backend |
 | GPU backends (Vulkan first to write, ROCm first-class) | Planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |

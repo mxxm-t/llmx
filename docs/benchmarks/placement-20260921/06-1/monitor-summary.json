@@ -1,0 +1,389 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1",
+ "runs": {
+  "monitor-r0-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 47.1,
+   "system_cpu_max": 49.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r0-base.jsonl",
+   "bytes": 219485,
+   "sha256": "6f47d3c84dea475d2b48dbe79c7f7a758c3c474b0a7ce16cefd5b8bbcaac8bb5"
+  },
+  "monitor-r0-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.3,
+   "system_cpu_max": 36.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r0-cand0.jsonl",
+   "bytes": 220611,
+   "sha256": "a3497cd4011a38587291ccf45e0fcb626203383b8a05a1b68a9831214feb57f2"
+  },
+  "monitor-r0-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.5,
+   "system_cpu_max": 47.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r0-ctrl.jsonl",
+   "bytes": 220549,
+   "sha256": "7f7c60a6d4c04e791bf05d7bce69984d21165ee97ca368ef31edc1944759b361"
+  },
+  "monitor-r1-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 39.1,
+   "system_cpu_max": 39.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r1-base.jsonl",
+   "bytes": 221099,
+   "sha256": "55a57115f51a759c44c6abb42c5944ffa1c1e7b4e098feba5c4f64dc3f320587"
+  },
+  "monitor-r1-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.5,
+   "system_cpu_max": 35.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r1-cand0.jsonl",
+   "bytes": 220411,
+   "sha256": "fe0ee002fa1f282dad382be31a42256de058c627a5a3dc21c9778ff7693211d7"
+  },
+  "monitor-r1-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.3,
+   "system_cpu_max": 37.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r1-ctrl.jsonl",
+   "bytes": 220643,
+   "sha256": "4ac7899652cfcdc4edc5c18a47e81f2f8ea866da819dbc87548f1276b88cc521"
+  },
+  "monitor-r10-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.5,
+   "system_cpu_max": 35.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r10-base.jsonl",
+   "bytes": 220437,
+   "sha256": "785fdc8d33c8660592f314b215c90fbda5314ee1a56c884f6074738cc7a44f9f"
+  },
+  "monitor-r10-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.3,
+   "system_cpu_max": 38.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r10-cand0.jsonl",
+   "bytes": 220878,
+   "sha256": "02c783210e26dcb79d403a5806b591dd011caf57a41a21f2b3af4fba4e7aac2d"
+  },
+  "monitor-r10-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.5,
+   "system_cpu_max": 39.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r10-ctrl.jsonl",
+   "bytes": 220374,
+   "sha256": "f3f11e2267e63890454ad64fb0dbb306dbbca058e264c8618979e0e843fc0a15"
+  },
+  "monitor-r11-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.8,
+   "system_cpu_max": 36.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r11-base.jsonl",
+   "bytes": 220269,
+   "sha256": "3cbccda9c720216887be40e309c058f8c6c839f734c04d0f008f6606207a4a5a"
+  },
+  "monitor-r11-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 34.3,
+   "system_cpu_max": 35.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r11-cand0.jsonl",
+   "bytes": 220758,
+   "sha256": "fdc0e54add43d924218e55deb1ce5a2007aec4c3c7c695b9154fe1a3f5316922"
+  },
+  "monitor-r11-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 37.0,
+   "system_cpu_max": 37.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r11-ctrl.jsonl",
+   "bytes": 220519,
+   "sha256": "8e30448ef287e9259954f38cdbb4a467aa7df53026397bc924281f2c5a8a8c62"
+  },
+  "monitor-r12-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.6,
+   "system_cpu_max": 39.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r12-base.jsonl",
+   "bytes": 220363,
+   "sha256": "f3fc63c7325efa968f67016284489cf6e598f28dd0295383bf33830e2b54aa69"
+  },
+  "monitor-r12-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.3,
+   "system_cpu_max": 38.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r12-cand0.jsonl",
+   "bytes": 220239,
+   "sha256": "864beed190b8ebd970bec4166197636e08a74076972bf417c1b807c80faaa673"
+  },
+  "monitor-r12-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.5,
+   "system_cpu_max": 37.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r12-ctrl.jsonl",
+   "bytes": 220363,
+   "sha256": "7836289f12da827fd009e8745d4c5c8bd56a0f7d1523700e337d595d272cc9ed"
+  },
+  "monitor-r13-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.6,
+   "system_cpu_max": 37.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r13-base.jsonl",
+   "bytes": 220322,
+   "sha256": "f9e12010b48c0a65ab76c05aa9c988ab0f1338f274f0de4e9267d335d6de912b"
+  },
+  "monitor-r13-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.0,
+   "system_cpu_max": 37.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r13-cand0.jsonl",
+   "bytes": 220260,
+   "sha256": "a37c39310172cd873dd9100ca7a4012bdf33ba7d96ede165357e8d92e7d99944"
+  },
+  "monitor-r13-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 37.4,
+   "system_cpu_max": 38.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r13-ctrl.jsonl",
+   "bytes": 220232,
+   "sha256": "321ed987229ea4d33e013604206f00bf5a3ef3d74b6bd07e5183f3c04b7e786a"
+  },
+  "monitor-r14-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.3,
+   "system_cpu_max": 37.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r14-base.jsonl",
+   "bytes": 221202,
+   "sha256": "8fcc074a50ea3c3615a26f6fd192cb2631cba4744ad542badd57f08a5d424c3d"
+  },
+  "monitor-r14-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 40.6,
+   "system_cpu_max": 44.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r14-cand0.jsonl",
+   "bytes": 220725,
+   "sha256": "5a7a0e3f9431c1c258c045fa8b496c6e2128cce70e82d659a54bb82ca1537fcd"
+  },
+  "monitor-r14-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.9,
+   "system_cpu_max": 37.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r14-ctrl.jsonl",
+   "bytes": 220749,
+   "sha256": "ea22274d9060119f7a85b71c9b712d7e08634ef873ecc069998670ccee415a59"
+  },
+  "monitor-r15-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.0,
+   "system_cpu_max": 37.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r15-base.jsonl",
+   "bytes": 220440,
+   "sha256": "e73974b98039a21a4142dfbd221fd9f892a86e165fcad6ba946d57b7717acc2d"
+  },
+  "monitor-r15-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 37.1,
+   "system_cpu_max": 39.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r15-cand0.jsonl",
+   "bytes": 220422,
+   "sha256": "485225742e5943b0a1a5a5779a5ccb49bd7430902b037231edf42a7a72d00038"
+  },
+  "monitor-r15-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.5,
+   "system_cpu_max": 40.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r15-ctrl.jsonl",
+   "bytes": 220376,
+   "sha256": "449e1c7c9dfec56ecec76be88549b166a9903e53d748798ecf4c342f97425a2f"
+  },
+  "monitor-r2-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.2,
+   "system_cpu_max": 40.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r2-base.jsonl",
+   "bytes": 220686,
+   "sha256": "232bc84f5169a04687a64402a5275ecf81fb745d9f772cacdb6b1e951bd48ebf"
+  },
+  "monitor-r2-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.9,
+   "system_cpu_max": 37.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r2-cand0.jsonl",
+   "bytes": 220302,
+   "sha256": "60d1be6c1ecb92550a4ed963586a3233fe9989907ef089d01c6055725a6537d3"
+  },
+  "monitor-r2-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 37.1,
+   "system_cpu_max": 39.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r2-ctrl.jsonl",
+   "bytes": 220383,
+   "sha256": "aa12dafc1badb295d10fb9bc7ac54cd590da4c867f7400eef3e15220e4755c99"
+  },
+  "monitor-r3-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.9,
+   "system_cpu_max": 38.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r3-base.jsonl",
+   "bytes": 220767,
+   "sha256": "96cfe2920a8df8a27e50d46841183a9cf5ac7825dd500233706d67e49cd9e2fd"
+  },
+  "monitor-r3-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.3,
+   "system_cpu_max": 36.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r3-cand0.jsonl",
+   "bytes": 220722,
+   "sha256": "0acad296385db0028927cef23591f085de0dd20802d437a31571548b365e9d06"
+  },
+  "monitor-r3-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.7,
+   "system_cpu_max": 40.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r3-ctrl.jsonl",
+   "bytes": 220410,
+   "sha256": "9b2bbc8404bd54feb802ea3c00ef7f26aa098fef11ad8c24ae6d36318053fe17"
+  },
+  "monitor-r4-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.1,
+   "system_cpu_max": 36.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r4-base.jsonl",
+   "bytes": 220746,
+   "sha256": "7e9a4566ab32276dc51d6c9a0f28e0e9ad50d55d8f80de794584bb8a232f5791"
+  },
+  "monitor-r4-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.6,
+   "system_cpu_max": 39.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r4-cand0.jsonl",
+   "bytes": 220413,
+   "sha256": "4c40438e6a7554b75dda085c8dfdcac63ba58a6947b1a65aacd7b6c23fa0c71d"
+  },
+  "monitor-r4-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 40.7,
+   "system_cpu_max": 42.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r4-ctrl.jsonl",
+   "bytes": 220411,
+   "sha256": "1aac3042c7dfbe2c0f533f65f663c97750292d7851d7453f50ac52c497e0f32e"
+  },
+  "monitor-r5-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.9,
+   "system_cpu_max": 37.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r5-base.jsonl",
+   "bytes": 220777,
+   "sha256": "70951ca385d3fc333e91d1551c8bcd9465efc9929ee2a779d6295530ae74b7c0"
+  },
+  "monitor-r5-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 46.8,
+   "system_cpu_max": 55.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r5-cand0.jsonl",
+   "bytes": 220444,
+   "sha256": "07652af51c3c122b27fde82c4df5116e9d98c27cb6d2ea352d218d4146778bb5"
+  },
+  "monitor-r5-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.5,
+   "system_cpu_max": 41.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r5-ctrl.jsonl",
+   "bytes": 220406,
+   "sha256": "d750c65187a42493e426a37afd7cafd9b15f8d1d49d7e8a12f63e9b8f028e222"
+  },
+  "monitor-r6-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 34.9,
+   "system_cpu_max": 38.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r6-base.jsonl",
+   "bytes": 220328,
+   "sha256": "682cccd4bffd6242b6528355e0ab3a4360c199becaf256ed3e0a440131b73b68"
+  },
+  "monitor-r6-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.7,
+   "system_cpu_max": 38.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r6-cand0.jsonl",
+   "bytes": 220845,
+   "sha256": "4bfa53b96a29069f5798447b06eae0fed34a2a137ff3c0c0fedb44f1cc73d8a0"
+  },
+  "monitor-r6-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.0,
+   "system_cpu_max": 38.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r6-ctrl.jsonl",
+   "bytes": 221169,
+   "sha256": "aaa68bee0cf632edbe834af52f1e9f7eea3faca101379cea5d1798a5413aad1f"
+  },
+  "monitor-r7-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 37.6,
+   "system_cpu_max": 38.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r7-base.jsonl",
+   "bytes": 220757,
+   "sha256": "01e50fa19e38b9ccfd5729c2a62efb408620be809090ea2cf01c887c12a2bdba"
+  },
+  "monitor-r7-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 34.1,
+   "system_cpu_max": 35.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r7-cand0.jsonl",
+   "bytes": 220472,
+   "sha256": "eef9560cf275750285f628bf5ce8a71a6c7980e3ac0f2bac0c5b290fb4b23a70"
+  },
+  "monitor-r7-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 39.2,
+   "system_cpu_max": 41.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r7-ctrl.jsonl",
+   "bytes": 220350,
+   "sha256": "2f1134bf2fb8e0012e324c7d7b5e155dac30e447d7d7c15a2f25043124033710"
+  },
+  "monitor-r8-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.3,
+   "system_cpu_max": 37.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r8-base.jsonl",
+   "bytes": 220294,
+   "sha256": "49e5a85b6aa20744de03cb71424967849a7dffc30f86e2c9de66cf0a1ba6d75b"
+  },
+  "monitor-r8-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.9,
+   "system_cpu_max": 38.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r8-cand0.jsonl",
+   "bytes": 220311,
+   "sha256": "e583f0da4d8e85cd6026c848577f87ab5b6cd880013f4acb5b51ac61dfdf4084"
+  },
+  "monitor-r8-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 39.6,
+   "system_cpu_max": 43.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r8-ctrl.jsonl",
+   "bytes": 220349,
+   "sha256": "0b25c0cff2f5c70cf162b9ee5e35829859030587aa5f6f9ee872aa14db010bf4"
+  },
+  "monitor-r9-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 37.9,
+   "system_cpu_max": 40.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r9-base.jsonl",
+   "bytes": 220788,
+   "sha256": "2080c601039040dcb2357d35ca66d55506cd41a5e497d6af38417a43a1bb7445"
+  },
+  "monitor-r9-cand0.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 35.4,
+   "system_cpu_max": 36.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r9-cand0.jsonl",
+   "bytes": 220396,
+   "sha256": "e54a1dce53ee2b1362f76161afe316084f97ee3646a533ac21158b3db9bbf235"
+  },
+  "monitor-r9-ctrl.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 36.3,
+   "system_cpu_max": 36.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\placement-20260921\\06-1\\monitor-r9-ctrl.jsonl",
+   "bytes": 220373,
+   "sha256": "351cc9695ee98899ca2409dafe07270d7221d23460b8bfe81f15856096dbe9c5"
+  }
+ }
+}

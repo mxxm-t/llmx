@@ -137,8 +137,48 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   plan, came back at +0.10 and +1.75 with 7 and 5 base wins, and 8B decode
   is flat. Recorded as noise confirmed by rerun, with the failing cell
   kept.
-- **Left:** step 4, `Model` / `Sequence` / `ExecContext` / `Batch` with
-  `gather_rows`. Then the Vulkan page.
+- **Done: step 4.** `Model` owns the weights, the cache's pool and physical
+  storage and the backend, read-only after construction apart from pool
+  bookkeeping. `Sequence` is one request's history and its last ticket,
+  `ExecContext` one pass in flight, and `Model::forward` runs one pass over
+  a batch of entries, each a sequence with tokens to append and whether it
+  wants logits; rows that want logits are compacted by `gather_rows`, which
+  gets its first caller, and the head runs once over them. `forward`
+  submits and returns; the context waits on the ticket the first time its
+  logits are read, so a caller with two contexts can submit the next pass
+  before reading this one. `step` and `prefill` are wrappers on a sequence
+  and a context the model keeps, so the CLI, `generate`, `chat` and
+  `perplexity` are unchanged. Decode runs the same row-batched graph as
+  prefill with one row, which retires the separate decode arena and the
+  single-row helpers. `kv-cache` runs two sequences in one pass, one
+  decoding over a history while the other prefills, against the two alone,
+  and refuses a sequence listed twice; `backend-group` checks the gather.
+  Native 18/18, Python 12/12 with both HF models.
+- **Done: step 4 gate**, base `56ee2d1`, candidate `18b9c74`, layout
+  control `1a05110` perturbing `cpu_backend.hpp` and `arch_qwen.hpp`.
+  Three 0.6B cells at 15 pairs, one 8B at 9. Evidence in
+  `docs/benchmarks/model-split-20260921/`, raw monitors archived and
+  hashed; every sample is kept.
+
+  | cell | phase | candidate mean / median / base wins | control mean / median / base wins |
+  |---|---|---|---|
+  | 0.6B-1 | prefill | **-2.29% / -2.21% / 12/15 FAIL** | -0.54% / -1.08% / 10/15 |
+  | 0.6B-1 | decode  | +0.84% / +0.77% / 5/15 | +0.19% / +0.37% / 6/15 |
+  | 0.6B-2 | prefill | -0.66% / -0.70% / 8/15 | +0.27% / +0.40% / 5/15 |
+  | 0.6B-2 | decode  | +1.35% / +1.18% / 5/15 | +0.66% / +1.00% / 5/15 |
+  | 0.6B-3 | prefill | +1.57% / +2.50% / 5/15 | +3.01% / +0.97% / 5/15 |
+  | 0.6B-3 | decode  | +3.03% / +1.45% / 2/15 | +1.68% / +1.88% / 6/15 |
+  | 8B | prefill | -0.05% / +0.54% / 4/9 | -0.28% / -0.03% / 5/9 |
+  | 8B | decode  | +0.32% / +0.44% / 3/9 | +0.27% / +0.22% / 2/9 |
+
+  One cell failed, 0.6B-1 prefill, on the win count at exactly the
+  threshold with mean and median inside the band; the two identical cells
+  after it came back at -0.66 and +1.57 with 8 and 5 base wins, and 8B
+  prefill is flat. Recorded as noise confirmed by rerun, failing cell kept.
+  Decode is positive in every cell, which is the number this step could
+  have moved: the decode loop now runs the row-batched graph with one row
+  rather than its own path, and it did not cost anything measurable.
+- **Left:** the Vulkan backend page, then the backend itself (step 5).
 - **Gotchas:** `sync()` stays `noexcept`; `wait` is too. The other
   developer's last recorded position predates the last five merges to
   main; the design is posted for review but does not wait on it.
@@ -662,7 +702,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 3 of 7 done |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 4 of 7 done |
 | GPU backends (Vulkan first to write, ROCm first-class) | Planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |

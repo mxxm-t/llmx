@@ -1,0 +1,34 @@
+{
+  "advance": {
+    "alpha": 0.05,
+    "contamination": "A pair is flagged when either arm's whole-run CPU exceeds the session median by 25%. Flags are reported, never used to drop, replace or re-run a pair.",
+    "noise_fraction": 0.03,
+    "rule": "For each phase, over the PAIRED per-round ratios cand/base: both the mean and the median ratio are at least (1 - noise_fraction), AND baseline paired wins are below the smallest count whose one-sided binomial tail under p=0.5 is at most alpha. Ratios are paired so a drift within the run cancels inside each pair; comparing marginal medians instead let a run that drifted 289 -> 222 tok/s report -11.15% on identical code."
+  },
+  "arms": {
+    "base": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\split\\base-wt\\build\\Release\\llmx.exe",
+      "sha256": "d5e6d7ee63c912faf62d8d17c31cc7099234c9118b8762d57e840c9f6787150d"
+    },
+    "cand0": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\split\\cand-wt\\build\\Release\\llmx.exe",
+      "sha256": "7b8643a259b8754dc17bd072519fbba1c724a40f8caf53abdc64178d06aaeab6"
+    },
+    "ctrl": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\split\\ctrl-wt\\build\\Release\\llmx.exe",
+      "sha256": "875531bc86d52f50fc62466be00d6e09e8139a8b75e41b4d3ae7973b43640eed"
+    }
+  },
+  "created": "2026-09-21T18:00:32+0300",
+  "kind": "device-execution A/B",
+  "limits": "One model and one prompt. Host load is recorded, not controlled. This runner covers only the regression half of the bar, baseline against candidate. The external mx-llama.cpp floor is a separate matched comparison and is NOT run here; a step that passes this runner still has to clear that floor.",
+  "max_tokens": 32,
+  "measured_rounds": 9,
+  "model": "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+  "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+  "order": "arms rotate by one place per round; the rotation reverses on odd rounds",
+  "prompt": "C:\\Users\\Marko\\AppData\\Local\\Temp\\claude\\c--Users-Marko-Desktop-Projects-llmx\\f87029ee-2743-4ce3-825d-331cf3f6b7c6\\scratchpad\\screen\\p250.txt",
+  "prompt_sha256": "bcf043d4cb9f583da9e79266e616a614ad6f67fcaed03b507b5661042f2c3844",
+  "threads": 6,
+  "warmup_rounds": 1
+}

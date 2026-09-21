@@ -1,0 +1,116 @@
+{
+  "advance": "pass",
+  "candidates": {
+    "cand0": {
+      "kv_bytes": {
+        "allocated": 150994944,
+        "peak": 226492416,
+        "used": 82280448
+      },
+      "prefill": {
+        "base_mean": 39.22888888888889,
+        "cand_mean": 39.205555555555556,
+        "base_median": 39.22,
+        "cand_median": 39.4,
+        "paired_mean_change_percent": -0.05056660170199567,
+        "paired_median_change_percent": 0.5433376455368677,
+        "unpaired_mean_change_percent": -0.059479975075060754,
+        "baseline_wins": 4,
+        "pairs": 9,
+        "fail_at_wins": 8,
+        "paired_change_percent": [
+          0.5433376455368677,
+          1.2593163711128286,
+          -0.15178345560334927,
+          -3.4395548811330334,
+          -1.8392542202065987,
+          1.9989748846745092,
+          0.9656925031766184,
+          -2.1417644059153362,
+          2.3499361430395993
+        ],
+        "advance": "pass"
+      },
+      "decode": {
+        "base_mean": 4.538888888888889,
+        "cand_mean": 4.553333333333334,
+        "base_median": 4.53,
+        "cand_median": 4.57,
+        "paired_mean_change_percent": 0.32162148627827847,
+        "paired_median_change_percent": 0.4395604395604602,
+        "unpaired_mean_change_percent": 0.3182374541003785,
+        "baseline_wins": 3,
+        "pairs": 9,
+        "fail_at_wins": 8,
+        "paired_change_percent": [
+          1.5555555555555545,
+          0.8810572687224738,
+          -1.103752759381893,
+          -1.0940919037199293,
+          0.0,
+          1.103752759381904,
+          -0.2178649237472685,
+          1.330376940133049,
+          0.4395604395604602
+        ],
+        "advance": "pass"
+      }
+    },
+    "ctrl": {
+      "kv_bytes": {
+        "allocated": 150994944,
+        "peak": 226492416,
+        "used": 82280448
+      },
+      "prefill": {
+        "base_mean": 39.22888888888889,
+        "cand_mean": 39.117777777777775,
+        "base_median": 39.22,
+        "cand_median": 39.24,
+        "paired_mean_change_percent": -0.2756159931067037,
+        "paired_median_change_percent": -0.025542784163468113,
+        "unpaired_mean_change_percent": -0.28323797654790095,
+        "baseline_wins": 5,
+        "pairs": 9,
+        "fail_at_wins": 8,
+        "paired_change_percent": [
+          2.199223803363526,
+          -2.1588280647648284,
+          -2.7068049582595455,
+          -0.7587253414263917,
+          -1.7384731670445852,
+          1.5376729882111695,
+          0.584498094027941,
+          0.5864354920958714,
+          -0.025542784163468113
+        ],
+        "advance": "pass"
+      },
+      "decode": {
+        "base_mean": 4.538888888888889,
+        "cand_mean": 4.551111111111111,
+        "base_median": 4.53,
+        "cand_median": 4.55,
+        "paired_mean_change_percent": 0.27035246301858606,
+        "paired_median_change_percent": 0.22026431718060735,
+        "unpaired_mean_change_percent": 0.26927784577723823,
+        "baseline_wins": 2,
+        "pairs": 9,
+        "fail_at_wins": 8,
+        "paired_change_percent": [
+          0.6666666666666821,
+          0.22026431718060735,
+          0.6622516556291203,
+          -0.4376367614879806,
+          0.8830022075055233,
+          -0.22075055187639192,
+          0.2178649237472685,
+          0.22172949002217113,
+          0.219780219780219
+        ],
+        "advance": "pass"
+      }
+    }
+  },
+  "plan_sha256": "47152009b5043c6cb1c1a8e3d210f4e457362136e97bb256705fa59f83d677a4"
+}

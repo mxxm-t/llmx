@@ -67,8 +67,9 @@ static const size_t KV_BLOCK_TOKENS = 128;
 class CpuKVStorage final : public KVStorage {
 public:
     CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim,
-                 size_t max_blocks)
-        : owner_(&owner), heads_(heads), dim_(dim), max_(max_blocks),
+                 size_t max_blocks, KVType kt, KVType vt)
+        : owner_(&owner), heads_(heads), dim_(dim), max_(max_blocks), kt_(kt), vt_(vt),
+          kb_(kv_elem_bytes(kt)), vb_(kv_elem_bytes(vt)),
           k_(layers), v_(layers), kp_(layers, nullptr), vp_(layers, nullptr) {
         // Called for its overflow throw, not its value: block_floats()
         // recomputes this on every access and must not wrap.
@@ -102,6 +103,10 @@ public:
     size_t heads() const { return heads_; }
     size_t dim() const { return dim_; }
     size_t block_floats() const { return heads_ * KV_BLOCK_TOKENS * dim_; }
+    KVType k_type() const { return kt_; }
+    KVType v_type() const { return vt_; }
+    size_t k_block_bytes() const { return block_floats() * kb_; }
+    size_t v_block_bytes() const { return block_floats() * vb_; }
     bool backed(size_t id) const { return id < backed_; }
 
     // The complete new set is allocated and already holds the history before
@@ -112,19 +117,19 @@ public:
         if (id < backed_) return;
         if (id >= max_) throw std::runtime_error("backend: KV block outside the budget");
         const size_t want = std::max(id + 1, std::min(max_, backed_ * 2));
-        const size_t bytes = mul(mul(want, block_floats()), sizeof(float));
-        const size_t held = mul(mul(bytes, 2), k_.size());
+        const size_t kbytes = mul(want, k_block_bytes()), vbytes = mul(want, v_block_bytes());
+        const size_t held = mul(add(kbytes, vbytes), k_.size());
         std::vector<BufferPtr> nk(k_.size()), nv(v_.size());
-        std::vector<float*> nkp(k_.size()), nvp(v_.size());
+        std::vector<uint8_t*> nkp(k_.size()), nvp(v_.size());
         for (size_t l = 0; l < k_.size(); ++l) {
-            nk[l] = owner_->alloc(bytes);
-            nv[l] = owner_->alloc(bytes);
+            nk[l] = owner_->alloc(kbytes);
+            nv[l] = owner_->alloc(vbytes);
             if (k_[l]) {
                 owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
                 owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
             }
-            nkp[l] = host_floats(*nk[l]);
-            nvp[l] = host_floats(*nv[l]);
+            nkp[l] = host_bytes(*nk[l]);
+            nvp[l] = host_bytes(*nv[l]);
         }
         peak_ = std::max(peak_, add(allocated_bytes(), held));
         k_.swap(nk);
@@ -134,24 +139,36 @@ public:
         backed_ = want;
     }
 
-    float* k(size_t layer, int32_t id) { return kp_[layer] + (size_t)id * block_floats(); }
-    float* v(size_t layer, int32_t id) { return vp_[layer] + (size_t)id * block_floats(); }
-    const float* k(size_t layer, int32_t id) const { return kp_[layer] + (size_t)id * block_floats(); }
-    const float* v(size_t layer, int32_t id) const { return vp_[layer] + (size_t)id * block_floats(); }
+    // Block `id` of a layer as bytes, and as the element type it holds; the
+    // caller checks the type and casts once per block.
+    uint8_t* kraw(size_t layer, int32_t id) { return kp_[layer] + (size_t)id * k_block_bytes(); }
+    uint8_t* vraw(size_t layer, int32_t id) { return vp_[layer] + (size_t)id * v_block_bytes(); }
+    const uint8_t* kraw(size_t layer, int32_t id) const { return kp_[layer] + (size_t)id * k_block_bytes(); }
+    const uint8_t* vraw(size_t layer, int32_t id) const { return vp_[layer] + (size_t)id * v_block_bytes(); }
+    float* k(size_t layer, int32_t id) { return (float*)kraw(layer, id); }
+    float* v(size_t layer, int32_t id) { return (float*)vraw(layer, id); }
+    const float* k(size_t layer, int32_t id) const { return (const float*)kraw(layer, id); }
+    const float* v(size_t layer, int32_t id) const { return (const float*)vraw(layer, id); }
+    uint16_t* kh(size_t layer, int32_t id) { return (uint16_t*)kraw(layer, id); }
+    uint16_t* vh(size_t layer, int32_t id) { return (uint16_t*)vraw(layer, id); }
+    const uint16_t* kh(size_t layer, int32_t id) const { return (const uint16_t*)kraw(layer, id); }
+    const uint16_t* vh(size_t layer, int32_t id) const { return (const uint16_t*)vraw(layer, id); }
 
 private:
     // Resolved once per growth rather than per access: attention walks the
     // block table for every head of every query.
-    static float* host_floats(Buffer& b) {
+    static uint8_t* host_bytes(Buffer& b) {
         auto* cpu = dynamic_cast<CpuBuffer*>(&b);
         if (!cpu) throw std::runtime_error("backend: KV storage needs host blocks");
-        return (float*)cpu->host_address();
+        return (uint8_t*)cpu->host_address();
     }
 
     Backend* owner_;
     size_t heads_, dim_, max_, backed_ = 0, peak_ = 0;
+    KVType kt_, vt_;
+    size_t kb_, vb_;
     std::vector<BufferPtr> k_, v_;
-    std::vector<float*> kp_, vp_;
+    std::vector<uint8_t*> kp_, vp_;
 };
 
 // CPU implementation of the Backend interface. Uses AVX2 fused dequant+FMA for
@@ -695,7 +712,8 @@ public:
     KVLayout kv_layout() const override { return {KV_BLOCK_TOKENS}; }
 
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
-                                        size_t max_tokens) override {
+                                        size_t max_tokens, KVType k_type = KVType::f32,
+                                        KVType v_type = KVType::f32) override {
         if (layers == 0 || n_head_kv == 0 || head_dim == 0)
             throw std::runtime_error("backend: invalid KV storage shape");
         const size_t blocks = CpuKVStorage::blocks_for(max_tokens);
@@ -704,7 +722,7 @@ public:
         using S = CpuKVStorage;
         S::mul(S::mul(S::mul(S::mul(blocks, layers), 2), n_head_kv),
                S::mul(S::mul(KV_BLOCK_TOKENS, head_dim), sizeof(float)));
-        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, blocks);
+        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, blocks, k_type, v_type);
     }
 
     void kv_copy(KVStorage& storage, int32_t src, int32_t dst) override {
@@ -714,9 +732,37 @@ public:
             throw std::runtime_error("backend: KV copy outside the storage");
         s->ensure((size_t)dst);
         for (size_t l = 0; l < s->layers(); ++l) {
-            std::copy_n(s->k(l, src), s->block_floats(), s->k(l, dst));
-            std::copy_n(s->v(l, src), s->block_floats(), s->v(l, dst));
+            std::copy_n(s->kraw(l, src), s->k_block_bytes(), s->kraw(l, dst));
+            std::copy_n(s->vraw(l, src), s->v_block_bytes(), s->vraw(l, dst));
         }
+    }
+
+    // A row of floats into a cache side of either type; f16 rounds to
+    // nearest, eight at a time where F16C is present.
+    void kv_store(uint8_t* dst, KVType type, const float* src, size_t n) const {
+        if (type == KVType::f32) { std::copy_n(src, n, (float*)dst); return; }
+        uint16_t* d = (uint16_t*)dst;
+        size_t i = 0;
+        if (avx2_)
+            for (; i + 8 <= n; i += 8)
+                _mm_storeu_si128((__m128i*)(d + i), _mm256_cvtps_ph(_mm256_loadu_ps(src + i), _MM_FROUND_TO_NEAREST_INT));
+        for (; i < n; ++i) d[i] = f32_to_f16(src[i]);
+    }
+    // dot(q, k) over an f16 key row.
+    float dot_f32_f16(const float* q, const uint16_t* k, size_t n) const {
+        float sum = 0.0f;
+        size_t i = 0;
+        if (avx2_) {
+            __m256 acc = _mm256_setzero_ps();
+            for (; i + 8 <= n; i += 8)
+                acc = _mm256_fmadd_ps(_mm256_loadu_ps(q + i),
+                                      _mm256_cvtph_ps(_mm_loadu_si128((const __m128i*)(k + i))), acc);
+            float lanes[8];
+            _mm256_storeu_ps(lanes, acc);
+            for (float x : lanes) sum += x;
+        }
+        for (; i < n; ++i) sum += q[i] * f16_to_f32(k[i]);
+        return sum;
     }
 
     void kv_write(size_t layer, const KVView* views, size_t n_views,
@@ -740,8 +786,8 @@ public:
                 for (size_t h = 0; h < heads; ++h) {
                     const size_t in = ((row0 + b) * heads + h) * dim;
                     const size_t out = (h * bt + t % bt) * dim;
-                    std::copy_n(k + in, dim, s.k(layer, id) + out);
-                    std::copy_n(v + in, dim, s.v(layer, id) + out);
+                    kv_store(s.kraw(layer, id) + out * kv_elem_bytes(s.k_type()), s.k_type(), k + in, dim);
+                    kv_store(s.vraw(layer, id) + out * kv_elem_bytes(s.v_type()), s.v_type(), v + in, dim);
                 }
             }
             row0 += batch;
@@ -792,8 +838,16 @@ public:
                     const float* q = Q + (size_t)b * q_stride + (size_t)h * hd;
                     float max_score = -std::numeric_limits<float>::infinity();
                     for (size_t t0 = 0; t0 < end; t0 += bt) {
-                        const float* kb = s.k(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
                         const size_t n = std::min(bt, end - t0);
+                        if (s.k_type() == KVType::f16) {
+                            const uint16_t* kb = s.kh(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
+                            for (size_t j = 0; j < n; ++j) {
+                                scores[t0 + j] = dot_f32_f16(q, kb + j * hd, hd) * scale;
+                                max_score = std::max(max_score, scores[t0 + j]);
+                            }
+                            continue;
+                        }
+                        const float* kb = s.k(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
                         for (size_t j = 0; j < n; ++j) {
                             const float* k = kb + j * hd;
                             float score = 0.0f;
@@ -815,6 +869,36 @@ public:
                     const auto vblock = [&](size_t t0) {
                         return s.v(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
                     };
+                    if (s.v_type() == KVType::f16) {
+                        // Eight halves widened per load where F16C is present.
+                        const auto vblock16 = [&](size_t t0) {
+                            return s.vh(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
+                        };
+                        size_t d = 0;
+                        if (avx2_) {
+                            for (; d + 8 <= hd; d += 8) {
+                                __m256 acc = _mm256_setzero_ps();
+                                for (size_t t0 = 0; t0 < end; t0 += bt) {
+                                    const uint16_t* vb = vblock16(t0) + d;
+                                    const size_t n = std::min(bt, end - t0);
+                                    for (size_t j = 0; j < n; ++j)
+                                        acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
+                                                                               _mm256_cvtph_ps(_mm_loadu_si128((const __m128i*)(vb + j * hd)))));
+                                }
+                                _mm256_storeu_ps(dst + d, acc);
+                            }
+                        }
+                        for (; d < hd; ++d) {
+                            float acc = 0.0f;
+                            for (size_t t0 = 0; t0 < end; t0 += bt) {
+                                const uint16_t* vb = vblock16(t0) + d;
+                                const size_t n = std::min(bt, end - t0);
+                                for (size_t j = 0; j < n; ++j) acc += scores[t0 + j] * f16_to_f32(vb[j * hd]);
+                            }
+                            dst[d] = acc;
+                        }
+                        continue;
+                    }
                     size_t d = 0;
                     if (avx2_) {
                         for (; d + 32 <= hd; d += 32) {

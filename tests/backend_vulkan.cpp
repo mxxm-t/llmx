@@ -399,6 +399,117 @@ size_t check_kernels(backend::Backend& vk) {
             values += close(qc, qv, 1e-5, "norm_rope_kv q differs beyond 1e-5");
             values += close(ac, av, 1e-4, "norm_rope_kv attention differs beyond 1e-4");
         }
+        // attention over a wide pass of 128-wide heads takes the tiled
+        // kernel: 32 and 45 query rows (one full tile, then a partial one
+        // whose last rows mask part of a K/V tile) after histories of 0 and
+        // 70 tokens, against the CPU at 1e-4.
+        for (size_t hist : {size_t(0), size_t(70)}) {
+            for (size_t nq : {size_t(32), size_t(45)}) {
+                const int n_head = 4, n_head_kv = 2, head_dim = 128;
+                const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
+                const auto hk = uniform((hist + nq) * kvw, 50 + (uint32_t)nq), hv = uniform((hist + nq) * kvw, 51 + (uint32_t)nq);
+                const auto qq = uniform(nq * qw, 52 + (uint32_t)hist);
+                auto run = [&](backend::Backend& b, std::vector<float>& att) {
+                    const size_t bt = b.kv_layout().block_tokens;
+                    auto st = b.kv_alloc(1, n_head_kv, head_dim, 512);
+                    infer::BlockPool pool(st->max_blocks());
+                    infer::KVSequence seq(&pool, bt);
+                    const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
+                    const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));
+                    const auto Qb = b.adopt(qq.data(), qq.size() * sizeof(float));
+                    if (hist) {
+                        seq.prepare(hist);
+                        const backend::KVView h = seq.view(st.get());
+                        b.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                        seq.commit();
+                    }
+                    seq.prepare(nq);
+                    const backend::KVView view = seq.view(st.get());
+                    b.kv_write(0, &view, 1, {Kb.get(), hist * kvw}, {Vb.get(), hist * kvw});
+                    const auto ob = b.alloc(nq * qw * sizeof(float), backend::Memory::device);
+                    b.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+                    att.resize(nq * qw);
+                    b.read(*ob, 0, att.data(), att.size() * sizeof(float));
+                };
+                std::vector<float> ac, av;
+                run(p.cpu, ac);
+                run(p.vk, av);
+                values += close(ac, av, 1e-4, "tiled attention differs beyond 1e-4");
+            }
+        }
+        // f16 cache sides: each combination of K and V types on both
+        // backends, through kv_write, the fused norm_rope_kv, kv_copy and
+        // attention on the per-row and the tiled kernel. The device is
+        // compared with the CPU at the same types at 1e-4, and every f16
+        // combination with the CPU's f32 result at a looser 2e-2, which is
+        // what rounding keys and values to half precision costs here.
+        for (int combo = 1; combo < 4; ++combo) {
+            const backend::KVType kt = combo & 1 ? backend::KVType::f16 : backend::KVType::f32;
+            const backend::KVType vt = combo & 2 ? backend::KVType::f16 : backend::KVType::f32;
+            for (size_t nq : {size_t(2), size_t(40)}) {
+                const int n_head = 4, n_head_kv = 2, head_dim = 128;
+                const size_t half = head_dim / 2, qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
+                const size_t hist = 70, table = 256;
+                std::vector<float> cs(table * half), sn(table * half);
+                for (size_t t = 0; t < table; ++t)
+                    for (size_t i = 0; i < half; ++i) {
+                        const double f = std::pow(10000.0, -2.0 * double(i) / double(head_dim));
+                        cs[t * half + i] = float(std::cos(double(t) * f));
+                        sn[t * half + i] = float(std::sin(double(t) * f));
+                    }
+                const auto hk = uniform(hist * kvw, 60 + combo), hv = uniform(hist * kvw, 61 + combo);
+                const auto q0 = uniform(nq * qw, 62 + combo), k0 = uniform(nq * kvw, 63 + combo), v0 = uniform(nq * kvw, 64 + combo);
+                const auto qn = uniform(head_dim, 65, 0.5f, 1.5f), kn = uniform(head_dim, 66, 0.5f, 1.5f);
+                std::vector<uint32_t> pos(nq);
+                for (size_t i = 0; i < nq; ++i) pos[i] = (uint32_t)(hist + i);
+                auto run = [&](backend::Backend& b, backend::KVType kk, backend::KVType vv, std::vector<float>& att) {
+                    const size_t bt = b.kv_layout().block_tokens;
+                    auto st = b.kv_alloc(1, n_head_kv, head_dim, 512, kk, vv);
+                    infer::BlockPool pool(st->max_blocks());
+                    infer::KVSequence seq(&pool, bt);
+                    const auto Kh = b.adopt(hk.data(), hk.size() * sizeof(float));
+                    const auto Vh = b.adopt(hv.data(), hv.size() * sizeof(float));
+                    seq.prepare(hist);
+                    {
+                        const backend::KVView h = seq.view(st.get());
+                        b.kv_write(0, &h, 1, {Kh.get(), 0}, {Vh.get(), 0});
+                    }
+                    seq.commit();
+                    // The history's last block copied over itself through
+                    // kv_copy, which must move the stored bytes whatever the type.
+                    {
+                        const backend::KVView h = seq.view(st.get());
+                        const int32_t last = h.blocks[(hist - 1) / bt];
+                        b.kv_copy(*st, last, last);
+                    }
+                    seq.prepare(nq);
+                    const backend::KVView view = seq.view(st.get());
+                    const auto Qb = b.alloc(q0.size() * sizeof(float), backend::Memory::device);
+                    const auto Kb = b.alloc(k0.size() * sizeof(float), backend::Memory::device);
+                    const auto Vb = b.alloc(v0.size() * sizeof(float), backend::Memory::device);
+                    b.write(*Qb, 0, q0.data(), q0.size() * sizeof(float));
+                    b.write(*Kb, 0, k0.data(), k0.size() * sizeof(float));
+                    b.write(*Vb, 0, v0.data(), v0.size() * sizeof(float));
+                    const auto qnb = b.adopt(qn.data(), qn.size() * sizeof(float));
+                    const auto knb = b.adopt(kn.data(), kn.size() * sizeof(float));
+                    const auto cb = b.adopt(cs.data(), cs.size() * sizeof(float));
+                    const auto sb = b.adopt(sn.data(), sn.size() * sizeof(float));
+                    const backend::Backend::RopeArgs rope{{cb.get(), 0}, {sb.get(), 0}, half, pos.data(), 1e-6f};
+                    b.norm_rope_kv({Qb.get(), 0}, qw, n_head, {qnb.get(), 0}, {Kb.get(), 0}, {Vb.get(), 0},
+                                   kvw, n_head_kv, {knb.get(), 0}, rope, nq, 0, &view, 1);
+                    const auto ob = b.alloc(nq * qw * sizeof(float), backend::Memory::device);
+                    b.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+                    att.resize(nq * qw);
+                    b.read(*ob, 0, att.data(), att.size() * sizeof(float));
+                };
+                std::vector<float> ac, av, a32;
+                run(p.cpu, kt, vt, ac);
+                run(p.vk, kt, vt, av);
+                run(p.cpu, backend::KVType::f32, backend::KVType::f32, a32);
+                values += close(ac, av, 1e-4, "f16 cache attention differs between backends beyond 1e-4");
+                close(a32, av, 2e-2, "f16 cache attention differs from the f32 cache beyond 2e-2");
+            }
+        }
         // matmul_add: the product joins what Y already holds, on the row
         // kernel and on the tile kernel, against the CPU's scratch-and-add.
         for (size_t nbatch : {size_t(1), size_t(3), size_t(64)}) {

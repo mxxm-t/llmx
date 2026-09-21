@@ -28,11 +28,15 @@ def main():
     parser.add_argument("--no-perf-floor", action="store_true", help="report timings without workstation-specific floors")
     parser.add_argument("--require-baseline", action="store_true", help="fail if either real-model fixture is absent")
     parser.add_argument("--device", default=None, help="run every command that takes --device on this backend, e.g. vulkan:0")
+    parser.add_argument("--cache-type", default=None, choices=["f32", "f16"],
+                        help="store both KV cache sides as this type in every command that takes --cache-type-k/-v")
     args = parser.parse_args()
     common.EXE = os.path.abspath(args.exe)
     common.exe_path()
     if args.device:
         os.environ["LLMX_DEVICE"] = args.device
+    if args.cache_type:
+        os.environ["LLMX_CACHE_TYPE"] = args.cache_type
     if args.require_baseline:
         missing = [s["file"] for s in baseline.BASELINE_MODELS if not baseline.find_fixture(s)]
         if missing:

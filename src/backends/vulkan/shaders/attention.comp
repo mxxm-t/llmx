@@ -12,6 +12,8 @@
 // the view attends through hist + b.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint hist; uint nq; uint n_head; uint n_head_kv; uint dim; uint bt; uint row0; float scale;
@@ -19,8 +21,23 @@ layout(push_constant) uniform P {
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
+// K and V storage of either type: f32 as floats, f16 as 16-bit words
+// written round-to-nearest and read exactly, chosen per side at build by
+// LLMX_K16 and LLMX_V16 so a variant carries no branch.
+#ifdef LLMX_K16
+layout(set = 0, binding = 2) readonly buffer K { uint16_t kb16[]; };
+float k_load(uint i) { return unpackHalf2x16(uint(kb16[i])).x; }
+#else
 layout(set = 0, binding = 2) readonly buffer K { float kb[]; };
+float k_load(uint i) { return kb[i]; }
+#endif
+#ifdef LLMX_V16
+layout(set = 0, binding = 3) readonly buffer V { uint16_t vb16[]; };
+float v_load(uint i) { return unpackHalf2x16(uint(vb16[i])).x; }
+#else
 layout(set = 0, binding = 3) readonly buffer V { float vb[]; };
+float v_load(uint i) { return vb[i]; }
+#endif
 layout(set = 0, binding = 4) readonly buffer T { int blocks[]; };
 layout(set = 0, binding = 5) writeonly buffer S { float scratch[]; };
 shared float qs[256];
@@ -52,18 +69,18 @@ void main() {
     for (uint t = start + sg; t < end; t += nsg) {
         uint base = uint(blocks[t / p.bt]) * bf + (kvh * p.bt + t % p.bt) * p.dim;
         float part = 0.0;
-        if (d0 < p.dim) part += q0 * kb[base + d0];
-        if (d1 < p.dim) part += q1 * kb[base + d1];
-        if (d2 < p.dim) part += q2 * kb[base + d2];
-        if (d3 < p.dim) part += q3 * kb[base + d3];
+        if (d0 < p.dim) part += q0 * k_load(base + d0);
+        if (d1 < p.dim) part += q1 * k_load(base + d1);
+        if (d2 < p.dim) part += q2 * k_load(base + d2);
+        if (d3 < p.dim) part += q3 * k_load(base + d3);
         float s = subgroupAdd(part) * p.scale;
         float mn = max(m, s);
         float corr = exp(m - mn), w = exp(s - mn);
         l = l * corr + w;
-        if (d0 < p.dim) acc0 = acc0 * corr + w * vb[base + d0];
-        if (d1 < p.dim) acc1 = acc1 * corr + w * vb[base + d1];
-        if (d2 < p.dim) acc2 = acc2 * corr + w * vb[base + d2];
-        if (d3 < p.dim) acc3 = acc3 * corr + w * vb[base + d3];
+        if (d0 < p.dim) acc0 = acc0 * corr + w * v_load(base + d0);
+        if (d1 < p.dim) acc1 = acc1 * corr + w * v_load(base + d1);
+        if (d2 < p.dim) acc2 = acc2 * corr + w * v_load(base + d2);
+        if (d3 < p.dim) acc3 = acc3 * corr + w * v_load(base + d3);
         m = mn;
     }
     if (lane == 0u) { ms[sg] = m; ls[sg] = l; }

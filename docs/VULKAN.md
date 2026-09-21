@@ -197,6 +197,13 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   `n_head / n_head_kv` query heads to one KV head. Several views in one
   call are one dispatch per view today; one launch over all of them is an
   optimization with its own measurement. Head widths up to 256.
+- **attention_tile**, for a wide pass of 128-wide heads: a workgroup
+  per 32 query rows and head, the head's K and V streamed through shared
+  memory in 16-token tiles so a tile is read once per 32 rows rather
+  than once per row; eight lanes share a row, a score is three xor
+  shuffles, the softmax is online per row. It took a 16384-token prompt
+  on Qwen3-0.6B from 155 to 513 tok/s, level with the reference's 514.
+  Other head widths and narrow passes take the per-row kernel.
 - **kv_write**: a scatter of `[rows, n_head_kv, head_dim]` into blocks,
   one lane per float.
 - **norm_rope_rows**: one workgroup per (row, head): the head's sum of
@@ -226,6 +233,19 @@ CPU's, because the attention workgroup reads a block per iteration and
 smaller blocks waste less tail per sequence on the device that bounds
 concurrency; it is screened on the real models before the number is
 fixed, the same way the CPU's 128 was.
+
+Each side is stored as f32 or f16 (`--cache-type-k`, `--cache-type-v`,
+the same flags and meaning on the CPU). An f16 side is written by the
+kernels with an explicit round-to-nearest-even in the bits (`f16.glsl`),
+because `packHalf2x16` leaves the rounding to the driver and a driver
+that truncates makes the device cache differ from the CPU's by an f16
+ulp; read back it is exact, so the two backends hold identical bytes and
+their attention differs only by reduction order. Every kernel that
+touches the cache (`kv_write`, `norm_rope_kv`, `attention`,
+`attention_tile`) is built in four variants, one per combination of the
+two sides' types, and the storage picks the variant, so a kernel carries
+no type branch. Halving the cache is what lets Qwen3-8B run a 16k
+context on the 16 GB card.
 
 ## Selection and reporting
 

@@ -239,6 +239,19 @@ Placement across several devices, such as some layers on the CPU, is
 implemented in the model layer and waits for a flag until the device
 backend runs the real models.
 
+## KV cache types (`--cache-type-k`, `--cache-type-v`)
+
+Each side of the KV cache is stored as `f32` or `f16`, chosen separately
+because keys feed every attention score while values are averaged under
+the softmax, so values tolerate less precision first. An f16 side is
+written with round-to-nearest and read back exactly as stored, so what
+differs between the types is the stored precision, not the arithmetic.
+The flags mean the same thing on every backend (`generate`, `chat`,
+`logits`, `perplexity` and `bench --model` all take them); a backend that
+cannot store a type refuses it rather than substituting. `f16` halves the
+cache, which is what a long context on a small card needs: Qwen3-8B at
+a 16k context does not fit a 16 GB card with an f32 cache.
+
 ## Physical batch (`--ubatch`)
 
 `--ubatch` is how many prompt tokens go through **one forward pass** of the
@@ -285,6 +298,8 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--penalty F`           | repetition penalty (>= 1)                            | 1.0     |
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
 | `--ubatch N`            | prefill physical batch (`-ub`)               | 512     |
+| `-ctk`, `--cache-type-k T` | KV cache storage for keys: `f32` or `f16`      | `f32`   |
+| `-ctv`, `--cache-type-v T` | KV cache storage for values: `f32` or `f16`    | `f32`   |
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
 | `--device D`            | backend: `cpu`, or `vulkan:N` in a build with it     | `cpu`   |
 | `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |

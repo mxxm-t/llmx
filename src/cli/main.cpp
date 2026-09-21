@@ -57,6 +57,19 @@ bool show_progress(const infer::GenParams& gp) {
 #endif
 }
 
+// --cache-type-k / --cache-type-v: the same two names on every backend.
+backend::KVType kv_type_of(const std::string& name) {
+    if (name == "f32") return backend::KVType::f32;
+    if (name == "f16") return backend::KVType::f16;
+    throw std::runtime_error("unknown cache type '" + name + "' (f32 or f16)");
+}
+infer::ModelOptions model_options(const infer::GenParams& gp) {
+    infer::ModelOptions o;
+    o.kv_k = kv_type_of(gp.cache_type_k);
+    o.kv_v = kv_type_of(gp.cache_type_v);
+    return o;
+}
+
 gguf::GGUFModel load_model(const std::string& path, bool visible) {
     if (!visible) return gguf::read_gguf(path);
     std::cerr << "Reading model metadata...\n";
@@ -364,7 +377,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     const bool progress = show_progress(gp);
     gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
-    infer::Model model(m, make_backend(gp.device));
+    infer::Model model(m, make_backend(gp.device), model_options(gp));
     if (gp.threads > 0) model.set_threads(gp.threads);
     const int decode_threads = model.threads_available();
     model.set_ubatch(gp.ubatch);
@@ -412,7 +425,7 @@ int cmd_logits(const std::string& model_path, const std::string& text,
                int topn, const infer::GenParams& gp) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
-    infer::Model model(m, make_backend(gp.device));
+    infer::Model model(m, make_backend(gp.device), model_options(gp));
     if (gp.threads > 0) model.set_threads(gp.threads);
     model.set_ubatch(gp.ubatch);
 
@@ -449,7 +462,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const infer::GenParams& gp, int context_size, int chunks) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
-    infer::Model model(m, make_backend(gp.device));
+    infer::Model model(m, make_backend(gp.device), model_options(gp));
     if (gp.threads > 0) model.set_threads(gp.threads);
     model.set_ubatch(gp.ubatch);
 
@@ -472,7 +485,7 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     const bool progress = show_progress(gp);
     gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
-    infer::Model model(m, make_backend(gp.device));
+    infer::Model model(m, make_backend(gp.device), model_options(gp));
     if (gp.threads > 0) model.set_threads(gp.threads);
     const int decode_threads = model.threads_available();
     model.set_ubatch(gp.ubatch);
@@ -687,9 +700,9 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 // standard deviation of tokens per second, so a reference runtime's
 // figures for the same P and G compare directly.
 int cmd_bench_model(const std::string& path, const std::string& device, int threads,
-                    int P, int G, int R) {
+                    int P, int G, int R, const infer::ModelOptions& options) {
     gguf::GGUFModel m = load_model(path, false);
-    infer::Model model(m, make_backend(device));
+    infer::Model model(m, make_backend(device), options);
     if (threads > 0) model.set_threads(threads);
     // Ids below 1000 exist in every vocabulary the runtime loads.
     auto ids_from = [](uint32_t seed, size_t n) {
@@ -755,10 +768,13 @@ void print_usage() {
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]\n"
         << "  llmx bench      --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D]\n"
+        << "                  [--cache-type-k T] [--cache-type-v T]\n"
         << "                  (warm-up, then R repeats of pp N and tg N, model time only)\n"
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
         << "           --device D  backend: cpu (default) or vulkan:N in a build with it\n"
         << "           --ubatch N  prefill physical batch (default 512)\n"
+        << "           --cache-type-k T  --cache-type-v T  KV cache storage per side, f32 (default) or f16;\n"
+        << "                       the same on every backend, one without a type refuses it\n"
         << "           -tb/--threads-batch N  threads for prefill (default: --threads)\n"
         << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
         << "           --verbose reports prompt tokens, thread counts, KV bytes and loading/processing status\n";
@@ -873,6 +889,8 @@ int main(int argc, char** argv) {
                 else if (a == "--stop") gp.stop = (i + 1 < argc) ? argv[++i] : gp.stop;
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
+                else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
+                else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
                 else if (a == "--system") system = (i + 1 < argc) ? argv[++i] : system;
@@ -919,6 +937,8 @@ int main(int argc, char** argv) {
                 }
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
+                else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
+                else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
@@ -936,6 +956,8 @@ int main(int argc, char** argv) {
                 if (a2 == "--top") topn = (i + 1 < argc) ? std::atoi(argv[++i]) : topn;
                 else if (a2 == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a2 == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
+                else if (a2 == "--cache-type-k" || a2 == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
+                else if (a2 == "--cache-type-v" || a2 == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else if (a2 == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
                 else { std::cerr << "unknown flag: " << a2 << "\n"; return 2; }
             }
@@ -969,6 +991,7 @@ int main(int argc, char** argv) {
         if (cmd == "bench") {
             int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3;
             std::string device = "cpu", model_path;
+            infer::GenParams gp;
             for (int i = 2; i < argc; i++) {
                 std::string a = argv[i];
                 if (a == "--size") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;
@@ -979,6 +1002,8 @@ int main(int argc, char** argv) {
                 else if (a == "--n") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;
                 else if (a == "--r") repeats = (i + 1 < argc) ? std::atoi(argv[++i]) : repeats;
                 else if (a == "--model") model_path = (i + 1 < argc) ? argv[++i] : model_path;
+                else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
+                else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             if (size <= 0 || size % 32 != 0) { std::cerr << "bench: --size must be positive and a multiple of 32\n"; return 2; }
@@ -986,7 +1011,8 @@ int main(int argc, char** argv) {
             if (iters <= 0 || prefill <= 0 || decode <= 0 || repeats <= 0) {
                 std::cerr << "bench: --iters, --p, --n and --r must be positive\n"; return 2;
             }
-            if (!model_path.empty()) return cmd_bench_model(model_path, device, threads, prefill, decode, repeats);
+            if (!model_path.empty())
+                return cmd_bench_model(model_path, device, threads, prefill, decode, repeats, model_options(gp));
             return cmd_bench(size, iters, threads, prefill, decode, device);
         }
         print_usage();

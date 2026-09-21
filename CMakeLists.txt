@@ -54,13 +54,19 @@ if(LLMX_HAS_BACKEND_VULKAN)
     # embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
     set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_rows embed matmul_row
-        kv_write attention attention_merge matmul_tile norm_rope_kv)
+        kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile)
     # A variant is the same source compiled with a define, "name=source=DEFINE":
     # the row kernel is one module per family of types because the register
     # demand of every family's branches in one module cost the Q8_0 path 40
     # percent of its decode throughput.
     set(LLMX_VK_VARIANTS matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
-        matmul_row_k=matmul_row=LLMX_KQUANT)
+        matmul_row_k=matmul_row=LLMX_KQUANT
+        kv_write_k16=kv_write=LLMX_K16 kv_write_v16=kv_write=LLMX_V16 kv_write_kv16=kv_write=LLMX_K16+LLMX_V16
+        attention_k16=attention=LLMX_K16 attention_v16=attention=LLMX_V16 attention_kv16=attention=LLMX_K16+LLMX_V16
+        attention_tile_k16=attention_tile=LLMX_K16 attention_tile_v16=attention_tile=LLMX_V16
+        attention_tile_kv16=attention_tile=LLMX_K16+LLMX_V16
+        norm_rope_kv_k16=norm_rope_kv=LLMX_K16 norm_rope_kv_v16=norm_rope_kv=LLMX_V16
+        norm_rope_kv_kv16=norm_rope_kv=LLMX_K16+LLMX_V16)
     set(LLMX_VK_SPV)
     foreach(entry IN LISTS LLMX_VK_SHADERS LLMX_VK_VARIANTS)
         string(REPLACE "=" ";" parts ${entry})
@@ -71,7 +77,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         if(nparts EQUAL 3)
             list(GET parts 1 source)
             list(GET parts 2 define)
-            set(define -D${define})
+            string(REPLACE "+" ";-D" define "-D${define}")
         endif()
         set(spv ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan/${shader}.inc)
         add_custom_command(OUTPUT ${spv}
@@ -79,7 +85,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
             COMMAND ${Vulkan_GLSLC_EXECUTABLE} -fshader-stage=compute --target-env=vulkan1.2 -O
                     -mfmt=num -I ${LLMX_VK_SHADER_DIR} ${define} -o ${spv} ${LLMX_VK_SHADER_DIR}/${source}.comp
             DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
-                    ${LLMX_VK_SHADER_DIR}/qdecode.glsl
+                    ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl
             COMMENT "glslc ${shader}"
             VERBATIM)
         list(APPEND LLMX_VK_SPV ${spv})

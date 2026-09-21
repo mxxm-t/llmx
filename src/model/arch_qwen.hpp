@@ -167,6 +167,14 @@ struct Placement {
     int embed_device = 0, output_device = 0;
 };
 
+// Choices made once at construction, before the caches are allocated: how
+// each cache side is stored (backend.hpp KVType, the CLI's --cache-type-k
+// and --cache-type-v), the same on every backend or refused.
+struct ModelOptions {
+    backend::KVType kv_k = backend::KVType::f32;
+    backend::KVType kv_v = backend::KVType::f32;
+};
+
 // One request's history in a model's cache: a block table per storage and
 // the committed length, and per device the ticket of the last pass that
 // touched it, which is what a release waits on rather than draining the
@@ -241,13 +249,14 @@ public:
     // CPU backend). The model owns a reference to the model data, which must
     // outlive the Model.
     explicit Model(const gguf::GGUFModel& m,
-                   backend::BackendPtr backend = backend::make_cpu_backend())
-        : Model(m, std::vector<backend::BackendPtr>{std::move(backend)}, Placement{}) {}
+                   backend::BackendPtr backend = backend::make_cpu_backend(),
+                   ModelOptions options = ModelOptions{})
+        : Model(m, std::vector<backend::BackendPtr>{std::move(backend)}, Placement{}, options) {}
 
     // Construct over several backends with a placement of every role.
     Model(const gguf::GGUFModel& m, std::vector<backend::BackendPtr> backends,
-          Placement placement)
-        : m_(&m), place_(std::move(placement)) {
+          Placement placement, ModelOptions options = ModelOptions{})
+        : m_(&m), place_(std::move(placement)), options_(options) {
         if (backends.empty()) throw std::runtime_error("inference: missing backend");
         for (const auto& b : backends)
             if (!b) throw std::runtime_error("inference: missing backend");
@@ -315,7 +324,7 @@ public:
             Device& d = *dp;
             if (!d.attn_layers) continue;
             d.storage = d.b->kv_alloc((size_t)d.attn_layers, cfg.n_head_kv, cfg.head_dim,
-                                      (size_t)cfg.context_length);
+                                      (size_t)cfg.context_length, options_.kv_k, options_.kv_v);
             d.pool.configure(d.storage->max_blocks());
             d.storage_index = (int)storages_.size();
             storages_.push_back(&d);
@@ -595,6 +604,7 @@ private:
     QwenConfig cfg;
     int q_dim_ = 0;
     int ubatch_ = 512;   // the conventional default
+    ModelOptions options_;
     std::string out_name_;
     std::unordered_map<std::string, size_t> tindex_;
     std::vector<LayerWeights> layers_;

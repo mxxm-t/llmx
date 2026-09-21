@@ -84,6 +84,10 @@ struct KVLayout {
     size_t block_tokens;
 };
 
+// How a cache side is stored; the CLI's --cache-type-k and --cache-type-v.
+enum class KVType { f32, f16 };
+inline size_t kv_elem_bytes(KVType t) { return t == KVType::f16 ? 2 : 4; }
+
 class KVStorage {
 public:
     virtual ~KVStorage() = default;
@@ -211,12 +215,19 @@ public:
 
     virtual KVLayout kv_layout() const = 0;
 
-    // F32 keys and values for `layers` layers of n_head_kv x head_dim, enough
-    // whole blocks for max_tokens positions. The backend alone knows what a
-    // block costs in bytes; nothing is backed until a block is written.
+    // Keys and values for `layers` layers of n_head_kv x head_dim, enough
+    // whole blocks for max_tokens positions, each side stored as k_type or
+    // v_type: f32, or f16 written with round-to-nearest and read back
+    // exactly as stored, so the arithmetic against the cache is the same on
+    // every backend and only the stored precision differs. The two are
+    // separate because K feeds every score and V is averaged under the
+    // softmax, so V tolerates less precision first. The backend alone knows
+    // what a block costs in bytes; nothing is backed until a block is
+    // written. A backend without a type throws rather than substituting.
     virtual std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv,
-                                                size_t head_dim,
-                                                size_t max_tokens) = 0;
+                                                size_t head_dim, size_t max_tokens,
+                                                KVType k_type = KVType::f32,
+                                                KVType v_type = KVType::f32) = 0;
 
     // Every layer's K and V of block `src` into block `dst` of the same
     // storage, enqueued. A fork's private tail is filled this way from the

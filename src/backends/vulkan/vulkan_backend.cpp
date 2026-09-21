@@ -137,13 +137,60 @@ const uint32_t kSpvAttention[] = {
 const uint32_t kSpvAttentionMerge[] = {
 #include "vulkan/attention_merge.inc"
 };
+const uint32_t kSpvAttentionTile[] = {
+#include "vulkan/attention_tile.inc"
+};
+// The cache-type variants of every kernel that touches K or V, in the
+// order kv_variant() indexes them: K f16, V f16, both.
+const uint32_t kSpvKvWriteK16[] = {
+#include "vulkan/kv_write_k16.inc"
+};
+const uint32_t kSpvKvWriteV16[] = {
+#include "vulkan/kv_write_v16.inc"
+};
+const uint32_t kSpvKvWriteKV16[] = {
+#include "vulkan/kv_write_kv16.inc"
+};
+const uint32_t kSpvAttentionK16[] = {
+#include "vulkan/attention_k16.inc"
+};
+const uint32_t kSpvAttentionV16[] = {
+#include "vulkan/attention_v16.inc"
+};
+const uint32_t kSpvAttentionKV16[] = {
+#include "vulkan/attention_kv16.inc"
+};
+const uint32_t kSpvAttentionTileK16[] = {
+#include "vulkan/attention_tile_k16.inc"
+};
+const uint32_t kSpvAttentionTileV16[] = {
+#include "vulkan/attention_tile_v16.inc"
+};
+const uint32_t kSpvAttentionTileKV16[] = {
+#include "vulkan/attention_tile_kv16.inc"
+};
+const uint32_t kSpvNormRopeKvK16[] = {
+#include "vulkan/norm_rope_kv_k16.inc"
+};
+const uint32_t kSpvNormRopeKvV16[] = {
+#include "vulkan/norm_rope_kv_v16.inc"
+};
+const uint32_t kSpvNormRopeKvKV16[] = {
+#include "vulkan/norm_rope_kv_kv16.inc"
+};
+
 const uint32_t kSpvMatmulTile[] = {
 #include "vulkan/matmul_tile.inc"
 };
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
-                K_MATMUL_ROW_K4, K_MATMUL_ROW_K5, K_MATMUL_ROW_K, K_NORM_ROPE_KV, K_COUNT };
+                K_MATMUL_ROW_K4, K_MATMUL_ROW_K5, K_MATMUL_ROW_K, K_NORM_ROPE_KV, K_ATTENTION_TILE,
+                K_KV_WRITE_K16, K_KV_WRITE_V16, K_KV_WRITE_KV16,
+                K_ATTENTION_K16, K_ATTENTION_V16, K_ATTENTION_KV16,
+                K_ATTENTION_TILE_K16, K_ATTENTION_TILE_V16, K_ATTENTION_TILE_KV16,
+                K_NORM_ROPE_KV_K16, K_NORM_ROPE_KV_V16, K_NORM_ROPE_KV_KV16,
+                K_COUNT };
 
 // A kernel's bindings; `counts` gives the array length of each, one for a
 // plain buffer. The buffers of a dispatch are listed binding by binding,
@@ -174,7 +221,24 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 6, kMatmulRowCounts},
     {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 6, kMatmulRowCounts},
     {kSpvNormRopeKv, sizeof(kSpvNormRopeKv), 11, nullptr},
+    {kSpvAttentionTile, sizeof(kSpvAttentionTile), 5, nullptr},
+    {kSpvKvWriteK16, sizeof(kSpvKvWriteK16), 5, nullptr},
+    {kSpvKvWriteV16, sizeof(kSpvKvWriteV16), 5, nullptr},
+    {kSpvKvWriteKV16, sizeof(kSpvKvWriteKV16), 5, nullptr},
+    {kSpvAttentionK16, sizeof(kSpvAttentionK16), 6, nullptr},
+    {kSpvAttentionV16, sizeof(kSpvAttentionV16), 6, nullptr},
+    {kSpvAttentionKV16, sizeof(kSpvAttentionKV16), 6, nullptr},
+    {kSpvAttentionTileK16, sizeof(kSpvAttentionTileK16), 5, nullptr},
+    {kSpvAttentionTileV16, sizeof(kSpvAttentionTileV16), 5, nullptr},
+    {kSpvAttentionTileKV16, sizeof(kSpvAttentionTileKV16), 5, nullptr},
+    {kSpvNormRopeKvK16, sizeof(kSpvNormRopeKvK16), 11, nullptr},
+    {kSpvNormRopeKvV16, sizeof(kSpvNormRopeKvV16), 11, nullptr},
+    {kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr},
 };
+
+// The variant of a cache kernel for a storage's K and V types.
+class VulkanKVStorage;
+inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s);
 
 // 64 tokens per KV block: half the CPU's, since the attention workgroup
 // reads a block per iteration and a smaller block wastes less tail per
@@ -191,8 +255,9 @@ class VulkanBackend;
 // kept alive until it has retired.
 class VulkanKVStorage final : public KVStorage {
 public:
-    VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_blocks)
-        : owner_(&owner), heads_(heads), dim_(dim), max_(max_blocks), k_(layers), v_(layers) {
+    VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_blocks,
+                    KVType kt, KVType vt)
+        : owner_(&owner), heads_(heads), dim_(dim), max_(max_blocks), kt_(kt), vt_(vt), k_(layers), v_(layers) {
         mul(mul(heads, kVkBlockTokens), dim);
     }
     static size_t mul(size_t a, size_t b) {
@@ -220,6 +285,10 @@ public:
     size_t heads() const { return heads_; }
     size_t dim() const { return dim_; }
     size_t block_floats() const { return heads_ * kVkBlockTokens * dim_; }
+    KVType k_type() const { return kt_; }
+    KVType v_type() const { return vt_; }
+    size_t k_block_bytes() const { return block_floats() * kv_elem_bytes(kt_); }
+    size_t v_block_bytes() const { return block_floats() * kv_elem_bytes(vt_); }
     bool backed(size_t id) const { return id < backed_; }
     void ensure(size_t id);
     const BufferPtr& k(size_t layer) const { return k_[layer]; }
@@ -228,6 +297,7 @@ public:
 private:
     VulkanBackend* owner_;
     size_t heads_, dim_, max_, backed_ = 0, peak_ = 0;
+    KVType kt_, vt_;
     std::vector<BufferPtr> k_, v_;
 };
 
@@ -828,7 +898,7 @@ public:
         struct { uint32_t rows, q_stride, n_head, kv_stride, n_head_kv, half; float eps; uint32_t hist, bt; }
             pc{u32(rows), u32(q_stride), u32(n_head), u32(kv_stride), u32(n_head_kv), u32(rope.half),
                rope.eps, u32(view.length), u32(kVkBlockTokens)};
-        dispatch(K_NORM_ROPE_KV,
+        dispatch(kv_variant(K_NORM_ROPE_KV, K_NORM_ROPE_KV_K16, s),
                  {bind(q), bind(k), bind(v), bind(q_w), bind(k_w), bind(rope.cos), bind(rope.sin),
                   args(rope.pos, rows * sizeof(uint32_t)),
                   bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
@@ -997,12 +1067,13 @@ public:
     KVLayout kv_layout() const override { return KVLayout{kVkBlockTokens}; }
 
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
-                                        size_t max_tokens) override {
+                                        size_t max_tokens, KVType k_type = KVType::f32,
+                                        KVType v_type = KVType::f32) override {
         if (!layers || !n_head_kv || !head_dim)
             throw std::runtime_error("vulkan: KV storage without layers, heads or width");
         if (head_dim > 256) throw std::runtime_error("vulkan: head width above 256 is not supported");
         return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim,
-                                                 VulkanKVStorage::blocks_for(max_tokens));
+                                                 VulkanKVStorage::blocks_for(max_tokens), k_type, v_type);
     }
 
     void kv_copy(KVStorage& storage, int32_t src, int32_t dst) override {
@@ -1010,10 +1081,10 @@ public:
         if (src < 0 || dst < 0 || !s.backed((size_t)src) || (size_t)dst >= s.max_blocks())
             throw std::runtime_error("vulkan: KV copy outside the storage");
         s.ensure((size_t)dst);
-        const size_t bytes = s.block_floats() * sizeof(float);
+        const size_t kb = s.k_block_bytes(), vb = s.v_block_bytes();
         for (size_t l = 0; l < s.layers(); ++l) {
-            copy(*s.k(l), (size_t)dst * bytes, *s.k(l), (size_t)src * bytes, bytes);
-            copy(*s.v(l), (size_t)dst * bytes, *s.v(l), (size_t)src * bytes, bytes);
+            copy(*s.k(l), (size_t)dst * kb, *s.k(l), (size_t)src * kb, kb);
+            copy(*s.v(l), (size_t)dst * vb, *s.v(l), (size_t)src * vb, vb);
         }
     }
 
@@ -1037,7 +1108,7 @@ public:
                 s.ensure((size_t)view.blocks[(view.length + view.nq - 1) / kVkBlockTokens]);
                 const uint32_t pc[6] = {u32(view.length), u32(view.nq), u32(s.heads()), u32(s.dim()),
                                         u32(kVkBlockTokens), u32(row0)};
-                dispatch(K_KV_WRITE,
+                dispatch(kv_variant(K_KV_WRITE, K_KV_WRITE_K16, s),
                          {bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
                           bind(k), bind(v), args(view.blocks, view.n_blocks * sizeof(int32_t))},
                          pc, sizeof(pc), groups(view.nq * hd, 256));
@@ -1069,6 +1140,22 @@ public:
                     throw std::runtime_error("vulkan: attention over unwritten KV blocks");
             if (floats_from(Q) < (row0 + view.nq) * qstride || floats_from(out) < (row0 + view.nq) * qstride)
                 throw std::runtime_error("vulkan: attention rows outside their allocation");
+            // A wide pass of 128-wide heads takes the tiled kernel: a
+            // workgroup per 32 query rows and head, K/V staged per tile of
+            // tokens once for those rows. Anything else takes the per-row
+            // kernel below.
+            if (view.nq >= kAttentionTileRows && head_dim == 128) {
+                struct { uint32_t length, nq, n_head, n_head_kv, bt, row0; float scale; }
+                    tc{u32(view.length), u32(view.nq), (uint32_t)n_head, (uint32_t)n_head_kv,
+                       u32(kVkBlockTokens), u32(row0), scale};
+                const size_t tiles = (view.nq + kAttentionTileRows - 1) / kAttentionTileRows;
+                dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
+                         {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
+                          args(view.blocks, blocks * sizeof(int32_t))},
+                         &tc, sizeof(tc), u32(tiles * (size_t)n_head));
+                row0 += view.nq;
+                continue;
+            }
             // A decode token has few (row, head) pairs, so the history is
             // split into chunks of 32 tokens across workgroups, enough to
             // fill the device, capped at 64 splits; a wide pass already
@@ -1086,7 +1173,7 @@ public:
                    (uint32_t)head_dim, u32(kVkBlockTokens), u32(row0), scale, u32(nsplit), u32(chunk)};
             const VkDescriptorBufferInfo scratch = scratch_
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
-            dispatch(K_ATTENTION,
+            dispatch(kv_variant(K_ATTENTION, K_ATTENTION_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
                       args(view.blocks, blocks * sizeof(int32_t)), scratch},
                      &pc, sizeof(pc), groups(pairs * nsplit, 1));
@@ -1110,6 +1197,7 @@ private:
     static const uint32_t kChunk = 64;
     uint32_t chunk_ = 0;
     static const uint32_t kLanesPerPair = 4;
+    static const size_t kAttentionTileRows = 32;
     static const size_t kStagingBytes = size_t(64) << 20;
     static const size_t kArenaBytes = size_t(1) << 20;
     static const uint32_t kPushBytes = 128;
@@ -1379,16 +1467,21 @@ private:
     Kernel kernels_[K_COUNT];
 };
 
+inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s) {
+    const int i = (s.k_type() == KVType::f16 ? 1 : 0) + (s.v_type() == KVType::f16 ? 2 : 0);
+    return i == 0 ? f32 : (KernelId)((int)k16 + i - 1);
+}
+
 void VulkanKVStorage::ensure(size_t id) {
     if (id < backed_) return;
     if (id >= max_) throw std::runtime_error("vulkan: KV block outside the budget");
     const size_t want = std::max(id + 1, std::min(max_, backed_ * 2));
-    const size_t bytes = mul(mul(want, block_floats()), sizeof(float));
-    const size_t held = mul(mul(bytes, 2), k_.size());
+    const size_t kbytes = mul(want, k_block_bytes()), vbytes = mul(want, v_block_bytes());
+    const size_t held = mul(add(kbytes, vbytes), k_.size());
     std::vector<BufferPtr> nk(k_.size()), nv(v_.size());
     for (size_t l = 0; l < k_.size(); ++l) {
-        nk[l] = owner_->alloc(bytes, Memory::device);
-        nv[l] = owner_->alloc(bytes, Memory::device);
+        nk[l] = owner_->alloc(kbytes, Memory::device);
+        nv[l] = owner_->alloc(vbytes, Memory::device);
         if (k_[l]) {
             owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
             owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());

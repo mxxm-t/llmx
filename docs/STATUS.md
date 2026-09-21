@@ -361,16 +361,68 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   16k context on the 16 GB card: the KV cache is F32, 16896 tokens of it
   are about 5 GB on top of 8.7 GB of weights, and the allocation
   failed, where the reference's f16 KV fits.
-- **Left:** first, the tiled prefill attention: a workgroup takes a block
-  of query rows and streams K/V tiles through shared memory once per
-  tile rather than once per row, gated on pp16384 against the reference
-  and on the same CPU comparison the current kernel passes. Second, an
-  f16 KV storage on the device, which halves the cache and attention's
-  memory traffic and is what lets 8B run a 16k context here; the
-  storage type is the backend's choice, so the model does not change.
-  Then decode on the 4- and 5-bit files, at 93 and 80 percent of the
-  reference under the matched protocol; their row kernels are the first
-  correct version at 123 to 163 GB/s against Q8_0's 373.
+  Seventeenth, the tiled prefill attention. A wide pass of 128-wide
+  heads takes `attention_tile`: a workgroup per 32 query rows and head,
+  the head's K and V streamed through shared memory in tiles of 16
+  tokens, so a tile is read once per 32 rows instead of once per row;
+  eight lanes share a row, each holding 16 elements of it, a score is
+  three xor shuffles, the softmax is online per row as before. Rows
+  past the causal limit are masked inside the tile that holds them and
+  later tiles are not read. Checked against the CPU at 32 and 45 rows
+  after 0 and 70 tokens at 1e-4. Same session as the table above, the
+  8B case at 8k because 16k does not fit its f32 cache:
+
+  | model | test | reference b11075 Vulkan | llmx before | llmx now | llmx share |
+  |---|---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | pp16384 | 514.1 +- 1.7 tok/s | 155.2 | 513.3 +- 0.2 | 100% |
+  | Qwen3-0.6B-Q8_0 | tg512 | 177.2 +- 0.1 tok/s | 192.5 | 191.9 +- 0.5 | 108% |
+  | Qwen3-8B-Q8_0 | pp8192 | 115.7 +- 0.2 tok/s | - | 185.9 +- 1.3 | 161% |
+  | Qwen3-8B-Q8_0 | tg512 | 37.3 +- 0.1 tok/s | - | 39.2 +- 0.0 | 105% |
+  | Qwen3-0.6B-Q8_0 | pp247 | 656.0 +- 2.1 tok/s | 1507.6 | 1610.5 +- 4.1 | 246% |
+  | Qwen3-0.6B-Q8_0 | tg32 | 198.3 +- 0.3 tok/s | 221.3 | 226.9 +- 0.4 | 114% |
+
+  The 16k prompt went from 30 percent of the reference to level with
+  it, and the kernel does not yet share a K/V tile across the query
+  heads of a KV group, which is the next factor available there.
+  Eighteenth, the f16 cache sides. `--cache-type-k` and `--cache-type-v`
+  take `f32` or `f16` for `generate`, `chat`, `logits`, `perplexity` and
+  `bench --model`, the same on the CPU and the device; the type reaches
+  each backend through `kv_alloc`, the CPU converts with F16C on write
+  and read, the device builds four variants of every cache kernel and
+  the storage picks one, and the device writes halves with an explicit
+  round-to-nearest-even in the bits because `packHalf2x16` leaves the
+  rounding to the driver and the first build differed from the CPU by
+  an f16 ulp. The two backends now hold identical cache bytes; checked
+  for every combination of K and V types through `kv_write`,
+  `norm_rope_kv`, `kv_copy` and both attention kernels, device against
+  CPU at 1e-4 and both against the f32 cache at 2e-2. The HF gate with
+  both sides f16 (`run_tests.py --cache-type f16`) passes on both
+  backends with the same numbers to three places: Q8_0 NLL delta
+  0.001254 against 0.001374 with f32 caches, Q4_0 0.131584, Q5_K_M
+  0.026174; the synthetic F32 and shard gates, which compare exact f32
+  arithmetic, skip under f16 caches by design. Halving the cache lets
+  Qwen3-8B run the 16k context that failed to allocate with f32:
+
+  | model | test | reference b11075 Vulkan | llmx f32 cache | llmx f16 cache | llmx share (f16) |
+  |---|---|---:|---:|---:|---:|
+  | Qwen3-8B-Q8_0 | pp16384 | 97.3 +- 0.5 tok/s | bad allocation | 141.7 +- 0.3 | 146% |
+  | Qwen3-8B-Q8_0 | tg512 | 37.6 +- 0.1 tok/s | bad allocation | 38.7 +- 0.0 | 103% |
+  | Qwen3-8B-Q8_0 | pp8192 | 115.7 +- 0.2 tok/s | 185.9 +- 1.3 | 189.9 +- 2.7 | 164% |
+  | Qwen3-8B-Q8_0 | tg512 (8k) | 37.3 +- 0.1 tok/s | 39.2 +- 0.0 | 39.5 +- 0.0 | 106% |
+  | Qwen3-0.6B-Q8_0 | pp16384 | 514.1 +- 1.7 tok/s | 513.3 +- 0.2 | 512.9 +- 0.7 | 100% |
+  | Qwen3-0.6B-Q8_0 | tg512 | 177.2 +- 0.1 tok/s | 191.9 +- 0.5 | 203.6 +- 0.1 | 115% |
+  | Qwen3-0.6B-Q8_0 | pp247 | 656.0 +- 2.1 tok/s | 1610.5 +- 4.1 | 1620.9 +- 3.7 | 247% |
+  | Qwen3-0.6B-Q8_0 | tg32 | 198.3 +- 0.3 tok/s | 226.9 +- 0.4 | 225.1 +- 0.5 | 113% |
+
+  The default stays f32 for now: the flags exist, the gate passes with
+  f16, and switching the default is a separate decision recorded when it
+  is taken.
+- **Left:** decode on the 4- and 5-bit files, at 93 and 80 percent of
+  the reference under the matched protocol; their row kernels are the
+  first correct version at 123 to 163 GB/s against Q8_0's 373. The tiled
+  attention does not yet share a K/V tile across the query heads of a KV
+  group. And the question of the default cache type, f16 being the
+  reference's default and passing the gate here.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

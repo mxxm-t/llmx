@@ -5,6 +5,9 @@
 // and rotated straight into its KV block at position hist + row; a v head
 // is copied into its block. Three dispatches at their latency floors
 // become one. The arithmetic per head is norm_rope_rows' exactly.
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#include "f16.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint rows; uint q_stride; uint n_head; uint kv_stride; uint n_head_kv; uint half_dim;
@@ -18,8 +21,27 @@ layout(set = 0, binding = 4) readonly buffer KW { float kw[]; };
 layout(set = 0, binding = 5) readonly buffer C { float cs[]; };
 layout(set = 0, binding = 6) readonly buffer S { float sn[]; };
 layout(set = 0, binding = 7) readonly buffer I { uint pos[]; };
-layout(set = 0, binding = 8) writeonly buffer KB { float kb[]; };
-layout(set = 0, binding = 9) writeonly buffer VB { float vb[]; };
+// K and V storage of either type: f32 as floats, f16 as 16-bit words
+// written round-to-nearest and read exactly, chosen per side at build by
+// LLMX_K16 and LLMX_V16 so a variant carries no branch.
+#ifdef LLMX_K16
+layout(set = 0, binding = 8) buffer KB { uint16_t kb16[]; };
+float k_load(uint i) { return unpackHalf2x16(uint(kb16[i])).x; }
+void k_store(uint i, float v) { kb16[i] = uint16_t(f16_bits(v)); }
+#else
+layout(set = 0, binding = 8) buffer KB { float kb[]; };
+float k_load(uint i) { return kb[i]; }
+void k_store(uint i, float v) { kb[i] = v; }
+#endif
+#ifdef LLMX_V16
+layout(set = 0, binding = 9) buffer VB { uint16_t vb16[]; };
+float v_load(uint i) { return unpackHalf2x16(uint(vb16[i])).x; }
+void v_store(uint i, float v) { vb16[i] = uint16_t(f16_bits(v)); }
+#else
+layout(set = 0, binding = 9) buffer VB { float vb[]; };
+float v_load(uint i) { return vb[i]; }
+void v_store(uint i, float v) { vb[i] = v; }
+#endif
 layout(set = 0, binding = 10) readonly buffer T { int blocks[]; };
 shared float red[256];
 
@@ -37,7 +59,7 @@ void main() {
         uint hv = h - p.n_head - p.n_head_kv;
         uint src = row * p.kv_stride + hv * dim;
         uint dst = kv_base + hv * p.bt * dim;
-        for (uint i = lid; i < dim; i += 256u) vb[dst + i] = v[src + i];
+        for (uint i = lid; i < dim; i += 256u) v_store(dst + i, v[src + i]);
         return;
     }
     bool is_q = h < p.n_head;
@@ -72,8 +94,8 @@ void main() {
             q[base + i] = o0;
             q[base + i + p.half_dim] = o1;
         } else {
-            kb[dst + i] = o0;
-            kb[dst + i + p.half_dim] = o1;
+            k_store(dst + i, o0);
+            k_store(dst + i + p.half_dim, o1);
         }
     }
 }

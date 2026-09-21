@@ -21,10 +21,19 @@ DEVICE_COMMANDS = {"generate", "chat", "logits", "perplexity", "bench"}
 
 
 def device_args(args):
+    args = list(args)
+    if not args or args[0] not in DEVICE_COMMANDS:
+        return args
     device = os.environ.get("LLMX_DEVICE")
-    if device and args and args[0] in DEVICE_COMMANDS and "--device" not in args:
-        return list(args) + ["--device", device]
-    return list(args)
+    if device and "--device" not in args:
+        args += ["--device", device]
+    # LLMX_CACHE_TYPE, set by run_tests.py --cache-type, runs the same
+    # commands with both cache sides stored as that type; test
+    # configuration like LLMX_DEVICE, reaching the binary only as flags.
+    cache = os.environ.get("LLMX_CACHE_TYPE")
+    if cache and "--cache-type-k" not in args:
+        args += ["--cache-type-k", cache, "--cache-type-v", cache]
+    return args
 
 
 def run(args, cwd=None):

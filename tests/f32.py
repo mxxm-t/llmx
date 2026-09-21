@@ -112,6 +112,11 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1):
 
 
 def run():
+    # This gate compares exact f32 arithmetic against the HF fixture; an f16
+    # cache rounds keys and values and is checked by the real-model gate.
+    if os.environ.get("LLMX_CACHE_TYPE", "f32") != "f32":
+        print("f32: SKIP - the exact F32 gate needs f32 caches (LLMX_CACHE_TYPE=%s)" % os.environ["LLMX_CACHE_TYPE"])
+        return True
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_f32.json"), encoding="utf-8") as f:
         golden = json.load(f)
     assert golden["config"] == CONFIG, "F32 fixture config changed"

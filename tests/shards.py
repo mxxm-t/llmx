@@ -8,6 +8,9 @@ from common import run as cli
 
 
 def run():
+    if os.environ.get("LLMX_CACHE_TYPE", "f32") != "f32":
+        print("shards: SKIP - the exact F32 gate needs f32 caches (LLMX_CACHE_TYPE=%s)" % os.environ["LLMX_CACHE_TYPE"])
+        return True
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_f32.json"), encoding="utf-8") as stream:
         golden = json.load(stream)
     worst = 0.0

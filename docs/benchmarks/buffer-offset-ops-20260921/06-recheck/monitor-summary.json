@@ -1,0 +1,261 @@
+{
+ "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck",
+ "runs": {
+  "monitor-r0-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 40.7,
+   "system_cpu_max": 45.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r0-base.jsonl",
+   "bytes": 217483,
+   "sha256": "7cd5db1835c08826b0535d42af75f7f0cc9adbe8941542f2be95c4eaf29f32a6"
+  },
+  "monitor-r0-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.5,
+   "system_cpu_max": 45.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r0-cand.jsonl",
+   "bytes": 217578,
+   "sha256": "e4c0889cba6a249a3b7e36b4902749fff4e1ce8b4344bf4d7916a3739fb85981"
+  },
+  "monitor-r1-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 41.4,
+   "system_cpu_max": 41.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r1-base.jsonl",
+   "bytes": 217734,
+   "sha256": "197f66f6241cd1bdc45871eb7cf0a7d9c7b4b20b4b51a7a01fd0f2c65598208d"
+  },
+  "monitor-r1-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.3,
+   "system_cpu_max": 42.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r1-cand.jsonl",
+   "bytes": 217123,
+   "sha256": "f31178a6b0cccf6f6bd002e1d6b87d215cd1d6488dbe78fc2510923ba0a3124f"
+  },
+  "monitor-r10-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.1,
+   "system_cpu_max": 40.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r10-base.jsonl",
+   "bytes": 217265,
+   "sha256": "ad299492a2809e948387c366a7197e333964f038948b1c36a3c533923289aab5"
+  },
+  "monitor-r10-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 41.1,
+   "system_cpu_max": 44.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r10-cand.jsonl",
+   "bytes": 217406,
+   "sha256": "63110730e4d584a48a55fc1020b7cbd78ee285ab1b0f653557545d2b9920f6b1"
+  },
+  "monitor-r11-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 39.1,
+   "system_cpu_max": 43.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r11-base.jsonl",
+   "bytes": 217628,
+   "sha256": "9e6f450027bfaa52592553d50c74ae1b3c2891b44becb0569ebb9d15f6248ce3"
+  },
+  "monitor-r11-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.9,
+   "system_cpu_max": 51.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r11-cand.jsonl",
+   "bytes": 217407,
+   "sha256": "44280b01972569c7a9c54a70f547195ba6ab918fb11d1e9ee42520d66d6c5e87"
+  },
+  "monitor-r12-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.5,
+   "system_cpu_max": 42.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r12-base.jsonl",
+   "bytes": 217226,
+   "sha256": "6bc7beddd8d412d86d32307fb456c45cacfe6c19f5970a6eaacebaf1f504b26e"
+  },
+  "monitor-r12-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 41.2,
+   "system_cpu_max": 46.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r12-cand.jsonl",
+   "bytes": 217385,
+   "sha256": "5f7960304557d08c428676c2335442829dc78687722bec024a6d52d1a02a5055"
+  },
+  "monitor-r13-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 38.3,
+   "system_cpu_max": 41.2,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r13-base.jsonl",
+   "bytes": 217254,
+   "sha256": "82113c91b7cfbf35b42d57212a0be68996acf9e50cdacc8f625082443499f324"
+  },
+  "monitor-r13-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 37.0,
+   "system_cpu_max": 40.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r13-cand.jsonl",
+   "bytes": 217178,
+   "sha256": "57575c3cb02489d70ef13999af991ef566f08b013dca4a8ddf90b1d70491dc17"
+  },
+  "monitor-r14-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 43.6,
+   "system_cpu_max": 47.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r14-base.jsonl",
+   "bytes": 217346,
+   "sha256": "274f84412d6a9babbdbdb2d0bb5f8b420980404e70849347bddc4f74fdb4b85e"
+  },
+  "monitor-r14-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 44.4,
+   "system_cpu_max": 51.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r14-cand.jsonl",
+   "bytes": 217823,
+   "sha256": "fc4c121bdb80b7547ef8f55ec1ca32651b70a082ee7db108f7485483a9ae3055"
+  },
+  "monitor-r15-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.8,
+   "system_cpu_max": 45.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r15-base.jsonl",
+   "bytes": 217545,
+   "sha256": "f24f8ba0b220c06a0115479e08853ac4402e24ea549acf8596378e9406244b3c"
+  },
+  "monitor-r15-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.6,
+   "system_cpu_max": 46.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r15-cand.jsonl",
+   "bytes": 217027,
+   "sha256": "02cc2317e4ee33591a9851f11f20ab5dea109627efb0e8fa805bf1184896ae01"
+  },
+  "monitor-r2-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 46.1,
+   "system_cpu_max": 51.9,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r2-base.jsonl",
+   "bytes": 217360,
+   "sha256": "6b3bab432ae78b86d2faf058b8c17c94fdd0dc8cb3a5b1d98905f138e619d8fb"
+  },
+  "monitor-r2-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 40.5,
+   "system_cpu_max": 41.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r2-cand.jsonl",
+   "bytes": 217436,
+   "sha256": "bdf9da13dd353cc2dd09d85f7ffb4c8f76ebd1e3e47a106dc3e8c3e8a40d8e53"
+  },
+  "monitor-r3-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 41.7,
+   "system_cpu_max": 45.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r3-base.jsonl",
+   "bytes": 217351,
+   "sha256": "05ef20c86f58f747b532cb0ca540c0c4862a3b4e874202bbf1b1b38dd73afe4a"
+  },
+  "monitor-r3-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 41.1,
+   "system_cpu_max": 42.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r3-cand.jsonl",
+   "bytes": 217249,
+   "sha256": "60ecfe017f6397f0898e7a802115cd16124707f5a4cf5c1f07c014cdbb4e55f7"
+  },
+  "monitor-r4-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 43.4,
+   "system_cpu_max": 48.3,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r4-base.jsonl",
+   "bytes": 217314,
+   "sha256": "668cd4eba1408d84878130aabeb5060df65ede884f004ebccb0df805f0c7c0b9"
+  },
+  "monitor-r4-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 44.3,
+   "system_cpu_max": 50.0,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r4-cand.jsonl",
+   "bytes": 217731,
+   "sha256": "6a412cf0c017e7d79e3d33bf5611c66828d24531b158dc5d02fc26eccb15e135"
+  },
+  "monitor-r5-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.0,
+   "system_cpu_max": 42.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r5-base.jsonl",
+   "bytes": 218354,
+   "sha256": "7b7668a304ce654fe85da13593006074f549f231690d82d5d63133826db1f15c"
+  },
+  "monitor-r5-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.7,
+   "system_cpu_max": 49.8,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r5-cand.jsonl",
+   "bytes": 217669,
+   "sha256": "b3717c5992c2dc0aed33e46714f9e9bc5b58541d979f5ff291e4d40179051c00"
+  },
+  "monitor-r6-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 40.8,
+   "system_cpu_max": 45.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r6-base.jsonl",
+   "bytes": 217752,
+   "sha256": "58c1847c5893852220d327251b5f70913cdd3d16c7114c7bc2d9fc09f7ce412e"
+  },
+  "monitor-r6-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 42.9,
+   "system_cpu_max": 49.6,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r6-cand.jsonl",
+   "bytes": 217249,
+   "sha256": "ccc11081d5a62743963b9a83450db60817737e293c615301f930743a5c2a10cd"
+  },
+  "monitor-r7-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 45.1,
+   "system_cpu_max": 51.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r7-base.jsonl",
+   "bytes": 217702,
+   "sha256": "35fdaf40a629858a473911debfd825cc10abf03c5e44f872d2fe31a592fb9da2"
+  },
+  "monitor-r7-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 43.9,
+   "system_cpu_max": 50.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r7-cand.jsonl",
+   "bytes": 217720,
+   "sha256": "c2f6e0ce4fa2dc4acd7b1922fb9d13d15a5a87df810876ea4adc821ab0c9cbf1"
+  },
+  "monitor-r8-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 41.7,
+   "system_cpu_max": 44.4,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r8-base.jsonl",
+   "bytes": 217359,
+   "sha256": "a2eab686ba978867751d2e310a5c7cf5d012509644cd61712804cb3294a3f8c5"
+  },
+  "monitor-r8-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 40.5,
+   "system_cpu_max": 44.7,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r8-cand.jsonl",
+   "bytes": 217313,
+   "sha256": "95d90a6a6df6310975484198b0e68b6e5f68ed8460994261f80172beaca9a0a3"
+  },
+  "monitor-r9-base.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 39.6,
+   "system_cpu_max": 42.1,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r9-base.jsonl",
+   "bytes": 217333,
+   "sha256": "403c81307748fd234cacb4abb83060c6449530a2f15dd284308b09fafadd3fe0"
+  },
+  "monitor-r9-cand.jsonl": {
+   "samples": 2,
+   "system_cpu_mean": 40.3,
+   "system_cpu_max": 42.5,
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx-evidence\\buffer-offset-ops-20260921\\06-recheck\\monitor-r9-cand.jsonl",
+   "bytes": 218150,
+   "sha256": "20aaf5bdc9858e02d6d5be8a5c93c9a86d2aa0de4e1a65aacd8b95190a65ed5a"
+  }
+ }
+}

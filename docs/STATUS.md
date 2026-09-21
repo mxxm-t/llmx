@@ -34,8 +34,29 @@ Windows drivers.
   forward pass, which is the single point that must be host-visible. The
   bridge accessor is deleted, and `alloc` is documented as zero-filled,
   which removed two redundant fills the model was doing.
-- **Left:** the gate, with both arms built the same way. Then step 5, KV
-  blocks on buffers, and step 6, enqueue and sync.
+- **Done:** gated against d261369, both arms built from detached worktrees at
+  their own commits, 15 paired rounds on Qwen3-0.6B-Q8_0 and 9 on
+  Qwen3-8B-Q8_0, six threads, 250-token prompt, 32 generated tokens. No cell
+  regressed. Evidence in `docs/benchmarks/buffer-offset-ops-20260921/`; raw
+  monitors are archived beside the repo and listed with their hashes in each
+  cell's `monitor-summary.json`.
+
+  | cell | phase | paired mean | paired median | baseline wins | fails at |
+  |---|---|---|---|---|---|
+  | 0.6B | prefill | -1.14% | -1.43% | 10/15 | 12 |
+  | 0.6B | decode  | -0.16% | -0.42% | 10/15 | 12 |
+  | 8B   | prefill | -0.72% | -0.57% | 6/9   | 8 |
+  | 8B   | decode  | +0.16% | +0.92% | 3/9   | 8 |
+
+  A sign convention note: the runner reports the candidate's paired ratio, so
+  a negative number here is the baseline being that much faster, inside the
+  3% noise band the frozen plan allows.
+- **Done:** re-gated after the commit was amended to carry the test files it
+  had left behind. The amendment changed no file that `llmx.exe` compiles, so
+  the measurement above stands, but the merged commit should be the measured
+  one. The recheck cells are `06-recheck` and `8b-recheck` in the same
+  directory and all four pass: 0.6B -1.79%/-2.10%, 8B -1.69%/+0.36%.
+- **Left:** step 5, KV blocks on buffers, and step 6, enqueue and sync.
 - **Gotchas:** attention and `kv_write` already take a view rather than
   pointers, so they need only their query and output arguments moved.
   `embed` writes to an activation and reads a weight buffer, so it takes two

@@ -13,6 +13,7 @@ import tokenizer
 import perplexity
 import f32
 import shards
+import server
 import chat
 import threads
 import version
@@ -51,6 +52,7 @@ def main():
                      ("perplexity", perplexity.run),
                      ("f32", f32.run),
                      ("shards", shards.run),
+                     ("server", server.run),
                      ("chat", chat.run),
                      ("threads", threads.run),
                      ("baseline", baseline.run)]:

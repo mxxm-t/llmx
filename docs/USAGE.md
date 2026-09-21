@@ -358,6 +358,36 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--ubatch N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T]`
+
+The multi-user server (`docs/SERVER.md`): one model, a sequence per
+request, every active request advanced by one token per pass with a slice
+of a new request's prompt beside them, tokens streamed as they are sampled.
+HTTP/1.1 without dependencies or TLS; put a reverse proxy in front of it
+when it faces a network. Defaults: `127.0.0.1:8080`, 16 sequences.
+
+| Route | Body | Reply |
+|---|---|---|
+| `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "stream": false}` | `{"text", "ids", "finish", "prompt_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length` |
+| `POST /v1/chat` | `{"messages": [{"role": "user", "content": "..."}], ...}` (the same sampling fields) | as above; the prompt is the model's chat template over the messages |
+| `GET /v1/health` | | `{"status": "ok", "model", "active", "queued"}` |
+| `GET /v1/models` | | the loaded file, its context length and vocabulary |
+
+With `"stream": true` the reply is `text/event-stream`: one `data:` line
+per token holding its id and text (a character split across tokens is
+held until complete), then `data: {"done": true, "finish": ..., "tokens":
+N}` and `data: [DONE]`. A request is admitted when the KV pool can hold
+its prompt plus `max_tokens`, otherwise it waits in the queue; a prompt
+that cannot fit the context at all is refused with 413. A greedy request
+gives the ids `generate --temp 0` gives for the same prompt, alone or
+beside other requests, and a seeded request is reproducible whatever it is
+batched with.
+
+```
+llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080
+curl -N -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
+```
+
 ## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`

@@ -1,0 +1,185 @@
+import json
+import os
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import baseline
+import common
+import f32
+from common import run as cli
+
+# The server of docs/SERVER.md against the CLI on the same file: a greedy
+# request through /v1/generate gives the text `generate --temp 0` gives,
+# alone and while three other requests decode beside it; a streamed request
+# arrives as events with the same ids; a seeded request repeats; a bad body
+# and a request past the context are refused; a client that goes away
+# mid-stream leaves the server with nothing active; a chat turn renders.
+# The synthetic F32 model (16-token context) needs no download; the real
+# Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
+
+
+def free_port():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+class Server:
+    def __init__(self, model):
+        self.port = free_port()
+        args = [common.exe_path(), "serve", model, "--host", "127.0.0.1", "--port", str(self.port), "--max-seqs", "8"]
+        self.proc = subprocess.Popen(common.device_args(args), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                     text=True, encoding="utf-8")
+        deadline = time.time() + 120
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                raise AssertionError("server exited early: " + self.proc.stderr.read())
+            try:
+                self.get("/v1/health")
+                return
+            except (urllib.error.URLError, ConnectionError, OSError):
+                time.sleep(0.1)
+        raise AssertionError("server did not come up")
+
+    def get(self, path):
+        with urllib.request.urlopen("http://127.0.0.1:%d%s" % (self.port, path), timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    def post(self, path, body, timeout=300):
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request("http://127.0.0.1:%d%s" % (self.port, path), data=data,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.status, json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode("utf-8"))
+
+    def stream(self, path, body):
+        """Every SSE data payload, parsed, in order; the end marker is None."""
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request("http://127.0.0.1:%d%s" % (self.port, path), data=data,
+                                     headers={"Content-Type": "application/json"})
+        events = []
+        with urllib.request.urlopen(req, timeout=300) as r:
+            for raw in r:
+                line = raw.decode("utf-8").rstrip("\n")
+                if line.startswith("data: "):
+                    payload = line[6:]
+                    events.append(None if payload == "[DONE]" else json.loads(payload))
+        return events
+
+    def close(self):
+        self.proc.kill()
+        self.proc.wait()
+
+
+def cli_greedy_text(model, prompt, n):
+    """What `generate --temp 0` prints between its pp and tg lines."""
+    rc, out = cli(["generate", model, prompt, "-n", str(n), "--temp", "0"])
+    assert rc == 0, out
+    lines = out.split("\n")
+    assert lines[0].startswith("pp:") and lines[-2].startswith("tg:"), out
+    return "\n".join(lines[1:-2])
+
+
+def check_server(model, prompts, n, long_n, chat):
+    srv = Server(model)
+    try:
+        health = srv.get("/v1/health")
+        assert health["status"] == "ok" and health["active"] == 0, health
+        models = srv.get("/v1/models")
+        assert models["models"][0]["context_length"] > 0, models
+
+        # Greedy through the server gives the CLI's text, and the ids are
+        # kept for the checks that follow.
+        expected = {}
+        for prompt in prompts:
+            want = cli_greedy_text(model, prompt, n)
+            status, reply = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
+            assert status == 200, reply
+            assert reply["text"] == want, (prompt, reply["text"], want)
+            assert reply["finish"] in ("eos", "length", "stop"), reply
+            expected[prompt] = reply["ids"]
+
+        # The same requests four at a time give the same ids each.
+        results = {}
+        def worker(p):
+            results[p] = srv.post("/v1/generate", {"prompt": p, "max_tokens": n, "temperature": 0})
+        threads = [threading.Thread(target=worker, args=(p,)) for p in prompts[:4]]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        for p in prompts[:4]:
+            status, reply = results[p]
+            assert status == 200 and reply["ids"] == expected[p], (p, reply, expected[p])
+
+        # A stream: token events, then the end marker, with the same ids.
+        events = srv.stream("/v1/generate", {"prompt": prompts[0], "max_tokens": n, "temperature": 0, "stream": True})
+        ids = [e["id"] for e in events if e and "id" in e]
+        assert ids == expected[prompts[0]], (ids, expected[prompts[0]])
+        assert events[-1] is None and events[-2].get("done") is True, events[-2:]
+
+        # A seeded sampled request is reproducible.
+        a = srv.post("/v1/generate", {"prompt": prompts[0], "max_tokens": n, "temperature": 1.0, "seed": 7})[1]
+        b = srv.post("/v1/generate", {"prompt": prompts[0], "max_tokens": n, "temperature": 1.0, "seed": 7})[1]
+        assert a["ids"] == b["ids"], (a, b)
+
+        # Refusals: a bad body, and a request past the context.
+        assert srv.post("/v1/generate", {"prompt": ""})[0] == 400
+        assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": 10 ** 9})[0] == 413
+
+        # A client that leaves mid-stream: open the socket, start a request,
+        # close after the first bytes, and the server ends with nothing active.
+        s = socket.create_connection(("127.0.0.1", srv.port))
+        body = json.dumps({"prompt": prompts[0], "max_tokens": long_n, "temperature": 0, "stream": True}).encode()
+        s.sendall(b"POST /v1/generate HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % len(body) + body)
+        s.recv(64)
+        s.close()
+        deadline = time.time() + 60
+        while time.time() < deadline and srv.get("/v1/health")["active"] != 0:
+            time.sleep(0.2)
+        assert srv.get("/v1/health")["active"] == 0, "a cancelled request stayed active"
+
+        # /v1/chat renders through the template and answers; the synthetic
+        # model's 16-token context has no room for a rendered turn.
+        if chat:
+            status, reply = srv.post("/v1/chat", {"messages": [{"role": "user", "content": prompts[0]}],
+                                                  "max_tokens": 2, "temperature": 0})
+            assert status == 200 and reply["tokens"] >= 1, reply
+        return len(prompts)
+    finally:
+        srv.close()
+
+
+def run():
+    if os.environ.get("LLMX_CACHE_TYPE", "f32") != "f32":
+        print("server: SKIP - the greedy comparison with the CLI is made with f32 caches (LLMX_CACHE_TYPE=%s)"
+              % os.environ["LLMX_CACHE_TYPE"])
+        return True
+    with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
+        model = os.path.join(directory, "tiny-f32.gguf")
+        f32.write_model(model, f32.tensors(True))
+        # The synthetic model's context is 16 tokens: prompt plus tokens stay inside it.
+        n = check_server(model, ["a", "ab", "abc", "abcdefg"], 6, 14, chat=False)
+        print("server: synthetic F32 model, %d prompts greedy-equal to the CLI alone and four at a time, a stream, "
+              "a seeded repeat, refusals, a cancelled stream  [ok]" % n)
+    real = baseline.find_fixture(baseline.BASELINE_MODELS[0])
+    if real:
+        n = check_server(real, ["The capital of France is", "Once upon a time", "def fib(n):", "The three laws of"],
+                         16, 4000, chat=True)
+        print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
+              "refusals, a cancelled stream, a chat turn  [ok]" % (os.path.basename(real), n))
+    else:
+        print("server: SKIP real-model pass - fixture model not on disk")
+    return True

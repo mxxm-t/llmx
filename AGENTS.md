@@ -257,6 +257,13 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   a copied tail, refused appends into shared blocks, refcounted release,
   and a forked sequence continuing exactly as a fresh one fed the same
   history. This oracle supplements the independent HF gate.
+- **Server** (`tests/server.py`): `llmx serve` on a system-chosen port
+  against the CLI on the same file, the synthetic F32 model without a
+  download and the Q8_0 fixture when present: greedy through `/v1/generate`
+  equals `generate --temp 0` alone and four at a time, a stream carries the
+  same ids, a seeded request repeats, refusals, a client leaving mid-stream
+  leaves nothing active, a chat turn. Skips under `--cache-type f16`.
+  Throughput is measured separately with `tools/server_load.py`.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model.

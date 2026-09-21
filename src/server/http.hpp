@@ -28,6 +28,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -53,7 +54,19 @@ using Socket = int;
 constexpr Socket kInvalid = -1;
 inline void close_socket(Socket s) { ::close(s); }
 inline int last_error() { return errno; }
-inline void platform_init() {}
+// A write to a socket the peer has closed raises SIGPIPE and ends the
+// process unless the process ignores it; a client leaving mid-stream is
+// ordinary here, so the signal is ignored once and every send also
+// passes MSG_NOSIGNAL where the platform has it.
+inline void platform_init() {
+    static std::once_flag once;
+    std::call_once(once, [] { signal(SIGPIPE, SIG_IGN); });
+}
+#endif
+#if defined(MSG_NOSIGNAL)
+constexpr int kSendFlags = MSG_NOSIGNAL;
+#else
+constexpr int kSendFlags = 0;
 #endif
 
 struct Request {
@@ -175,7 +188,7 @@ private:
     void send_all(const std::string& data) {
         size_t off = 0;
         while (off < data.size()) {
-            const int n = (int)::send(s_, data.data() + off, (int)(data.size() - off), 0);
+            const int n = (int)::send(s_, data.data() + off, (int)(data.size() - off), kSendFlags);
             if (n <= 0) throw std::runtime_error("http: the client went away");
             off += (size_t)n;
         }
@@ -311,7 +324,7 @@ inline int fetch(const std::string& host, uint16_t port, const std::string& meth
     req += "\r\n" + body;
     size_t off = 0;
     while (off < req.size()) {
-        const int n = (int)::send(s, req.data() + off, (int)(req.size() - off), 0);
+        const int n = (int)::send(s, req.data() + off, (int)(req.size() - off), kSendFlags);
         if (n <= 0) { close_socket(s); throw std::runtime_error("http: send failed"); }
         off += (size_t)n;
     }

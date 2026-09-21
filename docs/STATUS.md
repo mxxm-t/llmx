@@ -12,18 +12,50 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   iteration, streaming responses, prefix reuse through `fork`, admission by
   the KV pool's budget. Dependency-free transport. The design, protocol,
   scheduler loop, gates and order of work are `docs/SERVER.md`.
-- **Done:** the design, and step 1: `src/server/http.hpp`, HTTP/1.1 over
-  blocking sockets, Winsock or BSD, a listener, one request with a
+- **Done:** the design and steps 1 to 3. `src/server/http.hpp`: HTTP/1.1
+  over blocking sockets, Winsock or BSD, a listener, one request with a
   Content-Length body per connection, a whole response or a chunked
-  stream, and a client for tests; the `http` CTest covers a whole
-  response, an echoed body, a three-chunk stream arriving as written, 413,
-  400, 404 and the listener closed from another thread, on Windows and,
-  compiled with GCC 14 on the rig, on Linux.
-- **Left:** SERVER.md's steps 2 to 5, in order: the scheduler and `llmx serve` with `/v1/generate` and
-  `/v1/health`, gated on greedy equality with the CLI alone and beside three
-  decoders and on aggregate throughput at 1, 4, 8 and 16 against the
-  single-sequence bench and the reference's server; `/v1/chat`; the prefix
-  index; the second execution context if measured to help.
+  stream, a client for tests; the `http` CTest covers a whole response, an
+  echoed body, a three-chunk stream arriving as written, 413, 400, 404 and
+  the listener closed from another thread, on Windows and on the Linux
+  rig. `src/server/scheduler.hpp`: the loop of SERVER.md, admission by
+  the pool's capacity with every admitted request's blocks reserved up
+  front (admitting on blocks merely free let four requests into a
+  one-block pool), decode entries then chunked prompt slices in one
+  `forward`, per-request seeded sampling, channels, cancellation, a
+  failed pass ending its requests and not the loop. `src/server/api.hpp`
+  and `llmx serve`: `/v1/generate`, `/v1/chat` through the template
+  renderer, `/v1/health`, `/v1/models`, streamed as server-sent events
+  with characters held until complete and any bytes that never form a
+  character replaced by U+FFFD, since a byte-level vocabulary under
+  sampling produces them. The `server` Python component runs on the
+  synthetic F32 model without a download and on the Q8_0 fixture:
+  greedy through the server equals `generate --temp 0` alone and four at
+  a time, a stream carries the same ids, a seeded request repeats,
+  refusals, a client leaving mid-stream leaves nothing active, a chat
+  turn; it passes on the CPU and on the device. `tools/server_load.py`
+  measures aggregate decode throughput at N concurrent requests against
+  llmx's route or the reference's `/completion`. On the device, Qwen3-0.6B
+  Q8_0, 64 tokens per request, best of two rounds, both servers in the
+  same minutes (the reference with 16 slots over an 8192 context):
+
+  | concurrency | reference server | `llmx serve` | llmx share |
+  |---|---:|---:|---:|
+  | 1 | 176.9 tok/s | 210.6 | 119% |
+  | 4 | 367.6 tok/s | 328.9 | 89% |
+  | 8 | 453.3 tok/s | 369.1 | 81% |
+  | 16 | 237.1 tok/s | 244.9 | 103% |
+
+  Per step llmx costs about 4 ms more per extra sequence, which is the
+  device's multi-view path: `kv_write` and `attention` dispatch once per
+  view, and `norm_rope_kv` fuses only a single view and falls back to its
+  three-op default for a batch, so a sixteen-sequence step is on the
+  order of a thousand dispatches. That is the next kernel item, and the
+  throughput gate stays open until it lands.
+- **Left:** one dispatch per layer for `kv_write`, `attention` and
+  `norm_rope_kv` over every view of a batch, then the throughput gate
+  again at 1, 4, 8 and 16; SERVER.md steps 4 and 5, the prefix index and
+  the second execution context if measured to help.
 - **Gotchas:** the scheduler thread is the only caller of `forward` for its
   devices, by contract; connection threads queue and drain. A request is
   admitted only when the pool holds its prompt plus `max_tokens`; nothing is

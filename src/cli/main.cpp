@@ -42,6 +42,7 @@
 #include "inference/perplexity.hpp"
 #include "inference/chat.hpp"
 #include "model/arch_qwen.hpp"
+#include "server/api.hpp"
 
 // llmx CLI. This file is intentionally a thin dispatcher: format logic lives in
 // format/, quantization in quant/, inference in inference/, and the model in
@@ -745,6 +746,23 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
     return 0;
 }
 
+// llmx serve: the multi-user server of docs/SERVER.md over one model.
+int cmd_serve(const std::string& model_path, const server::Config& cfg, const infer::GenParams& gp) {
+    gguf::GGUFModel m = load_model(model_path, true);
+    bpe::Tokenizer tok(m);
+    infer::Model model(m, make_backend(gp.device), model_options(gp));
+    if (gp.threads > 0) model.set_threads(gp.threads);
+    if (gp.ubatch > 0) model.set_ubatch(gp.ubatch);
+    server::Config c = cfg;
+    c.model_name = std::filesystem::path(model_path).filename().string();
+    c.ubatch = model.prefill_batch();
+    http::Listener listener(c.host, c.port);
+    std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
+              << " (device " << gp.device << ", up to " << c.max_seqs << " sequences)\n";
+    server::serve(model, tok, m, c, listener);
+    return 0;
+}
+
 void print_usage() {
     std::cout
         << "llmx " << LLMX_VERSION_STRING << " - ground-up GGUF runtime (no external libs)\n"
@@ -766,6 +784,9 @@ void print_usage() {
         << "                      --chunks N  maximum windows (default: all)\n"
         << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
+        << "  llmx serve      <in.gguf> [--host H] [--port N] [--max-seqs N] [--ubatch N] [--threads N]\n"
+        << "                  [--device D] [--cache-type-k T] [--cache-type-v T]\n"
+        << "                  POST /v1/generate, POST /v1/chat, GET /v1/health, GET /v1/models (docs/USAGE.md)\n"
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]\n"
         << "  llmx bench      --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D]\n"
         << "                  [--cache-type-k T] [--cache-type-v T]\n"
@@ -987,6 +1008,25 @@ int main(int argc, char** argv) {
         if (cmd == "info") {
             if (argc != 3) { std::cerr << "usage: llmx info <in.gguf>\n"; return 2; }
             return cmd_info(argv[2]);
+        }
+        if (cmd == "serve") {
+            if (argc < 3) { print_usage(); return 1; }
+            server::Config cfg;
+            infer::GenParams gp;
+            for (int i = 3; i < argc; i++) {
+                std::string a = argv[i];
+                if (a == "--host") cfg.host = (i + 1 < argc) ? argv[++i] : cfg.host;
+                else if (a == "--port") cfg.port = (i + 1 < argc) ? (uint16_t)std::atoi(argv[++i]) : cfg.port;
+                else if (a == "--max-seqs") cfg.max_seqs = (i + 1 < argc) ? (size_t)std::atoi(argv[++i]) : cfg.max_seqs;
+                else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
+                else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
+                else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
+                else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
+                else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
+                else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
+            }
+            if (cfg.max_seqs == 0) { std::cerr << "serve: --max-seqs must be positive\n"; return 2; }
+            return cmd_serve(argv[2], cfg, gp);
         }
         if (cmd == "bench") {
             int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3;

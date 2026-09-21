@@ -361,6 +361,28 @@ public:
     // them. The count reported is device 0's, which is the host when a
     // model spans a CPU and a device.
     void set_threads(int n) { for (auto& d : devices_) d->b->set_threads(n); }
+
+    // What a scheduler admits against: the blocks free in the tightest
+    // storage, and the largest block among them, so a request's need is
+    // ceil(tokens / kv_block_tokens()) blocks (docs/SERVER.md).
+    size_t kv_blocks_free() const {
+        size_t least = std::numeric_limits<size_t>::max();
+        for (const Device* d : storages_) least = std::min(least, d->pool.free_blocks());
+        return storages_.empty() ? 0 : least;
+    }
+    size_t kv_blocks_total() const {
+        size_t least = std::numeric_limits<size_t>::max();
+        for (const Device* d : storages_) least = std::min(least, d->pool.capacity());
+        return storages_.empty() ? 0 : least;
+    }
+    size_t kv_block_tokens() const {
+        size_t largest = 1;
+        for (const Device* d : storages_) largest = std::max(largest, d->b->kv_layout().block_tokens);
+        return largest;
+    }
+    size_t n_vocab() const { return output_.nout; }
+    const QwenConfig& config() const { return cfg; }
+    size_t prefill_batch() const { return (size_t)ubatch_; }
     int threads_available() const { return devices_[0]->b->threads_available(); }
     // 0 keeps the default. Sets how a prompt is chunked; storage follows the
     // passes actually run.

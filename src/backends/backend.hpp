@@ -128,16 +128,19 @@ public:
     // Y[b*nout + o] = dot(row_o, X + b*nin), for all b in [0,nbatch) and o in
     // [0,nout). X and Y are row-major with nbatch rows.
     // Type-generic: the quant type is looked up in quant::Registry, so every
-    // block format gets the batched path, not just Q8_0. Rows are iterated
+    // block format gets the batched path, not just Q8_0. `type` is whatever
+    // the registry is keyed by, which today is the id GGUF stores; that the
+    // numbering is GGML's is a fact about the container format and stays in
+    // format/gguf.hpp, where the constants are. Rows are iterated
     // outer and the batch inner so each weight row is read once per block.
-    virtual void matmul(uint32_t ggml_type, CSlice data, CSlice X,
+    virtual void matmul(uint32_t type, CSlice data, CSlice X,
                         Slice Y, size_t nin, size_t nout, size_t nbatch) = 0;
 
     // Gather `count` rows of an embedding table into `dst`, row-major, `nin`
     // floats each. This is an op rather than a model-side read because the
     // table is a Buffer: a device backend holds it in its own memory and the
     // model cannot address it.
-    virtual void embed(Slice dst, uint32_t ggml_type, CSlice table,
+    virtual void embed(Slice dst, uint32_t type, CSlice table,
                        size_t nin, size_t nrows, const uint32_t* ids,
                        size_t count) = 0;
 

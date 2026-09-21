@@ -248,13 +248,13 @@ public:
         if (error) std::rethrow_exception(error);
     }
 
-    void embed(Slice dst_s, uint32_t ggml_type, CSlice table, size_t nin,
+    void embed(Slice dst_s, uint32_t type, CSlice table, size_t nin,
                size_t nrows, const uint32_t* ids, size_t count) override {
         float* dst = at(dst_s);
         const uint8_t* rows = (const uint8_t*)bytes_at(table);
-        const quant::QuantType* qt = ggml_type == gguf::GGML_TYPE_F32
-                                   ? nullptr : quant::Registry::instance().get(ggml_type);
-        if (ggml_type != gguf::GGML_TYPE_F32 && (!qt || !qt->dequantize))
+        const quant::QuantType* qt = type == gguf::GGML_TYPE_F32
+                                   ? nullptr : quant::Registry::instance().get(type);
+        if (type != gguf::GGML_TYPE_F32 && (!qt || !qt->dequantize))
             throw std::runtime_error("backend: unsupported embedding type");
         const size_t stride = qt ? (nin / qt->block_size) * qt->type_size : nin * sizeof(float);
         for (size_t i = 0; i < count; ++i) {
@@ -290,7 +290,7 @@ public:
                     (const uint8_t*)src.host_ptr() + src_off, bytes);
     }
 
-    void matmul(uint32_t ggml_type, CSlice weights, CSlice X_s, Slice Y_s,
+    void matmul(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
                 size_t nin, size_t nout, size_t nbatch) override {
         const uint8_t* data = (const uint8_t*)bytes_at(weights);
         const float* X = at(X_s);
@@ -298,21 +298,21 @@ public:
         // Q8_0 keeps its fused dequant+FMA row dot for the single-column case,
         // which is the decode path and is bandwidth bound rather than load
         // bound, so the extra dequant buffer would buy nothing there.
-        if (nbatch == 1 && ggml_type == gguf::GGML_TYPE_Q8_0) {
+        if (nbatch == 1 && type == gguf::GGML_TYPE_Q8_0) {
             matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
             return;
         }
         // K-quants whose dot factorises so no dequantized value is
         // materialised: Q4_K/Q5_K give d*sum(q*x) - m*sum(x), Q6_K has signed
         // group scales and no min, so it is sum over groups of d_g*sum(q*x).
-        if (nbatch == 1 && (ggml_type == gguf::GGML_TYPE_Q4_K ||
-                            ggml_type == gguf::GGML_TYPE_Q5_K ||
-                            ggml_type == gguf::GGML_TYPE_Q6_K)) {
-            const size_t blk = ggml_type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_BLOCK
-                             : ggml_type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_BLOCK
+        if (nbatch == 1 && (type == gguf::GGML_TYPE_Q4_K ||
+                            type == gguf::GGML_TYPE_Q5_K ||
+                            type == gguf::GGML_TYPE_Q6_K)) {
+            const size_t blk = type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_BLOCK
+                             : type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_BLOCK
                                                                  : gguf::Q6_K_BLOCK;
-            const size_t tsz = ggml_type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE
-                             : ggml_type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_TYPESIZE
+            const size_t tsz = type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE
+                             : type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_TYPESIZE
                                                                  : gguf::Q6_K_TYPESIZE;
             const size_t nb = nin / blk;
             const size_t rowbytes = nb * tsz;
@@ -328,12 +328,12 @@ public:
             // finite number, so a finite fused result needs no fallback.
             const auto dot = [&](const uint8_t* r) {
                 float v;
-                switch (ggml_type) {
+                switch (type) {
                     case gguf::GGML_TYPE_Q4_K: v = dot_row_q4_K(r, X, nb); break;
                     case gguf::GGML_TYPE_Q5_K: v = dot_row_q5_K(r, X, nb); break;
                     default:                   v = dot_row_q6_K(r, X, nb); break;
                 }
-                return std::isfinite(v) ? v : dot_row_dequant(ggml_type, r, X, nin, nb);
+                return std::isfinite(v) ? v : dot_row_dequant(type, r, X, nin, nb);
             };
             const int nt = threads_;
             if (nt <= 1 || nout < (size_t)nt * 8) {
@@ -350,8 +350,8 @@ public:
             });
             return;
         }
-        const quant::QuantType* qt = quant::Registry::instance().get(ggml_type);
-        const bool f32 = ggml_type == gguf::GGML_TYPE_F32;
+        const quant::QuantType* qt = quant::Registry::instance().get(type);
+        const bool f32 = type == gguf::GGML_TYPE_F32;
         if (!f32 && (!qt || !qt->dequantize || qt->block_size == 0))
             throw std::runtime_error("backend: no dequantizer for tensor type");
         const size_t nblocks = f32 ? 0 : nin / qt->block_size;

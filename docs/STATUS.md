@@ -1041,6 +1041,41 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   suite passes on the device backend, the HF baseline included; one
   perf-floor run failed with the bench process exiting non-zero and did
   not reproduce in two further runs.
+
+  The MI50 in the container, where the reference was re-run on the same
+  card in the same session. That card takes the integer dot form, so
+  none of the float multiply reaches it and all of the gain is the
+  register change:
+
+  | model | test | reference Vulkan | llmx before | llmx now | llmx share |
+  |---|---|---:|---:|---:|---:|
+  | Qwen3-8B-Q4_K_M | tg32 | 36.75 tok/s | 65.6, 65.0 | 79.8, 79.8 | 217% |
+  | Qwen3-8B-Q8_0 | tg32 | 25.65 | 45.7, 46.8 | 49.6, 45.6 | 182% |
+  | Qwen3-0.6B-Q8_0 | tg32 | 100.59 | 270.1, 270.5 | 269.9, 270.4 | 269% |
+
+  Prefill is flat there too, on both models measured as the control.
+  Whether the float multiply beats the integer dot under Mesa is not
+  measured; the two forms still compile from one source and the profile
+  still chooses.
+
+  Thirty-first, where prompt processing actually stands, which the
+  figures quoted until now understated. The 43, 72 and 77 percent of
+  the reference reported through the day are Q8_0 and 0.6B cells. On
+  the MI50 at 247 rows against that card's own reference build, in the
+  same session as the table above:
+
+  | model | llmx pp247 | reference pp247 | llmx share |
+  |---|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | 2653 tok/s | 3359 | 79% |
+  | Qwen3-8B-Q8_0 | 265 | 606 | 44% |
+  | Qwen3-8B-Q4_K_M | 98 | 530 | 19% |
+
+  The Q4_K_M file prefills slower in absolute terms than the Q8_0 file
+  of the same model on the same card, 98 tok/s against 265, while
+  reading a little over half the bytes. So it is not bandwidth and not
+  the tile shape: it is the tile kernel dequantizing K-quant weights
+  into shared memory on every pass, which the 8-bit path does not pay.
+  This is the largest gap open and is the next thing taken.
 - **Left:** prompt processing, bound by shared-memory traffic per operation at 12
   percent of this card's fp32 peak, to be raised by a wider micro-tile
   and a tile sized from what the device reports; decode on the 4- and

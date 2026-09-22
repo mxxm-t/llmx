@@ -5,7 +5,7 @@ import os
 import struct
 import tempfile
 
-from common import run as cli
+from common import run_f32_cache as cli
 from tokenizer import build_byte_vocab, w_str
 
 

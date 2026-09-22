@@ -37,7 +37,7 @@ class Server:
     def __init__(self, model, *extra):
         self.port = free_port()
         args = [common.exe_path(), "serve", model, "--host", "127.0.0.1", "--port", str(self.port), "--max-seqs", "8"] + list(extra)
-        self.proc = subprocess.Popen(common.device_args(args), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        self.proc = subprocess.Popen(common.device_args(args, "f32"), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                      text=True, encoding="utf-8")
         deadline = time.time() + 120
         while time.time() < deadline:

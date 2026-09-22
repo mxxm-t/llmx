@@ -20,7 +20,7 @@ def exe_path():
 DEVICE_COMMANDS = {"generate", "chat", "logits", "perplexity", "bench", "serve"}
 
 
-def device_args(args):
+def device_args(args, cache=None):
     args = list(args)
     if not args or args[0] not in DEVICE_COMMANDS:
         return args
@@ -30,15 +30,17 @@ def device_args(args):
     # LLMX_CACHE_TYPE, set by run_tests.py --cache-type, runs the same
     # commands with both cache sides stored as that type; test
     # configuration like LLMX_DEVICE, reaching the binary only as flags.
-    cache = os.environ.get("LLMX_CACHE_TYPE")
-    if cache and "--cache-type-k" not in args:
-        args += ["--cache-type-k", cache, "--cache-type-v", cache]
+    # `cache` is a component asking for a type because its fixtures need
+    # it, which an explicit LLMX_CACHE_TYPE overrides.
+    want = os.environ.get("LLMX_CACHE_TYPE") or cache
+    if want and "--cache-type-k" not in args:
+        args += ["--cache-type-k", want, "--cache-type-v", want]
     return args
 
 
-def run(args, cwd=None):
+def run(args, cwd=None, cache=None):
     """Run the llmx CLI, returning (returncode, stdout_text)."""
-    p = subprocess.run([exe_path()] + device_args(args), capture_output=True, text=True,
+    p = subprocess.run([exe_path()] + device_args(args, cache), capture_output=True, text=True,
                        encoding="utf-8", cwd=cwd or ROOT)
     # A failure's diagnostic is on stderr; hand it back with the output so a
     # caller can tell a missing device kernel from a wrong answer.
@@ -67,3 +69,10 @@ def read_bin_floats(path):
 
 def max_err(a, b):
     return max(abs(x - y) for x, y in zip(a, b))
+
+
+# The components that check exact f32 arithmetic against independently
+# generated fixtures run the CLI through this, so they keep their f32
+# cache sides now that the runtime stores f16 by default.
+def run_f32_cache(args, cwd=None):
+    return run(args, cwd, cache="f32")

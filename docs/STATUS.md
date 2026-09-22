@@ -626,9 +626,22 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-0.6B-Q8_0 | pp247 | 656.0 +- 2.1 tok/s | 1610.5 +- 4.1 | 1620.9 +- 3.7 | 247% |
   | Qwen3-0.6B-Q8_0 | tg32 | 198.3 +- 0.3 tok/s | 226.9 +- 0.4 | 225.1 +- 0.5 | 113% |
 
-  The default stays f32 for now: the flags exist, the gate passes with
-  f16, and switching the default is a separate decision recorded when it
-  is taken.
+  The default is f16 on both sides, taken as a decision on 2026-09-22
+  after these measurements: it is what the reference runtime stores by
+  default, so a comparison is like-for-like without flags; the HF gate
+  passes with it on both backends, the 8B Q8_0 excerpt reading a
+  perplexity delta of 0.001254 against f32's 0.001374 inside a 0.01
+  bound; a decode step reads the whole cache, so a 512-token generation
+  on Qwen3-0.6B gains 6 percent; and the 8B runs a 16k context that f32
+  cannot allocate on a 16 GB card. `f32` on both sides stores the cache
+  exactly and is one flag away. The three components that compare exact
+  f32 arithmetic against independent fixtures (`f32`, `shards`,
+  `server`) now ask for f32 sides themselves, so they test what they
+  tested before; `--cache-type` overrides them, and under `f16` they
+  skip as they did. All three suites pass at the new default: the CPU
+  suite, the CPU suite with `--cache-type f32`, and the device suite,
+  with the Q5_K_M perplexity delta reading 0.067623, 0.067633 and
+  0.067753 across them.
   Nineteenth, mixed groups partitioned by type. A Q5_K_M layer's q and k
   are Q5_K and its v is Q6_K, and a group of mixed types fell back to
   one dispatch per projection; it is now one dispatch per type, two for
@@ -964,9 +977,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   4096 x 12288 reads 315 GB/s against 397, Q6_K's wide head 248 against
   232 the other way), untuned and not yet a like-for-like comparison,
   since the driver differs as well as the card. The tiled attention does not
-  yet share a K/V tile across the query heads of a KV group. And the
-  question of the default cache type, f16 being the reference's default
-  and passing the gate here.
+  yet share a K/V tile across the query heads of a KV group.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

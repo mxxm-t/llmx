@@ -797,7 +797,7 @@ void print_usage() {
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
         << "           --device D  backend: cpu (default) or vulkan:N in a build with it\n"
         << "           --ubatch N  prefill physical batch (default 512)\n"
-        << "           --cache-type-k T  --cache-type-v T  KV cache storage per side, f32 (default) or f16;\n"
+        << "           --cache-type-k T  --cache-type-v T  KV cache storage per side, f16 (default) or f32;\n"
         << "                       the same on every backend, one without a type refuses it\n"
         << "           -tb/--threads-batch N  threads for prefill (default: --threads)\n"
         << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"

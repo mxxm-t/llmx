@@ -4,7 +4,7 @@ import os
 import tempfile
 
 import f32
-from common import run as cli
+from common import run_f32_cache as cli
 
 
 def run():

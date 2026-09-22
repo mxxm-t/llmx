@@ -113,11 +113,13 @@ void main() {
         // address computed per step. Rolled, the driver spent six of every
         // thirty-two instructions on those addresses and issued only half the
         // loop as arithmetic (docs/VULKAN.md).
-        // Unrolled by four on top of the k-major layout: the four steps then
+        // Unrolled by eight on top of the k-major layout: the eight steps then
         // differ by a constant, so their reads carry an immediate offset
-        // rather than an address recomputed per step.
-        for (uint kb = 0u; kb < 32u; kb += 4u) {
-            for (uint u = 0u; u < 4u; ++u) {
+        // rather than an address recomputed per step. Four was worth 5 percent
+        // of pp512 here and eight another 3; sixteen and thirty-two measured
+        // the same as eight, so eight is where it stops (docs/VULKAN.md).
+        for (uint kb = 0u; kb < 32u; kb += 8u) {
+            for (uint u = 0u; u < 8u; ++u) {
                 uint k = kb + u;
                 float b0 = xs[k][tc * 4u], b1 = xs[k][tc * 4u + 1u];
                 float b2 = xs[k][tc * 4u + 2u], b3 = xs[k][tc * 4u + 3u];

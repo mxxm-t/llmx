@@ -1205,6 +1205,14 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   source change is worth twice as much under Mesa is the same pattern
   as everything else here, the driver deciding what a shape costs.
 
+  The unroll was then deepened from four to eight, which removes more
+  of the address arithmetic still being emitted. Interleaved, two
+  passes, three models, every cell improves: 0.6B pp512 2999 to 3033
+  tok/s, pp256 2851 to 2867, 8B Q8_0 pp512 339 to 345, pp256 294 to
+  297, 8B Q4_K_M pp512 110.7 to 111.2. Sixteen and thirty-two measured
+  the same as eight, so eight is where the return stops and the
+  shallower form is kept.
+
   Eight columns to a thread was retried on the k-major layout, where a
   thread's eight columns are contiguous rather than 33 floats apart,
   which was the objection to the first two attempts. It is still

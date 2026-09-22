@@ -1251,6 +1251,18 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   Every suite passes on the MI50 and the Radeon VII, the HF baseline in both scoring modes. On the 8B Q4_K_M file ten wikitext windows of 512 scored one token at a time move from mean NLL 2.69356 to 2.69409. The backend test feeds each family's reference the activations of the twin it reads; against the 8-bit twin one quant can round the other way on the device, whose reciprocal is a few ulps from the host's, worth about the weight times the block's step, so those comparisons take 1e-2 where an indexing error is worth the output itself. The Radeon VII has no native integer dot and is unchanged. The decode gap left on the MI50 is the two Q8_0 files, and Q6_K, which the gate keeps on the 16-bit twin.
 
+  Fortieth, the one-card gate at `300d812`, same protocol as the thirty-fourth paragraph, llmx share of the reference's Vulkan build on the same MI50, best of two interleaved passes:
+
+  | model | pp64 | pp247 | pp512 | tg32 |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | 2512 vs 4910, 51% | 5084 vs 7250, 70% | 5403 vs 6832, 79% | 328 vs 331, 99% |
+  | Qwen3-0.6B-Q5_K_M | 2443 vs 2959, 83% | 5197 vs 4433, 117% | 5643 vs 5725, 99% | 337 vs 314, 107% |
+  | Qwen3-0.6B-Q8_0 | 2592 vs 4652, 56% | 5494 vs 6960, 79% | 5964 vs 6667, 89% | 274 vs 303, 90% |
+  | Qwen3-8B-Q4_K_M | 288 vs 260, 111% | 574 vs 634, 91% | 692 vs 761, 91% | 86 vs 87, 99% |
+  | Qwen3-8B-Q8_0 | 290 vs 526, 55% | 604 vs 732, 83% | 742 vs 862, 86% | 50 vs 59, 85% |
+
+  The largest gaps left are short prompts on every file but the 8B Q4_K_M, and Q8_0 in both phases. The reference's decode matvec loads each activation word once per thread and reuses it across several rows, where a lane of ours serves one row and loads the activations again for every row; two rows per lane cluster is the next piece for Q8_0 decode.
+
   Documentation review at this checkpoint: every Markdown file read against the code, CLI, tests and build. About fifty stale claims corrected across README, AGENTS, STATUS's table and feature blocks, VULKAN, USAGE, ROADMAP, ARCHITECTURE, EXECUTION, KV-CACHE, DEVICE-EXECUTION, SERVER, CI, ASSETS and the per-source pages. The largest were the ten-card MI50 figures presented as current in README and the status table, VULKAN.md saying no shader uses the integer dot, the tile described as two heights and two thresholds, the perplexity scorer described as one token at a time, and ROADMAP and ARCHITECTURE still calling the server and the Vulkan backend planned. The numbered measurement paragraphs above are left as history.
 
   And a memory fix. A model on a device backend held every weight twice: the loader reads the file into one host allocation, the model kept it for its lifetime, and the device backend copies each weight into its own memory. The model now records at adoption whether any weight still reads those bytes in place, and the CLI releases them when none does. Qwen3-8B-Q4_K_M on the Radeon VII, steady host memory 4.62 to 0.18 GB, decode unchanged; the CPU backend adopts by aliasing and keeps them. The peak is still the whole file, 4.84 GB, since it is read before the upload. Streaming the file to the device during the load, read directly into staging and uploaded asynchronously so the disk and the copies overlap, would remove that peak and is not done.

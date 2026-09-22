@@ -1141,6 +1141,33 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   revisiting written as named scalars per column; it is not worth an
   indexed array.
 
+  The tile threshold turns out to be a property of the driver, not only
+  of the card, which the profile can hold but cannot yet derive. It was
+  measured at 32 rows for 8-bit projections on the Radeon VII under the
+  AMD proprietary driver. On the MI50 under Mesa, the same silicon, the
+  row kernel wins all the way to 96: at 16, 32, 48, 64, 96 and 128 rows
+  the tile reads 230, 422, 614, 825, 940 and 1355 tok/s on
+  Qwen3-0.6B-Q8_0 while the row kernel reads 852, 883, 897, 900, 890
+  and 889. So between 32 and 96 rows the shipped threshold picks the
+  slower kernel there, by up to a factor of two at 32.
+
+  The first attempt was to make the threshold follow the shape rather
+  than the device, since the crossover also moves with how much work a
+  row carries: 64 rows on a 1024-wide 8-bit projection against about 24
+  on a 4096-wide one. Interleaved on the Radeon VII across three
+  models, two passes each, that was a regression, 0.6B pp48 reading 825
+  tok/s against 978, and a wash everywhere else, so it is not in the
+  tree. The shape does move the crossover, but less than the driver
+  does, and a rule fitted to one device mispredicts the other.
+
+  What that leaves is a number the profile must be told rather than
+  compute. The honest ways to tell it are a table of combinations that
+  have been measured, keyed by device and driver, or a short
+  calibration when a backend opens a device. Neither is written yet;
+  the shipped value stays the Radeon VII's, which is part of why the
+  MI50 reads 41 percent of the reference at 64 rows while reading 74 at
+  512.
+
   A second, separate observation, and only an observation: the two
   drivers report different limits for the same Vega20 silicon, 32 KB
   of shared memory per workgroup from the AMD proprietary driver on

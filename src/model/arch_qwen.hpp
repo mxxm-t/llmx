@@ -173,6 +173,10 @@ struct Placement {
 struct ModelOptions {
     backend::KVType kv_k = backend::KVType::f32;
     backend::KVType kv_v = backend::KVType::f32;
+    // Tokens the KV pool holds in total, shared by every sequence; zero
+    // means one model context, which is what one conversation needs and
+    // what a server divides among its requests unless told otherwise.
+    size_t kv_tokens = 0;
 };
 
 // One request's history in a model's cache: a block table per storage and
@@ -317,14 +321,15 @@ public:
         resolve_tensors();
 
         // Each device that runs attention gets a storage for exactly its
-        // layers, with its own block size and pool. Budget: the whole
-        // context; storage is backed on demand, so a short chat does not
-        // allocate it.
+        // layers, with its own block size and pool. Budget: the option's
+        // tokens, else the whole context; storage is backed on demand, so
+        // a short chat does not allocate it.
+        const size_t kv_tokens = options_.kv_tokens ? options_.kv_tokens : (size_t)cfg.context_length;
         for (auto& dp : devices_) {
             Device& d = *dp;
             if (!d.attn_layers) continue;
             d.storage = d.b->kv_alloc((size_t)d.attn_layers, cfg.n_head_kv, cfg.head_dim,
-                                      (size_t)cfg.context_length, options_.kv_k, options_.kv_v);
+                                      kv_tokens, options_.kv_k, options_.kv_v);
             d.pool.configure(d.storage->max_blocks());
             d.storage_index = (int)storages_.size();
             storages_.push_back(&d);

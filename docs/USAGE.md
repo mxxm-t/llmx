@@ -358,13 +358,21 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--ubatch N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T]`
 
 The multi-user server (`docs/SERVER.md`): one model, a sequence per
 request, every active request advanced by one token per pass with a slice
 of a new request's prompt beside them, tokens streamed as they are sampled.
 HTTP/1.1 without dependencies or TLS; put a reverse proxy in front of it
-when it faces a network. Defaults: `127.0.0.1:8080`, 16 sequences.
+when it faces a network. Defaults: `127.0.0.1:8080`, 16 sequences, a
+queue of 64. `--max-seqs` is how many requests decode at once, the rest
+wait in the queue, and past `--max-queue` waiting requests a new one is
+refused with 503. `--ctx-size` (`-c`) is the KV pool's total token budget shared
+by every request, the model context by default: with 16 sequences over a
+40k-token model that is 2.5k tokens each on average, so a deployment that
+serves long conversations sets it to what its memory holds, rounded up
+to whole KV blocks of 128 tokens, and a request whose prompt plus
+`max_tokens` exceeds the budget is refused with 413.
 
 | Route | Body | Reply |
 |---|---|---|

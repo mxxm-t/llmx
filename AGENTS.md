@@ -268,8 +268,10 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   same ids, a seeded request repeats, refusals, a client leaving mid-stream
   leaves nothing active, a chat turn, the compatible `/v1/completions`
   and `/v1/chat/completions` whole and streamed in the OpenAI clients'
-  shape, and a prompt repeating a finished request's tokens reuses its
-  blocks with the CLI's greedy text. Skips under `--cache-type f16`.
+  shape, a prompt repeating a finished request's tokens reuses its
+  blocks with the CLI's greedy text, and the limits: a KV budget below the
+  context bounds a request and a full queue answers 503. Skips under
+  `--cache-type f16`.
   Throughput is measured separately with `tools/server_load.py`.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,

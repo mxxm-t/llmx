@@ -32,11 +32,13 @@ is measured against the single-sequence path and the reference.
   since a server holds at most `max_seqs` donors for one model
   ([KV-CACHE](KV-CACHE.md), "Prefix sharing"). A live request's growing
   history is never shared.
-- **A memory budget that admits, not crashes.** The KV pool has
-  `max_blocks`. A request is admitted when the pool can hold its prompt and
-  its `max_tokens`; otherwise it waits in the queue. An admitted request is
-  never evicted; donors are, oldest first, when a request needs their
-  blocks. A request that cannot be admitted is not started.
+- **A memory budget that admits, not crashes.** The KV pool holds
+  `--ctx-size` tokens in total, the model context by default. A request is
+  admitted when the pool can hold its prompt and its `max_tokens`;
+  otherwise it waits in the queue, and past `--max-queue` waiting requests
+  a new one is refused with 503. An admitted request is never evicted;
+  donors are, oldest first, when a request needs their blocks. A request
+  that cannot be admitted is not started.
 - **Dependency-free transport.** HTTP/1.1 over BSD sockets and Winsock,
   request parsing, chunked responses, JSON in and out through
   `core/json.hpp`. No TLS: the server sits behind a reverse proxy when it

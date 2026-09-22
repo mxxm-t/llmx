@@ -17,7 +17,7 @@ def exe_path():
 
 # Commands that take --device. LLMX_DEVICE is test configuration, like
 # LLMX_BASELINE_GGUF: it never reaches the binary except as this flag.
-DEVICE_COMMANDS = {"generate", "chat", "logits", "perplexity", "bench"}
+DEVICE_COMMANDS = {"generate", "chat", "logits", "perplexity", "bench", "serve"}
 
 
 def device_args(args):

@@ -34,9 +34,9 @@ def free_port():
 
 
 class Server:
-    def __init__(self, model):
+    def __init__(self, model, *extra):
         self.port = free_port()
-        args = [common.exe_path(), "serve", model, "--host", "127.0.0.1", "--port", str(self.port), "--max-seqs", "8"]
+        args = [common.exe_path(), "serve", model, "--host", "127.0.0.1", "--port", str(self.port), "--max-seqs", "8"] + list(extra)
         self.proc = subprocess.Popen(common.device_args(args), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                      text=True, encoding="utf-8")
         deadline = time.time() + 120
@@ -206,6 +206,29 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
         srv.close()
 
 
+def check_limits(model):
+    """The serving limits: a KV budget below the context bounds a request,
+    and a full queue refuses with 503 rather than waiting."""
+    srv = Server(model, "--max-seqs", "1", "--max-queue", "1", "--ctx-size", "512")
+    try:
+        assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": 600})[0] == 413
+        results = {}
+        def worker(i):
+            results[i] = srv.post("/v1/generate", {"prompt": "The capital of France is", "max_tokens": 300,
+                                                   "temperature": 0})
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(3)]
+        for t in threads:
+            t.start()
+            time.sleep(0.2)
+        for t in threads:
+            t.join()
+        codes = sorted(status for status, _ in results.values())
+        assert codes == [200, 200, 503], codes
+        assert [r for s, r in results.values() if s == 503][0]["error"], results
+    finally:
+        srv.close()
+
+
 def run():
     if os.environ.get("LLMX_CACHE_TYPE", "f32") != "f32":
         print("server: SKIP - the greedy comparison with the CLI is made with f32 caches (LLMX_CACHE_TYPE=%s)"
@@ -224,8 +247,10 @@ def run():
             excerpt = json.load(f)["text"]
         n = check_server(real, ["The capital of France is", "Once upon a time", "def fib(n):", "The three laws of"],
                          16, 4000, chat=True, prefix=excerpt)
+        check_limits(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
-              "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix  [ok]" % (os.path.basename(real), n))
+              "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits  [ok]"
+              % (os.path.basename(real), n))
     else:
         print("server: SKIP real-model pass - fixture model not on disk")
     return True

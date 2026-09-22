@@ -178,6 +178,22 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   kernel: at 4 it is the pass that processes the next request's prompt,
   and at 1 it is unexplained and stays open. The 16-column kernel
   remains open.
+  The limits, asked for by the user as the flags a deployment sets:
+  the KV pool's budget had been one model context in total, shared by
+  every request with no knob, and the queue unbounded. `--ctx-size`
+  (`-c`) on `llmx serve` is now the pool's total token budget, the
+  model context by default, rounded up to whole blocks, and the
+  ceiling on one request's prompt plus `max_tokens` is the smaller of
+  the context and that budget, refused with 413 in the API and in the
+  scheduler. `--max-queue` (default 64) bounds the requests waiting
+  for admission; past it a submit throws `QueueFull`, which the API
+  answers with 503. The server test starts a one-sequence, one-queue
+  server over 512 tokens and checks the 413 and, with three requests
+  arriving 0.2 s apart, statuses 200, 200 and 503. Found on the way:
+  `serve` was not among the commands the suite's `--device` reached,
+  so the server had run on the CPU in every device pass while the CLI
+  it was compared with ran on the device; it is now, and the test
+  passes with both on the device.
 - **Left:** the 16-column row kernel if sixteen-way batches turn out to
   matter; replaying a recorded decode pass, above, if small-model decode
   becomes the target.

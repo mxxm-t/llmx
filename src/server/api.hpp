@@ -26,6 +26,7 @@ struct Config {
     std::string host = "127.0.0.1";
     uint16_t port = 8080;
     size_t max_seqs = 16;
+    size_t max_queue = 64;   // requests waiting for admission; past it, 503
     size_t ubatch = 512;
     std::string model_name;
 };
@@ -247,11 +248,12 @@ private:
 
         std::vector<uint32_t> ids = tok_.encode(prompt);
         if (ids.empty()) throw BadRequest(400, "the prompt encodes to no tokens");
-        if (ids.size() + (size_t)std::max(params.max_tokens, 0) > (size_t)model_.config().context_length)
-            throw BadRequest(413, "prompt plus max_tokens exceeds the context of " +
-                                      std::to_string(model_.config().context_length) + " tokens");
+        if (ids.size() + (size_t)std::max(params.max_tokens, 0) > sched_.token_limit())
+            throw BadRequest(413, "prompt plus max_tokens exceeds the " + std::to_string(sched_.token_limit()) +
+                                      " tokens a request may hold");
         std::shared_ptr<Request> r;
         try { r = sched_.submit(std::move(ids), params); }
+        catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
         const std::string id = (route == Route::chat_completions ? "chatcmpl-" : "cmpl-") + std::to_string(next_id_.fetch_add(1));
 
@@ -335,7 +337,7 @@ private:
 // the accept loop here, one detached thread per connection.
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const gguf::GGUFModel& file,
                   const Config& cfg, http::Listener& listener) {
-    Scheduler sched(model, tok, cfg.max_seqs, cfg.ubatch);
+    Scheduler sched(model, tok, cfg.max_seqs, cfg.ubatch, cfg.max_queue);
     Api api(model, tok, file, sched, cfg);
     std::thread runner([&] { sched.run(); });
     std::atomic<int> open{0};

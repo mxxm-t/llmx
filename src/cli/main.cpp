@@ -68,6 +68,7 @@ infer::ModelOptions model_options(const infer::GenParams& gp) {
     infer::ModelOptions o;
     o.kv_k = kv_type_of(gp.cache_type_k);
     o.kv_v = kv_type_of(gp.cache_type_v);
+    o.kv_tokens = gp.kv_tokens > 0 ? (size_t)gp.kv_tokens : 0;
     return o;
 }
 
@@ -758,7 +759,8 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const in
     c.ubatch = model.prefill_batch();
     http::Listener listener(c.host, c.port);
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
-              << " (device " << gp.device << ", up to " << c.max_seqs << " sequences)\n";
+              << " (device " << gp.device << ", up to " << c.max_seqs << " sequences over "
+              << model.kv_blocks_total() * model.kv_block_tokens() << " KV tokens, queue of " << c.max_queue << ")\n";
     server::serve(model, tok, m, c, listener);
     return 0;
 }
@@ -784,7 +786,8 @@ void print_usage() {
         << "                      --chunks N  maximum windows (default: all)\n"
         << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
-        << "  llmx serve      <in.gguf> [--host H] [--port N] [--max-seqs N] [--ubatch N] [--threads N]\n"
+        << "  llmx serve      <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N]\n"
+        << "                  [--ubatch N] [--threads N]\n"
         << "                  [--device D] [--cache-type-k T] [--cache-type-v T]\n"
         << "                  POST /v1/generate, POST /v1/chat, GET /v1/health, GET /v1/models (docs/USAGE.md)\n"
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]\n"
@@ -1018,6 +1021,8 @@ int main(int argc, char** argv) {
                 if (a == "--host") cfg.host = (i + 1 < argc) ? argv[++i] : cfg.host;
                 else if (a == "--port") cfg.port = (i + 1 < argc) ? (uint16_t)std::atoi(argv[++i]) : cfg.port;
                 else if (a == "--max-seqs") cfg.max_seqs = (i + 1 < argc) ? (size_t)std::atoi(argv[++i]) : cfg.max_seqs;
+                else if (a == "--max-queue") cfg.max_queue = (i + 1 < argc) ? (size_t)std::atoi(argv[++i]) : cfg.max_queue;
+                else if (a == "--ctx-size" || a == "-c") gp.kv_tokens = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.kv_tokens;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
@@ -1026,6 +1031,7 @@ int main(int argc, char** argv) {
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             if (cfg.max_seqs == 0) { std::cerr << "serve: --max-seqs must be positive\n"; return 2; }
+            if (gp.kv_tokens < 0) { std::cerr << "serve: --ctx-size must be positive\n"; return 2; }
             return cmd_serve(argv[2], cfg, gp);
         }
         if (cmd == "bench") {

@@ -108,23 +108,37 @@ private:
     std::vector<float> logits_;
 };
 
+// The queue is full: the request is refused now rather than waiting.
+struct QueueFull : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 class Scheduler {
 public:
-    Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t ubatch)
-        : model_(model), tok_(tok), max_seqs_(max_seqs ? max_seqs : 1), ubatch_(ubatch ? ubatch : 512) {}
+    Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t ubatch, size_t max_queue)
+        : model_(model), tok_(tok), max_seqs_(max_seqs ? max_seqs : 1), ubatch_(ubatch ? ubatch : 512),
+          max_queue_(max_queue ? max_queue : 1) {}
+
+    // Tokens one request may hold, prompt and reply together: the model
+    // context or the KV pool, whichever is smaller.
+    size_t token_limit() const {
+        return std::min((size_t)model_.config().context_length, model_.kv_blocks_total() * model_.kv_block_tokens());
+    }
 
     // Queue a request; the handle's channel delivers its tokens. A prompt
-    // the context cannot hold is refused here, before it waits.
+    // the limit cannot hold is refused here, before it waits, and so is a
+    // request arriving at a full queue.
     std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params) {
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
         if (params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
-        const size_t context = (size_t)model_.config().context_length;
-        if (prompt.size() + (size_t)params.max_tokens > context)
-            throw std::runtime_error("server: prompt plus max_tokens exceeds the context of " +
-                                     std::to_string(context) + " tokens");
+        if (prompt.size() + (size_t)params.max_tokens > token_limit())
+            throw std::runtime_error("server: prompt plus max_tokens exceeds the " +
+                                     std::to_string(token_limit()) + " tokens a request may hold");
         auto r = std::make_shared<Request>(std::move(prompt), std::move(params));
         {
             std::lock_guard<std::mutex> lk(m_);
+            if (queue_.size() >= max_queue_)
+                throw QueueFull("server: the queue holds " + std::to_string(max_queue_) + " requests; try again later");
             queue_.push_back(r);
         }
         cv_.notify_all();
@@ -355,7 +369,7 @@ private:
 
     infer::Model& model_;
     const bpe::Tokenizer& tok_;
-    size_t max_seqs_, ubatch_;
+    size_t max_seqs_, ubatch_, max_queue_;
     infer::ExecContext ctx_;
     mutable std::mutex m_;
     std::condition_variable cv_;

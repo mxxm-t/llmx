@@ -523,7 +523,10 @@ public:
         VkInstanceCreateInfo ii{};
         ii.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         ii.pApplicationInfo = &app;
-        check(fn.vkCreateInstance(&ii, nullptr, &d.instance), "vkCreateInstance");
+        // A loader with no driver behind it fails here; that is no device.
+        const VkResult ir = fn.vkCreateInstance(&ii, nullptr, &d.instance);
+        if (ir == VK_ERROR_INCOMPATIBLE_DRIVER) throw VulkanUnavailable("vulkan: the loader has no driver");
+        check(ir, "vkCreateInstance");
 #define LLMX_VK_LOAD_INSTANCE(name) \
         fn.name = (PFN_##name)d.loader.gipa(d.instance, #name); \
         if (!fn.name) throw std::runtime_error("vulkan: the instance has no " #name);

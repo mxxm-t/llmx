@@ -606,6 +606,10 @@ public:
         d.caps.compute_units = d.compute_units;
         d.caps.shared_memory_bytes = d.props.limits.maxComputeSharedMemorySize;
         d.caps.matrix_units = false;   // no gfx906 has them; a device that does sets this
+        d.caps.fp16_arithmetic = d.float16;
+        d.caps.int8_arithmetic = d.int8;
+        d.caps.storage_8bit = d.storage8;
+        d.caps.storage_16bit = d.storage16;
         d.profile = profile_for(d.caps);
         // The row kernel places one subgroup per row inside a workgroup of
         // 256, which needs the subgroup size to divide it.

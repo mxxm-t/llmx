@@ -19,20 +19,50 @@
 // constants. The kernels themselves stay per-backend; only the shaping is
 // shared.
 //
-// Bringing up a device is therefore: fill `DeviceCaps` from its API, run the
-// backend's measurements, and give `profile_for` a branch if the numbers it
-// wants differ. Branch on what a device reports, never on its vendor name.
+// Those two kinds of number answer two different questions, and it is worth
+// keeping them apart, because hardware differs in two ways.
+//
+// Some hardware wants a different kernel. A device with a matrix-multiply
+// instruction class wants a matmul written around it, not the same one with
+// other constants; a device without 16-bit arithmetic wants a path that does
+// not use it. That is a capability question, answered by the flags in
+// `DeviceCaps`, and its answer is which implementation to launch. A backend
+// already selects among implementations for reasons that have nothing to do
+// with the device, one per quantization family and one per cache element type;
+// capability selection is the same mechanism with a different input.
+//
+// Other hardware wants the same kernel shaped differently: more rows per
+// thread, fewer lanes to a block, a different row count before tiling starts.
+// That is a configuration question, answered by `DeviceProfile` and by the
+// shape of the call, and no new kernel is written for it.
+//
+// Keeping the two apart is what stops a backend from either writing a new
+// kernel where a constant would do, or forcing one kernel to cover hardware it
+// has no instructions for. Bringing up a device is therefore: fill
+// `DeviceCaps` from its API, see whether any capability calls for an
+// implementation that does not exist yet, run the backend's measurements, and
+// give `profile_for` a branch if the numbers it wants differ. Branch on what a
+// device reports, never on its vendor name.
 #include <cstddef>
 #include <cstdint>
 
 namespace backend {
 
 // What the device reports about itself.
+//
+// The sizes shape a kernel; the flags choose one. A flag is here only when a
+// different implementation would be written for it, not merely because the API
+// reports it.
 struct DeviceCaps {
     uint32_t subgroup_size = 0;      // lanes that execute in lockstep
     uint32_t compute_units = 0;      // independent units, for deciding when work is too small to split further
     size_t shared_memory_bytes = 0;  // per workgroup, the limit the API reports
-    bool matrix_units = false;       // a matrix-multiply instruction class, which no gfx906 has
+
+    bool matrix_units = false;       // a matrix-multiply instruction class; no gfx906 has one
+    bool fp16_arithmetic = false;    // half-precision arithmetic, not merely half-precision storage
+    bool int8_arithmetic = false;    // 8-bit integer arithmetic
+    bool storage_8bit = false;       // 8-bit values addressable in a buffer
+    bool storage_16bit = false;      // 16-bit values addressable in a buffer
 };
 
 // Numbers found by measuring the kernels on a device, which nothing in

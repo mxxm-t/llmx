@@ -27,6 +27,13 @@ The build dir's `generated/config.hpp` is produced from
 `cmake/llmx-config.hpp.in`; the checked-in `src/config.hpp` is the fallback used
 by the plain `build.bat` path. Keep the two in sync when you add build knobs.
 
+A Linux machine with AMD cards but no Vulkan driver or SDK of its own
+builds and runs the Vulkan backend through `docker/Dockerfile`, which
+carries the loader, the Mesa driver, the headers and the shader compiler
+and takes the cards from the host through `/dev/dri`. The file itself
+gives the two commands. This is how the MI50 rig runs the backend, and it
+leaves that shared machine's packages untouched.
+
 ## Principles
 
 - **Performance first.** llmx is a *runtime*: a slow-but-correct implementation
@@ -115,7 +122,11 @@ do not want while measuring.
   `run_tests.py --device`, appends `--device` to every command that takes
   it so the suite runs on a device backend; `LLMX_CACHE_TYPE`, set by
   `run_tests.py --cache-type`, appends `--cache-type-k` and
-  `--cache-type-v` the same way so the HF gate runs with f16 caches. That
+  `--cache-type-v` the same way so the HF gate runs with a chosen cache
+  type. The runtime stores f16 by default, so the components that check
+  exact f32 arithmetic against independent fixtures (`f32`, `shards`,
+  `server`) ask for f32 sides themselves unless `--cache-type` overrides
+  them. That
   is test configuration, not runtime configuration, and it reaches the
   binary only as the flags.
 

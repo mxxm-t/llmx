@@ -20,7 +20,10 @@ on the real Q8_0 fixture in the HF job. What no hosted job establishes is
 device behaviour: the Vulkan job proves the tree compiles, and the kernel
 comparisons, the HF gate on the device and the matched floors are run on
 the Radeon VII by hand and recorded in `docs/STATUS.md`. A self-hosted
-runner on the rig would close that once its Vulkan packages are in.
+runner on the rig would close that. The rig needs no packages of its own
+for it: `docker/Dockerfile` carries the driver and the compiler and takes
+the cards through `/dev/dri`, and inside it the whole CTest suite,
+`backend-vulkan` included, passes on an MI50.
 
 The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
 at `ec74308`. Local Windows MSVC and WSL Linux GCC CMake builds also passed

@@ -951,10 +951,19 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   to 256 GB/s against Q8_0's 400 with their loads and their sub-scale
   decode already trimmed; what remains is the per-lane work of the
   nibble unpacking itself, and 8-bit activations would buy another
-  tenth at a numerical cost the CPU experiment measured near the bound. The same backend on the rig's
-  MI50s under Linux needs a Vulkan driver and a shader compiler
-  installed there (no ICD, no glslc today), which is a change to the
-  shared machine and waits for the user. The tiled attention does not
+  tenth at a numerical cost the CPU experiment measured near the bound. The same backend now runs on the rig's MI50s
+  under Linux through `docker/Dockerfile`, which needs no change to that
+  shared machine: Debian's own Mesa driver enumerates all ten cards
+  through `/dev/dri` and its own shader compiler is new enough, so the
+  image carries the driver, the loader, the headers and the compiler and
+  the host carries nothing. The whole CTest suite passes there with
+  `backend-vulkan` running rather than skipping, its 1,172,518 kernel
+  outputs matching the CPU backend on an MI50, which is the first device
+  other than the Radeon VII to run these kernels. Reported bandwidth is
+  lower than the Radeon VII's under the Windows driver (Q8_0 at
+  4096 x 12288 reads 315 GB/s against 397, Q6_K's wide head 248 against
+  232 the other way), untuned and not yet a like-for-like comparison,
+  since the driver differs as well as the card. The tiled attention does not
   yet share a K/V tile across the query heads of a KV group. And the
   question of the default cache type, f16 being the reference's default
   and passing the gate here.
@@ -1771,7 +1780,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 6 of 7 done; the server (step 7) is in the tree, see the server row |
 | KV cache fork (KV-CACHE step 2)          | Done     |
 | Multi-device split (per-layer, per-tensor) | Placement done over CPU backends; flags wait for a device backend |
-| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, at or above the reference on Q8_0 decode and every prefill, 89 to 99 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
+| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, at or above the reference on Q8_0 decode and every prefill, 89 to 99 percent on the 4- and 5-bit files; the same kernels pass on the rig's MI50s through `docker/Dockerfile`; ROCm planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 6): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device, prefix reuse through fork, a second execution context measured to have nothing to hide, the OpenAI-compatible routes |

@@ -1262,12 +1262,16 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   discovers them, so the rig silently kept the slower form until the
   profile decision moved after the scan.
 
-  Against the reference's own Vulkan build on the MI50 afterwards, both
-  arms in one container, five runs a point, two passes: pp64 871 tok/s
-  against 2015, pp256 2507 against 3467, pp512 2745 against 3556, and
-  decode 246 against 102. Prompt processing is 43, 72 and 77 percent of
-  it, against 41, 65 and 74 before this change, and decode stays 2.4
-  times ahead.
+  Against the reference's own Vulkan build on the MI50, both arms in
+  one container, five runs a point, two passes, after all of the day's
+  kernel work: pp64 1075 tok/s against 2016, pp256 2518 against 3469,
+  pp512 2743 against 3556, decode 262 against 102. Prompt processing is
+  53, 73 and 77 percent of it, against 41, 65 and 74 this morning, and
+  decode is 2.6 times ahead rather than 2.4. On the same card the
+  per-type sweeps read 0.6B pp16 to pp96 at 1029, 1071, 1092, 1103 and
+  1218 tok/s against 851, 883, 897, 904 and 1208, the short prompts
+  gaining a fifth from the dot-form row kernel; the 8B reads pp32
+  104.5, pp64 180.5 and pp512 327.
 
   The tile threshold turns out to be a property of the driver, not only
   of the card, which the profile can hold but cannot yet derive. It was

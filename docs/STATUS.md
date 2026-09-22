@@ -1009,9 +1009,44 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   other than the Radeon VII to run these kernels. Reported bandwidth is
   lower than the Radeon VII's under the Windows driver (Q8_0 at
   4096 x 12288 reads 315 GB/s against 397, Q6_K's wide head 248 against
-  232 the other way), untuned and not yet a like-for-like comparison,
-  since the driver differs as well as the card. The tiled attention does not
-  yet share a K/V tile across the query heads of a KV group.
+  232 the other way), untuned and not a like-for-like comparison, since
+  the driver differs as well as the card.
+
+  A real model followed. `llmx pull` fetched Qwen3-0.6B-Q8_0 on the rig
+  through the image's curl, at the same revision the Windows copy has,
+  and the whole Python suite passes there on `vulkan:0`, the HF gate
+  included: the continuous excerpt reads an NLL delta of 0.001264
+  against a 0.010 bound and the windowed cases 0.002393 to 0.012396
+  against 0.020, the same numbers the Radeon VII returns. That is the
+  external correctness gate met on a second device.
+
+  Performance there is the first comparison against a vendor backend
+  rather than another Vulkan one. Qwen3-0.6B-Q8_0, the same MI50, the
+  reference built for gfx906 with ROCm against llmx over Vulkan, two
+  passes each, five runs per point:
+
+  | test | reference, ROCm | llmx, Vulkan | share |
+  |---|---:|---:|---:|
+  | pp64 | 1980, 1982 tok/s | 853, 829 | 42% |
+  | pp256 | 5434, 5419 | 1469, 1469 | 27% |
+  | pp512 | 6114, 6093 | 1788, 1790 | 29% |
+  | tg64 | 230.0, 229.2 | 247.6, 248.2 | 108% |
+
+  Decode is 8 percent ahead of the vendor path and prompt processing is
+  at a third of it. That gap is Vulkan against ROCm rather than llmx
+  against the reference, which the Radeon VII figures show from the
+  other side: there, against the reference's own Vulkan build, llmx
+  leads prompt processing from 128 rows. It is also the expected state
+  (`docs/ROADMAP.md`: a portability backend is not expected to match a
+  vendor path, and ROCm stays first-class on Linux), now with a number
+  on it. The same silicon differs by driver as well: llmx decodes 248
+  tok/s on the MI50 under Mesa against 205 on the Radeon VII under the
+  Windows driver, while pp512 is level at 1789 against 1795. A
+  like-for-like Vulkan comparison on the MI50 would need the reference
+  built for Vulkan there, which has not been done.
+
+  The tiled attention does not yet share a K/V tile across the query
+  heads of a KV group.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 

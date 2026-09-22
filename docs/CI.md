@@ -1,7 +1,7 @@
 # Continuous integration
 
 `.github/workflows/ci.yml` runs on pull requests, pushes to `main`, and manual
-dispatch. It contains five independent checks:
+dispatch. It contains six independent checks:
 
 | Check | Coverage |
 |---|---|
@@ -9,7 +9,18 @@ dispatch. It contains five independent checks:
 | CPU (windows-2022) | MSVC, CMake Release, synthetic tests and benchmark smoke |
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | CPU (Linux UBSan) | GCC undefined-behavior checks, including mixed-tensor float alignment |
+| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON` from the distribution's headers and `glslc`; CTest with `backend-vulkan` skipping, since hosted runners have no device |
 | HF reference (CPU) | Linux build plus both pinned real models: tokenizer, logits, continuous/chunked PPL |
+
+Every CTest in `CMakeLists.txt` runs in every job's "Backend tests" step,
+so the KV cache, placement, HTTP layer and prefill-scope checks are covered
+on all three platforms and under UBSan, and the Python suite's `server`
+component starts `llmx serve` on the synthetic model in every CPU job and
+on the real Q8_0 fixture in the HF job. What no hosted job establishes is
+device behaviour: the Vulkan job proves the tree compiles, and the kernel
+comparisons, the HF gate on the device and the matched floors are run on
+the Radeon VII by hand and recorded in `docs/STATUS.md`. A self-hosted
+runner on the rig would close that once its Vulkan packages are in.
 
 The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
 at `ec74308`. Local Windows MSVC and WSL Linux GCC CMake builds also passed
@@ -19,9 +30,10 @@ for corrupt downloads, missing fixtures and invalid throughput passed.
 The CPU backend currently uses x86 intrinsics, and CMake enables AVX2/FMA/F16C.
 Runtime checks inside some kernels do not make that binary safe on older CPUs.
 Intel macOS is intentional; ARM and a portable scalar build are not covered.
-GPU jobs should be added when the device execution model and each backend
-exist. Actual GPU numerical/performance results require the corresponding
-hardware; compilation alone does not establish backend correctness.
+The Vulkan backend has its build job above; a job that runs its kernels
+needs a device, which hosted runners do not have. Actual GPU numerical and
+performance results require the corresponding hardware; compilation alone
+does not establish backend correctness.
 
 HF acquisition adds four offline native targets: Hub manifest/hash,
 Hub cache/multi-stream assembly, curl child-process/response handling, and GGUF

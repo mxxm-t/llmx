@@ -68,6 +68,22 @@ jobs:
       - name: Test
         run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor
 
+  vulkan-build:
+    name: Vulkan backend (build, Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Vulkan headers and shader compiler
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libvulkan-dev glslc
+      - name: Configure with the Vulkan backend
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_VULKAN=ON
+      - name: Build
+        run: cmake --build build --config Release --parallel 2
+      - name: Backend tests
+        run: ctest --test-dir build -C Release --output-on-failure
   hf-reference:
     name: HF reference (CPU)
     runs-on: ubuntu-24.04

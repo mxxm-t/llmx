@@ -165,8 +165,12 @@ reduction order. The HF gate measures the cost of it.
   each lane a block of the 9-word pair, the first block's nibble words
   assembled from two loads since its scale is two bytes; Q4_1 is a lane
   per 5-word block; Q4_K and Q5_K are eight lanes per block, each the
-  sixteen nibble bytes of one half of a 64-value chunk with every lane
-  reading the three packed sub-scale words; Q6_K is eight lanes per
+  sixteen nibble bytes of one half of a 64-value chunk as one 16-byte
+  load, with the scale and the three packed sub-scale words another,
+  and its two groups' sub-scales and sub-mins decoded branch-free with
+  selects, since the eight lanes hold different groups and the earlier
+  byte-select form on divergent branches cost a tenth of Q4_K and a
+  sixth of Q5_K at the 8B shape (121 to 112 us and 165 to 138); Q6_K is eight lanes per
   block, each eight consecutive positions of one half, six words of
   quants, two of sub-scales and the scale, with every other block's
   words assembled from three loads per consecutive pair since 210 bytes

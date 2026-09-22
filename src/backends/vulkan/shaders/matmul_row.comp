@@ -78,7 +78,10 @@ layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; } w16s[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
 layout(set = 0, binding = 3) readonly buffer WF { float wf[]; } wfs[3];
 layout(set = 0, binding = 4) readonly buffer X { float x[]; };
-layout(set = 0, binding = 5) readonly buffer W8 { uint8_t w8[]; } w8s[3];
+// The weights again as 16-byte vectors for the K-quant blocks, whose
+// sizes are multiples of 16 so a lane's four quant words, or the scale
+// and the three packed sub-scale words, are one load.
+layout(set = 0, binding = 5) readonly buffer W128 { uvec4 w128[]; } w128s[3];
 // The quantized activations (xquant.glsl): per column nin / 2 words of
 // pairs, then per block the scale and the scaled sum, then per block the
 // scaled half sums. One buffer bound four ways so a lane loads two pair
@@ -161,23 +164,21 @@ float half_word_at(uint byte_off) {
     uint w = w32s[pi].w32[byte_off >> 2u];
     return (byte_off & 3u) == 0u ? unpackHalf2x16(w).x : unpackHalf2x16(w).y;
 }
-// Byte k of the twelve packed sub-scale bytes held in three words, and
-// the sub-scale and sub-min of group j from them (quant/k_quants.hpp).
-uint kbyte(uint s0, uint s1, uint s2, uint k) {
-    uint w = k < 4u ? s0 : (k < 8u ? s1 : s2);
-    return (w >> (8u * (k & 3u))) & 255u;
-}
-void scale_min_words(uint s0, uint s1, uint s2, uint j, out float sc, out float mn) {
-    uint a, b;
-    if (j < 4u) {
-        a = kbyte(s0, s1, s2, j) & 63u;
-        b = kbyte(s0, s1, s2, j + 4u) & 63u;
-    } else {
-        a = (kbyte(s0, s1, s2, j + 4u) & 15u) | ((kbyte(s0, s1, s2, j - 4u) >> 6u) << 4u);
-        b = (kbyte(s0, s1, s2, j + 4u) >> 4u) | ((kbyte(s0, s1, s2, j) >> 6u) << 4u);
-    }
-    sc = float(a);
-    mn = float(b);
+// The sub-scales and sub-mins of groups 2c and 2c + 1 from the twelve
+// packed bytes in three words (quant/k_quants.hpp): groups 0..3 are the
+// low six bits of bytes 0..3 (scales) and 4..7 (mins), groups 4..7 the
+// nibbles of bytes 8..11 with the earlier bytes' top two bits above.
+// Branch-free with selects: the eight lanes of a block hold different
+// c, and the byte-select form on divergent branches cost a tenth of
+// Q4_K and a sixth of Q5_K at the 8B shape.
+void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float mnl, out float sch, out float mnh) {
+    uint sh = 16u * (c & 1u);   // the two groups' bytes within their words
+    uint a0 = s0 >> sh, a1 = s1 >> sh, a2 = s2 >> sh;
+    bool low = c < 2u;
+    scl = float(low ? a0 & 63u : (a2 & 15u) | (((a0 >> 6u) & 3u) << 4u));
+    mnl = float(low ? a1 & 63u : ((a2 >> 4u) & 15u) | (((a1 >> 6u) & 3u) << 4u));
+    sch = float(low ? (a0 >> 8u) & 63u : ((a2 >> 8u) & 15u) | (((a0 >> 14u) & 3u) << 4u));
+    mnh = float(low ? (a1 >> 8u) & 63u : ((a2 >> 12u) & 15u) | (((a1 >> 14u) & 3u) << 4u));
 }
 #endif
 
@@ -375,19 +376,19 @@ void main() {
             uint sl = 2u * c, sh = 2u * c + 1u;
             for (uint b = group; b < nblocks; b += groups) {
                 uint o = wbase + b * bw;
-                vec2 dd = unpackHalf2x16(w32s[pi].w32[o]);   // d, dmin
-                uint s0 = w32s[pi].w32[o + 1u], s1 = w32s[pi].w32[o + 2u], s2 = w32s[pi].w32[o + 3u];
-                uint qo = o + (q5 != 0u ? 12u : 4u) + c * 8u + h * 4u;
-                uint n0 = w32s[pi].w32[qo], n1 = w32s[pi].w32[qo + 1u];
-                uint n2 = w32s[pi].w32[qo + 2u], n3 = w32s[pi].w32[qo + 3u];
+                uvec4 hd = w128s[pi].w128[o / 4u];   // d and dmin, then the three sub-scale words
+                vec2 dd = unpackHalf2x16(hd.x);
+                uint s0 = hd.y, s1 = hd.z, s2 = hd.w;
+                uvec4 nq = w128s[pi].w128[(o + (q5 != 0u ? 12u : 4u) + c * 8u + h * 4u) / 4u];
+                uint n0 = nq.x, n1 = nq.y, n2 = nq.z, n3 = nq.w;
                 // Fifth bits for the two pairs of each word's low and high
                 // nibbles, already in bit 4 of each 16-bit lane.
                 uint hl0[4], hl1[4], hh0[4], hh1[4];
                 for (uint k = 0u; k < 4u; ++k) { hl0[k] = 0u; hl1[k] = 0u; hh0[k] = 0u; hh1[k] = 0u; }
                 if (q5 != 0u) {
-                    uint ho = o + 4u + h * 4u;
+                    uvec4 hbv = w128s[pi].w128[(o + 4u + h * 4u) / 4u];
                     for (uint k = 0u; k < 4u; ++k) {
-                        uint hb = w32s[pi].w32[ho + k];
+                        uint hb = hbv[k];
                         hl0[k] = ((hb >> sl) & 0x00010001u) << 4u;
                         hl1[k] = ((hb >> (sl + 8u)) & 0x00010001u) << 4u;
                         hh0[k] = ((hb >> sh) & 0x00010001u) << 4u;
@@ -395,8 +396,7 @@ void main() {
                     }
                 }
                 float scl, mnl, sch, mnh;
-                scale_min_words(s0, s1, s2, 2u * c, scl, mnl);
-                scale_min_words(s0, s1, s2, 2u * c + 1u, sch, mnh);
+                scale_min_pair(s0, s1, s2, c, scl, mnl, sch, mnh);
                 uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
                 for (uint cc = 0u; cc < p.ncols; ++cc) {
                     uint col = p.col0 + cc;
@@ -407,11 +407,11 @@ void main() {
                     nibble_dots(n1, hl0[1], hl1[1], hh0[1], hh1[1], lo0.zw, hi0.zw, pl, ph);
                     nibble_dots(n2, hl0[2], hl1[2], hh0[2], hh1[2], lo1.xy, hi1.xy, pl, ph);
                     nibble_dots(n3, hl0[3], hl1[3], hh0[3], hh1[3], lo1.zw, hi1.zw, pl, ph);
-                    vec2 xl = xq_block(col, bl), xh = xq_block(col, bl + 1u);
-                    acc[cc] += dd.x * (scl * (xl.x * float(pl)) + sch * (xh.x * float(ph)));
+                    vec4 xt = xq_pair(col, bl / 2u);   // d, ds of the low group, then the high
+                    acc[cc] += dd.x * (scl * (xt.x * float(pl)) + sch * (xt.z * float(ph)));
                     // The mins multiply the whole group's sum; the group's
                     // two lanes reduce together, so one of them applies it.
-                    if (h == 0u) acc[cc] -= dd.y * (mnl * xl.y + mnh * xh.y);
+                    if (h == 0u) acc[cc] -= dd.y * (mnl * xt.y + mnh * xt.w);
                 }
             }
         }

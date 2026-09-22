@@ -723,13 +723,35 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   Q8_0 has no Q6_K and does not move; the Q4_0 file's head and the
   Q5_K_M and Q4_K_M files' v and down projections are where it lands.
-- **Left:** decode on the 4- and 5-bit files, 95 to 99 and 85 percent of
-  the reference on 0.6B and 87 on the 8B Q4_K_M. On 0.6B the bound is
-  the dispatch count, not a kernel; replaying a recorded pass (the
-  server block above) is the lever there. On 8B the remaining gap is
-  spread over the Q4_K and Q6_K paths at 236 to 240 GB/s against Q8_0's
-  400, and 8-bit activations would buy the 4-bit paths another tenth at
-  a numerical cost the CPU experiment measured near the bound. The same backend on the rig's
+  Twenty-fifth, the Q4_K and Q5_K path. Vector loads first, a lane's
+  four quant words and the scale with the three packed sub-scale words
+  as 16 bytes each and a group pair's table entries as one, which were
+  correct and bought nothing at the 8B shape: unlike Q6_K these paths
+  were not load-bound. Timing-only variants then put the cost where it
+  was: with the sub-scale decode replaced by constants Q4_K ran 121 to
+  110 us and Q5_K 165 to 138, and the min term another 5 percent. Each
+  of a block's eight lanes decoded its two groups through byte selects
+  on branches that diverge across the lanes. The decode is now
+  branch-free with selects over the two words the lane's groups sit in,
+  Q4_K 121 to 112 us (232 to 256 GB/s) and Q5_K 165 to 138 (210 to
+  250), every check passing. Three arms in the same minutes, the before
+  arm a detached worktree at adec4f7, two rounds:
+
+  | model | test | reference b11075 Vulkan | llmx before | llmx after | llmx share |
+  |---|---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | tg32 | 197.1, 196.8 tok/s | 204.3, 204.6 | 211.5, 204.1 | 104 to 107% |
+  | Qwen3-0.6B-Q4_0 | tg32 | 224.5, 224.4 tok/s | 221.8, 221.8 | 221.8, 221.1 | 99% |
+  | Qwen3-0.6B-Q5_K_M | tg32 | 220.9, 221.7 tok/s | 189.2, 183.9 | 195.9, 196.8 | 89% |
+  | Qwen3-8B-Q4_K_M | tg32 | 51.9, 51.9 tok/s | 44.7, 45.1 | 46.5, 47.3 | 90 to 91% |
+
+- **Left:** decode on the 4- and 5-bit files, 99 and 89 percent of the
+  reference on 0.6B and 90 on the 8B Q4_K_M. On 0.6B the bound is the
+  dispatch count, not a kernel; replaying a recorded pass (the server
+  block above) is the lever there. On 8B the K-quant paths sit at 250
+  to 256 GB/s against Q8_0's 400 with their loads and their sub-scale
+  decode already trimmed; what remains is the per-lane work of the
+  nibble unpacking itself, and 8-bit activations would buy another
+  tenth at a numerical cost the CPU experiment measured near the bound. The same backend on the rig's
   MI50s under Linux needs a Vulkan driver and a shader compiler
   installed there (no ICD, no glslc today), which is a change to the
   shared machine and waits for the user. The tiled attention does not
@@ -1549,7 +1571,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 6 of 7 done; the server (step 7) is in the tree, see the server row |
 | KV cache fork (KV-CACHE step 2)          | Done     |
 | Multi-device split (per-layer, per-tensor) | Placement done over CPU backends; flags wait for a device backend |
-| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, at or above the reference on Q8_0 decode and every prefill, 85 to 99 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
+| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, at or above the reference on Q8_0 decode and every prefill, 89 to 99 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 6): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device, prefix reuse through fork, a second execution context measured to have nothing to hide, the OpenAI-compatible routes |

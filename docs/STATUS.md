@@ -1142,9 +1142,27 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   times. Generalising the inner loop to a column count cost the
   4-column form as well, 0.6B pp256 reading 2642 tok/s against 2796
   with the named scalars while gaining 2 percent at 512, so the scalars
-  stay and the column count stays a literal. A wider tile is worth
-  revisiting written as named scalars per column; it is not worth an
-  indexed array.
+  stay and the column count stays a literal. A wider tile was then
+  revisited written as named scalars per column, compiled as its own
+  module from the same source under a define the way the row kernel's
+  families are, so nothing was indexed and nothing was generalised. It
+  is still bad, and worse than the indexed version suggested. Two
+  shapes became selectable, 64 by 128 needing 25344 bytes and 128 by
+  128 needing 33792, and the narrower fits the 32 KB the AMD
+  proprietary driver reports, so it ran on both cards: 0.6B pp512 fell
+  from 2818 to 458 tok/s on the Radeon VII and from 2628 to 576 on the
+  MI50, with the 8B falling from 292 to 95 there. Prompt sizes that did
+  not select it were unchanged, so the four-column path was intact and
+  the eight-column one is simply slow.
+
+  That is worth stating plainly because the arithmetic said otherwise.
+  A 64 by 128 tile and a 128 by 64 tile read the same shared memory per
+  product, hold the same 25344 bytes, and the wider one re-reads the
+  weights half as often, so it should have been at least even. It is
+  six times slower. Whatever the cause, it is not the reads per product
+  that the twelve-against-eight argument counts, and until that is
+  understood a wider micro-tile is not the lever it looked like. Four
+  columns stay.
 
   The tile threshold turns out to be a property of the driver, not only
   of the card, which the profile can hold but cannot yet derive. It was

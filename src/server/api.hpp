@@ -107,7 +107,9 @@ private:
         const Scheduler::Stats s = sched_.stats();
         c.respond(200, "application/json",
                   "{\"status\":\"ok\",\"model\":" + jmini::quote(cfg_.model_name) +
-                  ",\"active\":" + std::to_string(s.active) + ",\"queued\":" + std::to_string(s.queued) + "}");
+                  ",\"active\":" + std::to_string(s.active) + ",\"queued\":" + std::to_string(s.queued) +
+                  ",\"donors\":" + std::to_string(s.donors) + ",\"prefix_hits\":" + std::to_string(s.prefix_hits) +
+                  ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + "}");
     }
     void models(http::Connection& c) {
         c.respond(200, "application/json",
@@ -206,7 +208,8 @@ private:
                 c.respond(200, "application/json",
                           "{\"text\":" + jmini::quote(text) + ",\"ids\":" + ids_json +
                           ",\"finish\":" + jmini::quote(finish) + ",\"prompt_tokens\":" +
-                          std::to_string(r->prompt().size()) + ",\"tokens\":" + std::to_string(gen.size()) + "}");
+                          std::to_string(r->prompt().size()) + ",\"reused_tokens\":" + std::to_string(r->reused()) +
+                          ",\"tokens\":" + std::to_string(gen.size()) + "}");
             }
         } catch (...) {
             r->cancel();

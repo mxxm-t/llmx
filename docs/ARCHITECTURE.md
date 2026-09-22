@@ -117,7 +117,8 @@ length; the backend owns the physical blocks, their size and layout, and
 backs them on demand. The model hands the backend a view and never computes
 an offset into KV storage. A fork shares full blocks and copies the tail,
 and a block returns to the pool only after the backend has retired the work
-that read it; the prefix index is designed but not implemented.
+that read it; the server reuses a finished request's blocks for a prompt
+that repeats its tokens (`docs/SERVER.md`).
 
 The planned device and server work (ROADMAP #4a and #7) must preserve these
 boundaries:
@@ -145,8 +146,8 @@ boundaries:
 
 The paging and block ownership above are implemented, and a block returns to
 the pool only after the backend has retired the work that read it;
-per-request sequences, scheduling and prefix sharing are not, and wait for
-their real consumers. The
+per-request sequences, scheduling and prefix sharing are the server's
+(`docs/SERVER.md`). The
 CPU block size and intra-block layout are that backend's choices and must not
 become requirements imposed on future device backends.
 

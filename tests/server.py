@@ -92,7 +92,7 @@ def cli_greedy_text(model, prompt, n):
     return "\n".join(lines[1:-2])
 
 
-def check_server(model, prompts, n, long_n, chat):
+def check_server(model, prompts, n, long_n, chat, prefix=None):
     srv = Server(model)
     try:
         health = srv.get("/v1/health")
@@ -157,6 +157,20 @@ def check_server(model, prompts, n, long_n, chat):
             status, reply = srv.post("/v1/chat", {"messages": [{"role": "user", "content": prompts[0]}],
                                                   "max_tokens": 2, "temperature": 0})
             assert status == 200 and reply["tokens"] >= 1, reply
+
+        # Prefix reuse: a long prompt, then the same prompt with a different
+        # ending; the second forks the first's full blocks, prefills only
+        # what follows, and its greedy text equals the CLI's for the whole.
+        if prefix:
+            first = prefix + " The first"
+            second = prefix + " The second"
+            status, a = srv.post("/v1/generate", {"prompt": first, "max_tokens": n, "temperature": 0})
+            assert status == 200 and a["reused_tokens"] == 0, a
+            status, b = srv.post("/v1/generate", {"prompt": second, "max_tokens": n, "temperature": 0})
+            assert status == 200 and b["reused_tokens"] > 0, b
+            assert b["text"] == cli_greedy_text(model, second, n), (b["text"],)
+            health = srv.get("/v1/health")
+            assert health["prefix_hits"] >= 1 and health["donors"] >= 1, health
         return len(prompts)
     finally:
         srv.close()
@@ -176,10 +190,12 @@ def run():
               "a seeded repeat, refusals, a cancelled stream  [ok]" % n)
     real = baseline.find_fixture(baseline.BASELINE_MODELS[0])
     if real:
+        with open(os.path.join(os.path.dirname(__file__), "data", "baseline_perplexity.json"), encoding="utf-8") as f:
+            excerpt = json.load(f)["text"]
         n = check_server(real, ["The capital of France is", "Once upon a time", "def fib(n):", "The three laws of"],
-                         16, 4000, chat=True)
+                         16, 4000, chat=True, prefix=excerpt)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
-              "refusals, a cancelled stream, a chat turn  [ok]" % (os.path.basename(real), n))
+              "refusals, a cancelled stream, a chat turn, a reused prefix  [ok]" % (os.path.basename(real), n))
     else:
         print("server: SKIP real-model pass - fixture model not on disk")
     return True

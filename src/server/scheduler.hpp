@@ -6,7 +6,9 @@
 // Connection threads submit requests and drain channels; nothing else
 // touches the model. Admission is by the KV pool's budget: a request is
 // taken when the pool can hold its prompt and its max_tokens, in queue
-// order, and nothing admitted is ever evicted.
+// order, and nothing admitted is ever evicted. Finished requests stay a
+// while as prefix donors: a new prompt that repeats a donor's tokens
+// forks the donor's full blocks and prefills only what follows.
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
@@ -64,6 +66,8 @@ public:
     const std::vector<uint32_t>& prompt() const { return prompt_; }
     const SampleParams& params() const { return params_; }
     size_t generated() const { return generated_.load(); }
+    // Prompt tokens taken from a donor's cache rather than prefilled.
+    size_t reused() const { return reused_.load(); }
 
 private:
     friend class Scheduler;
@@ -90,6 +94,7 @@ private:
     std::string finish_, error_;
     std::atomic<bool> cancel_{false};
     std::atomic<size_t> generated_{0};
+    std::atomic<size_t> reused_{0};
 
     // Scheduler state.
     infer::Sequence seq_;
@@ -127,11 +132,11 @@ public:
     }
 
     struct Stats {
-        size_t active = 0, queued = 0;
+        size_t active = 0, queued = 0, donors = 0, prefix_hits = 0, prefix_tokens = 0;
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
-        return Stats{active_count_.load(), queue_.size()};
+        return Stats{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_};
     }
 
     // The loop, in the caller's thread, until stop(). The only caller of
@@ -148,17 +153,19 @@ public:
                 // Admission, in queue order, by the pool's budget: every
                 // admitted request reserves the blocks its prompt and
                 // max_tokens can reach, whether or not it holds them yet.
+                // Donors give theirs up, oldest first, when a request
+                // needs them.
                 while (!queue_.empty() && active.size() < max_seqs_) {
                     const auto& r = queue_.front();
                     if (r->cancel_.load()) { r->end("cancel"); queue_.pop_front(); continue; }
                     const size_t tokens = r->prompt_.size() + (size_t)r->params_.max_tokens;
                     const size_t bt = model_.kv_block_tokens();
                     const size_t need = (tokens + bt - 1) / bt;
+                    while (reserved_ + need > model_.kv_blocks_total() && !donors_.empty()) drop_donor();
                     if (reserved_ + need > model_.kv_blocks_total()) break;
                     reserved_ += need;
                     r->need_ = need;
-                    r->seq_ = model_.make_sequence();
-                    r->rng_.seed(r->params_.seed);
+                    admit(*r);
                     active.push_back(r);
                     queue_.pop_front();
                 }
@@ -211,10 +218,11 @@ public:
                 else ++i;
             }
         }
-        for (auto& r : active) r->end("cancel");
+        for (auto& r : active) { release(*r); r->end("cancel"); }
         std::lock_guard<std::mutex> lk(m_);
         for (auto& r : queue_) r->end("cancel");
         queue_.clear();
+        while (!donors_.empty()) drop_donor();
         active_count_.store(0);
     }
 
@@ -227,6 +235,61 @@ public:
     }
 
 private:
+    // A finished request kept for its cache: the tokens its history holds,
+    // the sequence holding them and the blocks it has reserved. Shared
+    // full blocks are immutable, so a fork of it is safe while it lives.
+    struct Donor {
+        std::vector<uint32_t> tokens;
+        infer::Sequence seq;
+        size_t blocks = 0;
+    };
+
+    // The donor sharing the longest run of full blocks with the prompt,
+    // and the token count of that run; zero when no donor shares a block.
+    // Tokens are compared, not hashed. Only whole blocks are shared since
+    // a fork appends only into fresh blocks, and the last prompt token is
+    // always prefilled so the request has logits to sample from.
+    size_t best_donor(const std::vector<uint32_t>& prompt, size_t& tokens) const {
+        const size_t bt = model_.kv_block_tokens();
+        size_t best = donors_.size();
+        tokens = 0;
+        for (size_t d = 0; d < donors_.size(); ++d) {
+            const auto& t = donors_[d].tokens;
+            size_t n = 0;
+            const size_t limit = std::min(t.size(), prompt.size() - 1);
+            while (n < limit && t[n] == prompt[n]) ++n;
+            n = n / bt * bt;
+            if (n > tokens) { tokens = n; best = d; }
+        }
+        return best;
+    }
+
+    // A history for an admitted request: a fork of the best donor rolled
+    // back to the shared blocks, or a fresh sequence. Under the lock.
+    void admit(Request& r) {
+        size_t shared = 0;
+        const size_t d = best_donor(r.prompt_, shared);
+        if (shared) {
+            r.seq_ = model_.fork(donors_[d].seq);
+            model_.truncate(r.seq_, shared);
+            r.prompt_done_ = shared;
+            r.reused_.store(shared);
+            ++prefix_hits_;
+            prefix_tokens_ += shared;
+        } else {
+            r.seq_ = model_.make_sequence();
+        }
+        r.rng_.seed(r.params_.seed);
+    }
+
+    // The oldest donor's blocks back to the pool. Under the lock.
+    void drop_donor() {
+        Donor& d = donors_.front();
+        try { model_.reset(d.seq); } catch (const std::exception&) {}
+        reserved_ -= d.blocks;
+        donors_.pop_front();
+    }
+
     // How many prompt tokens of r were in this pass.
     static size_t ubatch_slice(const std::shared_ptr<Request>& r, const std::vector<infer::BatchEntry>& entries) {
         for (const auto& e : entries)
@@ -253,17 +316,41 @@ private:
         if ((int)r.gen_.size() >= r.params_.max_tokens) r.finish_pending_ = "length";
     }
 
+    // A finished request becomes a donor when its history holds a full
+    // block; otherwise its blocks go back at once. A donor keeps only the
+    // blocks it holds reserved, and there are at most max_seqs donors, the
+    // oldest going when a newcomer needs the room.
     void finish(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::string& why,
                 const std::string& err = "") {
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
-        // reset waits for the last pass that touched the sequence, so its
-        // blocks return to the pool only once the device is done with them.
-        try { model_.reset(r->seq_); } catch (const std::exception&) {}
+        const size_t bt = model_.kv_block_tokens();
+        const size_t held = r->seq_.length();
+        if (why != "error" && held >= bt) {
+            std::lock_guard<std::mutex> lk(m_);
+            while (donors_.size() >= max_seqs_) drop_donor();
+            Donor d;
+            d.tokens.assign(r->prompt_.begin(), r->prompt_.begin() + (std::ptrdiff_t)r->prompt_done_);
+            d.tokens.insert(d.tokens.end(), r->gen_.begin(), r->gen_.end());
+            d.tokens.resize(std::min(d.tokens.size(), held));
+            d.seq = std::move(r->seq_);
+            d.blocks = (held + bt - 1) / bt;
+            reserved_ -= r->need_ - d.blocks;
+            r->need_ = 0;
+            donors_.push_back(std::move(d));
+        } else {
+            release(*r);
+        }
         r->seq_ = infer::Sequence{};
-        reserved_ -= r->need_;
         r->end(why, err);
         active_count_.store(active.size());
+    }
+    // reset waits for the last pass that touched the sequence, so its
+    // blocks return to the pool only once the device is done with them.
+    void release(Request& r) {
+        try { model_.reset(r.seq_); } catch (const std::exception&) {}
+        reserved_ -= r.need_;
+        r.need_ = 0;
     }
 
     infer::Model& model_;
@@ -273,8 +360,10 @@ private:
     mutable std::mutex m_;
     std::condition_variable cv_;
     std::deque<std::shared_ptr<Request>> queue_;
+    std::deque<Donor> donors_;
     std::atomic<size_t> active_count_{0};
-    size_t reserved_ = 0;   // blocks promised to admitted requests
+    size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
+    size_t reserved_ = 0;   // blocks promised to admitted requests and held by donors
     bool stopping_ = false;
 };
 

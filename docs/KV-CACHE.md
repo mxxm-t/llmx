@@ -177,20 +177,24 @@ backend knows a block's layout.
 
 ### Prefix sharing
 
-Sharing is by full immutable blocks only. A block's lookup key is the hash
-of (model identity including revision and the effective RoPE and position
-configuration, dtype and layout id, block position range, chain hash of all
-token ids up to and including this block, adapter state). A hash hit is a
-candidate, not a match: the actual token prefix and the identity fields are
-compared before two sequences alias a block, because a chain hash inside the
-key is still a hash. The index and its eviction policy land with the server,
-which is their first consumer, not with this design.
+Sharing is by full immutable blocks only. The server (`docs/SERVER.md`
+step 4) keeps finished requests' histories as donors, at most `max_seqs`
+of them for the one model it serves, and finds the one sharing the
+longest run of full blocks with a new prompt by comparing token ids;
+the fork is rolled back to those blocks and appends into fresh ones.
+At that scale a hash buys nothing. An index that outlives a process,
+spans models or holds many more entries would key a block on the hash of
+(model identity including revision and the effective RoPE and position
+configuration, dtype and layout id, block position range, chain hash of
+all token ids up to and including this block, adapter state), and a hash
+hit would still be a candidate, not a match: the actual token prefix and
+the identity fields are compared before two sequences alias a block.
 
 ## Out of scope
 
 - F16 or quantized KV. A separate change with its own HF gate.
 - Scheduler, admission, continuous batching across sequences.
-- Prefix index and eviction.
+- A prefix index beyond the server's donor list.
 - Any change to attention arithmetic or reduction order.
 
 ## Evaluation before implementation
@@ -303,7 +307,7 @@ either way.
 | 1 | `BlockPool`, `KVSequence`, paged host storage, view-form `attention`; one sequence, same outputs | HF gate unchanged; A/B vs contiguous picks `block_tokens` |
 | 2 | Fork with tail copy, refcount release, `kv-cache` CTest extended (**done**) | Distinct values across shared and private blocks; a forked sequence continues exactly as a fresh one fed the same history |
 | 3 | Storage on `Buffer`, completion-gated release | DEVICE-EXECUTION step 5, no CPU regression |
-| 4 | Prefix index, per-request sequences | With the server, ROADMAP #7 |
+| 4 | Prefix reuse, per-request sequences (**done**) | With the server, ROADMAP #7: `docs/SERVER.md` step 4 |
 
 ## Agreement record
 

@@ -262,7 +262,9 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   download and the Q8_0 fixture when present: greedy through `/v1/generate`
   equals `generate --temp 0` alone and four at a time, a stream carries the
   same ids, a seeded request repeats, refusals, a client leaving mid-stream
-  leaves nothing active, a chat turn. Skips under `--cache-type f16`.
+  leaves nothing active, a chat turn, and a prompt repeating a finished
+  request's tokens reuses its blocks with the CLI's greedy text. Skips
+  under `--cache-type f16`.
   Throughput is measured separately with `tools/server_load.py`.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
@@ -332,7 +334,7 @@ matters: **each layer depends only on the layers below it** -
 | `model/`     | Qwen3 config + forward pass, KV cache          |
 | `backends/`  | Backend interface + cpu/ (AVX2) impl; one worker pool |
 | `inference/` | sampler, generate, perplexity, chat template renderer      |
-| `server/`    | HTTP layer for the multi-user server (`docs/SERVER.md`); scheduler and routes to come |
+| `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler with prefix reuse, routes |
 | `cli/`       | thin argument parsing + dispatch               |
 
 ## Starting a feature

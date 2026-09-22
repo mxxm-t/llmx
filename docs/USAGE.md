@@ -368,9 +368,9 @@ when it faces a network. Defaults: `127.0.0.1:8080`, 16 sequences.
 
 | Route | Body | Reply |
 |---|---|---|
-| `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "stream": false}` | `{"text", "ids", "finish", "prompt_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length` |
+| `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "stream": false}` | `{"text", "ids", "finish", "prompt_tokens", "reused_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length` |
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "..."}], ...}` (the same sampling fields) | as above; the prompt is the model's chat template over the messages |
-| `GET /v1/health` | | `{"status": "ok", "model", "active", "queued"}` |
+| `GET /v1/health` | | `{"status": "ok", "model", "active", "queued", "donors", "prefix_hits", "prefix_tokens"}` |
 | `GET /v1/models` | | the loaded file, its context length and vocabulary |
 
 With `"stream": true` the reply is `text/event-stream`: one `data:` line
@@ -381,7 +381,11 @@ its prompt plus `max_tokens`, otherwise it waits in the queue; a prompt
 that cannot fit the context at all is refused with 413. A greedy request
 gives the ids `generate --temp 0` gives for the same prompt, alone or
 beside other requests, and a seeded request is reproducible whatever it is
-batched with.
+batched with. A finished request's cache stays a while as a donor: a new
+prompt that repeats its tokens shares those KV blocks read-only and
+prefills only what follows, `reused_tokens` in the reply, whole blocks
+only and never the last prompt token. Donors give their blocks up, oldest
+first, when a request needs them.
 
 ```
 llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080

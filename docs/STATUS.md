@@ -77,14 +77,39 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   for llmx the row kernel holds eight columns per dispatch, so sixteen
   sequences stream the weights twice per matmul, which is recorded, not
   fixed.
-- **Left:** SERVER.md steps 4 and 5, the prefix index and the second
-  execution context if measured to help; the 16-column row kernel if
-  sixteen-way batches turn out to matter.
+  SERVER.md step 4, prefix reuse: a finished request's history stays as a
+  donor (at most `max_seqs` of them, the oldest dropped when a request
+  needs its blocks) and a new prompt forks the donor sharing the longest
+  run of full blocks, rolled back to those blocks through the new
+  `Model::truncate`, so only the rest of the prompt is prefilled. Tokens
+  are compared, not hashed: a server holds a handful of donors for one
+  model, and the hashed key of KV-CACHE is for an index that outlives a
+  process. The `server` component sends the 247-token excerpt with two
+  endings and requires the second to reuse blocks and give the CLI's
+  greedy text; it passes on the CPU and on the device. `/v1/health`
+  reports `donors`, `prefix_hits` and `prefix_tokens`, a reply
+  `reused_tokens`. Whole-request wall time at the client, 16 generated
+  tokens, one request at a time:
+
+  | model | backend | prompt | first request | with a donor | reused |
+  |---|---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | Vulkan | 1995 tokens | 1.53 s | 0.16 s | 1984 |
+  | Qwen3-8B-Q8_0 | Vulkan | 1995 tokens | 8.74 s | 0.72 s | 1984 |
+  | Qwen3-0.6B-Q8_0 | CPU | 1995 tokens | 6.95 s | 0.95 s | 1920 |
+
+  The reuse is bounded by the block size (64 on the device, 128 on the
+  CPU) and by the last prompt token, which is always prefilled for its
+  logits.
+- **Left:** SERVER.md step 5, the second execution context if measured to
+  help; the 16-column row kernel if sixteen-way batches turn out to
+  matter.
 - **Gotchas:** the scheduler thread is the only caller of `forward` for its
   devices, by contract; connection threads queue and drain. A request is
-  admitted only when the pool holds its prompt plus `max_tokens`; nothing is
-  evicted. Per-request seeded sampling keeps a request reproducible whatever
-  it is batched with.
+  admitted only when the pool holds its prompt plus `max_tokens`; admitted
+  requests are never evicted, donors are. A donor's blocks are shared
+  read-only, and a fork rolled back to a block boundary appends into fresh
+  blocks, which is what `KVSequence::prepare` requires. Per-request seeded
+  sampling keeps a request reproducible whatever it is batched with.
 
 ## Vulkan backend, sub-step 1 of docs/VULKAN.md (2026-09-21)
 
@@ -1352,13 +1377,13 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 6 of 7 done; the server (step 7) remains |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 6 of 7 done; the server (step 7) is in the tree, see the server row |
 | KV cache fork (KV-CACHE step 2)          | Done     |
 | Multi-device split (per-layer, per-tensor) | Placement done over CPU backends; flags wait for a device backend |
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, at or above the reference on Q8_0 decode and every prefill, 84 to 96 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
-| Multi-user server                        | `llmx serve` in the tree (`docs/SERVER.md` steps 1 to 3): correctness gates pass on both backends; throughput 81 to 119 percent of the reference server at 1 to 16 concurrent on the device, the multi-view device kernels open |
+| Multi-user server                        | `llmx serve` in the tree (`docs/SERVER.md` steps 1 to 4): correctness gates pass on both backends; throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device; prefix reuse through fork; the second execution context (step 5) open |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |

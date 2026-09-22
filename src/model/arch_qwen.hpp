@@ -542,6 +542,18 @@ public:
         for (auto& kv : s.kv_) kv.reset();
     }
 
+    // Roll a history back to `length` tokens, returning the blocks beyond
+    // it. A fork truncated to a block boundary keeps only blocks it shares
+    // with its donor, and appends from there into fresh blocks, which is
+    // how the server reuses a prompt prefix (docs/SERVER.md).
+    void truncate(Sequence& s, size_t length) {
+        if (s.owner_ != this)
+            throw std::runtime_error("inference: sequence of another model");
+        for (size_t d = 0; d < devices_.size(); ++d)
+            if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
+        for (auto& kv : s.kv_) kv.truncate(length);
+    }
+
     // The single-sequence entry points the CLI uses: one sequence and one
     // context owned here, and one entry per pass.
 

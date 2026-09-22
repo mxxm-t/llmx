@@ -60,7 +60,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
     # embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
     set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_rows embed matmul_row
-        kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x)
+        kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
+        quantize_x8 matmul_tile_q)
     # A variant is the same source compiled with a define, "name=source=DEFINE":
     # the row kernel is one module per family of types because the register
     # demand of every family's branches in one module cost the Q8_0 path 40

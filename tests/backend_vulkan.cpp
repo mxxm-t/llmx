@@ -112,6 +112,23 @@ std::vector<float> row_activations(const std::vector<float>& x) {
     return out;
 }
 
+// The same activations rounded to 8 bits per block of 32 and back, as the integer-dot prefill tile reads them (shaders/quantize_x8.comp). A device that multiplies wide Q8_0 and Q4_K batches that way is compared against a reference fed these, for the same reason as above.
+std::vector<float> tile_activations8(const std::vector<float>& x) {
+    std::vector<float> out(x.size());
+    for (size_t b = 0; b + 32 <= x.size(); b += 32) {
+        float amax = 0.0f;
+        for (size_t i = 0; i < 32; ++i) amax = std::max(amax, std::fabs(x[b + i]));
+        const float d = amax / 127.0f, id = amax > 0.0f ? 127.0f / amax : 0.0f;
+        for (size_t i = 0; i < 32; ++i) {
+            const float r = x[b + i] * id;
+            int q = (int)(std::copysign(std::floor(std::fabs(r) + 0.5f), r));
+            q = std::max(-127, std::min(127, q));
+            out[b + i] = (float)q * d;
+        }
+    }
+    return out;
+}
+
 size_t check_kernels(backend::Backend& vk) {
     Pair p(vk);
     size_t values = 0;
@@ -349,9 +366,12 @@ size_t check_kernels(backend::Backend& vk) {
             // threshold the row kernel reads quantized activations and the
             // reference must be fed the same, at or above it the tile kernel
             // reads floats.
-            const auto xr8 = nbatch < tile_from_8bit ? row_activations(x) : x;   // adopted, so they must outlive the calls
+            // A device whose integer dot is native takes wide Q8_0 and Q4_K batches through the integer-dot tile, which reads 8-bit activations.
+            const bool idot = profile.prefer_integer_dot;
+            const auto xr8 = nbatch < tile_from_8bit ? row_activations(x) : idot ? tile_activations8(x) : x;   // adopted, so they must outlive the calls
             const auto xrk = nbatch < tile_from_other ? row_activations(x) : x;
-            Pair::In xri8 = p.in(xr8), xrik = p.in(xrk);
+            const auto xr4k = nbatch < tile_from_other ? row_activations(x) : idot ? tile_activations8(x) : x;
+            Pair::In xri8 = p.in(xr8), xrik = p.in(xrk), xri4k = p.in(xr4k);
             for (int q = 0; q < 7; ++q) {
                 if (q >= 4 && nin % 256) continue;   // K-quant blocks are 256 wide
                 const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0
@@ -361,7 +381,8 @@ size_t check_kernels(backend::Backend& vk) {
                 const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i
                                    : q == 5 ? w4ki : q == 6 ? w5ki : wfi;
                 Pair::Out d = p.out(nbatch * nout);
-                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : q == 1 ? xri8 : xrik).cs(), d.cs(), nin, nout, nbatch);
+                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : q == 1 ? xri8 : q == 5 ? xri4k : xrik).cs(), d.cs(), nin, nout,
+                             nbatch);
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
                 auto r = p.results(d);
                 try {
@@ -607,9 +628,10 @@ size_t check_kernels(backend::Backend& vk) {
         for (size_t nbatch : {size_t(1), size_t(3), size_t(64)}) {
             const auto xa = uniform(nbatch * nin, 20 + (uint32_t)nbatch);
             Pair::In xi = p.in(xa);
-            const auto xr = nbatch < backend::tile_from_for(backend::vulkan_device_profile(p.vk), true, nin)
-                                ? row_activations(xa)
-                                : xa;
+            const backend::DeviceProfile prof = backend::vulkan_device_profile(p.vk);
+            const auto xr = nbatch < backend::tile_from_for(prof, true, nin) ? row_activations(xa)
+                            : prof.prefer_integer_dot                         ? tile_activations8(xa)
+                                                                              : xa;
             Pair::In xri = p.in(xr);
             const auto y0 = uniform(nbatch * nout, 21 + (uint32_t)nbatch);
             Pair::Out d = p.out(nbatch * nout);

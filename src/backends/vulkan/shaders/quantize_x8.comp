@@ -1,0 +1,46 @@
+#version 450
+// The 8-bit twin of a batch of activation rows for the integer-dot prefill tile (matmul_tile_q.comp): one lane per value over the whole batch as one flat run, which is safe because a row is always whole blocks of 32.
+// Per block, 8 words of signed bytes in position order, value 4m + t in byte t of word m, scaled so the block's largest magnitude is 127; after every block's quants, per block the scale d and d times the block's integer sum, which a type with a minimum multiplies by.
+// Eight bits rather than the decode kernel's sixteen because the four-wide integer dot takes bytes, and that instruction is what the tile is for.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; } p;
+layout(set = 0, binding = 0) readonly buffer X { float x[]; };
+layout(set = 0, binding = 1) writeonly buffer Q { uint xq[]; };
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    // Lanes past the end join the shuffles with a zero so a partial last subgroup reduces correctly; n is a multiple of 32, so no block is partial.
+    float v = i < p.n ? x[i] : 0.0;
+    uint lane = gl_SubgroupInvocationID;
+    uint j = i & 31u;
+    float amax = abs(v);
+    amax = max(amax, subgroupShuffleXor(amax, 16u));
+    amax = max(amax, subgroupShuffleXor(amax, 8u));
+    amax = max(amax, subgroupShuffleXor(amax, 4u));
+    amax = max(amax, subgroupShuffleXor(amax, 2u));
+    amax = max(amax, subgroupShuffleXor(amax, 1u));
+    float d = amax / 127.0;
+    float id = amax > 0.0 ? 127.0 / amax : 0.0;
+    // Round half away from zero, as the host reference does.
+    float r = v * id;
+    int q = clamp(int(sign(r) * floor(abs(r) + 0.5)), -127, 127);
+    // Lane 4m of each block packs the word from its own byte and the next three lanes'.
+    uint b0 = uint(q) & 255u;
+    uint b1 = uint(subgroupShuffle(q, min(lane + 1u, gl_SubgroupSize - 1u))) & 255u;
+    uint b2 = uint(subgroupShuffle(q, min(lane + 2u, gl_SubgroupSize - 1u))) & 255u;
+    uint b3 = uint(subgroupShuffle(q, min(lane + 3u, gl_SubgroupSize - 1u))) & 255u;
+    if (i < p.n && (j & 3u) == 0u) xq[i / 4u] = b0 | (b1 << 8u) | (b2 << 16u) | (b3 << 24u);
+    int s = q;
+    s += subgroupShuffleXor(s, 16u);
+    s += subgroupShuffleXor(s, 8u);
+    s += subgroupShuffleXor(s, 4u);
+    s += subgroupShuffleXor(s, 2u);
+    s += subgroupShuffleXor(s, 1u);
+    if (i < p.n && j == 0u) {
+        uint t = p.n / 4u + 2u * (i / 32u);
+        xq[t] = floatBitsToUint(d);
+        xq[t + 1u] = floatBitsToUint(d * float(s));
+    }
+}

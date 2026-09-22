@@ -1,0 +1,120 @@
+#version 450
+// Y[b*nout + o] = dot(row o, X column b) for wide batches through the four-wide 8-bit integer dot, for devices where that instruction is native.
+// The float tile (matmul_tile.comp) multiplies one product per instruction on dequantized floats; this one multiplies four per instruction on the quants themselves, against activations quantized to 8 bits per block of 32 (quantize_x8.comp), and holds a quarter of the shared memory per value.
+// A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time.
+// Each step stages, for every row, the block's quants as 8 words of signed bytes with the block's scale and minimum, and for every column the activation block's 8 words with its scale and scaled sum.
+// A thread then forms (TILE_ROWS / 16) x 4 integer dots of 32 products each and folds each into its float accumulator with one multiply-add for the scale, and one more for the types with a minimum.
+// Types: Q8_0 and Q4_K. Rows past nout and columns past nbatch read as zero and are not stored.
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_integer_dot_product : require
+#include "q.glsl"
+layout(local_size_x = 256) in;
+layout(constant_id = 0) const uint TILE_ROWS = 64;
+layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; } p;
+layout(set = 0, binding = 0) buffer Y { float y[]; };
+layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
+layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; };
+// The 8-bit activations bound twice, as words for the quants and as pairs for the per-block scale table after them.
+layout(set = 0, binding = 3) readonly buffer XQ { uint xq[]; };
+layout(set = 0, binding = 4) readonly buffer XS { vec2 xs[]; };
+#define QBYTE(i) ((w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#include "qdecode.glsl"
+
+#define MROWS (TILE_ROWS / 16u)
+#define WPR (256u / TILE_ROWS)   // threads that stage one row's 8 words
+#define WW (8u / WPR)            // and how many words each
+
+// k-major: word w of every row, then of every column, so a thread's rows and columns for one word are adjacent.
+shared uint wq[8][TILE_ROWS];
+shared vec2 wsc[TILE_ROWS];      // per row: the scale of this block and the minimum it subtracts
+shared uint xw[8][64];
+shared vec2 xsc[64];             // per column: the activation scale and scale times integer sum
+
+void main() {
+    uint tid = gl_LocalInvocationID.x;
+    uint row_base = gl_WorkGroupID.x * TILE_ROWS;
+    uint col_base = gl_WorkGroupID.y * 64u;
+    uint tr = tid / 16u, tc = tid - tr * 16u;         // micro-tile at rows tr*MROWS.., columns tc*4..
+    uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W stager: row wrow, words wseg*WW..
+    uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X stager: column xcol, words xseg*2..
+    uint nblk = p.nin / 32u;
+    uint xtab = p.nbatch * p.nin / 8u;                // the scale table's start, in pairs
+    float acc[MROWS][4];
+    for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
+    for (uint kb = 0u; kb < nblk; ++kb) {
+        uint row = row_base + wrow;
+        if (row < p.nout) {
+            if (p.type == TYPE_Q8_0) {
+                // A 34-byte block: the half scale, then the 32 quants starting two bytes in, so every quant word is two aligned halves.
+                uint h = (row * nblk + kb) * 17u;
+                for (uint m = 0u; m < WW; ++m) {
+                    uint w = wseg * WW + m;
+                    wq[w][wrow] = uint(w16[h + 1u + 2u * w]) | (uint(w16[h + 2u + 2u * w]) << 16u);
+                }
+                if (wseg == 0u) wsc[wrow] = vec2(unpackHalf2x16(uint(w16[h])).x, 0.0);
+            } else {
+                // Q4_K: block 32 is group g of a 256-value block; its nibbles are the low or high halves of 32 word-aligned bytes, so a quant word is one load, a shift and a mask.
+                uint o = (row * (p.nin / 256u) + kb / 8u) * Q4_K_BYTES;
+                uint g = kb & 7u;
+                uint base = (o + 16u + (g / 2u) * 32u) / 4u;
+                uint shift = 4u * (g & 1u);
+                for (uint m = 0u; m < WW; ++m) {
+                    uint w = wseg * WW + m;
+                    wq[w][wrow] = (w32[base + w] >> shift) & 0x0F0F0F0Fu;
+                }
+                if (wseg == 0u) {
+                    vec2 dd = unpackHalf2x16(w32[o / 4u]);
+                    uint sc, mn;
+                    scale_min_k4(o + 4u, g, sc, mn);
+                    wsc[wrow] = vec2(dd.x * float(sc), dd.y * float(mn));
+                }
+            }
+        } else {
+            for (uint m = 0u; m < WW; ++m) wq[wseg * WW + m][wrow] = 0u;
+            if (wseg == 0u) wsc[wrow] = vec2(0.0);
+        }
+        uint col = col_base + xcol;
+        uint xb = (col * nblk + kb) * 8u + xseg * 2u;
+        bool colv = col < p.nbatch;
+        xw[xseg * 2u][xcol] = colv ? xq[xb] : 0u;
+        xw[xseg * 2u + 1u][xcol] = colv ? xq[xb + 1u] : 0u;
+        if (xseg == 0u) xsc[xcol] = colv ? xs[xtab + col * nblk + kb] : vec2(0.0);
+        barrier();
+        // A thread's four columns for the whole block, then each of its rows against them.
+        uint b0[8], b1[8], b2[8], b3[8];
+        for (uint w = 0u; w < 8u; ++w) {
+            b0[w] = xw[w][tc * 4u]; b1[w] = xw[w][tc * 4u + 1u];
+            b2[w] = xw[w][tc * 4u + 2u]; b3[w] = xw[w][tc * 4u + 3u];
+        }
+        vec2 c0 = xsc[tc * 4u], c1 = xsc[tc * 4u + 1u], c2 = xsc[tc * 4u + 2u], c3 = xsc[tc * 4u + 3u];
+        for (uint i = 0u; i < MROWS; ++i) {
+            uint r = tr * MROWS + i;
+            int s0 = 0, s1 = 0, s2 = 0, s3 = 0;
+            for (uint w = 0u; w < 8u; ++w) {
+                uint a = wq[w][r];
+                s0 += dotPacked4x8EXT(int(a), int(b0[w]));
+                s1 += dotPacked4x8EXT(int(a), int(b1[w]));
+                s2 += dotPacked4x8EXT(int(a), int(b2[w]));
+                s3 += dotPacked4x8EXT(int(a), int(b3[w]));
+            }
+            vec2 ws = wsc[r];
+            acc[i][0] += ws.x * c0.x * float(s0) - ws.y * c0.y;
+            acc[i][1] += ws.x * c1.x * float(s1) - ws.y * c1.y;
+            acc[i][2] += ws.x * c2.x * float(s2) - ws.y * c2.y;
+            acc[i][3] += ws.x * c3.x * float(s3) - ws.y * c3.y;
+        }
+        barrier();
+    }
+    for (uint i = 0u; i < MROWS; ++i) {
+        uint row = row_base + tr * MROWS + i;
+        if (row >= p.nout) continue;
+        for (uint j = 0u; j < 4u; ++j) {
+            uint col = col_base + tc * 4u + j;
+            if (col < p.nbatch) {
+                if (p.accum != 0u) y[col * p.nout + row] += acc[i][j];
+                else y[col * p.nout + row] = acc[i][j];
+            }
+        }
+    }
+}

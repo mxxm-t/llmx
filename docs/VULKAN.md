@@ -242,12 +242,12 @@ reduction order. The HF gate measures the cost of it.
   bound by dispatch latency. No shader uses the extension now, so the
   backend no longer asks a device for `VK_KHR_shader_integer_dot_product`
   and one refusal is gone from the list above.
-- **matmul, prefill** (`nbatch` of 32 and up for F32 and Q8_0 rows, 64
-  and up for the others): a workgroup computes a
-  64 x 64 output tile, walking the inner dimension 32 at a time; each
-  step stages the dequantized W tile and the X tile in shared memory and
-  every thread accumulates a 4 x 4 micro-tile in registers, so a weight
-  is read from memory once per pass. Rows past `nout` and columns past
+- **matmul, prefill** (the row counts below): a workgroup computes a
+  TILE_ROWS x 64 output tile, walking the inner dimension 32 at a time;
+  each step stages the dequantized W tile and the X tile in shared
+  memory and every thread accumulates a (TILE_ROWS/16) x 4 micro-tile in
+  registers, so a weight is read from memory once per pass. TILE_ROWS is
+  a specialization constant, 64 or 128, chosen per dispatch (below). Rows past `nout` and columns past
   `nbatch` read as zero and are not stored. On the Radeon VII this took
   prefill from 449 to 1025 tok/s on Qwen3-0.6B-Q8_0 and from 40 to 220
   on Qwen3-8B-Q8_0, past the upstream llama.cpp Vulkan build's 660 and

@@ -9,12 +9,27 @@
 // in registers so a weight is read once per chunk of columns. This is the
 // decode kernel; the tile kernel takes wide batches (docs/VULKAN.md).
 //
-// Compiled four times, one module per family of types: as is for F32
-// and Q8_0, with LLMX_Q4 for Q4_0 and Q4_1, with LLMX_K4 for Q4_K, with
-// LLMX_K5 for Q5_K, with LLMX_KQUANT for Q6_K. The branches of every type in one
+// Quantized rows meet the activations as signed 16-bit values in blocks
+// of 32 (xquant.glsl), with a scale d and d times the block's sums: a
+// weight word's values pair off with activation words through 16-bit
+// integer dots, the block's integer sum is scaled once, and a type's
+// offset (Q4_0's -8, Q4_1's min, the K-quant mins, Q6_K's -32) is folded
+// through the block sum. Float activations cost the 4-bit paths eight
+// extractions, conversions and multiply-adds per word and every path
+// four times the activation bytes. The activations are read 8 or 16
+// bytes at a time, since the load count and not the arithmetic is what
+// bounds these paths: the same dots over 8-byte loads throughout ran
+// Q4_0 at 150 us against 105 with 16-byte loads at the 8B shape. F32
+// rows keep float activations.
+//
+// Compiled six times, one module per family of paths: as is for F32
+// and the narrow Q8_0 path, with LLMX_Q8W for the wide Q8_0 path, with
+// LLMX_Q4 for Q4_0 and Q4_1, with LLMX_K4 for Q4_K, with LLMX_K5 for
+// Q5_K, with LLMX_KQUANT for Q6_K. The branches of every type in one
 // module raised the register demand of every path and cost Q8_0 decode
-// 40 percent, and Q4_K and Q5_K beside Q6_K cost Q6_K 40 percent the
-// same way, so a family is a module.
+// 40 percent, Q4_K and Q5_K beside Q6_K cost Q6_K 40 percent the same
+// way, and the narrow Q8_0 path beside the wide one cost the wide one a
+// third at the 8B shape, so a family is a module.
 //
 // Q8_0 rows with at least four block pairs take the wide path: a pair is
 // 68 bytes, 17 words, and four consecutive lanes share one pair, lane t
@@ -27,9 +42,13 @@
 // serves as one broadcast and which measured faster than a shuffle. The
 // loop is unrolled by hand and the accumulators are scalars: a generic
 // loop over words with accumulator arrays indexed by column spilled to
-// scratch and ran ten times slower. Rows with fewer or an odd number of
-// blocks take the 16-bit path, two values per load. Bytes are
-// sign-extended by a shift up and an arithmetic shift down.
+// scratch and ran ten times slower. The first block's quants start two
+// bytes into its words, so each lane shifts its two first-block words by
+// a half word with the word after, fetched from the next lane of the
+// pair with a shuffle, and every word then meets aligned activations;
+// handling the straddle with per-word selects instead cost a quarter of
+// the kernel. Rows with fewer or an odd number of blocks take the
+// 16-bit path, two loads per word.
 //
 // Q4_0 rows with an even block count take a word path too: a pair is 36
 // bytes, 9 words, and two lanes share it, lane 0 taking words 0..3 (the
@@ -44,6 +63,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_integer_dot_product : require
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
@@ -57,77 +77,77 @@ layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; } w16s[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
 layout(set = 0, binding = 3) readonly buffer WF { float wf[]; } wfs[3];
-#if defined(LLMX_Q4) || defined(LLMX_KQUANT) || (defined(LLMX_K4) || defined(LLMX_K5))
-// The activations as 16-byte vectors: every quant path here reads them
-// in aligned groups of four, one load instead of four. Bound offsets are
-// 16-byte aligned and the row width is a multiple of 32.
-layout(set = 0, binding = 4) readonly buffer X { vec4 x4[]; };
-float x_at(uint i) { return x4[i >> 2u][i & 3u]; }
-#else
 layout(set = 0, binding = 4) readonly buffer X { float x[]; };
-#endif
 layout(set = 0, binding = 5) readonly buffer W8 { uint8_t w8[]; } w8s[3];
+// The quantized activations (xquant.glsl): per column nin / 2 words of
+// pairs, then per block the scale and the scaled sum, then per block the
+// scaled half sums. One buffer bound four ways so a lane loads two pair
+// words, four, a table entry or a pair of entries at once.
+layout(set = 0, binding = 6) readonly buffer XQ2 { uvec2 xq2[]; };
+layout(set = 0, binding = 7) readonly buffer XQ4 { uvec4 xq4[]; };
+layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
+layout(set = 0, binding = 9) readonly buffer XT4 { vec4 xt4[]; };
 
-int b0(uint w) { return (int(w << 24u)) >> 24; }
-int b1(uint w) { return (int(w << 16u)) >> 24; }
-int b2(uint w) { return (int(w << 8u)) >> 24; }
-int b3(uint w) { return int(w) >> 24; }
+uint pi = 0u;
 
-#if !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
-// The four values of word `d` of a pair against the activations of the
-// pair's 64 positions starting at xb. Word 0 holds a scale and values 0
-// and 1 of block 0; words 1..7 hold values 4d-2..4d+1 of block 0; word 8
-// holds values 30 and 31 of block 0 and the second scale; words 9..16 hold
-// values 4d-36..4d-33 of block 1, which is position 32 + that.
-void word_dot(uint w, uint d, uint xb, uint col_base, inout float p0, inout float p1) {
-    if (d == 0u) {
-        p0 += float(b2(w)) * x[col_base + xb] + float(b3(w)) * x[col_base + xb + 1u];
-    } else if (d < 8u) {
-        uint v = xb + 4u * d - 2u;
-        p0 += float(b0(w)) * x[col_base + v] + float(b1(w)) * x[col_base + v + 1u] +
-              float(b2(w)) * x[col_base + v + 2u] + float(b3(w)) * x[col_base + v + 3u];
-    } else if (d == 8u) {
-        p0 += float(b0(w)) * x[col_base + xb + 30u] + float(b1(w)) * x[col_base + xb + 31u];
-    } else {
-        uint v = xb + 4u * d - 4u;
-        p1 += float(b0(w)) * x[col_base + v] + float(b1(w)) * x[col_base + v + 1u] +
-              float(b2(w)) * x[col_base + v + 2u] + float(b3(w)) * x[col_base + v + 3u];
-    }
+// Offset in pair words into the quantized activations of column c.
+uint xa_col(uint c) { return c * p.nin / 2u; }
+// A block's scale d and d times its integer sum; and d times the sums of
+// its two halves.
+vec2 xq_block(uint c, uint b) { return xt2[p.nbatch * p.nin / 4u + c * (p.nin / 32u) + b]; }
+vec2 xq_halves(uint c, uint b) { return xt2[p.nbatch * p.nin / 4u + p.nbatch * p.nin / 32u + c * (p.nin / 32u) + b]; }
+// The scale entries of blocks 2j and 2j + 1 in one load.
+vec4 xq_pair(uint c, uint j) { return xt4[p.nbatch * p.nin / 8u + c * (p.nin / 64u) + j]; }
+// Two pairs of 16-bit values against two activation pair words.
+int pair_dot(uint a, uint b, uvec2 xw) {
+    return dotEXT(unpack16(int(a)), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)), unpack16(int(xw.y)));
+}
+// A word of four signed bytes at positions 4k..4k+3 against the pair
+// words: bytes 0 and 2 form one pair, 1 and 3 the other.
+int byte_dot(uint w, uvec2 xw) {
+    i8vec4 v = unpack8(int(w));
+    return dotEXT(i16vec2(v.xz), unpack16(int(xw.x))) + dotEXT(i16vec2(v.yw), unpack16(int(xw.y)));
+}
+// A word at any even byte offset, two 16-bit loads.
+uint hword_at(uint byte_off) {
+    uint h = byte_off >> 1u;
+    return uint(w16s[pi].w16[h]) | (uint(w16s[pi].w16[h + 1u]) << 16u);
+}
+
+#ifdef LLMX_Q8W
+// Word d of a Q8_0 pair, shifted so that block 0's words 0..7 hold
+// values 4d..4d+3 and block 1's words 9..16 hold values 32+4(d-9)..;
+// word 8 is zero. `a2` is the pair's first pair-word couple.
+void q8_word(uint w, uint d, uint a2, inout int p0, inout int p1) {
+    i8vec4 v = unpack8(int(w));
+    uvec2 xw = xq2[d < 8u ? a2 + d : a2 + 8u + d - 9u];
+    int r = dotEXT(i16vec2(v.xz), unpack16(int(xw.x))) + dotEXT(i16vec2(v.yw), unpack16(int(xw.y)));
+    if (d < 8u) p0 += r; else p1 += r;
 }
 #endif
 
-#ifdef LLMX_Q4
-// The eight nibbles of a word of Q4_0 or Q4_1 quants against the
-// activations at the word's four positions and the four sixteen further
-// on: byte i of the word is the low nibble at xl[i] and the high one at
-// xh[i]. The offsets are folded out: Q4_0's -8 and Q4_1's min apply to
-// the sum of the activations, which the caller adds once per block.
-float nibble_dot(uint w, vec4 xl, vec4 xh) {
-    vec4 lo = vec4(bitfieldExtract(w, 0, 4), bitfieldExtract(w, 8, 4), bitfieldExtract(w, 16, 4), bitfieldExtract(w, 24, 4));
-    vec4 hi = vec4(bitfieldExtract(w, 4, 4), bitfieldExtract(w, 12, 4), bitfieldExtract(w, 20, 4), bitfieldExtract(w, 28, 4));
-    return dot(lo, xl) + dot(hi, xh);
-}
-// One 32-value block of nibbles in four words against the activations
-// starting at vector xv, and the block's activation sum.
-float block_nibble_dot(uint w0, uint w1, uint w2, uint w3, uint xv, out float px) {
-    vec4 x0 = x4[xv], x1 = x4[xv + 1u], x2 = x4[xv + 2u], x3 = x4[xv + 3u];
-    vec4 y0 = x4[xv + 4u], y1 = x4[xv + 5u], y2 = x4[xv + 6u], y3 = x4[xv + 7u];
-    px = dot(x0 + x1 + x2 + x3 + y0 + y1 + y2 + y3, vec4(1.0));
-    return nibble_dot(w0, x0, y0) + nibble_dot(w1, x1, y1) + nibble_dot(w2, x2, y2) + nibble_dot(w3, x3, y3);
+#if defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5)
+// The eight nibbles of a word: byte i's low nibble is position 4k + i of
+// a group and its high nibble the same position 16 (Q4_0, Q4_1) or 32
+// (Q4_K, Q5_K) further on. Low and high nibbles go to separate dots
+// since the K-quants scale them apart; `hb` carries a fifth bit per
+// nibble in bit 4 of each byte's pair word, zero for the others.
+void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, uvec2 xl, uvec2 xh, inout int pl, inout int ph) {
+    pl += pair_dot((w & 0x000F000Fu) | hl0, ((w >> 8u) & 0x000F000Fu) | hl1, xl);
+    ph += pair_dot(((w >> 4u) & 0x000F000Fu) | hh0, ((w >> 12u) & 0x000F000Fu) | hh1, xh);
 }
 #endif
 
-#if defined(LLMX_KQUANT) || (defined(LLMX_K4) || defined(LLMX_K5))
-uint kproj = 0u;
+#if defined(LLMX_KQUANT) || defined(LLMX_K4) || defined(LLMX_K5)
 // A word at any even byte offset: aligned, or the high half of one word
 // and the low half of the next.
 uint word_at(uint byte_off) {
     uint i = byte_off >> 2u;
-    if ((byte_off & 3u) == 0u) return w32s[kproj].w32[i];
-    return (w32s[kproj].w32[i] >> 16u) | (w32s[kproj].w32[i + 1u] << 16u);
+    if ((byte_off & 3u) == 0u) return w32s[pi].w32[i];
+    return (w32s[pi].w32[i] >> 16u) | (w32s[pi].w32[i + 1u] << 16u);
 }
 float half_word_at(uint byte_off) {
-    uint w = w32s[kproj].w32[byte_off >> 2u];
+    uint w = w32s[pi].w32[byte_off >> 2u];
     return (byte_off & 3u) == 0u ? unpackHalf2x16(w).x : unpackHalf2x16(w).y;
 }
 // Byte k of the twelve packed sub-scale bytes held in three words, and
@@ -148,35 +168,17 @@ void scale_min_words(uint s0, uint s1, uint s2, uint j, out float sc, out float 
     sc = float(a);
     mn = float(b);
 }
-// A word of Q4_K or Q5_K nibbles against the activations at its four low
-// positions xl and the four high positions xh, the fifth bits of those
-// positions taken from bits 2c and 2c + 1 of each byte of hb, which is
-// zero for Q4_K. Low and high nibbles belong to different groups, so
-// their dots stay apart.
-void k_nibble_dot(uint n, uint hb, uint c, vec4 xl, vec4 xh, inout float pl, inout float ph) {
-    uvec4 lo = uvec4(bitfieldExtract(n, 0, 4), bitfieldExtract(n, 8, 4), bitfieldExtract(n, 16, 4), bitfieldExtract(n, 24, 4));
-    uvec4 hi = uvec4(bitfieldExtract(n, 4, 4), bitfieldExtract(n, 12, 4), bitfieldExtract(n, 20, 4), bitfieldExtract(n, 28, 4));
-    uint sl = 2u * c, sh = 2u * c + 1u;
-    uvec4 bl = (uvec4(hb >> sl, hb >> (sl + 8u), hb >> (sl + 16u), hb >> (sl + 24u)) & 1u) << 4u;
-    uvec4 bh = (uvec4(hb >> sh, hb >> (sh + 8u), hb >> (sh + 16u), hb >> (sh + 24u)) & 1u) << 4u;
-    pl += dot(vec4(lo | bl), xl);
-    ph += dot(vec4(hi | bh), xh);
-}
 #endif
 
 void main() {
     // Which projection this workgroup belongs to, uniform across it.
     uint wg = gl_WorkGroupID.x;
-    uint pi = 0u;
     if (p.nproj > 1u && wg >= p.start1) pi = 1u;
     if (p.nproj > 2u && wg >= p.start2) pi = 2u;
     uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
     uint type = pi == 0u ? p.type0 : (pi == 1u ? p.type1 : p.type2);
     uint wide = pi == 0u ? p.wide0 : (pi == 1u ? p.wide1 : p.wide2);
     uint local_wg = wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2));
-#if defined(LLMX_KQUANT) || (defined(LLMX_K4) || defined(LLMX_K5))
-    kproj = pi;
-#endif
 
     uint lane = gl_SubgroupInvocationID;
     uint rsub = lane / p.cluster;      // which of the subgroup's rows
@@ -185,8 +187,8 @@ void main() {
     float acc[8];
     for (uint c = 0u; c < 8u; ++c) acc[c] = 0.0;
     if (row < nout) {
-#if !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
-        if (type == TYPE_Q8_0 && wide != 0u) {
+#ifdef LLMX_Q8W
+        {
             uint nblocks = p.nin / Q8_0_BLOCK;
             uint npairs = nblocks / 2u;
             uint wbase = row * nblocks * 17u / 2u;   // words: a pair is 17
@@ -201,37 +203,46 @@ void main() {
                 uint we = (t == 0u) ? w32s[pi].w32[o + 16u] : 0u;
                 float s0 = unpackHalf2x16(w32s[pi].w32[o]).x;
                 float s1 = unpackHalf2x16(w32s[pi].w32[o + 8u]).y;
-                uint xb = j * 64u;
+                // Block 0's words shifted by a half word with the next
+                // word, which the next lane of the pair holds: lane 3's next
+                // words are lane 0's second and third. Word 8's remaining
+                // half is the second scale, so the word drops out.
+                uint src = (lane & ~3u) | ((t + 1u) & 3u);
+                uint sa = subgroupShuffle(wa, src), sb = subgroupShuffle(wb, src), sc = subgroupShuffle(wc, src);
+                wa = (wa >> 16u) | ((t == 3u ? sb : sa) << 16u);
+                wb = (wb >> 16u) | ((t == 3u ? sc : sb) << 16u);
+                if (t == 0u) wc = 0u;
                 for (uint c = 0u; c < p.ncols; ++c) {
-                    uint col_base = (p.col0 + c) * p.nin;
-                    float p0 = 0.0, p1 = 0.0;
-                    word_dot(wa, t, xb, col_base, p0, p1);
-                    word_dot(wb, t + 4u, xb, col_base, p0, p1);
-                    word_dot(wc, t + 8u, xb, col_base, p0, p1);
-                    word_dot(wd, t + 12u, xb, col_base, p0, p1);
-                    if (t == 0u) word_dot(we, 16u, xb, col_base, p0, p1);
-                    acc[c] += s0 * p0 + s1 * p1;
+                    uint col = p.col0 + c;
+                    uint a2 = xa_col(col) / 2u + j * 16u;
+                    int p0 = 0, p1 = 0;
+                    q8_word(wa, t, a2, p0, p1);
+                    q8_word(wb, t + 4u, a2, p0, p1);
+                    q8_word(wc, t + 8u, a2, p0, p1);
+                    q8_word(wd, t + 12u, a2, p0, p1);
+                    if (t == 0u) q8_word(we, 16u, a2, p0, p1);
+                    vec4 dd = xq_pair(col, j);
+                    acc[c] += s0 * (dd.x * float(p0)) + s1 * (dd.z * float(p1));
                 }
             }
-        } else if (type == TYPE_Q8_0) {
+        }
+#endif
+#if !defined(LLMX_Q8W) && !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
+        if (type == TYPE_Q8_0) {
             uint nblocks = p.nin / Q8_0_BLOCK;
-            uint wbase = row * nblocks * 17u;
+            uint bbase = row * nblocks * Q8_0_BYTES;   // bytes
             for (uint b = l; b < nblocks; b += p.cluster) {
-                uint o = wbase + b * 17u;
-                float scale = unpackHalf2x16(uint(w16s[pi].w16[o])).x;
-                uint xb = b * Q8_0_BLOCK;
-                float part[8];
-                for (uint c = 0u; c < 8u; ++c) part[c] = 0.0;
-                for (uint k = 0u; k < 16u; ++k) {
-                    uint word = uint(w16s[pi].w16[o + 1u + k]);
-                    int q0 = b0(word);
-                    int q1 = b1(word);
-                    for (uint c = 0u; c < p.ncols; ++c) {
-                        uint xo = (p.col0 + c) * p.nin + xb + 2u * k;
-                        part[c] += float(q0) * x[xo] + float(q1) * x[xo + 1u];
-                    }
+                uint o = bbase + b * Q8_0_BYTES;
+                float scale = unpackHalf2x16(uint(w16s[pi].w16[o >> 1u])).x;
+                uint q0 = hword_at(o + 2u), q1 = hword_at(o + 6u), q2 = hword_at(o + 10u), q3 = hword_at(o + 14u);
+                uint q4 = hword_at(o + 18u), q5 = hword_at(o + 22u), q6 = hword_at(o + 26u), q7 = hword_at(o + 30u);
+                for (uint c = 0u; c < p.ncols; ++c) {
+                    uint col = p.col0 + c;
+                    uint a2 = xa_col(col) / 2u + b * 8u;
+                    int s = byte_dot(q0, xq2[a2]) + byte_dot(q1, xq2[a2 + 1u]) + byte_dot(q2, xq2[a2 + 2u]) + byte_dot(q3, xq2[a2 + 3u]) +
+                            byte_dot(q4, xq2[a2 + 4u]) + byte_dot(q5, xq2[a2 + 5u]) + byte_dot(q6, xq2[a2 + 6u]) + byte_dot(q7, xq2[a2 + 7u]);
+                    acc[c] += scale * (xq_block(col, b).x * float(s));
                 }
-                for (uint c = 0u; c < p.ncols; ++c) acc[c] += scale * part[c];
             }
         } else {
             uint wbase = row * p.nin;
@@ -269,32 +280,40 @@ void main() {
                     d = unpackHalf2x16(wa).y;
                     n0 = wb; n1 = wc; n2 = wd; n3 = we;
                 }
-                uint xv = (j * 64u + t * 32u) / 4u;
+                uint b = 2u * j + t;
                 for (uint c = 0u; c < p.ncols; ++c) {
-                    float px;
-                    float pq = block_nibble_dot(n0, n1, n2, n3, (p.col0 + c) * p.nin / 4u + xv, px);
-                    acc[c] += d * (pq - 8.0 * px);
+                    uint col = p.col0 + c;
+                    uint a4 = xa_col(col) / 4u + b * 4u;
+                    uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+                    int pl = 0, ph = 0;
+                    nibble_dots(n0, 0u, 0u, 0u, 0u, lo0.xy, hi0.xy, pl, ph);
+                    nibble_dots(n1, 0u, 0u, 0u, 0u, lo0.zw, hi0.zw, pl, ph);
+                    nibble_dots(n2, 0u, 0u, 0u, 0u, lo1.xy, hi1.xy, pl, ph);
+                    nibble_dots(n3, 0u, 0u, 0u, 0u, lo1.zw, hi1.zw, pl, ph);
+                    vec2 xb = xq_block(col, b);
+                    acc[c] += d * (xb.x * float(pl + ph) - 8.0 * xb.y);
                 }
             }
         } else if (type == TYPE_Q4_0) {
-            // Byte loads over 18-byte blocks for an odd block count.
+            // 16-bit loads over 18-byte blocks for an odd block count.
             uint nblocks = p.nin / Q4_0_BLOCK;
-            uint wbase = row * nblocks * Q4_0_BYTES;
+            uint bbase = row * nblocks * Q4_0_BYTES;
             for (uint b = l; b < nblocks; b += p.cluster) {
-                uint o = wbase + b * Q4_0_BYTES;
-                float d = half_at(w8s[pi].w8[o], w8s[pi].w8[o + 1u]);
-                uint xb = b * Q4_0_BLOCK;
-                float part[8];
-                for (uint c = 0u; c < 8u; ++c) part[c] = 0.0;
-                for (uint k = 0u; k < 16u; ++k) {
-                    uint byte = uint(w8s[pi].w8[o + 2u + k]);
-                    float lo = float(byte & 15u) - 8.0, hi = float(byte >> 4u) - 8.0;
-                    for (uint c = 0u; c < p.ncols; ++c) {
-                        uint xo = (p.col0 + c) * p.nin + xb + k;
-                        part[c] += lo * x_at(xo) + hi * x_at(xo + 16u);
-                    }
+                uint o = bbase + b * Q4_0_BYTES;
+                float d = unpackHalf2x16(uint(w16s[pi].w16[o >> 1u])).x;
+                uint n0 = hword_at(o + 2u), n1 = hword_at(o + 6u), n2 = hword_at(o + 10u), n3 = hword_at(o + 14u);
+                for (uint c = 0u; c < p.ncols; ++c) {
+                    uint col = p.col0 + c;
+                    uint a4 = xa_col(col) / 4u + b * 4u;
+                    uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+                    int pl = 0, ph = 0;
+                    nibble_dots(n0, 0u, 0u, 0u, 0u, lo0.xy, hi0.xy, pl, ph);
+                    nibble_dots(n1, 0u, 0u, 0u, 0u, lo0.zw, hi0.zw, pl, ph);
+                    nibble_dots(n2, 0u, 0u, 0u, 0u, lo1.xy, hi1.xy, pl, ph);
+                    nibble_dots(n3, 0u, 0u, 0u, 0u, lo1.zw, hi1.zw, pl, ph);
+                    vec2 xb = xq_block(col, b);
+                    acc[c] += d * (xb.x * float(pl + ph) - 8.0 * xb.y);
                 }
-                for (uint c = 0u; c < p.ncols; ++c) acc[c] += d * part[c];
             }
         } else {
             // Q4_1: one lane per 5-word block, d and m in word 0.
@@ -306,11 +325,17 @@ void main() {
                 uint w1 = w32s[pi].w32[o + 1u], w2 = w32s[pi].w32[o + 2u];
                 uint w3 = w32s[pi].w32[o + 3u], w4 = w32s[pi].w32[o + 4u];
                 vec2 dm = unpackHalf2x16(w0);
-                uint xv = b * 8u;
                 for (uint c = 0u; c < p.ncols; ++c) {
-                    float px;
-                    float pq = block_nibble_dot(w1, w2, w3, w4, (p.col0 + c) * p.nin / 4u + xv, px);
-                    acc[c] += dm.x * pq + dm.y * px;
+                    uint col = p.col0 + c;
+                    uint a4 = xa_col(col) / 4u + b * 4u;
+                    uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+                    int pl = 0, ph = 0;
+                    nibble_dots(w1, 0u, 0u, 0u, 0u, lo0.xy, hi0.xy, pl, ph);
+                    nibble_dots(w2, 0u, 0u, 0u, 0u, lo0.zw, hi0.zw, pl, ph);
+                    nibble_dots(w3, 0u, 0u, 0u, 0u, lo1.xy, hi1.xy, pl, ph);
+                    nibble_dots(w4, 0u, 0u, 0u, 0u, lo1.zw, hi1.zw, pl, ph);
+                    vec2 xb = xq_block(col, b);
+                    acc[c] += dm.x * (xb.x * float(pl + ph)) + dm.y * xb.y;
                 }
             }
         }
@@ -323,6 +348,8 @@ void main() {
             // h * 16 + i and whose high nibbles are group 2c + 1 at c * 64
             // + 32 + h * 16 + i. Every lane reads the three packed
             // sub-scale words; both block sizes are multiples of four.
+            // Q5_K's fifth bits are bits 2c and 2c + 1 of each byte of the
+            // matching word of the 32 high-bit bytes.
 #ifdef LLMX_K5
             const uint q5 = 1u;
 #else
@@ -334,6 +361,7 @@ void main() {
             uint group = l / 8u, t = l - group * 8u;
             uint groups = p.cluster / 8u;
             uint c = t / 2u, h = t - c * 2u;
+            uint sl = 2u * c, sh = 2u * c + 1u;
             for (uint b = group; b < nblocks; b += groups) {
                 uint o = wbase + b * bw;
                 vec2 dd = unpackHalf2x16(w32s[pi].w32[o]);   // d, dmin
@@ -341,27 +369,38 @@ void main() {
                 uint qo = o + (q5 != 0u ? 12u : 4u) + c * 8u + h * 4u;
                 uint n0 = w32s[pi].w32[qo], n1 = w32s[pi].w32[qo + 1u];
                 uint n2 = w32s[pi].w32[qo + 2u], n3 = w32s[pi].w32[qo + 3u];
-                uint hb0 = 0u, hb1 = 0u, hb2 = 0u, hb3 = 0u;
+                // Fifth bits for the two pairs of each word's low and high
+                // nibbles, already in bit 4 of each 16-bit lane.
+                uint hl0[4], hl1[4], hh0[4], hh1[4];
+                for (uint k = 0u; k < 4u; ++k) { hl0[k] = 0u; hl1[k] = 0u; hh0[k] = 0u; hh1[k] = 0u; }
                 if (q5 != 0u) {
                     uint ho = o + 4u + h * 4u;
-                    hb0 = w32s[pi].w32[ho]; hb1 = w32s[pi].w32[ho + 1u];
-                    hb2 = w32s[pi].w32[ho + 2u]; hb3 = w32s[pi].w32[ho + 3u];
+                    for (uint k = 0u; k < 4u; ++k) {
+                        uint hb = w32s[pi].w32[ho + k];
+                        hl0[k] = ((hb >> sl) & 0x00010001u) << 4u;
+                        hl1[k] = ((hb >> (sl + 8u)) & 0x00010001u) << 4u;
+                        hh0[k] = ((hb >> sh) & 0x00010001u) << 4u;
+                        hh1[k] = ((hb >> (sh + 8u)) & 0x00010001u) << 4u;
+                    }
                 }
                 float scl, mnl, sch, mnh;
                 scale_min_words(s0, s1, s2, 2u * c, scl, mnl);
                 scale_min_words(s0, s1, s2, 2u * c + 1u, sch, mnh);
-                uint xv = b * 64u + c * 16u + h * 4u;
+                uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
                 for (uint cc = 0u; cc < p.ncols; ++cc) {
-                    uint cv = (p.col0 + cc) * p.nin / 4u + xv;
-                    vec4 x0 = x4[cv], x1 = x4[cv + 1u], x2 = x4[cv + 2u], x3 = x4[cv + 3u];
-                    vec4 y0 = x4[cv + 8u], y1 = x4[cv + 9u], y2 = x4[cv + 10u], y3 = x4[cv + 11u];
-                    float pl = 0.0, ph = 0.0;
-                    k_nibble_dot(n0, hb0, c, x0, y0, pl, ph);
-                    k_nibble_dot(n1, hb1, c, x1, y1, pl, ph);
-                    k_nibble_dot(n2, hb2, c, x2, y2, pl, ph);
-                    k_nibble_dot(n3, hb3, c, x3, y3, pl, ph);
-                    float sxl = dot(x0 + x1 + x2 + x3, vec4(1.0)), sxh = dot(y0 + y1 + y2 + y3, vec4(1.0));
-                    acc[cc] += dd.x * (scl * pl + sch * ph) - dd.y * (mnl * sxl + mnh * sxh);
+                    uint col = p.col0 + cc;
+                    uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
+                    uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 4u], hi1 = xq4[a4 + 5u];
+                    int pl = 0, ph = 0;
+                    nibble_dots(n0, hl0[0], hl1[0], hh0[0], hh1[0], lo0.xy, hi0.xy, pl, ph);
+                    nibble_dots(n1, hl0[1], hl1[1], hh0[1], hh1[1], lo0.zw, hi0.zw, pl, ph);
+                    nibble_dots(n2, hl0[2], hl1[2], hh0[2], hh1[2], lo1.xy, hi1.xy, pl, ph);
+                    nibble_dots(n3, hl0[3], hl1[3], hh0[3], hh1[3], lo1.zw, hi1.zw, pl, ph);
+                    vec2 xl = xq_block(col, bl), xh = xq_block(col, bl + 1u);
+                    acc[cc] += dd.x * (scl * (xl.x * float(pl)) + sch * (xh.x * float(ph)));
+                    // The mins multiply the whole group's sum; the group's
+                    // two lanes reduce together, so one of them applies it.
+                    if (h == 0u) acc[cc] -= dd.y * (mnl * xl.y + mnh * xh.y);
                 }
             }
         }
@@ -374,6 +413,8 @@ void main() {
             // low nibble of ql[l0 + 32 + i] with bits 2..3, the high nibbles
             // with bits 4..5 and 6..7; each group has its own sub-scale,
             // and sub-scale index l0 / 16 is the same for the lane's four.
+            // A group's four values are packed as unsigned bytes 0..63 and
+            // the -32 offset folded through the block sum.
             uint nblocks = p.nin / Q6_K_BLOCK;
             uint bbase = row * nblocks * Q6_K_BYTES;   // bytes
             uint group = l / 16u, t = l - group * 16u;
@@ -392,22 +433,31 @@ void main() {
                 float s1 = float((int(sc_a << (8u - sh))) >> 24);
                 float s2 = float((int(sc_b << (24u - sh))) >> 24);
                 float s3 = float((int(sc_b << (8u - sh))) >> 24);
-                // The lane's sixteen quants as four vectors, one per group.
-                vec4 q0, q1, q2, q3;
-                for (uint i = 0u; i < 4u; ++i) {
-                    uint lo = bitfieldExtract(ql_lo, int(8u * i), 4), hi = bitfieldExtract(ql_lo, int(8u * i + 4u), 4);
-                    uint lo2 = bitfieldExtract(ql_hi, int(8u * i), 4), hi2 = bitfieldExtract(ql_hi, int(8u * i + 4u), 4);
-                    uint h = qh >> (8u * i);
-                    q0[i] = float(int(lo | ((h & 3u) << 4u)) - 32);
-                    q1[i] = float(int(lo2 | (((h >> 2u) & 3u) << 4u)) - 32);
-                    q2[i] = float(int(hi | (((h >> 4u) & 3u) << 4u)) - 32);
-                    q3[i] = float(int(hi2 | (((h >> 6u) & 3u) << 4u)) - 32);
-                }
-                uint xv = (b * Q6_K_BLOCK + n * 128u + l0) / 4u;
+                uint q0 = (ql_lo & 0x0F0F0F0Fu) | ((qh & 0x03030303u) << 4u);
+                uint q1 = (ql_hi & 0x0F0F0F0Fu) | (((qh >> 2u) & 0x03030303u) << 4u);
+                uint q2 = ((ql_lo >> 4u) & 0x0F0F0F0Fu) | (((qh >> 4u) & 0x03030303u) << 4u);
+                uint q3 = ((ql_hi >> 4u) & 0x0F0F0F0Fu) | (((qh >> 6u) & 0x03030303u) << 4u);
+                uint bg = b * 8u + n * 4u;   // the 32-block of group 0
                 for (uint c = 0u; c < p.ncols; ++c) {
-                    uint cv = (p.col0 + c) * p.nin / 4u + xv;
-                    acc[c] += d * (s0 * dot(q0, x4[cv]) + s1 * dot(q1, x4[cv + 8u]) +
-                                   s2 * dot(q2, x4[cv + 16u]) + s3 * dot(q3, x4[cv + 24u]));
+                    uint col = p.col0 + c;
+                    uint a2 = xa_col(col) / 2u + (b * Q6_K_BLOCK + n * 128u + l0) / 4u;
+                    int p0 = pair_dot(q0 & 0x00FF00FFu, (q0 >> 8u) & 0x00FF00FFu, xq2[a2]);
+                    int p1 = pair_dot(q1 & 0x00FF00FFu, (q1 >> 8u) & 0x00FF00FFu, xq2[a2 + 8u]);
+                    int p2 = pair_dot(q2 & 0x00FF00FFu, (q2 >> 8u) & 0x00FF00FFu, xq2[a2 + 16u]);
+                    int p3 = pair_dot(q3 & 0x00FF00FFu, (q3 >> 8u) & 0x00FF00FFu, xq2[a2 + 24u]);
+                    float x0 = xq_block(col, bg).x, x1 = xq_block(col, bg + 1u).x;
+                    float x2 = xq_block(col, bg + 2u).x, x3 = xq_block(col, bg + 3u).x;
+                    acc[c] += d * (s0 * (x0 * float(p0)) + s1 * (x1 * float(p1)) +
+                                   s2 * (x2 * float(p2)) + s3 * (x3 * float(p3)));
+                    // The -32 offset times each half-group's sum under that
+                    // half's sub-scale, applied by the first lane of each
+                    // half among the eight that reduce together.
+                    if (l0 == 0u || l0 == 16u) {
+                        vec2 h0 = xq_halves(col, bg), h1 = xq_halves(col, bg + 1u);
+                        vec2 h2 = xq_halves(col, bg + 2u), h3 = xq_halves(col, bg + 3u);
+                        acc[c] -= d * 32.0 * (l0 == 0u ? s0 * h0.x + s1 * h1.x + s2 * h2.x + s3 * h3.x
+                                                       : s0 * h0.y + s1 * h1.y + s2 * h2.y + s3 * h3.y);
+                    }
                 }
             }
         }

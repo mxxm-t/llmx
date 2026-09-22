@@ -196,8 +196,12 @@ checks zeroed allocations, host-visible memory read in place after a wait
 and monotonic tickets, then runs every implemented kernel against the CPU
 backend on random inputs with bounds fixed in the test: exact where the
 arithmetic is the same operation in the same order, a stated relative
-tolerance where a transcendental or a reduction order differs. It exits 77,
-which CTest reports as skipped, when there is no loader or no device.
+tolerance where a transcendental or a reduction order differs. The decode
+row kernel reads quantized rows against 16-bit integer activations, so its
+CPU reference is fed the activations quantized the same way and the
+comparison is about the dots; the norm, SiLU and attention kernels' twin
+of their output is checked through a matmul from it. It exits 77, which CTest
+reports as skipped, when there is no loader or no device.
 
 `http` starts the server's HTTP layer (`src/server/http.hpp`) on a
 system-chosen port from a thread and drives it with the layer's own client:

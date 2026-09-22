@@ -12,14 +12,20 @@
 // to fill the device. Row b of a view attends through its hist + b.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 layout(local_size_x = 256) in;
+// With `quant` set the head width is a multiple of 32 and the batch is
+// this dispatch alone, and the row kernel's 16-bit twin of the output is
+// written beside it (xquant.glsl): a head's lanes are consecutive.
 layout(push_constant) uniform P {
-    uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk;
+    uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 6) writeonly buffer XQ { uint xq[]; };
+#include "xquant.glsl"
 #ifdef LLMX_K16
 layout(set = 0, binding = 2) readonly buffer K { uint16_t kb16[]; };
 float k_load(uint i) { return unpackHalf2x16(uint(kb16[i])).x; }
@@ -101,7 +107,9 @@ void main() {
             A += accs[i][lid] * c;
         }
         if (p.nsplit == 1u) {
-            o[qbase + lid] = A / L;
+            float v = A / L;
+            o[qbase + lid] = v;
+            if (p.quant != 0u) xquant_block(qbase + lid, v, p.rows * qstride);
         } else {
             // Unnormalized: m, l and the accumulation, dim + 2 floats.
             uint sbase = (rh * p.nsplit + split) * (p.dim + 2u);

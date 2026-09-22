@@ -1034,7 +1034,11 @@ Raw output, samples, hashes, flags and reproduction scripts are in
 [`benchmarks/q8-external-floor-20260919.json`](benchmarks/q8-external-floor-20260919.json).
 Scratch artifacts are under `%TEMP%/llmx-q8-floor`.
 
-### Integer activation experiments: not adopted
+### Integer activation experiments: not adopted on the CPU
+
+The Vulkan backend later adopted the 16-bit form for its decode row
+kernel, on this section's numerical finding and its own measurements
+(`VULKAN.md`, sub-step 8); the CPU backend keeps float activations.
 
 Scratch AVX2 kernels consume the existing Q8_0 weights with quantized
 activations, using either signed 8-bit or signed 16-bit activation values and

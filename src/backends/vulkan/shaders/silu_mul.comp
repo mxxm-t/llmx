@@ -1,14 +1,23 @@
 #version 450
 // dst[i] = silu(gate[i]) * up[i], in the form the CPU uses: g / (1 + exp(-g)).
+// With `quant` set, n is a multiple of 32 and the row kernel's 16-bit
+// twin of the output is written beside it (xquant.glsl): one lane per
+// element, so a block of 32 lies in 32 consecutive lanes.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint n; } p;
+layout(push_constant) uniform P { uint n; uint quant; } p;
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer G { float gate[]; };
 layout(set = 0, binding = 2) readonly buffer U { float up[]; };
+layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
+#include "xquant.glsl"
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i < p.n) {
         float g = gate[i];
-        dst[i] = g / (1.0 + exp(-g)) * up[i];
+        float v = g / (1.0 + exp(-g)) * up[i];
+        dst[i] = v;
+        if (p.quant != 0u) xquant_block(i, v, p.n);
     }
 }

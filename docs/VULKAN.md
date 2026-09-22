@@ -131,8 +131,11 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
 ## Kernels
 
 All in GLSL, compute stage, subgroup operations enabled, one workgroup
-size per kernel chosen for wave64. Activations are F32 throughout, as on
-the CPU, so the arithmetic differs from the CPU only in reduction order.
+size per kernel chosen for wave64. Activations are F32 everywhere except
+at the decode row kernel's quantized rows, which read them as signed
+16-bit integers in blocks of 32 (`xquant.glsl`, below): there the
+arithmetic differs from the CPU by that quantization, elsewhere only in
+reduction order. The HF gate measures the cost of it.
 
 - **Dequantization** is one GLSL include (`qdecode.glsl`) with a function
   per quant type returning the float at (block, index), which `embed` and
@@ -156,7 +159,9 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   the register demand of the whole set the occupancy of every path and
   Q8_0 decode lost 40 percent without any of its instructions changing;
   Q4_K and Q5_K beside Q6_K cost Q6_K the same 40 percent, and Q4_K
-  alone runs 30 percent faster than beside Q5_K. The Q4_0 path gives
+  alone runs 30 percent faster than beside Q5_K; the wide Q8_0 path is
+  a module of its own too, since the narrow path beside it cost it a
+  third at the 8B shape. The Q4_0 path gives
   each lane a block of the 9-word pair, the first block's nibble words
   assembled from two loads since its scale is two bytes; Q4_1 is a lane
   per 5-word block; Q4_K and Q5_K are eight lanes per block, each the
@@ -164,14 +169,41 @@ the CPU, so the arithmetic differs from the CPU only in reduction order.
   reading the three packed sub-scale words; Q6_K is sixteen lanes per
   block, each three words of quants, two of sub-scales and the scale,
   with every other block's words assembled from two loads since 210
-  bytes is not a multiple of four. All of them read the activations as
-  aligned 16-byte vectors. At the 8B shapes on the Radeon VII: Q4_0 149
-  GB/s, Q4_1 188, Q4_K 135, Q5_K 123, Q6_K 163, against Q8_0's 313; the
-  K-quant figures predate the reduction fix below. The final xor-shuffle
+  bytes is not a multiple of four. The final xor-shuffle
   reduction runs over the live columns only: reducing all eight slots
   for one column was 48 shuffles per lane after five loads and cost the
   1024-square matvec a quarter of its time (17.1 to 13.2 us) and the 8B
   shapes 313 to 373 GB/s.
+
+  **Integer activations.** Every quantized row meets the activations as
+  signed 16-bit values in blocks of 32, each block scaled so its largest
+  magnitude is 32767, with the block's scale `d` and `d` times its sum
+  (whole and per half of 16) in a table: a weight word's values pair off
+  with activation words through the device's 16-bit integer dots, a
+  block's integer sum is scaled once, and a type's offset (Q4_0's -8,
+  Q4_1's min, the K-quant mins, Q6_K's -32) is folded through the block
+  sum. Values are stored in the order nibble and byte words unpack in,
+  pairs of positions (4m, 4m + 2) and (4m + 1, 4m + 3), and read 8 or 16
+  bytes at a time. Q8_0's first block starts two bytes into its words,
+  so each lane shifts its two first-block words by a half word with the
+  word after, fetched from the next lane of the pair by a shuffle. The
+  twin is written by the kernel that produces the input, where the
+  producer holds whole blocks in consecutive lanes: `rms_norm_rows`,
+  `silu_mul`, and the per-row `attention` or its merge for heads that
+  are whole blocks, each tagging the buffer it describes for the next
+  row matmul on that buffer; an input without one gets a `quantize_x`
+  dispatch, which a decode token never takes. Why 16 bits and not 8: the CPU
+  experiment in [ASSETS](ASSETS.md) put 8-bit activations at 0.0093 of
+  NLL against a 0.010 bound on the 8B excerpt and 16-bit at 0.00003,
+  and on the device 16-bit dots were the faster of the two on Q8_0
+  besides. At the 8B shapes on the Radeon VII, float activations to
+  integer: Q8_0 413 to 398 GB/s at 4096 x 12288 and 350 to 400 at
+  12288 x 4096, Q4_0 182 to 257, Q4_1 189 to 319, Q4_K 173 to 234,
+  Q5_K 158 to 216, Q6_K 167 to 186, the figures including the
+  standalone quantize dispatch the test's matmul takes. What bounds
+  these paths is the load count, not the arithmetic: the same dots over
+  8-byte activation loads throughout ran Q4_0 at 150 us against 105
+  with 16-byte loads.
 - **matmul, prefill** (`nbatch` of 16 and up): a workgroup computes a
   64 x 64 output tile, walking the inner dimension 32 at a time; each
   step stages the dequantized W tile and the X tile in shared memory and
@@ -313,6 +345,7 @@ device is present, so the tree stays green without a GPU.
 | 5 | `--device`; the models end to end (**done** except the floor) | HF baselines with `--device vulkan:0`: Q8_0 logits and all four perplexity cases match the CPU's numbers to the digit; the whole Python suite runs on the device; the matched mx Vulkan floor is the open item |
 | 6 | Q4_0, Q4_1, Q4_K, Q5_K, Q6_K shaders (**done**) | HF baselines on the Q4_0 and Q5_K_M fixtures pass on the device with the CPU's numbers; `backend-vulkan` checks each type against the CPU in `embed`, the tile and the row kernel and reports the matvec bandwidth per type |
 | 7 | Block-size screening (**done**: 32, 64 and 128 tokens measured within noise on 0.6B and 8B decode over 512 tokens, 64 kept); barrier tracking if a profile says so | The KV screening method, on the device |
+| 8 | Integer activations for the decode row kernel (**done**: 16-bit values in blocks of 32 through the device's integer dots, the twin written by the norm, SiLU and attention kernels) | `backend-vulkan` against the CPU fed the same quantized activations, 1e-4 relative, every type and both block-count parities, plus a norm, a SiLU and an attention into a buffer and a matmul from it; the HF gate on the device through the tile path and, with `--ubatch 8`, through the row kernel; the matched decode floor |
 
 The CPU backend is untouched throughout and remains the reference.
 

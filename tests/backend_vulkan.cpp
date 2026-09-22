@@ -89,6 +89,28 @@ size_t close(const std::vector<float>& a, const std::vector<float>& b, double re
     return a.size();
 }
 
+// The activations as the device's row kernel sees them: each block of 32
+// scaled so its largest magnitude is 32767, rounded half away from zero,
+// and back to floats (shaders/quantize_x.comp). The CPU reference of a
+// quantized-row matmul on the row kernel takes these, so the comparison
+// is about the dot and its reduction order and not about the
+// quantization, which is the device's choice and the HF gate's business.
+std::vector<float> row_activations(const std::vector<float>& x) {
+    std::vector<float> out(x.size());
+    for (size_t b = 0; b + 32 <= x.size(); b += 32) {
+        float amax = 0.0f;
+        for (size_t i = 0; i < 32; ++i) amax = std::max(amax, std::fabs(x[b + i]));
+        const float d = amax / 32767.0f, id = amax > 0.0f ? 32767.0f / amax : 0.0f;
+        for (size_t i = 0; i < 32; ++i) {
+            const float r = x[b + i] * id;
+            int q = (int)(std::copysign(std::floor(std::fabs(r) + 0.5f), r));
+            q = std::max(-32767, std::min(32767, q));
+            out[b + i] = (float)q * d;
+        }
+    }
+    return out;
+}
+
 size_t check_kernels(backend::Backend& vk) {
     Pair p(vk);
     size_t values = 0;
@@ -308,12 +330,15 @@ size_t check_kernels(backend::Backend& vk) {
         Pair::In wfi = p.in(wf), wqi = p.in(wq.data(), wq.size()), w4i = p.in(w4.data(), w4.size());
         Pair::In w41i = p.in(w41.data(), w41.size()), w6i = p.in(w6.data(), w6.size());
         Pair::In w4ki = p.in(w4k.data(), w4k.size()), w5ki = p.in(w5k.data(), w5k.size());
-        // 1 to 13 take the row kernel; 16, 64, 100 and 247 the tile kernel,
-        // on, inside and past its 64-column tiles.
+        // 1 to 13 take the row kernel, whose quantized rows meet 16-bit
+        // activations; 16, 64, 100 and 247 the tile kernel, on, inside and
+        // past its 64-column tiles, with float activations.
         for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(16), size_t(64),
                               size_t(100), size_t(247)}) {
             const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
+            const auto xr = nbatch < 16 ? row_activations(x) : x;   // adopted, so it must outlive the call
+            Pair::In xri = p.in(xr);
             for (int q = 0; q < 7; ++q) {
                 if (q >= 4 && nin % 256) continue;   // K-quant blocks are 256 wide
                 const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0
@@ -323,7 +348,7 @@ size_t check_kernels(backend::Backend& vk) {
                 const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i
                                    : q == 5 ? w4ki : q == 6 ? w5ki : wfi;
                 Pair::Out d = p.out(nbatch * nout);
-                p.cpu.matmul(type, wi.cs(), xi.cs(), d.cs(), nin, nout, nbatch);
+                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : xri).cs(), d.cs(), nin, nout, nbatch);
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
                 auto r = p.results(d);
                 try {
@@ -437,6 +462,60 @@ size_t check_kernels(backend::Backend& vk) {
                 values += close(ac, av, 1e-4, "tiled attention differs beyond 1e-4");
             }
         }
+        // The twin the per-row attention kernel, or its merge after a
+        // split history, writes beside its output for the row matmul that
+        // follows: attention then a matmul from its output on the device,
+        // against the CPU's attention, quantized, into the CPU's matmul.
+        for (size_t hist : {size_t(0), size_t(70)}) {
+            for (size_t nq : {size_t(1), size_t(3)}) {
+                const int n_head = 4, n_head_kv = 2, head_dim = 128;
+                const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim, nout = 37;
+                const auto hk = uniform((hist + nq) * kvw, 60 + (uint32_t)nq), hv = uniform((hist + nq) * kvw, 61 + (uint32_t)nq);
+                const auto qq = uniform(nq * qw, 62 + (uint32_t)hist);
+                const auto wf = uniform(qw * nout, 63);
+                std::vector<uint8_t> wq(nout * (qw / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
+                for (size_t row = 0; row < nout; ++row)
+                    quant::quantize_row_q8_0(wf.data() + row * qw, wq.data() + row * (qw / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE,
+                                             qw / gguf::Q8_0_BLOCK);
+                auto run = [&](backend::Backend& b, bool device, std::vector<float>& y) {
+                    const size_t bt = b.kv_layout().block_tokens;
+                    auto st = b.kv_alloc(1, n_head_kv, head_dim, 512);
+                    infer::BlockPool pool(st->max_blocks());
+                    infer::KVSequence seq(&pool, bt);
+                    const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
+                    const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));
+                    const auto Qb = b.adopt(qq.data(), qq.size() * sizeof(float));
+                    const auto Wb = b.adopt(wq.data(), wq.size());
+                    if (hist) {
+                        seq.prepare(hist);
+                        const backend::KVView h = seq.view(st.get());
+                        b.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                        seq.commit();
+                    }
+                    seq.prepare(nq);
+                    const backend::KVView view = seq.view(st.get());
+                    b.kv_write(0, &view, 1, {Kb.get(), hist * kvw}, {Vb.get(), hist * kvw});
+                    const auto ob = b.alloc(nq * qw * sizeof(float), backend::Memory::device);
+                    const auto yb = b.alloc(nq * nout * sizeof(float), backend::Memory::device);
+                    b.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+                    if (device) {
+                        b.matmul(gguf::GGML_TYPE_Q8_0, {Wb.get(), 0}, {ob.get(), 0}, {yb.get(), 0}, qw, nout, nq);
+                    } else {
+                        std::vector<float> att(nq * qw);
+                        b.read(*ob, 0, att.data(), att.size() * sizeof(float));
+                        const auto ar = row_activations(att);
+                        const auto Ab = b.adopt(ar.data(), ar.size() * sizeof(float));
+                        b.matmul(gguf::GGML_TYPE_Q8_0, {Wb.get(), 0}, {Ab.get(), 0}, {yb.get(), 0}, qw, nout, nq);
+                    }
+                    y.resize(nq * nout);
+                    b.read(*yb, 0, y.data(), y.size() * sizeof(float));
+                };
+                std::vector<float> yc, yv;
+                run(p.cpu, false, yc);
+                run(p.vk, true, yv);
+                values += close(yc, yv, 1e-4, "matmul from the attention twin differs beyond 1e-4");
+            }
+        }
         // f16 cache sides: each combination of K and V types on both
         // backends, through kv_write, the fused norm_rope_kv, kv_copy and
         // attention on the per-row and the tiled kernel. The device is
@@ -515,14 +594,43 @@ size_t check_kernels(backend::Backend& vk) {
         for (size_t nbatch : {size_t(1), size_t(3), size_t(64)}) {
             const auto xa = uniform(nbatch * nin, 20 + (uint32_t)nbatch);
             Pair::In xi = p.in(xa);
+            const auto xr = nbatch < 16 ? row_activations(xa) : xa;
+            Pair::In xri = p.in(xr);
             const auto y0 = uniform(nbatch * nout, 21 + (uint32_t)nbatch);
             Pair::Out d = p.out(nbatch * nout);
             p.cpu.write(*d.c, 0, y0.data(), y0.size() * sizeof(float));
             p.vk.write(*d.v, 0, y0.data(), y0.size() * sizeof(float));
-            p.cpu.matmul_add(gguf::GGML_TYPE_Q8_0, wqi.cs(), xi.cs(), d.cs(), nin, nout, nbatch);
+            p.cpu.matmul_add(gguf::GGML_TYPE_Q8_0, wqi.cs(), xri.cs(), d.cs(), nin, nout, nbatch);
             p.vk.matmul_add(gguf::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
             auto r = p.results(d);
             values += close(r.first, r.second, 1e-4, "matmul_add differs beyond 1e-4");
+        }
+        // The twin the norm and SiLU kernels write beside their output for
+        // the row kernel: each into a buffer, then a matmul from it, against
+        // the CPU's producer followed by the quantized reference.
+        {
+            const size_t rows = 3;
+            const auto src = uniform(rows * nin, 40 + (uint32_t)nin), wn = uniform(nin, 41, 0.5f, 1.5f);
+            const auto g = uniform(rows * nin, 42, -6.0f, 6.0f), u = uniform(rows * nin, 43);
+            Pair::In si = p.in(src), wni = p.in(wn), gi = p.in(g), ui = p.in(u);
+            Pair::Out h = p.out(rows * nin), f = p.out(rows * nin);
+            Pair::Out d1 = p.out(rows * nout), d2 = p.out(rows * nout);
+            p.vk.rms_norm_rows(h.vs(), si.vs(), wni.vs(), rows, nin, nin, 1e-6f);
+            p.vk.matmul(gguf::GGML_TYPE_Q8_0, wqi.vs(), h.vs(), d1.vs(), nin, nout, rows);
+            p.vk.silu_mul(f.vs(), gi.vs(), ui.vs(), rows * nin);
+            p.vk.matmul(gguf::GGML_TYPE_Q4_0, w4i.vs(), f.vs(), d2.vs(), nin, nout, rows);
+            p.cpu.rms_norm_rows(h.cs(), si.cs(), wni.cs(), rows, nin, nin, 1e-6f);
+            p.cpu.silu_mul(f.cs(), gi.cs(), ui.cs(), rows * nin);
+            std::vector<float> hc(rows * nin), fc(rows * nin);
+            p.cpu.read(*h.c, 0, hc.data(), hc.size() * sizeof(float));
+            p.cpu.read(*f.c, 0, fc.data(), fc.size() * sizeof(float));
+            const auto hr = row_activations(hc), fr = row_activations(fc);
+            Pair::In hri = p.in(hr), fri = p.in(fr);
+            p.cpu.matmul(gguf::GGML_TYPE_Q8_0, wqi.cs(), hri.cs(), d1.cs(), nin, nout, rows);
+            p.cpu.matmul(gguf::GGML_TYPE_Q4_0, w4i.cs(), fri.cs(), d2.cs(), nin, nout, rows);
+            auto r1 = p.results(d1), r2 = p.results(d2);
+            values += close(r1.first, r1.second, 1e-4, "matmul from the norm's twin differs beyond 1e-4");
+            values += close(r2.first, r2.second, 1e-4, "matmul from the SiLU's twin differs beyond 1e-4");
         }
         bool rejected = false;
         try { p.vk.matmul(1u /* F16, no kernel */, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }

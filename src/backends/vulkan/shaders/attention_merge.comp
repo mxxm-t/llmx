@@ -4,12 +4,18 @@
 // to it. A split with no tokens carries -inf and zero and contributes
 // nothing. The row is found through the same view table as the split
 // kernel, since a dispatch's rows need not be a prefix of the batch.
+// With `quant` set the row kernel's 16-bit twin of the output is written
+// beside it (xquant.glsl), as the split kernel does when it has no merge.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint rows; uint n_head; uint dim; uint nsplit; } p;
+layout(push_constant) uniform P { uint rows; uint n_head; uint dim; uint nsplit; uint quant; } p;
 layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
 layout(set = 0, binding = 1) readonly buffer S { float scratch[]; };
 layout(set = 0, binding = 2) readonly buffer T { uint tab[]; };
+layout(set = 0, binding = 3) writeonly buffer XQ { uint xq[]; };
 #include "views.glsl"
+#include "xquant.glsl"
 void main() {
     uint rh = gl_WorkGroupID.x;
     uint g = rh / p.n_head;
@@ -30,5 +36,8 @@ void main() {
         L += scratch[base + i * stride + 1u] * c;
         A += scratch[base + i * stride + 2u + lid] * c;
     }
-    o[(view_row0(v) + b) * p.n_head * p.dim + h * p.dim + lid] = A / L;
+    uint i = (view_row0(v) + b) * p.n_head * p.dim + h * p.dim + lid;
+    float r = A / L;
+    o[i] = r;
+    if (p.quant != 0u) xquant_block(i, r, p.rows * p.n_head * p.dim);
 }

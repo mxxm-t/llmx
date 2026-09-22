@@ -585,14 +585,120 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   two repeats: 32, 64 and 128 tokens per block give 201.4, 200.6 and
   201.9 tok/s on 0.6B and 40.9, 41.0 and 41.0 on 8B, all within a
   repeat's spread, every kernel check passing at each size. 64 stays.
-- **Left:** decode on the 4- and 5-bit files, at 93 and 84 percent of
-  the reference under the matched protocol. The same backend on the
-  rig's MI50s under Linux needs a Vulkan driver and a shader compiler
+  Twenty-third, integer activations for the decode row kernel
+  (VULKAN.md sub-step 8). The 4- and 5-bit files sat at 88 and 77
+  percent of the reference's decode and the row kernel's per-type
+  readings said why: Q4_0 moved 182 GB/s of weights where Q8_0 moved
+  413, the same weights per second, so the 4-bit paths were bound by
+  what they did per weight, eight nibble extractions, conversions and
+  multiply-adds per word, and by the float activation bytes every path
+  re-read per row. The device accelerates packed 8-bit and 16-bit
+  integer dots, so three probes at the 8B shape, wrong numerics and the
+  kernel alone, put a number on each form:
+
+  | shape | float | int8, GGUF word order | int8, aligned words | int16 |
+  |---|---:|---:|---:|---:|
+  | Q8_0 4096 x 12288 | 130 us | 147 | 118 | 112 |
+  | Q8_0 12288 x 4096 | 152 us | 154 | 120 | 109 |
+  | Q4_0 4096 x 12288 | 155 us | 95 to 102 | - | 105 to 110 |
+
+  Q8_0 in the GGUF word order was slower than float: its first block's
+  values sit two bytes into each word, and the per-word handling of that
+  cost more than the dots saved; aligned, the int path won. 16-bit
+  activations took the design over 8-bit on two counts: the CPU
+  experiment in ASSETS.md had put per-block 8-bit activations at 0.0093
+  of NLL against the 0.010 bound on the 8B excerpt and 16-bit at
+  0.00003, and 16-bit dots were the faster of the two on Q8_0 besides.
+  The implementation (`shaders/xquant.glsl`, `matmul_row.comp`): every
+  quantized row meets the activations as signed 16-bit values in blocks
+  of 32, the block's largest magnitude at 32767, with the scale and the
+  scaled sums, whole and per half of 16, in a table; a weight word's
+  values pair off with activation words in the order nibble and byte
+  words unpack in, a block's integer sum is scaled once, and a type's
+  offset is folded through the block sum, from one lane of each group
+  that reduces together where lanes share a group. The twin is written
+  by whichever kernel produces the input, the norm, the SiLU and the
+  per-row attention or its merge, tagged for the next row matmul on that
+  buffer, so a decode token quantizes nothing in a dispatch of its own;
+  an input without a producer takes one. The CPU backend and the tile
+  kernel keep float activations. Three findings on the way, each
+  measured on the 8B shape: the standalone quantize dispatch costs 5 to
+  9 us, which is why the producers write the twin; the same dots over
+  8-byte activation loads ran Q4_0 at 150 us against 105 with 16-byte
+  loads, so the load count and not the arithmetic bounds these paths;
+  and for Q8_0 the per-word handling of the misaligned first block cost
+  a quarter of the kernel (selects 154 us, aligned form 125, the narrow
+  path beside the wide one in the module another third), so the wide
+  path shifts its two first-block words by a half word with the word
+  after, fetched from the next lane of the pair by a shuffle, and lives
+  in a module of its own. Kernel readings, float to integer, the
+  integer figure including the standalone quantize dispatch the test's
+  matmul takes:
+
+  | shape | float | integer |
+  |---|---:|---:|
+  | Q8_0 4096 x 12288 | 130 us, 413 GB/s | 134 to 136 us, 392 to 399 GB/s |
+  | Q8_0 12288 x 4096 | 152 us, 350 GB/s | 133 us, 400 GB/s |
+  | Q4_0 4096 x 12288 | 155 us, 182 GB/s | 107 to 110 us, 257 to 264 GB/s |
+  | Q4_1 12288 x 4096 | 167 us, 189 GB/s | 98 us, 320 GB/s |
+  | Q4_K 4096 x 12288 | 163 us, 173 GB/s | 118 to 121 us, 234 to 240 GB/s |
+  | Q5_K 4096 x 12288 | 219 us, 158 GB/s | 160 to 166 us, 208 to 216 GB/s |
+  | Q6_K 4096 x 12288 | 247 us, 167 GB/s | 223 to 226 us, 183 to 186 GB/s |
+  | Q6_K 1024 x 151936 | 825 us, 155 GB/s | 780 to 818 us, 156 to 164 GB/s |
+
+  Correctness: `backend-vulkan` feeds the CPU reference the activations
+  quantized the same way, so the comparison is about the dots and the
+  reduction order at 1e-4 over every type and both block-count
+  parities, and checks a norm, a SiLU and an attention into a buffer
+  followed by a matmul from it; the whole CTest and device Python
+  suites pass. The HF gate on the device, the tile path against the row
+  kernel forced with `--ubatch 8` and `--ubatch 1`, mean NLL over the
+  247-token excerpt, HF 3.360286:
+
+  | model | CPU float | device tile | device row kernel | bound |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | 3.361660 | 3.361670 | 3.361670 | 0.010 |
+  | Qwen3-0.6B-Q4_0 | 3.491840 | 3.491820 | 3.491820 | 0.160 |
+  | Qwen3-0.6B-Q5_K_M | 3.386460 | 3.386460 | 3.386460 | 0.050 |
+
+  The integer row kernel gives the tile path's NLL to six decimals. A
+  bug surfaced on the first model run and is fixed: a stream-ordered
+  scratch outgrown mid-pass, the twin's and the attention split
+  states', was freed while the open command buffer still named it, and
+  the device hung; `grow` now retires the old buffer with the ring slot.
+  The floor under the matched protocol, three arms in the same minutes,
+  the before arm built from a detached worktree at 37a020f, two rounds:
+
+  | model | test | reference b11075 Vulkan | llmx before | llmx after | llmx share |
+  |---|---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | tg32 | 197.7, 197.9 tok/s | 217.0, 225.4 | 213.7, 206.3 | 104 to 108% |
+  | Qwen3-0.6B-Q4_0 | tg32 | 226.4, 226.5 tok/s | 202.6, 197.1 | 206.5, 206.0 | 91% |
+  | Qwen3-0.6B-Q5_K_M | tg32 | 223.7, 223.5 tok/s | 179.6, 185.3 | 176.7, 179.9 | 79 to 80% |
+  | Qwen3-8B-Q8_0 | tg32 | 39.9, 39.7 tok/s | 41.0 | 41.0, 40.7 | 103% |
+  | Qwen3-8B-Q4_K_M | pp247 | 78.5, 79.0 tok/s | 155.5 | 155.3, 155.4 | 197% |
+  | Qwen3-8B-Q4_K_M | tg32 | 52.3, 52.3 tok/s | 34.8, 35.0 | 41.5, 41.6 | 79% |
+
+  The tradeoff, reported together: the 8B 4-bit file, measured for the
+  first time here, gains 19 percent of decode and goes from 67 to 79
+  percent of the reference; 8B Q8_0 is unchanged; on the 0.6B files the
+  change is within a few percent either way, Q4_0 up, Q8_0 and Q5_K_M
+  down, all inside the session's own spread between rounds, because a
+  0.6B token is about three hundred dispatches at the per-dispatch
+  floor and its 1024-wide matmuls run at 60 to 160 GB/s whatever the
+  arithmetic. The gain is where the weights are, and it is kept.
+- **Left:** decode on the 4- and 5-bit files, 91 and 80 percent of the
+  reference on 0.6B and 79 on the 8B Q4_K_M. On 0.6B the bound is the
+  dispatch count, not a kernel; replaying a recorded pass (the server
+  block above) is the lever there. On 8B the Q6_K path is the weak type
+  of a Q4_K_M file at 186 GB/s against Q4_K's 240, and 8-bit activations
+  would buy the 4-bit paths another tenth at a numerical cost the CPU
+  experiment measured near the bound. The same backend on the rig's
+  MI50s under Linux needs a Vulkan driver and a shader compiler
   installed there (no ICD, no glslc today), which is a change to the
-  shared machine and waits for the user. The tiled attention does not yet share a K/V tile
-  across the query heads of a KV group. And the question of the default
-  cache type, f16 being the reference's default and passing the gate
-  here.
+  shared machine and waits for the user. The tiled attention does not
+  yet share a K/V tile across the query heads of a KV group. And the
+  question of the default cache type, f16 being the reference's default
+  and passing the gate here.
 
 ## KV cache fork, step 2 of the KV design (2026-09-21)
 
@@ -1406,7 +1512,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 6 of 7 done; the server (step 7) is in the tree, see the server row |
 | KV cache fork (KV-CACHE step 2)          | Done     |
 | Multi-device split (per-layer, per-tensor) | Placement done over CPU backends; flags wait for a device backend |
-| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, at or above the reference on Q8_0 decode and every prefill, 84 to 96 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
+| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, at or above the reference on Q8_0 decode and every prefill, 79 to 91 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 5): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device, prefix reuse through fork, a second execution context measured to have nothing to hide |

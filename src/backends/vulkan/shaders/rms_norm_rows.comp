@@ -2,12 +2,20 @@
 // One workgroup per row: dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i].
 // The sum of squares is reduced through shared memory so the kernel does
 // not depend on the subgroup size. dst and src may be the same buffer: every
-// element is read before the barrier and written after it.
+// element is read before the barrier and written after it. With `quant`
+// set the rows are dense and a multiple of 32 wide, and the row kernel's
+// 16-bit twin of the output is written beside it (xquant.glsl), which
+// saves the dispatch that would make it: a lane's elements are 256 apart,
+// so a block of 32 lies in 32 consecutive lanes.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; } p;
+layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; uint quant; } p;
 layout(set = 0, binding = 0) buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer S { float src[]; };
 layout(set = 0, binding = 2) readonly buffer W { float w[]; };
+layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
+#include "xquant.glsl"
 shared float red[256];
 void main() {
     uint row = gl_WorkGroupID.x;
@@ -22,5 +30,9 @@ void main() {
         barrier();
     }
     float r = 1.0 / sqrt(red[0] / float(p.n) + p.eps);
-    for (uint i = lid; i < p.n; i += 256u) dst[base + i] = src[base + i] * r * w[i];
+    for (uint i = lid; i < p.n; i += 256u) {
+        float v = src[base + i] * r * w[i];
+        dst[base + i] = v;
+        if (p.quant != 0u) xquant_block(row * p.n + i, v, p.rows * p.n);
+    }
 }

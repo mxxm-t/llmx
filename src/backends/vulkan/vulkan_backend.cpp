@@ -113,6 +113,9 @@ const uint32_t kSpvEmbed[] = {
 const uint32_t kSpvMatmulRow[] = {
 #include "vulkan/matmul_row.inc"
 };
+const uint32_t kSpvMatmulRowQ8W[] = {
+#include "vulkan/matmul_row_q8w.inc"
+};
 const uint32_t kSpvMatmulRowQ4[] = {
 #include "vulkan/matmul_row_q4.inc"
 };
@@ -124,6 +127,9 @@ const uint32_t kSpvMatmulRowK5[] = {
 };
 const uint32_t kSpvMatmulRowK[] = {
 #include "vulkan/matmul_row_k.inc"
+};
+const uint32_t kSpvQuantizeX[] = {
+#include "vulkan/quantize_x.inc"
 };
 const uint32_t kSpvKvWrite[] = {
 #include "vulkan/kv_write.inc"
@@ -190,6 +196,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_ATTENTION_K16, K_ATTENTION_V16, K_ATTENTION_KV16,
                 K_ATTENTION_TILE_K16, K_ATTENTION_TILE_V16, K_ATTENTION_TILE_KV16,
                 K_NORM_ROPE_KV_K16, K_NORM_ROPE_KV_V16, K_NORM_ROPE_KV_KV16,
+                K_QUANTIZE_X, K_MATMUL_ROW_Q8W,
                 K_COUNT };
 
 // A kernel's bindings; `counts` gives the array length of each, one for a
@@ -202,38 +209,40 @@ struct KernelSource {
     const uint32_t* counts;
 };
 
-const uint32_t kMatmulRowCounts[6] = {3, 3, 3, 3, 1, 3};
+const uint32_t kMatmulRowCounts[10] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1};
 
 const KernelSource kKernels[K_COUNT] = {
     {kSpvAdd, sizeof(kSpvAdd), 2, nullptr},
-    {kSpvSiluMul, sizeof(kSpvSiluMul), 3, nullptr},
+    {kSpvSiluMul, sizeof(kSpvSiluMul), 4, nullptr},
     {kSpvGatherRows, sizeof(kSpvGatherRows), 3, nullptr},
-    {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 3, nullptr},
+    {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr},
     {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5, nullptr},
     {kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr},
-    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 6, kMatmulRowCounts},
+    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 10, kMatmulRowCounts},
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
-    {kSpvAttention, sizeof(kSpvAttention), 6, nullptr},
-    {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 3, nullptr},
+    {kSpvAttention, sizeof(kSpvAttention), 7, nullptr},
+    {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
-    {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 6, kMatmulRowCounts},
-    {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 6, kMatmulRowCounts},
-    {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 6, kMatmulRowCounts},
-    {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 6, kMatmulRowCounts},
+    {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 10, kMatmulRowCounts},
+    {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 10, kMatmulRowCounts},
+    {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 10, kMatmulRowCounts},
+    {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 10, kMatmulRowCounts},
     {kSpvNormRopeKv, sizeof(kSpvNormRopeKv), 11, nullptr},
     {kSpvAttentionTile, sizeof(kSpvAttentionTile), 5, nullptr},
     {kSpvKvWriteK16, sizeof(kSpvKvWriteK16), 5, nullptr},
     {kSpvKvWriteV16, sizeof(kSpvKvWriteV16), 5, nullptr},
     {kSpvKvWriteKV16, sizeof(kSpvKvWriteKV16), 5, nullptr},
-    {kSpvAttentionK16, sizeof(kSpvAttentionK16), 6, nullptr},
-    {kSpvAttentionV16, sizeof(kSpvAttentionV16), 6, nullptr},
-    {kSpvAttentionKV16, sizeof(kSpvAttentionKV16), 6, nullptr},
+    {kSpvAttentionK16, sizeof(kSpvAttentionK16), 7, nullptr},
+    {kSpvAttentionV16, sizeof(kSpvAttentionV16), 7, nullptr},
+    {kSpvAttentionKV16, sizeof(kSpvAttentionKV16), 7, nullptr},
     {kSpvAttentionTileK16, sizeof(kSpvAttentionTileK16), 5, nullptr},
     {kSpvAttentionTileV16, sizeof(kSpvAttentionTileV16), 5, nullptr},
     {kSpvAttentionTileKV16, sizeof(kSpvAttentionTileKV16), 5, nullptr},
     {kSpvNormRopeKvK16, sizeof(kSpvNormRopeKvK16), 11, nullptr},
     {kSpvNormRopeKvV16, sizeof(kSpvNormRopeKvV16), 11, nullptr},
     {kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr},
+    {kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr},
+    {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 10, kMatmulRowCounts},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -547,6 +556,10 @@ public:
         d.name = d.props.deviceName;
         if (d.props.apiVersion < VK_API_VERSION_1_2)
             throw std::runtime_error("vulkan: " + d.name + " is older than Vulkan 1.2");
+        // A block of 32 activations is quantized across 32 consecutive
+        // lanes (shaders/xquant.glsl).
+        if (d.subgroup_size < 32)
+            throw std::runtime_error("vulkan: " + d.name + " has subgroups narrower than 32 lanes");
 
         // A compute family without graphics keeps the queue clear of the
         // desktop; any compute family will do.
@@ -601,6 +614,24 @@ public:
         if (!f2.features.shaderStorageBufferArrayDynamicIndexing)
             throw std::runtime_error("vulkan: " + d.name + " cannot index storage buffer arrays dynamically");
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
+        // The row kernel's activations are 16-bit integers met through
+        // integer dot products (shaders/quantize_x.comp).
+        if (!f2.features.shaderInt16)
+            throw std::runtime_error("vulkan: " + d.name + " has no 16-bit integer arithmetic");
+        e2.features.shaderInt16 = VK_TRUE;
+        VkPhysicalDeviceShaderIntegerDotProductFeatures fdot{};
+        fdot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
+        VkPhysicalDeviceFeatures2 fq{};
+        fq.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        fq.pNext = &fdot;
+        fn.vkGetPhysicalDeviceFeatures2(d.physical, &fq);
+        if (!fdot.shaderIntegerDotProduct)
+            throw std::runtime_error("vulkan: " + d.name + " has no integer dot product");
+        VkPhysicalDeviceShaderIntegerDotProductFeatures edot{};
+        edot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
+        edot.shaderIntegerDotProduct = VK_TRUE;
+        edot.pNext = e2.pNext;
+        e2.pNext = &edot;
 
         uint32_t ext_count = 0;
         check(fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &ext_count, nullptr),
@@ -613,6 +644,9 @@ public:
             if (std::strcmp(e.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
                 d.push_descriptor = true;
+            } else if (std::strcmp(e.extensionName, VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME) == 0) {
+                // Core in 1.3; an extension on the 1.2 devices this targets.
+                enabled.push_back(VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME);
             }
 
         const float priority = 1.0f;
@@ -785,6 +819,7 @@ public:
     }
 
     void write(Buffer& dst_b, size_t off, const void* src, size_t bytes) override {
+        xq_tag_ = XqTag{};
         if (!src && bytes) throw std::runtime_error("vulkan: writing from null storage");
         VulkanBuffer& dst = as_vulkan(dst_b);
         span(dst, off, bytes);
@@ -800,6 +835,7 @@ public:
 
     void copy(Buffer& dst_b, size_t dst_off, const Buffer& src_b, size_t src_off,
               size_t bytes) override {
+        xq_tag_ = XqTag{};
         VulkanBuffer& dst = as_vulkan(dst_b);
         const VulkanBuffer& src = as_vulkan(src_b);
         span(dst, dst_off, bytes);
@@ -821,8 +857,11 @@ public:
 
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n) override {
         if (!n) return;
-        const uint32_t pc[1] = {u32(n)};
-        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up)}, pc, sizeof(pc), groups(n, 256));
+        const bool quant = n % 32 == 0;
+        const uint32_t pc[2] = {u32(n), quant ? 1u : 0u};
+        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
+                 groups(n, 256));
+        if (quant) xq_tag_ = XqTag{bind(dst), n};
     }
 
     void gather_rows(Slice dst, CSlice src, size_t width, const uint32_t* rows,
@@ -847,8 +886,11 @@ public:
     void rms_norm_rows(Slice dst, CSlice src, CSlice w, size_t rows, size_t n,
                        size_t stride, float eps) override {
         if (!rows || !n) return;
-        struct { uint32_t rows, n, stride; float eps; } pc{u32(rows), u32(n), u32(stride), eps};
-        dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w)}, &pc, sizeof(pc), u32(rows));
+        const bool quant = stride == n && n % 32 == 0;
+        struct { uint32_t rows, n, stride; float eps; uint32_t quant; } pc{u32(rows), u32(n), u32(stride), eps, quant ? 1u : 0u};
+        dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? xq_for(rows * n) : bind(dst)}, &pc, sizeof(pc),
+                 u32(rows));
+        if (quant) xq_tag_ = XqTag{bind(dst), rows * n};
     }
 
     void norm_rope_rows(Slice x, size_t rows, size_t stride, size_t heads, CSlice w,
@@ -1015,6 +1057,7 @@ public:
             wide = nblocks % 2 == 0 && nblocks / 2 >= kLanesPerPair && dev_->subgroup_size >= kLanesPerPair;
             lanes = wide ? kLanesPerPair : 1;
             units = wide ? nblocks / 2 * lanes : nblocks;
+            if (wide) kernel = K_MATMUL_ROW_Q8W;
             break;
         case gguf::GGML_TYPE_Q4_0:
             wide = nblocks % 2 == 0;
@@ -1049,6 +1092,24 @@ public:
         }
         if (total > dev_->props.limits.maxComputeWorkGroupCount[0])
             throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
+        // Quantized rows read the activations as 16-bit integers in blocks
+        // of 32 (shaders/xquant.glsl): the values, then a scale and three
+        // scaled sums per block. The
+        // norm, SiLU and attention kernels write that twin beside their
+        // output and tag it; an input without one gets a dispatch here.
+        // F32 rows read the floats and bind them in those slots too. The
+        // scratch is reused stream-ordered, like the attention split
+        // states.
+        VkDescriptorBufferInfo xqi = bind(X);
+        if (type != gguf::GGML_TYPE_F32) {
+            const VkDescriptorBufferInfo xf = bind(X);
+            xqi = xq_for(nbatch * nin);
+            if (!(xq_tag_.n == nbatch * nin && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset)) {
+                const uint32_t qpc[1] = {u32(nbatch * nin)};
+                dispatch(K_QUANTIZE_X, {xf, xqi}, qpc, sizeof(qpc), groups(nbatch * nin, 256));
+                xq_tag_ = XqTag{xf, nbatch * nin};
+            }
+        }
         // Unused projection slots bind the first one's buffers; no
         // workgroup reaches them.
         const Projection& a = *live[0];
@@ -1067,9 +1128,33 @@ public:
                       bind(a.data), bind(b.data), bind(c.data),
                       bind(a.data), bind(b.data), bind(c.data),
                       bind(X),
-                      bind(a.data), bind(b.data), bind(c.data)},
+                      bind(a.data), bind(b.data), bind(c.data),
+                      xqi, xqi, xqi, xqi},
                      pc, sizeof(pc), total);
         }
+        // The outputs may be what the twin describes.
+        for (const Projection* pr : live)
+            if (bind(pr->out).buffer == xq_tag_.x.buffer) xq_tag_ = XqTag{};
+    }
+
+    // The scratch the twin of an n-value input lives in: n / 2 words of
+    // pairs, then 8 bytes per block of 32 twice.
+    VkDescriptorBufferInfo xq_for(size_t n) {
+        const size_t bytes = n * 2 + (n / 32) * 16;
+        if (!xq_ || xq_->size() < bytes) {
+            grow(xq_, bytes);
+            xq_tag_ = XqTag{};
+        }
+        return VkDescriptorBufferInfo{xq_->handle(), 0, VK_WHOLE_SIZE};
+    }
+
+    // A stream-ordered scratch outgrown mid-pass: the commands already
+    // recorded still name the old buffer, so it retires with the ring slot
+    // rather than here.
+    void grow(std::shared_ptr<VulkanBuffer>& buffer, size_t bytes) {
+        open();
+        if (buffer) pending_[ring_index_].push_back(std::move(buffer));
+        buffer = std::make_shared<VulkanBuffer>(dev_, bytes, false);
     }
     KVLayout kv_layout() const override { return KVLayout{kVkBlockTokens}; }
 
@@ -1150,6 +1235,11 @@ public:
             ViewTable t = view_table(layer, narrow, false);
             VulkanKVStorage& s = *t.storage;
             check_storage(s, layer, n_head_kv, head_dim);
+            // The output's 16-bit twin for the row matmul that follows,
+            // written by whichever kernel writes the output, when the
+            // whole batch is this dispatch and a head is whole blocks.
+            const bool quant = wide.empty() && head_dim % 32 == 0;
+            const VkDescriptorBufferInfo xq = quant ? xq_for(rows * qstride) : bind(out);
             // Few (row, head) pairs, as in a decode step, split the
             // longest history into chunks of 32 tokens across workgroups,
             // enough to fill the device, capped at 64 splits; a batch with
@@ -1164,21 +1254,22 @@ public:
             nsplit = (longest + chunk - 1) / chunk;
             const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
             if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
-                scratch_ = std::make_shared<VulkanBuffer>(dev_, scratch_floats * sizeof(float), false);
-            struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk; }
+                grow(scratch_, scratch_floats * sizeof(float));
+            struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant; }
                 pc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, (uint32_t)head_dim, u32(kVkBlockTokens),
-                   scale, u32(nsplit), u32(chunk)};
+                   scale, u32(nsplit), u32(chunk), quant ? 1u : 0u};
             const VkDescriptorBufferInfo scratch = scratch_
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
             const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));
             dispatch(kv_variant(K_ATTENTION, K_ATTENTION_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
-                      table, scratch},
+                      table, scratch, xq},
                      &pc, sizeof(pc), groups(pairs * nsplit, 1));
             if (nsplit > 1) {
-                const uint32_t mc[4] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit)};
-                dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table}, mc, sizeof(mc), groups(pairs, 1));
+                const uint32_t mc[5] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u};
+                dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table, xq}, mc, sizeof(mc), groups(pairs, 1));
             }
+            if (quant) xq_tag_ = XqTag{bind(out), rows * qstride};
         }
     }
 
@@ -1419,6 +1510,10 @@ private:
                   const void* push, size_t push_bytes, uint32_t groups_x, uint32_t groups_y = 1) {
         Kernel& k = kernel(id);
         if (buffers.size() != k.buffers) throw std::logic_error("vulkan: kernel binding count");
+        if (id != K_QUANTIZE_X && id != K_RMS_NORM_ROWS && id != K_SILU_MUL && id != K_MATMUL_ROW &&
+            id != K_MATMUL_ROW_Q8W && id != K_MATMUL_ROW_Q4 && id != K_MATMUL_ROW_K4 && id != K_MATMUL_ROW_K5 &&
+            id != K_MATMUL_ROW_K)
+            xq_tag_ = XqTag{};
         if (push_bytes > kPushBytes) throw std::logic_error("vulkan: push constants exceed 128 bytes");
         for (const auto& b : buffers)
             if (!b.buffer) throw std::runtime_error("vulkan: dispatch over an empty allocation");
@@ -1525,6 +1620,12 @@ private:
     Ticket last_ticket_ = 0;
     std::unique_ptr<VulkanBuffer> staging_;
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
+    std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
+    // What the twin in xq_ describes: the float input it was made from
+    // and its length. Cleared by anything that writes a buffer other than
+    // the twin's makers, since the input may be what was written.
+    struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; };
+    XqTag xq_tag_;
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];
     Arena arena_[kRing];
     Kernel kernels_[K_COUNT];

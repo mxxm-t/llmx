@@ -3,6 +3,7 @@
 // buffer; submit() ends it and signals a timeline semaphore with the ticket
 // value, wait() blocks on that value, and a ring of command buffers is
 // reused once their tickets have retired.
+#include "backends/device_profile.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "format/gguf.hpp"
 
@@ -408,6 +409,8 @@ struct Device {
     VkPhysicalDeviceMemoryProperties memory{};
     uint32_t subgroup_size = 0;
     uint32_t compute_units = 16;  // what the vendor reports, else a small assumption
+    DeviceCaps caps{};            // what this device says of itself
+    DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
     std::string name;
     bool push_descriptor = false;
     bool int8 = false, float16 = false, storage8 = false, storage16 = false;
@@ -599,6 +602,11 @@ public:
             core.computeUnitsPerShaderArray)
             d.compute_units = core.shaderEngineCount * core.shaderArraysPerEngineCount *
                               core.computeUnitsPerShaderArray;
+        d.caps.subgroup_size = d.subgroup_size;
+        d.caps.compute_units = d.compute_units;
+        d.caps.shared_memory_bytes = d.props.limits.maxComputeSharedMemorySize;
+        d.caps.matrix_units = false;   // no gfx906 has them; a device that does sets this
+        d.profile = profile_for(d.caps);
         // The row kernel places one subgroup per row inside a workgroup of
         // 256, which needs the subgroup size to divide it.
         if (!d.subgroup_size || 256 % d.subgroup_size ||
@@ -1170,9 +1178,10 @@ public:
         // wins from about 24 rows on Qwen3-8B-Q8_0, 64 on 8B-Q4_K_M and 64
         // on 0.6B-Q8_0, and loses at 16 rows on every file, so 8-bit rows
         // take it from 32 and the others from 64 (docs/VULKAN.md).
-        size_t tile_from = 32;
+        size_t tile_from = dev_->profile.tile_from_8bit;
         for (const Projection* pr : live)
-            if (pr->type != gguf::GGML_TYPE_Q8_0 && pr->type != gguf::GGML_TYPE_F32) tile_from = 64;
+            if (pr->type != gguf::GGML_TYPE_Q8_0 && pr->type != gguf::GGML_TYPE_F32)
+                tile_from = dev_->profile.tile_from_other;
         if (nbatch >= tile_from) {
             const size_t gy = (nbatch + 63) / 64;
             if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
@@ -1182,8 +1191,8 @@ public:
                 // product and is worth about half again on a wide call, but it
                 // halves the workgroups; below one per compute unit the device
                 // runs out of work first, so the call takes the shorter tile.
-                const size_t tall_groups = ((pr->rows + kTileRowsTall - 1) / kTileRowsTall) * gy;
-                const bool tall = tall_groups >= dev_->compute_units;
+                const bool tall = tile_rows_for(dev_->caps, kTileRowsShort, kTileRowsTall, pr->rows, gy) ==
+                                  kTileRowsTall;
                 const KernelId kernel = tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE;
                 const uint32_t pc[5] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u};
                 const uint32_t gx = groups(pr->rows, tall ? kTileRowsTall : kTileRowsShort);
@@ -1222,12 +1231,14 @@ public:
         size_t units = nin;
         KernelId kernel = K_MATMUL_ROW;
         switch (type) {
-        case gguf::GGML_TYPE_Q8_0:
-            wide = nblocks % 2 == 0 && nblocks / 2 >= kLanesPerPair && dev_->subgroup_size >= kLanesPerPair;
-            lanes = wide ? kLanesPerPair : 1;
+        case gguf::GGML_TYPE_Q8_0: {
+            const uint32_t per_pair = dev_->profile.q8_lanes_per_pair;
+            wide = nblocks % 2 == 0 && nblocks / 2 >= per_pair && dev_->subgroup_size >= per_pair;
+            lanes = wide ? per_pair : 1;
             units = wide ? nblocks / 2 * lanes : nblocks;
             if (wide) kernel = K_MATMUL_ROW_Q8W;
             break;
+        }
         case gguf::GGML_TYPE_Q4_0:
             wide = nblocks % 2 == 0;
             lanes = wide ? 2 : 1;
@@ -1241,8 +1252,9 @@ public:
         case gguf::GGML_TYPE_Q4_K:
         case gguf::GGML_TYPE_Q5_K:
         case gguf::GGML_TYPE_Q6_K:
-            lanes = 8;
-            if (dev_->subgroup_size < lanes) throw std::runtime_error("vulkan: K-quant rows need a subgroup of 8 lanes");
+            lanes = dev_->profile.kquant_lanes;
+            if (dev_->subgroup_size < lanes)
+                throw std::runtime_error("vulkan: K-quant rows need a subgroup of " + std::to_string(lanes) + " lanes");
             units = nblocks * lanes;
             kernel = type == gguf::GGML_TYPE_Q6_K ? K_MATMUL_ROW_K : type == gguf::GGML_TYPE_Q5_K ? K_MATMUL_ROW_K5 : K_MATMUL_ROW_K4;
             break;
@@ -1386,13 +1398,14 @@ public:
         // would stage its whole history for one live row.
         std::vector<Placed> wide, narrow;
         for (const Placed& pv : placed)
-            (pv.view->nq >= kAttentionTileRows && head_dim == 128 ? wide : narrow).push_back(pv);
+            (pv.view->nq >= dev_->profile.attention_tile_rows && head_dim == 128 ? wide : narrow).push_back(pv);
         if (!wide.empty()) {
             ViewTable t = view_table(layer, wide, false);
             VulkanKVStorage& s = *t.storage;
             check_storage(s, layer, n_head_kv, head_dim);
             size_t tiles = 0;
-            for (const Placed& pv : wide) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
+            const size_t atr = dev_->profile.attention_tile_rows;
+            for (const Placed& pv : wide) tiles += (pv.view->nq + atr - 1) / atr;
             struct { uint32_t rows, n_head, n_head_kv, bt; float scale; }
                 tc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale};
             dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
@@ -1418,7 +1431,11 @@ public:
                 longest = std::max(longest, VulkanKVStorage::add(pv.view->length, pv.view->nq));
             const size_t pairs = t.rows * (size_t)n_head;
             size_t nsplit = 1;
-            if (pairs < 256) nsplit = std::min<size_t>(64, std::max<size_t>(1, (longest + 31) / 32));
+            const DeviceProfile& prof = dev_->profile;
+            if (pairs < prof.attention_split_below_pairs)
+                nsplit = std::min(prof.attention_split_max,
+                                  std::max<size_t>(1, (longest + prof.attention_split_chunk - 1) /
+                                                          prof.attention_split_chunk));
             const size_t chunk = (longest + nsplit - 1) / nsplit;
             nsplit = (longest + chunk - 1) / chunk;
             const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
@@ -1517,10 +1534,7 @@ public:
 
 private:
     static const uint32_t kRing = 4;
-    static const uint32_t kChunk = 64;
     uint32_t chunk_ = 0;
-    static const uint32_t kLanesPerPair = 4;
-    static const size_t kAttentionTileRows = 32;
     static const size_t kStagingBytes = size_t(64) << 20;
     static const size_t kArenaBytes = size_t(1) << 20;
     static const uint32_t kPushBytes = 128;
@@ -1724,7 +1738,7 @@ private:
         // them all. Recording a decode token of Qwen3-0.6B takes the host
         // about 0.5 ms against 6 ms on the device; chunks of 64 measured
         // best of 16, 32, 64, 128 and 256 (150, 156, 158, 152, 149 tok/s).
-        if (++chunk_ >= kChunk) submit();
+        if (++chunk_ >= dev_->profile.dispatch_chunk) submit();
     }
 
     [[noreturn]] static void todo(const char* op, int substep) {

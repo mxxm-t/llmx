@@ -361,7 +361,7 @@ matters: **each layer depends only on the layers below it** -
 | `format/`    | ModelFormat interface + GGUF v3 impl           |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3 pretokenizer       |
 | `model/`     | Qwen3 config + forward pass, KV cache          |
-| `backends/`  | Backend interface + cpu/ (AVX2) impl; one worker pool |
+| `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
 | `inference/` | sampler, generate, perplexity, chat template renderer      |
 | `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler with prefix reuse, routes |
 | `cli/`       | thin argument parsing + dispatch               |

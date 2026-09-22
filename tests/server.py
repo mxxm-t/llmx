@@ -98,7 +98,8 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
         health = srv.get("/v1/health")
         assert health["status"] == "ok" and health["active"] == 0, health
         models = srv.get("/v1/models")
-        assert models["models"][0]["context_length"] > 0, models
+        assert models["object"] == "list" and models["data"][0]["object"] == "model", models
+        assert models["data"][0]["id"] and models["data"][0]["context_length"] > 0, models
 
         # Greedy through the server gives the CLI's text, and the ids are
         # kept for the checks that follow.
@@ -158,6 +159,35 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
                                                   "max_tokens": 2, "temperature": 0})
             assert status == 200 and reply["tokens"] >= 1, reply
 
+        # The compatible routes: /v1/completions gives the native route's
+        # greedy text in the standard shape, whole and streamed with the
+        # finish chunk then the end marker; /v1/chat/completions renders
+        # the same template as /v1/chat, its first chunk carries the role
+        # and its usage counts add up; the standard refusals have the
+        # standard shape.
+        status, reply = srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": n, "temperature": 0})
+        assert status == 200 and reply["object"] == "text_completion", reply
+        assert reply["choices"][0]["text"] == cli_greedy_text(model, prompts[0], n), reply
+        assert reply["choices"][0]["finish_reason"] in ("stop", "length"), reply
+        assert reply["usage"]["total_tokens"] == reply["usage"]["prompt_tokens"] + reply["usage"]["completion_tokens"], reply
+        events = srv.stream("/v1/completions", {"prompt": prompts[0], "max_tokens": n, "temperature": 0, "stream": True,
+                                                "stream_options": {"include_usage": True}})
+        assert events[-1] is None and events[-2]["usage"]["completion_tokens"] == len(expected[prompts[0]]), events[-3:]
+        assert events[-3]["choices"][0]["finish_reason"] in ("stop", "length"), events[-3]
+        assert "".join(e["choices"][0]["text"] for e in events[:-2]) == reply["choices"][0]["text"], events
+        status, err = srv.post("/v1/completions", {"prompt": prompts[0], "n": 2})
+        assert status == 400 and err["error"]["message"], err
+        if chat:
+            status, reply = srv.post("/v1/chat/completions",
+                                     {"messages": [{"role": "user", "content": [{"type": "text", "text": prompts[0]}]}],
+                                      "max_completion_tokens": 2, "temperature": 0})
+            assert status == 200 and reply["object"] == "chat.completion", reply
+            assert reply["choices"][0]["message"]["role"] == "assistant" and reply["usage"]["completion_tokens"] >= 1, reply
+            events = srv.stream("/v1/chat/completions", {"messages": [{"role": "user", "content": prompts[0]}],
+                                                         "max_tokens": 2, "temperature": 0, "stream": True})
+            assert events[0]["choices"][0]["delta"]["role"] == "assistant", events[0]
+            assert events[-1] is None and events[-2]["choices"][0]["finish_reason"] in ("stop", "length"), events[-2:]
+
         # Prefix reuse: a long prompt, then the same prompt with a different
         # ending; the second forks the first's full blocks, prefills only
         # what follows, and its greedy text equals the CLI's for the whole.
@@ -187,7 +217,7 @@ def run():
         # The synthetic model's context is 16 tokens: prompt plus tokens stay inside it.
         n = check_server(model, ["a", "ab", "abc", "abcdefg"], 6, 14, chat=False)
         print("server: synthetic F32 model, %d prompts greedy-equal to the CLI alone and four at a time, a stream, "
-              "a seeded repeat, refusals, a cancelled stream  [ok]" % n)
+              "a seeded repeat, refusals, a cancelled stream, the compatible completions  [ok]" % n)
     real = baseline.find_fixture(baseline.BASELINE_MODELS[0])
     if real:
         with open(os.path.join(os.path.dirname(__file__), "data", "baseline_perplexity.json"), encoding="utf-8") as f:
@@ -195,7 +225,7 @@ def run():
         n = check_server(real, ["The capital of France is", "Once upon a time", "def fib(n):", "The three laws of"],
                          16, 4000, chat=True, prefix=excerpt)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
-              "refusals, a cancelled stream, a chat turn, a reused prefix  [ok]" % (os.path.basename(real), n))
+              "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix  [ok]" % (os.path.basename(real), n))
     else:
         print("server: SKIP real-model pass - fixture model not on disk")
     return True

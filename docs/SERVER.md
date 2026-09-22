@@ -138,8 +138,21 @@ POST /v1/chat        {"messages": [{"role": "user", "content": "..."}], ...}
                      the model's chat template renders the prompt
 GET  /v1/health      {"status": "ok", "model": "...", "active": n, "queued": m,
                       "donors": d, "prefix_hits": h, "prefix_tokens": t}
-GET  /v1/models      the loaded file, its quantization mix and context length
+GET  /v1/models      {"object": "list", "data": [{"id": "...", "object": "model", ...}]}
+POST /v1/chat/completions   the OpenAI clients' shape over the same scheduler
+POST /v1/completions        request: one parse, one request, one drain loop
 ```
+
+The compatible routes exist so existing tools connect without a client of
+their own: they list `/v1/models`, send its `id` back as the model, and
+stream `/v1/chat/completions` as chunks with the role in the first delta,
+`finish_reason` in the last and `data: [DONE]` after. They are a JSON
+mapping in the routes file over the scheduler the native routes use, with
+llmx's own knobs (`top_k`, `penalty`, `seed`) accepted as extra fields and
+the synonyms the clients send (`max_completion_tokens`, `repetition_penalty`)
+beside them, validated before anything reaches the model, and they cost a
+request exactly what a native one costs. What the shape cannot carry, token
+ids and the reused-prefix count, stays on the native routes.
 
 A streaming response is `text/event-stream`: one `data:` line per token
 with the id and the decoded text, a final `data: [DONE]`, and the same
@@ -189,3 +202,4 @@ full.
 | 3a | One dispatch per layer for `kv_write`, `attention` and `norm_rope_kv` over every view of a batch (**done**: a view table per dispatch, `shaders/views.glsl`) | The backend-vulkan checks over two views and the device HF gate; the throughput gate again: 118, 112, 109 and 125 percent of the reference's server at 1, 4, 8 and 16, met |
 | 4 | Prefix reuse: finished requests kept as donors, the longest shared run of full blocks forked on admission (**done**) | The `server` component: a prompt repeating a 247-token excerpt with a different ending reuses the first request's blocks and its greedy text equals the CLI's; a 1995-token prefix on Qwen3-0.6B-Q8_0 costs 1.53 s the first time and 0.16 s with a donor on the device (8B: 8.74 s to 0.72 s; CPU 0.6B: 6.95 s to 0.95 s) |
 | 5 | The second execution context, if measured to help (**measured, not added**) | The host gap between passes is about 25 microseconds at 1, 4, 8 and 16 sequences on the device, against passes of 5 to 31 milliseconds; see the scheduler loop above |
+| 6 | The compatible routes: `/v1/chat/completions`, `/v1/completions`, `/v1/models` in the OpenAI clients' shape (**done**) | The `server` component: greedy equality with the CLI through `/v1/completions` whole and streamed, usage counts, the role in the first chat chunk and the finish reason in the last, text content parts, the refusals' shape; CPU and device |

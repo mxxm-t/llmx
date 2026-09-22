@@ -126,6 +126,19 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   0.6B decode pass and about 3 percent of an 8B one. Recorded as an open
   backend lever, not built: it is a small-model gain and the device is
   already past the reference on those.
+  SERVER.md step 6, the compatible routes the user asked for so that
+  the tools people already run connect to `llmx serve` unchanged:
+  `/v1/chat/completions`, `/v1/completions` and `/v1/models` in the
+  shape the OpenAI clients speak, the shape vLLM and the reference's
+  server expose too. They are a JSON mapping in `src/server/api.hpp`
+  over the same scheduler: one parse, one request, one drain loop, the
+  native routes' knobs accepted as extra fields and the clients'
+  synonyms beside them, everything validated before the model, errors
+  in the clients' `{"error": {"message", "type"}}`. The `server`
+  component checks greedy equality with the CLI through
+  `/v1/completions` whole and streamed, the usage counts, the role in
+  the first chat chunk and the finish reason in the last, text content
+  parts and the refusals; it passes on the CPU and on the device.
 - **Left:** the 16-column row kernel if sixteen-way batches turn out to
   matter; replaying a recorded decode pass, above, if small-model decode
   becomes the target.
@@ -1515,7 +1528,7 @@ their own measurements; K-quant optimization remains separate work below.
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, at or above the reference on Q8_0 decode and every prefill, 79 to 91 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
-| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 5): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device, prefix reuse through fork, a second execution context measured to have nothing to hide |
+| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 6): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device, prefix reuse through fork, a second execution context measured to have nothing to hide, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |

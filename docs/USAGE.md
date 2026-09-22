@@ -371,7 +371,21 @@ when it faces a network. Defaults: `127.0.0.1:8080`, 16 sequences.
 | `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "stream": false}` | `{"text", "ids", "finish", "prompt_tokens", "reused_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length` |
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "..."}], ...}` (the same sampling fields) | as above; the prompt is the model's chat template over the messages |
 | `GET /v1/health` | | `{"status": "ok", "model", "active", "queued", "donors", "prefix_hits", "prefix_tokens"}` |
-| `GET /v1/models` | | the loaded file, its context length and vocabulary |
+| `GET /v1/models` | | `{"object": "list", "data": [{"id", "object": "model", "created", "owned_by", "context_length", "vocab"}]}` |
+| `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}}`, plus `top_k`, `penalty` or `repetition_penalty` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "content"}, "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}` |
+| `POST /v1/completions` | `{"prompt": "...", ...}` (the same fields) | as above with `"object": "text_completion"` and `choices[0].text` |
+
+The last two are the shape the OpenAI clients speak, so a UI, an SDK or a
+script written for any such server connects to `llmx serve` unchanged: it
+lists `/v1/models`, sends the `id` it finds there as the model and streams
+`/v1/chat/completions`. Streamed, each `data:` line is a chunk whose first
+delta carries the role, the last carries `finish_reason` (`stop` for the
+end of text or a stop string, `length` for the token limit), a usage chunk
+follows when asked for, then `data: [DONE]`. A message's content is a
+string or an array of `{"type": "text", "text"}` parts; `n` other than 1
+and non-text parts are refused with 400 in the clients' error shape,
+`{"error": {"message", "type"}}`. The native routes carry what the shape
+cannot: token ids, the `eos` finish and the reused-prefix count.
 
 With `"stream": true` the reply is `text/event-stream`: one `data:` line
 per token holding its id and text (a character split across tokens is

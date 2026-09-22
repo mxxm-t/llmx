@@ -1,10 +1,16 @@
 #pragma once
-// The routes of docs/SERVER.md over the HTTP layer and the scheduler:
-// /v1/generate and /v1/chat, streamed as server-sent events or returned
-// whole, /v1/health and /v1/models. One thread per connection parses,
-// tokenizes, submits and drains; the scheduler thread runs the model.
+// The routes of docs/SERVER.md over the HTTP layer and the scheduler.
+// Native: /v1/generate and /v1/chat, streamed as server-sent events or
+// returned whole, /v1/health. Compatible: /v1/chat/completions and
+// /v1/completions in the shape the OpenAI clients speak, so existing
+// tools connect without a client of their own, and /v1/models as the
+// list they read the model name from. Both families are one parse, one
+// scheduler request and one drain loop; only the JSON around the tokens
+// differs. One thread per connection parses, tokenizes, submits and
+// drains; the scheduler thread runs the model.
 #include <atomic>
 #include <cmath>
+#include <ctime>
 #include <string>
 #include <thread>
 #include <vector>
@@ -63,7 +69,7 @@ class Api {
 public:
     Api(infer::Model& model, const bpe::Tokenizer& tok, const gguf::GGUFModel& file, Scheduler& sched,
         const Config& cfg)
-        : model_(model), tok_(tok), sched_(sched), cfg_(cfg) {
+        : model_(model), tok_(tok), sched_(sched), cfg_(cfg), started_((int64_t)std::time(nullptr)) {
         template_ = chat::get_chat_template(file);
         if (template_.empty())
             template_ = "{% for message in messages %}<|im_start|>{{ message['role'] }}\n"
@@ -78,29 +84,36 @@ public:
         int status = 0;
         http::Limits limits;
         if (!c.read_request(req, limits, status)) {
-            if (status) c.respond(status, "application/json", error_json(http::reason(status)));
+            if (status) c.respond(status, "application/json", error_json(http::reason(status), false));
             return;
         }
+        // The compatible routes report errors in their clients' shape.
+        const bool compat = req.path == "/v1/chat/completions" || req.path == "/v1/completions";
         try {
             if (req.method == "GET" && req.path == "/v1/health") return health(c);
             if (req.method == "GET" && req.path == "/v1/models") return models(c);
-            if (req.method == "POST" && (req.path == "/v1/generate" || req.path == "/v1/chat"))
-                return generate(c, req, req.path == "/v1/chat");
-            c.respond(404, "application/json", error_json("no such route"));
+            if (req.method == "POST" && req.path == "/v1/generate") return generate(c, req, Route::generate);
+            if (req.method == "POST" && req.path == "/v1/chat") return generate(c, req, Route::chat);
+            if (req.method == "POST" && req.path == "/v1/chat/completions") return generate(c, req, Route::chat_completions);
+            if (req.method == "POST" && req.path == "/v1/completions") return generate(c, req, Route::completions);
+            c.respond(404, "application/json", error_json("no such route", compat));
         } catch (const BadRequest& e) {
-            c.respond(e.status, "application/json", error_json(e.what()));
+            c.respond(e.status, "application/json", error_json(e.what(), compat));
         } catch (const std::exception& e) {
-            try { c.respond(500, "application/json", error_json(e.what())); } catch (...) {}
+            try { c.respond(500, "application/json", error_json(e.what(), compat)); } catch (...) {}
         }
     }
 
 private:
+    enum class Route { generate, chat, chat_completions, completions };
+
     struct BadRequest : std::runtime_error {
         int status;
         BadRequest(int s, const std::string& m) : std::runtime_error(m), status(s) {}
     };
-    static std::string error_json(const std::string& message) {
-        return "{\"error\":" + jmini::quote(message) + "}";
+    static std::string error_json(const std::string& message, bool compat) {
+        if (!compat) return "{\"error\":" + jmini::quote(message) + "}";
+        return "{\"error\":{\"message\":" + jmini::quote(message) + ",\"type\":\"invalid_request_error\"}}";
     }
 
     void health(http::Connection& c) {
@@ -111,9 +124,12 @@ private:
                   ",\"donors\":" + std::to_string(s.donors) + ",\"prefix_hits\":" + std::to_string(s.prefix_hits) +
                   ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + "}");
     }
+    // The list clients read the model id from, with the file's context
+    // length and vocabulary beside the standard fields.
     void models(http::Connection& c) {
         c.respond(200, "application/json",
-                  "{\"models\":[{\"name\":" + jmini::quote(cfg_.model_name) +
+                  "{\"object\":\"list\",\"data\":[{\"id\":" + jmini::quote(cfg_.model_name) +
+                  ",\"object\":\"model\",\"created\":" + std::to_string(started_) + ",\"owned_by\":\"llmx\"" +
                   ",\"context_length\":" + std::to_string(model_.config().context_length) +
                   ",\"vocab\":" + std::to_string(model_.n_vocab()) + "}]}");
     }
@@ -124,37 +140,60 @@ private:
         if (!f->isNumber() || !std::isfinite(f->asNumber())) throw BadRequest(400, std::string(key) + " must be a number");
         return f->asNumber();
     }
+    static bool flag(const jmini::Value& v, const char* key) {
+        const jmini::Value* f = v.get(key);
+        return f && f->t == jmini::Value::T::Bool && f->b;
+    }
 
-    void generate(http::Connection& c, const http::Request& req, bool chat_route) {
-        jmini::Value body;
-        try { body = jmini::parse(req.body); }
-        catch (const std::exception& e) { throw BadRequest(400, std::string("bad JSON: ") + e.what()); }
-        if (!body.isObject()) throw BadRequest(400, "the body must be a JSON object");
-
-        std::string prompt;
-        if (chat_route) {
-            const jmini::Value* msgs = body.get("messages");
-            if (!msgs || !msgs->isArray() || msgs->asArray().empty()) throw BadRequest(400, "messages must be a non-empty array");
-            std::vector<chat::Message> messages;
-            for (const auto& m : msgs->asArray()) {
-                const jmini::Value* role = m.get("role");
-                const jmini::Value* content = m.get("content");
-                if (!role || !role->isString() || !content || !content->isString())
-                    throw BadRequest(400, "every message needs a string role and content");
-                messages.push_back({role->asString(), content->asString()});
-            }
-            prompt = chat::render(template_, messages, true, bos_, eos_);
-        } else {
-            const jmini::Value* p = body.get("prompt");
-            if (!p || !p->isString() || p->asString().empty()) throw BadRequest(400, "prompt must be a non-empty string");
-            prompt = p->asString();
+    // A message's content: a string, or the array of text parts the
+    // compatible chat route accepts.
+    static std::string content_of(const jmini::Value& m) {
+        const jmini::Value* content = m.get("content");
+        if (!content) throw BadRequest(400, "every message needs a content");
+        if (content->isString()) return content->asString();
+        if (!content->isArray()) throw BadRequest(400, "message content must be a string or an array of text parts");
+        std::string text;
+        for (const auto& part : content->asArray()) {
+            const jmini::Value* type = part.get("type");
+            const jmini::Value* t = part.get("text");
+            if (!type || !type->isString() || type->asString() != "text" || !t || !t->isString())
+                throw BadRequest(400, "only text content parts are supported");
+            text += t->asString();
         }
+        return text;
+    }
+
+    std::string render_messages(const jmini::Value& body) {
+        const jmini::Value* msgs = body.get("messages");
+        if (!msgs || !msgs->isArray() || msgs->asArray().empty()) throw BadRequest(400, "messages must be a non-empty array");
+        std::vector<chat::Message> messages;
+        for (const auto& m : msgs->asArray()) {
+            const jmini::Value* role = m.get("role");
+            if (!role || !role->isString()) throw BadRequest(400, "every message needs a string role");
+            messages.push_back({role->asString(), content_of(m)});
+        }
+        return chat::render(template_, messages, true, bos_, eos_);
+    }
+
+    // The prompt text of a request on each route.
+    std::string prompt_of(const jmini::Value& body, Route route) {
+        if (route == Route::chat || route == Route::chat_completions) return render_messages(body);
+        const jmini::Value* p = body.get("prompt");
+        if (route == Route::completions && p && p->isArray() && p->asArray().size() == 1) p = &p->asArray()[0];
+        if (!p || !p->isString() || p->asString().empty()) throw BadRequest(400, "prompt must be a non-empty string");
+        return p->asString();
+    }
+
+    // The sampling fields, native names first and the compatible routes'
+    // synonyms accepted beside them.
+    SampleParams params_of(const jmini::Value& body, Route route) {
+        const bool compat = route == Route::chat_completions || route == Route::completions;
         SampleParams params;
-        params.max_tokens = (int)number(body, "max_tokens", 64);
+        params.max_tokens = (int)number(body, "max_tokens", compat ? number(body, "max_completion_tokens", 64) : 64);
         params.temp = (float)number(body, "temperature", 0.8);
         params.top_k = (int)number(body, "top_k", 40);
         params.top_p = (float)number(body, "top_p", 0.95);
-        params.penalty = (float)number(body, "penalty", 1.0);
+        params.penalty = (float)number(body, "penalty", compat ? number(body, "repetition_penalty", 1.0) : 1.0);
         params.seed = (uint64_t)number(body, "seed", 0);
         if (const jmini::Value* stop = body.get("stop")) {
             if (stop->isString()) params.stop.push_back(stop->asString());
@@ -162,8 +201,49 @@ private:
                 for (const auto& s : stop->asArray())
                     if (s.isString()) params.stop.push_back(s.asString());
         }
-        bool stream = false;
-        if (const jmini::Value* s = body.get("stream")) stream = s->t == jmini::Value::T::Bool && s->b;
+        if (compat && number(body, "n", 1) != 1) throw BadRequest(400, "n must be 1");
+        return params;
+    }
+
+    static std::string finish_reason(const std::string& finish) {
+        return finish == "length" ? "length" : "stop";
+    }
+    std::string usage_json(size_t prompt_tokens, size_t tokens) const {
+        return "{\"prompt_tokens\":" + std::to_string(prompt_tokens) + ",\"completion_tokens\":" + std::to_string(tokens) +
+               ",\"total_tokens\":" + std::to_string(prompt_tokens + tokens) + "}";
+    }
+    // The head every compatible object and chunk starts with.
+    std::string head(const std::string& id, const char* object) const {
+        return "{\"id\":" + jmini::quote(id) + ",\"object\":\"" + object + "\",\"created\":" + std::to_string(started_) +
+               ",\"model\":" + jmini::quote(cfg_.model_name);
+    }
+    // One streamed chunk of a compatible route: a chat delta or a text
+    // piece, with the finish reason on the last.
+    std::string chunk(Route route, const std::string& id, const std::string& piece, bool first,
+                      const std::string* finish) const {
+        const std::string fr = finish ? jmini::quote(finish_reason(*finish)) : "null";
+        if (route == Route::chat_completions) {
+            std::string delta = first ? "{\"role\":\"assistant\",\"content\":" + jmini::quote(piece) + "}"
+                              : finish ? "{}" : "{\"content\":" + jmini::quote(piece) + "}";
+            return head(id, "chat.completion.chunk") + ",\"choices\":[{\"index\":0,\"delta\":" + delta +
+                   ",\"finish_reason\":" + fr + "}]}";
+        }
+        return head(id, "text_completion") + ",\"choices\":[{\"index\":0,\"text\":" + jmini::quote(piece) +
+               ",\"finish_reason\":" + fr + "}]}";
+    }
+
+    void generate(http::Connection& c, const http::Request& req, Route route) {
+        jmini::Value body;
+        try { body = jmini::parse(req.body); }
+        catch (const std::exception& e) { throw BadRequest(400, std::string("bad JSON: ") + e.what()); }
+        if (!body.isObject()) throw BadRequest(400, "the body must be a JSON object");
+        const bool compat = route == Route::chat_completions || route == Route::completions;
+
+        const std::string prompt = prompt_of(body, route);
+        const SampleParams params = params_of(body, route);
+        const bool stream = flag(body, "stream");
+        const jmini::Value* so = body.get("stream_options");
+        const bool include_usage = so && so->isObject() && flag(*so, "include_usage");
 
         std::vector<uint32_t> ids = tok_.encode(prompt);
         if (ids.empty()) throw BadRequest(400, "the prompt encodes to no tokens");
@@ -173,34 +253,57 @@ private:
         std::shared_ptr<Request> r;
         try { r = sched_.submit(std::move(ids), params); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
+        const std::string id = (route == Route::chat_completions ? "chatcmpl-" : "cmpl-") + std::to_string(next_id_.fetch_add(1));
 
         // Drain the channel. A write that fails means the client went
         // away: cancel the request and stop.
         std::vector<uint32_t> gen;
         std::string text, pending;
+        bool first = true;
         try {
             if (stream) c.begin_stream(200, "text/event-stream");
-            uint32_t id;
-            while (r->next(id)) {
-                gen.push_back(id);
-                pending += tok_.decode({id});
+            uint32_t tid;
+            while (r->next(tid)) {
+                gen.push_back(tid);
+                pending += tok_.decode({tid});
                 const size_t whole = utf8_complete(pending);
                 const std::string piece = utf8_sanitize(pending.substr(0, whole));
                 pending.erase(0, whole);
                 text += piece;
-                if (stream)
-                    c.write_chunk("data: {\"id\":" + std::to_string(id) + ",\"text\":" + jmini::quote(piece) + "}\n\n");
+                if (!stream) continue;
+                if (compat) c.write_chunk("data: " + chunk(route, id, piece, first, nullptr) + "\n\n");
+                else c.write_chunk("data: {\"id\":" + std::to_string(tid) + ",\"text\":" + jmini::quote(piece) + "}\n\n");
+                first = false;
             }
             // Whatever is left never completed a character.
             pending = utf8_sanitize(pending);
             text += pending;
             const std::string finish = r->finish();
             if (finish == "error") throw std::runtime_error(r->error());
-            if (stream) {
+            const size_t prompt_tokens = r->prompt().size();
+            if (stream && compat) {
+                if (!pending.empty() || first) c.write_chunk("data: " + chunk(route, id, pending, first, nullptr) + "\n\n");
+                c.write_chunk("data: " + chunk(route, id, "", false, &finish) + "\n\n");
+                if (include_usage)
+                    c.write_chunk("data: " + head(id, route == Route::chat_completions ? "chat.completion.chunk" : "text_completion") +
+                                  ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size()) + "}\n\n");
+                c.write_chunk("data: [DONE]\n\n");
+                c.end_stream();
+            } else if (stream) {
                 if (!pending.empty()) c.write_chunk("data: {\"text\":" + jmini::quote(pending) + "}\n\n");
                 c.write_chunk("data: {\"done\":true,\"finish\":" + jmini::quote(finish) +
                               ",\"tokens\":" + std::to_string(gen.size()) + "}\n\ndata: [DONE]\n\n");
                 c.end_stream();
+            } else if (route == Route::chat_completions) {
+                c.respond(200, "application/json",
+                          head(id, "chat.completion") + ",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":" +
+                          jmini::quote(text) + "},\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
+                          usage_json(prompt_tokens, gen.size()) + "}");
+            } else if (route == Route::completions) {
+                c.respond(200, "application/json",
+                          head(id, "text_completion") + ",\"choices\":[{\"index\":0,\"text\":" + jmini::quote(text) +
+                          ",\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
+                          usage_json(prompt_tokens, gen.size()) + "}");
             } else {
                 std::string ids_json = "[";
                 for (size_t i = 0; i < gen.size(); ++i) ids_json += (i ? "," : "") + std::to_string(gen[i]);
@@ -208,7 +311,7 @@ private:
                 c.respond(200, "application/json",
                           "{\"text\":" + jmini::quote(text) + ",\"ids\":" + ids_json +
                           ",\"finish\":" + jmini::quote(finish) + ",\"prompt_tokens\":" +
-                          std::to_string(r->prompt().size()) + ",\"reused_tokens\":" + std::to_string(r->reused()) +
+                          std::to_string(prompt_tokens) + ",\"reused_tokens\":" + std::to_string(r->reused()) +
                           ",\"tokens\":" + std::to_string(gen.size()) + "}");
             }
         } catch (...) {
@@ -223,6 +326,8 @@ private:
     const bpe::Tokenizer& tok_;
     Scheduler& sched_;
     Config cfg_;
+    const int64_t started_;
+    std::atomic<uint64_t> next_id_{1};
     std::string template_, bos_, eos_;
 };
 

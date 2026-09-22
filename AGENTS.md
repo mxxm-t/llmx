@@ -266,9 +266,10 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   download and the Q8_0 fixture when present: greedy through `/v1/generate`
   equals `generate --temp 0` alone and four at a time, a stream carries the
   same ids, a seeded request repeats, refusals, a client leaving mid-stream
-  leaves nothing active, a chat turn, and a prompt repeating a finished
-  request's tokens reuses its blocks with the CLI's greedy text. Skips
-  under `--cache-type f16`.
+  leaves nothing active, a chat turn, the compatible `/v1/completions`
+  and `/v1/chat/completions` whole and streamed in the OpenAI clients'
+  shape, and a prompt repeating a finished request's tokens reuses its
+  blocks with the CLI's greedy text. Skips under `--cache-type f16`.
   Throughput is measured separately with `tools/server_load.py`.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,

@@ -100,9 +100,35 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   The reuse is bounded by the block size (64 on the device, 128 on the
   CPU) and by the last prompt token, which is always prefilled for its
   logits.
-- **Left:** SERVER.md step 5, the second execution context if measured to
-  help; the 16-column row kernel if sixteen-way batches turn out to
-  matter.
+  SERVER.md step 5, the second execution context, measured and not added.
+  A timing build split every scheduler pass on the device into the
+  `forward` call (recording and submitting), the wait for its logits and
+  the host's work until the next `forward`, Qwen3-0.6B-Q8_0, 64 tokens
+  per request, 200 passes each:
+
+  | sequences | forward call | wait | host between passes | per pass |
+  |---:|---:|---:|---:|---:|
+  | 1 | 1.6 ms | 3.4 ms | 0.02 ms | 5.0 ms |
+  | 4 | 2.9 ms | 6.6 ms | 0.02 ms | 9.5 ms |
+  | 8 | 4.5 ms | 10.7 ms | 0.03 ms | 15.2 ms |
+  | 16 | 18.7 ms | 30.9 ms | 0.03 ms | 49.6 ms |
+
+  A second context could hide only the last column, and there is nothing
+  there to hide: greedy sampling over the vocabulary is tens of
+  microseconds. The same build with one submission per pass instead of
+  one every 64 dispatches puts pure recording at 0.7 ms per pass at one
+  sequence and 1.7 at eight, the rest of the `forward` column being the
+  chunked queue submissions, and costs 2 percent of `bench` decode (218
+  to 213 tok/s), so the chunking stays. The recording cannot overlap the
+  device either way, since the next pass's tokens come from this one; a
+  recorded pass replayed with the next tokens, positions and view table
+  written into the arena would recover it, at most 15 percent of a
+  0.6B decode pass and about 3 percent of an 8B one. Recorded as an open
+  backend lever, not built: it is a small-model gain and the device is
+  already past the reference on those.
+- **Left:** the 16-column row kernel if sixteen-way batches turn out to
+  matter; replaying a recorded decode pass, above, if small-model decode
+  becomes the target.
 - **Gotchas:** the scheduler thread is the only caller of `forward` for its
   devices, by contract; connection threads queue and drain. A request is
   admitted only when the pool holds its prompt plus `max_tokens`; admitted
@@ -1383,7 +1409,7 @@ their own measurements; K-quant optimization remains separate work below.
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done on the Radeon VII: every CPU quant type, f16 caches, at or above the reference on Q8_0 decode and every prefill, 84 to 96 percent on the 4- and 5-bit files; the rig's MI50s wait for a driver; ROCm planned |
 | Multi-device split (per-layer, per-tensor) | Planned  |
 | Multi-node / cluster                     | Planned  |
-| Multi-user server                        | `llmx serve` in the tree (`docs/SERVER.md` steps 1 to 4): correctness gates pass on both backends; throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device; prefix reuse through fork; the second execution context (step 5) open |
+| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 5): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device, prefix reuse through fork, a second execution context measured to have nothing to hide |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |

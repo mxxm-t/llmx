@@ -152,20 +152,25 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   | concurrent | tok/s reference | tok/s llmx | TTFT p50 reference | TTFT p50 llmx | ITL p50 reference | ITL p50 llmx | ITL p99 reference | ITL p99 llmx |
   |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-  | 1 | 170 to 174 | 186 | 12.5 to 27.4 ms | 27 ms | 5.5 to 5.6 ms | 5.0 ms | 6.6 to 6.7 ms | 5.5 ms |
-  | 4 | 361 to 367 | 392 to 393 | 92 to 105 ms | 70 ms | 9.5 to 9.6 ms | 9.2 ms | 11.6 to 12.4 ms | 9.9 to 11.1 ms |
-  | 8 | 432 to 447 | 497 to 499 | 164 to 179 ms | 66 to 71 ms | 15.6 to 16.0 ms | 15.2 to 15.3 ms | 17.5 to 18.0 ms | 15.8 to 16.1 ms |
-  | 16 | 233 to 234 | 534 to 541 | 273 to 303 ms | 92 ms | 64.8 to 64.9 ms | 28.5 to 28.6 ms | 69.1 to 69.9 ms | 29.5 to 35.5 ms |
-  | 32 | 543 to 544 | 517 to 519 | 489 to 517 ms | 165 to 166 ms | 51.4 to 51.7 ms | 60.0 to 60.2 ms | 59.4 to 59.6 ms | 61.7 to 61.8 ms |
+  | 1 | 170, 173 | 187, 187 | 21, 29 ms | 26, 26 ms | 5.5 ms | 5.0 ms | 6.5, 6.6 ms | 5.5, 5.6 ms |
+  | 4 | 357, 361 | 401, 406 | 105, 113 ms | 61, 64 ms | 9.6 ms | 9.0, 9.1 ms | 11.1, 11.2 ms | 9.7 ms |
+  | 8 | 455, 470 | 509, 511 | 106, 150 ms | 61, 62 ms | 15.4, 15.6 ms | 15.0 ms | 17.1, 18.3 ms | 15.8, 15.9 ms |
+  | 16 | 231, 232 | 546, 555 | 325, 353 ms | 78, 98 ms | 64.6, 64.7 ms | 27.9, 28.0 ms | 69.0, 74.4 ms | 29.7, 33.2 ms |
+  | 32 | 544, 548 | 560, 563 | 469, 525 ms | 109, 119 ms | 51.1, 51.3 ms | 56.0, 56.1 ms | 58.5, 65.2 ms | 57.3, 58.0 ms |
 
-  This table is the tile threshold's (the Vulkan block's twenty-sixth
-  paragraph) and the tool's warm-up (below) both in place, both servers
-  interleaved in the same minutes. Throughput is ahead at 1 to 16 (107,
-  107, 113 and 231 percent of the reference) and 5 percent behind at
-  32, where the row kernel's eight columns per dispatch stream the
-  weights four times; time to first token is 1.3 to 3 times shorter
-  from 4 up, since a prompt joins the running batch as a chunk rather
-  than waiting for a slot's turn; the inter-token p99 sits within 2 ms
+  This table is with the tile threshold, the tool's warm-up and the
+  chosen tile shape all in place, both servers interleaved in the same
+  minutes, two passes each. Throughput now leads at every level
+  measured: 108, 112, 110, 238 and 103 percent of the reference at 1,
+  4, 8, 16 and 32 concurrent. The 32 case was the last one behind, at
+  95 percent, and what closed it was not a server change at all but the
+  prefill tile shape becoming a choice (the Vulkan block's thirtieth
+  paragraph): a prompt chunk joining a decode batch arrives at 16 to 32
+  rows, which is exactly the band that changed, and the server went
+  from 517 to 563 tok/s there with time to first token from 165 to
+  109 ms. Time to first token is 1.7 to 4.8 times shorter from 4
+  concurrent up, since a prompt joins the running batch as a chunk
+  rather than waiting for a slot; the inter-token p99 sits within 2 ms
   of the median at every level on llmx. Before the threshold, 16
   concurrent had been 282 tok/s with a p99 of 55 ms: the pass a prompt
   chunk joined at 16 rows and up took the tile kernel, which costs a

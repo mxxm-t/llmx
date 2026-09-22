@@ -1020,36 +1020,36 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   against 0.020, the same numbers the Radeon VII returns. That is the
   external correctness gate met on a second device.
 
-  Performance there is the first comparison against a vendor backend
-  rather than another Vulkan one. Qwen3-0.6B-Q8_0, the same MI50, the
-  reference built for gfx906 with ROCm against llmx over Vulkan, two
-  passes each, five runs per point. The reference arm here is a
-  different build from the Radeon VII tables above, which use b11075
-  Vulkan built with Clang for Windows: this one is b11100, commit
-  7ab4ee7ba, built with GCC for Linux against ROCm. Twenty-five builds
-  and a different backend, compiler and operating system separate the
-  two reference arms, so the two tables are not a series; within this
-  table both arms ran on the same card in the same minutes.
+  Performance there was measured against three reference arms on the
+  same card, which is worth doing because they disagree by more than
+  llmx does. Qwen3-0.6B-Q8_0, two passes each, five runs per point,
+  arms interleaved in the same minutes. The reference's Vulkan build is
+  the same commit as its ROCm one, `7ab4ee7ba` (build 11100), compiled
+  in the dev container; the fork is mx-llama.cpp `eefc4e732` built for
+  gfx906, the arm the gate in `AGENTS.md` names. None of these is the
+  b11075 Vulkan build the Radeon VII tables above use, so the tables
+  are not a series.
 
-  | test | reference b11100, ROCm | llmx, Vulkan | share |
-  |---|---:|---:|---:|
-  | pp64 | 1980, 1982 tok/s | 853, 829 | 42% |
-  | pp256 | 5434, 5419 | 1469, 1469 | 27% |
-  | pp512 | 6114, 6093 | 1788, 1790 | 29% |
-  | tg64 | 230.0, 229.2 | 247.6, 248.2 | 108% |
+  | test | reference Vulkan | reference ROCm | mx-llama.cpp ROCm | llmx Vulkan |
+  |---|---:|---:|---:|---:|
+  | pp64 | 2009, 2016 tok/s | 1774, 1980 | 4549 | 830, 826 |
+  | pp256 | 3453, 3474 | 5419, 5434 | - | 1430, 1477 |
+  | pp512 | 3550, 3560 | 6087, 6114 | 6782 | 1783, 1783 |
+  | tg64 | 102.6, 101.3 | 226.4, 229.6 | 229.8 | 246.2, 246.2 |
 
-  Decode is 8 percent ahead of the vendor path and prompt processing is
-  at a third of it. That gap is Vulkan against ROCm rather than llmx
-  against the reference, which the Radeon VII figures show from the
-  other side: there, against the reference's own Vulkan build, llmx
-  leads prompt processing from 128 rows. It is also the expected state
-  (`docs/ROADMAP.md`: a portability backend is not expected to match a
-  vendor path, and ROCm stays first-class on Linux), now with a number
-  on it. The same silicon differs by driver as well: llmx decodes 248
-  tok/s on the MI50 under Mesa against 205 on the Radeon VII under the
-  Windows driver, while pp512 is level at 1789 against 1795. A
-  like-for-like Vulkan comparison on the MI50 would need the reference
-  built for Vulkan there, which has not been done.
+  Read against the like-for-like arm, the reference's own Vulkan
+  backend on the same card and driver, llmx decodes 2.4 times faster
+  and prompt-processes at 41 to 50 percent. Decode is the striking
+  figure: the reference's Vulkan decode collapses to 102 tok/s here
+  while its ROCm decode holds 226, and llmx's Vulkan decode reaches
+  246, past the vendor path. That says the reference's Vulkan backend
+  is far more driver-sensitive than ours, since on the Radeon VII under
+  the Windows driver the same comparison is 205 against about 199.
+  Prompt processing is where llmx is behind on this card by every arm:
+  50 percent of the reference's Vulkan, 29 of its ROCm, 26 of the
+  fork's. The fork matters: it reads 4549 tok/s at a 64-token prompt
+  against upstream's 1774, so a share quoted against upstream flatters
+  llmx, and it is the arm the gate names where it is available.
 
   The tiled attention does not yet share a K/V tile across the query
   heads of a KV group.

@@ -824,7 +824,10 @@ size_t check_kernels(backend::Backend& vk) {
                            {gguf::GGML_TYPE_Q6_K, "Q6_K", 1024, 3072}, {gguf::GGML_TYPE_Q6_K, "Q6_K", 4096, 12288},
                            {gguf::GGML_TYPE_Q6_K, "Q6_K", 1024, 151936},
                            {gguf::GGML_TYPE_Q4_K, "Q4_K", 1024, 3072}, {gguf::GGML_TYPE_Q4_K, "Q4_K", 4096, 12288},
-                           {gguf::GGML_TYPE_Q5_K, "Q5_K", 1024, 3072}, {gguf::GGML_TYPE_Q5_K, "Q5_K", 4096, 12288}}) {
+                           {gguf::GGML_TYPE_Q5_K, "Q5_K", 1024, 3072}, {gguf::GGML_TYPE_Q5_K, "Q5_K", 4096, 12288},
+                           // An 8B feed-forward down projection, the shape per-operation benchmarks of other runtimes report.
+                           {gguf::GGML_TYPE_Q8_0, "Q8_0", 14336, 4096}, {gguf::GGML_TYPE_Q4_K, "Q4_K", 14336, 4096},
+                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 14336, 4096}}) {
         const size_t nin = t.nin, nout = t.nout;
         const size_t block = t.type >= gguf::GGML_TYPE_Q4_K ? gguf::Q6_K_BLOCK : 32;
         const size_t bytes = t.type == gguf::GGML_TYPE_Q8_0 ? gguf::Q8_0_TYPESIZE

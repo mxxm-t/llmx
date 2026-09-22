@@ -1181,6 +1181,27 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   What is left on the MI50 is short prompts, where the 0.6B Q8_0 file reads a quarter of the reference at 64 rows, and decode at 86 to 91 percent except on the Q5_K_M file.
 
+  Thirty-sixth, the thresholds. The crossover from the per-row kernel to the tile on the MI50 had been measured against the float tile, 96 rows on a narrow 8-bit projection. Forcing each kernel and sweeping against the integer-dot tile, one model per card:
+
+  | model | row kernel wins up to | tile wins from | threshold before |
+  |---|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | 24 rows | 32 | 96 |
+  | Qwen3-0.6B-Q5_K_M | 32 | 48 | 64 |
+  | Qwen3-8B-Q8_0 | 8 | 16 | 32 |
+  | Qwen3-8B-Q4_K_M | 16 | 24 | 64 |
+
+  So the measured profile carries four thresholds per device, 8-bit and other types each split at 4096 wide, and the MI50's row is 16, 32, 24 and 40; a row measured with the integer-dot tile applies only where the device has the integer dot. Q4_0 and Q4_1 went through the integer-dot tile too, so that the K-quant thresholds they share are the ones measured for it: Q4_0 folds its offset of 8 into each byte, and Q4_1 adds its minimum. The other types held within half a percent at the feed-forward shape. The one-card gate at `2b770f6`:
+
+  | model | pp64 | pp247 | pp512 | tg32 |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | 2052 vs 4928, 42% | 5025 vs 7252, 69% | 5355 vs 6823, 78% | 328 vs 328, 100% |
+  | Qwen3-0.6B-Q5_K_M | 2086 vs 2969, 70% | 5199 vs 4434, 117% | 5668 vs 5722, 99% | 334 vs 313, 107% |
+  | Qwen3-0.6B-Q8_0 | 2223 vs 4638, 48% | 5452 vs 6950, 78% | 5918 vs 6659, 89% | 270 vs 299, 90% |
+  | Qwen3-8B-Q4_K_M | 283 vs 261, 109% | 555 vs 634, 88% | 665 vs 761, 87% | 78 vs 86, 91% |
+  | Qwen3-8B-Q8_0 | 300 vs 528, 57% | 585 vs 733, 80% | 721 vs 863, 84% | 50 vs 58, 86% |
+
+  The HF suite ran on another card of the same machine meanwhile, and every cell passes in both modes. One margin narrowed: the Q4_0 fixture's continuous cell, scored in batched passes through 8-bit activations, is at an NLL delta of 0.139 against its 0.160 bound, where the float tile gave 0.131. Short prompts on the 0.6B files are what is left in prompt processing: 64 rows yields a single column tile, and the projections give too few row tiles to fill sixty compute units.
+
   And a memory fix. A model on a device backend held every weight twice: the loader reads the file into one host allocation, the model kept it for its lifetime, and the device backend copies each weight into its own memory. The model now records at adoption whether any weight still reads those bytes in place, and the CLI releases them when none does. Qwen3-8B-Q4_K_M on the Radeon VII, steady host memory 4.62 to 0.18 GB, decode unchanged; the CPU backend adopts by aliasing and keeps them. The peak is still the whole file, 4.84 GB, since it is read before the upload. Streaming the file to the device during the load, read directly into staging and uploaded asynchronously so the disk and the copies overlap, would remove that peak and is not done.
 - **Left:** on the MI50 against one card of the reference (the thirty-fourth paragraph), prompt processing at 24 to 96 percent and decode at 86 to 91; Q8_0 through the integer-dot tile at 7.72 TFLOPS against the reference's 13.30, and Q6_K and Q5_K not yet through it; loading, which reads the whole file into host memory before uploading it; decode on the 4- and
   5-bit files, which the thirtieth paragraph took past the reference on

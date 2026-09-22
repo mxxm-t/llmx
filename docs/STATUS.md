@@ -2448,6 +2448,14 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 
 ## Active feature blocks
 
+### Vulkan prefill through the 8-bit integer dot (2026-09-22)
+
+- **Goal:** prompt processing on the MI50 at least level with the reference, where it is 44 to 79 percent. Measured on that card within one environment at a 4096 x 14336 projection over 512 rows, our float tile reads 4.87 TFLOPS for Q8_0, 4.65 for Q4_K and 3.62 for Q6_K, level with the reference's own float tile at 4.77, while its 8-bit integer-dot tile reads 13.30, 11.42 and 7.03. So the gap is that path, not scheduling or tile shape (STATUS, thirty-third paragraph above).
+- **Plan:** a kernel quantizes each activation column to 8-bit values per 32-value block with the block's scale and scaled sum; a tile kernel stages one quant block per row and column per step as packed 8-bit words and scales, and multiplies with the four-wide integer dot, one float multiply-add per block for the scale and one more for a type's minimum. Q8_0 and Q4_K first, then Q6_K and Q5_K. Used only where the device's integer dot is native, which the profile records as `prefer_integer_dot`; elsewhere the float tile stays.
+- **Done:** the diagnosis above, and `backend-vulkan` now times the tile at that shape in TFLOPS.
+- **Left:** everything in the plan.
+- **Gotchas:** 8-bit activations cost 0.009 of NLL in the decode kernel earlier, close to the 0.010 bound on one HF cell, so the device suite on the rig decides whether this ships, per type. The AMD Windows driver lowers the integer dot extension to widened multiplies, so the Radeon VII must keep the float tile.
+
 ### External floor of merged main (2026-09-20)
 
 Matched against mx `5542318e74`, six threads, eight rounds, identical committed

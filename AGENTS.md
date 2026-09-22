@@ -46,8 +46,14 @@ leaves that shared machine's packages untouched.
   automatically reject it on an isolated per-case cutoff. Preserve all results
   and explain the workload tradeoff. HF correctness and matched mx comparisons
   remain required.
-- **Build both arms the same way.** A comparison is only about the change if
-  nothing else differs between the binaries. The build embeds the Git
+- **Build both arms the same way, and run them in the same place.** A
+  comparison is only about the change if nothing else differs between the
+  binaries, and the same applies to where they run: a figure taken on one
+  machine, driver and operating system does not subtract from one taken on
+  another. Two reference figures that differed by build, compiler, operating
+  system and driver at once were briefly read here as a driver effect; they
+  said nothing. Compare llmx before, llmx after and the reference within one
+  environment, and quote across environments only as separate results. The build embeds the Git
   revision and a dirty marker, and that string alone moved 0.6B prefill by
   several percent: the same change measured -8.03% with mismatched build
   identity and -0.08% with both arms built from detached worktrees at their

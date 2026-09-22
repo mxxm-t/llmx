@@ -1054,25 +1054,38 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   against upstream's 1774, so a share quoted against upstream flatters
   llmx, and it is the arm the gate names where it is available.
 
-  Why prompt processing is behind, diagnosed rather than guessed. Our
-  figure is the same on both cards, 1795 tok/s at pp512 on the Radeon
-  VII and 1783 on the MI50, while the reference's Vulkan goes from
-  about 1662 to 3555 on the same move. The drivers differ in what they
-  expose of identical Vega20 silicon: the AMD proprietary driver on
-  Windows reports 32 KB of shared memory per workgroup, Mesa reports
-  64 KB. The reference takes a larger tile when the larger limit is
-  there; `matmul_tile.comp` is fixed at a 64 by 64 tile using 16896
-  bytes and the backend never reads `maxComputeSharedMemorySize`, so
-  the extra room goes unused. Behind that sits the larger limit: at a
-  4 by 4 micro-tile a thread reads eight floats from shared memory per
-  sixteen multiply-adds, two operations per read, and at this card's
-  shared-memory bandwidth that ratio caps the kernel close to where it
-  measures, 1.57 of 13.4 fp32 teraflops, 12 percent of peak, against
-  the reference's 23. Neither arm is near the memory or the compute
-  limit, so prompt processing is bound by shared-memory traffic per
-  operation. The work that follows is to raise the operations per
-  read, which means a wider micro-tile, and to size the tile from what
-  the device reports rather than fixing it.
+  Why prompt processing is behind, from the MI50 figures alone, since
+  those are the ones taken in a single environment. At pp512 there the
+  reference's Vulkan reads 3555 tok/s and llmx 1783. The model's
+  prompt pass is about 450 GFLOP at 512 tokens, so llmx runs at 1.57
+  of this card's 13.4 fp32 teraflops, 12 percent of peak, and the
+  reference at 23. The weights are read once per pass, 640 MB in 287
+  ms, nowhere near the card's bandwidth, and the 256 dispatches of a
+  pass cost under a millisecond of it, so neither arm is bound by
+  memory or by launch overhead. What does bind `matmul_tile.comp` is
+  shared-memory traffic per operation: at a 4 by 4 micro-tile a thread
+  reads eight floats per sixteen multiply-adds, two operations per
+  read, and at this card's shared-memory bandwidth that ratio lands
+  close to the 12 percent measured. The work is to raise the
+  operations per read, which means a wider micro-tile.
+
+  A second, separate observation, and only an observation: the two
+  drivers report different limits for the same Vega20 silicon, 32 KB
+  of shared memory per workgroup from the AMD proprietary driver on
+  Windows and 64 KB from Mesa. Our tile is fixed at 64 by 64 using
+  16896 bytes and the backend never reads
+  `maxComputeSharedMemorySize`, so whatever a device offers above that
+  goes unused, which is worth fixing on its own terms. It is not
+  evidence about the reference: an earlier revision of this paragraph
+  argued from llmx reading 1795 on the Radeon VII against 1783 on the
+  MI50 while the reference went 1662 to 3555, and that comparison is
+  void. The two reference figures are different builds (11075 against
+  11100), different compilers, operating systems and drivers, three
+  changes at once, which is the mistake the build-identity rule in
+  AGENTS.md exists to prevent, applied to environments rather than
+  binaries. Every prompt-processing measurement from here is llmx
+  before against llmx after against the reference, all three in one
+  environment.
 
   The tiled attention does not yet share a K/V tile across the query
   heads of a KV group.

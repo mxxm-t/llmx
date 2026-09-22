@@ -1,8 +1,7 @@
 // Does paging the KV cache cost CPU attention anything?
 //
-// vLLM pages because uniform blocks remove fragmentation and make prefix
-// sharing a refcount. It accepts block-table indirection because GPU attention
-// is bandwidth bound regardless. Our decode attention is 20.6% of a token and
+// Paged serving runtimes page because uniform blocks remove fragmentation and make prefix sharing a refcount.
+// They accept block-table indirection because GPU attention is bandwidth bound regardless. Our decode attention is 20.6% of a token and
 // memory bound at about 21 GB/s per thread, so the indirection is not
 // obviously free here. This measures it before the design is chosen.
 //

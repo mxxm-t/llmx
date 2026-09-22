@@ -152,31 +152,42 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   | concurrent | tok/s reference | tok/s llmx | TTFT p50 reference | TTFT p50 llmx | ITL p50 reference | ITL p50 llmx | ITL p99 reference | ITL p99 llmx |
   |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-  | 1 | 166 to 173 | 180 to 181 | 17 to 31 ms | 9 ms | 5.5 ms | 5.1 ms | 6.4 to 6.6 ms | 13.3 to 13.5 ms |
-  | 4 | 356 | 361 to 363 | 107 to 110 ms | 59 to 65 ms | 9.6 ms | 9.4 ms | 11.5 to 12.0 ms | 61 to 63 ms |
-  | 8 | 431 to 438 | 480 | 175 to 183 ms | 66 to 72 ms | 15.7 to 15.9 ms | 15.8 to 15.9 ms | 18.9 to 19.3 ms | 16.4 to 16.8 ms |
-  | 16 | 230 to 231 | 282 to 287 | 306 to 307 ms | 88 to 248 ms | 65.4 to 65.6 ms | 54.1 to 55.5 ms | 73.9 to 74.2 ms | 55.2 to 57.1 ms |
-  | 32 | 530 to 535 | 492 to 502 | 524 to 533 ms | 156 to 162 ms | 51.9 to 52.3 ms | 62.1 to 63.3 ms | 66.1 to 78.6 ms | 64.0 to 67.2 ms |
+  | 1 | 170 to 174 | 186 | 12.5 to 27.4 ms | 27 ms | 5.5 to 5.6 ms | 5.0 ms | 6.6 to 6.7 ms | 5.5 ms |
+  | 4 | 361 to 367 | 392 to 393 | 92 to 105 ms | 70 ms | 9.5 to 9.6 ms | 9.2 ms | 11.6 to 12.4 ms | 9.9 to 11.1 ms |
+  | 8 | 432 to 447 | 497 to 499 | 164 to 179 ms | 66 to 71 ms | 15.6 to 16.0 ms | 15.2 to 15.3 ms | 17.5 to 18.0 ms | 15.8 to 16.1 ms |
+  | 16 | 233 to 234 | 534 to 541 | 273 to 303 ms | 92 ms | 64.8 to 64.9 ms | 28.5 to 28.6 ms | 69.1 to 69.9 ms | 29.5 to 35.5 ms |
+  | 32 | 543 to 544 | 517 to 519 | 489 to 517 ms | 165 to 166 ms | 51.4 to 51.7 ms | 60.0 to 60.2 ms | 59.4 to 59.6 ms | 61.7 to 61.8 ms |
 
-  Time to first token is where the margin is, two to three times
-  shorter at every level from 4 up, since a prompt joins the running
-  batch as a chunk rather than waiting for a slot's turn. Throughput is
-  ahead at 1 to 16 and 6 percent behind at 32, where the row kernel's
-  eight columns per dispatch stream the weights four times. Two things
-  the figures expose: llmx's ITL p99 at 1 and 4 (13 and 62 ms against
-  medians of 5 and 9) is the pass in which a new prompt's chunk joins
-  the decoders, which at 16 rows and up takes the tile matmul kernel,
-  and that kernel costs a 64-row tile whatever the fill; and both
-  servers dip at 16 concurrent. The tile threshold was measured next
-  (the Vulkan block's twenty-sixth paragraph) and is now 32 rows for
-  8-bit and 64 for the other types. The same load again with it, one
-  pass: 16 concurrent went from 282 to 533 tok/s with the inter-token
-  p99 from 55 to 30 ms, and 32 from 492 to 511 tok/s with the p99 from
-  64 to 63, so throughput is now ahead of the reference's server at
-  every level measured, 1 to 32, and the dip at 16 was the tile kernel.
-  The p99 at 1 and 4 did not move (13.4 and 62.0 ms), so it is not that
-  kernel: at 4 it is the pass that processes the next request's prompt,
-  and at 1 it is unexplained and stays open. The 16-column kernel
+  This table is the tile threshold's (the Vulkan block's twenty-sixth
+  paragraph) and the tool's warm-up (below) both in place, both servers
+  interleaved in the same minutes. Throughput is ahead at 1 to 16 (107,
+  107, 113 and 231 percent of the reference) and 5 percent behind at
+  32, where the row kernel's eight columns per dispatch stream the
+  weights four times; time to first token is 1.3 to 3 times shorter
+  from 4 up, since a prompt joins the running batch as a chunk rather
+  than waiting for a slot's turn; the inter-token p99 sits within 2 ms
+  of the median at every level on llmx. Before the threshold, 16
+  concurrent had been 282 tok/s with a p99 of 55 ms: the pass a prompt
+  chunk joined at 16 rows and up took the tile kernel, which costs a
+  64-row tile whatever its fill. Two earlier readings were the tool,
+  not the server: a p99 of 13 and 62 ms at 1 and 4 concurrent was the
+  server's first pass past sixty tokens and its first four-way pass,
+  which an eight-token warm-up did not reach; twenty single requests
+  in a row show one gap above 9 ms, in the first request at token 60.
+  The tool now warms with one request of the measured length. A
+  warm-up at the widest level is not neutral, it halved the reference's
+  rate at 4 to 16, so the tool does not do that. llmx's TTFT at 1
+  concurrent reads 27 ms here against 9 ms in steady state: the first
+  request after an idle spell costs 20 to 35 ms more, whatever the
+  prompt, on the client's first connection or the device's clocks, and
+  a median of two rounds carries it. Prefix reuse, measured: an
+  830-token prompt sharing six full blocks with a donor takes 77 ms to
+  its first token against 160 ms fresh; its encode is 0.7 ms and the
+  fork under 0.1 ms, and the 77 is the pass over the 62 rows that
+  follow the shared blocks, which the bench prices at 56 ms without a
+  history. On this model a pass of 32 to 128 rows costs a near-flat 50
+  to 77 ms (the Vulkan block's twenty-seventh paragraph), so that is
+  what a short prompt or a hit's tail pays. The 16-column kernel
   remains open.
   The limits, asked for by the user as the flags a deployment sets:
   the KV pool's budget had been one model context in total, shared by
@@ -842,8 +853,26 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   block. The backend-vulkan test's row-kernel reference follows the two
   thresholds, the Linux build passes CTest with the test skipping on
   llvmpipe, and the device suite passes.
+  Twenty-seventh, the cost of a prompt pass in rows, from the server's
+  time to first token. A sweep of the bench on 0.6B Q8_0, pass time in
+  ms at 31, 32, 48, 63, 64, 65, 96, 128, 129, 192, 193, 256 and 257
+  rows: 38, 50, 54, 57, 77, 69, 73, 70, 84, 99, 113, 173, 185. Each new
+  64-row tile adds about 13 ms to the pass, which is the tile kernel's
+  price per tile across the layers; exactly 64 rows costs 8 ms more
+  than 65; and the tile from 193 to 256 rows grows from 0.5 to 1.7 ms
+  per added row before resetting at 257. The three are open, and so is
+  the tiled attention over a long history with few query tiles: a
+  62-row tail over 768 shared tokens is two tiles by sixteen heads,
+  32 workgroups walking 830 keys each, where the per-row kernel splits
+  such a history across up to 64 workgroups. The scheduler's host side
+  is not in this: a pass of 62 prompt rows returns from forward in 29
+  ms with the command ring four chunks deep, and the rest is the
+  device.
 - **Left:** decode on the 4- and 5-bit files, 99 and 89 percent of the
-  reference on 0.6B and 90 on the 8B Q4_K_M. On 0.6B the bound is the
+  reference on 0.6B and 90 on the 8B Q4_K_M; the prompt pass at 32 to
+  128 rows (the twenty-seventh paragraph): the tile kernel's cost per
+  tile, the step at exactly 64 rows, and splitting the tiled attention
+  over a long history. On 0.6B the bound is the
   dispatch count, not a kernel; replaying a recorded pass (the server
   block above) is the lever there. On 8B the K-quant paths sit at 250
   to 256 GB/s against Q8_0's 400 with their loads and their sub-scale

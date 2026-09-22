@@ -398,6 +398,10 @@ reports the embedded value, with `unknown` for builds without Git metadata.
 - Use ASCII characters in code, comments, documentation and commit messages.
   Preserve Unicode test coverage using escaped literals and fixture data.
 
+- Do not break a sentence across lines in code comments or commit messages.
+  A line ends where a sentence ends; a long sentence stays on one line rather
+  than wrapping at a column. Reflow a comment only when you are editing it.
+
 - Header-only for now (everything is `#pragma once` + `inline`), compiled via
   `src/cli/main.cpp`. If we add `.cpp` files later, keep one TU per logical unit.
 - Include paths are relative to `src/` root: `#include "format/gguf.hpp"`.

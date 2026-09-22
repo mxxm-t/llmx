@@ -463,7 +463,7 @@ std::string read_perplexity_file(const std::string& path) {
 }
 
 int cmd_perplexity(const std::string& model_path, const std::string& text,
-                   const infer::GenParams& gp, int context_size, int chunks) {
+                   const infer::GenParams& gp, int context_size, int chunks, bool per_token) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
     infer::Model model(m, make_backend(gp.device), model_options(gp));
@@ -472,7 +472,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     model.set_ubatch(gp.ubatch);
 
     std::vector<uint32_t> ids = tok.encode(text);
-    const auto result = infer::perplexity(model, ids, context_size, chunks);
+    const auto result = infer::perplexity(model, ids, context_size, chunks, per_token);
     double mean_nll = result.mean_nll();
     double ppl = std::exp(mean_nll);
     std::cout << "tokens: " << ids.size() << "\n";
@@ -811,6 +811,8 @@ void print_usage() {
         << "  llmx perplexity <in.gguf> -f/--file <path> [flags...]\n"
         << "    perplexity flags: -c/--ctx-size N  window tokens (default: model context)\n"
         << "                      --chunks N  maximum windows (default: all)\n"
+        << "                      --per-token  score one token at a time, the decode path, rather than\n"
+        << "                                   in batched passes, the prompt path (default)\n"
         << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
         << "  llmx serve      <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N]\n"
@@ -963,6 +965,7 @@ int main(int argc, char** argv) {
             if (argc < 4) { std::cerr << "usage: llmx perplexity <model.gguf> (\"<text>\" | --file <path>) [flags...]\n"; return 2; }
             infer::GenParams gp;
             int context_size = 0, chunks = 0;
+            bool per_token = false;
             const bool from_file = std::string(argv[3]) == "--file" || std::string(argv[3]) == "-f";
             if (from_file && argc < 5) { std::cerr << "perplexity: --file requires a path\n"; return 2; }
             for (int i = from_file ? 5 : 4; i < argc; i++) {
@@ -987,6 +990,7 @@ int main(int argc, char** argv) {
                     if (a == "--chunks") chunks = (int)n;
                     else context_size = (int)n;
                 }
+                else if (a == "--per-token") per_token = true;
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
@@ -996,7 +1000,7 @@ int main(int argc, char** argv) {
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];
-            return cmd_perplexity(argv[2], text, gp, context_size, chunks);
+            return cmd_perplexity(argv[2], text, gp, context_size, chunks, per_token);
         }
 
         if (cmd == "logits") {

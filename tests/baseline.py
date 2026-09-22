@@ -160,8 +160,12 @@ def run_perplexity():
             rc, out = cli(["tokenize", model, doc["text"]])
             assert rc == 0 and parse_ids(out) == doc["token_ids"], "PPL token IDs differ from HF"
             continuous = dict(doc, context_size=0, max_chunks=0, chunks=1, used_tokens=doc["n_tokens"])
-            for case in [continuous] + doc["chunk_cases"]:
+            # Every case both ways: in batched passes, the prompt path, and one token at a time, the decode path. On a device they are different kernels, and scoring only one way once left the prompt kernels without an HF check at all.
+            cases = [(case, mode) for case in [continuous] + doc["chunk_cases"] for mode in ("batched", "per-token")]
+            for case, mode in cases:
                 args = ["perplexity", model, "--file", path, "--threads", "6"]
+                if mode == "per-token":
+                    args.append("--per-token")
                 if case["context_size"]:
                     args += ["--ctx-size", str(case["context_size"])]
                 if case["max_chunks"]:
@@ -186,12 +190,13 @@ def run_perplexity():
                 delta = abs(nll - case["mean_nll"])
                 bound = spec["max_chunk_nll_delta"] if case["context_size"] else spec["max_nll_delta"]
                 assert delta <= bound, (
-                    "%s context %d mean NLL %.6f vs HF %.6f: delta %.6f exceeds %.3f"
-                    % (spec["file"], case["context_size"], nll, case["mean_nll"], delta, bound))
+                    "%s context %d %s mean NLL %.6f vs HF %.6f: delta %.6f exceeds %.3f"
+                    % (spec["file"], case["context_size"], mode, nll, case["mean_nll"], delta, bound))
                 # The CLI prints six significant digits, so allow decimal rounding.
                 assert math.isclose(ppl, math.exp(nll), rel_tol=2e-5), "inconsistent NLL/PPL: " + out
-                print("baseline-ppl[%s c=%d chunks=%d]: PPL %.4f vs HF %.4f, NLL delta %.6f <= %.3f  [ok]"
-                      % (spec["file"], case["context_size"], case["chunks"], ppl, case["perplexity"], delta, bound))
+                print("baseline-ppl[%s c=%d chunks=%d %s]: PPL %.4f vs HF %.4f, NLL delta %.6f <= %.3f  [ok]"
+                      % (spec["file"], case["context_size"], case["chunks"], mode, ppl, case["perplexity"], delta,
+                         bound))
     return True
 
 

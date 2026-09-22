@@ -245,6 +245,8 @@ struct BatchEntry {
     const uint32_t* ids;
     size_t n;
     bool want_logits;
+    // The logits after every token of the entry rather than only its last, for scoring a text through the same batched passes a prompt takes; with want_logits.
+    bool every_logits = false;
 };
 
 class Model {
@@ -454,7 +456,7 @@ public:
                 throw std::runtime_error("inference: context length exceeded (" +
                                          std::to_string(cfg.context_length) + " tokens)");
             rows += en.n;
-            want += en.want_logits ? 1 : 0;
+            want += en.want_logits ? (en.every_logits ? en.n : 1) : 0;
         }
         ensure(ctx, rows, want);
         ctx.ids.resize(rows);
@@ -486,8 +488,10 @@ public:
             }
             for (size_t s = 0; s < storages_.size(); ++s)
                 ctx.views[s][e] = en.seq->kv_[s].view(storages_[s]->storage.get());
+            if (en.want_logits && en.every_logits)
+                for (size_t b = 0; b < en.n; ++b) ctx.pick[w++] = (uint32_t)(r + b);
             r += en.n;
-            if (en.want_logits) ctx.pick[w++] = (uint32_t)(r - 1);
+            if (en.want_logits && !en.every_logits) ctx.pick[w++] = (uint32_t)(r - 1);
         }
 
         try {
@@ -602,6 +606,30 @@ public:
             throw;
         }
         return row(ctx_, 0);
+    }
+
+    // Every position's logits for a text from an empty history, through the batched passes prefill takes, handed to `each` as (position, logits) a microbatch at a time. Scoring through this rather than step exercises the prompt path, whose kernels differ from the decode path's on a device (inference/perplexity.hpp).
+    void score(const std::vector<uint32_t>& ids, const std::function<void(size_t, const float*)>& each) {
+        if (ids.empty()) throw std::runtime_error("inference: empty text");
+        reset();
+        auto work = [&] {
+            ensure(ctx_, std::min((size_t)ubatch(), ids.size()), std::min((size_t)ubatch(), ids.size()));
+            for (size_t i = 0; i < ids.size();) {
+                const size_t B = std::min((size_t)ubatch(), ids.size() - i);
+                BatchEntry entry{&seq_, ids.data() + i, B, true};
+                entry.every_logits = true;
+                forward(ctx_, &entry, 1);
+                for (size_t j = 0; j < B; ++j) each(i + j, ctx_.logits(j));
+                i += B;
+            }
+        };
+        try {
+            scoped(0, work);
+        } catch (...) {
+            retire();
+            reset();
+            throw;
+        }
     }
 
     void reset() { reset(seq_); }

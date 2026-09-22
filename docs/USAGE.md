@@ -197,11 +197,10 @@ Flags:
 | `-f`, `--file <path>` | read the input text from a UTF-8 file instead of an argument |
 | `-c`, `--ctx-size N` | tokens per window, from 2 through the model's context length |
 | `--chunks N` | maximum windows to evaluate (positive integer; default all) |
+| `--per-token` | score one token at a time, the decode path, instead of in batched passes |
 | `--threads N`   | worker thread count (0 = auto)                 |
 
-Perplexity evaluates one token at a time to obtain every target's logits.
-`--ubatch` and `--threads-batch` / `-tb` remain accepted for compatibility but
-do not affect this command. This all-target window policy differs from
+By default a window goes through the model in batched passes of up to `--ubatch` tokens, the way a prompt does, with logits taken for every position; the output head then runs once per pass over all of its rows. `--per-token` scores the same targets one token at a time instead, which is the path generation takes after the prompt. On a device the two paths use different kernels, so a score from each checks different code; they agree to within the rounding of their reductions. This all-target window policy differs from
 scoring modes elsewhere that exclude a warmup half-window; compare scores only with
 identical input bytes, token IDs, window boundaries and target selection.
 

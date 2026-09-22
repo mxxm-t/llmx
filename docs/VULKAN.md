@@ -328,7 +328,35 @@ reduction order. The HF gate measures the cost of it.
   Qwen3-8B-Q8_0 is the control, its branch untouched, and reads 210.93,
   283.27 and 339.15 tok/s against 204.94, 281.10 and 339.33: flat at 247
   and 512 rows and 2.8 percent down at 64, which is inside the layout
-  band this file records for an unrelated edit. The wide Q8_0 kernel is the exception and does not get
+  band this file records for an unrelated edit.
+
+  Then the loads themselves. The driver issues one `buffer_load_ubyte`
+  per byte and joins none of them, 71 of them in this kernel, so the
+  tile kernel reads the weights as words: the K-quant runs whose bytes
+  are word aligned take one word per four values, and every scattered
+  read, the scales and the odd-aligned Q6_K block, extracts from the
+  word that holds it. `qdecode.glsl` reaches its bytes through a
+  `QBYTE(i)` macro rather than naming an array, so a shader serves them
+  from whatever view it binds, and the tile kernel's byte binding is
+  gone rather than a word binding added. The kernel now issues 86 dword
+  loads and no byte loads, against 32 dword, 72 byte and 5 short before.
+  On top of the table above:
+
+  | model | rows | scales hoisted | words |
+  |---|---:|---:|---:|
+  | Qwen3-8B-Q4_K_M | 64 | 152.04 tok/s | 170.75 |
+  | Qwen3-8B-Q4_K_M | 247 | 193.08 | 240.31 |
+  | Qwen3-8B-Q4_K_M | 512 | 232.89 | 281.73 |
+  | Qwen3-0.6B-Q5_K_M | 64 | 791.91 | 829.14 |
+  | Qwen3-0.6B-Q5_K_M | 247 | 1578.05 | 2381.28 |
+  | Qwen3-0.6B-Q5_K_M | 512 | 1924.43 | 2565.02 |
+
+  The Q8_0 control reads 212.95, 278.65 and 337.61 against 206.13,
+  283.22 and 342.28, up 3.3 percent at 64 rows and down 1.6 and 1.4 at
+  247 and 512. Its staging source is unchanged, and the two directions
+  in one run are the layout band rather than a result. Over both
+  changes, prompt processing on the Qwen3-8B-Q4_K_M file went 95.98,
+  96.51 and 109.21 tok/s to 170.75, 240.31 and 281.73. The wide Q8_0 kernel is the exception and does not get
   a one-column build: it is the one row kernel whose eight-column build
   is not register starved, running five waves per SIMD, and the narrow
   build takes it to eight. On 8B Q8_0, already reading at the memory

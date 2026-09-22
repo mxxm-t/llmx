@@ -40,8 +40,8 @@ float q8_0_scale(uint8_t bytes[2]) {
     return unpackHalf2x16(uint(bytes[0]) | (uint(bytes[1]) << 8)).x;
 }
 
-float half_at(uint8_t lo, uint8_t hi) {
-    return unpackHalf2x16(uint(lo) | (uint(hi) << 8)).x;
+float half_at(uint lo, uint hi) {
+    return unpackHalf2x16(lo | (hi << 8)).x;
 }
 
 // Bytes per block and values per block of a type, for the callers that

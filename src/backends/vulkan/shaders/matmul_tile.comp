@@ -15,8 +15,15 @@ layout(set = 0, binding = 0) buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
 layout(set = 0, binding = 3) readonly buffer X { float x[]; };
-layout(set = 0, binding = 4) readonly buffer W8 { uint8_t w8[]; };
-#define QBYTES w8
+// The weights as words. This driver issues one load per byte and joins none
+// of them, 71 of them in this kernel before, so every byte here is taken
+// from a word: the K-quant runs whose bytes are word aligned read one word
+// per four values, and the scattered reads, the scales and the odd-aligned
+// Q6_K block, extract from the word that holds them. A Q4_K block is 144
+// bytes and a Q5_K block 176, both multiples of 16, and a run starts at a
+// multiple of 8 within one, so its 8 or 16 bytes are 2 or 4 aligned words.
+layout(set = 0, binding = 4) readonly buffer W32 { uint w32[]; };
+#define QBYTE(i) ((w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #include "qdecode.glsl"
 
 // Rows a thread accumulates, threads that share one row of the W tile, and
@@ -62,14 +69,14 @@ void main() {
                 }
             } else if (p.type == TYPE_Q4_0) {
                 uint o = (row * nblocks + k0 / Q4_0_BLOCK) * Q4_0_BYTES;
-                float d = half_at(w8[o], w8[o + 1u]);
+                float d = half_at(QBYTE(o), QBYTE(o + 1u));
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
                     ws[k][wrow] = q4_0_at(o, k, d);
                 }
             } else if (p.type == TYPE_Q4_1) {
                 uint o = (row * nblocks + k0 / 32u) * Q4_1_BYTES;
-                float d = half_at(w8[o], w8[o + 1u]), m = half_at(w8[o + 2u], w8[o + 3u]);
+                float d = half_at(QBYTE(o), QBYTE(o + 1u)), m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
                     ws[k][wrow] = q4_1_at(o, k, d, m);
@@ -91,39 +98,46 @@ void main() {
                 uint j0 = k_in + wseg * WVALS;   // the run's first value in the block
                 uint l0 = j0 & 31u;              // and its position within the group
                 if (p.type == TYPE_Q6_K) {
-                    float d = half_at(w8[o + 208u], w8[o + 209u]);
+                    float d = half_at(QBYTE(o + 208u), QBYTE(o + 209u));
                     uint n = j0 / 128u, which = (j0 - n * 128u) / 32u;
                     uint lbase = o + n * 64u + l0 + ((which & 1u) != 0u ? 32u : 0u);
                     uint hbase = o + 128u + n * 32u + l0;
                     uint shift = 2u * which;
-                    float ds = d * float((int(uint(w8[o + 192u + n * 8u + l0 / 16u + 2u * which])) << 24) >> 24);
+                    float ds = d * float((int(uint(QBYTE(o + 192u + n * 8u + l0 / 16u + 2u * which))) << 24) >> 24);
                     for (uint i = 0u; i < WVALS; ++i) {
-                        uint lowb = uint(w8[lbase + i]);
+                        uint lowb = uint(QBYTE(lbase + i));
                         uint q = (which < 2u ? (lowb & 15u) : (lowb >> 4u))
-                               | (((uint(w8[hbase + i]) >> shift) & 3u) << 4u);
+                               | (((uint(QBYTE(hbase + i)) >> shift) & 3u) << 4u);
                         ws[wseg * WVALS + i][wrow] = ds * float(int(q) - 32);
                     }
                 } else {
-                    float d = half_at(w8[o], w8[o + 1u]), dmin = half_at(w8[o + 2u], w8[o + 3u]);
+                    float d = half_at(QBYTE(o), QBYTE(o + 1u)), dmin = half_at(QBYTE(o + 2u), QBYTE(o + 3u));
                     uint sc, mn;
                     scale_min_k4(o + 4u, j0 / 32u, sc, mn);
                     float ds = d * float(sc), dm = dmin * float(mn);
                     uint c = j0 / 64u;
                     bool low = ((j0 >> 5u) & 1u) == 0u;   // the group's nibble half
                     if (p.type == TYPE_Q4_K) {
-                        uint base = o + 16u + c * 32u + l0;
-                        for (uint i = 0u; i < WVALS; ++i) {
-                            uint byte = uint(w8[base + i]);
-                            ws[wseg * WVALS + i][wrow] = ds * float(low ? (byte & 15u) : (byte >> 4u)) - dm;
+                        uint base = (o + 16u + c * 32u + l0) / 4u;
+                        for (uint g = 0u; g < WVALS / 4u; ++g) {
+                            uint word = w32[base + g];
+                            for (uint i = 0u; i < 4u; ++i) {
+                                uint byte = (word >> (8u * i)) & 255u;
+                                ws[wseg * WVALS + 4u * g + i][wrow] =
+                                    ds * float(low ? (byte & 15u) : (byte >> 4u)) - dm;
+                            }
                         }
                     } else {
-                        uint base = o + 48u + c * 32u + l0, hbase = o + 16u + l0;
+                        uint base = (o + 48u + c * 32u + l0) / 4u, hbase = (o + 16u + l0) / 4u;
                         uint shift = 2u * c + (low ? 0u : 1u);
-                        for (uint i = 0u; i < WVALS; ++i) {
-                            uint byte = uint(w8[base + i]);
-                            uint q = (low ? (byte & 15u) : (byte >> 4u))
-                                   | (((uint(w8[hbase + i]) >> shift) & 1u) << 4u);
-                            ws[wseg * WVALS + i][wrow] = ds * float(q) - dm;
+                        for (uint g = 0u; g < WVALS / 4u; ++g) {
+                            uint word = w32[base + g], hword = w32[hbase + g];
+                            for (uint i = 0u; i < 4u; ++i) {
+                                uint byte = (word >> (8u * i)) & 255u;
+                                uint q = (low ? (byte & 15u) : (byte >> 4u))
+                                       | ((((hword >> (8u * i)) >> shift) & 1u) << 4u);
+                                ws[wseg * WVALS + 4u * g + i][wrow] = ds * float(q) - dm;
+                            }
                         }
                     }
                 }

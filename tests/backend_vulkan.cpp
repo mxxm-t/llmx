@@ -829,6 +829,30 @@ size_t check_kernels(backend::Backend& vk) {
         std::cout << "backend-vulkan: " << t.name << " matvec " << nin << "x" << nout << " " << us << " us, "
                   << (double)wq.size() / us / 1e3 << " GB/s\n";
     }
+    // The prefill tile at one feed-forward projection of an 8B model over a 512-row pass, reported and not asserted, in operations per second so it reads against a per-operation benchmark of any other runtime at the same shape.
+    for (const Timed& t : {Timed{gguf::GGML_TYPE_Q8_0, "Q8_0", 14336, 4096}, {gguf::GGML_TYPE_Q4_K, "Q4_K", 14336, 4096},
+                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 14336, 4096}}) {
+        const size_t nin = t.nin, nout = t.nout, nbatch = 512;
+        const size_t block = t.type == gguf::GGML_TYPE_Q8_0 ? 32 : gguf::Q6_K_BLOCK;
+        const size_t bytes = t.type == gguf::GGML_TYPE_Q8_0 ? gguf::Q8_0_TYPESIZE
+                           : t.type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE : gguf::Q6_K_TYPESIZE;
+        std::vector<uint8_t> wq(nout * (nin / block) * bytes);
+        for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 7 + 3);
+        const auto x = uniform(nin * nbatch, 23);
+        const auto w = vk.adopt(wq.data(), wq.size());
+        const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+        const auto y = vk.alloc(nout * nbatch * sizeof(float), backend::Memory::device);
+        vk.matmul(t.type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, nbatch);
+        vk.sync();
+        const int iters = 20;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < iters; ++i)
+            vk.matmul(t.type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, nbatch);
+        vk.sync();
+        const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / iters;
+        std::cout << "backend-vulkan: " << t.name << " prefill " << nout << "x" << nin << " over " << nbatch << " rows "
+                  << us << " us, " << 2.0 * nin * nout * nbatch / us / 1e6 << " TFLOPS\n";
+    }
     // Decode attention and the small kernels at the Qwen3-0.6B shape over a
     // 250-token history, one query, reported.
     {

@@ -25,7 +25,8 @@ Commands and their entry points:
 - `tokenize` / `detokenize`: `cmd_tokenize` / `cmd_detokenize`.
 - `perplexity`: `cmd_perplexity` loads and tokenizes inline or `-f/--file`
   UTF-8 text, then delegates scoring to `infer::perplexity`. `-c/--ctx-size`
-  chooses window size; `--chunks` limits windows. See `inference-perplexity.md`.
+  chooses window size; `--chunks` limits windows; `--per-token` scores one token
+  at a time instead of in batched passes. See `inference-perplexity.md`.
 - `logits`: `cmd_logits` (top-N next-token logits; this is what the correctness
   gate compares against a full-precision reference, since sampled text hides
   everything except argmax flips).
@@ -36,7 +37,13 @@ Commands and their entry points:
   prompts to obtain valid next-token logits. A returned stop token may not yet
   be cached, and EOS is supplied by the next rendered transcript rather than
   appended unconditionally. These are single-sequence semantics.
-- `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS).
+- `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS),
+  or with `--model` the matched real-model measurement: warm-up, then `--r`
+  repeats of `pp N` and `tg N`, model time only, `--profile` for device time
+  per kernel.
+- `serve`: parses host, port, sequence and queue limits, the KV budget
+  (`--ctx-size`), `--ubatch`, `--threads`, `--device` and the cache types,
+  then runs `server::serve` (see [server](server.md)).
 
 `generate` and each `chat` turn apply the prefill worker count and restore the
 resolved decode count, including automatic selection. Existing `--verbose`

@@ -11,9 +11,8 @@ that checkpoint. Their old next steps and binary revisions are historical,
 not current instructions. STATUS.md is the current branch/merge tracker; later
 sections record follow-up results without pooling separate timing sessions.
 
-> Superseded once `llmx pull` lands (`docs/ROADMAP.md` #9a): the hardcoded paths
-> below become a cache the tool manages. Until then, this file is the record of
-> what is on this machine.
+> `llmx pull` (`docs/ROADMAP.md` #9a) now manages its own cache; the hardcoded
+> paths below remain the record of what is on this machine outside it.
 
 ## Benchmark evidence files
 
@@ -564,7 +563,9 @@ Positions/KV reset each window, and NLL is weighted by scored targets.
 | 123 / all | 3.630793905 | 3.643202014 | 3.751242730 |
 
 Chunked mean-NLL bounds are **0.02** for Q8_0 and **0.20** for mixed Q4_0;
-the tighter continuous bounds above remain unchanged. An independent control
+the tighter continuous bounds above remain unchanged. `tests/baseline.py` now
+scores every cell twice, in batched passes (the default) and with
+`--per-token`, against the same bounds. An independent control
 running the previous scoring loop on the same token windows matched total
 NLL exactly for both quants. This establishes unchanged window arithmetic,
 not equivalence to the full-precision weights.
@@ -671,7 +672,9 @@ backend on the AMD proprietary driver; a source tree of mx-llama.cpp is
 present on that machine but was never built, so no Windows figure here
 is against the fork. On the MI50 rig a reference run must be pinned to one card, `GGML_VK_VISIBLE_DEVICES=N` for its Vulkan build and `HIP_VISIBLE_DEVICES=N` for ROCm, because the reference uses every device it can see and the rig has ten: unpinned, its Vulkan build read 3364 and 101.3 tok/s at pp247 and tg32 on Qwen3-0.6B-Q8_0 against 6941 and 299.0 pinned. MI50 reference figures in STATUS before its thirty-fourth paragraph were unpinned. The MI50 comparison used two arms on the same card:
 upstream build 11100, commit `7ab4ee7ba`, with ROCm, and mx-llama.cpp
-`eefc4e732` built for gfx906, also with ROCm. The two differ enough to
+`eefc4e732` built for gfx906, also with ROCm. Neither ROCm arm is known to
+have been pinned with `HIP_VISIBLE_DEVICES`, so the figures that follow are
+unverified (STATUS, thirty-fourth paragraph). The two differ enough to
 matter, the fork reading 4549 tok/s at a 64-token prompt against
 upstream's 1774 and 6782 at 512 against 6087, with decode level at 230
 against 226, so a share quoted against upstream flatters llmx on that
@@ -1054,7 +1057,9 @@ Scratch artifacts are under `%TEMP%/llmx-q8-floor`.
 
 The Vulkan backend later adopted the 16-bit form for its decode row
 kernel, on this section's numerical finding and its own measurements
-(`VULKAN.md`, sub-step 8); the CPU backend keeps float activations.
+(`VULKAN.md`, sub-step 8), and the 8-bit form for its integer-dot prefill
+tile on devices whose profile prefers the integer dot, gated per type on
+the device HF suite; the CPU backend keeps float activations.
 
 Scratch AVX2 kernels consume the existing Q8_0 weights with quantized
 activations, using either signed 8-bit or signed 16-bit activation values and

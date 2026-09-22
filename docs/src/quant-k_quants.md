@@ -6,5 +6,5 @@ weights, occupying 144, 176 or 210 bytes respectively. Q4_K and Q5_K share the
 weight bits. Q6_K reconstructs signed 6-bit values with per-group signed scales.
 
 `quant.hpp` registers these decoders; `format/gguf.hpp` holds file type IDs and
-block sizes. The CPU backend uses a fused Q4_K dot for decode, and the generic
-dequantized-row path for Q5_K/Q6_K and batched prefill. No K-quant writer exists.
+block sizes. The CPU backend uses fused Q4_K, Q5_K and Q6_K dots for decode, and
+the generic dequantized-row path for batched prefill. No K-quant writer exists.

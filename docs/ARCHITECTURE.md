@@ -2,7 +2,7 @@
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
 writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers
-on x86 CPU with AVX2/FMA/F16C, and
+on x86 CPU with AVX2/FMA/F16C or on a Vulkan device, and
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
 
@@ -12,7 +12,7 @@ multi-node serving can be added without touching the core.
 cli/           argument parsing, command dispatch, usage text
    |
    v
-server/        HTTP transport; scheduler and routes to come (SERVER.md)
+server/        HTTP transport, scheduler, native and compatible routes (SERVER.md)
    |
    v
 inference/     sampler (RNG + top-k/top-p/temp/penalty), generate loop,
@@ -24,7 +24,7 @@ model/         Qwen3 Model + logical KV cache (block pool, sequence);
    |
    v
 backends/      Backend interface (type-generic matmul / attention / RMSNorm /
-               RoPE / batched elementwise ops), cpu/ impl
+               RoPE / batched elementwise ops), cpu/ and vulkan/ impls
    |
    v
 tokenizer/     byte-level BPE, Qwen2/Qwen3 pretokenizer (encode / decode)
@@ -80,15 +80,15 @@ belongs to `format/`, so locally supplied and downloaded shards load identically
 
 - **Backends** are the *only* compile-time concern: GPU backends pull in heavy
   SDKs, so they are opt-in via `LLMX_HAS_BACKEND_*` in `config.hpp`. CPU is
-  always on (no external deps). The GPU options currently define macros only;
-  no vendor implementation is built.
+  always on (no external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan
+  backend; the ROCm, CUDA and SYCL options define macros only.
 - **Model architectures** will be compiled in and selected from metadata.
   Today the model layer implements dense Qwen3 only.
 - **Split mode and node count** are planned runtime parameters, not implemented
   build options or CLI flags. See `ROADMAP.md`.
 
 `--threads` and `--threads-batch` select CPU workers for decode and prefill.
-Future GPU backends must keep that meaning for applicable CPU work; GPU launch
+GPU backends keep that meaning for applicable CPU work; GPU launch
 dimensions belong to the backend. `--ubatch` is the number of prompt tokens
 per forward pass and remains relevant to device execution.
 
@@ -120,8 +120,8 @@ and a block returns to the pool only after the backend has retired the work
 that read it; the server reuses a finished request's blocks for a prompt
 that repeats its tokens (`docs/SERVER.md`).
 
-The planned device and server work (ROADMAP #4a and #7) must preserve these
-boundaries:
+The device and server work (ROADMAP #4a and #7) preserves these
+boundaries, and further work must too:
 
 - Loaded weights are shared read-only. Each sequence owns its logical token
   positions and mutable KV state; resetting or cancelling one sequence must
@@ -133,14 +133,15 @@ boundaries:
   exclusive scheduled use. A shared worker pool alone does not provide safe
   concurrent execution.
 - Continuous batching must describe each sequence's positions and causal
-  boundaries independently. The current prefill microbatch contains tokens
-  from one sequence; it is not a batch of independent users.
+  boundaries independently. A prefill microbatch is one entry of one
+  sequence; the server's passes mix such entries with decode entries of
+  other sequences, each at its own positions.
 - With device execution, backend buffers own physical storage and submission
   completion controls its lifetime. Cache growth, reset and reuse must not
   invalidate storage still used by an in-flight operation. Model-level routing
   determines placement across devices without introducing vendor types into
   sequence state.
-- Future prefix reuse may share immutable KV blocks only when the model,
+- Prefix reuse may share immutable KV blocks only when the model,
   positions and relevant execution configuration match. Mutable suffixes stay
   private, and shared blocks remain alive until all users and operations finish.
 
@@ -185,7 +186,9 @@ consumed configuration values, attention geometry, required tensor names/shapes,
 normalization types and in-memory payload ranges before model activation/KV/RoPE
 allocation. Explicit malformed values cannot select optional metadata defaults.
 The backend may already exist before these model checks. Borrowed model metadata
-and weights must stay unchanged for the model's lifetime. Metadata string encoding,
+and weights must stay unchanged for the model's lifetime, except that the CLI
+releases the host payload (`GGUFModel::release_payload`) once no weight reads it
+in place (`Model::holds_payload`), as on device backends. Metadata string encoding,
 numeric weight contents, arbitrary token IDs and dynamic request limits are not
 fully validated by construction.
 Valid large files or overlapping tensor ranges can still exceed available memory;
@@ -194,8 +197,8 @@ Unicode with bounded nesting and finite-double storage. The quantize CLI
 separately checks parsed dimensions, rank, quantized row width, checked byte
 totals and exact binary length before payload allocation or output creation.
 Its float input buffer owns properly aligned float objects. These conversion
-checks do not validate model execution schemas. A future server must define
-request/session recovery rather than treating the CLI's process-level catch as request isolation.
+checks do not validate model execution schemas. The server ends a request, not
+its loop, when a pass fails; that is not the CLI's process-level catch.
 
 ## Multi-device / multi-node design notes
 
@@ -212,5 +215,6 @@ same mechanism and the CPU is one of the devices. The residual stream
 crosses at a boundary through `read` and `write`. Per-row split is not
 planned. This, the tickets, the batched views and the `Model` /
 `Sequence` / `ExecContext` split are designed in `EXECUTION.md` and
-implemented; a second device backend, the placement flags and the
-multi-user server are what `ROADMAP.md` #4b, #5 and #7 still carry.
+implemented, as are the Vulkan backend (#4b) and the multi-user server (#7);
+a second vendor backend and the placement flags are what `ROADMAP.md` #4b
+and #5 still carry.

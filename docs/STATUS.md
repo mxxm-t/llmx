@@ -12,8 +12,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   iteration, streaming responses, prefix reuse through `fork`, admission by
   the KV pool's budget. Dependency-free transport. The design, protocol,
   scheduler loop, gates and order of work are `docs/SERVER.md`.
-- **Done:** the design and steps 1 to 3. `src/server/http.hpp`: HTTP/1.1
-  over blocking sockets, Winsock or BSD, a listener, one request with a
+- **Done:** the design and steps 1 to 6 (3a and 4 to 6 further down).
+  `src/server/http.hpp`: HTTP/1.1 over blocking sockets, Winsock or BSD, a listener, one request with a
   Content-Length body per connection, a whole response or a chunked
   stream, a client for tests; the `http` CTest covers a whole response, an
   echoed body, a three-chunk stream arriving as written, 413, 400, 404 and
@@ -1214,10 +1214,22 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   The 8B cells at 64 to 128 rows read 0 to +1 percent under the same rule in the run before, so their -1 and -2 are inside run-to-run spread. Qwen3-0.6B-Q8_0 at 64 rows is 2502 tok/s, 54 percent of the reference's 4638.
 
+  Thirty-eighth, two quant blocks per barrier and where decode stands on the MI50. The integer-dot tile staged one 32-value block per step, two barriers per block and each block's loads waited for alone. Two blocks per step, on one MI50 at the 8B feed-forward shape: Q8_0 11.94 to 12.15 TFLOPS, Q4_K 11.35 to 11.63, Q6_K 9.48 to 10.02; the 8B files gain 2.8 to 4.8 percent at 247 and 512 prompt rows, the 0.6B files 4 to 4.5 at 64, and 8B Q8_0 at 64 rows loses 4.3. Four blocks per step lost 10 to 23 percent, the larger shared arrays costing occupancy. A first build of this failed the MI50's Q4_0 check because a local variable in the Q4_0 and Q6_K staging shadowed the new block index; the Radeon VII never takes this path, so its tests cannot catch such a bug, and a change to this kernel is checked on the MI50 before it is committed.
+
+  Decode, matrix-vector at an 8B down projection, 4096 rows over 14336 inputs, on one MI50 against the reference's per-operation benchmark on the same card:
+
+  | type | llmx | reference | llmx share |
+  |---|---:|---:|---:|
+  | Q8_0 | 162.5 us | 117.9 | 73% |
+  | Q4_K | 124.5 | 56.7 | 46% |
+  | Q6_K | 170.9 | 126.4 | 74% |
+
+  The reference's decode matvec quantizes activations to 8 bits and multiplies through the four-wide 8-bit dot; ours reads the 16-bit twin through the two-wide 16-bit dot, twice the dot instructions and twice the activation bytes per weight. The float-multiply row build, which the Radeon VII runs, was tried on the MI50 in place of the integer-dot build and is 10 to 24 percent slower there on the 8B shapes, so it is not the answer. The next piece is an 8-bit twin for the integer-dot devices: every producer of decode activations writes it and every row family's integer-dot build reads it, with Q6_K's offset of 32 and Q4_0's of 8 folded into the weight bytes as the tile does. Batched HF scoring through 8-bit activations on the MI50 put the Q8_0 continuous cell at 0.0023 against its 0.010 bound, so the precision is not expected to be what stops it.
+
+  Documentation review at this checkpoint: every Markdown file read against the code, CLI, tests and build. About fifty stale claims corrected across README, AGENTS, STATUS's table and feature blocks, VULKAN, USAGE, ROADMAP, ARCHITECTURE, EXECUTION, KV-CACHE, DEVICE-EXECUTION, SERVER, CI, ASSETS and the per-source pages. The largest were the ten-card MI50 figures presented as current in README and the status table, VULKAN.md saying no shader uses the integer dot, the tile described as two heights and two thresholds, the perplexity scorer described as one token at a time, and ROADMAP and ARCHITECTURE still calling the server and the Vulkan backend planned. The numbered measurement paragraphs above are left as history.
+
   And a memory fix. A model on a device backend held every weight twice: the loader reads the file into one host allocation, the model kept it for its lifetime, and the device backend copies each weight into its own memory. The model now records at adoption whether any weight still reads those bytes in place, and the CLI releases them when none does. Qwen3-8B-Q4_K_M on the Radeon VII, steady host memory 4.62 to 0.18 GB, decode unchanged; the CPU backend adopts by aliasing and keeps them. The peak is still the whole file, 4.84 GB, since it is read before the upload. Streaming the file to the device during the load, read directly into staging and uploaded asynchronously so the disk and the copies overlap, would remove that peak and is not done.
-- **Left:** on the MI50 against one card of the reference (the thirty-fourth paragraph), prompt processing at 24 to 96 percent and decode at 86 to 91; Q8_0 through the integer-dot tile at 7.72 TFLOPS against the reference's 13.30, and Q6_K and Q5_K not yet through it; loading, which reads the whole file into host memory before uploading it; decode on the 4- and
-  5-bit files, which the thirtieth paragraph took past the reference on
-  the Radeon VII and which the MI50 has yet to be measured on; folding a layer's
+- **Left:** on the MI50 against one card of the reference, from the one-card gate at `2b770f6` (the thirty-sixth paragraph) and the 32-row tile (the thirty-seventh): prompt processing at 69 to 117 percent at 247 rows and 78 to 99 at 512, short prompts behind (54 percent at 64 rows on the 0.6B Q8_0 file), decode at 86 to 90 percent on the 8-bit files and 91 to 107 on the 4- and 5-bit ones; every quantized type now goes through the integer-dot tile there, Q8_0 at 12.07 TFLOPS against the reference's 13.30 (the thirty-fifth); loading, which reads the whole file into host memory before uploading it; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
   barrier time measured in the twenty-ninth; the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the
@@ -2478,13 +2490,12 @@ their own measurements; K-quant optimization remains separate work below.
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Steps 1 to 6 of 7 done; the server (step 7) is in the tree, see the server row |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Done: steps 1 to 7, step 7 being the server, see the server row; the placement flags are not added yet |
 | KV cache fork (KV-CACHE step 2)          | Done     |
-| Multi-device split (per-layer, per-tensor) | Placement done over CPU backends; flags wait for a device backend |
-| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, a prefill tile whose shape the backend picks per dispatch. Decode at or above the reference on the 8-bit files and 89 to 92 percent on the 4- and 5-bit ones. Prefill ahead of the reference's Vulkan from 128 rows on the Radeon VII and behind it below that; on the MI50, where the same kernels pass through `docker/Dockerfile`, 41 percent at 64 rows and 65 to 74 at 256 and 512. ROCm planned |
-| Multi-device split (per-layer, per-tensor) | Planned  |
+| Multi-device split (per-layer, per-tensor) | Placement done in the model layer, tested over CPU backends; no flag selects it yet |
+| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, an 8-bit integer-dot prefill tile for every quantized type where the profile prefers the integer dot (the MI50 under Mesa) and the float tile elsewhere, tile heights of 32, 64 and 128 picked per dispatch. On the Radeon VII decode at or above the reference on every measured file, 103 to 112 percent (the thirtieth paragraph), prefill ahead of the reference's Vulkan from 128 rows and behind it below that. On one MI50 against one card of the reference (the one-card gate at `2b770f6` and the thirty-seventh paragraph), where the same kernels run through `docker/Dockerfile`: decode 86 to 90 percent on the 8-bit files and 91 to 107 on the 4- and 5-bit ones, prefill 69 to 117 percent at 247 rows and 78 to 99 at 512, 54 percent at 64 rows on 0.6B Q8_0. ROCm planned |
 | Multi-node / cluster                     | Planned  |
-| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 6): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device, prefix reuse through fork, a second execution context measured to have nothing to hide, the OpenAI-compatible routes |
+| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 6): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured to have nothing to hide, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |
@@ -2533,8 +2544,8 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 
 - **Goal:** prompt processing on the MI50 at least level with the reference, where it was 44 to 79 percent against a reference split across ten cards and is 24 to 73 percent against one (the thirty-fourth paragraph, measured after the tile below). Measured on that card within one environment at a 4096 x 14336 projection over 512 rows, our float tile reads 4.87 TFLOPS for Q8_0, 4.65 for Q4_K and 3.62 for Q6_K, level with the reference's own float tile at 4.77, while its 8-bit integer-dot tile reads 13.30, 11.42 and 7.03. So the gap is that path, not scheduling or tile shape (STATUS, thirty-third paragraph above).
 - **Plan:** a kernel quantizes each activation column to 8-bit values per 32-value block with the block's scale and scaled sum; a tile kernel stages one quant block per row and column per step as packed 8-bit words and scales, and multiplies with the four-wide integer dot, one float multiply-add per block for the scale and one more for a type's minimum. Q8_0 and Q4_K first, then Q6_K and Q5_K. Used only where the device's integer dot is native, which the profile records as `prefer_integer_dot`; elsewhere the float tile stays.
-- **Done:** the diagnosis above, and `backend-vulkan` now times the tile at that shape in TFLOPS. `quantize_x8.comp` and `matmul_tile_q.comp` for Q8_0 and Q4_K (`cb2eb5b`), taken where the profile says `prefer_integer_dot`. On the MI50 at the 8B feed-forward shape Q8_0 goes 4.87 to 7.72 TFLOPS and Q4_K 4.65 to 11.48, the reference's being 13.30 and 11.42. Qwen3-8B-Q4_K_M prompt processing 297.8 to 488.7 tok/s at 512 rows. Correctness: every HF perplexity cell in both scoring modes on the MI50 with all three 0.6B fixtures, the backend test's 1,172,518 outputs with its reference rounded the same way, and on the 8B Q4_K_M file, which no fixture covers, 40 wikitext windows of 512 at mean NLL 2.47005 against the float tile's 2.47023. Scoring through batched passes (`fc261f9`) is what made the HF gate reach this path at all.
-- **Left:** Q8_0 staging and Q5_K and Q6_K are done (the thirty-fifth paragraph, `c1bdb09` and `db249b8`). Left: staging several blocks per barrier; short prompts, 24 percent of the reference at 64 rows on the 0.6B Q8_0 file and 57 on the 8B; prompt processing at 79 to 89 percent on the Q8_0 files and 88 on the 8B Q4_K_M. Then decode on the MI50, 86 to 91 percent of the one-card reference.
+- **Done:** the diagnosis above, and `backend-vulkan` now times the tile at that shape in TFLOPS. `quantize_x8.comp` and `matmul_tile_q.comp` for Q8_0 and Q4_K (`cb2eb5b`), taken where the profile says `prefer_integer_dot`. On the MI50 at the 8B feed-forward shape Q8_0 goes 4.87 to 7.72 TFLOPS and Q4_K 4.65 to 11.48, the reference's being 13.30 and 11.42. Qwen3-8B-Q4_K_M prompt processing 297.8 to 488.7 tok/s at 512 rows. Correctness: every HF perplexity cell in both scoring modes on the MI50 with all three 0.6B fixtures, the backend test's 1,172,518 outputs with its reference rounded the same way, and on the 8B Q4_K_M file, which no fixture covers, 40 wikitext windows of 512 at mean NLL 2.47005 against the float tile's 2.47023. Scoring through batched passes (`fc261f9`) is what made the HF gate reach this path at all. Then the thirty-fifth to thirty-seventh paragraphs: Q8_0 staging a word at a time (12.07 TFLOPS), Q6_K in its own module (9.60 against the reference's 7.03) and Q5_K through the tile (`c1bdb09`, `db249b8`); Q4_0 and Q4_1 through it too and the measured profile carrying four thresholds, the MI50's row 16, 32, 24 and 40 (`2b770f6`); and a third tile height of 32 rows for short prompts, 0.6B Q8_0 at 64 rows 2502 tok/s, 54 percent of the reference's 4638 (`33933a9`).
+- **Left:** staging several quant blocks per barrier (being measured); MI50 prompt processing at 69 to 89 percent at 247 rows and more; MI50 decode at 86 to 91 percent on the 8-bit files.
 - **Gotchas:** 8-bit activations cost 0.009 of NLL in the decode kernel earlier, close to the 0.010 bound on one HF cell, so the device suite on the rig decides whether this ships, per type. The AMD Windows driver lowers the integer dot extension to widened multiplies, so the Radeon VII must keep the float tile.
 
 ### External floor of merged main (2026-09-20)
@@ -2582,6 +2593,19 @@ this repository. Builds and tests
 may run in parallel when no timing reservation is active. Keep every planned
 performance sample, record ordinary machine activity, and report missing
 telemetry honestly. GitHub receives main only; feature checkpoints stay on Gitea.
+
+## Historical feature blocks (2026-09-19 to 2026-09-21)
+
+The blocks from here to the end are checkpoints of features that have since
+shipped or been closed; the status table above is the current state. Their
+Left lines, such as merging with the runtime stack or closing an external
+floor, record what was open at the time and are not current work. The two
+exceptions are the blocks whose table rows are still `In Progress`,
+"Correctness baseline vs HF reference" and "Performance floor vs
+mx-llama.cpp".
+
+### GGUF reader size and tensor extent validation
+
 - **Goal:** reject malformed lengths, dimensions, arithmetic overflow and tensor
   extents before allocating payload storage or reporting loading progress;
   honor the file's declared alignment. This closes the documented format-layer
@@ -4059,19 +4083,23 @@ feature ships, delete its block and mark the row `Done` above.
   so that phase is better described as indistinguishable than regressed. The
   rule is not weakened and the run is not repeated to obtain a pass. Evidence:
   `benchmarks/device-exec-step2-20260920.json`.
-- **Left:** decide step 2's disposition. The frozen rule is stricter than
+- **Done:** all six steps, merged and gated (`docs/DEVICE-EXECUTION.md`, and
+  the "Device execution model complete" block above); the status table row
+  is `Done`. The Left lines below are the open items as of step 2, kept as
+  history and since resolved.
+- **Left (as of step 2):** decide step 2's disposition. The frozen rule is stricter than
   `AGENTS.md`'s own tradeoff principle, which says a large gain can justify a
   minor loss and warns against rejecting on an isolated per-case cutoff. That
   tension is a judgement call and must not be resolved by editing the rule
   afterwards. Options: re-measure with more pairs under a NEW prospective plan,
   or keep decode on the single-row ops so only prefill changes.
-- **Left:** step 1 still has no admissible measurement of its own; it was timed
-  off-protocol during 57294 (13:33:05-13:52:07 +0300, disclosed at the time).
+- **Left (as of step 2):** step 1 still has no admissible measurement of its
+  own; it was timed off-protocol during 57294 (13:33:05-13:52:07 +0300, disclosed at the time).
   Expected neutral, unproven.
-- **Left:** the external mx-llama.cpp floor is untouched by this runner and
-  still applies to any step that advances.
-- **Left:** steps 3-6 (buffers, arena, KV on buffers, sync) untouched. No
-  vendor backend is writable until step 6. Step 3 was started as interface
+- **Left (as of step 2):** the external mx-llama.cpp floor is untouched by
+  this runner and still applies to any step that advances.
+- **Left (as of step 2, since done):** steps 3-6 (buffers, arena, KV on
+  buffers, sync) untouched. No vendor backend is writable until step 6. Step 3 was started as interface
   plumbing only and reverted: `Buffer` with no caller is a speculative seam,
   which `AGENTS.md` forbids. It must land together with the weight conversion
   that uses it, which means touching `arch_qwen.hpp` and waiting for the other
@@ -4149,9 +4177,10 @@ feature ships, delete its block and mark the row `Done` above.
   is a much larger change than a fused dot, affects every quant type, and
   changes arithmetic, so it needs its own prospective plan and its own HF
   gate. It is the highest-value remaining decode work.
-- **Left:** the same treatment for Q6_K, which has signed group scales and no
-  min, so the dot is `sum(d_g * sum(q*x))` with no `sum(x)` term. Written, not
-  built or measured. Expect the same floor gap to remain afterwards.
+- **Done:** the same treatment for Q6_K, which has signed group scales and no
+  min, so the dot is `sum(d_g * sum(q*x))` with no `sum(x)` term:
+  `dot_row_q6_K`, adopted at +68.02% paired decode over 15 pairs, 0/15
+  baseline wins. Evidence: `benchmarks/fused-q6k-decode-20260920.json`.
 - **Done 2026-09-21:** `Qwen3-0.6B-Q5_K_M.gguf` is in `BASELINE_MODELS`
   (see the Vulkan block above), so the external gate covers Q5_K/Q6_K
   permanently on both backends. It is a third download for

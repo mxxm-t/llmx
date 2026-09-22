@@ -20,7 +20,8 @@ kernel notes and measurements are `docs/VULKAN.md`.
   `vulkan_kernel_representations` returns and `backend-vulkan --isa DIR`
   writes one file per kernel. Both are read-only reporting: nothing in
   the runtime path depends on them.
-- Buffers are `VulkanBuffer`, device-local or host-visible; every op is
+- Buffers are `VulkanBuffer`, device-local or host-visible, sized in whole
+  32-bit words; every op is
   recorded into a ring of command buffers and submitted in chunks of 64
   dispatches, so the device starts a pass while the host records the rest.
   Small per-call inputs go through a host-visible arena per ring slot; a
@@ -29,18 +30,24 @@ kernel notes and measurements are `docs/VULKAN.md`.
 - `matmul` and `matmul_group`: narrow batches take the row kernel, one
   module per family of types, reading quantized rows against 16-bit
   integer activations (`shaders/xquant.glsl`) that the producing kernel,
-  the norm, the SiLU or the attention, writes beside its output and tags;
-  wide batches take the tile kernel with float activations. Which of the
-  two, and what shape the tile has, comes from
-  `backends/device_profile.hpp`: the row count where the tile starts
-  winning moves with how much work a row carries, and the tile's height
-  is a specialization constant the backend picks from the device's
-  compute units so a small call still fills the card.
-- `kernel_statistics` and `kernel_representations` report what the driver
-  made of each kernel, registers and occupancy from the first and its
-  disassembly from the second, the latter only for a backend opened with
-  `diagnostics`. Neither is on the runtime path; `backend-vulkan` prints
-  the statistics and `--isa DIR` writes the disassembly.
+  the norm, the SiLU or the attention, writes beside its output and tags.
+  Each row kernel is built for eight columns and for one (specialization
+  constant 0), the one-column build taken when a chunk is one wide,
+  except the wide Q8_0 kernel; and a second time with `LLMX_DOT` for
+  devices whose profile prefers the integer dot, the default build
+  multiplying the nibble and K-quant dots as floats. Wide batches take a
+  tile kernel: where the profile sets `prefer_integer_dot`, every
+  quantized type goes through the 8-bit integer-dot tile
+  (`shaders/matmul_tile_q.comp`, Q6_K in its own module
+  `matmul_tile_q6`), its activations quantized by
+  `shaders/quantize_x8.comp`; F32, and every type on other devices, take
+  the float tile (`shaders/matmul_tile.comp`). Which of the kernels, and
+  what shape the tile has, comes from `backends/device_profile.hpp`: the
+  row count where the tile starts winning is one of four measured
+  thresholds (8-bit or other types, narrower or at least 4096 wide), and
+  `tile_rows_for` picks a height of 128, 64 or 32 rows from the device's
+  compute units and the projection's width so a small call still fills
+  the card.
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16,
   written and read through a view table so every cache kernel runs once
   per layer over every view of a batch; attention splits a batch between

@@ -19,7 +19,7 @@ component starts `llmx serve` on the synthetic model in every CPU job and
 on the real Q8_0 fixture in the HF job. What no hosted job establishes is
 device behaviour: the Vulkan job proves the tree compiles, and the kernel
 comparisons, the HF gate on the device and the matched floors are run on
-the Radeon VII by hand and recorded in `docs/STATUS.md`. A self-hosted
+the Radeon VII and the rig's MI50s by hand and recorded in `docs/STATUS.md`. A self-hosted
 runner on the rig would close that. The rig needs no packages of its own
 for it: `docker/Dockerfile` carries the driver and the compiler and takes
 the cards through `/dev/dri`, and inside it the whole CTest suite,
@@ -77,7 +77,7 @@ absent; the separate HF job supplies that coverage.
 The Python suite also checks reference-generator argument safeguards and that
 the requested commit, float32 dtype and eager attention reach the HF loader.
 These use standard-library test doubles; CI does not generate new HF goldens
-or download larger models. The ordinary suite now has 12 components, including
+or download larger models. The ordinary suite now has 13 components, including
 `reference-consumer` rejection tests for 8B fixture tampering, malformed or
 out-of-bound numerical output, wrong model identity and failed launches. These
 tests use small committed JSON fixtures and doubles, without 8B inference.
@@ -203,8 +203,9 @@ runs `prefill-placement`: active real topology when available, real fallback
 otherwise, and synthetic topology/failure cases even on small hosted runners.
 These checks do not require a real model or establish performance.
 
-Native counts are 19 on Windows and 18 on Linux/macOS; the Windows-only
-`prefill-placement` target accounts for the difference.
+Native counts are 20 on Windows and 19 on Linux/macOS; the Windows-only
+`prefill-placement` target accounts for the difference, and a build with
+`LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`.
 Windows 12/12 and Linux 11/11 pass locally. Placement release `3c5d4b9` also
 passes all five hosted jobs in
 [run 35516912422](https://github.com/mxxm-t/llmx/actions/runs/35516912422), including

@@ -17,7 +17,7 @@ the compiled binary portable to older CPUs.
 - `matvec_q8_0`: fused dequant+FMA AVX2 row dot, kept for the single-column
   (decode) case. It streams weight blocks; native sampled instruction locations
   alone do not establish DRAM bandwidth saturation or memory-stall causes.
-- Q4_K decode also has a fused row dot. F16C availability is cached and used
+- Q4_K, Q5_K and Q6_K decode also have fused row dots. F16C availability is cached and used
   for half conversion where supported.
 - `matmul`: type-generic batched matmul. Dequantizes `DOT_ROWS` weight rows
   through the registry, then walks the batch. `dot_f32_x4` loads each

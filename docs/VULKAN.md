@@ -46,7 +46,7 @@ graphics family, one transfer-only. The backend takes one queue from the
 compute family. Everything, including copies, goes through that queue, so
 the single implicit stream of the interface is literally one `VkQueue`.
 
-The Linux MI50 is validated after the workstation, through RADV. Nothing
+The Linux MI50 was validated after the workstation, through RADV. Nothing
 above is Windows-specific; the driver differs and the numbers are re-read
 there.
 
@@ -90,7 +90,9 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   memory and null for device memory. Allocation count is checked against
   `maxMemoryAllocationCount`; sub-allocation waits for a model that needs
   it. Zero-fill on `alloc` is a `vkCmdFillBuffer` in the current command
-  buffer, so it is ordered like every other op.
+  buffer, so it is ordered like every other op. A buffer's size is
+  rounded up to whole 32-bit words, since a tensor with an odd block
+  count can end two bytes into a word its 32-bit view reads.
 - **Adopt copies.** The contract lets it: `src` outlives the handle, and a
   backend that copies never relies on that. Weights are uploaded through
   the staging buffer in chunks at load, synchronously, because nothing can
@@ -116,13 +118,14 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   consecutive dispatches is correct and is what the first version does.
   Tracking which buffers an op touches, to let independent dispatches
   overlap, is an optimization with its own measurement.
-- **Descriptors.** Every kernel takes at most five storage buffers and a
-  block of push constants. With push descriptors there is no pool and no
+- **Descriptors.** Every kernel takes a handful of storage buffer
+  bindings, several of them views of one buffer, and a block of push
+  constants. With push descriptors there is no pool and no
   set allocation per op; a `Slice` becomes a buffer binding with a byte
   offset of four times its float offset. Small per-call inputs the host
-  holds, ids, positions and row lists, go through a host-visible buffer
-  allocated per call and kept until the command buffer it was recorded
-  into has retired, which the ring slot tracks. Rows and positions are
+  holds, ids, positions and row lists, go through a host-visible arena
+  per ring slot, bumped per call and reused once the command buffer it
+  was recorded into has retired. Rows and positions are
   range-checked on the host before the dispatch, since a shader cannot
   refuse them.
 - **Threads.** `set_threads` is accepted and ignored; `threads_available`
@@ -133,9 +136,11 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
 All in GLSL, compute stage, subgroup operations enabled, one workgroup
 size per kernel chosen for wave64. Activations are F32 everywhere except
 at the decode row kernel's quantized rows, which read them as signed
-16-bit integers in blocks of 32 (`xquant.glsl`, below): there the
-arithmetic differs from the CPU by that quantization, elsewhere only in
-reduction order. The HF gate measures the cost of it.
+16-bit integers in blocks of 32 (`xquant.glsl`, below), and at the
+integer-dot prefill tile, which reads them as signed 8-bit integers in
+blocks of 32 (`quantize_x8.comp`, below): there the arithmetic differs
+from the CPU by that quantization, elsewhere only in reduction order. The
+HF gate measures the cost of it.
 
 - **Dequantization** is one GLSL include (`qdecode.glsl`) with a function
   per quant type returning the float at (block, index), which `embed` and
@@ -228,9 +233,11 @@ reduction order. The HF gate measures the cost of it.
   251 and 257 GB/s: the hardware's load counter is in order, so a wait
   for this block's loads waits for the prefetch too), and both at once.
 
-  The same statistics carry the driver's disassembly, which
+  History, on the Radeon VII under the AMD proprietary driver; the
+  current rule is the paragraph after this one. The same statistics
+  carry the driver's disassembly, which
   `backend-vulkan --isa DIR` writes out, and reading it ended the
-  integer dot product extension's use here. The extension's 16-bit dot
+  integer dot product extension's use there. The extension's 16-bit dot
   lowered to exactly the multiply-add pairs a plain expression gives,
   with the operands sign-extended first, so the dots are now written as
   multiplies of sign-extended halves and bytes. Interleaved, two passes
@@ -239,9 +246,22 @@ reduction order. The HF gate measures the cost of it.
   and 224 against 232 and 233), and level on Q8_0, Q4_0, Q4_1 and Q5_K.
   On the models it is 2.5 percent of 8B Q4_K_M decode and 0.8 of 8B
   Q8_0; 0.6B decode did not move outside its spread, those shapes being
-  bound by dispatch latency. No shader uses the extension now, so the
-  backend no longer asks a device for `VK_KHR_shader_integer_dot_product`
-  and one refusal is gone from the list above.
+  bound by dispatch latency. At the time no shader used the extension,
+  so the backend stopped asking a device for
+  `VK_KHR_shader_integer_dot_product`.
+
+  The current rule. The backend enables the extension wherever the
+  device offers it, and every row kernel family is built a second time
+  with `LLMX_DOT`, taking its dots through the integer dot instructions.
+  That build, and the integer-dot prefill tile below, run only where the
+  device's measured profile sets `prefer_integer_dot`, which
+  `profile_for` honours only when the device has the integer dot
+  (`backends/device_profile.hpp`). The same gfx906 silicon gains 15
+  percent of 8B decode that way on the MI50 under Mesa, which lowers the
+  instructions to the chip's native dot, and loses 2 percent on the
+  Radeon VII under the AMD proprietary driver, which lowers them to the
+  multiplies with the operands widened first; so the Radeon VII keeps
+  the plain multiplies below and the float tile.
 
   Reading the same disassembly again showed what the multiply itself
   costs. The driver spends one `v_mad_u64_u32` per product, a 32-bit
@@ -254,7 +274,8 @@ reduction order. The HF gate measures the cost of it.
   multiply, and it will not narrow the multiply to the full-rate 24-bit
   form on its own.
 
-  So the nibble and K-quant dots multiply as floats. Each product is a
+  So the nibble and K-quant dots multiply as floats in the default build
+  of the row kernels. Each product is a
   non-negative quant of at most six bits against a 16-bit activation, and
   the accumulators stay inside the 16,777,216 a float counts exactly, so
   the float dot returns the same integer:
@@ -296,7 +317,16 @@ reduction order. The HF gate measures the cost of it.
   | matmul_row_k  | 72 | 62 | 3 -> 4 |
 
   Q5_K does not clear the 64 registers a fourth wave needs, which is why
-  it gains least.
+  it gains least. The wide Q8_0 kernel is the exception and does not get
+  a one-column build: it is the one row kernel whose eight-column build
+  is not register starved, running five waves per SIMD, and the narrow
+  build takes it to eight. On 8B Q8_0, already reading at the memory
+  system's limit, that cost 9 percent of decode and took its Q8_0 matmul
+  from 338 to 367 ms of device time. On the 0.6B files the same kernel
+  gained 12 percent, one work unit per lane there against four, so the
+  direction follows the shape as well as the path; the larger model's
+  loss is the one that decides it, that cell clearing the reference by 6
+  percent where the smaller clears it by 13.
 
   Prompt processing on a K-quant file was a separate and larger gap: on
   the MI50 a Qwen3-8B-Q4_K_M file read 98 tok/s at 247 rows against the
@@ -388,50 +418,65 @@ reduction order. The HF gate measures the cost of it.
   count, not the precision, and a half tile would also need a second
   module to keep F32 weights in float, so none of this is kept.
 
-  What the device does instead is the 8-bit integer dot. Measured on one MI50 under Mesa at a 4096 x 14336 projection over 512 rows, the float tile reads 4.87 TFLOPS on Q8_0 and 4.65 on Q4_K, level with another runtime's float tile at 4.77 on the same card, while that runtime's integer-dot tile reads 13.30 and 11.42. So where the profile records `prefer_integer_dot`, wide Q8_0 and Q4_K calls take `matmul_tile_q.comp`. `quantize_x8.comp` first writes each activation column as 8-bit values per block of 32, 8 words of signed bytes in position order, followed by a table of each block's scale and scale times integer sum. The tile then walks the inner dimension one quant block at a time. It stages, for each of its rows, that block's quants as 8 words with the block's scale and minimum, and for each of its 64 columns the activation block's words and scales. Each output gets eight four-wide dots per block, one float multiply-add for the scales and one more for a minimum. Q8_0 quants go in as they are, and Q4_K nibbles become bytes with a shift and a mask, since values 0 to 15 are valid signed bytes.
+  What the device does instead is the 8-bit integer dot. Measured on one MI50 under Mesa at a 4096 x 14336 projection over 512 rows, the float tile reads 4.87 TFLOPS on Q8_0 and 4.65 on Q4_K, level with another runtime's float tile at 4.77 on the same card, while that runtime's integer-dot tile reads 13.30 and 11.42. So where the profile records `prefer_integer_dot`, every quantized type's wide calls take `matmul_tile_q.comp`, Q6_K through its own module of it, `matmul_tile_q6` (`LLMX_Q6`); F32 keeps the float tile `matmul_tile.comp`, as does every type on a device without the preference. `quantize_x8.comp` first writes each activation column as 8-bit values per block of 32, 8 words of signed bytes in position order, followed by a table of each block's scale and scale times integer sum. The tile then walks the inner dimension one quant block at a time. It stages, for each of its rows, that block's quants as 8 words with the block's scale and minimum, and for each of its 64 columns the activation block's words and scales. Each output gets eight four-wide dots per block, one float multiply-add for the scales and one more for a minimum. Q8_0 quants go in as they are, and Q4_K nibbles become bytes with a shift and a mask, since values 0 to 15 are valid signed bytes.
 
   | type | float tile | integer-dot tile |
   |---|---:|---:|
   | Q8_0 | 4.87 TFLOPS | 7.72 |
   | Q4_K | 4.65 | 11.48 |
 
-  Qwen3-8B-Q4_K_M prompt processing at 512 rows goes from 297.8 to 488.7 tok/s. The HF perplexity cells pass in both scoring modes, and on the 8B Q4_K_M file 40 wikitext windows score mean NLL 2.47005 against the float tile's 2.47023. Q8_0 lags its neighbour because a 34-byte block is not word aligned, so each quant word is assembled from two 16-bit loads. The AMD proprietary driver lowers the integer dot extension to widened multiplies, so the Radeon VII keeps the float tile. The wide Q8_0 kernel is the exception and does not get
-  a one-column build: it is the one row kernel whose eight-column build
-  is not register starved, running five waves per SIMD, and the narrow
-  build takes it to eight. On 8B Q8_0, already reading at the memory
-  system's limit, that cost 9 percent of decode and took its Q8_0 matmul
-  from 338 to 367 ms of device time. On the 0.6B files the same kernel
-  gained 12 percent, one work unit per lane there against four, so the
-  direction follows the shape as well as the path; the larger model's
-  loss is the one that decides it, that cell clearing the reference by 6
-  percent where the smaller clears it by 13.
+  Qwen3-8B-Q4_K_M prompt processing at 512 rows goes from 297.8 to 488.7 tok/s. The HF perplexity cells pass in both scoring modes, and on the 8B Q4_K_M file 40 wikitext windows score mean NLL 2.47005 against the float tile's 2.47023. Q8_0 lagged its neighbour in that first version because a 34-byte block is not word aligned, so each quant word was assembled from two 16-bit loads. The AMD proprietary driver lowers the integer dot extension to widened multiplies, so the Radeon VII keeps the float tile.
+
+  Then the other types. Q8_0 now loads a word at a time, one extra word and a funnel shift where a block straddles a word boundary; Q6_K scales each half of a 32-value group apart, so its own module sums the halves separately and folds its offset of 32 into each staged byte (one module for all of them cost Q8_0 and Q4_K 4 percent); Q5_K is Q4_K plus a fifth bit; Q4_0 folds its offset of 8 into each byte and Q4_1 adds its minimum. At the same shape on one MI50 (docs/STATUS.md, thirty-fifth paragraph):
+
+  | type | float tile | integer-dot tile | reference's integer-dot tile |
+  |---|---:|---:|---:|
+  | Q8_0 | 4.87 TFLOPS | 12.07 | 13.30 |
+  | Q4_K | 4.65 | 11.44 | 11.42 |
+  | Q6_K | 3.62 | 9.60 | 7.03 |
 - **matmul, prefill** (the row counts below): a workgroup computes a
   TILE_ROWS x 64 output tile, walking the inner dimension 32 at a time;
   each step stages the dequantized W tile and the X tile in shared
   memory and every thread accumulates a (TILE_ROWS/16) x 4 micro-tile in
   registers, so a weight is read from memory once per pass. TILE_ROWS is
-  a specialization constant, 64 or 128, chosen per dispatch (below). Rows past `nout` and columns past
+  a specialization constant, 32, 64 or 128, chosen per dispatch (below). Rows past `nout` and columns past
   `nbatch` read as zero and are not stored. On the Radeon VII this took
   prefill from 449 to 1025 tok/s on Qwen3-0.6B-Q8_0 and from 40 to 220
   on Qwen3-8B-Q8_0, past the upstream llama.cpp Vulkan build's 660 and
   99; the CPU-versus-device A/B checks it at batch widths 16, 64, 100 and
   247. The tile is TILE_ROWS by 64, and TILE_ROWS is a specialization
-  constant, so one module builds a 64-row and a 128-row pipeline and
-  the backend picks per dispatch: the taller tile reads two thirds of
-  the shared memory per product, and the shorter is taken when the
-  taller would give fewer workgroups than the device has compute units,
-  which it learns from `VK_AMD_shader_core_properties` where that
-  exists and assumes small otherwise. This is the tile kernel's
+  constant, so each tile module builds a 128-row pipeline and a 64-row
+  one, whose second variant is the 32-row tile, and the backend picks
+  per dispatch through `tile_rows_for` in `backends/device_profile.hpp`.
+  The taller tile reads two thirds of the shared memory per product, so
+  128 rows are taken while they still give a workgroup per compute unit,
+  which the backend learns from `VK_AMD_shader_core_properties` where
+  that exists and assumes small otherwise. Below that the choice follows
+  the projection's width: under 4096 values to a row the 64-row tile is
+  taken while it fills every compute unit and the 32-row one otherwise,
+  and at 4096 or more the 32-row tile only below half fill, since it does
+  half the arithmetic per barrier, which a narrow projection's few inner
+  steps absorb and a wide one's do not (an 8B model's 4096-wide k and v
+  at 128 prompt rows took 72.5 ms on the small tile against 51.5 on the
+  middle one on the MI50). The 32-row tile gave the 0.6B files 11 to 23
+  percent at 48 to 64 prompt rows there. This is the tile kernel's
   equivalent of the row kernel's lanes-per-row: the shape follows the
   device and the call rather than the source.
   The row count where this kernel starts beating the per-row one is
   `tile_from_for` in `backends/device_profile.hpp`, and it depends on
   the width of a projection and on the driver: 40 rows on a 1024-wide
   8-bit projection under the AMD proprietary driver against 96 under
-  Mesa, and 26 against 30 on a 4096-wide one. The default is 64 below
-  4096 values to a row and 32 at or above; a device and driver that
-  have been measured take their own value from `measured_profiles`. To
-  measure a new one, force each kernel in turn by setting both
+  Mesa, and 26 against 30 on a 4096-wide one, both against the float
+  tile. There are four thresholds, 8-bit (and F32) projections and the
+  other types, each split at 4096 values to a row: `tile_from_8bit`,
+  `tile_from_8bit_narrow`, `tile_from_other` and
+  `tile_from_other_narrow`. The defaults are 32, 64, 64 and 64; a device
+  and driver that have been measured take their own row from
+  `measured_profiles`: the Radeon VII under the AMD proprietary driver
+  32, 48, 64 and 64, and the MI50 under Mesa, measured against the
+  integer-dot tile, 16, 32, 24 and 40. A row measured with the
+  integer-dot tile applies only when the device has the integer dot. To
+  measure a new one, force each kernel in turn by setting the
   thresholds to 1 and to a large number, sweep the prompt sizes, and
   take the crossing.
   The crossover from the row kernel was measured as prompt
@@ -459,8 +504,8 @@ reduction order. The HF gate measures the cost of it.
   decode from 134 to 36 us per layer on the Radeon VII. Keys are walked
   through the block table, a small buffer uploaded per call. GQA maps
   `n_head / n_head_kv` query heads to one KV head. Several views in one
-  call are one dispatch per view today; one launch over all of them is an
-  optimization with its own measurement. Head widths up to 256.
+  call are one dispatch through the view table below. Head widths up to
+  256.
 - **attention_tile**, for a wide pass of 128-wide heads: a workgroup
   per 32 query rows and head, the head's K and V streamed through shared
   memory in 16-token tiles so a tile is read once per 32 rows rather
@@ -507,8 +552,8 @@ enqueued on the queue. The layout inside a block is
 for the attention lanes. The block size starts at 64 tokens, half the
 CPU's, because the attention workgroup reads a block per iteration and
 smaller blocks waste less tail per sequence on the device that bounds
-concurrency; it is screened on the real models before the number is
-fixed, the same way the CPU's 128 was.
+concurrency; screened on the real models the same way the CPU's 128
+was, 32, 64 and 128 measured within noise and 64 kept (sub-step 7).
 
 Each side is stored as f32 or f16 (`--cache-type-k`, `--cache-type-v`,
 the same flags and meaning on the CPU). An f16 side is written by the
@@ -583,14 +628,12 @@ The CPU backend is untouched throughout and remains the reference.
 
 ## Open questions
 
-- **Wave64 assumed.** The kernels are written for a 64-wide subgroup and
-  use `VK_EXT_subgroup_size_control` to require it. RDNA and other vendors
-  default to 32; when a second device exists the kernels either take the
-  size as a specialization constant or are re-tuned. Not decided until
-  there is a second device to decide against.
-- **F16 KV or activations.** Not in scope; the cache and activations are
-  F32 as on the CPU. A change of precision is a separate step with its own
-  HF gate, as [KV-CACHE](KV-CACHE.md) already says.
+- **Wave64 tuned.** The kernels are tuned for a 64-wide subgroup. The
+  backend requires subgroups of at least 32 lanes whose size divides the
+  row kernel's 256-invocation workgroup, and reads the size rather than
+  forcing it; RDNA and other vendors default to 32, and whether the
+  kernels are re-tuned for that is not decided until there is such a
+  device to decide against.
 - **Sub-allocation.** One allocation per buffer is within the device limit
   for the models here and is simpler to get right. If a model or a KV
   budget approaches the limit, a chunked allocator goes behind the same

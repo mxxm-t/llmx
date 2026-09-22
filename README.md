@@ -30,10 +30,11 @@ backends and further architectures are planned.
   positions over its own history, and can be placed across several
   backends; the CLI drives one sequence on the CPU or on a Vulkan device.
 - A **Vulkan backend** (`-DLLMX_HAS_BACKEND_VULKAN=ON`, `--device vulkan:N`)
-  with kernels for every type the CPU reads, f16 or f32 KV caches and 16-bit
-  integer activations in decode, checked against the CPU backend and the HF
+  with kernels for every type the CPU reads, f16 or f32 KV caches, 16-bit
+  integer activations in decode and, where the device's 8-bit integer dot is
+  native, an integer-dot prefill tile, checked against the CPU backend and the HF
   references and measured against the reference runtime's Vulkan build on a
-  Radeon VII (`docs/VULKAN.md`).
+  Radeon VII and one MI50 (`docs/VULKAN.md`).
 - **`llmx serve`**: one model, a sequence per request, continuous batching
   with chunked prefill, streaming, prompt-prefix reuse through KV forks, and
   the OpenAI-compatible routes beside native ones, so existing clients
@@ -52,7 +53,7 @@ backends and additional model architectures are not implemented yet; see
 | Hugging Face | `llmx pull` today; safetensors, BF16/F16 tensors and the HF tokenizer/config files planned |
 | Execution model | Done: tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
 | Server | Done: `llmx serve` with continuous batching, streaming HTTP without dependencies, prefix reuse and the OpenAI-compatible routes (`docs/SERVER.md`, `docs/USAGE.md`) |
-| GPU backends | Vulkan done, running on a Radeon VII and on the rig's MI50s; decode at or above the reference on the 8-bit files and 89 to 92 percent on the 4- and 5-bit ones; prefill ahead from 128 rows on the Radeon VII and behind the reference's own Vulkan build on the MI50, where it is 65 to 74 percent at 256 and 512 rows; ROCm first-class on Linux, CUDA and SYCL planned |
+| GPU backends | Vulkan done, running on a Radeon VII and on the rig's MI50s. On the Radeon VII decode is at or above the reference on the 8-bit and the 4- and 5-bit files (103 to 112 percent), and prefill is ahead from 128 rows. On one MI50 against one card of the reference's own Vulkan build, decode is 86 to 90 percent on the 8-bit files and 91 to 107 on the 4- and 5-bit ones, and prefill 69 to 117 percent at 247 rows and 78 to 99 at 512, with short prompts behind (54 percent at 64 rows on 0.6B Q8_0); ROCm first-class on Linux, CUDA and SYCL planned |
 | Multiple devices/nodes | Placement across backends exists; per-layer and per-tensor splits over devices and cluster nodes planned |
 | Hub kernels | Optional later work: port suitable kernel source or distribute llmx kernels through the Hub |
 

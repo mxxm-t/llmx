@@ -109,10 +109,11 @@ capacity it retains. A failed step restores history and length; capacity
 the backend grew for the attempt may stay retained, within the budget.
 
 `KVSequence` replaces the per-model position bookkeeping; `Model` keeps one
-today and the server keeps one per request later. The budget covers every
-layer, K and V, and layout and alignment overhead. A CLI flag for it waits
-for a concrete consumer with a default and a defined exhaustion behaviour;
-no flag is added in this design.
+and the server keeps one per request. The budget covers every
+layer, K and V, and layout and alignment overhead. The CLI exposes it only
+as `llmx serve --ctx-size`, the pool's total token budget, whose exhaustion
+behaviour is admission: a request that does not fit waits or is refused
+(`docs/SERVER.md`).
 
 `length` is the committed history: tokens whose K and V are written and
 retired. A forward pass appends `batch` tokens with `kv_write` after
@@ -304,9 +305,9 @@ either way.
 
 | # | Step | Gate |
 |---|---|---|
-| 1 | `BlockPool`, `KVSequence`, paged host storage, view-form `attention`; one sequence, same outputs | HF gate unchanged; A/B vs contiguous picks `block_tokens` |
+| 1 | `BlockPool`, `KVSequence`, paged host storage, view-form `attention`; one sequence, same outputs (**done**) | HF gate unchanged; A/B vs contiguous picks `block_tokens` |
 | 2 | Fork with tail copy, refcount release, `kv-cache` CTest extended (**done**) | Distinct values across shared and private blocks; a forked sequence continues exactly as a fresh one fed the same history |
-| 3 | Storage on `Buffer`, completion-gated release | DEVICE-EXECUTION step 5, no CPU regression |
+| 3 | Storage on `Buffer`, completion-gated release (**done**) | DEVICE-EXECUTION step 5, no CPU regression |
 | 4 | Prefix reuse, per-request sequences (**done**) | With the server, ROADMAP #7: `docs/SERVER.md` step 4 |
 
 ## Agreement record

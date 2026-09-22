@@ -146,7 +146,7 @@ comma-separated list on one line.
 
 Decode a comma- or space-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> "<text>" [--top N] [--threads N] [--ubatch N] [--device D]`
+## `llmx logits <in.gguf> "<text>" [--top N] [--threads N] [--ubatch N] [--device D] [--cache-type-k T] [--cache-type-v T]`
 
 Print the top-N next-token logits for `text`, one `id value` pair per line
 after a `tokens:` header. `--top` defaults to 10.
@@ -199,6 +199,10 @@ Flags:
 | `--chunks N` | maximum windows to evaluate (positive integer; default all) |
 | `--per-token` | score one token at a time, the decode path, instead of in batched passes |
 | `--threads N`   | worker thread count (0 = auto)                 |
+| `-tb`, `--threads-batch N` | threads for the batched passes (default: `--threads`) |
+| `--ubatch N`    | tokens per batched pass (default 512)          |
+| `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32` |
+| `--device D`    | backend: `cpu`, or `vulkan:N` in a build with it |
 
 By default a window goes through the model in batched passes of up to `--ubatch` tokens, the way a prompt does, with logits taken for every position; the output head then runs once per pass over all of its rows. `--per-token` scores the same targets one token at a time instead, which is the path generation takes after the prompt. On a device the two paths use different kernels, so a score from each checks different code; they agree to within the rounding of their reductions. This all-target window policy differs from
 scoring modes elsewhere that exclude a warmup half-window; compare scores only with
@@ -208,7 +212,7 @@ identical input bytes, token IDs, window boundaries and target selection.
 
 For `generate` and `chat`, `--threads` is the CPU worker count for **decode** and
 `--threads-batch` / `-tb` is the count for **prefill**, defaulting to
-`--threads`. The short forms are `-t` and `-tb`.
+`--threads`. `-tb` is the short form of `--threads-batch`; `--threads` has none.
 
 Prefill and decode can favor different counts. Measure the chosen model and
 hardware; the matched thread-scaling tables in ASSETS record the tested cases.
@@ -222,8 +226,8 @@ on separate physical cores and checks restoration of their original affinity
 before decode. Other configurations use the normal scheduler. See the
 [placement policy and limits](src/backends-cpu-placement.md).
 
-For planned GPU backends these flags retain their CPU-worker meaning; they
-will not select GPU workgroup sizes or launch dimensions. `--ubatch` controls
+On a GPU backend these flags retain their CPU-worker meaning; they
+do not select GPU workgroup sizes or launch dimensions. `--ubatch` controls
 prompt tokens per forward pass across backends.
 
 ## Device selection (`--device`)
@@ -231,12 +235,12 @@ prompt tokens per forward pass across backends.
 `--device cpu` is the default. `--device vulkan:N` runs the model on Vulkan
 device `N`, counted as the loader lists them, in a build configured with
 `-DLLMX_HAS_BACKEND_VULKAN=ON` (`docs/VULKAN.md`); a build without it says
-so rather than falling back. `generate`, `chat`, `logits`, `perplexity` and
-`bench` take the flag. On a device `--threads` and `--threads-batch` do
+so rather than falling back. `generate`, `chat`, `logits`, `perplexity`,
+`serve` and `bench` take the flag. On a device `--threads` and `--threads-batch` do
 nothing and `--verbose` reports 0 threads; `--ubatch` keeps its meaning.
 Placement across several devices, such as some layers on the CPU, is
-implemented in the model layer and waits for a flag until the device
-backend runs the real models.
+implemented in the model layer, but no flag selects it yet; the CLI and
+the server run the whole model on the one `--device`.
 
 ## KV cache types (`--cache-type-k`, `--cache-type-v`)
 
@@ -246,7 +250,7 @@ are averaged under the softmax, so values tolerate less precision first. An f16 
 written with round-to-nearest and read back exactly as stored, so what
 differs between the types is the stored precision, not the arithmetic.
 The flags mean the same thing on every backend (`generate`, `chat`,
-`logits`, `perplexity` and `bench --model` all take them); a backend that
+`logits`, `perplexity`, `serve` and `bench --model` all take them); a backend that
 cannot store a type refuses it rather than substituting. `f16` halves the
 cache, which is what a long context on a small card needs: Qwen3-8B at
 a 16k context does not fit a 16 GB card with an f32 cache. It is the
@@ -263,11 +267,10 @@ sides to store the cache exactly.
 graph. It sets the matmul width and the size of the prefill scratch buffers,
 and it only affects prompt processing; generation is one token at a time.
 
-It is the physical batch (`-ub`), not a logical batch. llmx has no logical batch:
-there is one sequence and no queue, so the prompt is the batch. That
-distinction starts to matter only with the multi-user server in
-`docs/ROADMAP.md` #7, where tokens from different sequences are merged into one
-pass.
+It is the physical batch, not a logical batch. llmx has no logical batch flag:
+in the CLI there is one sequence and no queue, so the prompt is the batch. In
+`llmx serve` tokens from different sequences are merged into one pass, and
+`--ubatch` bounds the tokens of that pass (`docs/SERVER.md`).
 
 Scratch is sized to the smaller of `--ubatch` and the actual prompt, so a short
 prompt does not allocate a full-width buffer.
@@ -302,7 +305,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--topp F`              | top-p nucleus truncation (1.0 = off)                 | 0.95    |
 | `--penalty F`           | repetition penalty (>= 1)                            | 1.0     |
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
-| `--ubatch N`            | prefill physical batch (`-ub`)               | 512     |
+| `--ubatch N`            | prefill physical batch                       | 512     |
 | `-ctk`, `--cache-type-k T` | KV cache storage for keys: `f16` or `f32`      | `f16`   |
 | `-ctv`, `--cache-type-v T` | KV cache storage for values: `f16` or `f32`    | `f16`   |
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
@@ -420,7 +423,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080
 curl -N -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T] [--profile]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an

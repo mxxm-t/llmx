@@ -14,8 +14,8 @@ Block quantization kernels, in namespace `quant`.
   carries its own offset, so the value is `d*q + m`, not `d*(q-8)`.
 - `dequantize_row_q6_K` (in `k_quants.hpp`): Q6_K super-block of 256 values in 210 bytes - 128 low
   nibbles, 64 bytes of high 2-bit pairs, 16 int8 group scales, f16 super-block
-  scale. Registered READ-ONLY: llmx must load it because llama.cpp upgrades
-  selected tensors to it inside an otherwise Q4_0 file, but nothing here
+  scale. Registered READ-ONLY: llmx must load it because common GGUF converters
+  upgrade selected tensors to it inside an otherwise Q4_0 file, but nothing here
   produces it and a quantizer would be unused code.
 - `QuantType`: description of a quant type (block size, bytes/block,
   block-wise (de)quantize routines).

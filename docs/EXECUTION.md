@@ -247,8 +247,8 @@ selects the backend (`cpu`, `vulkan:0`, `rocm:0`), `--n-gpu-layers N` puts
 the last `N` layers on it and the rest on CPU, and the embedding table
 stays on CPU unless every layer is on the device. `--tensor-split` waits
 for a second device to exist, and an expert override waits for a model
-with experts. The flags land with the placement, in `docs/USAGE.md` and
-`print_usage` together. Choosing a fit automatically needs each backend to
+with experts. The placement is implemented and none of these flags exists
+yet; they land in `docs/USAGE.md` and `print_usage` together. Choosing a fit automatically needs each backend to
 report its free memory; that query is added with the first device backend
 that can answer it.
 
@@ -272,9 +272,9 @@ vendor backend, so Vulkan implements each signature once.
 | 2 | `submit`/`wait`; `Memory::host_visible`; logits read through `host_ptr` (**done**) | `Model::step` waits a ticket instead of `read`; reset waits the last ticket | Measured neutral over three 0.6B cells and one 8B, with a same-file layout control |
 | 3 | Batched views (**done**) | `Model` passes one view; `kv-cache` batches two sequences in one call | Measured neutral over three 0.6B cells and one 8B, with a same-file layout control |
 | 4 | `Model` / `Sequence` / `ExecContext` / `Batch`; `gather_rows` (**done**) | The CLI as one sequence and one context; `kv-cache` runs `forward` with two entries | Measured neutral over three 0.6B cells and one 8B, decode positive in all four |
-| 5 | Vulkan backend (#4b) (**done** on the Radeon VII: every CPU quant type, tiled prefill attention, f16 cache sides; the K-quant decode files at 84 to 96 percent of the reference remain open) | [VULKAN](VULKAN.md) | CPU-vs-Vulkan A/B on identical inputs; the HF gate with `--device vulkan:0`; the matched floor under the reference bench tool's protocol, `llmx bench --model` |
-| 6 | `Placement`, `write`, transfers (**done**, taken before 5); flags with the first device backend | Two `CpuBackend` instances splitting roles inside layers, bit-identical to one; then CPU plus Vulkan | Measured neutral at a single-device placement over three 0.6B cells and one 8B |
-| 7 | Scheduler, per-request sequences, prefix index (#7) | The server | Measured against single-sequence decode |
+| 5 | Vulkan backend (#4b) (**done** on the Radeon VII: every CPU quant type, tiled prefill attention, f16 cache sides, decode at or above the reference on all four measured files; on the MI50 the one-card gap is the open item, `docs/STATUS.md`) | [VULKAN](VULKAN.md) | CPU-vs-Vulkan A/B on identical inputs; the HF gate with `--device vulkan:0`; the matched floor under the reference bench tool's protocol, `llmx bench --model` |
+| 6 | `Placement`, `write`, transfers (**done**, taken before 5); the placement flags are not added yet | Two `CpuBackend` instances splitting roles inside layers, bit-identical to one; then CPU plus Vulkan | Measured neutral at a single-device placement over three 0.6B cells and one 8B |
+| 7 | Scheduler, per-request sequences, prefix reuse through donors (#7) (**done**, `docs/SERVER.md`) | The server | Measured against single-sequence decode |
 
 Step 6's first test needs no GPU: two CPU backends with different thread
 counts, one holding layers 0 to k and the other the rest, must produce the

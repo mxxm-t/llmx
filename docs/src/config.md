@@ -7,8 +7,8 @@ Single place for compile-time build knobs.
   uses. Keep the two in sync when adding build knobs.
 - **Backends** are the only things that need compile-time config, because GPU
   backends pull in heavyweight SDKs (ROCm/CUDA/SYCL/Vulkan). CPU is always on (no
-  external deps). The `LLMX_HAS_BACKEND_*` GPU names currently reserve future
-  gates; enabling an option does not build a vendor backend.
+  external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan backend; the
+  ROCm, CUDA and SYCL names reserve future gates and build no code.
 - **Model architectures** are *not* here: runtime metadata selection is planned;
   only dense Qwen3 is implemented today.
 - **Split mode / node count** are *not* here: they are planned runtime parameters.

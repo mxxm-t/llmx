@@ -208,8 +208,8 @@ block table, and the backend owns the physical blocks along with their size
 and layout. `Backend::attention` takes a `KVView` rather than raw pointers,
 so the model layer never computes an offset into KV storage.
 
-What remains for this document is storage placement, not the interface: the
-backend's blocks become a `Buffer` at step 5 below, without changing the view
+Storage placement followed without changing the interface: the backend's
+blocks became a `Buffer` at step 5 below, without changing the view
 contract. The release rule already anticipates it - a block returns to the
 free list only when its refcount is zero **and** the backend has retired
 every submission that read it.
@@ -334,10 +334,10 @@ Explicitly **not** part of #4a:
   adopted buffer, so removing the per-row entries cost it nothing. It is
   still Q8_0-only in what it constructs; making it generic across quants is a
   separate, smaller change.
-- **`adopt` alignment.** GGUF tensor offsets are float-aligned. Device
-  backends may want stricter alignment for coalesced access; whether `adopt`
-  may re-align (and therefore must copy on every backend) is unresolved.
-  Deferring: the first vendor backend has the information to decide.
+- **`adopt` alignment (settled).** GGUF tensor offsets are float-aligned.
+  The Vulkan backend's `adopt` copies into its own buffers and the device
+  accepts 4-byte storage offsets, so `adopt` never has to re-align on any
+  backend (`docs/VULKAN.md`, "Adopt copies").
 - **Quant dispatch on device.** `quant::Registry` holds host function pointers.
   A device backend needs its own per-type kernel table keyed by the same GGML
   type ids. The registry stays the source of truth for *which* types exist;

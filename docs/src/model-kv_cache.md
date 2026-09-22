@@ -34,10 +34,12 @@ computes an offset into them.
 `Model` owns one pool per device that runs attention, and one default
 sequence; a `Sequence` holds a table per storage and `Model::fork` forks
 every table and copies every tail. The server keeps one sequence per
-request over a shared pool; the prefix index is the later step in the
-design, not implemented here.
+request over a shared pool and finds prefix donors by comparing tokens in
+`server/scheduler.hpp`; nothing here indexes prefixes.
 
 CTest's `kv-cache` test covers pool reuse and exhaustion, sequence
 prepare/commit/abort/reset, on-demand CPU storage growth and retained reset
-across block boundaries, and paged attention over two different block tables
-against a double-precision reference. HF/model history checks remain separate.
+across block boundaries, paged attention over two different block tables
+against a double-precision reference, and forks: shared full blocks, a copied
+tail, refused appends into shared blocks and refcounted release. HF/model
+history checks remain separate.

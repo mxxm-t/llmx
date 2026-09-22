@@ -6,8 +6,8 @@ making changes.
 ## What this is
 
 **llmx** - a ground-up, dependency-free LLM inference runtime. It reads/writes
-GGUF v3, runs quantized or F32 Qwen3-style transformers on x86 CPU with AVX2/FMA/F16C,
-and is structured so formats, quantizations, backends, and multi-device / cluster
+GGUF v3, runs quantized or F32 Qwen3-style transformers on x86 CPU with AVX2/FMA/F16C
+or on a Vulkan device, and is structured so formats, quantizations, backends, and multi-device / cluster
 serving can be added later without touching the core.
 
 ## Build
@@ -203,6 +203,10 @@ scope reuse. Windows-only `prefill-placement` covers real eligible topology,
 unsupported topology fallback and synthetic apply/restore failures without
 requiring a six-core hosted runner. Neither replaces the independent HF gate.
 
+`fp16` checks binary32 to binary16 conversion without an oracle library:
+every finite half must encode back to its own bits, and every encoded float
+must be at least as close as either neighbouring half, ties to even.
+
 `backend-errors` injects task and startup-allocation failures, checks completion
 before error propagation, and exercises pool reuse and thread reconfiguration.
 It does not establish recovery of partially executed model sessions.
@@ -214,9 +218,10 @@ and monotonic tickets, then runs every implemented kernel against the CPU
 backend on random inputs with bounds fixed in the test: exact where the
 arithmetic is the same operation in the same order, a stated relative
 tolerance where a transcendental or a reduction order differs. The decode
-row kernel reads quantized rows against 16-bit integer activations, so its
-CPU reference is fed the activations quantized the same way and the
-comparison is about the dots; the norm, SiLU and attention kernels' twin
+row kernel reads quantized rows against 16-bit integer activations, and on
+a device whose profile prefers the integer dot the wide tile reads 8-bit
+ones, so the CPU reference is fed the activations quantized the same way and
+the comparison is about the dots; the norm, SiLU and attention kernels' twin
 of their output is checked through a matmul from it. After the checks it
 prints the matvec bandwidth per type and, when the device reports them,
 the driver's per-kernel statistics (registers, shared memory, scratch);
@@ -250,6 +255,8 @@ For a CMake build, pass `--exe <path-to-built-llmx>`. CI uses
 job so missing fixtures fail. Local performance floors remain enabled by
 default. See `docs/CI.md` for workflow coverage and reproduction commands.
 
+- **Version** (`tests/version.py`): `--version` matches the CMake project
+  version and build identifier format, and the usage banner starts with it.
 - **Round-trip** (`tests/roundtrip.py`): build a random Q8_0 model, quantize,
   dequantize, assert max error below a Q8_0-appropriate bound. Regression gate
   for `quant/` + `format/`.
@@ -261,6 +268,9 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   generous floor so catastrophic slowdowns fail loudly without being flaky.
 - **Tokenizer** (`tests/tokenizer.py`): encode/decode round-trips incl. unicode
   and special tokens.
+- **Perplexity** (`tests/perplexity.py`): a synthetic model with an analytic
+  scoring oracle checks window boundaries, chunk limits, target counts, file
+  and inline input parity and invalid flags.
 - **Chat** (`tests/chat.py`): follow-up replies against independent HF/Jinja2
   goldens, including changed prefixes, stop/EOS and token-limit endings.
   CTest also runs `chat-template`, comparing the real Qwen template against
@@ -310,7 +320,9 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   Compares llmx against golden fixtures generated once from the HF
   reference by `tools/gen_baseline.py` and committed to `tests/data/`. Needs a
   real model, so it SKIPS when none is on disk; point it at one with
-  `LLMX_BASELINE_GGUF`. Regenerating tokenizer fixtures needs `tokenizers` and
+  `LLMX_BASELINE_GGUF`. Every perplexity cell is scored twice, in batched
+  passes (the default) and with `--per-token`, so the prompt and decode
+  kernels both meet the reference. Regenerating tokenizer fixtures needs `tokenizers` and
   `huggingface_hub`; numerical fixtures also need `torch` and `transformers`.
   RUNNING the suite needs none of these packages.
 - **Reference generator** (`tests/reference_generator.py`): standard-library

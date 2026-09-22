@@ -1,8 +1,8 @@
 # `src/backends/backend.hpp` - compute backend interface
 
 Device-agnostic compute abstraction in namespace `backend`. The inference graph
-runs its primitive ops through a `Backend` so the same model code can target CPU
-now. Operands are a `Buffer` and a float offset (`Slice` / `CSlice`), so the
+runs its primitive ops through a `Backend` so the same model code targets the CPU
+and the Vulkan backend. Operands are a `Buffer` and a float offset (`Slice` / `CSlice`), so the
 backend owns its storage and the model never dereferences it. Every op
 enqueues on the backend's single implicit stream; `sync()` drains it and
 `read` syncs first, so the model syncs once per forward pass. This is the
@@ -37,6 +37,8 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   activations. Each descriptor gives type, weights, output and row count.
   Outputs must be disjoint from one another, inputs and weights. The default
   calls `matmul` sequentially; all outputs are ready when the call returns.
+- `matmul_add(...)`: `matmul` whose product is added to what the output
+  already holds.
 - `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, max_tokens)`,
   `kv_write(layer, views, n_views, k, v)`: the backend-owned half of the
   paged KV cache in `docs/KV-CACHE.md`. The backend chooses the block size and
@@ -55,7 +57,7 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   sees positions through `v.length + b`, so each table must cover
   `length + nq` positions and every block it reaches must have been written.
   Several views in one call is what a batch of sequences needs; the model
-  passes one. The backend owns temporary score storage.
+  passes one per entry. The backend owns temporary score storage.
 - `Slice` / `CSlice`: where an operand lives, a buffer and a float offset.
   Every op takes these rather than pointers, so nothing outside a backend
   holds a host address. An empty allocation resolves to no address and is
@@ -72,6 +74,10 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   buffers holding the per-position tables; row `r` reads entry `pos[r]` of
   each, so a batch may carry rows from several sequences. The two are one
   op because the model never applies one without the other.
+- `norm_rope_kv(...)`: a layer's attention inputs in one op, q normed and
+  rotated in place, k normed and rotated into its KV block and v copied
+  into its block. The default runs the three ops; the Vulkan backend fuses
+  them.
 - `silu_mul(dst, gate, up, n)`: the SwiGLU elementwise stage.
 - `add(dst, src, n)`: the residual add.
 - `gather_rows(dst, src, width, rows, count)`: row `i` of `dst` is row
@@ -86,18 +92,14 @@ per head per row. `parallel_for` is therefore NOT on this interface - a host
 callback across host threads has no device implementation. It remains public on
 `CpuBackend`, which its own tests use.
 
-Multi-device placement and batching across sequences are planned in
-`docs/EXECUTION.md`; the interface already carries what they need from it.
+Multi-device placement and batching across sequences are designed in
+`docs/EXECUTION.md` and implemented over this interface.
 
 `run_prefill(work)` invokes the body once on the caller after successful setup
 and completes cleanup before returning. Setup or reentrancy errors can reject
 the call before body entry. Its default implementation invokes the body directly.
 Backends may use this boundary to scope execution policy across all prompt
 microbatches without putting platform details in the model layer.
-
-`parallel_for` is not on this interface: a host callback across host threads
-has no device implementation. It remains public on `CpuBackend`, which its own
-tests use.
 
 `dot_q8_0` and `matvec_q8_0` are gone. They were Q8_0-specific single-row
 leftovers that `matmul` replaced everywhere, and a scalar return per row is

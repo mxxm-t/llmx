@@ -46,12 +46,14 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   contexts let a scheduler keep one pass on the device while it reads
   another's logits. `logits(i)` is row `i` of the last pass, in entry order.
 - `BatchEntry`: what one sequence contributes to a pass: tokens appended to
-  it and whether the logits after its last token are wanted. A prefill
+  it and whether the logits after its last token are wanted, or with
+  `every_logits` the logits after every one of its tokens. A prefill
   microbatch is one entry with many tokens, a decode batch is many entries
   with one, and they mix.
 - `Model`: loads tensors from a `GGUFModel` over one backend, or over
   several with a `Placement`. Each weight is adopted by the backend that
-  hosts its role, which on the CPU is the mapped file and costs no RAM.
+  hosts its role, which on the CPU aliases the loaded file bytes and costs no
+  further RAM.
   Each device that runs attention gets a `KVStorage` for exactly its layers
   with its own pool, block size and adopted RoPE tables. The residual
   stream crosses devices wherever the placement changes, through the
@@ -83,8 +85,11 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
     entry per chunk, inside one backend prefill scope, so each weight row is
     read once per chunk instead of once per token. Only the last chunk asks
     for logits. The prompt is one transaction across its chunks.
-  - `set_ubatch(n)` / `ubatch()`: physical batch, llama.cpp's `n_ubatch`, set
-    by `--ubatch`. llmx has no logical batch; see `docs/USAGE.md`.
+  - `score(ids, each)`: the ids in chunks of `ubatch()` tokens from an empty
+    history, each chunk an `every_logits` entry, calling `each(pos, logits)`
+    for every position. This is the batched path perplexity scores through.
+  - `set_ubatch(n)` / `ubatch()`: physical batch, set by `--ubatch`. llmx
+    has no logical batch; see `docs/USAGE.md`.
   - `reset()`: the default sequence's history returns to the pool while
     allocated KV capacity is retained.
   - Both forward paths call `Backend::attention` over the KV cache; score
@@ -104,8 +109,8 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   - `matvec` / `matmul` / `dequant_row`: helpers taking a resolved `Weight`,
     which carries the type and dimensions, so they dispatch through
     `quant::Registry` without a name lookup. Q8_0 uses the backend's fused AVX2
-    matvec; Q4_K has a fused decode dot; other supported quants use a
-    generic dequant-row-to-f32 + dot path.
+    matvec; Q4_K, Q5_K and Q6_K have fused decode dots; other supported quants
+    use a generic dequant-row-to-f32 + dot path.
   - The constructor calls `quant::register_builtins()` (idempotent) so the
     quant registry is populated before any tensor is processed.
   - Before model activation/KV/RoPE allocation, construction checks tensor-name
@@ -124,7 +129,10 @@ and F32 embeddings/matrices/norms. F32 embedding rows are copied directly;
 F32 matmul reads weight rows without staging. Missing
 `output.weight` selects tied token embeddings for the output projection.
 
-The borrowed GGUF model must outlive `Model` and remain unchanged. Construction
+The borrowed GGUF model must outlive `Model` and remain unchanged, except that
+its payload may be released (`GGUFModel::release_payload`) once
+`holds_payload()` is false, that is when every weight was copied into a
+device backend's own memory rather than read in place. Construction
 does not scan numerical weight contents, validate every possible metadata
 extension, check arbitrary token IDs or establish recovery after an execution
 failure. Those require separate input/session checks; they are not guarantees

@@ -24,9 +24,8 @@ constants has to change. Block kernels and the registry live in
   may still require missing types such as Q3_K.
 - A fused Q4_K row dot landed for decode: no dequantized value is materialised,
   because d*q - m factorises the dot into d*sum(q*x) - m*sum(x). 2.16 -> ~2.6
-  tok/s. Q5_K and Q6_K still take the generic path and would benefit the same
-  way; measure before assuming, and note prefill is a different question since
-  the batched path already reuses the dequantized row.
+  tok/s. Fused Q5_K and Q6_K decode dots followed the same way; prefill is a
+  different question since the batched path already reuses the dequantized row.
 - `IQ2/IQ3/IQ4` are deliberately NOT next. Every quant type multiplies the
   per-backend kernel work later (see #4b), and these are both rarer on the Hub
   and harder to implement. Hold them until a GPU backend exists and that cost
@@ -58,11 +57,11 @@ directly; a second format needs integration through this seam.
 - Extend `format::open()` beyond its current GGUF magic check
 - safetensors is HF-native and unlocks most of the Hub; see #9b
 
-## 4. Backends **[design]**
+## 4. Backends
 GPU backends are the only compile-time concern (heavy SDKs); `config.hpp`
-`LLMX_HAS_BACKEND_*` names are reserved for those gates; the existing options
-do not build GPU code yet. The vendor targets are ROCm, CUDA, SYCL
-(Intel) and Vulkan. This splits into two phases - the device
+`LLMX_HAS_BACKEND_*` names are reserved for those gates. Vulkan is
+implemented; the ROCm, CUDA and SYCL options build no code yet. The vendor
+targets are ROCm, CUDA, SYCL (Intel) and Vulkan. This splits into two phases - the device
 execution model has to land before any vendor backend is worth writing.
 
 ### 4a. Device execution model (prerequisite, backend-agnostic) [done]
@@ -87,8 +86,8 @@ round-tripped activations on every call. Now:
 - **Batched prefill**: `Model::prefill` batches tokens with `--ubatch`.
 
 The CPU backend stayed correct and fast through the refactor and is the A/B
-reference for every GPU claim (see #8). What #5 and #7 still need from the
-interface is designed in `docs/EXECUTION.md` and lands before the first
+reference for every GPU claim (see #8). What #5 and #7 need from the
+interface is designed in `docs/EXECUTION.md` and landed before the first
 vendor backend, so each signature is implemented on a device once.
 
 ### 4b. Vendor backends
@@ -162,33 +161,33 @@ Split a single model across several backends on one machine. Designed in
 - Per-layer pipeline across nodes; gradient/activation shipping
 - Split mode + node count chosen at launch (CLI flags), not compile time
 
-## 7. Multi-user server **[design]**
+## 7. Multi-user server [implemented]
+`llmx serve` implements this section; the design, the protocol, the scheduler
+loop, the gates and the order of work are in `docs/SERVER.md`.
 - Shared inference events: token delivery must support live CLI chat/generation
-  and future server streaming. Loading progress should report completed work
-  from the loader, leaving presentation to the CLI or server. Implement the
-  current CLI consumers first; avoid server-specific stubs. The CLI callbacks
+  and server streaming. Loading progress should report completed work
+  from the loader, leaving presentation to the CLI or server. The CLI callbacks
   and progress display are implemented; validation and release scope are
-  tracked in STATUS. Server transport remains planned.
+  tracked in STATUS. The server's transport is `server/http.hpp`.
 
 - HTTP/WS server front-end sharing read-only model weights, with independent
   sequence state and mutable KV histories (see ARCHITECTURE.md, KV state and
   concurrent execution). Prefix reuse shares immutable KV only, with explicit
   lifetime tracking; it must not share a user's mutable history.
-- Continuous batching, generation queues, `/generate` streaming. The model
+- Continuous batching, generation queues, `/v1/generate` streaming. The model
   layer's side of this, `Model` / `Sequence` / `ExecContext` / `Batch` and
-  the batched attention views, is designed in `docs/EXECUTION.md` and lands
+  the batched attention views, is designed in `docs/EXECUTION.md` and landed
   before the server so the CLI and the server run the same forward pass.
 - Separate execution scratch ownership and safe backend scheduling; internal
   worker parallelism does not make the current `Model` concurrently callable.
   A `Backend` is driven by one thread at a time; the scheduler is the single
   submitter per device.
-- `server/` directory is the planned home (not yet created - avoid empty stubs).
-  The design, the protocol, the scheduler loop, the gates and the order of
-  work are in `docs/SERVER.md`.
+- `server/` holds `http.hpp`, `scheduler.hpp` and `api.hpp`, including the
+  OpenAI-compatible routes.
 
 ## 8. Correctness & perf gates
 Two standards, both EXTERNAL. Neither may be replaced by a self-consistency
-check: llmx passed a fully green suite while six correctness bugs were live,
+check: llmx passed a fully green suite while eight correctness bugs were live,
 because every test compared llmx against itself. The subsequent bug tally
 and implemented HF coverage are recorded in STATUS.
 - **Correctness is the HF reference.** Golden fixtures are generated once with

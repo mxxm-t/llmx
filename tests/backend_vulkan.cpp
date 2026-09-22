@@ -9,6 +9,7 @@
 // a reduction order differs. Exits 77, which CTest reports as skipped, when
 // there is no loader or no device.
 #include <chrono>
+#include <fstream>
 #include <functional>
 #include <cmath>
 #include <cstdint>
@@ -900,10 +901,12 @@ std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
 }
 }
 
-int main() {
+// `--isa DIR` opens the backend for diagnostics and writes the driver's representation of every kernel it compiled, one file per kernel, after the checks.
+int main(int argc, char** argv) {
+    const std::string isa_dir = argc == 3 && std::strcmp(argv[1], "--isa") == 0 ? argv[2] : "";
     backend::BackendPtr b;
     try {
-        b = backend::make_vulkan_backend(0);
+        b = backend::make_vulkan_backend(0, !isa_dir.empty());
     } catch (const backend::VulkanUnavailable& e) {
         std::cout << "backend-vulkan: skipped: " << e.what() << "\n";
         return 77;
@@ -997,6 +1000,15 @@ int main() {
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
         std::cout << backend::vulkan_kernel_statistics(*b);
+        if (!isa_dir.empty()) {
+            size_t written = 0;
+            for (const auto& kr : backend::vulkan_kernel_representations(*b)) {
+                std::ofstream f(isa_dir + "/" + kr.first + ".txt");
+                f << kr.second;
+                written += f.good() ? 1 : 0;
+            }
+            std::cout << "backend-vulkan: " << written << " kernel representations written to " << isa_dir << "\n";
+        }
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

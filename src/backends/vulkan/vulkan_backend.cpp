@@ -407,6 +407,9 @@ struct Device {
     bool exec_stats = false;
     PFN_vkGetPipelineExecutablePropertiesKHR get_exec_props = nullptr;
     PFN_vkGetPipelineExecutableStatisticsKHR get_exec_stats = nullptr;
+    // The driver's internal representations of a kernel, its ISA on AMD, captured only for a backend opened for diagnostics.
+    bool exec_ir = false;
+    PFN_vkGetPipelineExecutableInternalRepresentationsKHR get_exec_ir = nullptr;
 
     // Guarded per handle: construction can fail between creating a handle
     // and loading the function that destroys it.
@@ -518,7 +521,7 @@ void span(const Buffer& b, size_t off, size_t bytes) {
 
 class VulkanBackend final : public Backend {
 public:
-    explicit VulkanBackend(int index) : dev_(std::make_shared<Device>()) {
+    explicit VulkanBackend(int index, bool diagnostics = false) : dev_(std::make_shared<Device>()) {
         Device& d = *dev_;
         Fn& fn = d.fn;
 #define LLMX_VK_LOAD_GLOBAL(name) \
@@ -633,24 +636,10 @@ public:
         if (!f2.features.shaderStorageBufferArrayDynamicIndexing)
             throw VulkanUnavailable("vulkan: " + d.name + " cannot index storage buffer arrays dynamically");
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
-        // The row kernel's activations are 16-bit integers met through
-        // integer dot products (shaders/quantize_x.comp).
+        // The row kernel's activations are 16-bit integers (shaders/quantize_x.comp).
         if (!f2.features.shaderInt16)
             throw VulkanUnavailable("vulkan: " + d.name + " has no 16-bit integer arithmetic");
         e2.features.shaderInt16 = VK_TRUE;
-        VkPhysicalDeviceShaderIntegerDotProductFeatures fdot{};
-        fdot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
-        VkPhysicalDeviceFeatures2 fq{};
-        fq.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        fq.pNext = &fdot;
-        fn.vkGetPhysicalDeviceFeatures2(d.physical, &fq);
-        if (!fdot.shaderIntegerDotProduct)
-            throw VulkanUnavailable("vulkan: " + d.name + " has no integer dot product");
-        VkPhysicalDeviceShaderIntegerDotProductFeatures edot{};
-        edot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
-        edot.shaderIntegerDotProduct = VK_TRUE;
-        edot.pNext = e2.pNext;
-        e2.pNext = &edot;
 
         uint32_t ext_count = 0;
         check(fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &ext_count, nullptr),
@@ -663,9 +652,6 @@ public:
             if (std::strcmp(e.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
                 d.push_descriptor = true;
-            } else if (std::strcmp(e.extensionName, VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME) == 0) {
-                // Core in 1.3; an extension on the 1.2 devices this targets.
-                enabled.push_back(VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME);
             } else if (std::strcmp(e.extensionName, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
                 d.exec_stats = true;
@@ -703,6 +689,9 @@ public:
             d.get_exec_stats = (PFN_vkGetPipelineExecutableStatisticsKHR)fn.vkGetDeviceProcAddr(
                 d.device, "vkGetPipelineExecutableStatisticsKHR");
             d.exec_stats = d.get_exec_props && d.get_exec_stats;
+            d.get_exec_ir = (PFN_vkGetPipelineExecutableInternalRepresentationsKHR)fn.vkGetDeviceProcAddr(
+                d.device, "vkGetPipelineExecutableInternalRepresentationsKHR");
+            d.exec_ir = d.exec_stats && d.get_exec_ir && diagnostics;
         }
         if (!d.push_descriptor)
             throw VulkanUnavailable("vulkan: " + d.name + " has no VK_KHR_push_descriptor");
@@ -794,6 +783,57 @@ public:
                 }
                 out += '\n';
             }
+        }
+        return out;
+    }
+
+    // The driver's internal representations of every kernel compiled so far, each kernel's text under its name, for a backend opened for diagnostics.
+    std::vector<std::pair<std::string, std::string>> kernel_representations() const {
+        std::vector<std::pair<std::string, std::string>> out;
+        const Device& d = *dev_;
+        if (!d.exec_ir) return out;
+        for (int id = 0; id < K_COUNT; ++id) {
+            const Kernel& k = kernels_[id];
+            if (!k.pipeline) continue;
+            VkPipelineInfoKHR pi{};
+            pi.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
+            pi.pipeline = k.pipeline;
+            uint32_t n = 0;
+            if (d.get_exec_props(d.device, &pi, &n, nullptr) != VK_SUCCESS) continue;
+            std::string text;
+            for (uint32_t e = 0; e < n; ++e) {
+                VkPipelineExecutableInfoKHR ei{};
+                ei.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
+                ei.pipeline = k.pipeline;
+                ei.executableIndex = e;
+                uint32_t nr = 0;
+                if (d.get_exec_ir(d.device, &ei, &nr, nullptr) != VK_SUCCESS) continue;
+                std::vector<VkPipelineExecutableInternalRepresentationKHR> reps(nr);
+                for (auto& r : reps) {
+                    r.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INTERNAL_REPRESENTATION_KHR;
+                    r.pNext = nullptr;
+                    r.pData = nullptr;
+                }
+                if (d.get_exec_ir(d.device, &ei, &nr, reps.data()) != VK_SUCCESS) continue;
+                std::vector<std::vector<char>> data(nr);
+                for (uint32_t r = 0; r < nr; ++r) {
+                    data[r].resize(reps[r].dataSize + 1);
+                    reps[r].pData = data[r].data();
+                }
+                if (d.get_exec_ir(d.device, &ei, &nr, reps.data()) != VK_SUCCESS) continue;
+                for (uint32_t r = 0; r < nr; ++r) {
+                    text += "== ";
+                    text += reps[r].name;
+                    text += " (";
+                    text += reps[r].description;
+                    text += ")\n";
+                    // The driver's size counts the terminator, so the text is taken up to it.
+                    if (reps[r].isText) text.append(data[r].data(), std::strlen(data[r].data()));
+                    else text += std::to_string(reps[r].dataSize) + " bytes of binary data\n";
+                    text += '\n';
+                }
+            }
+            out.emplace_back(kKernelNames[id], std::move(text));
         }
         return out;
     }
@@ -1591,6 +1631,7 @@ private:
         ci.stage.pName = "main";
         ci.layout = k.layout;
         if (d.exec_stats) ci.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+        if (d.exec_ir) ci.flags |= VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR;
         check(d.fn.vkCreateComputePipelines(d.device, VK_NULL_HANDLE, 1, &ci, nullptr, &k.pipeline),
               "vkCreateComputePipelines");
         k.bindings = src.bindings;
@@ -1755,8 +1796,8 @@ void VulkanKVStorage::ensure(size_t id) {
 
 } // namespace
 
-BackendPtr make_vulkan_backend(int device) {
-    return std::make_shared<VulkanBackend>(device);
+BackendPtr make_vulkan_backend(int device, bool diagnostics) {
+    return std::make_shared<VulkanBackend>(device, diagnostics);
 }
 
 std::string vulkan_device_name(const Backend& backend) {
@@ -1767,6 +1808,11 @@ std::string vulkan_device_name(const Backend& backend) {
 std::string vulkan_kernel_statistics(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->kernel_statistics() : std::string();
+}
+
+std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend) {
+    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
+    return v ? v->kernel_representations() : std::vector<std::pair<std::string, std::string>>();
 }
 
 } // namespace backend

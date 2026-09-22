@@ -76,8 +76,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The distribution's glslc predates the integer dot product extension
-      # the row kernel uses; the LunarG repository carries a current one.
+      # The distribution's compiler is older than the shader extensions the
+      # kernels use; the LunarG repository carries a current one.
       - name: Vulkan headers and shader compiler
         run: |
           sudo wget -qO /etc/apt/trusted.gpg.d/lunarg.asc https://packages.lunarg.com/lunarg-signing-key-pub.asc

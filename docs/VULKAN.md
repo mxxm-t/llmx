@@ -188,7 +188,7 @@ reduction order. The HF gate measures the cost of it.
   signed 16-bit values in blocks of 32, each block scaled so its largest
   magnitude is 32767, with the block's scale `d` and `d` times its sum
   (whole and per half of 16) in a table: a weight word's values pair off
-  with activation words through the device's 16-bit integer dots, a
+  with activation words through 16-bit integer multiplies, a
   block's integer sum is scaled once, and a type's offset (Q4_0's -8,
   Q4_1's min, the K-quant mins, Q6_K's -32) is folded through the block
   sum. Values are stored in the order nibble and byte words unpack in,
@@ -219,15 +219,29 @@ reduction order. The HF gate measures the cost of it.
   holds 41 vector registers, five waves per SIMD, and the K-quant paths
   held 75 (Q4_K), 93 (Q5_K) and 78 (Q6_K), three, two and three waves.
   Folding a block's scales once and unpacking Q5_K's fifth bits per
-  nibble word took Q5_K to 84 registers and from 254 to 296 GB/s at
-  4096 x 12288; Q4_K stayed at 74, since the compiler hoists the
-  activation loads whatever the source order. Three layouts measured
-  worse and are not in the tree: sixteen lanes per block (55 and 59
-  registers, four waves, but 245 and 272 GB/s, since a lane then keeps
-  half the weight bytes in flight per load), the next block's words
-  loaded before this block's dots (81 and 92 registers, 251 and 257
-  GB/s: the hardware's load counter is in order, so a wait for this
-  block's loads waits for the prefetch too), and both at once.
+  nibble word took Q5_K to 84 registers; Q4_K stayed at 74, since the
+  compiler hoists the activation loads whatever the source order. Three
+  layouts measured worse and are not in the tree: sixteen lanes per
+  block (55 and 59 registers, four waves, but 245 and 272 GB/s, since a
+  lane then keeps half the weight bytes in flight per load), the next
+  block's words loaded before this block's dots (81 and 92 registers,
+  251 and 257 GB/s: the hardware's load counter is in order, so a wait
+  for this block's loads waits for the prefetch too), and both at once.
+
+  The same statistics carry the driver's disassembly, which
+  `backend-vulkan --isa DIR` writes out, and reading it ended the
+  integer dot product extension's use here. The extension's 16-bit dot
+  lowered to exactly the multiply-add pairs a plain expression gives,
+  with the operands sign-extended first, so the dots are now written as
+  multiplies of sign-extended halves and bytes. Interleaved, two passes
+  each, that is worth about 5 percent on Q4_K at 4096 x 12288 (261 and
+  267 GB/s against 271 and 282) and 4 on the 0.6B files' Q6_K head (223
+  and 224 against 232 and 233), and level on Q8_0, Q4_0, Q4_1 and Q5_K.
+  On the models it is 2.5 percent of 8B Q4_K_M decode and 0.8 of 8B
+  Q8_0; 0.6B decode did not move outside its spread, those shapes being
+  bound by dispatch latency. No shader uses the extension now, so the
+  backend no longer asks a device for `VK_KHR_shader_integer_dot_product`
+  and one refusal is gone from the list above.
 - **matmul, prefill** (`nbatch` of 32 and up for F32 and Q8_0 rows, 64
   and up for the others): a workgroup computes a
   64 x 64 output tile, walking the inner dimension 32 at a time; each
@@ -381,7 +395,7 @@ device is present, so the tree stays green without a GPU.
 | 5 | `--device`; the models end to end (**done** except the floor) | HF baselines with `--device vulkan:0`: Q8_0 logits and all four perplexity cases match the CPU's numbers to the digit; the whole Python suite runs on the device; the matched mx Vulkan floor is the open item |
 | 6 | Q4_0, Q4_1, Q4_K, Q5_K, Q6_K shaders (**done**) | HF baselines on the Q4_0 and Q5_K_M fixtures pass on the device with the CPU's numbers; `backend-vulkan` checks each type against the CPU in `embed`, the tile and the row kernel and reports the matvec bandwidth per type |
 | 7 | Block-size screening (**done**: 32, 64 and 128 tokens measured within noise on 0.6B and 8B decode over 512 tokens, 64 kept); barrier tracking if a profile says so | The KV screening method, on the device |
-| 8 | Integer activations for the decode row kernel (**done**: 16-bit values in blocks of 32 through the device's integer dots, the twin written by the norm, SiLU and attention kernels) | `backend-vulkan` against the CPU fed the same quantized activations, 1e-4 relative, every type and both block-count parities, plus a norm, a SiLU and an attention into a buffer and a matmul from it; the HF gate on the device through the tile path and, with `--ubatch 8`, through the row kernel; the matched decode floor |
+| 8 | Integer activations for the decode row kernel (**done**: 16-bit values in blocks of 32 through integer multiplies, the twin written by the norm, SiLU and attention kernels) | `backend-vulkan` against the CPU fed the same quantized activations, 1e-4 relative, every type and both block-count parities, plus a norm, a SiLU and an attention into a buffer and a matmul from it; the HF gate on the device through the tile path and, with `--ubatch 8`, through the row kernel; the matched decode floor |
 
 The CPU backend is untouched throughout and remains the reference.
 

@@ -1,6 +1,8 @@
 #pragma once
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 #include "backends/backend.hpp"
 
 // The Vulkan backend (docs/VULKAN.md). Built only with LLMX_HAS_BACKEND_VULKAN;
@@ -26,7 +28,8 @@ struct VulkanUnavailable : std::runtime_error {
 
 // The backend over physical device `device`, counted as the loader lists
 // them. Throws VulkanUnavailable when there is nothing usable to open.
-BackendPtr make_vulkan_backend(int device);
+// With `diagnostics`, the driver's internal representations of the kernels are captured for `vulkan_kernel_representations`.
+BackendPtr make_vulkan_backend(int device, bool diagnostics = false);
 
 // The device's name as the driver reports it, for the CLI and the tests.
 std::string vulkan_device_name(const Backend& backend);
@@ -34,5 +37,9 @@ std::string vulkan_device_name(const Backend& backend);
 // The driver's statistics for every kernel the backend has compiled, one line each (registers, scratch, occupancy on AMD), for the test's report.
 // Empty when the device does not report them.
 std::string vulkan_kernel_statistics(const Backend& backend);
+
+// The driver's internal representations (the ISA on AMD) of every kernel a diagnostics backend has compiled, as (kernel name, text).
+// Empty for a backend opened without diagnostics or a device that does not serve them.
+std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend);
 
 } // namespace backend

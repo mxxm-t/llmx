@@ -7,11 +7,19 @@ translation unit (`vulkan_backend.cpp`, built only with
 opened at run time, so a build carries no link dependency; the design,
 kernel notes and measurements are `docs/VULKAN.md`.
 
-- `make_vulkan_backend(index)`, `vulkan_device_name`: open the loader,
-  pick the device, require what the kernels need (Vulkan 1.2, subgroups of
-  32 lanes or more, 16-bit integers, integer dot products, timeline
-  semaphores, push descriptors); anything missing throws
-  `VulkanUnavailable`, which the test skips on and the CLI reports.
+- `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
+  the loader, pick the device, require what the kernels need (Vulkan 1.2,
+  subgroups of 32 lanes or more, 16-bit integers, timeline semaphores,
+  push descriptors); anything missing throws `VulkanUnavailable`, which
+  the test skips on and the CLI reports, as does a loader with no driver
+  behind it.
+- `vulkan_kernel_statistics` returns the driver's per-kernel registers,
+  shared memory and scratch when the device serves them, which the test
+  prints after its checks. With `diagnostics` the backend also captures
+  the driver's disassembly of each kernel, which
+  `vulkan_kernel_representations` returns and `backend-vulkan --isa DIR`
+  writes one file per kernel. Both are read-only reporting: nothing in
+  the runtime path depends on them.
 - Buffers are `VulkanBuffer`, device-local or host-visible; every op is
   recorded into a ring of command buffers and submitted in chunks of 64
   dispatches, so the device starts a pass while the host records the rest.

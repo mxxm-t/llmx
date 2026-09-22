@@ -892,13 +892,18 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   unpacking Q5_K's fifth bits per nibble word, so nothing unpacked
   stays live across the columns:
 
-  | path | registers before | after | GB/s before | after |
-  |---|---:|---:|---:|---:|
-  | Q4_K | 75 | 74 | 261 | 253 to 265 |
-  | Q5_K | 93 | 84 | 254 | 286 to 296 |
+  | path | registers before | after |
+  |---|---:|---:|
+  | Q4_K | 75 | 74 |
+  | Q5_K | 93 | 84 |
 
   Q4_K did not move because the compiler hoists all four activation
-  loads whatever the source order. Three layouts measured worse and
+  loads whatever the source order. The bandwidth first recorded here
+  for Q5_K, 254 to 296 GB/s, was wrong: the 254 came from a tree
+  before the register trim rather than from the arm being compared.
+  Interleaved against the same tree afterwards, both this change and
+  the extension's removal leave Q5_K level at 295 to 306, so the trim
+  is kept for the registers and not for a rate. Three layouts measured worse and
   were dropped: sixteen lanes per block (55 and 59 registers, four
   waves, 245 and 272 GB/s, a lane then keeping half the weight bytes
   in flight per load), the next block's nibble words loaded before
@@ -909,13 +914,35 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   against the reference's 51.8 (91 percent), 0.6B Q5_K_M 195 to 202
   against 221 (88 to 91 percent), where the 0.6B shapes are bound by
   dispatch latency rather than bandwidth (Q5_K at 1024 x 3072 reads
-  128 GB/s). The lever that remains for Q4_K is below the source:
-  the extension also serves the driver's internal representation,
-  the ISA, which would show the wait placement and the instruction
-  mix.
+  128 GB/s). The lever that remained for Q4_K was below the
+  source, and the same extension served it: with `diagnostics` the
+  backend captures the driver's disassembly of every kernel and
+  `backend-vulkan --isa DIR` writes one file per kernel. Reading the
+  wide Q8_0 and Q4_K listings showed the integer dot product extension
+  buying nothing: its 16-bit dot lowered to the same multiply-add pairs
+  a plain expression gives, with the operands sign-extended first.
+  Written as multiplies of sign-extended halves and bytes instead,
+  interleaved against the extension, two passes each:
+
+  | path | extension | multiplies |
+  |---|---:|---:|
+  | Q4_K 4096 x 12288 | 261, 267 GB/s | 271, 282 |
+  | Q6_K 1024 x 151936 | 223, 224 | 232, 233 |
+  | Q8_0 4096 x 12288 | 393, 398 | 397, 398 |
+  | Q5_K 4096 x 12288 | 305, 295 | 299, 297 |
+  | 8B Q4_K_M decode | 47.1, 47.4 tok/s | 48.5, 48.6 |
+  | 8B Q8_0 decode | 40.6, 40.7 | 40.9, 41.0 |
+
+  Q4_0, Q4_1 and the 0.6B files are level, the last because those
+  shapes are bound by dispatch latency rather than bandwidth. 8B
+  Q4_K_M decode is now 92 percent of the reference's 52.3 tok/s and 8B
+  Q8_0 103 percent of its 39.7. The second consequence is the larger
+  one: no shader uses the extension, so the backend no longer requires
+  `VK_KHR_shader_integer_dot_product` of a device, which is one fewer
+  refusal between llmx and a card that lacks it.
 - **Left:** decode on the 4- and 5-bit files, 99 and 89 percent of the
-  reference on 0.6B and 91 on the 8B Q4_K_M, next through the ISA the
-  statistics extension can serve (the twenty-eighth paragraph); the
+  reference on 0.6B and 92 on the 8B Q4_K_M (the twenty-eighth
+  paragraph, where the ISA has now been read once); the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the
   tile kernel's cost per tile, the step at exactly 64 rows, and
   splitting the tiled attention over a long history. On 0.6B the bound is the

@@ -110,6 +110,7 @@ vec4 xq_halves_pair(uint c, uint j) {
 // Without, they are plain multiplies of sign-extended values, which the AMD proprietary driver prefers by 2 percent on the same silicon, since there the extension lowers to the same multiply-add pairs with the operands widened first.
 // The backend compiles both and picks per device (backends/device_profile.hpp, docs/VULKAN.md).
 #ifdef LLMX_DOT
+#define QDOT int
 // Two pairs of 16-bit values against two activation pair words.
 int pair_dot(uint a, uint b, uvec2 xw) {
     return dotEXT(unpack16(int(a)), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)), unpack16(int(xw.y)));
@@ -121,13 +122,30 @@ int byte_dot(uint w, uvec2 xw) {
     return dotEXT(i16vec2(v.xz), unpack16(int(xw.x))) + dotEXT(i16vec2(v.yw), unpack16(int(xw.y)));
 }
 #else
+#define QDOT float
 // The signed halves of a word, and one signed byte of it.
 int lo16(uint w) { return int(int16_t(w)); }
 int hi16(uint w) { return int(int16_t(w >> 16u)); }
 int byte_at(uint w, uint s) { return int(int8_t(w >> s)); }
-int pair_dot(uint a, uint b, uvec2 xw) {
-    return lo16(a) * lo16(xw.x) + hi16(a) * hi16(xw.x) + lo16(b) * lo16(xw.y) + hi16(b) * hi16(xw.y);
+// The nibble and K-quant dots multiply as floats. Every caller of pair_dot
+// passes weight halves it has already masked to a non-negative quant of at
+// most six bits, against a 16-bit activation, and the largest partial sum
+// any of these accumulators reaches is 16.5 million against the 16.8
+// million a float counts exactly, so this returns the same integer the
+// integer form does. The bound per type is in docs/VULKAN.md.
+//
+// It is worth converting for, because the multiply is what this kernel
+// costs. The chip runs a 32-bit integer multiply at a quarter rate and the
+// driver spends a `v_mad_u64_u32` on every product, 32 of the 249 vector
+// instructions of the Q4_K kernel and a third of its issue slots, where a
+// float multiply-add is one full-rate instruction and the conversions fold
+// into the operand select.
+float pair_dot(uint a, uint b, uvec2 xw) {
+    return float(a & 0xFFFFu) * float(lo16(xw.x)) + float(a >> 16u) * float(hi16(xw.x))
+         + float(b & 0xFFFFu) * float(lo16(xw.y)) + float(b >> 16u) * float(hi16(xw.y));
 }
+// Q8_0's weights are signed and its blocks sum past what a float counts
+// exactly, so that path keeps the integer multiply.
 int byte_dot(uint w, uvec2 xw) {
     return byte_at(w, 0u) * lo16(xw.x) + byte_at(w, 16u) * hi16(xw.x) + byte_at(w, 8u) * lo16(xw.y) + byte_at(w, 24u) * hi16(xw.y);
 }
@@ -154,7 +172,7 @@ void q8_word(uint w, uint d, uint a2, inout int p0, inout int p1) {
 // (Q4_K, Q5_K) further on. Low and high nibbles go to separate dots
 // since the K-quants scale them apart; `hb` carries a fifth bit per
 // nibble in bit 4 of each byte's pair word, zero for the others.
-void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, uvec2 xl, uvec2 xh, inout int pl, inout int ph) {
+void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, uvec2 xl, uvec2 xh, inout QDOT pl, inout QDOT ph) {
     pl += pair_dot((w & 0x000F000Fu) | hl0, ((w >> 8u) & 0x000F000Fu) | hl1, xl);
     ph += pair_dot(((w >> 4u) & 0x000F000Fu) | hh0, ((w >> 12u) & 0x000F000Fu) | hh1, xh);
 }
@@ -316,7 +334,8 @@ void main() {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
-                    int pl = 0, ph = 0;
+                    QDOT pl = QDOT(0);
+                    QDOT ph = QDOT(0);
                     nibble_dots(n0, 0u, 0u, 0u, 0u, lo0.xy, hi0.xy, pl, ph);
                     nibble_dots(n1, 0u, 0u, 0u, 0u, lo0.zw, hi0.zw, pl, ph);
                     nibble_dots(n2, 0u, 0u, 0u, 0u, lo1.xy, hi1.xy, pl, ph);
@@ -337,7 +356,8 @@ void main() {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
-                    int pl = 0, ph = 0;
+                    QDOT pl = QDOT(0);
+                    QDOT ph = QDOT(0);
                     nibble_dots(n0, 0u, 0u, 0u, 0u, lo0.xy, hi0.xy, pl, ph);
                     nibble_dots(n1, 0u, 0u, 0u, 0u, lo0.zw, hi0.zw, pl, ph);
                     nibble_dots(n2, 0u, 0u, 0u, 0u, lo1.xy, hi1.xy, pl, ph);
@@ -360,7 +380,8 @@ void main() {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
-                    int pl = 0, ph = 0;
+                    QDOT pl = QDOT(0);
+                    QDOT ph = QDOT(0);
                     nibble_dots(w1, 0u, 0u, 0u, 0u, lo0.xy, hi0.xy, pl, ph);
                     nibble_dots(w2, 0u, 0u, 0u, 0u, lo0.zw, hi0.zw, pl, ph);
                     nibble_dots(w3, 0u, 0u, 0u, 0u, lo1.xy, hi1.xy, pl, ph);
@@ -412,7 +433,8 @@ void main() {
                 for (uint cc = 0u; cc < p.ncols; ++cc) {
                     uint col = p.col0 + cc;
                     uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
-                    int pl = 0, ph = 0;
+                    QDOT pl = QDOT(0);
+                    QDOT ph = QDOT(0);
                     {
                         uvec4 lo = xq4[a4], hi = xq4[a4 + 4u];
                         nibble_dots(nq.x, fifth(hbv.x, sl), fifth(hbv.x, sl + 8u), fifth(hbv.x, sh), fifth(hbv.x, sh + 8u), lo.xy, hi.xy, pl, ph);
@@ -469,10 +491,10 @@ void main() {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
                     uvec4 x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
-                    int p0 = pair_dot(q0a & 0x00FF00FFu, (q0a >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0b & 0x00FF00FFu, (q0b >> 8u) & 0x00FF00FFu, x0v.zw);
-                    int p1 = pair_dot(q1a & 0x00FF00FFu, (q1a >> 8u) & 0x00FF00FFu, x1v.xy) + pair_dot(q1b & 0x00FF00FFu, (q1b >> 8u) & 0x00FF00FFu, x1v.zw);
-                    int p2 = pair_dot(q2a & 0x00FF00FFu, (q2a >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2b & 0x00FF00FFu, (q2b >> 8u) & 0x00FF00FFu, x2v.zw);
-                    int p3 = pair_dot(q3a & 0x00FF00FFu, (q3a >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3b & 0x00FF00FFu, (q3b >> 8u) & 0x00FF00FFu, x3v.zw);
+                    QDOT p0 = pair_dot(q0a & 0x00FF00FFu, (q0a >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0b & 0x00FF00FFu, (q0b >> 8u) & 0x00FF00FFu, x0v.zw);
+                    QDOT p1 = pair_dot(q1a & 0x00FF00FFu, (q1a >> 8u) & 0x00FF00FFu, x1v.xy) + pair_dot(q1b & 0x00FF00FFu, (q1b >> 8u) & 0x00FF00FFu, x1v.zw);
+                    QDOT p2 = pair_dot(q2a & 0x00FF00FFu, (q2a >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2b & 0x00FF00FFu, (q2b >> 8u) & 0x00FF00FFu, x2v.zw);
+                    QDOT p3 = pair_dot(q3a & 0x00FF00FFu, (q3a >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3b & 0x00FF00FFu, (q3b >> 8u) & 0x00FF00FFu, x3v.zw);
                     vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
                     acc[c] += d * (s0 * (xa.x * float(p0)) + s1 * (xa.z * float(p1)) +
                                    s2 * (xb.x * float(p2)) + s3 * (xb.z * float(p3)));

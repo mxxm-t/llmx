@@ -242,6 +242,37 @@ reduction order. The HF gate measures the cost of it.
   bound by dispatch latency. No shader uses the extension now, so the
   backend no longer asks a device for `VK_KHR_shader_integer_dot_product`
   and one refusal is gone from the list above.
+
+  Reading the same disassembly again showed what the multiply itself
+  costs. The driver spends one `v_mad_u64_u32` per product, a 32-bit
+  integer multiply-add this chip runs at a quarter rate, 32 of them in
+  the Q4_K kernel's 249 vector instructions: a third of the kernel's
+  issue slots for an eighth of its instructions. Removing the weight
+  side's sign extension, which the compiler emits even on a value it has
+  just masked to four bits, changed nothing, because the compiler
+  replaced each one with another instruction rather than a cheaper
+  multiply, and it will not narrow the multiply to the full-rate 24-bit
+  form on its own.
+
+  So the nibble and K-quant dots multiply as floats. Each product is a
+  non-negative quant of at most six bits against a 16-bit activation, and
+  the accumulators stay inside the 16,777,216 a float counts exactly, so
+  the float dot returns the same integer:
+
+  | Accumulator | Products | Largest quant | Largest partial sum |
+  |-------------|---------:|--------------:|--------------------:|
+  | Q4_0, Q4_1, Q4_K | 16 | 15 | 7,864,080 |
+  | Q5_K | 16 | 31 | 16,252,432 |
+  | Q6_K | 8 | 63 | 16,514,568 |
+  | Q8_0, narrow | 32 | 127 | 133,165,088 |
+  | Q8_0, wide | 16 | 127 | 66,582,544 |
+
+  Q8_0 is the exception on both counts, its weights signed and its blocks
+  summing past the exact range, so that path keeps the integer multiply.
+  For the rest every `v_mad_u64_u32` is gone; the conversions do not fold
+  into the operand select, so the Q4_K kernel is 265 vector instructions
+  rather than 249, but all of them issue at full rate against 345
+  quarter-rate-weighted slots before.
 - **matmul, prefill** (the row counts below): a workgroup computes a
   TILE_ROWS x 64 output tile, walking the inner dimension 32 at a time;
   each step stages the dequantized W tile and the X tile in shared

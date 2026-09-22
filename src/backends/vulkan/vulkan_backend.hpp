@@ -17,15 +17,15 @@
 
 namespace backend {
 
-// No loader, no device, or no device at the requested index. A test skips
-// on it; the CLI reports it.
+// No loader, no device, no device at the requested index, or a device
+// that lacks a feature the kernels need, such as a software device with
+// narrow subgroups. A test skips on it; the CLI reports it.
 struct VulkanUnavailable : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
 // The backend over physical device `device`, counted as the loader lists
-// them. Throws VulkanUnavailable when there is nothing to open, and
-// std::runtime_error when the device refuses a feature the backend needs.
+// them. Throws VulkanUnavailable when there is nothing usable to open.
 BackendPtr make_vulkan_backend(int device);
 
 // The device's name as the driver reports it, for the CLI and the tests.

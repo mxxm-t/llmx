@@ -2,7 +2,7 @@
 *.exe
 *.obj
 /build/
-/build-vk/
+/build-*/
 
 # Test outputs
 test_out.*

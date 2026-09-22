@@ -7,6 +7,7 @@
 #include "format/gguf.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -551,15 +552,15 @@ public:
         // 256, which needs the subgroup size to divide it.
         if (!d.subgroup_size || 256 % d.subgroup_size ||
             !(sg.supportedOperations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT))
-            throw std::runtime_error("vulkan: " + std::string(d.props.deviceName) +
+            throw VulkanUnavailable("vulkan: " + std::string(d.props.deviceName) +
                                      " has an unsupported subgroup size or no subgroup arithmetic");
         d.name = d.props.deviceName;
         if (d.props.apiVersion < VK_API_VERSION_1_2)
-            throw std::runtime_error("vulkan: " + d.name + " is older than Vulkan 1.2");
+            throw VulkanUnavailable("vulkan: " + d.name + " is older than Vulkan 1.2");
         // A block of 32 activations is quantized across 32 consecutive
         // lanes (shaders/xquant.glsl).
         if (d.subgroup_size < 32)
-            throw std::runtime_error("vulkan: " + d.name + " has subgroups narrower than 32 lanes");
+            throw VulkanUnavailable("vulkan: " + d.name + " has subgroups narrower than 32 lanes");
 
         // A compute family without graphics keeps the queue clear of the
         // desktop; any compute family will do.
@@ -574,7 +575,7 @@ public:
             if (chosen < 0 || (!(f & VK_QUEUE_GRAPHICS_BIT) && (qf[(size_t)chosen].queueFlags & VK_QUEUE_GRAPHICS_BIT)))
                 chosen = (int)i;
         }
-        if (chosen < 0) throw std::runtime_error("vulkan: " + d.name + " has no compute queue");
+        if (chosen < 0) throw VulkanUnavailable("vulkan: " + d.name + " has no compute queue");
         d.queue_family = (uint32_t)chosen;
 
         // Timeline semaphores are what submit and wait are built on. The
@@ -591,7 +592,7 @@ public:
         f2.pNext = &f11;
         fn.vkGetPhysicalDeviceFeatures2(d.physical, &f2);
         if (!f12.timelineSemaphore)
-            throw std::runtime_error("vulkan: " + d.name + " has no timeline semaphores");
+            throw VulkanUnavailable("vulkan: " + d.name + " has no timeline semaphores");
         d.int8 = f12.shaderInt8;
         d.float16 = f12.shaderFloat16;
         d.storage8 = f12.storageBuffer8BitAccess;
@@ -612,12 +613,12 @@ public:
         // The row kernel selects one of three projections' buffers per
         // workgroup, which is dynamic indexing of a storage buffer array.
         if (!f2.features.shaderStorageBufferArrayDynamicIndexing)
-            throw std::runtime_error("vulkan: " + d.name + " cannot index storage buffer arrays dynamically");
+            throw VulkanUnavailable("vulkan: " + d.name + " cannot index storage buffer arrays dynamically");
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
         // The row kernel's activations are 16-bit integers met through
         // integer dot products (shaders/quantize_x.comp).
         if (!f2.features.shaderInt16)
-            throw std::runtime_error("vulkan: " + d.name + " has no 16-bit integer arithmetic");
+            throw VulkanUnavailable("vulkan: " + d.name + " has no 16-bit integer arithmetic");
         e2.features.shaderInt16 = VK_TRUE;
         VkPhysicalDeviceShaderIntegerDotProductFeatures fdot{};
         fdot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
@@ -626,7 +627,7 @@ public:
         fq.pNext = &fdot;
         fn.vkGetPhysicalDeviceFeatures2(d.physical, &fq);
         if (!fdot.shaderIntegerDotProduct)
-            throw std::runtime_error("vulkan: " + d.name + " has no integer dot product");
+            throw VulkanUnavailable("vulkan: " + d.name + " has no integer dot product");
         VkPhysicalDeviceShaderIntegerDotProductFeatures edot{};
         edot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
         edot.shaderIntegerDotProduct = VK_TRUE;
@@ -669,7 +670,7 @@ public:
         LLMX_VK_DEVICE_FUNCTIONS(LLMX_VK_LOAD_DEVICE)
 #undef LLMX_VK_LOAD_DEVICE
         if (!d.push_descriptor)
-            throw std::runtime_error("vulkan: " + d.name + " has no VK_KHR_push_descriptor");
+            throw VulkanUnavailable("vulkan: " + d.name + " has no VK_KHR_push_descriptor");
         fn.vkCmdPushDescriptorSetKHR =
             (PFN_vkCmdPushDescriptorSetKHR)fn.vkGetDeviceProcAddr(d.device, "vkCmdPushDescriptorSetKHR");
         if (!fn.vkCmdPushDescriptorSetKHR)

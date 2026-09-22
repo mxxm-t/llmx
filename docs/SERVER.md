@@ -182,12 +182,17 @@ full.
   alone. A forked prefix continues exactly as a fresh sequence fed the
   same history. A cancelled request returns its blocks and the others
   finish unchanged. All on the CPU and on the device.
-- **Throughput.** Aggregate decoded tokens per second at 1, 4, 8 and 16
-  concurrent requests of the same shape, against the single-sequence
-  `bench --model` figure at 1, on both backends; and against the reference
-  runtime's server under the same load, same model, same card. A batch of
-  one must not cost more than the CLI's decode; the gain at 4 and 8 is the
-  reason the server exists and is reported, not assumed.
+- **Serving performance.** The figures a serving runtime is judged by,
+  measured by `tools/server_load.py` through streaming requests at 1, 4,
+  8, 16 and more concurrent requests of the same shape: time to first
+  token and inter-token latency at the median and the 99th percentile,
+  decoded tokens per second and requests per second. Against the
+  reference runtime's server under the same load, same model, same card,
+  both in the same minutes. The bar is not parity: the reference's server
+  is the weaker of the serving runtimes at concurrency and the one that
+  can run on this hardware, so llmx must beat it by a wide margin on every
+  figure, and the margin is what is reported. A batch of one must not
+  cost more than the CLI's decode.
 - **Long prompts under load.** A 16k prompt admitted while eight requests
   decode: the decoders' per-token latency during its prefill is recorded,
   since chunked prefill is what bounds it.

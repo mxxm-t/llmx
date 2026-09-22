@@ -9,7 +9,7 @@ dispatch. It contains six independent checks:
 | CPU (windows-2022) | MSVC, CMake Release, synthetic tests and benchmark smoke |
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | CPU (Linux UBSan) | GCC undefined-behavior checks, including mixed-tensor float alignment |
-| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON` from the distribution's headers and `glslc`; CTest with `backend-vulkan` skipping, since hosted runners have no device |
+| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository since the distribution's `glslc` predates the integer dot product extension the row kernel uses; CTest with `backend-vulkan` skipping, since hosted runners have no device |
 | HF reference (CPU) | Linux build plus both pinned real models: tokenizer, logits, continuous/chunked PPL |
 
 Every CTest in `CMakeLists.txt` runs in every job's "Backend tests" step,

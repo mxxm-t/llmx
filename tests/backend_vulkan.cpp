@@ -356,7 +356,7 @@ size_t check_kernels(backend::Backend& vk) {
         // numbers gets them and the reference has to follow.
         const backend::DeviceProfile profile = backend::vulkan_device_profile(p.vk);
         const size_t tile_from_8bit = backend::tile_from_for(profile, true, nin);
-        const size_t tile_from_other = profile.tile_from_other;
+        const size_t tile_from_other = backend::tile_from_for(profile, false, nin);
         for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(16), size_t(64),
                               size_t(100), size_t(247)}) {
             const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
@@ -369,9 +369,8 @@ size_t check_kernels(backend::Backend& vk) {
             // A device whose integer dot is native takes wide quantized batches through the integer-dot tile, which reads 8-bit activations.
             const bool idot = profile.prefer_integer_dot;
             const auto xr8 = nbatch < tile_from_8bit ? row_activations(x) : idot ? tile_activations8(x) : x;   // adopted, so they must outlive the calls
-            const auto xr4 = nbatch < tile_from_other ? row_activations(x) : x;   // Q4_0 and Q4_1 keep the float tile
             const auto xrk = nbatch < tile_from_other ? row_activations(x) : idot ? tile_activations8(x) : x;
-            Pair::In xri8 = p.in(xr8), xri4 = p.in(xr4), xrik = p.in(xrk);
+            Pair::In xri8 = p.in(xr8), xrik = p.in(xrk);
             for (int q = 0; q < 7; ++q) {
                 if (q >= 4 && nin % 256) continue;   // K-quant blocks are 256 wide
                 const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0
@@ -381,8 +380,7 @@ size_t check_kernels(backend::Backend& vk) {
                 const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i
                                    : q == 5 ? w4ki : q == 6 ? w5ki : wfi;
                 Pair::Out d = p.out(nbatch * nout);
-                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : q == 1 ? xri8 : q <= 3 ? xri4 : xrik).cs(), d.cs(), nin, nout,
-                             nbatch);
+                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : q == 1 ? xri8 : xrik).cs(), d.cs(), nin, nout, nbatch);
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
                 auto r = p.results(d);
                 try {

@@ -100,6 +100,8 @@ struct DeviceProfile {
     // up a little between 48 and 64 rows on the wider driver to avoid losing
     // a quarter to a half below 48 on either.
     size_t tile_from_8bit = 32, tile_from_8bit_narrow = 64, tile_from_other = 64;
+    // The same split for the other quantized types, which the integer-dot tile moved: on the MI50 a 1024-wide K-quant projection crosses near 40 rows and a 4096-wide one near 20.
+    size_t tile_from_other_narrow = 64;
     size_t tile_narrow_nin = 4096;
     // Splitting a short attention history across workgroups: below this many
     // (row, head) pairs, cut the history into chunks of this many tokens, at
@@ -129,20 +131,19 @@ struct DeviceProfile {
 struct MeasuredProfile {
     const char* device;              // a substring of what the device calls itself
     const char* driver;              // a substring of what its driver calls itself
-    size_t tile_from_8bit_narrow;    // where the tile matmul overtakes the per-row one
-    bool prefer_integer_dot;         // whether the row matmul wants the dot instructions
+    // Where the tile matmul overtakes the per-row one: 8-bit projections at least 4096 wide and narrower, then the other types the same two ways.
+    size_t tile_from_8bit, tile_from_8bit_narrow, tile_from_other, tile_from_other_narrow;
+    bool prefer_integer_dot;         // whether the matmuls want the integer dot instructions
 };
 
-// The crossover between the per-row and the tile matmul on a narrow projection
-// is the number that has been found to move with the driver rather than the
-// hardware: the same Vega20 wants 40 rows under the AMD proprietary driver and
-// 96 under Mesa, with the tile kernel reading 422 tok/s against the row
-// kernel's 883 at 32 rows on the latter. The default of 64 is the compromise
-// between them.
+// The crossover between the per-row and the tile matmul is the number that has been found to move with the driver rather than the hardware, and with the tile kernel the driver runs.
+// The same Vega20 wants 40 rows on a narrow 8-bit projection under the AMD proprietary driver, with the float tile.
+// Under Mesa it wanted 96 against the float tile, and against the integer-dot tile the crossings fell to 24 to 32 rows on Qwen3-0.6B-Q8_0, 8 to 16 on 8B-Q8_0, 32 to 48 on 0.6B-Q5_K_M and 16 to 24 on 8B-Q4_K_M; at 64 rows on the 0.6B the tile reads 2160 tok/s where the row kernel reads 1098 (docs/VULKAN.md).
+// A row measured with the integer-dot tile applies only when the device has the integer dot, since without it the float tile would run with thresholds measured for the other.
 inline const MeasuredProfile* measured_profiles(size_t& count) {
     static const MeasuredProfile table[] = {
-        {"Radeon VII", "AMD proprietary", 48, false},
-        {"MI60 / MI50", "radv", 96, true},
+        {"Radeon VII", "AMD proprietary", 32, 48, 64, 64, false},
+        {"MI60 / MI50", "radv", 16, 32, 24, 40, true},
     };
     count = sizeof(table) / sizeof(table[0]);
     return table;
@@ -157,8 +158,12 @@ inline DeviceProfile profile_for(const DeviceCaps& caps) {
     for (size_t i = 0; i < count; ++i) {
         if (caps.device.find(table[i].device) == std::string::npos) continue;
         if (caps.driver.find(table[i].driver) == std::string::npos) continue;
+        if (table[i].prefer_integer_dot && !caps.integer_dot) break;
+        p.tile_from_8bit = table[i].tile_from_8bit;
         p.tile_from_8bit_narrow = table[i].tile_from_8bit_narrow;
-        p.prefer_integer_dot = table[i].prefer_integer_dot && caps.integer_dot;
+        p.tile_from_other = table[i].tile_from_other;
+        p.tile_from_other_narrow = table[i].tile_from_other_narrow;
+        p.prefer_integer_dot = table[i].prefer_integer_dot;
         break;
     }
     return p;
@@ -166,7 +171,8 @@ inline DeviceProfile profile_for(const DeviceCaps& caps) {
 
 // Batch rows from which a matmul of this shape should take the tile kernel.
 inline size_t tile_from_for(const DeviceProfile& profile, bool every_projection_8bit_or_float, size_t nin) {
-    if (!every_projection_8bit_or_float) return profile.tile_from_other;
+    if (!every_projection_8bit_or_float)
+        return nin < profile.tile_narrow_nin ? profile.tile_from_other_narrow : profile.tile_from_other;
     return nin < profile.tile_narrow_nin ? profile.tile_from_8bit_narrow : profile.tile_from_8bit;
 }
 

@@ -1531,8 +1531,7 @@ public:
     // Whether a type's wide matmul goes through the integer-dot tile on this device.
     bool integer_dot_tile(uint32_t type) const {
         return dev_->profile.prefer_integer_dot && dev_->caps.integer_dot &&
-               (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K ||
-                type == gguf::GGML_TYPE_Q6_K);
+               type != gguf::GGML_TYPE_F32;
     }
 
     // The scratch the 8-bit twin of an n-value batch lives in (shaders/quantize_x8.comp): n bytes of quants, then 8 bytes per block of 32. Reused stream-ordered like the decode twin's.

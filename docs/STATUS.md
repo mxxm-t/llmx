@@ -985,7 +985,10 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   too, per 32-value block, in every workgroup that reads the row. Not
   attempted; the measurement is recorded so the next attempt knows what
   it is buying.
-- **Left:** decode on the 4- and 5-bit files, 99 and 89 percent of the
+- **Left:** prompt processing, bound by shared-memory traffic per operation at 12
+  percent of this card's fp32 peak, to be raised by a wider micro-tile
+  and a tile sized from what the device reports; decode on the 4- and
+  5-bit files, 99 and 89 percent of the
   reference on 0.6B and 92 on the 8B Q4_K_M (the twenty-eighth
   paragraph, where the ISA has now been read once); folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
@@ -1050,6 +1053,26 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   fork's. The fork matters: it reads 4549 tok/s at a 64-token prompt
   against upstream's 1774, so a share quoted against upstream flatters
   llmx, and it is the arm the gate names where it is available.
+
+  Why prompt processing is behind, diagnosed rather than guessed. Our
+  figure is the same on both cards, 1795 tok/s at pp512 on the Radeon
+  VII and 1783 on the MI50, while the reference's Vulkan goes from
+  about 1662 to 3555 on the same move. The drivers differ in what they
+  expose of identical Vega20 silicon: the AMD proprietary driver on
+  Windows reports 32 KB of shared memory per workgroup, Mesa reports
+  64 KB. The reference takes a larger tile when the larger limit is
+  there; `matmul_tile.comp` is fixed at a 64 by 64 tile using 16896
+  bytes and the backend never reads `maxComputeSharedMemorySize`, so
+  the extra room goes unused. Behind that sits the larger limit: at a
+  4 by 4 micro-tile a thread reads eight floats from shared memory per
+  sixteen multiply-adds, two operations per read, and at this card's
+  shared-memory bandwidth that ratio caps the kernel close to where it
+  measures, 1.57 of 13.4 fp32 teraflops, 12 percent of peak, against
+  the reference's 23. Neither arm is near the memory or the compute
+  limit, so prompt processing is bound by shared-memory traffic per
+  operation. The work that follows is to raise the operations per
+  read, which means a wider micro-tile, and to size the tile from what
+  the device reports rather than fixing it.
 
   The tiled attention does not yet share a K/V tile across the query
   heads of a KV group.

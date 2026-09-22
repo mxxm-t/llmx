@@ -1023,9 +1023,15 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   Performance there is the first comparison against a vendor backend
   rather than another Vulkan one. Qwen3-0.6B-Q8_0, the same MI50, the
   reference built for gfx906 with ROCm against llmx over Vulkan, two
-  passes each, five runs per point:
+  passes each, five runs per point. The reference arm here is a
+  different build from the Radeon VII tables above, which use b11075
+  Vulkan built with Clang for Windows: this one is b11100, commit
+  7ab4ee7ba, built with GCC for Linux against ROCm. Twenty-five builds
+  and a different backend, compiler and operating system separate the
+  two reference arms, so the two tables are not a series; within this
+  table both arms ran on the same card in the same minutes.
 
-  | test | reference, ROCm | llmx, Vulkan | share |
+  | test | reference b11100, ROCm | llmx, Vulkan | share |
   |---|---:|---:|---:|
   | pp64 | 1980, 1982 tok/s | 853, 829 | 42% |
   | pp256 | 5434, 5419 | 1469, 1469 | 27% |

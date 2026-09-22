@@ -67,6 +67,7 @@ struct DeviceCaps {
     std::string driver;
 
     bool matrix_units = false;       // a matrix-multiply instruction class; no gfx906 has one
+    bool integer_dot = false;        // an integer dot-product instruction class
     bool fp16_arithmetic = false;    // half-precision arithmetic, not merely half-precision storage
     bool int8_arithmetic = false;    // 8-bit integer arithmetic
     bool storage_8bit = false;       // 8-bit values addressable in a buffer
@@ -107,6 +108,14 @@ struct DeviceProfile {
     // Dispatches recorded before a submission, so the device starts on a pass
     // while the host is still recording it.
     uint32_t dispatch_chunk = 64;
+    // Whether the per-row matmul should take its dots through the integer dot
+    // product instructions rather than plain multiplies, where the device has
+    // them at all. Having them does not settle it: the same gfx906 silicon
+    // gains 15 percent of 8B decode under Mesa, which lowers them to the
+    // chip's native 16-bit dot, and loses 2 percent under the AMD proprietary
+    // driver, which lowers them to the multiplies anyway with the operands
+    // widened first. So it is measured per device, not asked of the hardware.
+    bool prefer_integer_dot = false;
 };
 
 // A profile that has been measured on one device with one driver.
@@ -120,7 +129,8 @@ struct DeviceProfile {
 struct MeasuredProfile {
     const char* device;              // a substring of what the device calls itself
     const char* driver;              // a substring of what its driver calls itself
-    size_t tile_from_8bit_narrow;    // the one number found to differ so far
+    size_t tile_from_8bit_narrow;    // where the tile matmul overtakes the per-row one
+    bool prefer_integer_dot;         // whether the row matmul wants the dot instructions
 };
 
 // The crossover between the per-row and the tile matmul on a narrow projection
@@ -131,8 +141,8 @@ struct MeasuredProfile {
 // between them.
 inline const MeasuredProfile* measured_profiles(size_t& count) {
     static const MeasuredProfile table[] = {
-        {"Radeon VII", "AMD proprietary", 48},
-        {"MI60 / MI50", "radv", 96},
+        {"Radeon VII", "AMD proprietary", 48, false},
+        {"MI60 / MI50", "radv", 96, true},
     };
     count = sizeof(table) / sizeof(table[0]);
     return table;
@@ -148,6 +158,7 @@ inline DeviceProfile profile_for(const DeviceCaps& caps) {
         if (caps.device.find(table[i].device) == std::string::npos) continue;
         if (caps.driver.find(table[i].driver) == std::string::npos) continue;
         p.tile_from_8bit_narrow = table[i].tile_from_8bit_narrow;
+        p.prefer_integer_dot = table[i].prefer_integer_dot && caps.integer_dot;
         break;
     }
     return p;

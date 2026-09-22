@@ -67,6 +67,12 @@ if(LLMX_HAS_BACKEND_VULKAN)
     # percent of its decode throughput.
     set(LLMX_VK_VARIANTS matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
         matmul_row_k=matmul_row=LLMX_KQUANT
+        matmul_row_dot=matmul_row=LLMX_DOT
+        matmul_row_q8w_dot=matmul_row=LLMX_Q8W+LLMX_DOT
+        matmul_row_q4_dot=matmul_row=LLMX_Q4+LLMX_DOT
+        matmul_row_k4_dot=matmul_row=LLMX_K4+LLMX_DOT
+        matmul_row_k5_dot=matmul_row=LLMX_K5+LLMX_DOT
+        matmul_row_k_dot=matmul_row=LLMX_KQUANT+LLMX_DOT
         kv_write_k16=kv_write=LLMX_K16 kv_write_v16=kv_write=LLMX_V16 kv_write_kv16=kv_write=LLMX_K16+LLMX_V16
         attention_k16=attention=LLMX_K16 attention_v16=attention=LLMX_V16 attention_kv16=attention=LLMX_K16+LLMX_V16
         attention_tile_k16=attention_tile=LLMX_K16 attention_tile_v16=attention_tile=LLMX_V16

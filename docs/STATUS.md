@@ -1223,6 +1223,37 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   128 bits rather than leaving the columns as a pair of reads, was also
   measured and is slightly worse: 8B pp512 320 tok/s against 333.
 
+  The same method then found the decode lever, and it is a driver
+  difference again. The per-row matmul's inner loop spent, per 16-bit
+  product, a sign-extend pair and a `v_mul_lo_u32`, which is a full
+  32-bit multiply and runs at quarter rate on gfx906. The chip has a
+  native 16-bit dot instruction and the integer dot product extension
+  maps to it, but only under Mesa: the AMD proprietary driver lowers
+  that extension back to the same multiplies with the operands widened
+  first, which is why the extension was dropped this morning on the
+  strength of measurements taken here. Under Mesa the dot form emits
+  128 of the native instructions where the multiply form emits 35 wide
+  multiplies, and per-type bandwidth on the MI50 goes from 222 to 241
+  GB/s on Q4_K, 239 to 284 on Q5_K and 213 to 254 on Q6_K.
+
+  Neither form wins everywhere, so both are compiled from the one
+  source under a define and the backend picks per device, availability
+  being a capability and worth being a measurement:
+
+  | model | multiplies | dots | device |
+  |---|---:|---:|---|
+  | 8B Q8_0 | 39.8, 39.4 tok/s | 45.7, 45.7 | MI50, Mesa |
+  | 0.6B Q8_0 | 246.8, 245.8 | 262.7, 261.3 | MI50, Mesa |
+  | 8B Q8_0 | 40.9, 40.7 | 40.1, 40.3 | Radeon VII |
+  | 8B Q4_K_M | 47.9, 48.0 | 46.6, 47.0 | Radeon VII |
+
+  So 15 percent of 8B decode and 6 of 0.6B on the rig, and this
+  workstation keeps the multiplies and is unchanged. One ordering bug
+  on the way, worth noting because the structure invites it: the
+  capability flags were filled before the extension scan that
+  discovers them, so the rig silently kept the slower form until the
+  profile decision moved after the scan.
+
   Against the reference's own Vulkan build on the MI50 afterwards, both
   arms in one container, five runs a point, two passes: pp64 871 tok/s
   against 2015, pp256 2507 against 3467, pp512 2745 against 3556, and

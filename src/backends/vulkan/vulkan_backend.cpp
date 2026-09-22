@@ -187,6 +187,25 @@ const uint32_t kSpvNormRopeKvKV16[] = {
 #include "vulkan/norm_rope_kv_kv16.inc"
 };
 
+const uint32_t kSpvMatmulRowDot[] = {
+#include "vulkan/matmul_row_dot.inc"
+};
+const uint32_t kSpvMatmulRowQ8WDot[] = {
+#include "vulkan/matmul_row_q8w_dot.inc"
+};
+const uint32_t kSpvMatmulRowQ4Dot[] = {
+#include "vulkan/matmul_row_q4_dot.inc"
+};
+const uint32_t kSpvMatmulRowK4Dot[] = {
+#include "vulkan/matmul_row_k4_dot.inc"
+};
+const uint32_t kSpvMatmulRowK5Dot[] = {
+#include "vulkan/matmul_row_k5_dot.inc"
+};
+const uint32_t kSpvMatmulRowKDot[] = {
+#include "vulkan/matmul_row_k_dot.inc"
+};
+
 const uint32_t kSpvMatmulTile[] = {
 #include "vulkan/matmul_tile.inc"
 };
@@ -199,7 +218,23 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_ATTENTION_TILE_K16, K_ATTENTION_TILE_V16, K_ATTENTION_TILE_KV16,
                 K_NORM_ROPE_KV_K16, K_NORM_ROPE_KV_V16, K_NORM_ROPE_KV_KV16,
                 K_QUANTIZE_X, K_MATMUL_ROW_Q8W, K_MATMUL_TILE_TALL,
+                K_MATMUL_ROW_DOT, K_MATMUL_ROW_Q8W_DOT, K_MATMUL_ROW_Q4_DOT,
+                K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_COUNT };
+
+// The same row kernel in its two dot forms; which one a device wants is
+// measured, not asked (backends/device_profile.hpp).
+inline KernelId row_dot_variant(KernelId plain) {
+    switch (plain) {
+    case K_MATMUL_ROW: return K_MATMUL_ROW_DOT;
+    case K_MATMUL_ROW_Q8W: return K_MATMUL_ROW_Q8W_DOT;
+    case K_MATMUL_ROW_Q4: return K_MATMUL_ROW_Q4_DOT;
+    case K_MATMUL_ROW_K4: return K_MATMUL_ROW_K4_DOT;
+    case K_MATMUL_ROW_K5: return K_MATMUL_ROW_K5_DOT;
+    case K_MATMUL_ROW_K: return K_MATMUL_ROW_K_DOT;
+    default: return plain;
+    }
+}
 
 // The tile kernel's row count, set as specialization constant 0 at pipeline
 // creation. Two heights are built from one module: the shorter fills a device
@@ -228,6 +263,8 @@ const char* const kKernelNames[K_COUNT] = {
     "attention_tile_k16", "attention_tile_v16", "attention_tile_kv16",
     "norm_rope_kv_k16", "norm_rope_kv_v16", "norm_rope_kv_kv16",
     "quantize_x", "matmul_row_q8w", "matmul_tile_tall",
+    "matmul_row_dot", "matmul_row_q8w_dot", "matmul_row_q4_dot",
+    "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -263,6 +300,12 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr},
     {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 10, kMatmulRowCounts},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
+    {kSpvMatmulRowDot, sizeof(kSpvMatmulRowDot), 10, kMatmulRowCounts},
+    {kSpvMatmulRowQ8WDot, sizeof(kSpvMatmulRowQ8WDot), 10, kMatmulRowCounts},
+    {kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 10, kMatmulRowCounts},
+    {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 10, kMatmulRowCounts},
+    {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 10, kMatmulRowCounts},
+    {kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 10, kMatmulRowCounts},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -414,6 +457,7 @@ struct Device {
     std::string name;
     bool push_descriptor = false;
     bool int8 = false, float16 = false, storage8 = false, storage16 = false;
+    bool integer_dot = false;     // the integer dot product instructions, if the device has them
     // The driver's per-kernel statistics (registers, occupancy), when it reports them; the test prints them.
     bool exec_stats = false;
     PFN_vkGetPipelineExecutablePropertiesKHR get_exec_props = nullptr;
@@ -618,7 +662,6 @@ public:
         d.caps.int8_arithmetic = d.int8;
         d.caps.storage_8bit = d.storage8;
         d.caps.storage_16bit = d.storage16;
-        d.profile = profile_for(d.caps);
         // The row kernel places one subgroup per row inside a workgroup of
         // 256, which needs the subgroup size to divide it.
         if (!d.subgroup_size || 256 % d.subgroup_size ||
@@ -686,6 +729,11 @@ public:
         if (!f2.features.shaderStorageBufferArrayDynamicIndexing)
             throw VulkanUnavailable("vulkan: " + d.name + " cannot index storage buffer arrays dynamically");
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
+        VkPhysicalDeviceShaderIntegerDotProductFeatures edot{};
+        edot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
+        edot.shaderIntegerDotProduct = VK_TRUE;
+        edot.pNext = e2.pNext;
+        e2.pNext = &edot;
         // The row kernel's activations are 16-bit integers (shaders/quantize_x.comp).
         if (!f2.features.shaderInt16)
             throw VulkanUnavailable("vulkan: " + d.name + " has no 16-bit integer arithmetic");
@@ -702,6 +750,12 @@ public:
             if (std::strcmp(e.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
                 d.push_descriptor = true;
+            } else if (std::strcmp(e.extensionName, VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME) == 0) {
+                // Core in 1.3; an extension on the 1.2 devices this targets.
+                // Enabled where present so the dot-form row kernels can run;
+                // whether they are faster than the plain ones is measured.
+                enabled.push_back(VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME);
+                d.integer_dot = true;
             } else if (std::strcmp(e.extensionName, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
                 d.exec_stats = true;
@@ -713,6 +767,11 @@ public:
             estat.pNext = e2.pNext;
             e2.pNext = &estat;
         }
+
+        // The profile is chosen here rather than with the other properties
+        // because it depends on what the extension scan above found.
+        d.caps.integer_dot = d.integer_dot;
+        d.profile = profile_for(d.caps);
 
         const float priority = 1.0f;
         VkDeviceQueueCreateInfo qi{};
@@ -1274,6 +1333,7 @@ public:
             break;
         default: break;
         }
+        if (dev_->profile.prefer_integer_dot) kernel = row_dot_variant(kernel);
         uint32_t cluster = lanes;
         while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
         const uint32_t rows_per_sg = dev_->subgroup_size / cluster;
@@ -1720,7 +1780,9 @@ private:
         if (buffers.size() != k.buffers) throw std::logic_error("vulkan: kernel binding count");
         if (id != K_QUANTIZE_X && id != K_RMS_NORM_ROWS && id != K_SILU_MUL && id != K_MATMUL_ROW &&
             id != K_MATMUL_ROW_Q8W && id != K_MATMUL_ROW_Q4 && id != K_MATMUL_ROW_K4 && id != K_MATMUL_ROW_K5 &&
-            id != K_MATMUL_ROW_K)
+            id != K_MATMUL_ROW_K && id != K_MATMUL_ROW_DOT && id != K_MATMUL_ROW_Q8W_DOT &&
+            id != K_MATMUL_ROW_Q4_DOT && id != K_MATMUL_ROW_K4_DOT && id != K_MATMUL_ROW_K5_DOT &&
+            id != K_MATMUL_ROW_K_DOT)
             xq_tag_ = XqTag{};
         if (push_bytes > kPushBytes) throw std::logic_error("vulkan: push constants exceed 128 bytes");
         for (const auto& b : buffers)

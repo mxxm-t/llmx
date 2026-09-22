@@ -63,6 +63,9 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#ifdef LLMX_DOT
+#extension GL_EXT_integer_dot_product : require
+#endif
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
@@ -102,21 +105,33 @@ vec4 xq_pair(uint c, uint j) { return xt4[p.nbatch * p.nin / 8u + c * (p.nin / 6
 vec4 xq_halves_pair(uint c, uint j) {
     return xt4[(p.nbatch * p.nin / 4u + p.nbatch * p.nin / 32u) / 2u + c * (p.nin / 64u) + j];
 }
-// The signed halves of a word, and one signed byte of it.
-// The dots below are plain multiplies of sign-extended values rather than the integer dot product extension, which the kernels used until the driver's disassembly showed it lowers them to the same multiply-add pairs with the operands widened first.
-// Written this way they are worth 2.5 percent of 8B Q4_K_M decode and 0.8 of 8B Q8_0, and the backend no longer refuses a device for want of that extension (docs/VULKAN.md).
-int lo16(uint w) { return int(int16_t(w)); }
-int hi16(uint w) { return int(int16_t(w >> 16u)); }
-int byte_at(uint w, uint s) { return int(int8_t(w >> s)); }
+// The dots, in two forms, because which one a driver turns into good code differs and neither wins everywhere.
+// With LLMX_DOT they go through the integer dot product extension, which Mesa lowers to this chip's native 16-bit dot: worth 15 percent of 8B decode and 6 of 0.6B on an MI50 under it.
+// Without, they are plain multiplies of sign-extended values, which the AMD proprietary driver prefers by 2 percent on the same silicon, since there the extension lowers to the same multiply-add pairs with the operands widened first.
+// The backend compiles both and picks per device (backends/device_profile.hpp, docs/VULKAN.md).
+#ifdef LLMX_DOT
 // Two pairs of 16-bit values against two activation pair words.
 int pair_dot(uint a, uint b, uvec2 xw) {
-    return lo16(a) * lo16(xw.x) + hi16(a) * hi16(xw.x) + lo16(b) * lo16(xw.y) + hi16(b) * hi16(xw.y);
+    return dotEXT(unpack16(int(a)), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)), unpack16(int(xw.y)));
 }
 // A word of four signed bytes at positions 4k..4k+3 against the pair
 // words: bytes 0 and 2 form one pair, 1 and 3 the other.
 int byte_dot(uint w, uvec2 xw) {
+    i8vec4 v = unpack8(int(w));
+    return dotEXT(i16vec2(v.xz), unpack16(int(xw.x))) + dotEXT(i16vec2(v.yw), unpack16(int(xw.y)));
+}
+#else
+// The signed halves of a word, and one signed byte of it.
+int lo16(uint w) { return int(int16_t(w)); }
+int hi16(uint w) { return int(int16_t(w >> 16u)); }
+int byte_at(uint w, uint s) { return int(int8_t(w >> s)); }
+int pair_dot(uint a, uint b, uvec2 xw) {
+    return lo16(a) * lo16(xw.x) + hi16(a) * hi16(xw.x) + lo16(b) * lo16(xw.y) + hi16(b) * hi16(xw.y);
+}
+int byte_dot(uint w, uvec2 xw) {
     return byte_at(w, 0u) * lo16(xw.x) + byte_at(w, 16u) * hi16(xw.x) + byte_at(w, 8u) * lo16(xw.y) + byte_at(w, 24u) * hi16(xw.y);
 }
+#endif
 // A word at any even byte offset, two 16-bit loads.
 uint hword_at(uint byte_off) {
     uint h = byte_off >> 1u;

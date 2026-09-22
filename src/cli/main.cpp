@@ -380,6 +380,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
     infer::Model model(m, make_backend(gp.device), model_options(gp));
+    if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     const int decode_threads = model.threads_available();
     model.set_ubatch(gp.ubatch);
@@ -428,6 +429,7 @@ int cmd_logits(const std::string& model_path, const std::string& text,
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
     infer::Model model(m, make_backend(gp.device), model_options(gp));
+    if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     model.set_ubatch(gp.ubatch);
 
@@ -465,6 +467,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
     infer::Model model(m, make_backend(gp.device), model_options(gp));
+    if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     model.set_ubatch(gp.ubatch);
 
@@ -488,6 +491,7 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
     infer::Model model(m, make_backend(gp.device), model_options(gp));
+    if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     const int decode_threads = model.threads_available();
     model.set_ubatch(gp.ubatch);
@@ -707,6 +711,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
     backend::BackendPtr backend_for_model = make_backend(device, profile);
     backend::Backend& b = *backend_for_model;
     infer::Model model(m, std::move(backend_for_model), options);
+    if (!model.holds_payload()) m.release_payload();
     if (threads > 0) model.set_threads(threads);
     // Ids below 1000 exist in every vocabulary the runtime loads.
     auto ids_from = [](uint32_t seed, size_t n) {
@@ -773,6 +778,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const in
     gguf::GGUFModel m = load_model(model_path, true);
     bpe::Tokenizer tok(m);
     infer::Model model(m, make_backend(gp.device), model_options(gp));
+    if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     if (gp.ubatch > 0) model.set_ubatch(gp.ubatch);
     server::Config c = cfg;

@@ -622,6 +622,9 @@ public:
         return seq_.length() * cfg.n_layer * 2 * cfg.n_head_kv * cfg.head_dim * sizeof(float);
     }
 
+    // Whether any weight still reads the GGUF model's tensor bytes in place. A host backend adopts by aliasing them; a device backend copies them into its own memory, and a model on device backends alone then holds every weight twice unless its owner releases the host copy (GGUFModel::release_payload).
+    bool holds_payload() const { return holds_payload_; }
+
 private:
     // One backend and what the placement put on it. A pool is not movable,
     // because sequences hold its address, so devices live behind pointers.
@@ -637,6 +640,7 @@ private:
     };
 
     const gguf::GGUFModel* m_;
+    bool holds_payload_ = false;   // some weight reads the GGUF model's bytes in place
     Placement place_;
     std::vector<std::unique_ptr<Device>> devices_;
     std::vector<Device*> storages_;              // the devices that run attention
@@ -682,8 +686,10 @@ private:
             // adopt, not copy: the payload is already resident and the
             // GGUF model outlives this one by contract.
             const size_t i = tindex_.at(t.name);
-            return Weight{t.type, devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i)),
-                          (size_t)input, (size_t)output};
+            backend::BufferPtr buf = devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i));
+            const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
+            if (hp && hp >= m_->blob.data() && hp < m_->blob.data() + m_->blob.size()) holds_payload_ = true;
+            return Weight{t.type, std::move(buf), (size_t)input, (size_t)output};
         };
         const size_t ed = (size_t)place_.embed_device, od = (size_t)place_.output_device;
         token_embd_ = check(ed, "token_embd.weight", cfg.n_embd, vocab);

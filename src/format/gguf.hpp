@@ -140,6 +140,9 @@ struct GGUFModel {
     std::vector<uint8_t> blob;
     std::vector<size_t> offsets;
 
+    // Drop the tensor bytes, keeping the metadata and the tensor table. For a caller whose model no longer reads them in place, which is any model whose every weight a copying backend took. tensor_data is invalid afterwards.
+    void release_payload() { std::vector<uint8_t>().swap(blob); }
+
     const uint8_t* tensor_data(size_t i) const { return blob.data() + offsets[i]; }
     uint8_t* tensor_data(size_t i) { return blob.data() + offsets[i]; }
     size_t tensor_bytes(size_t i) const { return (size_t)tensors[i].data_size(); }

@@ -1099,6 +1099,22 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   197 to 205 tok/s across runs either way, which is this session's
   drift.
 
+  Verified where the reference comparison lives, all three arms on the
+  MI50 in one container, five runs a point, two passes:
+
+  | test | reference Vulkan | llmx before | llmx after |
+  |---|---:|---:|---:|
+  | pp64 | 2027 tok/s | 828 | 831 |
+  | pp256 | 3474 | 1454 | 2253 |
+  | pp512 | 3555 | 1783 | 2619 |
+  | tg64 | 101.6 | 246 | 246 |
+
+  Prompt processing goes from 50 to 74 percent of the reference's
+  Vulkan at 512 rows and from 42 to 65 at 256; 64 rows is unchanged at
+  41 percent, that call being too small to fill the card either way,
+  and decode stays 2.4 times ahead. The kernels remain exact there,
+  1,172,518 outputs against the CPU backend.
+
   What this fixes beyond the number is the structure. The workgroup
   size, tile shape and shared-memory arrays of this kernel were
   literals tuned to one card; the row kernel had long adapted, reading

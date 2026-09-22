@@ -1196,6 +1196,13 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   to gain 20 percent in another there and 9 to 109 percent across three
   bands on the other.
 
+  Verified on the MI50 afterwards rather than predicted from the
+  sweeps: 0.6B pp16, pp32, pp48, pp64 and pp96 read 851, 883, 897, 856
+  and 972 tok/s, against 852, 422, 614, 825 and 940 before, and the 8B
+  reads 85.9, 157 and 292 at pp32, pp64 and pp512 against 83.7, 154 and
+  about 290. So the band that was picking the slower kernel there is
+  closed, and nothing regressed.
+
   The per-device ideal is still 48 rows here and 96 there, so a single
   number remains a compromise, and the argument for a measured table
   keyed by device and driver, or a calibration at device open, stands.

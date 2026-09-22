@@ -197,8 +197,14 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_ATTENTION_K16, K_ATTENTION_V16, K_ATTENTION_KV16,
                 K_ATTENTION_TILE_K16, K_ATTENTION_TILE_V16, K_ATTENTION_TILE_KV16,
                 K_NORM_ROPE_KV_K16, K_NORM_ROPE_KV_V16, K_NORM_ROPE_KV_KV16,
-                K_QUANTIZE_X, K_MATMUL_ROW_Q8W,
+                K_QUANTIZE_X, K_MATMUL_ROW_Q8W, K_MATMUL_TILE_TALL,
                 K_COUNT };
+
+// The tile kernel's row count, set as specialization constant 0 at pipeline
+// creation. Two heights are built from one module: the shorter fills a device
+// that a taller tile would leave idle, the taller reads less shared memory per
+// product (shaders/matmul_tile.comp).
+const uint32_t kTileRowsShort = 64, kTileRowsTall = 128;
 
 // A kernel's bindings; `counts` gives the array length of each, one for a
 // plain buffer. The buffers of a dispatch are listed binding by binding,
@@ -220,7 +226,7 @@ const char* const kKernelNames[K_COUNT] = {
     "attention_k16", "attention_v16", "attention_kv16",
     "attention_tile_k16", "attention_tile_v16", "attention_tile_kv16",
     "norm_rope_kv_k16", "norm_rope_kv_v16", "norm_rope_kv_kv16",
-    "quantize_x", "matmul_row_q8w",
+    "quantize_x", "matmul_row_q8w", "matmul_tile_tall",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -255,6 +261,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr},
     {kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr},
     {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 10, kMatmulRowCounts},
+    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -400,6 +407,7 @@ struct Device {
     VkPhysicalDeviceProperties props{};
     VkPhysicalDeviceMemoryProperties memory{};
     uint32_t subgroup_size = 0;
+    uint32_t compute_units = 16;  // what the vendor reports, else a small assumption
     std::string name;
     bool push_descriptor = false;
     bool int8 = false, float16 = false, storage8 = false, storage16 = false;
@@ -567,8 +575,30 @@ public:
         VkPhysicalDeviceProperties2 p2{};
         p2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
         p2.pNext = &sg;
+        // How many compute units the device has, which decides when a taller
+        // tile stops paying (matmul_group_impl). Core Vulkan does not report
+        // it; where the vendor does, ask, and otherwise assume a small device
+        // so the shorter tile is preferred and no call is starved of groups.
+        uint32_t core_ext_count = 0;
+        fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &core_ext_count, nullptr);
+        std::vector<VkExtensionProperties> core_exts(core_ext_count);
+        if (core_ext_count)
+            fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &core_ext_count, core_exts.data());
+        bool has_core_props = false;
+        for (const auto& e : core_exts)
+            if (std::strcmp(e.extensionName, "VK_AMD_shader_core_properties") == 0) has_core_props = true;
+        VkPhysicalDeviceShaderCorePropertiesAMD core{};
+        core.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_PROPERTIES_AMD;
+        if (has_core_props) {
+            core.pNext = p2.pNext;
+            p2.pNext = &core;
+        }
         fn.vkGetPhysicalDeviceProperties2(d.physical, &p2);
         d.subgroup_size = sg.subgroupSize;
+        if (has_core_props && core.shaderEngineCount && core.shaderArraysPerEngineCount &&
+            core.computeUnitsPerShaderArray)
+            d.compute_units = core.shaderEngineCount * core.shaderArraysPerEngineCount *
+                              core.computeUnitsPerShaderArray;
         // The row kernel places one subgroup per row inside a workgroup of
         // 256, which needs the subgroup size to divide it.
         if (!d.subgroup_size || 256 % d.subgroup_size ||
@@ -1144,13 +1174,20 @@ public:
         for (const Projection* pr : live)
             if (pr->type != gguf::GGML_TYPE_Q8_0 && pr->type != gguf::GGML_TYPE_F32) tile_from = 64;
         if (nbatch >= tile_from) {
+            const size_t gy = (nbatch + 63) / 64;
+            if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
+                throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
             for (const Projection* pr : live) {
+                // The taller tile reads two thirds of the shared memory per
+                // product and is worth about half again on a wide call, but it
+                // halves the workgroups; below one per compute unit the device
+                // runs out of work first, so the call takes the shorter tile.
+                const size_t tall_groups = ((pr->rows + kTileRowsTall - 1) / kTileRowsTall) * gy;
+                const bool tall = tall_groups >= dev_->compute_units;
+                const KernelId kernel = tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE;
                 const uint32_t pc[5] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u};
-                const uint32_t gx = groups(pr->rows, 64);
-                const size_t gy = (nbatch + 63) / 64;
-                if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
-                    throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
-                dispatch(K_MATMUL_TILE, {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data)},
+                const uint32_t gx = groups(pr->rows, tall ? kTileRowsTall : kTileRowsShort);
+                dispatch(kernel, {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data)},
                          pc, sizeof(pc), gx, (uint32_t)gy);
             }
             return;
@@ -1629,6 +1666,15 @@ private:
         ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
         ci.stage.module = k.module;
         ci.stage.pName = "main";
+        // The tile kernels take their row count as a specialization constant.
+        const uint32_t tile_rows = id == K_MATMUL_TILE_TALL ? kTileRowsTall : kTileRowsShort;
+        const VkSpecializationMapEntry entry{0, 0, sizeof(uint32_t)};
+        VkSpecializationInfo spec{};
+        spec.mapEntryCount = 1;
+        spec.pMapEntries = &entry;
+        spec.dataSize = sizeof(uint32_t);
+        spec.pData = &tile_rows;
+        if (id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL) ci.stage.pSpecializationInfo = &spec;
         ci.layout = k.layout;
         if (d.exec_stats) ci.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
         if (d.exec_ir) ci.flags |= VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR;

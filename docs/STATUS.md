@@ -1069,6 +1069,49 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   close to the 12 percent measured. The work is to raise the
   operations per read, which means a wider micro-tile.
 
+  Done, and the shape is now chosen rather than fixed. A thread
+  accumulates `TILE_ROWS / 16` rows by four columns, and `TILE_ROWS` is
+  a specialization constant, so one SPIR-V module builds both a 64-row
+  and a 128-row pipeline and the backend picks per dispatch. The taller
+  tile reads twelve values from shared memory per thirty-two products
+  where the shorter reads eight per sixteen, two thirds of the traffic
+  for the same work; it also halves the workgroups, so a call whose
+  taller form would produce fewer groups than the device has compute
+  units takes the shorter one. Compute units come from
+  `VK_AMD_shader_core_properties` where the driver has it, and a
+  deliberately small assumption otherwise, which prefers the shorter
+  tile and starves nothing. Measured on the Radeon VII, three runs a
+  point, interleaved, the two fixed heights against the choice:
+
+  | case | 4 by 4 fixed | 8 by 4 fixed | chosen |
+  |---|---:|---:|---:|
+  | 0.6B pp64 | 837 tok/s | 732 | 844 |
+  | 0.6B pp128 | 1814 | - | 1919 |
+  | 0.6B pp256 | 1473 | 2344 | 2772 |
+  | 0.6B pp512 | 1795 | 2820 | 2821 |
+  | 8B pp256 | 243 | 262 | 265 |
+  | 8B pp512 | 267 | 309 | 309 |
+
+  Choosing beats both fixed heights everywhere, and beats the taller
+  one at 256 rows because the projections of a dispatch differ: a
+  1024-row projection and a 3072-row one do not want the same tile.
+  Decode is untouched, the row kernel taking those batches, and reads
+  197 to 205 tok/s across runs either way, which is this session's
+  drift.
+
+  What this fixes beyond the number is the structure. The workgroup
+  size, tile shape and shared-memory arrays of this kernel were
+  literals tuned to one card; the row kernel had long adapted, reading
+  the device's subgroup width and computing lanes per row and rows per
+  subgroup on the host. The tile kernel now adapts too, by the
+  mechanism Vulkan provides for it, so a device with a different
+  subgroup width, a different shared-memory limit or a different ratio
+  of shared-memory bandwidth to arithmetic gets a different shape from
+  the same source. The shared-memory limit is the next input to that
+  policy: the tall tile takes 25600 bytes of the 32 KB the AMD
+  proprietary driver reports and the 64 KB Mesa reports, so a taller
+  one again is available on some devices and not others.
+
   A second, separate observation, and only an observation: the two
   drivers report different limits for the same Vega20 silicon, 32 KB
   of shared memory per workgroup from the AMD proprietary driver on

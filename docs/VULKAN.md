@@ -252,7 +252,16 @@ reduction order. The HF gate measures the cost of it.
   prefill from 449 to 1025 tok/s on Qwen3-0.6B-Q8_0 and from 40 to 220
   on Qwen3-8B-Q8_0, past the upstream llama.cpp Vulkan build's 660 and
   99; the CPU-versus-device A/B checks it at batch widths 16, 64, 100 and
-  247. The crossover from the row kernel was measured as prompt
+  247. The tile is TILE_ROWS by 64, and TILE_ROWS is a specialization
+  constant, so one module builds a 64-row and a 128-row pipeline and
+  the backend picks per dispatch: the taller tile reads two thirds of
+  the shared memory per product, and the shorter is taken when the
+  taller would give fewer workgroups than the device has compute units,
+  which it learns from `VK_AMD_shader_core_properties` where that
+  exists and assumes small otherwise. This is the tile kernel's
+  equivalent of the row kernel's lanes-per-row: the shape follows the
+  device and the call rather than the source.
+  The crossover from the row kernel was measured as prompt
   processing at 8 to 256 rows with the tile kernel at its old threshold
   of 16 and with the row kernel taking every width: a tile costs a
   64-row tile whatever its fill and the row kernel a weight pass per

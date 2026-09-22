@@ -1,15 +1,15 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup
-// computes a 64 x 64 tile of outputs, 64 rows of W against 64 columns of
-// X, walking the inner dimension 32 at a time. Each step stages the W
-// tile, dequantized, and the X tile in shared memory, then every thread
-// accumulates a 4 x 4 micro-tile in registers, so a weight is read from
-// memory once per pass rather than once per chunk of columns. Rows past
-// nout and columns past nbatch read as zero and are not stored.
+// Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup computes a TILE_ROWS x 64 tile of outputs, walking the inner dimension 32 at a time.
+// Each step stages the W tile, dequantized, and the X tile in shared memory, then every thread accumulates a (TILE_ROWS/16) x 4 micro-tile in registers, so a weight is read from memory once per pass rather than once per chunk of columns.
+// TILE_ROWS is a specialization constant because the two things it trades off are properties of the device and of the call, not of the algorithm.
+// A taller tile reads less shared memory per multiply-add, which is what bounds this kernel: eight rows and four columns is twelve reads per thirty-two products where four and four is eight per sixteen.
+// A taller tile also produces fewer workgroups for the same output, so a small call stops filling the device. The backend picks the height per dispatch (docs/VULKAN.md).
+// Rows past nout and columns past nbatch read as zero and are not stored.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "q.glsl"
 layout(local_size_x = 256) in;
+layout(constant_id = 0) const uint TILE_ROWS = 64;
 layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
@@ -18,7 +18,15 @@ layout(set = 0, binding = 3) readonly buffer X { float x[]; };
 layout(set = 0, binding = 4) readonly buffer W8 { uint8_t w8[]; };
 #define QBYTES w8
 #include "qdecode.glsl"
-shared float ws[64][33];
+
+// Rows a thread accumulates, threads that share one row of the W tile, and
+// the k values each of those loads. The 256 threads cover TILE_ROWS rows of
+// 32 values either way; only the split between them changes.
+#define MROWS (TILE_ROWS / 16u)
+#define WPR (256u / TILE_ROWS)
+#define WVALS (32u / WPR)
+
+shared float ws[TILE_ROWS][33];
 shared float xs[64][33];
 
 int lo8(uint w) { return (int(w << 24u)) >> 24; }
@@ -26,38 +34,39 @@ int hi8(uint w) { return (int(w << 16u)) >> 24; }
 
 void main() {
     uint tid = gl_LocalInvocationID.x;
-    uint row_base = gl_WorkGroupID.x * 64u;
+    uint row_base = gl_WorkGroupID.x * TILE_ROWS;
     uint col_base = gl_WorkGroupID.y * 64u;
-    uint tr = tid / 16u, tc = tid - tr * 16u;   // micro-tile at rows tr*4.., cols tc*4..
-    uint lr = tid / 4u, seg = tid - lr * 4u;    // loader: row or column lr, k segment seg*8..+8
-    float acc[4][4];
-    for (uint i = 0u; i < 4u; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
+    uint tr = tid / 16u, tc = tid - tr * 16u;   // micro-tile at rows tr*MROWS.., cols tc*4..
+    uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W loader: row wrow, k segment wseg*WVALS
+    uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X loader: column xcol, k segment xseg*8..+8
+    float acc[MROWS][4];
+    for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
     uint nblocks = p.nin / 32u;   // Q8_0 and Q4_0 both have 32-value blocks
     for (uint k0 = 0u; k0 < p.nin; k0 += 32u) {
-        // W tile: 64 rows x 32 values.
-        uint row = row_base + lr;
+        // W tile: TILE_ROWS rows x 32 values.
+        uint row = row_base + wrow;
         if (row < p.nout) {
             if (p.type == TYPE_Q8_0) {
                 uint o = (row * nblocks + k0 / Q8_0_BLOCK) * 17u;
                 float scale = unpackHalf2x16(uint(w16[o])).x;
-                for (uint i = 0u; i < 4u; ++i) {
-                    uint word = uint(w16[o + 1u + seg * 4u + i]);
-                    ws[lr][seg * 8u + 2u * i] = scale * float(lo8(word));
-                    ws[lr][seg * 8u + 2u * i + 1u] = scale * float(hi8(word));
+                for (uint i = 0u; i < WVALS / 2u; ++i) {
+                    uint word = uint(w16[o + 1u + wseg * (WVALS / 2u) + i]);
+                    ws[wrow][wseg * WVALS + 2u * i] = scale * float(lo8(word));
+                    ws[wrow][wseg * WVALS + 2u * i + 1u] = scale * float(hi8(word));
                 }
             } else if (p.type == TYPE_Q4_0) {
                 uint o = (row * nblocks + k0 / Q4_0_BLOCK) * Q4_0_BYTES;
                 float d = half_at(w8[o], w8[o + 1u]);
-                for (uint i = 0u; i < 8u; ++i) {
-                    uint k = seg * 8u + i;
-                    ws[lr][k] = q4_0_at(o, k, d);
+                for (uint i = 0u; i < WVALS; ++i) {
+                    uint k = wseg * WVALS + i;
+                    ws[wrow][k] = q4_0_at(o, k, d);
                 }
             } else if (p.type == TYPE_Q4_1) {
                 uint o = (row * nblocks + k0 / 32u) * Q4_1_BYTES;
                 float d = half_at(w8[o], w8[o + 1u]), m = half_at(w8[o + 2u], w8[o + 3u]);
-                for (uint i = 0u; i < 8u; ++i) {
-                    uint k = seg * 8u + i;
-                    ws[lr][k] = q4_1_at(o, k, d, m);
+                for (uint i = 0u; i < WVALS; ++i) {
+                    uint k = wseg * WVALS + i;
+                    ws[wrow][k] = q4_1_at(o, k, d, m);
                 }
             } else if (is_kquant(p.type)) {
                 // 256-value blocks: this 32-wide step is a slice of one.
@@ -65,46 +74,48 @@ void main() {
                 uint k_in = k0 - (k0 / Q6_K_BLOCK) * Q6_K_BLOCK;
                 if (p.type == TYPE_Q6_K) {
                     float d = half_at(w8[o + 208u], w8[o + 209u]);
-                    for (uint i = 0u; i < 8u; ++i) {
-                        uint k = seg * 8u + i;
-                        ws[lr][k] = q6_k_at(o, k_in + k, d);
+                    for (uint i = 0u; i < WVALS; ++i) {
+                        uint k = wseg * WVALS + i;
+                        ws[wrow][k] = q6_k_at(o, k_in + k, d);
                     }
                 } else {
                     float d = half_at(w8[o], w8[o + 1u]), dmin = half_at(w8[o + 2u], w8[o + 3u]);
-                    for (uint i = 0u; i < 8u; ++i) {
-                        uint k = seg * 8u + i;
-                        ws[lr][k] = p.type == TYPE_Q4_K ? q4_k_at(o, k_in + k, d, dmin)
-                                                        : q5_k_at(o, k_in + k, d, dmin);
+                    for (uint i = 0u; i < WVALS; ++i) {
+                        uint k = wseg * WVALS + i;
+                        ws[wrow][k] = p.type == TYPE_Q4_K ? q4_k_at(o, k_in + k, d, dmin)
+                                                          : q5_k_at(o, k_in + k, d, dmin);
                     }
                 }
             } else {
-                for (uint i = 0u; i < 8u; ++i) {
-                    uint k = k0 + seg * 8u + i;
-                    ws[lr][seg * 8u + i] = k < p.nin ? wf[row * p.nin + k] : 0.0;
+                for (uint i = 0u; i < WVALS; ++i) {
+                    uint k = k0 + wseg * WVALS + i;
+                    ws[wrow][wseg * WVALS + i] = k < p.nin ? wf[row * p.nin + k] : 0.0;
                 }
             }
         } else {
-            for (uint i = 0u; i < 8u; ++i) ws[lr][seg * 8u + i] = 0.0;
+            for (uint i = 0u; i < WVALS; ++i) ws[wrow][wseg * WVALS + i] = 0.0;
         }
-        // X tile: 64 columns x 32 values.
-        uint col = col_base + lr;
+        // X tile: 64 columns x 32 values, four threads to a column.
+        uint col = col_base + xcol;
         for (uint i = 0u; i < 8u; ++i) {
-            uint k = k0 + seg * 8u + i;
-            xs[lr][seg * 8u + i] = (col < p.nbatch && k < p.nin) ? x[col * p.nin + k] : 0.0;
+            uint k = k0 + xseg * 8u + i;
+            xs[xcol][xseg * 8u + i] = (col < p.nbatch && k < p.nin) ? x[col * p.nin + k] : 0.0;
         }
         barrier();
         for (uint kk = 0u; kk < 32u; ++kk) {
-            float a0 = ws[tr * 4u][kk], a1 = ws[tr * 4u + 1u][kk], a2 = ws[tr * 4u + 2u][kk], a3 = ws[tr * 4u + 3u][kk];
             float b0 = xs[tc * 4u][kk], b1 = xs[tc * 4u + 1u][kk], b2 = xs[tc * 4u + 2u][kk], b3 = xs[tc * 4u + 3u][kk];
-            acc[0][0] += a0 * b0; acc[0][1] += a0 * b1; acc[0][2] += a0 * b2; acc[0][3] += a0 * b3;
-            acc[1][0] += a1 * b0; acc[1][1] += a1 * b1; acc[1][2] += a1 * b2; acc[1][3] += a1 * b3;
-            acc[2][0] += a2 * b0; acc[2][1] += a2 * b1; acc[2][2] += a2 * b2; acc[2][3] += a2 * b3;
-            acc[3][0] += a3 * b0; acc[3][1] += a3 * b1; acc[3][2] += a3 * b2; acc[3][3] += a3 * b3;
+            for (uint i = 0u; i < MROWS; ++i) {
+                float a = ws[tr * MROWS + i][kk];
+                acc[i][0] += a * b0;
+                acc[i][1] += a * b1;
+                acc[i][2] += a * b2;
+                acc[i][3] += a * b3;
+            }
         }
         barrier();
     }
-    for (uint i = 0u; i < 4u; ++i) {
-        uint row = row_base + tr * 4u + i;
+    for (uint i = 0u; i < MROWS; ++i) {
+        uint row = row_base + tr * MROWS + i;
         if (row >= p.nout) continue;
         for (uint j = 0u; j < 4u; ++j) {
             uint col = col_base + tc * 4u + j;

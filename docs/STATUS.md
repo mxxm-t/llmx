@@ -1213,6 +1213,27 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   the same as eight, so eight is where the return stops and the
   shallower form is kept.
 
+  Splitting the inner dimension was then written and rejected. At 64
+  prompt rows a tile dispatch yields 16 workgroups where the MI50 has
+  64 compute units, so the kernel is starved and the row kernel wins
+  there by default; the fix for that is to cut the inner dimension into
+  slices, run a dispatch per slice, and add the partial sums in one
+  pass. It was implemented, a `matmul_combine` kernel and a k range on
+  the tile kernel, correct on both cards, and slower everywhere: on the
+  Radeon VII 0.6B pp64 781 tok/s against 850 and pp128 1879 against
+  1961, and on the MI50, with the tile kernel forced so the split could
+  engage at all, pp32 528, pp64 941, pp96 1126 and pp128 1589 against
+  1071, 1042, 1168 and 1610 unsplit.
+
+  The arithmetic says why, and it was predictable: a slice writes a
+  whole nbatch by nout array of floats and the combine pass reads them
+  all back, so the traffic added is twice slices times nbatch times
+  nout times four bytes. At pp64 on a 1024 by 1024 projection that is
+  2 MB against the 1.1 MB of weights the call reads at all, roughly
+  tripling its memory traffic to buy four times the workgroups.
+  Splitting pays only where the weights dwarf the output, which is not
+  this shape. Reverted; the row kernel keeps those batches.
+
   Eight columns to a thread was retried on the k-major layout, where a
   thread's eight columns are contiguous rather than 33 floats apart,
   which was the objection to the first two attempts. It is still

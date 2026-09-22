@@ -49,4 +49,8 @@ std::string vulkan_kernel_statistics(const Backend& backend);
 // Empty for a backend opened without diagnostics or a device that does not serve them.
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend);
 
+// Device time per kernel in milliseconds since the last call, for a diagnostics backend on a queue that timestamps.
+// Reading it waits for the queue, so it is a diagnostic and not something a pass does.
+std::vector<std::pair<std::string, double>> vulkan_kernel_times(Backend& backend);
+
 } // namespace backend

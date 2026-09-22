@@ -81,7 +81,12 @@ namespace {
     X(vkDestroyPipeline) \
     X(vkCmdBindPipeline) \
     X(vkCmdPushConstants) \
-    X(vkCmdDispatch)
+    X(vkCmdDispatch) \
+    X(vkCreateQueryPool) \
+    X(vkDestroyQueryPool) \
+    X(vkCmdResetQueryPool) \
+    X(vkCmdWriteTimestamp) \
+    X(vkGetQueryPoolResults)
 
 struct Fn {
 #define LLMX_VK_DECLARE(name) PFN_##name name = nullptr;
@@ -465,6 +470,12 @@ struct Device {
     // The driver's internal representations of a kernel, its ISA on AMD, captured only for a backend opened for diagnostics.
     bool exec_ir = false;
     PFN_vkGetPipelineExecutableInternalRepresentationsKHR get_exec_ir = nullptr;
+    // Device time per dispatch, for a backend opened for diagnostics. The
+    // queue writes a timestamp either side of every dispatch and the host
+    // reads them back after the pass, so a decode token can be attributed to
+    // kernels rather than inferred from kernels timed alone.
+    bool timestamps = false;
+    double timestamp_ns = 0.0;   // nanoseconds per tick, as the device reports
 
     // Guarded per handle: construction can fail between creating a handle
     // and loading the function that destroys it.
@@ -772,6 +783,10 @@ public:
         // because it depends on what the extension scan above found.
         d.caps.integer_dot = d.integer_dot;
         d.profile = profile_for(d.caps);
+        // A queue that timestamps lets a diagnostics backend say where a pass
+        // spent its time, rather than inferring it from kernels timed alone.
+        d.timestamps = diagnostics && d.props.limits.timestampComputeAndGraphics;
+        d.timestamp_ns = d.props.limits.timestampPeriod;
 
         const float priority = 1.0f;
         VkDeviceQueueCreateInfo qi{};
@@ -1014,6 +1029,30 @@ public:
                          dev_->name.c_str(), vk_result_name(r));
             std::abort();
         }
+    }
+
+    // Device time per kernel since the last call, in milliseconds, for a
+    // diagnostics backend whose queue timestamps. Reading them waits for the
+    // queue, so this is a diagnostic and not something a pass does.
+    std::vector<std::pair<std::string, double>> kernel_times() {
+        std::vector<std::pair<std::string, double>> out;
+        if (!dev_->timestamps || !queries_) return out;
+        sync();
+        std::vector<uint64_t> stamps(query_next_);
+        if (query_next_ &&
+            dev_->fn.vkGetQueryPoolResults(dev_->device, queries_, 0, query_next_,
+                                           stamps.size() * sizeof(uint64_t), stamps.data(),
+                                           sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT)
+                == VK_SUCCESS) {
+            for (size_t i = 0; i + 1 < query_kernel_.size() * 2 && i + 1 < stamps.size(); i += 2) {
+                const KernelId k = query_kernel_[i / 2];
+                kernel_ns_[k] += double(stamps[i + 1] - stamps[i]) * dev_->timestamp_ns;
+                ++kernel_calls_[k];
+            }
+        }
+        for (int i = 0; i < K_COUNT; ++i)
+            if (kernel_calls_[i]) out.emplace_back(kKernelNames[i], kernel_ns_[i] / 1e6);
+        return out;
     }
 
     void sync() noexcept override {
@@ -1806,7 +1845,23 @@ private:
                                            (uint32_t)writes.size(), writes.data());
         dev_->fn.vkCmdPushConstants(cmd, k.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                     (uint32_t)push_bytes, push);
-        dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
+        if (dev_->timestamps && query_next_ + 2 <= kQueries) {
+            if (!queries_) {
+                VkQueryPoolCreateInfo qp{};
+                qp.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+                qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
+                qp.queryCount = kQueries;
+                check(dev_->fn.vkCreateQueryPool(dev_->device, &qp, nullptr, &queries_), "vkCreateQueryPool");
+                dev_->fn.vkCmdResetQueryPool(cmd, queries_, 0, kQueries);
+            }
+            dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_, query_next_);
+            dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
+            dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_, query_next_ + 1);
+            query_kernel_.push_back(id);
+            query_next_ += 2;
+        } else {
+            dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
+        }
         barrier(cmd);
         // A pass of several hundred dispatches is submitted in chunks so
         // the device starts on the first while the host records the rest;
@@ -1890,6 +1945,12 @@ private:
     Ticket last_ticket_ = 0;
     std::unique_ptr<VulkanBuffer> staging_;
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
+    VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
+    static const uint32_t kQueries = 8192;    // two per dispatch, reset each submission
+    uint32_t query_next_ = 0;
+    std::vector<KernelId> query_kernel_;
+    double kernel_ns_[K_COUNT] = {0};
+    size_t kernel_calls_[K_COUNT] = {0};
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
     // What the twin in xq_ describes: the float input it was made from
     // and its length. Cleared by anything that writes a buffer other than
@@ -1949,6 +2010,11 @@ DeviceProfile vulkan_device_profile(const Backend& backend) {
 std::string vulkan_kernel_statistics(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->kernel_statistics() : std::string();
+}
+
+std::vector<std::pair<std::string, double>> vulkan_kernel_times(Backend& backend) {
+    auto* v = dynamic_cast<VulkanBackend*>(&backend);
+    return v ? v->kernel_times() : std::vector<std::pair<std::string, double>>();
 }
 
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend) {

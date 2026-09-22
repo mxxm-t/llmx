@@ -1234,6 +1234,32 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   Splitting pays only where the weights dwarf the output, which is not
   this shape. Reverted; the row kernel keeps those batches.
 
+  A profiler followed, because until now every claim about where time
+  went was inferred from kernels timed alone or read off their machine
+  code, neither of which sees overlap or idle. A diagnostics backend
+  now writes a timestamp either side of every dispatch and
+  `bench --model --profile` reports device time per kernel. The first
+  run, 8B Q4_K_M decode on the Radeon VII, 64 tokens:
+
+  | kernel | device ms | share |
+  |---|---:|---:|
+  | matmul_row_k4 | 229.5 | 67.1% |
+  | matmul_row_k | 78.1 | 22.8% |
+  | rms_norm_rows | 20.0 | 5.9% |
+  | attention_kv16 | 6.1 | 1.8% |
+  | norm_rope_kv_kv16 | 4.6 | 1.4% |
+  | silu_mul, quantize_x, embed, gather_rows | 4.0 | 1.2% |
+
+  Ninety percent is the two K-quant matmuls, so nothing is hiding
+  outside the kernels this cell is about. The line that changes the
+  plan is `rms_norm_rows` at 5.9 percent: its work is one row of 4096
+  values, trivial, and at two dispatches a layer over 36 layers times
+  the 3.8 us a boundary costs (the twenty-ninth paragraph) that is
+  0.24 ms of the 0.31 ms it shows. It is almost entirely the boundary.
+  Removing those dispatches is worth about 4.6 percent of decode, which
+  is most of the 6 percent this cell is short, and it is a different
+  target from the multiply that three attempts failed to make cheaper.
+
   Eight columns to a thread was retried on the k-major layout, where a
   thread's eight columns are contiguous rather than 33 floats apart,
   which was the objection to the first two attempts. It is still

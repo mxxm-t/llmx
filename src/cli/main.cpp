@@ -353,7 +353,7 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
 // device N as the loader lists them, in a build with that backend. Any
 // other spec, or a device the build lacks, is an error the user can act on
 // rather than a silent fallback.
-backend::BackendPtr make_backend(const std::string& spec) {
+backend::BackendPtr make_backend(const std::string& spec, bool diagnostics = false) {
     if (spec == "cpu") return backend::make_cpu_backend();
     const size_t colon = spec.find(':');
     const std::string name = spec.substr(0, colon);
@@ -366,7 +366,7 @@ backend::BackendPtr make_backend(const std::string& spec) {
     }
     if (name == "vulkan") {
 #if LLMX_HAS_BACKEND_VULKAN
-        return backend::make_vulkan_backend(index);
+        return backend::make_vulkan_backend(index, diagnostics);
 #else
         throw std::runtime_error("--device vulkan: this build has no Vulkan backend (LLMX_HAS_BACKEND_VULKAN)");
 #endif
@@ -702,9 +702,11 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 // standard deviation of tokens per second, so a reference runtime's
 // figures for the same P and G compare directly.
 int cmd_bench_model(const std::string& path, const std::string& device, int threads,
-                    int P, int G, int R, const infer::ModelOptions& options) {
+                    int P, int G, int R, const infer::ModelOptions& options, bool profile) {
     gguf::GGUFModel m = load_model(path, false);
-    infer::Model model(m, make_backend(device), options);
+    backend::BackendPtr backend_for_model = make_backend(device, profile);
+    backend::Backend& b = *backend_for_model;
+    infer::Model model(m, std::move(backend_for_model), options);
     if (threads > 0) model.set_threads(threads);
     // Ids below 1000 exist in every vocabulary the runtime loads.
     auto ids_from = [](uint32_t seed, size_t n) {
@@ -744,6 +746,24 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
     for (int r = 0; r < R; r++) tgv.push_back(tg());
     report("pp", P, ppv);
     report("tg", G, tgv);
+    if (profile) {
+#if LLMX_HAS_BACKEND_VULKAN
+        // Device time per kernel over everything above, so a token can be
+        // attributed to kernels rather than inferred from kernels timed alone.
+        auto times = backend::vulkan_kernel_times(b);
+        std::sort(times.begin(), times.end(),
+                  [](const auto& x, const auto& y) { return x.second > y.second; });
+        double total = 0.0;
+        for (const auto& t : times) total += t.second;
+        std::cout << "profile: " << total << " ms of device time\n";
+        for (const auto& t : times)
+            std::cout << "profile:   " << t.first << " " << t.second << " ms ("
+                      << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
+#else
+        (void)b;
+        std::cerr << "bench --profile: this build has no Vulkan backend\n";
+#endif
+    }
     return 0;
 }
 
@@ -792,8 +812,9 @@ void print_usage() {
         << "                  POST /v1/generate, POST /v1/chat, GET /v1/health, GET /v1/models (docs/USAGE.md)\n"
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]\n"
         << "  llmx bench      --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D]\n"
-        << "                  [--cache-type-k T] [--cache-type-v T]\n"
+        << "                  [--cache-type-k T] [--cache-type-v T] [--profile]\n"
         << "                  (warm-up, then R repeats of pp N and tg N, model time only)\n"
+        << "                  --profile reports device time per kernel, on a device backend\n"
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
         << "           --device D  backend: cpu (default) or vulkan:N in a build with it\n"
         << "           --ubatch N  prefill physical batch (default 512)\n"
@@ -1036,6 +1057,7 @@ int main(int argc, char** argv) {
         }
         if (cmd == "bench") {
             int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3;
+            bool profile = false;
             std::string device = "cpu", model_path;
             infer::GenParams gp;
             for (int i = 2; i < argc; i++) {
@@ -1048,6 +1070,7 @@ int main(int argc, char** argv) {
                 else if (a == "--n") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;
                 else if (a == "--r") repeats = (i + 1 < argc) ? std::atoi(argv[++i]) : repeats;
                 else if (a == "--model") model_path = (i + 1 < argc) ? argv[++i] : model_path;
+                else if (a == "--profile") profile = true;
                 else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
                 else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
@@ -1058,7 +1081,8 @@ int main(int argc, char** argv) {
                 std::cerr << "bench: --iters, --p, --n and --r must be positive\n"; return 2;
             }
             if (!model_path.empty())
-                return cmd_bench_model(model_path, device, threads, prefill, decode, repeats, model_options(gp));
+                return cmd_bench_model(model_path, device, threads, prefill, decode, repeats, model_options(gp),
+                                       profile);
             return cmd_bench(size, iters, threads, prefill, decode, device);
         }
         print_usage();

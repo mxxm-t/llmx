@@ -363,6 +363,7 @@ comparison below for that path.
 | `--threads N`   | CPU worker count (0 = auto)                  | 0       |
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
+| `--profile`     | with `--model` on a device backend, the device time each kernel spent over the run | off |
 
 ## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T]`
 

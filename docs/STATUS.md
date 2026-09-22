@@ -1076,6 +1076,43 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   the tile shape: it is the tile kernel dequantizing K-quant weights
   into shared memory on every pass, which the 8-bit path does not pay.
   This is the largest gap open and is the next thing taken.
+
+  Thirty-second, that gap closed. The tile kernel staged K-quant weights
+  through the per-value decoders in `qdecode.glsl`, which re-read and
+  re-unpack a block's packed sub-scale and sub-min for every value,
+  three to five byte loads and the unpacking each time. A thread's run
+  of values lies inside one group of 32 whichever tile height is built,
+  since it stages 8 or 16 values starting at a multiple of that, so the
+  sub-scale, the sub-min, which nibble half the run takes and the byte
+  it starts at are invariant across the run and are read once. Then the
+  loads: this driver issues one `buffer_load_ubyte` per byte and joins
+  none of them, 71 of them in this kernel, so every byte now comes from
+  a word. `qdecode.glsl` reaches its bytes through a `QBYTE(i)` macro
+  rather than naming an array, so a shader serves them from whatever
+  view it binds, and the tile kernel's byte binding went away rather
+  than a word binding being added. It issues 86 dword loads and no byte
+  loads, against 32 dword, 72 byte and 5 short before. Nothing about
+  the arithmetic or the staged values changed, and the HF perplexities
+  are identical to the digit.
+
+  | device | model | rows | before | after | reference |
+  |---|---|---:|---:|---:|---:|
+  | Radeon VII | Qwen3-8B-Q4_K_M | 64 | 95.98 tok/s | 170.75 | - |
+  | Radeon VII | Qwen3-8B-Q4_K_M | 247 | 96.51 | 240.31 | - |
+  | Radeon VII | Qwen3-8B-Q4_K_M | 512 | 109.21 | 281.73 | - |
+  | Radeon VII | Qwen3-0.6B-Q5_K_M | 247 | 1158.02 | 2381.28 | - |
+  | Radeon VII | Qwen3-0.6B-Q5_K_M | 512 | 1072.31 | 2565.02 | - |
+  | MI50 | Qwen3-8B-Q4_K_M | 64 | 93.0, 94.2 | 157.1, 157.6 | - |
+  | MI50 | Qwen3-8B-Q4_K_M | 247 | 98.2, 98.5 | 243.8, 244.4 | 530.4 |
+  | MI50 | Qwen3-8B-Q4_K_M | 512 | 113.1, 113.1 | 297.5, 297.7 | - |
+
+  The 8-bit controls are flat on both cards, their staging source
+  untouched: on the MI50 Qwen3-8B-Q8_0 reads 265.1 against 264.8 at 247
+  rows and 327.0 against 327.1 at 512, and Qwen3-0.6B-Q8_0 is level
+  inside its spread. So K-quant prompt processing went from 19 percent
+  of the reference on that card to 46, which is where the 8-bit path
+  already was. Both cards pass every suite afterwards, the HF gate
+  included.
 - **Left:** prompt processing, bound by shared-memory traffic per operation at 12
   percent of this card's fp32 peak, to be raised by a wider micro-tile
   and a tile sized from what the device reports; decode on the 4- and

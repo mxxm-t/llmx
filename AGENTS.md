@@ -295,6 +295,14 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   context bounds a request and a full queue answers 503. Skips under
   `--cache-type f16`.
   Throughput is measured separately with `tools/server_load.py`.
+- **Long context** (`tools/long_context_check.py`): one 16k-token
+  summarization prompt from `tests/data/wiki.test.raw`, greedy and with
+  no generation cap, sent to `llmx serve` on two backends and compared
+  by the SHA-256 of what came back. Nothing else here reaches a prompt
+  that fills thousands of KV blocks and then decodes from that history
+  until the model stops; greedy makes the whole run deterministic, so
+  two backends that agree on every kernel agree on the exact tokens.
+  It needs a real model and is run by hand, not by `run_tests.py`.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model.

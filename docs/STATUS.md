@@ -1123,10 +1123,23 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   mechanism Vulkan provides for it, so a device with a different
   subgroup width, a different shared-memory limit or a different ratio
   of shared-memory bandwidth to arithmetic gets a different shape from
-  the same source. The shared-memory limit is the next input to that
-  policy: the tall tile takes 25600 bytes of the 32 KB the AMD
-  proprietary driver reports and the 64 KB Mesa reports, so a taller
-  one again is available on some devices and not others.
+  the same source. The shared-memory limit was the next input tried to
+  that policy, and it did not pay. A 128 by 128 shape halves the shared
+  memory read per product again, sixteen reads per sixty-four products
+  against twelve per thirty-two, and its 33792 bytes fit the 64 KB Mesa
+  reports where they do not fit the 32 KB the AMD proprietary driver
+  does, so it would have been the first thing that capability bought.
+  On the MI50 it took prompt processing at 512 rows from 2619 to 1144
+  tok/s. Eight columns to a thread means the inner loop holds eight of
+  them, and indexing that by the loop variable put them where the fast
+  path does not want them; the per-row kernel had learned the same
+  thing earlier, where accumulator arrays indexed by column cost it ten
+  times. Generalising the inner loop to a column count cost the
+  4-column form as well, 0.6B pp256 reading 2642 tok/s against 2796
+  with the named scalars while gaining 2 percent at 512, so the scalars
+  stay and the column count stays a literal. A wider tile is worth
+  revisiting written as named scalars per column; it is not worth an
+  indexed array.
 
   A second, separate observation, and only an observation: the two
   drivers report different limits for the same Vega20 silicon, 32 KB

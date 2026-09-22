@@ -382,7 +382,7 @@ reports the embedded value, with `unknown` for builds without Git metadata.
 
 - **Backends** are the only compile-time concern (GPU SDKs are heavy). Gated by
   `LLMX_HAS_BACKEND_*` in `src/config.hpp` (see `cmake/llmx-config.hpp.in`).
-  The names/options exist, but GPU backends are not implemented.
+  Vulkan is implemented; the ROCm, CUDA and SYCL options exist without code.
 - **Model architectures** are planned to be compiled in and selected from
   metadata; today only dense Qwen3 is implemented.
 - **Split mode / node count** are planned runtime params, not implemented flags. See
@@ -415,9 +415,9 @@ Hugging Face integration (`llmx pull` plus reading what the Hub actually
 hosts). Follow the roadmap before inventing new directions.
 
 GPU backends are **not** drop-in the way a quant type is. The device
-execution model (`docs/ROADMAP.md` #4a, `docs/DEVICE-EXECUTION.md`) is
-complete, so a vendor backend is writable, but it implements the whole
-`Backend` interface over its own allocator, and the interface changes in
-`docs/EXECUTION.md` steps 1 to 4 land first so it is written once. Don't
-pick up "add the Vulkan backend" expecting the "one file + one registry
-entry" experience Q4_0 had.
+execution model (`docs/ROADMAP.md` #4a, `docs/DEVICE-EXECUTION.md`) and the
+Vulkan backend over it (`docs/VULKAN.md`) are complete; a further vendor
+backend implements the whole `Backend` interface over its own allocator,
+kernels and queue, and the Vulkan backend is the measure of what that
+takes. Don't pick up "add the ROCm backend" expecting the "one file + one
+registry entry" experience Q4_0 had.

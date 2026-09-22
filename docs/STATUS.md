@@ -139,6 +139,37 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   `/v1/completions` whole and streamed, the usage counts, the role in
   the first chat chunk and the finish reason in the last, text content
   parts and the refusals; it passes on the CPU and on the device.
+  The serving gate, restated by the user: the reference's server is the
+  weaker of the serving runtimes at concurrency and the one that runs on
+  this hardware, so llmx must beat it by a wide margin on the figures a
+  serving runtime is judged by, not reach parity. `tools/server_load.py`
+  now streams every request and reports time to first token and
+  inter-token latency at the median and the 99th percentile, tokens per
+  second and requests per second. Qwen3-0.6B-Q8_0 on the device, 64
+  tokens per request, the reference with 32 slots over an 8192 context,
+  llmx with 32 sequences, both servers in the same minutes, best of two
+  rounds, the two passes' spread shown where it matters:
+
+  | concurrent | tok/s reference | tok/s llmx | TTFT p50 reference | TTFT p50 llmx | ITL p50 reference | ITL p50 llmx | ITL p99 reference | ITL p99 llmx |
+  |---:|---:|---:|---:|---:|---:|---:|---:|---:|
+  | 1 | 166 to 173 | 180 to 181 | 17 to 31 ms | 9 ms | 5.5 ms | 5.1 ms | 6.4 to 6.6 ms | 13.3 to 13.5 ms |
+  | 4 | 356 | 361 to 363 | 107 to 110 ms | 59 to 65 ms | 9.6 ms | 9.4 ms | 11.5 to 12.0 ms | 61 to 63 ms |
+  | 8 | 431 to 438 | 480 | 175 to 183 ms | 66 to 72 ms | 15.7 to 15.9 ms | 15.8 to 15.9 ms | 18.9 to 19.3 ms | 16.4 to 16.8 ms |
+  | 16 | 230 to 231 | 282 to 287 | 306 to 307 ms | 88 to 248 ms | 65.4 to 65.6 ms | 54.1 to 55.5 ms | 73.9 to 74.2 ms | 55.2 to 57.1 ms |
+  | 32 | 530 to 535 | 492 to 502 | 524 to 533 ms | 156 to 162 ms | 51.9 to 52.3 ms | 62.1 to 63.3 ms | 66.1 to 78.6 ms | 64.0 to 67.2 ms |
+
+  Time to first token is where the margin is, two to three times
+  shorter at every level from 4 up, since a prompt joins the running
+  batch as a chunk rather than waiting for a slot's turn. Throughput is
+  ahead at 1 to 16 and 6 percent behind at 32, where the row kernel's
+  eight columns per dispatch stream the weights four times. Two things
+  the figures expose: llmx's ITL p99 at 1 and 4 (13 and 62 ms against
+  medians of 5 and 9) is the pass in which a new prompt's chunk joins
+  the decoders, which at 16 rows and up takes the tile matmul kernel,
+  and that kernel costs a 64-row tile whatever the fill; and both
+  servers dip at 16 concurrent. The tile threshold is being measured
+  against the row kernel at 8 to 256 rows on three models as the next
+  step; the 16-column kernel remains open.
 - **Left:** the 16-column row kernel if sixteen-way batches turn out to
   matter; replaying a recorded decode pass, above, if small-model decode
   becomes the target.

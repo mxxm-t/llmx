@@ -59,9 +59,9 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3)            |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3 pretokenizer)             |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass), `kv_cache.hpp` (logical KV: block pool, sequence) |
-| `backends/`     | `backend.hpp` (interface), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/prefill_placement.hpp` (Windows policy)          |
+| `backends/`     | `backend.hpp` (interface), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |
-| `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies); the scheduler and routes of `SERVER.md` follow |
+| `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, sampling, prefix reuse), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
 
 Source and subsystem documentation lives in `docs/src/`, covering

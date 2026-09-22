@@ -9,7 +9,9 @@ The goal is a dependency-free core with hand-written CPU and GPU kernels,
 multiple model architectures, and execution across devices and machines.
 Hugging Face integration is part of that direction: downloading pinned models,
 reading native Hub formats, and validating inference against HF references.
-The project is early; most of that broader execution and serving work is planned.
+The CPU and Vulkan backends, the batched execution model and the server are
+in the tree; splitting a model across devices and machines, further vendor
+backends and further architectures are planned.
 
 ## Works today
 
@@ -26,30 +28,38 @@ The project is early; most of that broader execution and serving work is planned
 - Batched prompt processing, a paged KV cache, sampling and windowed
   perplexity. A model runs a batch of sequences per pass, each at its own
   positions over its own history, and can be placed across several
-  backends; the CLI drives one sequence on the CPU.
+  backends; the CLI drives one sequence on the CPU or on a Vulkan device.
+- A **Vulkan backend** (`-DLLMX_HAS_BACKEND_VULKAN=ON`, `--device vulkan:N`)
+  with kernels for every type the CPU reads, f16 or f32 KV caches and 16-bit
+  integer activations in decode, checked against the CPU backend and the HF
+  references and measured against the reference runtime's Vulkan build on a
+  Radeon VII (`docs/VULKAN.md`).
+- **`llmx serve`**: one model, a sequence per request, continuous batching
+  with chunked prefill, streaming, prompt-prefix reuse through KV forks, and
+  the OpenAI-compatible routes beside native ones, so existing clients
+  connect unchanged (`docs/SERVER.md`).
 
 See [usage](docs/USAGE.md#llmx-pull-ownerrepoquant) for the download/cache
-interface. ARM, GPU execution, additional model architectures and a multi-user
-server are not implemented yet. Some development checkpoints
-remain on feature branches while their performance gates are open; see
+interface. ARM, execution across several devices or machines, other vendor
+backends and additional model architectures are not implemented yet; see
 [development status](docs/STATUS.md) for the current state.
 
 ## Direction
 
-| Area | Planned work |
+| Area | State and plan |
 |---|---|
-| Model coverage | Llama, Mistral, Gemma and Phi; additional quantizations |
-| Hugging Face | Safetensors, BF16/F16 tensors, HF tokenizer/config files |
-| Execution model | Tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
-| Server | `llmx serve`: continuous batching over that execution model, streaming HTTP without dependencies, the OpenAI-compatible `/v1/chat/completions`, `/v1/completions` and `/v1/models` beside the native `/v1/generate`, `/v1/chat` and `/v1/health` (`docs/SERVER.md`, `docs/USAGE.md`) |
-| GPU backends | Vulkan, in the tree (`-DLLMX_HAS_BACKEND_VULKAN=ON`, `--device vulkan:N`), at or above the reference on Q8_0 on the Radeon VII; ROCm first-class on Linux; CUDA and SYCL |
-| Multiple devices/nodes | Model splitting across devices and cluster nodes |
-| Serving | Shared read-only weights, independent request/KV state, continuous batching and streaming |
+| Model coverage | Dense Qwen3 today; Llama, Mistral, Gemma and Phi and additional quantizations planned |
+| Hugging Face | `llmx pull` today; safetensors, BF16/F16 tensors and the HF tokenizer/config files planned |
+| Execution model | Done: tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
+| Server | Done: `llmx serve` with continuous batching, streaming HTTP without dependencies, prefix reuse and the OpenAI-compatible routes (`docs/SERVER.md`, `docs/USAGE.md`) |
+| GPU backends | Vulkan done on the Radeon VII, at or above the reference on Q8_0 decode and every prefill, 89 to 99 percent on the 4- and 5-bit files; ROCm first-class on Linux, CUDA and SYCL planned |
+| Multiple devices/nodes | Placement across backends exists; per-layer and per-tensor splits over devices and cluster nodes planned |
 | Hub kernels | Optional later work: port suitable kernel source or distribute llmx kernels through the Hub |
 
-The device execution model is complete: the backend interface is buffer-based
-and asynchronous, so a GPU backend is writable. CPU worker parallelism does
-not make a model instance safe for concurrent users.
+The device execution model is complete and the Vulkan backend is written
+over it, so a further vendor backend implements the same `Backend`
+interface. CPU worker parallelism does not make a model instance safe for
+concurrent users; the server's scheduler is what does.
 
 The runtime has no external libraries today. Planned GPU SDKs are a deliberate
 build dependency; vendor math libraries are outside the design. HF download
@@ -64,8 +74,10 @@ include tokenizer IDs, logits, NLL and chat replies. Equality with an earlier
 llmx build supplements those checks; it cannot replace them.
 
 **Performance must meet mx-llama.cpp** on the same model, quantization, prompt
-and hardware, for both prefill and decode. This is the project target, not an
-achieved universal parity claim. Current gaps and comparison tables are in
+and hardware, for both prefill and decode, and the server must beat the
+reference runtime's server by a wide margin at concurrency on time to first
+token, inter-token latency and throughput. These are the project targets, not
+achieved universal claims. Current gaps and comparison tables are in
 [STATUS](docs/STATUS.md); scopes, limitations and reproducible evidence are in
 [ASSETS](docs/ASSETS.md).
 
@@ -116,12 +128,15 @@ HF checks skip when models are absent; fetch the pinned fixtures with
 
 Native tests cover JSON parsing/string escaping, GGUF structure/custom alignment,
 Qwen model configuration and tensor layouts, grouped kernels, worker
-failures, chat templates, KV
-storage, early text delivery, CLI flushing and loader progress/error handling.
-The Python suite covers conversion, tokenization, F32 logits,
-perplexity, follow-up chat, thread controls and performance guardrails.
-[CI](docs/CI.md) describes the configured platform jobs and their limits;
-shared-runner timings do not establish the external performance floor.
+failures, chat templates, the paged KV cache and its forks, placement across
+backends, the HTTP layer, early text delivery, CLI flushing and loader
+progress/error handling, and every Vulkan kernel against the CPU backend
+when a device is present. The Python suite covers conversion, tokenization,
+F32 logits, perplexity, follow-up chat, thread controls, the server's routes
+and performance guardrails, on the CPU or with `--device vulkan:N`.
+[CI](docs/CI.md) describes the configured platform jobs, including the Linux
+Vulkan build, and their limits; shared-runner timings do not establish the
+external performance floor.
 
 ## Project guide
 
@@ -132,7 +147,7 @@ shared-runner timings do not establish the external performance floor.
 - [Contributor guidance](AGENTS.md): build, test and checkpoint rules.
 
 The intended dependency direction is
-`cli > inference > model > backends > tokenizer > format > quant > core`.
+`cli > server > inference > model > backends > tokenizer > format > quant > core`.
 Some current code still couples directly to GGUF, including quant type constants;
 further formats and device execution need integration work rather than just a
 registry entry. Keep changes small, complete and supported by measurements.

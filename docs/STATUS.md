@@ -1159,10 +1159,19 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   A 64 by 128 tile and a 128 by 64 tile read the same shared memory per
   product, hold the same 25344 bytes, and the wider one re-reads the
   weights half as often, so it should have been at least even. It is
-  six times slower. Whatever the cause, it is not the reads per product
-  that the twelve-against-eight argument counts, and until that is
-  understood a wider micro-tile is not the lever it looked like. Four
-  columns stay.
+  six times slower. Two explanations were tested and both fail. Shared
+  memory bank conflicts: with 33-float padding, sixteen threads taking
+  eight contiguous columns each land in four banks where four columns
+  each land in eight, so the columns a thread owns were restrided by
+  sixteen to spread them over sixteen banks, and pp512 still read 457
+  tok/s. Register pressure or spilling: the driver reports the
+  eight-column kernel at 96 vector registers with no scratch at all,
+  against 87 for the four-column one, which is the same two waves per
+  SIMD. So it is not the reads per product that the twelve-against-eight
+  argument counts, not the banks those reads fall in, and not spilling.
+  Until it is understood a wider micro-tile is not the lever it looked
+  like, and four columns stay. The disassembly is the next place to
+  look, and it is expensive to read, which is why this stops here.
 
   The tile threshold turns out to be a property of the driver, not only
   of the card, which the profile can hold but cannot yet derive. It was

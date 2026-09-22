@@ -75,21 +75,56 @@ void main() {
                     ws[k][wrow] = q4_1_at(o, k, d, m);
                 }
             } else if (is_kquant(p.type)) {
-                // 256-value blocks: this 32-wide step is a slice of one.
+                // 256-value blocks: this 32-wide step is a slice of one, and
+                // a thread's run of WVALS values lies inside one group of 32
+                // whichever tile height is built, since WVALS is 8 or 16 and
+                // the run starts at a multiple of itself. So everything the
+                // per-value decoders in qdecode.glsl recompute per value is
+                // invariant here and is read once: the sub-scale and sub-min,
+                // which nibble half the run takes, and the byte the run
+                // starts at. Those decoders cost three to five byte loads and
+                // the sub-scale unpacking on every value, which is what made
+                // a Q4_K_M file prefill slower than the Q8_0 file of the same
+                // model despite reading half the bytes (docs/VULKAN.md).
                 uint o = (row * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * block_bytes(p.type);
                 uint k_in = k0 - (k0 / Q6_K_BLOCK) * Q6_K_BLOCK;
+                uint j0 = k_in + wseg * WVALS;   // the run's first value in the block
+                uint l0 = j0 & 31u;              // and its position within the group
                 if (p.type == TYPE_Q6_K) {
                     float d = half_at(w8[o + 208u], w8[o + 209u]);
+                    uint n = j0 / 128u, which = (j0 - n * 128u) / 32u;
+                    uint lbase = o + n * 64u + l0 + ((which & 1u) != 0u ? 32u : 0u);
+                    uint hbase = o + 128u + n * 32u + l0;
+                    uint shift = 2u * which;
+                    float ds = d * float((int(uint(w8[o + 192u + n * 8u + l0 / 16u + 2u * which])) << 24) >> 24);
                     for (uint i = 0u; i < WVALS; ++i) {
-                        uint k = wseg * WVALS + i;
-                        ws[k][wrow] = q6_k_at(o, k_in + k, d);
+                        uint lowb = uint(w8[lbase + i]);
+                        uint q = (which < 2u ? (lowb & 15u) : (lowb >> 4u))
+                               | (((uint(w8[hbase + i]) >> shift) & 3u) << 4u);
+                        ws[wseg * WVALS + i][wrow] = ds * float(int(q) - 32);
                     }
                 } else {
                     float d = half_at(w8[o], w8[o + 1u]), dmin = half_at(w8[o + 2u], w8[o + 3u]);
-                    for (uint i = 0u; i < WVALS; ++i) {
-                        uint k = wseg * WVALS + i;
-                        ws[k][wrow] = p.type == TYPE_Q4_K ? q4_k_at(o, k_in + k, d, dmin)
-                                                         : q5_k_at(o, k_in + k, d, dmin);
+                    uint sc, mn;
+                    scale_min_k4(o + 4u, j0 / 32u, sc, mn);
+                    float ds = d * float(sc), dm = dmin * float(mn);
+                    uint c = j0 / 64u;
+                    bool low = ((j0 >> 5u) & 1u) == 0u;   // the group's nibble half
+                    if (p.type == TYPE_Q4_K) {
+                        uint base = o + 16u + c * 32u + l0;
+                        for (uint i = 0u; i < WVALS; ++i) {
+                            uint byte = uint(w8[base + i]);
+                            ws[wseg * WVALS + i][wrow] = ds * float(low ? (byte & 15u) : (byte >> 4u)) - dm;
+                        }
+                    } else {
+                        uint base = o + 48u + c * 32u + l0, hbase = o + 16u + l0;
+                        uint shift = 2u * c + (low ? 0u : 1u);
+                        for (uint i = 0u; i < WVALS; ++i) {
+                            uint byte = uint(w8[base + i]);
+                            uint q = (low ? (byte & 15u) : (byte >> 4u))
+                                   | (((uint(w8[hbase + i]) >> shift) & 1u) << 4u);
+                            ws[wseg * WVALS + i][wrow] = ds * float(q) - dm;
+                        }
                     }
                 }
             } else {

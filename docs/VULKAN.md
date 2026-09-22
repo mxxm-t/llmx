@@ -296,7 +296,39 @@ reduction order. The HF gate measures the cost of it.
   | matmul_row_k  | 72 | 62 | 3 -> 4 |
 
   Q5_K does not clear the 64 registers a fourth wave needs, which is why
-  it gains least. The wide Q8_0 kernel is the exception and does not get
+  it gains least.
+
+  Prompt processing on a K-quant file was a separate and larger gap: on
+  the MI50 a Qwen3-8B-Q4_K_M file read 98 tok/s at 247 rows against the
+  reference's 530, and prefilled slower in absolute terms than the Q8_0
+  file of the same model on the same card, 98 against 265, while reading
+  a little over half the bytes. That is not bandwidth and not the tile
+  shape. The tile kernel staged K-quant weights through the per-value
+  decoders in `qdecode.glsl`, which re-read and re-unpack the block's
+  packed sub-scale and sub-min for every value, three to five byte loads
+  and the unpacking each time.
+
+  A thread's run of values is inside one group of 32 whichever tile
+  height is built, since it stages 8 or 16 values starting at a multiple
+  of that, so the sub-scale, the sub-min, which nibble half the run
+  takes and the byte the run starts at are all invariant across it. The
+  tile kernel now reads them once per run. Nothing about the arithmetic
+  or the staged values changed. Interleaved, two passes each, on the
+  Radeon VII:
+
+  | model | rows | before | after |
+  |---|---:|---:|---:|
+  | Qwen3-8B-Q4_K_M | 64 | 95.98 tok/s | 150.14 |
+  | Qwen3-8B-Q4_K_M | 247 | 96.51 | 191.87 |
+  | Qwen3-8B-Q4_K_M | 512 | 109.21 | 230.89 |
+  | Qwen3-0.6B-Q5_K_M | 64 | 723.55 | 781.26 |
+  | Qwen3-0.6B-Q5_K_M | 247 | 1158.02 | 1572.42 |
+  | Qwen3-0.6B-Q5_K_M | 512 | 1072.31 | 1892.35 |
+
+  Qwen3-8B-Q8_0 is the control, its branch untouched, and reads 210.93,
+  283.27 and 339.15 tok/s against 204.94, 281.10 and 339.33: flat at 247
+  and 512 rows and 2.8 percent down at 64, which is inside the layout
+  band this file records for an unrelated edit. The wide Q8_0 kernel is the exception and does not get
   a one-column build: it is the one row kernel whose eight-column build
   is not register starved, running five waves per SIMD, and the narrow
   build takes it to eight. On 8B Q8_0, already reading at the memory

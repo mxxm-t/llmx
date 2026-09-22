@@ -560,7 +560,8 @@ public:
         if (!bytes) return;   // an empty allocation has no address and no object
         VkBufferCreateInfo bi{};
         bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bi.size = bytes;
+        // Whole words, so a kernel that reads a byte-sized tensor through a 32-bit view can reach its last bytes: a Q8_0 or Q6_K tensor with an odd block count ends two bytes into a word, and that word is outside a view of the exact size.
+        bi.size = (bytes + 3) & ~size_t(3);
         bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                    VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;

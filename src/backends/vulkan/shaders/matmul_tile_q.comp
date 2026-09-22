@@ -46,13 +46,23 @@ void main() {
         uint row = row_base + wrow;
         if (row < p.nout) {
             if (p.type == TYPE_Q8_0) {
-                // A 34-byte block: the half scale, then the 32 quants starting two bytes in, so every quant word is two aligned halves.
-                uint h = (row * nblk + kb) * 17u;
-                for (uint m = 0u; m < WW; ++m) {
-                    uint w = wseg * WW + m;
-                    wq[w][wrow] = uint(w16[h + 1u + 2u * w]) | (uint(w16[h + 2u + 2u * w]) << 16u);
+                // A 34-byte block: the half scale, then the 32 quants. A block's quants start either on a word boundary or two bytes past one, so a thread loads its words plus one and funnels them when they straddle: one load per quant word rather than the two halves each took, which is what held Q8_0 below Q4_K here.
+                uint ob = (row * nblk + kb) * 34u, q0 = ob + 2u;
+                uint base = (q0 >> 2u) + wseg * WW;
+                if ((q0 & 3u) == 0u) {
+                    for (uint m = 0u; m < WW; ++m) wq[wseg * WW + m][wrow] = w32[base + m];
+                } else {
+                    uint prev = w32[base];
+                    for (uint m = 0u; m < WW; ++m) {
+                        uint next = w32[base + m + 1u];
+                        wq[wseg * WW + m][wrow] = (prev >> 16u) | (next << 16u);
+                        prev = next;
+                    }
                 }
-                if (wseg == 0u) wsc[wrow] = vec2(unpackHalf2x16(uint(w16[h])).x, 0.0);
+                if (wseg == 0u) {
+                    uint sw = w32[ob >> 2u];
+                    wsc[wrow] = vec2(unpackHalf2x16((ob & 3u) == 0u ? sw : (sw >> 16u)).x, 0.0);
+                }
             } else {
                 // Q4_K: block 32 is group g of a 256-value block; its nibbles are the low or high halves of 32 word-aligned bytes, so a quant word is one load, a shift and a mask.
                 uint o = (row * (p.nin / 256u) + kb / 8u) * Q4_K_BYTES;

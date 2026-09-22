@@ -181,10 +181,15 @@ inline size_t tile_from_for(const DeviceProfile& profile, bool every_projection_
 // while the device still has one per compute unit. Both heights must exist as
 // launchable kernels; how a backend produces them is its own business, a
 // specialization constant under Vulkan and a template parameter elsewhere.
-inline uint32_t tile_rows_for(const DeviceCaps& caps, uint32_t rows_short, uint32_t rows_tall,
-                              size_t out_rows, size_t column_groups) {
-    const size_t tall_groups = ((out_rows + rows_tall - 1) / rows_tall) * column_groups;
-    return tall_groups >= caps.compute_units ? rows_tall : rows_short;
+// Three heights: the tallest that still yields a workgroup per compute unit, then the middle one, then the smallest.
+// A short prompt is one column tile, so on a 0.6B model some projections are 16 tiles of 64 rows for sixty compute units, and halving the height doubles them without reading a weight more often: 11 to 23 percent at 48 to 64 prompt rows on the MI50.
+// But the small tile does half the arithmetic per barrier, which a narrow projection's few inner steps absorb and a wide one's do not: an 8B model's 4096-wide k and v at 128 prompt rows took 72.5 ms on it against 51.5 on the middle tile, which already filled half the card. So a wide projection drops to the smallest only below half fill.
+inline uint32_t tile_rows_for(const DeviceCaps& caps, const DeviceProfile& profile, uint32_t rows_small, uint32_t rows_short,
+                              uint32_t rows_tall, size_t out_rows, size_t column_groups, size_t nin) {
+    auto groups = [&](uint32_t h) { return ((out_rows + h - 1) / h) * column_groups; };
+    if (groups(rows_tall) >= caps.compute_units) return rows_tall;
+    const size_t fill = nin < profile.tile_narrow_nin ? caps.compute_units : (caps.compute_units + 1) / 2;
+    return groups(rows_short) >= fill ? rows_short : rows_small;
 }
 
 } // namespace backend

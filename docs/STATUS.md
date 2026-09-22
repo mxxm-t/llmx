@@ -1202,6 +1202,18 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   The HF suite ran on another card of the same machine meanwhile, and every cell passes in both modes. One margin narrowed: the Q4_0 fixture's continuous cell, scored in batched passes through 8-bit activations, is at an NLL delta of 0.139 against its 0.160 bound, where the float tile gave 0.131. Short prompts on the 0.6B files are what is left in prompt processing: 64 rows yields a single column tile, and the projections give too few row tiles to fill sixty compute units.
 
+  Thirty-seventh, a third tile height. A 32-row build of each tile kernel, the second variant of the 64-row one, doubles the workgroups of a short prompt without reading a weight more often. Taken whenever the 64-row tile underfills, it gave the 0.6B files 11 to 23 percent at 48 to 64 prompt rows but cost the 8B files up to 5 percent at 96 to 128: profiled there, the 8B's 4096-wide k and v took 72.5 ms on the small tile against 51.5 on the middle one. The small tile does half the arithmetic per barrier, which a 1024-wide projection's 32 inner steps absorb and a 4096-wide one's 128 do not. So a narrow projection takes it whenever the middle tile underfills and a wide one only below half fill. Against the build before it on five MI50 cards, one model each, best of two interleaved passes:
+
+  | model | pp32 | pp48 | pp64 | pp96 | pp128 | pp247 |
+  |---|---:|---:|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | +1% | +23% | +20% | +11% | +8% | 0% |
+  | Qwen3-0.6B-Q5_K_M | 0% | +15% | +11% | +5% | +3% | 0% |
+  | Qwen3-0.6B-Q8_0 | +14% | +16% | +12% | +7% | +5% | 0% |
+  | Qwen3-8B-Q4_K_M | +3% | +2% | -1% | -1% | 0% | 0% |
+  | Qwen3-8B-Q8_0 | +3% | +2% | -2% | 0% | -1% | 0% |
+
+  The 8B cells at 64 to 128 rows read 0 to +1 percent under the same rule in the run before, so their -1 and -2 are inside run-to-run spread. Qwen3-0.6B-Q8_0 at 64 rows is 2502 tok/s, 54 percent of the reference's 4638.
+
   And a memory fix. A model on a device backend held every weight twice: the loader reads the file into one host allocation, the model kept it for its lifetime, and the device backend copies each weight into its own memory. The model now records at adoption whether any weight still reads those bytes in place, and the CLI releases them when none does. Qwen3-8B-Q4_K_M on the Radeon VII, steady host memory 4.62 to 0.18 GB, decode unchanged; the CPU backend adopts by aliasing and keeps them. The peak is still the whole file, 4.84 GB, since it is read before the upload. Streaming the file to the device during the load, read directly into staging and uploaded asynchronously so the disk and the copies overlap, would remove that peak and is not done.
 - **Left:** on the MI50 against one card of the reference (the thirty-fourth paragraph), prompt processing at 24 to 96 percent and decode at 86 to 91; Q8_0 through the integer-dot tile at 7.72 TFLOPS against the reference's 13.30, and Q6_K and Q5_K not yet through it; loading, which reads the whole file into host memory before uploading it; decode on the 4- and
   5-bit files, which the thirtieth paragraph took past the reference on

@@ -290,7 +290,7 @@ const int kVariants = 2;   // a kernel's pipelines: the wide build, then the one
 // creation. Two heights are built from one module: the shorter fills a device
 // that a taller tile would leave idle, the taller reads less shared memory per
 // product (shaders/matmul_tile.comp).
-const uint32_t kTileRowsShort = 64, kTileRowsTall = 128;
+const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
 
 // A kernel's bindings; `counts` gives the array length of each, one for a
 // plain buffer. The buffers of a dispatch are listed binding by binding,
@@ -918,7 +918,7 @@ public:
 
     // A compiled kernel's name, the one-column build of a row kernel marked.
     static std::string kernel_variant_name(int id, int variant) {
-        return std::string(kKernelNames[id]) + (variant ? "_1col" : "");
+        return std::string(kKernelNames[id]) + (!variant ? "" : is_row_kernel((KernelId)id) ? "_1col" : "_small");
     }
 
     const std::string& name() const { return dev_->name; }
@@ -1375,8 +1375,9 @@ public:
                 // product and is worth about half again on a wide call, but it
                 // halves the workgroups; below one per compute unit the device
                 // runs out of work first, so the call takes the shorter tile.
-                const bool tall = tile_rows_for(dev_->caps, kTileRowsShort, kTileRowsTall, pr->rows, gy) ==
-                                  kTileRowsTall;
+                const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
+                                                      pr->rows, gy, nin);
+                const bool tall = height == kTileRowsTall;
                 const bool q = integer_dot_tile(pr->type);
                 if (q && !x8.buffer) {
                     x8 = x8_for(nbatch * nin);
@@ -1388,13 +1389,14 @@ public:
                                                 : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q))
                                           : (tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE);
                 const uint32_t pc[5] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u};
-                const uint32_t gx = groups(pr->rows, tall ? kTileRowsTall : kTileRowsShort);
+                const uint32_t gx = groups(pr->rows, height);
+                const int small = height == kTileRowsSmall ? 1 : 0;
                 if (q)
                     dispatch(kernel, {bind(pr->out), bind(pr->data), bind(pr->data), x8, x8}, pc, sizeof(pc), gx,
-                             (uint32_t)gy);
+                             (uint32_t)gy, small);
                 else
                     dispatch(kernel, {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data)},
-                             pc, sizeof(pc), gx, (uint32_t)gy);
+                             pc, sizeof(pc), gx, (uint32_t)gy, small);
             }
             return;
         }
@@ -1897,7 +1899,7 @@ private:
         const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
                           id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL;
         const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
-        const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : kTileRowsShort)
+        const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant ? kTileRowsSmall : kTileRowsShort)
                                          : (variant ? kRowColsOne : kRowColsWide);
         const VkSpecializationMapEntry entry{0, 0, sizeof(uint32_t)};
         VkSpecializationInfo spec{};

@@ -1170,8 +1170,47 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   SIMD. So it is not the reads per product that the twelve-against-eight
   argument counts, not the banks those reads fall in, and not spilling.
   Until it is understood a wider micro-tile is not the lever it looked
-  like, and four columns stay. The disassembly is the next place to
-  look, and it is expensive to read, which is why this stops here.
+  like, and four columns stay.
+
+  The disassembly was then read, and it answered a different question
+  than the one it was opened for. The inner loop of the tile kernel
+  issued, per step: six address calculations, six shared-memory reads,
+  two waits and sixteen multiply-adds. Half the instructions were not
+  arithmetic. Two causes, neither visible in the source. The loop was
+  not unrolled, so the driver recomputed every address each step rather
+  than folding the step into the read's immediate offset. And the
+  shared tiles were held row-major, `[row][k]`, so the four values a
+  thread wants for one k sat 33 floats apart and needed six reads.
+
+  Both were fixed by changing where the values sit rather than what the
+  kernel computes. The tiles are k-major now, `[k][row]` and
+  `[k][column]`, which makes a thread's four rows and four columns
+  adjacent: the driver emits one 128-bit read and two paired reads
+  where it used to emit six, and registers fell from 87 to 79. The k
+  loop is unrolled by four on top of that, so the four steps differ by
+  a constant. Interleaved on the Radeon VII, two passes, three models,
+  every cell improves and none regresses:
+
+  | case | before | after |
+  |---|---:|---:|
+  | 0.6B pp128 | 1904 tok/s | 1925, 1935 |
+  | 0.6B pp256 | 2744 | 2795, 2799 |
+  | 0.6B pp512 | 2798, 2800 | 2946, 2960 |
+  | 8B Q8_0 pp256 | 264 | 288 |
+  | 8B Q8_0 pp512 | 307 | 333 |
+  | 8B Q4_K_M pp512 | 108 | 109 |
+
+  On the MI50 it is worth more: 8B pp32 86 to 103 tok/s, pp64 158 to
+  171, pp512 291 to 323, and 0.6B pp96 972 to 1208. That the same
+  source change is worth twice as much under Mesa is the same pattern
+  as everything else here, the driver deciding what a shape costs.
+
+  Against the reference's own Vulkan build on the MI50 afterwards, both
+  arms in one container, five runs a point, two passes: pp64 871 tok/s
+  against 2015, pp256 2507 against 3467, pp512 2745 against 3556, and
+  decode 246 against 102. Prompt processing is 43, 72 and 77 percent of
+  it, against 41, 65 and 74 before this change, and decode stays 2.4
+  times ahead.
 
   The tile threshold turns out to be a property of the driver, not only
   of the card, which the profile can hold but cannot yet derive. It was

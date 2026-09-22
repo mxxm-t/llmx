@@ -26,8 +26,14 @@ layout(set = 0, binding = 4) readonly buffer W8 { uint8_t w8[]; };
 #define WPR (256u / TILE_ROWS)
 #define WVALS (32u / WPR)
 
-shared float ws[TILE_ROWS][33];
-shared float xs[64][33];
+// The tiles are k-major: [k][row] and [k][column], so the four rows and four
+// columns a thread multiplies for one k are four adjacent floats and load as
+// one wide read each. Held the other way round, with a row per shared-memory
+// row, those were eight separate reads at a stride of 33 and the driver spent
+// six instructions of every thirty-two recomputing their addresses, issuing
+// only half the inner loop as arithmetic (docs/VULKAN.md).
+shared float ws[32][TILE_ROWS];
+shared float xs[32][64];
 
 int lo8(uint w) { return (int(w << 24u)) >> 24; }
 int hi8(uint w) { return (int(w << 16u)) >> 24; }
@@ -51,22 +57,22 @@ void main() {
                 float scale = unpackHalf2x16(uint(w16[o])).x;
                 for (uint i = 0u; i < WVALS / 2u; ++i) {
                     uint word = uint(w16[o + 1u + wseg * (WVALS / 2u) + i]);
-                    ws[wrow][wseg * WVALS + 2u * i] = scale * float(lo8(word));
-                    ws[wrow][wseg * WVALS + 2u * i + 1u] = scale * float(hi8(word));
+                    ws[wseg * WVALS + 2u * i][wrow] = scale * float(lo8(word));
+                    ws[wseg * WVALS + 2u * i + 1u][wrow] = scale * float(hi8(word));
                 }
             } else if (p.type == TYPE_Q4_0) {
                 uint o = (row * nblocks + k0 / Q4_0_BLOCK) * Q4_0_BYTES;
                 float d = half_at(w8[o], w8[o + 1u]);
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
-                    ws[wrow][k] = q4_0_at(o, k, d);
+                    ws[k][wrow] = q4_0_at(o, k, d);
                 }
             } else if (p.type == TYPE_Q4_1) {
                 uint o = (row * nblocks + k0 / 32u) * Q4_1_BYTES;
                 float d = half_at(w8[o], w8[o + 1u]), m = half_at(w8[o + 2u], w8[o + 3u]);
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
-                    ws[wrow][k] = q4_1_at(o, k, d, m);
+                    ws[k][wrow] = q4_1_at(o, k, d, m);
                 }
             } else if (is_kquant(p.type)) {
                 // 256-value blocks: this 32-wide step is a slice of one.
@@ -76,40 +82,52 @@ void main() {
                     float d = half_at(w8[o + 208u], w8[o + 209u]);
                     for (uint i = 0u; i < WVALS; ++i) {
                         uint k = wseg * WVALS + i;
-                        ws[wrow][k] = q6_k_at(o, k_in + k, d);
+                        ws[k][wrow] = q6_k_at(o, k_in + k, d);
                     }
                 } else {
                     float d = half_at(w8[o], w8[o + 1u]), dmin = half_at(w8[o + 2u], w8[o + 3u]);
                     for (uint i = 0u; i < WVALS; ++i) {
                         uint k = wseg * WVALS + i;
-                        ws[wrow][k] = p.type == TYPE_Q4_K ? q4_k_at(o, k_in + k, d, dmin)
-                                                          : q5_k_at(o, k_in + k, d, dmin);
+                        ws[k][wrow] = p.type == TYPE_Q4_K ? q4_k_at(o, k_in + k, d, dmin)
+                                                         : q5_k_at(o, k_in + k, d, dmin);
                     }
                 }
             } else {
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = k0 + wseg * WVALS + i;
-                    ws[wrow][wseg * WVALS + i] = k < p.nin ? wf[row * p.nin + k] : 0.0;
+                    ws[wseg * WVALS + i][wrow] = k < p.nin ? wf[row * p.nin + k] : 0.0;
                 }
             }
         } else {
-            for (uint i = 0u; i < WVALS; ++i) ws[wrow][wseg * WVALS + i] = 0.0;
+            for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = 0.0;
         }
         // X tile: 64 columns x 32 values, four threads to a column.
         uint col = col_base + xcol;
         for (uint i = 0u; i < 8u; ++i) {
             uint k = k0 + xseg * 8u + i;
-            xs[xcol][xseg * 8u + i] = (col < p.nbatch && k < p.nin) ? x[col * p.nin + k] : 0.0;
+            xs[xseg * 8u + i][xcol] = (col < p.nbatch && k < p.nin) ? x[col * p.nin + k] : 0.0;
         }
         barrier();
-        for (uint kk = 0u; kk < 32u; ++kk) {
-            float b0 = xs[tc * 4u][kk], b1 = xs[tc * 4u + 1u][kk], b2 = xs[tc * 4u + 2u][kk], b3 = xs[tc * 4u + 3u][kk];
-            for (uint i = 0u; i < MROWS; ++i) {
-                float a = ws[tr * MROWS + i][kk];
-                acc[i][0] += a * b0;
-                acc[i][1] += a * b1;
-                acc[i][2] += a * b2;
-                acc[i][3] += a * b3;
+        // Unrolled by four so the four inner steps differ by a constant, which
+        // lets the shared-memory reads carry an immediate offset instead of an
+        // address computed per step. Rolled, the driver spent six of every
+        // thirty-two instructions on those addresses and issued only half the
+        // loop as arithmetic (docs/VULKAN.md).
+        // Unrolled by four on top of the k-major layout: the four steps then
+        // differ by a constant, so their reads carry an immediate offset
+        // rather than an address recomputed per step.
+        for (uint kb = 0u; kb < 32u; kb += 4u) {
+            for (uint u = 0u; u < 4u; ++u) {
+                uint k = kb + u;
+                float b0 = xs[k][tc * 4u], b1 = xs[k][tc * 4u + 1u];
+                float b2 = xs[k][tc * 4u + 2u], b3 = xs[k][tc * 4u + 3u];
+                for (uint i = 0u; i < MROWS; ++i) {
+                    float a = ws[k][tr * MROWS + i];
+                    acc[i][0] += a * b0;
+                    acc[i][1] += a * b1;
+                    acc[i][2] += a * b2;
+                    acc[i][3] += a * b3;
+                }
             }
         }
         barrier();

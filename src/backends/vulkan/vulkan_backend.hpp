@@ -1,6 +1,7 @@
 #pragma once
 #include <stdexcept>
 #include <string>
+#include "backends/device_profile.hpp"
 #include <utility>
 #include <vector>
 #include "backends/backend.hpp"
@@ -33,6 +34,12 @@ BackendPtr make_vulkan_backend(int device, bool diagnostics = false);
 
 // The device's name as the driver reports it, for the CLI and the tests.
 std::string vulkan_device_name(const Backend& backend);
+
+// What this backend measured or was told about its device
+// (backends/device_profile.hpp). The test reads it so that it predicts the
+// same kernel the backend will pick, rather than assuming the numbers a
+// particular device happens to want.
+DeviceProfile vulkan_device_profile(const Backend& backend);
 
 // The driver's statistics for every kernel the backend has compiled, one line each (registers, scratch, occupancy on AMD), for the test's report.
 // Empty when the device does not report them.

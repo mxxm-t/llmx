@@ -790,6 +790,7 @@ public:
     }
 
     const std::string& name() const { return dev_->name; }
+    const DeviceProfile& profile() const { return dev_->profile; }
 
     // The driver's statistics for every kernel compiled so far, one line each: on AMD the vector and scalar register counts, scratch, shared memory and occupancy.
     // Empty when the device does not report them.
@@ -1876,6 +1877,11 @@ BackendPtr make_vulkan_backend(int device, bool diagnostics) {
 std::string vulkan_device_name(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->name() : std::string();
+}
+
+DeviceProfile vulkan_device_profile(const Backend& backend) {
+    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
+    return v ? v->profile() : DeviceProfile{};
 }
 
 std::string vulkan_kernel_statistics(const Backend& backend) {

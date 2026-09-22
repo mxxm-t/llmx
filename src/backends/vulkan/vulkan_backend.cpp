@@ -259,6 +259,20 @@ inline bool is_row_kernel(KernelId id) {
 // 0 like the tile kernel's row count. A chunk one column wide, which every
 // single-sequence decode is, takes the narrow build: eight accumulators live
 // across the weight loop cost a wave per SIMD (shaders/matmul_row.comp).
+//
+// Except the wide Q8_0 path, which is the one row kernel whose eight-column
+// build is not register starved. It runs five waves per SIMD where the
+// others run three, the narrow build takes it to eight, and a kernel already
+// reading at the memory system's limit loses by it: 8B Q8_0 decode fell 9
+// percent, its Q8_0 matmul 338 to 367 ms of device time. The same kernel on
+// the 0.6B files gained 12 percent, one work unit per lane there against
+// four, so this is a property of the shape as much as the path; the loss on
+// the larger model is the one that matters, since that cell clears the
+// reference by 6 percent and the smaller by 13.
+inline bool row_kernel_builds_one_column(KernelId id) {
+    return is_row_kernel(id) && id != K_MATMUL_ROW_Q8W && id != K_MATMUL_ROW_Q8W_DOT;
+}
+
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
 const int kVariants = 2;   // a kernel's pipelines: the wide build, then the one-column
 
@@ -1463,7 +1477,8 @@ public:
                       bind(X),
                       bind(a.data), bind(b.data), bind(c.data),
                       xqi, xqi, xqi, xqi},
-                     pc, sizeof(pc), total, 1, ncols == 1 ? 1 : 0);
+                     pc, sizeof(pc), total, 1,
+                     ncols == 1 && row_kernel_builds_one_column(kernel) ? 1 : 0);
         }
         // The outputs may be what the twin describes.
         for (const Projection* pr : live)

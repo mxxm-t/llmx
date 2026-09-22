@@ -296,7 +296,16 @@ reduction order. The HF gate measures the cost of it.
   | matmul_row_k  | 72 | 62 | 3 -> 4 |
 
   Q5_K does not clear the 64 registers a fourth wave needs, which is why
-  it gains least.
+  it gains least. The wide Q8_0 kernel is the exception and does not get
+  a one-column build: it is the one row kernel whose eight-column build
+  is not register starved, running five waves per SIMD, and the narrow
+  build takes it to eight. On 8B Q8_0, already reading at the memory
+  system's limit, that cost 9 percent of decode and took its Q8_0 matmul
+  from 338 to 367 ms of device time. On the 0.6B files the same kernel
+  gained 12 percent, one work unit per lane there against four, so the
+  direction follows the shape as well as the path; the larger model's
+  loss is the one that decides it, that cell clearing the reference by 6
+  percent where the smaller clears it by 13.
 - **matmul, prefill** (the row counts below): a workgroup computes a
   TILE_ROWS x 64 output tile, walking the inner dimension 32 at a time;
   each step stages the dequantized W tile and the X tile in shared

@@ -662,6 +662,22 @@ Rebuild both wrappers when updating this tool; older wrappers are rejected.
 
 The reference is public mx-llama.cpp
 `5542318e748c154b634211def405ae95da3dfaa9`, built in a clean detached worktree.
+
+Which reference binary a comparison used is not the same throughout this
+repository, and each table should say. The CPU work above used
+mx-llama.cpp at `5542318e74`. Every device comparison on the Radeon VII
+used upstream llama.cpp build 11075, commit `335b21fcb`, its own Vulkan
+backend on the AMD proprietary driver; a source tree of mx-llama.cpp is
+present on that machine but was never built, so no Windows figure here
+is against the fork. The MI50 comparison used two arms on the same card:
+upstream build 11100, commit `7ab4ee7ba`, with ROCm, and mx-llama.cpp
+`eefc4e732` built for gfx906, also with ROCm. The two differ enough to
+matter, the fork reading 4549 tok/s at a 64-token prompt against
+upstream's 1774 and 6782 at 512 against 6087, with decode level at 230
+against 226, so a share quoted against upstream flatters llmx on that
+hardware. Where the fork is available it is the arm the gate in
+`AGENTS.md` names. The fork is distinguishable by its `-tps` flag, which
+upstream does not have.
 The eight-pair measurement on Ryzen 7 5800X, Windows, MSVC 19.50,
 llmx `2131c1b` and the exact F32 model above found:
 

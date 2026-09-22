@@ -56,8 +56,8 @@
 // (nibble bytes 14 and 15, the second scale and block 1). Q4_1 blocks are
 // 20 bytes, 5 words, always word aligned, one lane per block. Q6_K blocks
 // are 210 bytes, so every other block starts two bytes into a word and
-// its words are assembled from two loads; sixteen lanes share a block,
-// each taking four consecutive positions of one half, which is three
+// its words are assembled from two loads; eight lanes share a block,
+// each taking eight consecutive positions of one half, which is six
 // words of quants, two of sub-scales and the block scale.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
@@ -92,12 +92,14 @@ uint pi = 0u;
 
 // Offset in pair words into the quantized activations of column c.
 uint xa_col(uint c) { return c * p.nin / 2u; }
-// A block's scale d and d times its integer sum; and d times the sums of
-// its two halves.
+// A block's scale d and d times its integer sum.
 vec2 xq_block(uint c, uint b) { return xt2[p.nbatch * p.nin / 4u + c * (p.nin / 32u) + b]; }
-vec2 xq_halves(uint c, uint b) { return xt2[p.nbatch * p.nin / 4u + p.nbatch * p.nin / 32u + c * (p.nin / 32u) + b]; }
-// The scale entries of blocks 2j and 2j + 1 in one load.
+// The scale entries of blocks 2j and 2j + 1 in one load; and d times the
+// half sums of blocks 2j and 2j + 1 likewise.
 vec4 xq_pair(uint c, uint j) { return xt4[p.nbatch * p.nin / 8u + c * (p.nin / 64u) + j]; }
+vec4 xq_halves_pair(uint c, uint j) {
+    return xt4[(p.nbatch * p.nin / 4u + p.nbatch * p.nin / 32u) / 2u + c * (p.nin / 64u) + j];
+}
 // Two pairs of 16-bit values against two activation pair words.
 int pair_dot(uint a, uint b, uvec2 xw) {
     return dotEXT(unpack16(int(a)), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)), unpack16(int(xw.y)));
@@ -145,6 +147,15 @@ uint word_at(uint byte_off) {
     uint i = byte_off >> 2u;
     if ((byte_off & 3u) == 0u) return w32s[pi].w32[i];
     return (w32s[pi].w32[i] >> 16u) | (w32s[pi].w32[i + 1u] << 16u);
+}
+// Two consecutive words at any even byte offset, three loads when
+// unaligned rather than the four of two word_at calls.
+void words_at(uint byte_off, out uint a, out uint b) {
+    uint i = byte_off >> 2u;
+    if ((byte_off & 3u) == 0u) { a = w32s[pi].w32[i]; b = w32s[pi].w32[i + 1u]; return; }
+    uint w0 = w32s[pi].w32[i], w1 = w32s[pi].w32[i + 1u], w2 = w32s[pi].w32[i + 2u];
+    a = (w0 >> 16u) | (w1 << 16u);
+    b = (w1 >> 16u) | (w2 << 16u);
 }
 float half_word_at(uint byte_off) {
     uint w = w32s[pi].w32[byte_off >> 2u];
@@ -407,25 +418,28 @@ void main() {
 #endif
 #ifdef LLMX_KQUANT
         {
-            // Q6_K: sixteen lanes per block, lane t taking positions l0..l0+3
+            // Q6_K: eight lanes per block, lane t taking positions l0..l0+7
             // of half n. Position l0 + i of a half has four values, one per
             // 32-group: low nibble of ql[l0 + i] with bits 0..1 of qh[l0 + i],
             // low nibble of ql[l0 + 32 + i] with bits 2..3, the high nibbles
             // with bits 4..5 and 6..7; each group has its own sub-scale,
-            // and sub-scale index l0 / 16 is the same for the lane's four.
-            // A group's four values are packed as unsigned bytes 0..63 and
-            // the -32 offset folded through the block sum.
+            // and sub-scale index l0 / 16 is the same for the lane's eight.
+            // A group's eight values are packed as unsigned bytes 0..63 in
+            // two words and the -32 offset folded through the block sum.
+            // Eight positions per lane rather than four halve the loads
+            // per weight and let the activations come in as 16 bytes.
             uint nblocks = p.nin / Q6_K_BLOCK;
             uint bbase = row * nblocks * Q6_K_BYTES;   // bytes
-            uint group = l / 16u, t = l - group * 16u;
-            uint groups = p.cluster / 16u;
-            uint n = t / 8u, l0 = (t - n * 8u) * 4u;
+            uint group = l / 8u, t = l - group * 8u;
+            uint groups = p.cluster / 8u;
+            uint n = t / 4u, l0 = (t - n * 4u) * 8u;
             for (uint b = group; b < nblocks; b += groups) {
                 uint o = bbase + b * Q6_K_BYTES;
-                uint ql_lo = word_at(o + n * 64u + l0);
-                uint ql_hi = word_at(o + n * 64u + 32u + l0);
-                uint qh = word_at(o + 128u + n * 32u + l0);
-                uint sc_a = word_at(o + 192u + n * 8u), sc_b = word_at(o + 192u + n * 8u + 4u);
+                uint lo0, lo1, hi0, hi1, qh0, qh1, sc_a, sc_b;
+                words_at(o + n * 64u + l0, lo0, lo1);
+                words_at(o + n * 64u + 32u + l0, hi0, hi1);
+                words_at(o + 128u + n * 32u + l0, qh0, qh1);
+                words_at(o + 192u + n * 8u, sc_a, sc_b);
                 float d = half_word_at(o + 208u);
                 // Sub-scales of groups 0..3 are bytes l0/16 + 0, 2, 4, 6.
                 uint sh = (l0 / 16u) * 8u;
@@ -433,30 +447,29 @@ void main() {
                 float s1 = float((int(sc_a << (8u - sh))) >> 24);
                 float s2 = float((int(sc_b << (24u - sh))) >> 24);
                 float s3 = float((int(sc_b << (8u - sh))) >> 24);
-                uint q0 = (ql_lo & 0x0F0F0F0Fu) | ((qh & 0x03030303u) << 4u);
-                uint q1 = (ql_hi & 0x0F0F0F0Fu) | (((qh >> 2u) & 0x03030303u) << 4u);
-                uint q2 = ((ql_lo >> 4u) & 0x0F0F0F0Fu) | (((qh >> 4u) & 0x03030303u) << 4u);
-                uint q3 = ((ql_hi >> 4u) & 0x0F0F0F0Fu) | (((qh >> 6u) & 0x03030303u) << 4u);
+                uint q0a = (lo0 & 0x0F0F0F0Fu) | ((qh0 & 0x03030303u) << 4u), q0b = (lo1 & 0x0F0F0F0Fu) | ((qh1 & 0x03030303u) << 4u);
+                uint q1a = (hi0 & 0x0F0F0F0Fu) | (((qh0 >> 2u) & 0x03030303u) << 4u), q1b = (hi1 & 0x0F0F0F0Fu) | (((qh1 >> 2u) & 0x03030303u) << 4u);
+                uint q2a = ((lo0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 4u) & 0x03030303u) << 4u), q2b = ((lo1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 4u) & 0x03030303u) << 4u);
+                uint q3a = ((hi0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 6u) & 0x03030303u) << 4u), q3b = ((hi1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 6u) & 0x03030303u) << 4u);
                 uint bg = b * 8u + n * 4u;   // the 32-block of group 0
                 for (uint c = 0u; c < p.ncols; ++c) {
                     uint col = p.col0 + c;
-                    uint a2 = xa_col(col) / 2u + (b * Q6_K_BLOCK + n * 128u + l0) / 4u;
-                    int p0 = pair_dot(q0 & 0x00FF00FFu, (q0 >> 8u) & 0x00FF00FFu, xq2[a2]);
-                    int p1 = pair_dot(q1 & 0x00FF00FFu, (q1 >> 8u) & 0x00FF00FFu, xq2[a2 + 8u]);
-                    int p2 = pair_dot(q2 & 0x00FF00FFu, (q2 >> 8u) & 0x00FF00FFu, xq2[a2 + 16u]);
-                    int p3 = pair_dot(q3 & 0x00FF00FFu, (q3 >> 8u) & 0x00FF00FFu, xq2[a2 + 24u]);
-                    float x0 = xq_block(col, bg).x, x1 = xq_block(col, bg + 1u).x;
-                    float x2 = xq_block(col, bg + 2u).x, x3 = xq_block(col, bg + 3u).x;
-                    acc[c] += d * (s0 * (x0 * float(p0)) + s1 * (x1 * float(p1)) +
-                                   s2 * (x2 * float(p2)) + s3 * (x3 * float(p3)));
+                    uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
+                    uvec4 x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
+                    int p0 = pair_dot(q0a & 0x00FF00FFu, (q0a >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0b & 0x00FF00FFu, (q0b >> 8u) & 0x00FF00FFu, x0v.zw);
+                    int p1 = pair_dot(q1a & 0x00FF00FFu, (q1a >> 8u) & 0x00FF00FFu, x1v.xy) + pair_dot(q1b & 0x00FF00FFu, (q1b >> 8u) & 0x00FF00FFu, x1v.zw);
+                    int p2 = pair_dot(q2a & 0x00FF00FFu, (q2a >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2b & 0x00FF00FFu, (q2b >> 8u) & 0x00FF00FFu, x2v.zw);
+                    int p3 = pair_dot(q3a & 0x00FF00FFu, (q3a >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3b & 0x00FF00FFu, (q3b >> 8u) & 0x00FF00FFu, x3v.zw);
+                    vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
+                    acc[c] += d * (s0 * (xa.x * float(p0)) + s1 * (xa.z * float(p1)) +
+                                   s2 * (xb.x * float(p2)) + s3 * (xb.z * float(p3)));
                     // The -32 offset times each half-group's sum under that
                     // half's sub-scale, applied by the first lane of each
-                    // half among the eight that reduce together.
+                    // half among the four that reduce together.
                     if (l0 == 0u || l0 == 16u) {
-                        vec2 h0 = xq_halves(col, bg), h1 = xq_halves(col, bg + 1u);
-                        vec2 h2 = xq_halves(col, bg + 2u), h3 = xq_halves(col, bg + 3u);
-                        acc[c] -= d * 32.0 * (l0 == 0u ? s0 * h0.x + s1 * h1.x + s2 * h2.x + s3 * h3.x
-                                                       : s0 * h0.y + s1 * h1.y + s2 * h2.y + s3 * h3.y);
+                        vec4 ha = xq_halves_pair(col, bg / 2u), hb = xq_halves_pair(col, bg / 2u + 1u);
+                        acc[c] -= d * 32.0 * (l0 == 0u ? s0 * ha.x + s1 * ha.z + s2 * hb.x + s3 * hb.z
+                                                       : s0 * ha.y + s1 * ha.w + s2 * hb.y + s3 * hb.w);
                     }
                 }
             }

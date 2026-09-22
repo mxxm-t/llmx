@@ -1045,8 +1045,8 @@ public:
         // The row kernel's work units and the lanes that share one, per
         // type (matmul_row.comp): Q8_0 pairs over four lanes and Q4_0
         // pairs over two when the block count is even, Q4_1 blocks over
-        // one, Q4_K and Q5_K blocks over eight, Q6_K over sixteen, else one
-        // unit per block or value.
+        // one, the K-quant blocks over eight, else one unit per block or
+        // value.
         const uint32_t type = live[0]->type;
         const size_t nblocks = nin / block_values_of(type);
         uint32_t wide = 0, lanes = 1;
@@ -1072,8 +1072,8 @@ public:
         case gguf::GGML_TYPE_Q4_K:
         case gguf::GGML_TYPE_Q5_K:
         case gguf::GGML_TYPE_Q6_K:
-            lanes = type == gguf::GGML_TYPE_Q6_K ? 16 : 8;
-            if (dev_->subgroup_size < lanes) throw std::runtime_error("vulkan: K-quant rows need a subgroup of 16 lanes");
+            lanes = 8;
+            if (dev_->subgroup_size < lanes) throw std::runtime_error("vulkan: K-quant rows need a subgroup of 8 lanes");
             units = nblocks * lanes;
             kernel = type == gguf::GGML_TYPE_Q6_K ? K_MATMUL_ROW_K : type == gguf::GGML_TYPE_Q5_K ? K_MATMUL_ROW_K5 : K_MATMUL_ROW_K4;
             break;

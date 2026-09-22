@@ -166,10 +166,15 @@ reduction order. The HF gate measures the cost of it.
   assembled from two loads since its scale is two bytes; Q4_1 is a lane
   per 5-word block; Q4_K and Q5_K are eight lanes per block, each the
   sixteen nibble bytes of one half of a 64-value chunk with every lane
-  reading the three packed sub-scale words; Q6_K is sixteen lanes per
-  block, each three words of quants, two of sub-scales and the scale,
-  with every other block's words assembled from two loads since 210
-  bytes is not a multiple of four. The final xor-shuffle
+  reading the three packed sub-scale words; Q6_K is eight lanes per
+  block, each eight consecutive positions of one half, six words of
+  quants, two of sub-scales and the scale, with every other block's
+  words assembled from three loads per consecutive pair since 210 bytes
+  is not a multiple of four. Sixteen lanes of four positions had been
+  the layout; eight of eight halves the loads per weight, and reading
+  the four group scales as two 16-byte loads rather than four took the
+  8B shape from 189 to 236 GB/s and the 0.6B files' 151,936-row head
+  from 686 to 578 us. The final xor-shuffle
   reduction runs over the live columns only: reducing all eight slots
   for one column was 48 shuffles per lane after five loads and cost the
   1024-square matvec a quarter of its time (17.1 to 13.2 us) and the 8B

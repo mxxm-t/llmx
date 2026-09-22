@@ -18,13 +18,14 @@
 #   ./build/llmx bench --model <model.gguf> --device vulkan:0
 FROM debian:trixie-slim
 
-# Debian trixie carries a shader compiler and Vulkan headers new enough
-# for these shaders, so no vendor repository is added here.
+# Debian trixie carries a shader compiler and Vulkan headers new enough for these shaders, so no vendor repository is added here.
+# curl is here because `llmx pull` runs it as a child process to fetch models from the Hub.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         cmake \
+        curl \
         git \
         glslc \
         libvulkan-dev \

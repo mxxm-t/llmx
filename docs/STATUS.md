@@ -1113,9 +1113,28 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   of the reference on that card to 46, which is where the 8-bit path
   already was. Both cards pass every suite afterwards, the HF gate
   included.
-- **Left:** prompt processing, bound by shared-memory traffic per operation at 12
-  percent of this card's fp32 peak, to be raised by a wider micro-tile
-  and a tile sized from what the device reports; decode on the 4- and
+
+  Thirty-third, three questions about prompt processing answered by measurement, each against the explanation I had given.
+
+  Whether the tile wants occupancy. The 128-row tile runs two waves per SIMD, held there by 100 registers and 24,576 bytes of shared memory, and the 64-row tile runs three on 67 and 16,384. Forcing each on the Radeon VII, two interleaved blocks:
+
+  | model | rows | 64-row tile | 128-row tile | shipped choice |
+  |---|---:|---:|---:|---:|
+  | Qwen3-8B-Q4_K_M | 247 | 228.2 tok/s | 240.7 | 243.3 |
+  | Qwen3-8B-Q4_K_M | 512 | 261.4 | 284.6 | 284.8 |
+  | Qwen3-8B-Q8_0 | 247 | 245.8 | 281.0 | 280.9 |
+  | Qwen3-8B-Q8_0 | 512 | 280.6 | 340.2 | 340.4 |
+
+  The taller tile wins everywhere despite the lost wave, so work per thread is worth more than occupancy here, unlike the row kernels, and the shipped height choice is already right.
+
+  Whether the host feeds the device in time. BOSS read the card as fully occupied at about three quarters of its power and asked whether prefill is recorded late. With runs short enough that the profiler samples every dispatch, the kernels' own execution times sum to the wall time: 345.7 against 345.2 ms for Qwen3-0.6B-Q8_0 at 512 rows, 3632.6 against 3632.9 for Qwen3-8B-Q4_K_M. A queue waiting on the host would leave time no kernel covers. None is left, so the device never waits and the shortfall is inside the kernels.
+
+  What the reference does instead. On the MI50 its Vulkan build reports `int dot: 1` and `matrix cores: none`, and its quantized prefill path multiplies 8-bit activations through the four-wide integer dot, where ours multiplies dequantized floats one product per instruction on float tiles. That is a quarter of the instructions and a quarter of the shared memory per product. It is the next thing built, for devices whose integer dot is native, which the profile already records for the MI50 under Mesa; the precision of 8-bit activations against the HF bounds decides whether it ships.
+
+  Also measured and not kept: the prefill attention kernel with its online softmax taken four or two keys at a time, one rescale per chunk rather than per key. Flat within one percent on Qwen3-0.6B-Q8_0 at 512 and 4096 rows and Qwen3-8B-Q4_K_M at 2048.
+
+  And a memory fix. A model on a device backend held every weight twice: the loader reads the file into one host allocation, the model kept it for its lifetime, and the device backend copies each weight into its own memory. The model now records at adoption whether any weight still reads those bytes in place, and the CLI releases them when none does. Qwen3-8B-Q4_K_M on the Radeon VII, steady host memory 4.62 to 0.18 GB, decode unchanged; the CPU backend adopts by aliasing and keeps them. The peak is still the whole file, 4.84 GB, since it is read before the upload. Streaming the file to the device during the load, read directly into staging and uploaded asynchronously so the disk and the copies overlap, would remove that peak and is not done.
+- **Left:** prompt processing, 44 to 79 percent of the reference on the MI50 and bound inside the tile kernel rather than by the host (the thirty-third paragraph), to be raised by an 8-bit integer-dot tile where the device's integer dot is native; loading, which reads the whole file into host memory before uploading it; decode on the 4- and
   5-bit files, which the thirtieth paragraph took past the reference on
   the Radeon VII and which the MI50 has yet to be measured on; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the

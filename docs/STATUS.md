@@ -1054,6 +1054,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-0.6B-Q8_0 | tg32 | 100.59 | 270.1, 270.5 | 269.9, 270.4 | 269% |
 
   Prefill is flat there too, on both models measured as the control.
+
+  **Correction (2026-09-22, thirty-fourth paragraph):** the reference column above was measured with all ten MI50s visible, so the reference split the model across ten cards. These are not same-card figures and its shares are void; the one-card comparison is in the thirty-fourth paragraph.
   Whether the float multiply beats the integer dot under Mesa is not
   measured; the two forms still compile from one source and the profile
   still chooses.
@@ -1076,6 +1078,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   the tile shape: it is the tile kernel dequantizing K-quant weights
   into shared memory on every pass, which the 8-bit path does not pay.
   This is the largest gap open and is the next thing taken.
+
+  **Correction (2026-09-22, thirty-fourth paragraph):** the reference column above was measured with all ten MI50s visible, so the reference split the model across ten cards. These are not same-card figures and its shares are void; the one-card comparison is in the thirty-fourth paragraph. The gap between the Q4_K_M and Q8_0 files is llmx's own and stands.
 
   Thirty-second, that gap closed. The tile kernel staged K-quant weights
   through the per-value decoders in `qdecode.glsl`, which re-read and
@@ -1110,7 +1114,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   untouched: on the MI50 Qwen3-8B-Q8_0 reads 265.1 against 264.8 at 247
   rows and 327.0 against 327.1 at 512, and Qwen3-0.6B-Q8_0 is level
   inside its spread. So K-quant prompt processing went from 19 percent
-  of the reference on that card to 46, which is where the 8-bit path
+  of the reference on that card to 46 (shares against the ten-card reference, corrected in the thirty-fourth paragraph), which is where the 8-bit path
   already was. Both cards pass every suite afterwards, the HF gate
   included.
 
@@ -1133,8 +1137,29 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   Also measured and not kept: the prefill attention kernel with its online softmax taken four or two keys at a time, one rescale per chunk rather than per key. Flat within one percent on Qwen3-0.6B-Q8_0 at 512 and 4096 rows and Qwen3-8B-Q4_K_M at 2048.
 
+  Thirty-fourth, a correction to every MI50 reference figure above. The reference's Vulkan build uses every device it can see, and the rig has ten MI50s, so `llama-bench -ngl 99` without `GGML_VK_VISIBLE_DEVICES` split the model across all ten. Measured back to back on Qwen3-0.6B-Q8_0, that is pp247 3364 and tg32 101.3 tok/s with ten visible against 6941 and 299.0 on one. The decode leads of 217, 182 and 269 percent, the earlier 2.4 times and the prefill shares were all against the ten-card split. The Radeon VII has one device, so its tables stand, and the per-shape TFLOPS comparison ran pinned to one device and stands. The ROCm arms of the table above are not known to have been pinned either and are unverified. The reference is now pinned to one card.
+
+  The one-card comparison, llmx at `cb2eb5b` with the integer-dot tile against the reference's Vulkan build on the same MI50, interleaved, two passes, three cards in parallel with one model on each:
+
+  | model | test | llmx | reference | llmx share |
+  |---|---|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | pp64 | 1098.9 tok/s | 4654.9 | 24% |
+  | Qwen3-0.6B-Q8_0 | pp247 | 4698.6 | 6954.7 | 68% |
+  | Qwen3-0.6B-Q8_0 | pp512 | 4871.1 | 6676.8 | 73% |
+  | Qwen3-0.6B-Q8_0 | tg32 | 273.0 | 303.1 | 90% |
+  | Qwen3-8B-Q4_K_M | pp64 | 249.5 | 260.0 | 96% |
+  | Qwen3-8B-Q4_K_M | pp247 | 409.5 | 634.4 | 65% |
+  | Qwen3-8B-Q4_K_M | pp512 | 498.0 | 763.4 | 65% |
+  | Qwen3-8B-Q4_K_M | tg32 | 78.8 | 86.8 | 91% |
+  | Qwen3-8B-Q8_0 | pp64 | 248.8 | 528.3 | 47% |
+  | Qwen3-8B-Q8_0 | pp247 | 411.0 | 727.2 | 57% |
+  | Qwen3-8B-Q8_0 | pp512 | 499.8 | 863.7 | 58% |
+  | Qwen3-8B-Q8_0 | tg32 | 50.0 | 58.4 | 86% |
+
+  Each arm's best pass is shown. So on the MI50 llmx trails in both phases: decode at 86 to 91 percent, prompt processing at 24 to 96. Decode on the MI50 is an open gate again, not a lead.
+
   And a memory fix. A model on a device backend held every weight twice: the loader reads the file into one host allocation, the model kept it for its lifetime, and the device backend copies each weight into its own memory. The model now records at adoption whether any weight still reads those bytes in place, and the CLI releases them when none does. Qwen3-8B-Q4_K_M on the Radeon VII, steady host memory 4.62 to 0.18 GB, decode unchanged; the CPU backend adopts by aliasing and keeps them. The peak is still the whole file, 4.84 GB, since it is read before the upload. Streaming the file to the device during the load, read directly into staging and uploaded asynchronously so the disk and the copies overlap, would remove that peak and is not done.
-- **Left:** prompt processing, 44 to 79 percent of the reference on the MI50 and bound inside the tile kernel rather than by the host (the thirty-third paragraph), to be raised by an 8-bit integer-dot tile where the device's integer dot is native; loading, which reads the whole file into host memory before uploading it; decode on the 4- and
+- **Left:** on the MI50 against one card of the reference (the thirty-fourth paragraph), prompt processing at 24 to 96 percent and decode at 86 to 91; Q8_0 through the integer-dot tile at 7.72 TFLOPS against the reference's 13.30, and Q6_K and Q5_K not yet through it; loading, which reads the whole file into host memory before uploading it; decode on the 4- and
   5-bit files, which the thirtieth paragraph took past the reference on
   the Radeon VII and which the MI50 has yet to be measured on; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
@@ -1191,7 +1216,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   and prompt-processes at 41 to 50 percent. Decode is the striking
   figure: the reference's Vulkan decode collapses to 102 tok/s here
   while its ROCm decode holds 226, and llmx's Vulkan decode reaches
-  246, past the vendor path. That says the reference's Vulkan backend
+  246, past the vendor path. **Correction (2026-09-22):** the reference arms in this table ran with all ten MI50s visible and split the model across them, so neither its decode collapse nor the 2.4 times is a same-card result; see the thirty-fourth paragraph. That says the reference's Vulkan backend
   is far more driver-sensitive than ours, since on the Radeon VII under
   the Windows driver the same comparison is 205 against about 199.
   Prompt processing is where llmx is behind on this card by every arm:
@@ -1258,7 +1283,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   Prompt processing goes from 50 to 74 percent of the reference's
   Vulkan at 512 rows and from 42 to 65 at 256; 64 rows is unchanged at
   41 percent, that call being too small to fill the card either way,
-  and decode stays 2.4 times ahead. The kernels remain exact there,
+  and decode stays 2.4 times ahead, a ratio void for the reason corrected in the thirty-fourth paragraph. The kernels remain exact there,
   1,172,518 outputs against the CPU backend.
 
   What this fixes beyond the number is the structure. The workgroup
@@ -2450,10 +2475,10 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 
 ### Vulkan prefill through the 8-bit integer dot (2026-09-22)
 
-- **Goal:** prompt processing on the MI50 at least level with the reference, where it is 44 to 79 percent. Measured on that card within one environment at a 4096 x 14336 projection over 512 rows, our float tile reads 4.87 TFLOPS for Q8_0, 4.65 for Q4_K and 3.62 for Q6_K, level with the reference's own float tile at 4.77, while its 8-bit integer-dot tile reads 13.30, 11.42 and 7.03. So the gap is that path, not scheduling or tile shape (STATUS, thirty-third paragraph above).
+- **Goal:** prompt processing on the MI50 at least level with the reference, where it was 44 to 79 percent against a reference split across ten cards and is 24 to 73 percent against one (the thirty-fourth paragraph, measured after the tile below). Measured on that card within one environment at a 4096 x 14336 projection over 512 rows, our float tile reads 4.87 TFLOPS for Q8_0, 4.65 for Q4_K and 3.62 for Q6_K, level with the reference's own float tile at 4.77, while its 8-bit integer-dot tile reads 13.30, 11.42 and 7.03. So the gap is that path, not scheduling or tile shape (STATUS, thirty-third paragraph above).
 - **Plan:** a kernel quantizes each activation column to 8-bit values per 32-value block with the block's scale and scaled sum; a tile kernel stages one quant block per row and column per step as packed 8-bit words and scales, and multiplies with the four-wide integer dot, one float multiply-add per block for the scale and one more for a type's minimum. Q8_0 and Q4_K first, then Q6_K and Q5_K. Used only where the device's integer dot is native, which the profile records as `prefer_integer_dot`; elsewhere the float tile stays.
-- **Done:** the diagnosis above, and `backend-vulkan` now times the tile at that shape in TFLOPS.
-- **Left:** everything in the plan.
+- **Done:** the diagnosis above, and `backend-vulkan` now times the tile at that shape in TFLOPS. `quantize_x8.comp` and `matmul_tile_q.comp` for Q8_0 and Q4_K (`cb2eb5b`), taken where the profile says `prefer_integer_dot`. On the MI50 at the 8B feed-forward shape Q8_0 goes 4.87 to 7.72 TFLOPS and Q4_K 4.65 to 11.48, the reference's being 13.30 and 11.42. Qwen3-8B-Q4_K_M prompt processing 297.8 to 488.7 tok/s at 512 rows. Correctness: every HF perplexity cell in both scoring modes on the MI50 with all three 0.6B fixtures, the backend test's 1,172,518 outputs with its reference rounded the same way, and on the 8B Q4_K_M file, which no fixture covers, 40 wikitext windows of 512 at mean NLL 2.47005 against the float tile's 2.47023. Scoring through batched passes (`fc261f9`) is what made the HF gate reach this path at all.
+- **Left:** Q8_0 stages each quant word from two 16-bit loads because its 34-byte blocks are not word aligned, and reads 7.72 TFLOPS against the reference's 13.30; Q6_K and Q5_K through the integer dot; staging several blocks per barrier; short prompts, 24 percent of the reference at 64 rows on the 0.6B. Then decode on the MI50, 86 to 91 percent of the one-card reference.
 - **Gotchas:** 8-bit activations cost 0.009 of NLL in the decode kernel earlier, close to the 0.010 bound on one HF cell, so the device suite on the rig decides whether this ships, per type. The AMD Windows driver lowers the integer dot extension to widened multiplies, so the Radeon VII must keep the float tile.
 
 ### External floor of merged main (2026-09-20)

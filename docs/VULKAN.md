@@ -300,7 +300,7 @@ reduction order. The HF gate measures the cost of it.
 
   Prompt processing on a K-quant file was a separate and larger gap: on
   the MI50 a Qwen3-8B-Q4_K_M file read 98 tok/s at 247 rows against the
-  reference's 530, and prefilled slower in absolute terms than the Q8_0
+  reference's 530 (that reference ran split across ten cards; against one it reads 634, docs/STATUS.md thirty-fourth paragraph), and prefilled slower in absolute terms than the Q8_0
   file of the same model on the same card, 98 against 265, while reading
   a little over half the bytes. That is not bandwidth and not the tile
   shape. The tile kernel staged K-quant weights through the per-value
@@ -386,7 +386,16 @@ reduction order. The HF gate measures the cost of it.
   half-precision form raised registers to 77 rather than lowering them,
   so it did not help that either. Prompt processing wants the register
   count, not the precision, and a half tile would also need a second
-  module to keep F32 weights in float, so none of this is kept. The wide Q8_0 kernel is the exception and does not get
+  module to keep F32 weights in float, so none of this is kept.
+
+  What the device does instead is the 8-bit integer dot. Measured on one MI50 under Mesa at a 4096 x 14336 projection over 512 rows, the float tile reads 4.87 TFLOPS on Q8_0 and 4.65 on Q4_K, level with another runtime's float tile at 4.77 on the same card, while that runtime's integer-dot tile reads 13.30 and 11.42. So where the profile records `prefer_integer_dot`, wide Q8_0 and Q4_K calls take `matmul_tile_q.comp`. `quantize_x8.comp` first writes each activation column as 8-bit values per block of 32, 8 words of signed bytes in position order, followed by a table of each block's scale and scale times integer sum. The tile then walks the inner dimension one quant block at a time. It stages, for each of its rows, that block's quants as 8 words with the block's scale and minimum, and for each of its 64 columns the activation block's words and scales. Each output gets eight four-wide dots per block, one float multiply-add for the scales and one more for a minimum. Q8_0 quants go in as they are, and Q4_K nibbles become bytes with a shift and a mask, since values 0 to 15 are valid signed bytes.
+
+  | type | float tile | integer-dot tile |
+  |---|---:|---:|
+  | Q8_0 | 4.87 TFLOPS | 7.72 |
+  | Q4_K | 4.65 | 11.48 |
+
+  Qwen3-8B-Q4_K_M prompt processing at 512 rows goes from 297.8 to 488.7 tok/s. The HF perplexity cells pass in both scoring modes, and on the 8B Q4_K_M file 40 wikitext windows score mean NLL 2.47005 against the float tile's 2.47023. Q8_0 lags its neighbour because a 34-byte block is not word aligned, so each quant word is assembled from two 16-bit loads. The AMD proprietary driver lowers the integer dot extension to widened multiplies, so the Radeon VII keeps the float tile. The wide Q8_0 kernel is the exception and does not get
   a one-column build: it is the one row kernel whose eight-column build
   is not register starved, running five waves per SIMD, and the narrow
   build takes it to eight. On 8B Q8_0, already reading at the memory

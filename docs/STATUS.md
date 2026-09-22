@@ -953,9 +953,43 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   one: no shader uses the extension, so the backend no longer requires
   `VK_KHR_shader_integer_dot_product` of a device, which is one fewer
   refusal between llmx and a card that lacks it.
+  Twenty-ninth, what a kernel boundary costs and how many a decode pass
+  has. The same tiny dispatch, timed four thousand times on the Radeon
+  VII, under four barrier forms:
+
+  | between dispatches | us each |
+  |---|---:|
+  | the barrier in the tree | 4.27 |
+  | compute stages and access bits only | 4.18 |
+  | execution dependency, no memory barrier | 3.05 |
+  | nothing, incorrect and for the measurement only | 0.49 |
+
+  A boundary costs about 3.8 us, of which 2.6 is the execution
+  dependency itself, the device draining and relaunching, and 1.2 is
+  the cache maintenance a shader write to shader read requires.
+  Narrowing the barrier to the compute stages, which is all a dispatch
+  needs, saves 0.1 us and does not pay for a second barrier flavour.
+  Counting the dispatches of a decode pass on Qwen3-0.6B-Q8_0 gives
+  256: nine per layer over 28 layers, being one norm-rope-and-cache
+  write, four matmuls since q, k and v share a dispatch and gate and up
+  share another, two RMS norms, one SiLU and one attention, plus the
+  embedding, a gather, the final norm and the head. The residual adds
+  are not among them; the matmul accumulates them already. At 3.8 us
+  each that is 0.97 ms of a 4.88 ms token, a fifth of decode, and the
+  nine are a strict chain, so none of it is idle time other work could
+  fill. The way out is fewer boundaries rather than cheaper ones, and
+  the two norms are the candidates, worth 0.21 ms if folded into the
+  matmul that follows. What makes that awkward is the integer
+  activations: a norm writes the 16-bit twin its consumer reads, so a
+  matmul that normalised on the fly would have to quantise on the fly
+  too, per 32-value block, in every workgroup that reads the row. Not
+  attempted; the measurement is recorded so the next attempt knows what
+  it is buying.
 - **Left:** decode on the 4- and 5-bit files, 99 and 89 percent of the
   reference on 0.6B and 92 on the 8B Q4_K_M (the twenty-eighth
-  paragraph, where the ISA has now been read once); the
+  paragraph, where the ISA has now been read once); folding a layer's
+  two RMS norms into the matmul that follows, worth a fifth of the
+  barrier time measured in the twenty-ninth; the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the
   tile kernel's cost per tile, the step at exactly 64 rows, and
   splitting the tiled attention over a long history. On 0.6B the bound is the

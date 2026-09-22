@@ -1034,6 +1034,15 @@ public:
     // Device time per kernel since the last call, in milliseconds, for a
     // diagnostics backend whose queue timestamps. Reading them waits for the
     // queue, so this is a diagnostic and not something a pass does.
+    // Dispatches whose time was sampled. The pool bounds it, so a long run
+    // is a sample of its first dispatches rather than all of them; decode is
+    // homogeneous so the shares hold, and the totals are of the sample.
+    size_t timed_dispatches() const {
+        size_t n = 0;
+        for (int i = 0; i < K_COUNT; ++i) n += kernel_calls_[i];
+        return n;
+    }
+
     std::vector<std::pair<std::string, double>> kernel_times() {
         std::vector<std::pair<std::string, double>> out;
         if (!dev_->timestamps || !queries_) return out;
@@ -2015,6 +2024,11 @@ std::string vulkan_kernel_statistics(const Backend& backend) {
 std::vector<std::pair<std::string, double>> vulkan_kernel_times(Backend& backend) {
     auto* v = dynamic_cast<VulkanBackend*>(&backend);
     return v ? v->kernel_times() : std::vector<std::pair<std::string, double>>();
+}
+
+size_t vulkan_timed_dispatches(const Backend& backend) {
+    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
+    return v ? v->timed_dispatches() : 0;
 }
 
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend) {

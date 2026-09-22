@@ -53,4 +53,7 @@ std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(c
 // Reading it waits for the queue, so it is a diagnostic and not something a pass does.
 std::vector<std::pair<std::string, double>> vulkan_kernel_times(Backend& backend);
 
+// How many dispatches that time covers. The query pool bounds it, so a long run is sampled from its first dispatches.
+size_t vulkan_timed_dispatches(const Backend& backend);
+
 } // namespace backend

@@ -755,7 +755,8 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
                   [](const auto& x, const auto& y) { return x.second > y.second; });
         double total = 0.0;
         for (const auto& t : times) total += t.second;
-        std::cout << "profile: " << total << " ms of device time\n";
+        std::cout << "profile: " << total << " ms of device time over "
+                  << backend::vulkan_timed_dispatches(b) << " dispatches sampled\n";
         for (const auto& t : times)
             std::cout << "profile:   " << t.first << " " << t.second << " ms ("
                       << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";

@@ -1257,8 +1257,40 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   the 3.8 us a boundary costs (the twenty-ninth paragraph) that is
   0.24 ms of the 0.31 ms it shows. It is almost entirely the boundary.
   Removing those dispatches is worth about 4.6 percent of decode, which
-  is most of the 6 percent this cell is short, and it is a different
-  target from the multiply that three attempts failed to make cheaper.
+  is most of the 6 percent this cell is short.
+
+  The profile also settles what the dominant kernel is bound by, which
+  three earlier guesses had not. Sampling 4096 dispatches, about 14
+  tokens, the Q4_K matmul takes 9.5 ms of a 20.7 ms token and reads the
+  model's 3.705 GB of Q4_K weights in that time, which is 390 GB/s
+  against roughly 1000 of this card's peak. The Q6_K matmul reads its
+  1.316 GB at about 306 GB/s. Neither is close to memory bound; both
+  are instruction bound, at about four operations per weight with a
+  quarter-rate 32-bit multiply among them. Making that multiply full
+  rate is worth roughly 40 percent of the dominant kernel, which is far
+  more than this cell is short.
+
+  And the instruction exists, which four earlier probes had missed
+  because they all asked for integer dots. This driver refuses to emit
+  an integer dot under any formulation tried: the extension, packed
+  8-bit dots, and two ways of stating operand widths all produce the
+  same wide multiplies. Asked for a half-precision dot it emits
+  `v_dot2_f32_f16`, the chip's native one, which takes two half
+  products into a float accumulator at full rate. The probe that found
+  it pays for it in conversions, 195 int-to-float and 96 float-to-half
+  against 48 dots, because it was handed integer activations; the point
+  is only that the instruction is reachable here.
+
+  What that implies is a different activation format for the row
+  kernel: halves rather than 16-bit integers with a block scale. A
+  weight nibble becomes a half in one conversion, the dot takes two
+  products at full rate, and the block scale still multiplies the sum
+  afterwards, so the arithmetic is about 2.5 full-rate operations per
+  weight against the present five effective. The integer twin exists
+  because integer dots needed a shared scale; halves carry their own
+  exponent and need none. Not yet written, and it touches the twin's
+  producers as well as every row path, so it is the next substantial
+  piece rather than a tune.
 
   Eight columns to a thread was retried on the k-major layout, where a
   thread's eight columns are contiguous rather than 33 floats apart,

@@ -602,6 +602,14 @@ public:
             core.computeUnitsPerShaderArray)
             d.compute_units = core.shaderEngineCount * core.shaderArraysPerEngineCount *
                               core.computeUnitsPerShaderArray;
+        VkPhysicalDeviceDriverProperties drv{};
+        drv.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
+        VkPhysicalDeviceProperties2 dp{};
+        dp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+        dp.pNext = &drv;
+        fn.vkGetPhysicalDeviceProperties2(d.physical, &dp);
+        d.caps.device = d.props.deviceName;
+        d.caps.driver = drv.driverName;
         d.caps.subgroup_size = d.subgroup_size;
         d.caps.compute_units = d.compute_units;
         d.caps.shared_memory_bytes = d.props.limits.maxComputeSharedMemorySize;

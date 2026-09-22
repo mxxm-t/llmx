@@ -261,6 +261,16 @@ reduction order. The HF gate measures the cost of it.
   exists and assumes small otherwise. This is the tile kernel's
   equivalent of the row kernel's lanes-per-row: the shape follows the
   device and the call rather than the source.
+  The row count where this kernel starts beating the per-row one is
+  `tile_from_for` in `backends/device_profile.hpp`, and it depends on
+  the width of a projection and on the driver: 40 rows on a 1024-wide
+  8-bit projection under the AMD proprietary driver against 96 under
+  Mesa, and 26 against 30 on a 4096-wide one. The default is 64 below
+  4096 values to a row and 32 at or above; a device and driver that
+  have been measured take their own value from `measured_profiles`. To
+  measure a new one, force each kernel in turn by setting both
+  thresholds to 1 and to a large number, sweep the prompt sizes, and
+  take the crossing.
   The crossover from the row kernel was measured as prompt
   processing at 8 to 256 rows with the tile kernel at its old threshold
   of 16 and with the row kernel taking every width: a tile costs a

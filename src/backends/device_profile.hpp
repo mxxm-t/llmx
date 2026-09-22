@@ -45,6 +45,7 @@
 // device reports, never on its vendor name.
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace backend {
 
@@ -57,6 +58,13 @@ struct DeviceCaps {
     uint32_t subgroup_size = 0;      // lanes that execute in lockstep
     uint32_t compute_units = 0;      // independent units, for deciding when work is too small to split further
     size_t shared_memory_bytes = 0;  // per workgroup, the limit the API reports
+
+    // What the device and the software compiling its shaders call themselves.
+    // Not a preference and not a brand: two drivers over the same silicon
+    // generate different code and want different numbers below, so a profile
+    // that has been measured is keyed by both.
+    std::string device;
+    std::string driver;
 
     bool matrix_units = false;       // a matrix-multiply instruction class; no gfx906 has one
     bool fp16_arithmetic = false;    // half-precision arithmetic, not merely half-precision storage
@@ -101,10 +109,49 @@ struct DeviceProfile {
     uint32_t dispatch_chunk = 64;
 };
 
-// The profile for a device. One device family has been measured, so this
-// returns those numbers; a device wanting others gets a branch here on what it
-// reports rather than on who made it.
-inline DeviceProfile profile_for(const DeviceCaps&) { return DeviceProfile{}; }
+// A profile that has been measured on one device with one driver.
+//
+// This is the table to extend when bringing up hardware. The defaults above
+// are a compromise across what has been measured; an entry here is what a
+// combination actually wanted, so a device in the table runs better than the
+// defaults and a device that is not runs no worse than before it was tried.
+// Measure with the sweeps in docs/VULKAN.md, add a row, and say in the note
+// what was measured rather than what was assumed.
+struct MeasuredProfile {
+    const char* device;              // a substring of what the device calls itself
+    const char* driver;              // a substring of what its driver calls itself
+    size_t tile_from_8bit_narrow;    // the one number found to differ so far
+};
+
+// The crossover between the per-row and the tile matmul on a narrow projection
+// is the number that has been found to move with the driver rather than the
+// hardware: the same Vega20 wants 40 rows under the AMD proprietary driver and
+// 96 under Mesa, with the tile kernel reading 422 tok/s against the row
+// kernel's 883 at 32 rows on the latter. The default of 64 is the compromise
+// between them.
+inline const MeasuredProfile* measured_profiles(size_t& count) {
+    static const MeasuredProfile table[] = {
+        {"Radeon VII", "AMD proprietary", 48},
+        {"MI60 / MI50", "radv", 96},
+    };
+    count = sizeof(table) / sizeof(table[0]);
+    return table;
+}
+
+// The profile for a device: the measured entry when its device and driver both
+// match one, and the compromise defaults otherwise.
+inline DeviceProfile profile_for(const DeviceCaps& caps) {
+    DeviceProfile p;
+    size_t count = 0;
+    const MeasuredProfile* table = measured_profiles(count);
+    for (size_t i = 0; i < count; ++i) {
+        if (caps.device.find(table[i].device) == std::string::npos) continue;
+        if (caps.driver.find(table[i].driver) == std::string::npos) continue;
+        p.tile_from_8bit_narrow = table[i].tile_from_8bit_narrow;
+        break;
+    }
+    return p;
+}
 
 // Batch rows from which a matmul of this shape should take the tile kernel.
 inline size_t tile_from_for(const DeviceProfile& profile, bool every_projection_8bit_or_float, size_t nin) {

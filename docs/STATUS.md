@@ -1230,10 +1230,22 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   about 290. So the band that was picking the slower kernel there is
   closed, and nothing regressed.
 
-  The per-device ideal is still 48 rows here and 96 there, so a single
-  number remains a compromise, and the argument for a measured table
-  keyed by device and driver, or a calibration at device open, stands.
-  Neither is written.
+  The per-device ideal being 48 rows here and 96 there, the compromise
+  is now only what an unmeasured device gets. `measured_profiles` in
+  `backends/device_profile.hpp` is a table keyed by what a device and
+  its driver call themselves, holding what that combination actually
+  wanted; the two measured entries are the Radeon VII under the AMD
+  proprietary driver at 48 and the MI50 under Mesa at 96. A device in
+  the table runs better than the defaults, one that is not runs exactly
+  as before, and bringing up hardware is running the sweeps and adding
+  a row. It keys on device and driver together because the driver is
+  what the measurement moved with: the same Vega20 wants 40 rows under
+  one and 96 under the other.
+
+  Measured after wiring it: the Radeon VII reads 971 tok/s at pp48
+  against 851 with the compromise, which is the 13 percent the single
+  number had given up, and the MI50 reads 896 at pp64 against 856.
+  Nothing else moved on either.
 
   A second, separate observation, and only an observation: the two
   drivers report different limits for the same Vega20 silicon, 32 KB

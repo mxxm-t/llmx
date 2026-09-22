@@ -212,6 +212,17 @@ struct KernelSource {
 
 const uint32_t kMatmulRowCounts[10] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1};
 
+const char* const kKernelNames[K_COUNT] = {
+    "add", "silu_mul", "gather_rows", "rms_norm_rows", "norm_rope_rows", "embed",
+    "matmul_row", "kv_write", "attention", "attention_merge", "matmul_tile", "matmul_row_q4",
+    "matmul_row_k4", "matmul_row_k5", "matmul_row_k", "norm_rope_kv", "attention_tile",
+    "kv_write_k16", "kv_write_v16", "kv_write_kv16",
+    "attention_k16", "attention_v16", "attention_kv16",
+    "attention_tile_k16", "attention_tile_v16", "attention_tile_kv16",
+    "norm_rope_kv_k16", "norm_rope_kv_v16", "norm_rope_kv_kv16",
+    "quantize_x", "matmul_row_q8w",
+};
+
 const KernelSource kKernels[K_COUNT] = {
     {kSpvAdd, sizeof(kSpvAdd), 2, nullptr},
     {kSpvSiluMul, sizeof(kSpvSiluMul), 4, nullptr},
@@ -392,6 +403,10 @@ struct Device {
     std::string name;
     bool push_descriptor = false;
     bool int8 = false, float16 = false, storage8 = false, storage16 = false;
+    // The driver's per-kernel statistics (registers, occupancy), when it reports them; the test prints them.
+    bool exec_stats = false;
+    PFN_vkGetPipelineExecutablePropertiesKHR get_exec_props = nullptr;
+    PFN_vkGetPipelineExecutableStatisticsKHR get_exec_stats = nullptr;
 
     // Guarded per handle: construction can fail between creating a handle
     // and loading the function that destroys it.
@@ -651,7 +666,17 @@ public:
             } else if (std::strcmp(e.extensionName, VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME) == 0) {
                 // Core in 1.3; an extension on the 1.2 devices this targets.
                 enabled.push_back(VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME);
+            } else if (std::strcmp(e.extensionName, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME) == 0) {
+                enabled.push_back(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
+                d.exec_stats = true;
             }
+        VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR estat{};
+        estat.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
+        estat.pipelineExecutableInfo = VK_TRUE;
+        if (d.exec_stats) {
+            estat.pNext = e2.pNext;
+            e2.pNext = &estat;
+        }
 
         const float priority = 1.0f;
         VkDeviceQueueCreateInfo qi{};
@@ -672,6 +697,13 @@ public:
         if (!fn.name) throw std::runtime_error("vulkan: the device has no " #name);
         LLMX_VK_DEVICE_FUNCTIONS(LLMX_VK_LOAD_DEVICE)
 #undef LLMX_VK_LOAD_DEVICE
+        if (d.exec_stats) {
+            d.get_exec_props = (PFN_vkGetPipelineExecutablePropertiesKHR)fn.vkGetDeviceProcAddr(
+                d.device, "vkGetPipelineExecutablePropertiesKHR");
+            d.get_exec_stats = (PFN_vkGetPipelineExecutableStatisticsKHR)fn.vkGetDeviceProcAddr(
+                d.device, "vkGetPipelineExecutableStatisticsKHR");
+            d.exec_stats = d.get_exec_props && d.get_exec_stats;
+        }
         if (!d.push_descriptor)
             throw VulkanUnavailable("vulkan: " + d.name + " has no VK_KHR_push_descriptor");
         fn.vkCmdPushDescriptorSetKHR =
@@ -719,6 +751,52 @@ public:
     }
 
     const std::string& name() const { return dev_->name; }
+
+    // The driver's statistics for every kernel compiled so far, one line each: on AMD the vector and scalar register counts, scratch, shared memory and occupancy.
+    // Empty when the device does not report them.
+    std::string kernel_statistics() const {
+        std::string out;
+        const Device& d = *dev_;
+        if (!d.exec_stats) return out;
+        for (int id = 0; id < K_COUNT; ++id) {
+            const Kernel& k = kernels_[id];
+            if (!k.pipeline) continue;
+            VkPipelineInfoKHR pi{};
+            pi.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
+            pi.pipeline = k.pipeline;
+            uint32_t n = 0;
+            if (d.get_exec_props(d.device, &pi, &n, nullptr) != VK_SUCCESS) continue;
+            for (uint32_t e = 0; e < n; ++e) {
+                VkPipelineExecutableInfoKHR ei{};
+                ei.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
+                ei.pipeline = k.pipeline;
+                ei.executableIndex = e;
+                uint32_t ns = 0;
+                if (d.get_exec_stats(d.device, &ei, &ns, nullptr) != VK_SUCCESS) continue;
+                std::vector<VkPipelineExecutableStatisticKHR> st(ns);
+                for (auto& s : st) {
+                    s.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_STATISTIC_KHR;
+                    s.pNext = nullptr;
+                }
+                if (d.get_exec_stats(d.device, &ei, &ns, st.data()) != VK_SUCCESS) continue;
+                out += kKernelNames[id];
+                out += ':';
+                for (const auto& s : st) {
+                    out += ' ';
+                    out += s.name;
+                    out += '=';
+                    switch (s.format) {
+                    case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR: out += s.value.b32 ? "1" : "0"; break;
+                    case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_INT64_KHR: out += std::to_string(s.value.i64); break;
+                    case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR: out += std::to_string(s.value.u64); break;
+                    default: out += std::to_string(s.value.f64); break;
+                    }
+                }
+                out += '\n';
+            }
+        }
+        return out;
+    }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -1512,6 +1590,7 @@ private:
         ci.stage.module = k.module;
         ci.stage.pName = "main";
         ci.layout = k.layout;
+        if (d.exec_stats) ci.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
         check(d.fn.vkCreateComputePipelines(d.device, VK_NULL_HANDLE, 1, &ci, nullptr, &k.pipeline),
               "vkCreateComputePipelines");
         k.bindings = src.bindings;
@@ -1683,6 +1762,11 @@ BackendPtr make_vulkan_backend(int device) {
 std::string vulkan_device_name(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->name() : std::string();
+}
+
+std::string vulkan_kernel_statistics(const Backend& backend) {
+    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
+    return v ? v->kernel_statistics() : std::string();
 }
 
 } // namespace backend

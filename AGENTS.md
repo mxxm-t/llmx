@@ -200,8 +200,11 @@ tolerance where a transcendental or a reduction order differs. The decode
 row kernel reads quantized rows against 16-bit integer activations, so its
 CPU reference is fed the activations quantized the same way and the
 comparison is about the dots; the norm, SiLU and attention kernels' twin
-of their output is checked through a matmul from it. It exits 77, which CTest
-reports as skipped, when there is no loader or no device.
+of their output is checked through a matmul from it. After the checks it
+prints the matvec bandwidth per type and, when the device reports them,
+the driver's per-kernel statistics (registers, shared memory, scratch).
+It exits 77, which CTest reports as skipped, when there is no loader, no
+device or a driverless loader.
 
 `http` starts the server's HTTP layer (`src/server/http.hpp`) on a
 system-chosen port from a thread and drives it with the layer's own client:

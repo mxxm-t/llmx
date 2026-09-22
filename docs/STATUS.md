@@ -867,12 +867,58 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   such a history across up to 64 workgroups. The scheduler's host side
   is not in this: a pass of 62 prompt rows returns from forward in 29
   ms with the command ring four chunks deep, and the rest is the
-  device.
+  device. Against the reference, back to back, three runs each,
+  tok/s:
+
+  | rows | 0.6B Q8_0 reference | llmx | share | 8B Q8_0 reference | llmx | share | 8B Q4_K_M reference | llmx | share |
+  |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+  | 32 | 953 | 641 | 67% | 97.5 | 102.4 | 105% | 100.5 | 102.7 | 102% |
+  | 64 | 929 | 838 | 90% | 79.9 | 174.1 | 218% | 58.3 | 102.6 | 176% |
+  | 128 | 620 | 1831 | 296% | 91.3 | 225.5 | 247% | 66.7 | 143.8 | 216% |
+  | 256 | 651 | 1487 | 228% | 100.3 | 244.2 | 244% | 79.1 | 157.2 | 199% |
+  | 512 | 1662 | 1795 | 108% | 146.1 | 267.5 | 183% | 111.2 | 176.5 | 159% |
+
+  The prompt gate holds on both 8B files at every width and on 0.6B
+  from 128 rows; 0.6B at 32 and 64 rows is where the tile kernel's
+  price per tile shows, a pass of 50 ms against the reference's 34.
+  Twenty-eighth, the K-quant row kernel by its registers. The backend
+  now captures the driver's per-kernel statistics when the device has
+  `VK_KHR_pipeline_executable_properties` and the test prints them:
+  vector and scalar registers, shared memory and scratch per kernel.
+  They put occupancy behind the row paths' ranking: the wide Q8_0 path
+  at 41 vector registers runs five waves per SIMD and 394 GB/s at
+  4096 x 12288, Q4_K at 75 three waves and 261, Q5_K at 93 two waves
+  and 254, Q6_K at 78 three and 238. Folding a block's scales once and
+  unpacking Q5_K's fifth bits per nibble word, so nothing unpacked
+  stays live across the columns:
+
+  | path | registers before | after | GB/s before | after |
+  |---|---:|---:|---:|---:|
+  | Q4_K | 75 | 74 | 261 | 253 to 265 |
+  | Q5_K | 93 | 84 | 254 | 286 to 296 |
+
+  Q4_K did not move because the compiler hoists all four activation
+  loads whatever the source order. Three layouts measured worse and
+  were dropped: sixteen lanes per block (55 and 59 registers, four
+  waves, 245 and 272 GB/s, a lane then keeping half the weight bytes
+  in flight per load), the next block's nibble words loaded before
+  this block's dots (81 and 92 registers, 251 and 257 GB/s, the
+  hardware's in-order load counter making a wait for this block's
+  loads wait for the prefetch), and both at once (226 and 260). On the
+  models the change is flat: 8B Q4_K_M decode 46.95 to 46.99 tok/s
+  against the reference's 51.8 (91 percent), 0.6B Q5_K_M 195 to 202
+  against 221 (88 to 91 percent), where the 0.6B shapes are bound by
+  dispatch latency rather than bandwidth (Q5_K at 1024 x 3072 reads
+  128 GB/s). The lever that remains for Q4_K is below the source:
+  the extension also serves the driver's internal representation,
+  the ISA, which would show the wait placement and the instruction
+  mix.
 - **Left:** decode on the 4- and 5-bit files, 99 and 89 percent of the
-  reference on 0.6B and 90 on the 8B Q4_K_M; the prompt pass at 32 to
-  128 rows (the twenty-seventh paragraph): the tile kernel's cost per
-  tile, the step at exactly 64 rows, and splitting the tiled attention
-  over a long history. On 0.6B the bound is the
+  reference on 0.6B and 91 on the 8B Q4_K_M, next through the ISA the
+  statistics extension can serve (the twenty-eighth paragraph); the
+  prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the
+  tile kernel's cost per tile, the step at exactly 64 rows, and
+  splitting the tiled attention over a long history. On 0.6B the bound is the
   dispatch count, not a kernel; replaying a recorded pass (the server
   block above) is the lever there. On 8B the K-quant paths sit at 250
   to 256 GB/s against Q8_0's 400 with their loads and their sub-scale

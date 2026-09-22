@@ -996,6 +996,7 @@ int main() {
         const size_t values = check_kernels(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
+        std::cout << backend::vulkan_kernel_statistics(*b);
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

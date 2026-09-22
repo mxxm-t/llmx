@@ -212,7 +212,22 @@ reduction order. The HF gate measures the cost of it.
   standalone quantize dispatch the test's matmul takes. What bounds
   these paths is the load count, not the arithmetic: the same dots over
   8-byte activation loads throughout ran Q4_0 at 150 us against 105
-  with 16-byte loads.
+  with 16-byte loads. The driver's per-kernel statistics
+  (`VK_KHR_pipeline_executable_properties`, captured when the device
+  has the extension and printed by `backend-vulkan` after its checks)
+  put registers behind the ranking of the paths: the wide Q8_0 path
+  holds 41 vector registers, five waves per SIMD, and the K-quant paths
+  held 75 (Q4_K), 93 (Q5_K) and 78 (Q6_K), three, two and three waves.
+  Folding a block's scales once and unpacking Q5_K's fifth bits per
+  nibble word took Q5_K to 84 registers and from 254 to 296 GB/s at
+  4096 x 12288; Q4_K stayed at 74, since the compiler hoists the
+  activation loads whatever the source order. Three layouts measured
+  worse and are not in the tree: sixteen lanes per block (55 and 59
+  registers, four waves, but 245 and 272 GB/s, since a lane then keeps
+  half the weight bytes in flight per load), the next block's words
+  loaded before this block's dots (81 and 92 registers, 251 and 257
+  GB/s: the hardware's load counter is in order, so a wait for this
+  block's loads waits for the prefetch too), and both at once.
 - **matmul, prefill** (`nbatch` of 32 and up for F32 and Q8_0 rows, 64
   and up for the others): a workgroup computes a
   64 x 64 output tile, walking the inner dimension 32 at a time; each

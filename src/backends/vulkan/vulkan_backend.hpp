@@ -31,4 +31,8 @@ BackendPtr make_vulkan_backend(int device);
 // The device's name as the driver reports it, for the CLI and the tests.
 std::string vulkan_device_name(const Backend& backend);
 
+// The driver's statistics for every kernel the backend has compiled, one line each (registers, scratch, occupancy on AMD), for the test's report.
+// Empty when the device does not report them.
+std::string vulkan_kernel_statistics(const Backend& backend);
+
 } // namespace backend

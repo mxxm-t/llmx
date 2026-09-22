@@ -1205,6 +1205,24 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   source change is worth twice as much under Mesa is the same pattern
   as everything else here, the driver deciding what a shape costs.
 
+  Eight columns to a thread was retried on the k-major layout, where a
+  thread's eight columns are contiguous rather than 33 floats apart,
+  which was the objection to the first two attempts. It is still
+  catastrophic: 0.6B pp512 547 tok/s against 2953, 8B pp512 127 against
+  333, at 97 registers with no scratch. That is three attempts, as an
+  indexed array, as named scalars row-major, and as named scalars
+  k-major, all within a factor of the same result, so the effect is a
+  property of the hardware rather than of any one way of writing it.
+  Widening a thread's rows from four to eight helped; widening its
+  columns the same way does not, and the asymmetry is unexplained. Four
+  columns stay, and the remaining inner loop is close to its minimum:
+  two reads and sixteen multiply-adds per step, about three quarters of
+  issued instructions being arithmetic.
+
+  Declaring the tiles as four-wide vectors, to force both reads to
+  128 bits rather than leaving the columns as a pair of reads, was also
+  measured and is slightly worse: 8B pp512 320 tok/s against 333.
+
   Against the reference's own Vulkan build on the MI50 afterwards, both
   arms in one container, five runs a point, two passes: pp64 871 tok/s
   against 2015, pp256 2507 against 3467, pp512 2745 against 3556, and

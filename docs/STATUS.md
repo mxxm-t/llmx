@@ -990,12 +990,62 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   too, per 32-value block, in every workgroup that reads the row. Not
   attempted; the measurement is recorded so the next attempt knows what
   it is buying.
+
+  Thirtieth, the row kernels by what their multiply and their registers
+  cost, which closed the two decode cells that were short. The driver's
+  disassembly showed one `v_mad_u64_u32` per product of a quant and an
+  activation, a 32-bit integer multiply this chip runs at a quarter
+  rate: 32 of the Q4_K kernel's 249 vector instructions and a third of
+  its issue slots. It will not narrow that to the full-rate 24-bit form
+  however the operands are written, and removing the weight side's dead
+  sign extension changed the instruction count not at all. Every
+  product on the nibble and K-quant paths is a non-negative quant of at
+  most six bits against a 16-bit activation and no accumulator reaches
+  the 16,777,216 a float counts exactly, so those dots multiply as
+  floats and return the same integer at full rate; Q8_0's weights are
+  signed and its blocks sum past that range, so it keeps the integer
+  multiply. Worth 3.4 percent of 8B Q4_K_M decode with Q8_0 and every
+  prefill cell flat.
+
+  That a third of the issue slots bought 3 percent says these kernels
+  are not issue bound, and at 390 GB/s of a thousand they are not
+  bandwidth bound either. They are latency bound, and the register file
+  is what limits the latency the chip can hide: three waves per SIMD on
+  the K-quant kernels against five on the wide Q8_0 one. Eight of those
+  registers are the batch columns a lane keeps, and a single-sequence
+  decode uses one, so the column count is now specialization constant 0
+  and each row kernel is built twice. The narrow build fits a fourth
+  wave on Q4_0/Q4_1 (69 to 57 registers), Q4_K (73 to 63) and Q6_K (72
+  to 62), and Q5_K misses it at 69. The wide Q8_0 kernel is excluded:
+  its eight-column build is the one that is not register starved, the
+  narrow build takes it from five waves to eight, and 8B Q8_0 decode
+  fell 9 percent by it with its matmul going 338 to 367 ms of device
+  time. The same kernel on the 0.6B files gained 12 percent, one work
+  unit per lane there against four, so the direction follows the shape
+  as well as the path and the larger model decides it.
+
+  Both arms built from detached worktrees at their own commits, two
+  interleaved blocks per cell, under the matched protocol. The
+  reference column is the b11075 Vulkan figure recorded earlier on this
+  card; that binary is not on this machine and was not re-run today:
+
+  | model | test | reference b11075 Vulkan | llmx before | llmx now | llmx share |
+  |---|---|---:|---:|---:|---:|
+  | Qwen3-8B-Q4_K_M | tg32 | 51.9 tok/s | 48.64 | 58.16 | 112% |
+  | Qwen3-0.6B-Q5_K_M | tg32 | 219.8 tok/s | 205.43 | 227.00 | 103% |
+  | Qwen3-8B-Q8_0 | tg32 | 38.8 tok/s | 41.62 | 41.40 | 107% |
+  | Qwen3-0.6B-Q8_0 | tg32 | 195.1 tok/s | 213.97 | 214.21 | 110% |
+
+  Prefill is flat on all four, within 0.4 percent. Both decode cells
+  that were below the reference on this card now clear it. The whole
+  suite passes on the device backend, the HF baseline included; one
+  perf-floor run failed with the bench process exiting non-zero and did
+  not reproduce in two further runs.
 - **Left:** prompt processing, bound by shared-memory traffic per operation at 12
   percent of this card's fp32 peak, to be raised by a wider micro-tile
   and a tile sized from what the device reports; decode on the 4- and
-  5-bit files, 99 and 89 percent of the
-  reference on 0.6B and 92 on the 8B Q4_K_M (the twenty-eighth
-  paragraph, where the ISA has now been read once); folding a layer's
+  5-bit files, which the thirtieth paragraph took past the reference on
+  the Radeon VII and which the MI50 has yet to be measured on; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
   barrier time measured in the twenty-ninth; the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the

@@ -74,10 +74,8 @@ struct DeviceCaps {
     bool storage_16bit = false;      // 16-bit values addressable in a buffer
 };
 
-// Numbers found by measuring the kernels on a device, which nothing in
-// DeviceCaps implies. The defaults are gfx906's, measured as a Radeon VII
-// under the AMD proprietary driver and an MI50 under Mesa, which wanted the
-// same values (docs/VULKAN.md).
+// Numbers found by measuring the kernels on a device, which nothing in DeviceCaps implies.
+// The defaults are gfx906's under the AMD proprietary driver; a device and driver measured to want other values has a row in measured_profiles below, as the MI50 under Mesa does (docs/VULKAN.md).
 struct DeviceProfile {
     // Lanes sharing one Q8_0 block pair in the per-row matmul. Four was the
     // optimum of 1, 2, 4, 8 and 16 at the 8B shapes: 200, 190, 336, 295, 185 GB/s.
@@ -176,11 +174,8 @@ inline size_t tile_from_for(const DeviceProfile& profile, bool every_projection_
     return nin < profile.tile_narrow_nin ? profile.tile_from_8bit_narrow : profile.tile_from_8bit;
 }
 
-// Rows of a matmul tile, given the shape of the call. A taller tile reads less
-// shared memory per product but yields fewer workgroups, so it is taken only
-// while the device still has one per compute unit. Both heights must exist as
-// launchable kernels; how a backend produces them is its own business, a
-// specialization constant under Vulkan and a template parameter elsewhere.
+// Rows of a matmul tile, given the shape of the call. A taller tile reads less shared memory per product but yields fewer workgroups.
+// All three heights must exist as launchable kernels; how a backend produces them is its own business, a specialization constant under Vulkan and a template parameter elsewhere.
 // Three heights: the tallest that still yields a workgroup per compute unit, then the middle one, then the smallest.
 // A short prompt is one column tile, so on a 0.6B model some projections are 16 tiles of 64 rows for sixty compute units, and halving the height doubles them without reading a weight more often: 11 to 23 percent at 48 to 64 prompt rows on the MI50.
 // But the small tile does half the arithmetic per barrier, which a narrow projection's few inner steps absorb and a wide one's do not: an 8B model's 4096-wide k and v at 128 prompt rows took 72.5 ms on it against 51.5 on the middle tile, which already filled half the card. So a wide projection drops to the smallest only below half fill.

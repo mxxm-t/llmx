@@ -25,12 +25,16 @@ layout(set = 0, binding = 4) readonly buffer XS { vec2 xs[]; };
 #define WPR (256u / TILE_ROWS)   // threads that stage one row's 8 words
 #define WW (8u / WPR)            // and how many words each
 
-// k-major: word w of every row, then of every column, so a thread's rows and columns for one word are adjacent.
-shared uint wq[8][TILE_ROWS];
-// Per row: the scale of each half of this block, and the minimum it subtracts. Only Q6_K scales its halves apart; the others give both halves one scale.
-shared vec4 wsc[TILE_ROWS];
-shared uint xw[8][64];
-shared vec2 xsc[64];             // per column: the activation scale and scale times integer sum
+// Quant blocks staged per barrier. One block per step put two barriers on every 32 values and left each block's loads to be waited for alone; staging several lets their loads be in flight together and pays the barriers once for all of them.
+#ifndef STEP
+#define STEP 2u
+#endif
+// k-major: word w of every row, then of every column, so a thread's rows and columns for one word are adjacent; block s of a step at words 8s to 8s + 7.
+shared uint wq[8u * STEP][TILE_ROWS];
+// Per row and block: the scale of each half of the block, and the minimum it subtracts. Only Q6_K scales its halves apart; the others give both halves one scale.
+shared vec4 wsc[STEP * TILE_ROWS];
+shared uint xw[8u * STEP][64];
+shared vec2 xsc[STEP * 64u];     // per column and block: the activation scale and scale times integer sum
 
 void main() {
     uint tid = gl_LocalInvocationID.x;
@@ -43,27 +47,29 @@ void main() {
     uint xtab = p.nbatch * p.nin / 8u;                // the scale table's start, in pairs
     float acc[MROWS][4];
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
-    for (uint kb = 0u; kb < nblk; ++kb) {
+    for (uint k0 = 0u; k0 < nblk; k0 += STEP) {
+      for (uint s = 0u; s < STEP; ++s) {
+        uint kb = k0 + s;
         uint row = row_base + wrow;
-        if (row < p.nout) {
+        if (row < p.nout && kb < nblk) {
             if (p.type == TYPE_Q8_0) {
                 // A 34-byte block: the half scale, then the 32 quants. A block's quants start either on a word boundary or two bytes past one, so a thread loads its words plus one and funnels them when they straddle: one load per quant word rather than the two halves each took, which is what held Q8_0 below Q4_K here.
                 uint ob = (row * nblk + kb) * 34u, q0 = ob + 2u;
                 uint base = (q0 >> 2u) + wseg * WW;
                 if ((q0 & 3u) == 0u) {
-                    for (uint m = 0u; m < WW; ++m) wq[wseg * WW + m][wrow] = w32[base + m];
+                    for (uint m = 0u; m < WW; ++m) wq[s * 8u + wseg * WW + m][wrow] = w32[base + m];
                 } else {
                     uint prev = w32[base];
                     for (uint m = 0u; m < WW; ++m) {
                         uint next = w32[base + m + 1u];
-                        wq[wseg * WW + m][wrow] = (prev >> 16u) | (next << 16u);
+                        wq[s * 8u + wseg * WW + m][wrow] = (prev >> 16u) | (next << 16u);
                         prev = next;
                     }
                 }
                 if (wseg == 0u) {
                     uint sw = w32[ob >> 2u];
                     float d = unpackHalf2x16((ob & 3u) == 0u ? sw : (sw >> 16u)).x;
-                    wsc[wrow] = vec4(d, d, 0.0, 0.0);
+                    wsc[s * TILE_ROWS + wrow] = vec4(d, d, 0.0, 0.0);
                 }
 #ifdef LLMX_Q6
             } else if (p.type == TYPE_Q6_K) {
@@ -82,14 +88,14 @@ void main() {
                     lp = ln; hp = hn;
                     uint b = ((ql >> nsh) & 0x0F0F0F0Fu) | (((qh >> hsh) & 0x03030303u) << 4u);
                     // b - 32 per byte: flipping bit 5 gives b - 32 for b >= 32 and b + 32 otherwise, and a set bit 5 then means negative, so it is copied into bits 6 and 7.
-                    uint t = b ^ 0x20202020u, s = t & 0x20202020u;
-                    wq[wseg * WW + m][wrow] = t | (s << 1u) | (s << 2u);
+                    uint t = b ^ 0x20202020u, neg = t & 0x20202020u;
+                    wq[s * 8u + wseg * WW + m][wrow] = t | (neg << 1u) | (neg << 2u);
                 }
                 if (wseg == 0u) {
                     float d = half_at(QBYTE(o + 208u), QBYTE(o + 209u));
                     uint si = o + 192u + n * 8u + 2u * which;
                     float s0 = float(int(QBYTE(si) << 24u) >> 24), s1 = float(int(QBYTE(si + 1u) << 24u) >> 24);
-                    wsc[wrow] = vec4(d * s0, d * s1, 0.0, 0.0);
+                    wsc[s * TILE_ROWS + wrow] = vec4(d * s0, d * s1, 0.0, 0.0);
                 }
 #endif
             } else if (p.type == TYPE_Q4_0) {
@@ -101,24 +107,24 @@ void main() {
                     uint nw = odd ? (w32[i] >> 16u) | (w32[i + 1u] << 16u) : w32[i];
                     uint b = (nw >> (w >= 4u ? 4u : 0u)) & 0x0F0F0F0Fu;
                     // b - 8 per byte: flipping bit 3 gives b - 8 for b >= 8 and b + 8 otherwise, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
-                    uint t = b ^ 0x08080808u, s = t & 0x08080808u;
-                    wq[w][wrow] = t | (s << 1u) | (s << 2u) | (s << 3u) | (s << 4u);
+                    uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
+                    wq[s * 8u + w][wrow] = t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
                 }
                 if (wseg == 0u) {
                     uint sw = w32[ob >> 2u];
                     float d = unpackHalf2x16((ob & 3u) == 0u ? sw : (sw >> 16u)).x;
-                    wsc[wrow] = vec4(d, d, 0.0, 0.0);
+                    wsc[s * TILE_ROWS + wrow] = vec4(d, d, 0.0, 0.0);
                 }
             } else if (p.type == TYPE_Q4_1) {
                 // Q4_1, 20-byte blocks, always word aligned: a half scale and a half minimum, then Q4_0's nibble layout without the offset. The minimum is added rather than subtracted, so it is stored negated.
                 uint ob = (row * nblk + kb) * Q4_1_BYTES;
                 for (uint m = 0u; m < WW; ++m) {
                     uint w = wseg * WW + m;
-                    wq[w][wrow] = (w32[(ob >> 2u) + 1u + (w & 3u)] >> (w >= 4u ? 4u : 0u)) & 0x0F0F0F0Fu;
+                    wq[s * 8u + w][wrow] = (w32[(ob >> 2u) + 1u + (w & 3u)] >> (w >= 4u ? 4u : 0u)) & 0x0F0F0F0Fu;
                 }
                 if (wseg == 0u) {
                     vec2 dm = unpackHalf2x16(w32[ob >> 2u]);
-                    wsc[wrow] = vec4(dm.x, dm.x, -dm.y, 0.0);
+                    wsc[s * TILE_ROWS + wrow] = vec4(dm.x, dm.x, -dm.y, 0.0);
                 }
             } else if (p.type == TYPE_Q5_K) {
                 // Q5_K, 176-byte blocks: Q4_K's nibbles with a fifth bit per value, bit g of 32 word-aligned high-bit bytes.
@@ -128,13 +134,13 @@ void main() {
                 uint shift = 4u * (g & 1u);
                 for (uint m = 0u; m < WW; ++m) {
                     uint w = wseg * WW + m;
-                    wq[w][wrow] = ((w32[base + w] >> shift) & 0x0F0F0F0Fu) | (((w32[hb + w] >> g) & 0x01010101u) << 4u);
+                    wq[s * 8u + w][wrow] = ((w32[base + w] >> shift) & 0x0F0F0F0Fu) | (((w32[hb + w] >> g) & 0x01010101u) << 4u);
                 }
                 if (wseg == 0u) {
                     vec2 dd = unpackHalf2x16(w32[o / 4u]);
                     uint sc, mn;
                     scale_min_k4(o + 4u, g, sc, mn);
-                    wsc[wrow] = vec4(dd.x * float(sc), dd.x * float(sc), dd.y * float(mn), 0.0);
+                    wsc[s * TILE_ROWS + wrow] = vec4(dd.x * float(sc), dd.x * float(sc), dd.y * float(mn), 0.0);
                 }
             } else {
                 // Q4_K: block 32 is group g of a 256-value block; its nibbles are the low or high halves of 32 word-aligned bytes, so a quant word is one load, a shift and a mask.
@@ -144,41 +150,44 @@ void main() {
                 uint shift = 4u * (g & 1u);
                 for (uint m = 0u; m < WW; ++m) {
                     uint w = wseg * WW + m;
-                    wq[w][wrow] = (w32[base + w] >> shift) & 0x0F0F0F0Fu;
+                    wq[s * 8u + w][wrow] = (w32[base + w] >> shift) & 0x0F0F0F0Fu;
                 }
                 if (wseg == 0u) {
                     vec2 dd = unpackHalf2x16(w32[o / 4u]);
                     uint sc, mn;
                     scale_min_k4(o + 4u, g, sc, mn);
-                    wsc[wrow] = vec4(dd.x * float(sc), dd.x * float(sc), dd.y * float(mn), 0.0);
+                    wsc[s * TILE_ROWS + wrow] = vec4(dd.x * float(sc), dd.x * float(sc), dd.y * float(mn), 0.0);
                 }
             }
         } else {
-            for (uint m = 0u; m < WW; ++m) wq[wseg * WW + m][wrow] = 0u;
-            if (wseg == 0u) wsc[wrow] = vec4(0.0);
+            for (uint m = 0u; m < WW; ++m) wq[s * 8u + wseg * WW + m][wrow] = 0u;
+            if (wseg == 0u) wsc[s * TILE_ROWS + wrow] = vec4(0.0);
         }
         uint col = col_base + xcol;
         uint xb = (col * nblk + kb) * 8u + xseg * 2u;
-        bool colv = col < p.nbatch;
-        xw[xseg * 2u][xcol] = colv ? xq[xb] : 0u;
-        xw[xseg * 2u + 1u][xcol] = colv ? xq[xb + 1u] : 0u;
-        if (xseg == 0u) xsc[xcol] = colv ? xs[xtab + col * nblk + kb] : vec2(0.0);
+        bool colv = col < p.nbatch && kb < nblk;
+        xw[s * 8u + xseg * 2u][xcol] = colv ? xq[xb] : 0u;
+        xw[s * 8u + xseg * 2u + 1u][xcol] = colv ? xq[xb + 1u] : 0u;
+        if (xseg == 0u) xsc[s * 64u + xcol] = colv ? xs[xtab + col * nblk + kb] : vec2(0.0);
+      }
         barrier();
+      for (uint s = 0u; s < STEP; ++s) {
         // A thread's four columns for the whole block, then each of its rows against them.
         uint b0[8], b1[8], b2[8], b3[8];
         for (uint w = 0u; w < 8u; ++w) {
-            b0[w] = xw[w][tc * 4u]; b1[w] = xw[w][tc * 4u + 1u];
-            b2[w] = xw[w][tc * 4u + 2u]; b3[w] = xw[w][tc * 4u + 3u];
+            b0[w] = xw[s * 8u + w][tc * 4u]; b1[w] = xw[s * 8u + w][tc * 4u + 1u];
+            b2[w] = xw[s * 8u + w][tc * 4u + 2u]; b3[w] = xw[s * 8u + w][tc * 4u + 3u];
         }
-        vec2 c0 = xsc[tc * 4u], c1 = xsc[tc * 4u + 1u], c2 = xsc[tc * 4u + 2u], c3 = xsc[tc * 4u + 3u];
+        vec2 c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
+        vec2 c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
         for (uint i = 0u; i < MROWS; ++i) {
             uint r = tr * MROWS + i;
-            vec4 ws = wsc[r];
+            vec4 ws = wsc[s * TILE_ROWS + r];
 #ifdef LLMX_Q6
             // The block's two halves of 16 summed apart, since Q6_K scales them apart.
             int l0 = 0, l1 = 0, l2 = 0, l3 = 0, h0 = 0, h1 = 0, h2 = 0, h3 = 0;
             for (uint w = 0u; w < 4u; ++w) {
-                uint a = wq[w][r], e = wq[w + 4u][r];
+                uint a = wq[s * 8u + w][r], e = wq[s * 8u + w + 4u][r];
                 l0 += dotPacked4x8EXT(int(a), int(b0[w])); h0 += dotPacked4x8EXT(int(e), int(b0[w + 4u]));
                 l1 += dotPacked4x8EXT(int(a), int(b1[w])); h1 += dotPacked4x8EXT(int(e), int(b1[w + 4u]));
                 l2 += dotPacked4x8EXT(int(a), int(b2[w])); h2 += dotPacked4x8EXT(int(e), int(b2[w + 4u]));
@@ -191,7 +200,7 @@ void main() {
 #else
             int s0 = 0, s1 = 0, s2 = 0, s3 = 0;
             for (uint w = 0u; w < 8u; ++w) {
-                uint a = wq[w][r];
+                uint a = wq[s * 8u + w][r];
                 s0 += dotPacked4x8EXT(int(a), int(b0[w]));
                 s1 += dotPacked4x8EXT(int(a), int(b1[w]));
                 s2 += dotPacked4x8EXT(int(a), int(b2[w]));
@@ -203,6 +212,7 @@ void main() {
             acc[i][3] += ws.x * c3.x * float(s3) - ws.z * c3.y;
 #endif
         }
+      }
         barrier();
     }
     for (uint i = 0u; i < MROWS; ++i) {

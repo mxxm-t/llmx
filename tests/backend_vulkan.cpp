@@ -112,7 +112,7 @@ std::vector<float> row_activations(const std::vector<float>& x) {
     return out;
 }
 
-// The same activations rounded to 8 bits per block of 32 and back, as the integer-dot prefill tile reads them (shaders/quantize_x8.comp). A device that multiplies wide Q8_0 and Q4_K batches that way is compared against a reference fed these, for the same reason as above.
+// The same activations rounded to 8 bits per block of 32 and back, as the integer-dot prefill tile reads them (shaders/quantize_x8.comp). A device that multiplies wide quantized batches that way is compared against a reference fed these, for the same reason as above.
 std::vector<float> tile_activations8(const std::vector<float>& x) {
     std::vector<float> out(x.size());
     for (size_t b = 0; b + 32 <= x.size(); b += 32) {

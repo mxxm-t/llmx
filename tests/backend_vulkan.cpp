@@ -366,12 +366,12 @@ size_t check_kernels(backend::Backend& vk) {
             // threshold the row kernel reads quantized activations and the
             // reference must be fed the same, at or above it the tile kernel
             // reads floats.
-            // A device whose integer dot is native takes wide Q8_0 and Q4_K batches through the integer-dot tile, which reads 8-bit activations.
+            // A device whose integer dot is native takes wide quantized batches through the integer-dot tile, which reads 8-bit activations.
             const bool idot = profile.prefer_integer_dot;
             const auto xr8 = nbatch < tile_from_8bit ? row_activations(x) : idot ? tile_activations8(x) : x;   // adopted, so they must outlive the calls
-            const auto xrk = nbatch < tile_from_other ? row_activations(x) : x;
-            const auto xr4k = nbatch < tile_from_other ? row_activations(x) : idot ? tile_activations8(x) : x;
-            Pair::In xri8 = p.in(xr8), xrik = p.in(xrk), xri4k = p.in(xr4k);
+            const auto xr4 = nbatch < tile_from_other ? row_activations(x) : x;   // Q4_0 and Q4_1 keep the float tile
+            const auto xrk = nbatch < tile_from_other ? row_activations(x) : idot ? tile_activations8(x) : x;
+            Pair::In xri8 = p.in(xr8), xri4 = p.in(xr4), xrik = p.in(xrk);
             for (int q = 0; q < 7; ++q) {
                 if (q >= 4 && nin % 256) continue;   // K-quant blocks are 256 wide
                 const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0
@@ -381,7 +381,7 @@ size_t check_kernels(backend::Backend& vk) {
                 const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i
                                    : q == 5 ? w4ki : q == 6 ? w5ki : wfi;
                 Pair::Out d = p.out(nbatch * nout);
-                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : q == 1 ? xri8 : q == 5 ? xri4k : xrik).cs(), d.cs(), nin, nout,
+                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : q == 1 ? xri8 : q <= 3 ? xri4 : xrik).cs(), d.cs(), nin, nout,
                              nbatch);
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
                 auto r = p.results(d);

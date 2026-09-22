@@ -220,6 +220,9 @@ const uint32_t kSpvQuantizeX8[] = {
 const uint32_t kSpvMatmulTileQ[] = {
 #include "vulkan/matmul_tile_q.inc"
 };
+const uint32_t kSpvMatmulTileQ6[] = {
+#include "vulkan/matmul_tile_q6.inc"
+};
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
@@ -231,7 +234,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_QUANTIZE_X, K_MATMUL_ROW_Q8W, K_MATMUL_TILE_TALL,
                 K_MATMUL_ROW_DOT, K_MATMUL_ROW_Q8W_DOT, K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
-                K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL,
+                K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
                 K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is
@@ -312,7 +315,7 @@ const char* const kKernelNames[K_COUNT] = {
     "quantize_x", "matmul_row_q8w", "matmul_tile_tall",
     "matmul_row_dot", "matmul_row_q8w_dot", "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
-    "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall",
+    "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -357,6 +360,8 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvQuantizeX8, sizeof(kSpvQuantizeX8), 2, nullptr},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, nullptr},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, nullptr},
+    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, nullptr},
+    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, nullptr},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1378,7 +1383,9 @@ public:
                     const uint32_t qpc[1] = {u32(nbatch * nin)};
                     dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(nbatch * nin, 256));
                 }
-                const KernelId kernel = q ? (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q)
+                const bool q6 = pr->type == gguf::GGML_TYPE_Q6_K;
+                const KernelId kernel = q ? (q6 ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
+                                                : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q))
                                           : (tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE);
                 const uint32_t pc[5] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u};
                 const uint32_t gx = groups(pr->rows, tall ? kTileRowsTall : kTileRowsShort);
@@ -1524,7 +1531,8 @@ public:
     // Whether a type's wide matmul goes through the integer-dot tile on this device.
     bool integer_dot_tile(uint32_t type) const {
         return dev_->profile.prefer_integer_dot && dev_->caps.integer_dot &&
-               (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_K);
+               (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K ||
+                type == gguf::GGML_TYPE_Q6_K);
     }
 
     // The scratch the 8-bit twin of an n-value batch lives in (shaders/quantize_x8.comp): n bytes of quants, then 8 bytes per block of 32. Reused stream-ordered like the decode twin's.
@@ -1888,9 +1896,9 @@ private:
         // The tile kernels take their row count as specialization constant
         // 0 and the row kernels their column count.
         const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
-                          id == K_MATMUL_TILE_Q_TALL;
-        const uint32_t spec_value = tile ? (id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL ? kTileRowsTall
-                                                                                                  : kTileRowsShort)
+                          id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL;
+        const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
+        const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : kTileRowsShort)
                                          : (variant ? kRowColsOne : kRowColsWide);
         const VkSpecializationMapEntry entry{0, 0, sizeof(uint32_t)};
         VkSpecializationInfo spec{};

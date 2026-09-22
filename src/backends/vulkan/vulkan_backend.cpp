@@ -223,6 +223,9 @@ const uint32_t kSpvMatmulTileQ[] = {
 const uint32_t kSpvMatmulTileQ6[] = {
 #include "vulkan/matmul_tile_q6.inc"
 };
+const uint32_t kSpvMatmulReduce[] = {
+#include "vulkan/matmul_reduce.inc"
+};
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
@@ -235,7 +238,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_ROW_DOT, K_MATMUL_ROW_Q8W_DOT, K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
-                K_COUNT };
+                K_MATMUL_REDUCE, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is
 // measured, not asked (backends/device_profile.hpp).
@@ -316,6 +319,7 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_row_dot", "matmul_row_q8w_dot", "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
     "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
+    "matmul_reduce",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -362,6 +366,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, nullptr},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, nullptr},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, nullptr},
+    {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, nullptr},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1382,17 +1387,29 @@ public:
                 const bool q = integer_dot_tile(pr->type);
                 if (q && !x8.buffer) {
                     x8 = x8_for(nbatch * nin);
-                    const uint32_t qpc[1] = {u32(nbatch * nin)};
+                    const uint32_t qpc[3] = {u32(nbatch * nin), u32(nin), u32(nbatch)};
                     dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(nbatch * nin, 256));
                 }
                 const bool q6 = pr->type == gguf::GGML_TYPE_Q6_K;
                 const KernelId kernel = q ? (q6 ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
                                                 : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q))
                                           : (tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE);
-                const uint32_t pc[5] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u};
                 const uint32_t gx = groups(pr->rows, height);
                 const int small = height == kTileRowsSmall ? 1 : 0;
-                if (q)
+                const size_t nblk = nin / 32;
+                const size_t kper = q ? split_blocks(gx * gy, nblk) : nblk;
+                const size_t parts = (nblk + kper - 1) / kper;
+                const uint32_t pc[6] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type,
+                                        accumulate && parts == 1 ? 1u : 0u, u32(kper)};
+                if (q && parts > 1) {
+                    const size_t n = nbatch * pr->rows;
+                    if (!parts_ || parts_->size() < parts * n * sizeof(float)) grow(parts_, parts * n * sizeof(float));
+                    const VkDescriptorBufferInfo pb{parts_->handle(), 0, VK_WHOLE_SIZE};
+                    dispatch(kernel, {pb, bind(pr->data), bind(pr->data), x8, x8}, pc, sizeof(pc), gx,
+                             u32(gy * parts), small);
+                    const uint32_t rc[3] = {u32(n), u32(parts), accumulate ? 1u : 0u};
+                    dispatch(K_MATMUL_REDUCE, {bind(pr->out), pb}, rc, sizeof(rc), groups(n, 256));
+                } else if (q)
                     dispatch(kernel, {bind(pr->out), bind(pr->data), bind(pr->data), x8, x8}, pc, sizeof(pc), gx,
                              (uint32_t)gy, small);
                 else
@@ -1548,6 +1565,18 @@ public:
     }
 
     // The scratch the 8-bit twin of an n-value batch lives in (shaders/quantize_x8.comp): n bytes of quants, then 8 bytes per block of 32. Reused stream-ordered like the decode twin's.
+    // The quant blocks each part of a split integer-dot tile call sums (shaders/matmul_tile_q.comp), the whole inner dimension when the call is not split. A call of fewer workgroups than the device runs well splits its inner dimension until it has that many, keeping at least a floor of blocks per part so the partial sums stay a small share of the work.
+    size_t split_blocks(size_t workgroups, size_t nblk) const {
+        const size_t target = (size_t)dev_->profile.tile_split_per_cu * dev_->caps.compute_units;
+        const size_t floor_blocks = std::max<size_t>(dev_->profile.tile_split_min_blocks, 2);
+        if (workgroups >= target) return nblk;
+        size_t parts = std::min((target + workgroups - 1) / workgroups, std::max<size_t>(1, nblk / floor_blocks));
+        if (parts <= 1) return nblk;
+        size_t kper = (nblk + parts - 1) / parts;
+        kper = (kper + 1) & ~size_t(1);   // a multiple of the tile's STEP
+        return std::min(kper, nblk);
+    }
+
     VkDescriptorBufferInfo x8_for(size_t n) {
         const size_t bytes = n + (n / 32) * 8;
         if (!x8_ || x8_->size() < bytes) grow(x8_, bytes);
@@ -2069,6 +2098,7 @@ private:
     double kernel_ns_[K_COUNT * kVariants] = {0};
     size_t kernel_calls_[K_COUNT * kVariants] = {0};
     std::shared_ptr<VulkanBuffer> x8_;        // the integer-dot tile's 8-bit activations
+    std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
     // What the twin in xq_ describes: the float input it was made from
     // and its length. Cleared by anything that writes a buffer other than

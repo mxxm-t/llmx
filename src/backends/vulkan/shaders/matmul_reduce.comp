@@ -1,0 +1,13 @@
+#version 450
+// y[i] = the partial sums of a split inner dimension added in part order, plus y[i] when accumulating: the second half of a split tile call (matmul_tile_q.comp), which wrote part z of each output at z * n.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; uint parts; uint accum; } p;
+layout(set = 0, binding = 0) buffer Y { float y[]; };
+layout(set = 0, binding = 1) readonly buffer S { float part[]; };
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= p.n) return;
+    float s = p.accum != 0u ? y[i] : 0.0;
+    for (uint z = 0u; z < p.parts; ++z) s += part[z * p.n + i];
+    y[i] = s;
+}

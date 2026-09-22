@@ -56,7 +56,8 @@ void xquant_block(uint i, float v, uint n) {
 }
 
 // The 8-bit twin, for devices whose integer dot is native (the row families built with LLMX_X8, and the prefill tile): values in blocks of 32 scaled so the block's largest magnitude is 127, four to a word in position order, n / 4 words, then per block the scale d and d times the block's integer sum, all from word `base`. A type's offset goes into its weight bytes instead of through half sums, so there are none. The same lane layout as above; a lane past n calls with a zero and writes nothing, so a partial subgroup still reduces correctly.
-void xquant8_block(uint i, float v, uint n, uint base) {
+// Block blk of the destination takes value i's block: the twin a producer writes keeps position order, blk = i / 32, and the prefill tile's own copy puts a pass's columns side by side per block of the inner dimension.
+void xquant8_block_at(uint i, float v, uint n, uint base, uint blk) {
     uint lane = gl_SubgroupInvocationID;
     uint j = i & 31u;
     float amax = abs(v);
@@ -73,7 +74,7 @@ void xquant8_block(uint i, float v, uint n, uint base) {
     uint b1 = uint(subgroupShuffle(q, min(lane + 1u, gl_SubgroupSize - 1u))) & 255u;
     uint b2 = uint(subgroupShuffle(q, min(lane + 2u, gl_SubgroupSize - 1u))) & 255u;
     uint b3 = uint(subgroupShuffle(q, min(lane + 3u, gl_SubgroupSize - 1u))) & 255u;
-    if (i < n && (j & 3u) == 0u) xq[base + i / 4u] = (uint(q) & 255u) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u);
+    if (i < n && (j & 3u) == 0u) xq[base + blk * 8u + j / 4u] = (uint(q) & 255u) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u);
     int s = q;
     s += subgroupShuffleXor(s, 16u);
     s += subgroupShuffleXor(s, 8u);
@@ -81,11 +82,12 @@ void xquant8_block(uint i, float v, uint n, uint base) {
     s += subgroupShuffleXor(s, 2u);
     s += subgroupShuffleXor(s, 1u);
     if (i < n && j == 0u) {
-        uint t = base + n / 4u + 2u * (i / 32u);
+        uint t = base + n / 4u + 2u * blk;
         xq[t] = floatBitsToUint(d);
         xq[t + 1u] = floatBitsToUint(d * float(s));
     }
 }
+void xquant8_block(uint i, float v, uint n, uint base) { xquant8_block_at(i, v, n, base, i / 32u); }
 
 // Where the 8-bit twin starts, in words, when a producer writes both: after the 16-bit twin's n / 2 words of pairs and n / 8 of tables, rounded up to 256 bytes so the backend can bind it at its own offset.
 uint xquant8_base(uint n) { return (n / 2u + n / 8u + 63u) & ~63u; }

@@ -436,6 +436,22 @@ HF gate measures the cost of it.
   | Q8_0 | 4.87 TFLOPS | 12.07 | 13.30 |
   | Q4_K | 4.65 | 11.44 | 11.42 |
   | Q6_K | 3.62 | 9.60 | 7.03 |
+
+  Short prompts were the weak end. A 64-row prompt is one column tile, so a 4096-row projection of an 8B model is 64 workgroups on sixty compute units. The call that suffered most was the down projection: at 64 columns it read 2.2 TFLOPS, where the gate projection read 6.2. Two changes fixed it.
+
+  First, `quantize_x8.comp` now orders the 8-bit blocks by block of the inner dimension, then by column. Before, it wrote them column after column, which put the tile's 64 columns of one block a row width apart. Now one step of the tile reads its activations as a single 2 KB run.
+
+  Second, a call with fewer workgroups than `tile_split_per_cu` per compute unit (eight, measured) splits its inner dimension into parts of at least `tile_split_min_blocks` quant blocks (16). Each part writes its partial sums to a scratch buffer. `matmul_reduce.comp` then adds the parts in order, so the result does not depend on which workgroup finishes first.
+
+  Same card, Q8_0 at 64 columns:
+
+  | projection | before | block-major | block-major and split |
+  |---|---:|---:|---:|
+  | 4096 x 12288 (down) | 2970 us | 1299 | 731 |
+  | 4096 x 4096 | 617 | 499 | 354 |
+  | 12288 x 4096 (gate) | 1032 | 677 | 662 |
+
+  The block order alone takes the 512-column shape from 9.56 to 11.0 TFLOPS. Splitting on its own, without the new block order, made most shapes slower (4096 x 4096 went from 617 to 896 us), so the split target was measured with the new order in place.
 - **matmul, prefill** (the row counts below): a workgroup computes a
   TILE_ROWS x 64 output tile, walking the inner dimension 32 at a time;
   each step stages the dequantized W tile and the X tile in shared

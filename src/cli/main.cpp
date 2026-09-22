@@ -765,6 +765,9 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
         for (const auto& t : times)
             std::cout << "profile:   " << t.first << " " << t.second << " ms ("
                       << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
+        // And what the driver made of each kernel that ran: registers, shared memory and waves per SIMD, where it reports them.
+        std::istringstream stats(backend::vulkan_kernel_statistics(b));
+        for (std::string line; std::getline(stats, line);) std::cout << "profile: kernel " << line << "\n";
 #else
         (void)b;
         std::cerr << "bench --profile: this build has no Vulkan backend\n";

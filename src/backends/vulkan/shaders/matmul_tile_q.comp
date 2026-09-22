@@ -1,7 +1,8 @@
 #version 450
 // Y[b*nout + o] = dot(row o, X column b) for wide batches through the four-wide 8-bit integer dot, for devices where that instruction is native.
 // The float tile (matmul_tile.comp) multiplies one product per instruction on dequantized floats; this one multiplies four per instruction on the quants themselves, against activations quantized to 8 bits per block of 32 (quantize_x8.comp), and holds a quarter of the shared memory per value.
-// A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time.
+// A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time, over the whole of it or over one part when the call is split.
+// A short prompt is one column tile, so a call can have fewer workgroups than the device has compute units; splitting the inner dimension gives it more, each summing a range of blocks, and matmul_reduce.comp adds the parts in order, so the result does not depend on which part finishes first.
 // Each step stages, for every row, the block's quants as 8 words of signed bytes with the block's scale and minimum, and for every column the activation block's 8 words with its scale and scaled sum.
 // A thread then forms (TILE_ROWS / 16) x 4 integer dots of 32 products each, as two of 16 because Q6_K scales the halves apart, and folds them into its float accumulator with a multiply-add per half and one more for the types with a minimum.
 // Types: Q8_0, Q4_0, Q4_1, Q4_K and Q5_K as is, Q6_K when compiled with LLMX_Q6. The Q6_K build sums each half of a block apart, which the others do not need and which cost them 4 percent when one module served all four, so it is its own module as the row kernel families are. Rows past nout and columns past nbatch read as zero and are not stored.
@@ -11,7 +12,8 @@
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
-layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; } p;
+// kper is the quant blocks of the inner dimension a workgroup sums, a multiple of STEP; below the block count the call is split and part z of every output goes to y at z * nbatch * nout, which matmul_reduce.comp then adds.
+layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint kper; } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; };
@@ -39,19 +41,23 @@ shared vec2 xsc[STEP * 64u];     // per column and block: the activation scale a
 void main() {
     uint tid = gl_LocalInvocationID.x;
     uint row_base = gl_WorkGroupID.x * TILE_ROWS;
-    uint col_base = gl_WorkGroupID.y * 64u;
+    uint ncg = (p.nbatch + 63u) / 64u;                 // column tiles; the workgroup's y is column tile plus ncg times its part
+    uint part = gl_WorkGroupID.y / ncg;
+    uint col_base = (gl_WorkGroupID.y - part * ncg) * 64u;
     uint tr = tid / 16u, tc = tid - tr * 16u;         // micro-tile at rows tr*MROWS.., columns tc*4..
     uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W stager: row wrow, words wseg*WW..
     uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X stager: column xcol, words xseg*2..
     uint nblk = p.nin / 32u;
     uint xtab = p.nbatch * p.nin / 8u;                // the scale table's start, in pairs
+    uint kbeg = part * p.kper, kend = min(nblk, kbeg + p.kper);
+    uint yo = part * p.nbatch * p.nout;
     float acc[MROWS][4];
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
-    for (uint k0 = 0u; k0 < nblk; k0 += STEP) {
+    for (uint k0 = kbeg; k0 < kend; k0 += STEP) {
       for (uint s = 0u; s < STEP; ++s) {
         uint kb = k0 + s;
         uint row = row_base + wrow;
-        if (row < p.nout && kb < nblk) {
+        if (row < p.nout && kb < kend) {
             if (p.type == TYPE_Q8_0) {
                 // A 34-byte block: the half scale, then the 32 quants. A block's quants start either on a word boundary or two bytes past one, so a thread loads its words plus one and funnels them when they straddle: one load per quant word rather than the two halves each took, which is what held Q8_0 below Q4_K here.
                 uint ob = (row * nblk + kb) * 34u, q0 = ob + 2u;
@@ -164,11 +170,11 @@ void main() {
             if (wseg == 0u) wsc[s * TILE_ROWS + wrow] = vec4(0.0);
         }
         uint col = col_base + xcol;
-        uint xb = (col * nblk + kb) * 8u + xseg * 2u;
-        bool colv = col < p.nbatch && kb < nblk;
+        uint xb = (kb * p.nbatch + col) * 8u + xseg * 2u;
+        bool colv = col < p.nbatch && kb < kend;
         xw[s * 8u + xseg * 2u][xcol] = colv ? xq[xb] : 0u;
         xw[s * 8u + xseg * 2u + 1u][xcol] = colv ? xq[xb + 1u] : 0u;
-        if (xseg == 0u) xsc[s * 64u + xcol] = colv ? xs[xtab + col * nblk + kb] : vec2(0.0);
+        if (xseg == 0u) xsc[s * 64u + xcol] = colv ? xs[xtab + kb * p.nbatch + col] : vec2(0.0);
       }
         barrier();
       for (uint s = 0u; s < STEP; ++s) {
@@ -221,8 +227,8 @@ void main() {
         for (uint j = 0u; j < 4u; ++j) {
             uint col = col_base + tc * 4u + j;
             if (col < p.nbatch) {
-                if (p.accum != 0u) y[col * p.nout + row] += acc[i][j];
-                else y[col * p.nout + row] = acc[i][j];
+                if (p.accum != 0u) y[yo + col * p.nout + row] += acc[i][j];
+                else y[yo + col * p.nout + row] = acc[i][j];
             }
         }
     }

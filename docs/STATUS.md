@@ -1270,7 +1270,27 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   Documentation review at this checkpoint: every Markdown file read against the code, CLI, tests and build. About fifty stale claims corrected across README, AGENTS, STATUS's table and feature blocks, VULKAN, USAGE, ROADMAP, ARCHITECTURE, EXECUTION, KV-CACHE, DEVICE-EXECUTION, SERVER, CI, ASSETS and the per-source pages. The largest were the ten-card MI50 figures presented as current in README and the status table, VULKAN.md saying no shader uses the integer dot, the tile described as two heights and two thresholds, the perplexity scorer described as one token at a time, and ROADMAP and ARCHITECTURE still calling the server and the Vulkan backend planned. The numbered measurement paragraphs above are left as history.
 
   And a memory fix. A model on a device backend held every weight twice: the loader reads the file into one host allocation, the model kept it for its lifetime, and the device backend copies each weight into its own memory. The model now records at adoption whether any weight still reads those bytes in place, and the CLI releases them when none does. Qwen3-8B-Q4_K_M on the Radeon VII, steady host memory 4.62 to 0.18 GB, decode unchanged; the CPU backend adopts by aliasing and keeps them. The peak is still the whole file, 4.84 GB, since it is read before the upload. Streaming the file to the device during the load, read directly into staging and uploaded asynchronously so the disk and the copies overlap, would remove that peak and is not done.
-- **Left:** on the MI50 against one card of the reference, from the one-card gate at `2b770f6` (the thirty-sixth paragraph) and the 32-row tile (the thirty-seventh): prompt processing at 69 to 117 percent at 247 rows and 78 to 99 at 512, short prompts behind (54 percent at 64 rows on the 0.6B Q8_0 file), decode at 86 to 90 percent on the 8-bit files and 91 to 107 on the 4- and 5-bit ones; every quantized type now goes through the integer-dot tile there, Q8_0 at 12.07 TFLOPS against the reference's 13.30 (the thirty-fifth); loading, which reads the whole file into host memory before uploading it; folding a layer's
+
+  Forty-first, short prompts through the integer-dot tile. A profile of 8B Q8_0 at 64 rows put 53 percent of device time in the 64-row tile, and timing single calls on one MI50 at 64 columns showed where. The down projection, 4096 x 12288, took 2970 us, 2.2 TFLOPS, where the gate projection, 12288 x 4096, read 6.2. Splitting the inner dimension across more workgroups, tried first on its own, made most shapes slower: 4096 x 4096 went from 617 to 896 us. So the calls were not short of workgroups but of memory locality.
+
+  The cause was the 8-bit activations' order. They were stored column after column, so each step of the tile read its 64 columns a row width apart. They are now ordered by block of the inner dimension, then by column, which makes a step's activations one 2 KB run. That alone takes the down projection to 1299 us, 4096 x 4096 to 499, and the 512-column feed-forward shape from 9.56 to 11.0 TFLOPS. Perplexity is bit-identical.
+
+  With that order in place, splitting helps. A call with fewer workgroups than eight per compute unit splits its inner dimension into parts of at least 16 quant blocks. Each part writes partial sums to a scratch buffer, and `matmul_reduce.comp` adds them in part order. The target was swept at 2, 4 and 8 per compute unit on all five files, and eight wins or ties everywhere except 0.6B Q8_0 at 512 rows, which loses 3 percent. Together, the down projection goes to 731 us and 4096 x 4096 to 354.
+
+  Split and unsplit outputs agree to 4e-7 relative at every shape probed. The re-quantization to 8 bits downstream turns that reordering into a few rounding flips, so 20 windows of 512 score 13.6049 against 13.5942 on 8B Q8_0, and 40 windows of 64 score 67.310 against 67.474 on 0.6B Q8_0. The HF gate passes every cell both ways, and the backend test passes on the MI50, where its 1024-wide calls now split in two.
+
+  The one-card gate at this change, same protocol as the fortieth paragraph:
+
+  | model | pp64 | pp247 | pp512 | tg32 |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | 3744 vs 4795, 78% | 5610 vs 6962, 81% | 5590 vs 6695, 83% | 310 vs 308, 101% |
+  | Qwen3-0.6B-Q5_K_M | 3553 vs 2917, 122% | 5543 vs 4380, 127% | 5712 vs 5609, 102% | 310 vs 290, 107% |
+  | Qwen3-0.6B-Q8_0 | 3381 vs 4600, 73% | 5973 vs 6867, 87% | 6011 vs 6585, 91% | 262 vs 292, 90% |
+  | Qwen3-8B-Q4_K_M | 618 vs 261, 237% | 767 vs 630, 122% | 812 vs 755, 107% | 84 vs 84, 101% |
+  | Qwen3-8B-Q8_0 | 677 vs 526, 129% | 819 vs 732, 112% | 866 vs 873, 99% | 50 vs 56, 90% |
+
+  Both 8B files now clear the reference in prompt processing, except Q8_0 at 512 rows, which is level. What remains below it is 0.6B Q4_0 and Q8_0 prompt processing and Q8_0 decode. `bench --profile` now also prints the driver's register, shared memory and waves-per-SIMD figures for each kernel that ran.
+- **Left:** on the MI50 against one card of the reference, from the one-card gate in the forty-first paragraph: 0.6B Q4_0 and Q8_0 prompt processing at 73 to 91 percent, 8B Q8_0 level at 512 rows, and Q8_0 decode at 90 percent; loading, which reads the whole file into host memory before uploading it; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
   barrier time measured in the twenty-ninth; the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the

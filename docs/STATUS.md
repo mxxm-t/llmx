@@ -1226,6 +1226,31 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   The reference's decode matvec quantizes activations to 8 bits and multiplies through the four-wide 8-bit dot; ours reads the 16-bit twin through the two-wide 16-bit dot, twice the dot instructions and twice the activation bytes per weight. The float-multiply row build, which the Radeon VII runs, was tried on the MI50 in place of the integer-dot build and is 10 to 24 percent slower there on the 8B shapes, so it is not the answer. The next piece is an 8-bit twin for the integer-dot devices: every producer of decode activations writes it and every row family's integer-dot build reads it, with Q6_K's offset of 32 and Q4_0's of 8 folded into the weight bytes as the tile does. Batched HF scoring through 8-bit activations on the MI50 put the Q8_0 continuous cell at 0.0023 against its 0.010 bound, so the precision is not expected to be what stops it.
 
+  Thirty-ninth, an 8-bit activation twin for decode on the integer-dot devices. The row kernels read activations as a 16-bit twin through the two-wide 16-bit dot. The reference's decode reads 8-bit activations through the four-wide 8-bit dot, and a probe reading 8-bit on the Q4_K and Q5_K row kernel alone took the Q4_K matvec at 4096 x 12288 from 92.4 to 75.8 us. Putting every family on it measured this way on one MI50, 16-bit against 8-bit:
+
+  | matvec | 16-bit twin | 8-bit twin |
+  |---|---:|---:|
+  | Q4_0, 4096 x 12288 | 135.1 us | 74.7 |
+  | Q4_1, 12288 x 4096 | 137.1 | 82.8 |
+  | Q4_K, 14336 x 4096 | 123.4 | 92.8 |
+  | Q5_K, 4096 x 12288 | 107.0 | 93.2 |
+  | Q6_K, 4096 x 12288 | 150.3 | 137.6 |
+  | Q8_0, 4096 x 12288 | 153.7 | 169.5 |
+
+  Q8_0 was slower on it in every loop shape tried: its eight-bit build fell from 40 registers to 32 and ran eight waves per SIMD, the over-occupancy the one-column build also caused it, and loading two pairs per iteration to use the registers recovered the large shapes but cost the small ones. So on such a device the producers write both twins, the 8-bit one after the 16-bit one at a 256-byte offset, and each family reads the one it is fastest and precise enough on. The HF gate then decided which. With Q4_0 or Q6_K on the 8-bit twin the Q4_0 fixture, whose only K-quant is its tied Q6_K output head, ranked a different fifth token for "The capital of France is", a top-5 overlap of 3 against its frozen 4. The bound was not moved, so Q4_0, Q4_1, Q6_K and Q8_0 read the 16-bit twin and Q4_K and Q5_K the 8-bit one.
+
+  Writing a twin nobody reads cost the small models: the producers with the 8-bit writer behind a runtime branch took Qwen3-0.6B-Q4_0 decode down 2.6 percent without ever taking it. So the 8-bit writer is a second build of each producer, specialization constant 7, which the backend dispatches only once a matmul that reads the 8-bit twin has run; the one pass before that makes it through the fallback quantizer. Decode on one MI50, best of two interleaved passes, reference pinned to one card:
+
+  | model | before | now | reference | llmx share |
+  |---|---:|---:|---:|---:|
+  | Qwen3-8B-Q4_K_M | 78.3 tok/s | 85.5 | 86.3 | 99% |
+  | Qwen3-0.6B-Q5_K_M | 333.5 | 337.4 | 305.7 | 110% |
+  | Qwen3-0.6B-Q4_0 | 331.2 | 330.7 | 324.5 | 102% |
+  | Qwen3-0.6B-Q8_0 | 273.4 | 270.1 | 299.4 | 90% |
+  | Qwen3-8B-Q8_0 | 50.0 | 50.0 | 57.4 | 87% |
+
+  Every suite passes on the MI50 and the Radeon VII, the HF baseline in both scoring modes. On the 8B Q4_K_M file ten wikitext windows of 512 scored one token at a time move from mean NLL 2.69356 to 2.69409. The backend test feeds each family's reference the activations of the twin it reads; against the 8-bit twin one quant can round the other way on the device, whose reciprocal is a few ulps from the host's, worth about the weight times the block's step, so those comparisons take 1e-2 where an indexing error is worth the output itself. The Radeon VII has no native integer dot and is unchanged. The decode gap left on the MI50 is the two Q8_0 files, and Q6_K, which the gate keeps on the 16-bit twin.
+
   Documentation review at this checkpoint: every Markdown file read against the code, CLI, tests and build. About fifty stale claims corrected across README, AGENTS, STATUS's table and feature blocks, VULKAN, USAGE, ROADMAP, ARCHITECTURE, EXECUTION, KV-CACHE, DEVICE-EXECUTION, SERVER, CI, ASSETS and the per-source pages. The largest were the ten-card MI50 figures presented as current in README and the status table, VULKAN.md saying no shader uses the integer dot, the tile described as two heights and two thresholds, the perplexity scorer described as one token at a time, and ROADMAP and ARCHITECTURE still calling the server and the Vulkan backend planned. The numbered measurement paragraphs above are left as history.
 
   And a memory fix. A model on a device backend held every weight twice: the loader reads the file into one host allocation, the model kept it for its lifetime, and the device backend copies each weight into its own memory. The model now records at adoption whether any weight still reads those bytes in place, and the CLI releases them when none does. Qwen3-8B-Q4_K_M on the Radeon VII, steady host memory 4.62 to 0.18 GB, decode unchanged; the CPU backend adopts by aliasing and keeps them. The peak is still the whole file, 4.84 GB, since it is read before the upload. Streaming the file to the device during the load, read directly into staging and uploaded asynchronously so the disk and the copies overlap, would remove that peak and is not done.

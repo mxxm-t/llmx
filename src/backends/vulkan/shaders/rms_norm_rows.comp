@@ -33,6 +33,6 @@ void main() {
     for (uint i = lid; i < p.n; i += 256u) {
         float v = src[base + i] * r * w[i];
         dst[base + i] = v;
-        if (p.quant != 0u) xquant_block(row * p.n + i, v, p.rows * p.n);
+        if (p.quant != 0u) xquant_twin(row * p.n + i, v, p.rows * p.n);
     }
 }

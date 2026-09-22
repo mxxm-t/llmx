@@ -54,4 +54,46 @@ void xquant_block(uint i, float v, uint n) {
         xq[th + 1u] = floatBitsToUint(d * float(other));
     }
 }
+
+// The 8-bit twin, for devices whose integer dot is native (the row families built with LLMX_X8, and the prefill tile): values in blocks of 32 scaled so the block's largest magnitude is 127, four to a word in position order, n / 4 words, then per block the scale d and d times the block's integer sum, all from word `base`. A type's offset goes into its weight bytes instead of through half sums, so there are none. The same lane layout as above; a lane past n calls with a zero and writes nothing, so a partial subgroup still reduces correctly.
+void xquant8_block(uint i, float v, uint n, uint base) {
+    uint lane = gl_SubgroupInvocationID;
+    uint j = i & 31u;
+    float amax = abs(v);
+    amax = max(amax, subgroupShuffleXor(amax, 16u));
+    amax = max(amax, subgroupShuffleXor(amax, 8u));
+    amax = max(amax, subgroupShuffleXor(amax, 4u));
+    amax = max(amax, subgroupShuffleXor(amax, 2u));
+    amax = max(amax, subgroupShuffleXor(amax, 1u));
+    float d = amax / 127.0;
+    float id = amax > 0.0 ? 127.0 / amax : 0.0;
+    float r = v * id;
+    int q = clamp(int(sign(r) * floor(abs(r) + 0.5)), -127, 127);
+    // Lane 4m of each block packs the word from its own byte and the next three lanes'.
+    uint b1 = uint(subgroupShuffle(q, min(lane + 1u, gl_SubgroupSize - 1u))) & 255u;
+    uint b2 = uint(subgroupShuffle(q, min(lane + 2u, gl_SubgroupSize - 1u))) & 255u;
+    uint b3 = uint(subgroupShuffle(q, min(lane + 3u, gl_SubgroupSize - 1u))) & 255u;
+    if (i < n && (j & 3u) == 0u) xq[base + i / 4u] = (uint(q) & 255u) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u);
+    int s = q;
+    s += subgroupShuffleXor(s, 16u);
+    s += subgroupShuffleXor(s, 8u);
+    s += subgroupShuffleXor(s, 4u);
+    s += subgroupShuffleXor(s, 2u);
+    s += subgroupShuffleXor(s, 1u);
+    if (i < n && j == 0u) {
+        uint t = base + n / 4u + 2u * (i / 32u);
+        xq[t] = floatBitsToUint(d);
+        xq[t + 1u] = floatBitsToUint(d * float(s));
+    }
+}
+
+// Where the 8-bit twin starts, in words, when a producer writes both: after the 16-bit twin's n / 2 words of pairs and n / 8 of tables, rounded up to 256 bytes so the backend can bind it at its own offset.
+uint xquant8_base(uint n) { return (n / 2u + n / 8u + 63u) & ~63u; }
+
+// What a producer writes: the 16-bit twin always, and with specialization constant 7 the 8-bit one after it. Constant 7 is a second build of each producer, which the backend dispatches once a matmul that reads the 8-bit twin has run (the Q4_K and Q5_K row families), so a model without them runs exactly the producers it ran before: with the 8-bit writer present behind a runtime branch instead, Qwen3-0.6B-Q4_0 decode lost 2.6 percent on an MI50 without ever taking it.
+layout(constant_id = 7) const bool TWIN8 = false;
+void xquant_twin(uint i, float v, uint n) {
+    xquant_block(i, v, n);
+    if (TWIN8) xquant8_block(i, v, n, xquant8_base(n));
+}
 #endif

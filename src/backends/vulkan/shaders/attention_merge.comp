@@ -39,5 +39,5 @@ void main() {
     uint i = (view_row0(v) + b) * p.n_head * p.dim + h * p.dim + lid;
     float r = A / L;
     o[i] = r;
-    if (p.quant != 0u) xquant_block(i, r, p.rows * p.n_head * p.dim);
+    if (p.quant != 0u) xquant_twin(i, r, p.rows * p.n_head * p.dim);
 }

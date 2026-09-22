@@ -109,7 +109,7 @@ void main() {
         if (p.nsplit == 1u) {
             float v = A / L;
             o[qbase + lid] = v;
-            if (p.quant != 0u) xquant_block(qbase + lid, v, p.rows * qstride);
+            if (p.quant != 0u) xquant_twin(qbase + lid, v, p.rows * qstride);
         } else {
             // Unnormalized: m, l and the accumulation, dim + 2 floats.
             uint sbase = (rh * p.nsplit + split) * (p.dim + 2u);

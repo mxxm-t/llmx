@@ -918,7 +918,8 @@ public:
 
     // A compiled kernel's name, the one-column build of a row kernel marked.
     static std::string kernel_variant_name(int id, int variant) {
-        return std::string(kKernelNames[id]) + (!variant ? "" : is_row_kernel((KernelId)id) ? "_1col" : "_small");
+        const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_Q || id == K_MATMUL_TILE_Q6;
+        return std::string(kKernelNames[id]) + (!variant ? "" : is_row_kernel((KernelId)id) ? "_1col" : tile ? "_small" : "_x8");
     }
 
     const std::string& name() const { return dev_->name; }
@@ -1201,8 +1202,8 @@ public:
         const bool quant = n % 32 == 0;
         const uint32_t pc[2] = {u32(n), quant ? 1u : 0u};
         dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
-                 groups(n, 256));
-        if (quant) xq_tag_ = XqTag{bind(dst), n};
+                 groups(n, 256), 1, twin_variant());
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_};
     }
 
     void gather_rows(Slice dst, CSlice src, size_t width, const uint32_t* rows,
@@ -1230,8 +1231,8 @@ public:
         const bool quant = stride == n && n % 32 == 0;
         struct { uint32_t rows, n, stride; float eps; uint32_t quant; } pc{u32(rows), u32(n), u32(stride), eps, quant ? 1u : 0u};
         dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? xq_for(rows * n) : bind(dst)}, &pc, sizeof(pc),
-                 u32(rows));
-        if (quant) xq_tag_ = XqTag{bind(dst), rows * n};
+                 u32(rows), 1, twin_variant());
+        if (quant) xq_tag_ = XqTag{bind(dst), rows * n, want_x8_};
     }
 
     void norm_rope_rows(Slice x, size_t rows, size_t stride, size_t heads, CSlice w,
@@ -1485,11 +1486,16 @@ public:
         if (type != gguf::GGML_TYPE_F32) {
             const VkDescriptorBufferInfo xf = bind(X);
             xqi = xq_for(nbatch * nin);
-            if (!(xq_tag_.n == nbatch * nin && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset)) {
+            const bool x8 = reads_x8(kernel);
+            // The first matmul that reads the 8-bit twin finds producers that were not writing it, and has it made here; every producer after it writes both.
+            if (x8) want_x8_ = true;
+            if (!(xq_tag_.n == nbatch * nin && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset &&
+                  (!x8 || xq_tag_.has8))) {
                 const uint32_t qpc[1] = {u32(nbatch * nin)};
-                dispatch(K_QUANTIZE_X, {xf, xqi}, qpc, sizeof(qpc), groups(nbatch * nin, 256));
-                xq_tag_ = XqTag{xf, nbatch * nin};
+                dispatch(K_QUANTIZE_X, {xf, xqi}, qpc, sizeof(qpc), groups(nbatch * nin, 256), 1, twin_variant());
+                xq_tag_ = XqTag{xf, nbatch * nin, want_x8_};
             }
+            if (reads_x8(kernel)) xqi.offset = x8_base_bytes(nbatch * nin);
         }
         // Unused projection slots bind the first one's buffers; no
         // workgroup reaches them.
@@ -1522,13 +1528,18 @@ public:
     // The scratch the twin of an n-value input lives in: n / 2 words of
     // pairs, then 8 bytes per block of 32 twice.
     VkDescriptorBufferInfo xq_for(size_t n) {
-        const size_t bytes = n * 2 + (n / 32) * 16;
+        const size_t bytes = dev_->profile.prefer_integer_dot ? x8_base_bytes(n) + n + (n / 32) * 8 : n * 2 + (n / 32) * 16;
         if (!xq_ || xq_->size() < bytes) {
             grow(xq_, bytes);
             xq_tag_ = XqTag{};
         }
         return VkDescriptorBufferInfo{xq_->handle(), 0, VK_WHOLE_SIZE};
     }
+
+    // On a device whose integer dot is native the producers write the 8-bit twin after the 16-bit one (shaders/xquant.glsl), from this byte offset: the 16-bit twin's n / 2 words of pairs and n / 8 of tables, rounded up to 256 bytes, which is a valid storage-buffer offset on any device.
+    static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 8 + 63) & ~size_t(63)) * 4; }
+    // The row families that read the 8-bit twin, built with LLMX_X8: Q4_K and Q5_K. Q4_0 and Q6_K read it too and were 45 and 5 to 12 percent faster, but the HF gate's Q4_0 fixture, whose only K-quant is its tied Q6_K output head, then ranked a different fifth token on one prompt, a top-5 overlap of 3 against its frozen 4, with either of them on it. So they read the 16-bit twin with Q8_0.
+    static bool reads_x8(KernelId id) { return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT; }
 
     // Whether a type's wide matmul goes through the integer-dot tile on this device.
     bool integer_dot_tile(uint32_t type) const {
@@ -1664,12 +1675,13 @@ public:
             dispatch(kv_variant(K_ATTENTION, K_ATTENTION_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
                       table, scratch, xq},
-                     &pc, sizeof(pc), groups(pairs * nsplit, 1));
+                     &pc, sizeof(pc), groups(pairs * nsplit, 1), 1, twin_variant());
             if (nsplit > 1) {
                 const uint32_t mc[5] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u};
-                dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table, xq}, mc, sizeof(mc), groups(pairs, 1));
+                dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table, xq}, mc, sizeof(mc), groups(pairs, 1), 1,
+                         twin_variant());
             }
-            if (quant) xq_tag_ = XqTag{bind(out), rows * qstride};
+            if (quant) xq_tag_ = XqTag{bind(out), rows * qstride, want_x8_};
         }
     }
 
@@ -1901,13 +1913,15 @@ private:
         const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
         const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant ? kTileRowsSmall : kTileRowsShort)
                                          : (variant ? kRowColsOne : kRowColsWide);
-        const VkSpecializationMapEntry entry{0, 0, sizeof(uint32_t)};
+        // Constant 7 is whether a producer also writes the 8-bit twin (shaders/xquant.glsl), its second build. Every pipeline gets both entries; a module that declares neither ignores them, and only producers declare 7.
+        const uint32_t spec_data[2] = {spec_value, variant ? 1u : 0u};
+        const VkSpecializationMapEntry entries[2] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)}};
         VkSpecializationInfo spec{};
-        spec.mapEntryCount = 1;
-        spec.pMapEntries = &entry;
-        spec.dataSize = sizeof(uint32_t);
-        spec.pData = &spec_value;
-        if (tile || is_row_kernel(id)) ci.stage.pSpecializationInfo = &spec;
+        spec.mapEntryCount = 2;
+        spec.pMapEntries = entries;
+        spec.dataSize = sizeof(spec_data);
+        spec.pData = spec_data;
+        ci.stage.pSpecializationInfo = &spec;
         ci.layout = k.layout;
         if (d.exec_stats) ci.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
         if (d.exec_ir) ci.flags |= VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR;
@@ -2059,7 +2073,11 @@ private:
     // What the twin in xq_ describes: the float input it was made from
     // and its length. Cleared by anything that writes a buffer other than
     // the twin's makers, since the input may be what was written.
-    struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; };
+    // What the twin buffer holds: the input it was made from, and whether the 8-bit twin was written beside the 16-bit one.
+    struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; };
+    // Set once a matmul that reads the 8-bit twin has run, so producers take their build that writes it from then on (shaders/xquant.glsl).
+    bool want_x8_ = false;
+    int twin_variant() const { return want_x8_ ? 1 : 0; }
     XqTag xq_tag_;
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];
     Arena arena_[kRing];

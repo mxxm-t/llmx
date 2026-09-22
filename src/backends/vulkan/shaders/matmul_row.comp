@@ -66,6 +66,9 @@
 #ifdef LLMX_DOT
 #extension GL_EXT_integer_dot_product : require
 #endif
+#if defined(LLMX_X8) && !defined(LLMX_DOT)
+#error "the 8-bit twin is read only through the integer dot"
+#endif
 #include "q.glsl"
 layout(local_size_x = 256) in;
 // How many batch columns a lane keeps in registers, specialization constant
@@ -94,12 +97,25 @@ layout(set = 0, binding = 4) readonly buffer X { float x[]; };
 // sizes are multiples of 16 so a lane's four quant words, or the scale
 // and the three packed sub-scale words, are one load.
 layout(set = 0, binding = 5) readonly buffer W128 { uvec4 w128[]; } w128s[3];
-// The quantized activations (xquant.glsl): per column nin / 2 words of
-// pairs, then per block the scale and the scaled sum, then per block the
-// scaled half sums. One buffer bound four ways so a lane loads two pair
-// words, four, a table entry or a pair of entries at once.
+// The quantized activations (xquant.glsl), one buffer bound four ways so a lane loads four values, eight, a table entry or a pair of entries at once.
+// The float build reads the 16-bit twin: per column nin / 2 words of pairs, then per block the scale and the scaled sum, then per block the scaled half sums.
+// A family built with LLMX_X8 reads the 8-bit twin instead: per column nin / 4 words of bytes in position order, then per block the scale and the scaled sum. It is written beside the 16-bit one on a device whose integer dot is native, and the Q4_K and Q5_K families read it through the four-wide 8-bit dot while Q8_0 stays on the 16-bit twin, where it was faster: at an 8B down projection on an MI50 Q4_K went from 125.2 to 92.5 us and Q8_0 from 167.0 to 176.8. Q4_0, Q4_1 and Q6_K stay there too, for precision rather than speed (vulkan_backend.cpp, reads_x8).
+// Four values are one element of xq2 and eight one of xq4 in both, so every index below is the same and only the element types differ; XA and XB take the first and second four values of an xq4 element.
+#ifdef LLMX_X8
+layout(set = 0, binding = 6) readonly buffer XQ2 { uint xq2[]; };
+layout(set = 0, binding = 7) readonly buffer XQ4 { uvec2 xq4[]; };
+#define XQ4T uvec2
+#define XWT uint
+#define XA(v) (v).x
+#define XB(v) (v).y
+#else
 layout(set = 0, binding = 6) readonly buffer XQ2 { uvec2 xq2[]; };
 layout(set = 0, binding = 7) readonly buffer XQ4 { uvec4 xq4[]; };
+#define XQ4T uvec4
+#define XWT uvec2
+#define XA(v) (v).xy
+#define XB(v) (v).zw
+#endif
 layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 layout(set = 0, binding = 9) readonly buffer XT4 { vec4 xt4[]; };
 
@@ -108,18 +124,29 @@ uint pi = 0u;
 // Offset in pair words into the quantized activations of column c.
 uint xa_col(uint c) { return c * p.nin / 2u; }
 // A block's scale d and d times its integer sum.
-vec2 xq_block(uint c, uint b) { return xt2[p.nbatch * p.nin / 4u + c * (p.nin / 32u) + b]; }
+#ifdef LLMX_X8
+#define XTAB2 (p.nbatch * p.nin / 8u)
+#else
+#define XTAB2 (p.nbatch * p.nin / 4u)
+#endif
+vec2 xq_block(uint c, uint b) { return xt2[XTAB2 + c * (p.nin / 32u) + b]; }
 // The scale entries of blocks 2j and 2j + 1 in one load; and d times the
 // half sums of blocks 2j and 2j + 1 likewise.
-vec4 xq_pair(uint c, uint j) { return xt4[p.nbatch * p.nin / 8u + c * (p.nin / 64u) + j]; }
+vec4 xq_pair(uint c, uint j) { return xt4[XTAB2 / 2u + c * (p.nin / 64u) + j]; }
+#ifndef LLMX_X8
 vec4 xq_halves_pair(uint c, uint j) {
     return xt4[(p.nbatch * p.nin / 4u + p.nbatch * p.nin / 32u) / 2u + c * (p.nin / 64u) + j];
 }
+#endif
 // The dots, in two forms, because which one a driver turns into good code differs and neither wins everywhere.
 // With LLMX_DOT they go through the integer dot product extension, which Mesa lowers to this chip's native 16-bit dot: worth 15 percent of 8B decode and 6 of 0.6B on an MI50 under it.
 // Without, they are plain multiplies of sign-extended values, which the AMD proprietary driver prefers by 2 percent on the same silicon, since there the extension lowers to the same multiply-add pairs with the operands widened first.
 // The backend compiles both and picks per device (backends/device_profile.hpp, docs/VULKAN.md).
-#ifdef LLMX_DOT
+#ifdef LLMX_X8
+#define QDOT int
+// Four signed bytes against four 8-bit activations in position order, the chip's four-wide dot. Against 16-bit activations the same word took two two-wide dots and twice the activation bytes.
+int dot4(uint a, uint b) { return dotPacked4x8EXT(int(a), int(b)); }
+#elif defined(LLMX_DOT)
 #define QDOT int
 // Two pairs of 16-bit values against two activation pair words.
 int pair_dot(uint a, uint b, uvec2 xw) {
@@ -182,9 +209,14 @@ void q8_word(uint w, uint d, uint a2, inout int p0, inout int p1) {
 // (Q4_K, Q5_K) further on. Low and high nibbles go to separate dots
 // since the K-quants scale them apart; `hb` carries a fifth bit per
 // nibble in bit 4 of each byte's pair word, zero for the others.
-void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, uvec2 xl, uvec2 xh, inout QDOT pl, inout QDOT ph) {
+void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, XWT xl, XWT xh, inout QDOT pl, inout QDOT ph) {
+#ifdef LLMX_X8
+    pl += dot4((w & 0x0F0F0F0Fu) | hl0 | (hl1 << 8u), xl);
+    ph += dot4(((w >> 4u) & 0x0F0F0F0Fu) | hh0 | (hh1 << 8u), xh);
+#else
     pl += pair_dot((w & 0x000F000Fu) | hl0, ((w >> 8u) & 0x000F000Fu) | hl1, xl);
     ph += pair_dot(((w >> 4u) & 0x000F000Fu) | hh0, ((w >> 12u) & 0x000F000Fu) | hh1, xh);
+#endif
 }
 // Q5_K's fifth bits for one nibble word: bit s of each byte of `hb`, placed in bit 4 of each 16-bit lane.
 uint fifth(uint hb, uint s) { return ((hb >> s) & 0x00010001u) << 4u; }
@@ -346,13 +378,13 @@ void main() {
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + b * 4u;
-                    uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
-                    nibble_dots(n0, 0u, 0u, 0u, 0u, lo0.xy, hi0.xy, pl, ph);
-                    nibble_dots(n1, 0u, 0u, 0u, 0u, lo0.zw, hi0.zw, pl, ph);
-                    nibble_dots(n2, 0u, 0u, 0u, 0u, lo1.xy, hi1.xy, pl, ph);
-                    nibble_dots(n3, 0u, 0u, 0u, 0u, lo1.zw, hi1.zw, pl, ph);
+                    nibble_dots(n0, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph);
+                    nibble_dots(n1, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph);
+                    nibble_dots(n2, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
+                    nibble_dots(n3, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
                     vec2 xb = xq_block(col, b);
                     acc[c] += d * (xb.x * float(pl + ph) - 8.0 * xb.y);
                 }
@@ -368,13 +400,13 @@ void main() {
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + b * 4u;
-                    uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
-                    nibble_dots(n0, 0u, 0u, 0u, 0u, lo0.xy, hi0.xy, pl, ph);
-                    nibble_dots(n1, 0u, 0u, 0u, 0u, lo0.zw, hi0.zw, pl, ph);
-                    nibble_dots(n2, 0u, 0u, 0u, 0u, lo1.xy, hi1.xy, pl, ph);
-                    nibble_dots(n3, 0u, 0u, 0u, 0u, lo1.zw, hi1.zw, pl, ph);
+                    nibble_dots(n0, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph);
+                    nibble_dots(n1, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph);
+                    nibble_dots(n2, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
+                    nibble_dots(n3, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
                     vec2 xb = xq_block(col, b);
                     acc[c] += d * (xb.x * float(pl + ph) - 8.0 * xb.y);
                 }
@@ -392,13 +424,13 @@ void main() {
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + b * 4u;
-                    uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
-                    nibble_dots(w1, 0u, 0u, 0u, 0u, lo0.xy, hi0.xy, pl, ph);
-                    nibble_dots(w2, 0u, 0u, 0u, 0u, lo0.zw, hi0.zw, pl, ph);
-                    nibble_dots(w3, 0u, 0u, 0u, 0u, lo1.xy, hi1.xy, pl, ph);
-                    nibble_dots(w4, 0u, 0u, 0u, 0u, lo1.zw, hi1.zw, pl, ph);
+                    nibble_dots(w1, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph);
+                    nibble_dots(w2, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph);
+                    nibble_dots(w3, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
+                    nibble_dots(w4, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
                     vec2 xb = xq_block(col, b);
                     acc[c] += dm.x * (xb.x * float(pl + ph)) + dm.y * xb.y;
                 }
@@ -449,14 +481,14 @@ void main() {
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
                     {
-                        uvec4 lo = xq4[a4], hi = xq4[a4 + 4u];
-                        nibble_dots(nq.x, fifth(hbv.x, sl), fifth(hbv.x, sl + 8u), fifth(hbv.x, sh), fifth(hbv.x, sh + 8u), lo.xy, hi.xy, pl, ph);
-                        nibble_dots(nq.y, fifth(hbv.y, sl), fifth(hbv.y, sl + 8u), fifth(hbv.y, sh), fifth(hbv.y, sh + 8u), lo.zw, hi.zw, pl, ph);
+                        XQ4T lo = xq4[a4], hi = xq4[a4 + 4u];
+                        nibble_dots(nq.x, fifth(hbv.x, sl), fifth(hbv.x, sl + 8u), fifth(hbv.x, sh), fifth(hbv.x, sh + 8u), XA(lo), XA(hi), pl, ph);
+                        nibble_dots(nq.y, fifth(hbv.y, sl), fifth(hbv.y, sl + 8u), fifth(hbv.y, sh), fifth(hbv.y, sh + 8u), XB(lo), XB(hi), pl, ph);
                     }
                     {
-                        uvec4 lo = xq4[a4 + 1u], hi = xq4[a4 + 5u];
-                        nibble_dots(nq.z, fifth(hbv.z, sl), fifth(hbv.z, sl + 8u), fifth(hbv.z, sh), fifth(hbv.z, sh + 8u), lo.xy, hi.xy, pl, ph);
-                        nibble_dots(nq.w, fifth(hbv.w, sl), fifth(hbv.w, sl + 8u), fifth(hbv.w, sh), fifth(hbv.w, sh + 8u), lo.zw, hi.zw, pl, ph);
+                        XQ4T lo = xq4[a4 + 1u], hi = xq4[a4 + 5u];
+                        nibble_dots(nq.z, fifth(hbv.z, sl), fifth(hbv.z, sl + 8u), fifth(hbv.z, sh), fifth(hbv.z, sh + 8u), XA(lo), XA(hi), pl, ph);
+                        nibble_dots(nq.w, fifth(hbv.w, sl), fifth(hbv.w, sl + 8u), fifth(hbv.w, sh), fifth(hbv.w, sh + 8u), XB(lo), XB(hi), pl, ph);
                     }
                     vec4 xt = xq_pair(col, bl / 2u);   // d, ds of the low group, then the high
                     acc[cc] += dl * (xt.x * float(pl)) + dh * (xt.z * float(ph)) - (ml * xt.y + mh * xt.w);
@@ -503,7 +535,7 @@ void main() {
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
-                    uvec4 x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
+                    XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
                     QDOT p0 = pair_dot(q0a & 0x00FF00FFu, (q0a >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0b & 0x00FF00FFu, (q0b >> 8u) & 0x00FF00FFu, x0v.zw);
                     QDOT p1 = pair_dot(q1a & 0x00FF00FFu, (q1a >> 8u) & 0x00FF00FFu, x1v.xy) + pair_dot(q1b & 0x00FF00FFu, (q1b >> 8u) & 0x00FF00FFu, x1v.zw);
                     QDOT p2 = pair_dot(q2a & 0x00FF00FFu, (q2a >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2b & 0x00FF00FFu, (q2b >> 8u) & 0x00FF00FFu, x2v.zw);

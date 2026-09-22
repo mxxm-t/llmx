@@ -18,6 +18,6 @@ void main() {
         float g = gate[i];
         float v = g / (1.0 + exp(-g)) * up[i];
         dst[i] = v;
-        if (p.quant != 0u) xquant_block(i, v, p.n);
+        if (p.quant != 0u) xquant_twin(i, v, p.n);
     }
 }

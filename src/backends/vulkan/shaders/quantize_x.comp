@@ -10,5 +10,5 @@ layout(set = 0, binding = 1) writeonly buffer Q { uint xq[]; };
 #include "xquant.glsl"
 void main() {
     uint i = gl_GlobalInvocationID.x;
-    if (i < p.n) xquant_block(i, x[i], p.n);
+    if (i < p.n) xquant_twin(i, x[i], p.n);
 }

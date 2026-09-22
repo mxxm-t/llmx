@@ -9,38 +9,10 @@ layout(push_constant) uniform P { uint n; } p;
 layout(set = 0, binding = 0) readonly buffer X { float x[]; };
 layout(set = 0, binding = 1) writeonly buffer Q { uint xq[]; };
 
+#include "xquant.glsl"
+
 void main() {
     uint i = gl_GlobalInvocationID.x;
-    // Lanes past the end join the shuffles with a zero so a partial last subgroup reduces correctly; n is a multiple of 32, so no block is partial.
-    float v = i < p.n ? x[i] : 0.0;
-    uint lane = gl_SubgroupInvocationID;
-    uint j = i & 31u;
-    float amax = abs(v);
-    amax = max(amax, subgroupShuffleXor(amax, 16u));
-    amax = max(amax, subgroupShuffleXor(amax, 8u));
-    amax = max(amax, subgroupShuffleXor(amax, 4u));
-    amax = max(amax, subgroupShuffleXor(amax, 2u));
-    amax = max(amax, subgroupShuffleXor(amax, 1u));
-    float d = amax / 127.0;
-    float id = amax > 0.0 ? 127.0 / amax : 0.0;
-    // Round half away from zero, as the host reference does.
-    float r = v * id;
-    int q = clamp(int(sign(r) * floor(abs(r) + 0.5)), -127, 127);
-    // Lane 4m of each block packs the word from its own byte and the next three lanes'.
-    uint b0 = uint(q) & 255u;
-    uint b1 = uint(subgroupShuffle(q, min(lane + 1u, gl_SubgroupSize - 1u))) & 255u;
-    uint b2 = uint(subgroupShuffle(q, min(lane + 2u, gl_SubgroupSize - 1u))) & 255u;
-    uint b3 = uint(subgroupShuffle(q, min(lane + 3u, gl_SubgroupSize - 1u))) & 255u;
-    if (i < p.n && (j & 3u) == 0u) xq[i / 4u] = b0 | (b1 << 8u) | (b2 << 16u) | (b3 << 24u);
-    int s = q;
-    s += subgroupShuffleXor(s, 16u);
-    s += subgroupShuffleXor(s, 8u);
-    s += subgroupShuffleXor(s, 4u);
-    s += subgroupShuffleXor(s, 2u);
-    s += subgroupShuffleXor(s, 1u);
-    if (i < p.n && j == 0u) {
-        uint t = p.n / 4u + 2u * (i / 32u);
-        xq[t] = floatBitsToUint(d);
-        xq[t + 1u] = floatBitsToUint(d * float(s));
-    }
+    // Every lane calls, a lane past the end with a zero, so a partial last subgroup still reduces; n is a multiple of 32, so no block is partial.
+    xquant8_block(i, i < p.n ? x[i] : 0.0, p.n, 0u);
 }

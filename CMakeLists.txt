@@ -49,7 +49,13 @@ add_dependencies(llmx llmx-build-info)
 # time; the loader is loaded at run time, so nothing links against vulkan-1.
 # One static library so the CLI and the test compile the device code once.
 if(LLMX_HAS_BACKEND_VULKAN)
-    find_package(Vulkan REQUIRED COMPONENTS glslc)
+    # The loader is opened at run time, so a build needs only the headers
+    # and the shader compiler; FindVulkan would insist on the library too.
+    find_path(LLMX_VULKAN_INCLUDE_DIR vulkan/vulkan.h HINTS $ENV{VULKAN_SDK}/Include $ENV{VULKAN_SDK}/include)
+    find_program(LLMX_GLSLC glslc HINTS $ENV{VULKAN_SDK}/Bin $ENV{VULKAN_SDK}/bin)
+    if(NOT LLMX_VULKAN_INCLUDE_DIR OR NOT LLMX_GLSLC)
+        message(FATAL_ERROR "LLMX_HAS_BACKEND_VULKAN needs vulkan/vulkan.h and glslc: install the Vulkan headers and shaderc, or set VULKAN_SDK")
+    endif()
     # Shaders are GLSL in the tree, compiled to SPIR-V at build time and
     # embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
@@ -82,7 +88,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         set(spv ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan/${shader}.inc)
         add_custom_command(OUTPUT ${spv}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan
-            COMMAND ${Vulkan_GLSLC_EXECUTABLE} -fshader-stage=compute --target-env=vulkan1.2 -O
+            COMMAND ${LLMX_GLSLC} -fshader-stage=compute --target-env=vulkan1.2 -O
                     -mfmt=num -I ${LLMX_VK_SHADER_DIR} ${define} -o ${spv} ${LLMX_VK_SHADER_DIR}/${source}.comp
             DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
                     ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl ${LLMX_VK_SHADER_DIR}/xquant.glsl
@@ -96,7 +102,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
     add_dependencies(llmx-vulkan llmx-vulkan-shaders)
     target_include_directories(llmx-vulkan
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR}/generated
-        PRIVATE ${Vulkan_INCLUDE_DIRS})
+        PRIVATE ${LLMX_VULKAN_INCLUDE_DIR})
     target_link_libraries(llmx-vulkan PUBLIC ${CMAKE_DL_LIBS})
     target_link_libraries(llmx PRIVATE llmx-vulkan)
 endif()

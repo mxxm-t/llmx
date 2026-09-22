@@ -1012,7 +1012,17 @@ public:
         }
         if (floats_from(X) < nbatch * nin) throw std::runtime_error("vulkan: matmul operand outside its allocation");
         if (live.empty()) return;
-        if (nbatch >= 16) {
+        // The tile kernel costs a 64-row tile whatever its fill and the row
+        // kernel a weight pass per eight columns, so the crossover is where
+        // ceil(n / 64) tiles cost less than ceil(n / 8) passes. Measured on
+        // the Radeon VII as prompt processing at 8 to 256 rows: the tile
+        // wins from about 24 rows on Qwen3-8B-Q8_0, 64 on 8B-Q4_K_M and 64
+        // on 0.6B-Q8_0, and loses at 16 rows on every file, so 8-bit rows
+        // take it from 32 and the others from 64 (docs/VULKAN.md).
+        size_t tile_from = 32;
+        for (const Projection* pr : live)
+            if (pr->type != gguf::GGML_TYPE_Q8_0 && pr->type != gguf::GGML_TYPE_F32) tile_from = 64;
+        if (nbatch >= tile_from) {
             for (const Projection* pr : live) {
                 const uint32_t pc[5] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u};
                 const uint32_t gx = groups(pr->rows, 64);

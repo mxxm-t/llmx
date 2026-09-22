@@ -213,7 +213,8 @@ reduction order. The HF gate measures the cost of it.
   these paths is the load count, not the arithmetic: the same dots over
   8-byte activation loads throughout ran Q4_0 at 150 us against 105
   with 16-byte loads.
-- **matmul, prefill** (`nbatch` of 16 and up): a workgroup computes a
+- **matmul, prefill** (`nbatch` of 32 and up for F32 and Q8_0 rows, 64
+  and up for the others): a workgroup computes a
   64 x 64 output tile, walking the inner dimension 32 at a time; each
   step stages the dequantized W tile and the X tile in shared memory and
   every thread accumulates a 4 x 4 micro-tile in registers, so a weight
@@ -222,8 +223,19 @@ reduction order. The HF gate measures the cost of it.
   prefill from 449 to 1025 tok/s on Qwen3-0.6B-Q8_0 and from 40 to 220
   on Qwen3-8B-Q8_0, past the upstream llama.cpp Vulkan build's 660 and
   99; the CPU-versus-device A/B checks it at batch widths 16, 64, 100 and
-  247.
-- **attention**: one workgroup per (query row, head). The workgroup's
+  247. The crossover from the row kernel was measured as prompt
+  processing at 8 to 256 rows with the tile kernel at its old threshold
+  of 16 and with the row kernel taking every width: a tile costs a
+  64-row tile whatever its fill and the row kernel a weight pass per
+  eight columns, so its tok/s is flat in the width (0.6B Q8_0 727 to
+  838, 8B Q8_0 73 to 75, 8B Q4_K_M 98 to 104) while the tile's climbs
+  (0.6B 333, 640, 831, 1810 at 16, 32, 64, 128; 8B Q8_0 52, 101, 173,
+  224; 8B Q4_K_M 34, 63, 102, 143). The tile loses at 16 on every file
+  and wins from about 24 rows on 8B Q8_0 and 64 on the other two, which
+  the thresholds of 32 and 64 follow. What made the 16 visible was the
+  server: a decode pass that a new prompt's chunk joined at 16 rows and
+  up took the tile kernel and stalled every decoder for one tile.
+- **attention**: one workgroup per (query row, head).
   subgroups take the history's tokens round robin; inside a subgroup each
   lane owns `head_dim / subgroup_size` elements, a token's score is one
   `subgroupAdd`, and the softmax is online, a running maximum and sum with

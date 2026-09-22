@@ -167,9 +167,17 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   medians of 5 and 9) is the pass in which a new prompt's chunk joins
   the decoders, which at 16 rows and up takes the tile matmul kernel,
   and that kernel costs a 64-row tile whatever the fill; and both
-  servers dip at 16 concurrent. The tile threshold is being measured
-  against the row kernel at 8 to 256 rows on three models as the next
-  step; the 16-column kernel remains open.
+  servers dip at 16 concurrent. The tile threshold was measured next
+  (the Vulkan block's twenty-sixth paragraph) and is now 32 rows for
+  8-bit and 64 for the other types. The same load again with it, one
+  pass: 16 concurrent went from 282 to 533 tok/s with the inter-token
+  p99 from 55 to 30 ms, and 32 from 492 to 511 tok/s with the p99 from
+  64 to 63, so throughput is now ahead of the reference's server at
+  every level measured, 1 to 32, and the dip at 16 was the tile kernel.
+  The p99 at 1 and 4 did not move (13.4 and 62.0 ms), so it is not that
+  kernel: at 4 it is the pass that processes the next request's prompt,
+  and at 1 it is unexplained and stays open. The 16-column kernel
+  remains open.
 - **Left:** the 16-column row kernel if sixteen-way batches turn out to
   matter; replaying a recorded decode pass, above, if small-model decode
   becomes the target.
@@ -775,6 +783,49 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-0.6B-Q5_K_M | tg32 | 220.9, 221.7 tok/s | 189.2, 183.9 | 195.9, 196.8 | 89% |
   | Qwen3-8B-Q4_K_M | tg32 | 51.9, 51.9 tok/s | 44.7, 45.1 | 46.5, 47.3 | 90 to 91% |
 
+  Twenty-sixth, the tile kernel's threshold. It took every batch of 16
+  rows and up, a number set before the row kernel existed in its
+  present form; the server's inter-token p99 at 1 and 4 concurrent
+  (13 and 62 ms against medians of 5 and 9) was the pass in which a new
+  prompt's chunk joined the decoders and tipped the batch into the tile
+  kernel, which costs a 64-row tile whatever its fill. Prompt
+  processing at 8 to 256 rows, the tile at its old threshold against
+  the row kernel taking every width, three models, three runs each:
+
+  | model | rows | tile kernel | row kernel |
+  |---|---:|---:|---:|
+  | Qwen3-0.6B-Q8_0 | 8 | (row) 712 tok/s | 727 |
+  | | 16 | 333 | 791 |
+  | | 32 | 640 | 805 |
+  | | 64 | 831 | 830 |
+  | | 128 | 1810 | 832 |
+  | | 256 | 1478 | 838 |
+  | Qwen3-8B-Q8_0 | 8 | (row) 72.4 | 72.7 |
+  | | 16 | 52.3 | 74.2 |
+  | | 32 | 100.7 | 74.9 |
+  | | 64 | 173.1 | 75.2 |
+  | | 128 | 224.3 | 75.1 |
+  | | 256 | 243.3 | 75.3 |
+  | Qwen3-8B-Q4_K_M | 8 | (row) 97.7 | 98.3 |
+  | | 16 | 33.7 | 100.9 |
+  | | 32 | 63.4 | 102.5 |
+  | | 64 | 102.0 | 103.3 |
+  | | 128 | 143.0 | 103.6 |
+  | | 256 | 156.7 | 103.6 |
+
+  The row kernel's rate is flat in the width, a weight pass per eight
+  columns, and the tile's climbs with its fill; the tile loses at 16 on
+  every file and wins from about 24 rows on 8B Q8_0 and 64 on the other
+  two. The threshold is now 32 rows when every projection of the
+  dispatch is F32 or Q8_0 and 64 otherwise, which follows the three
+  measurements within a few percent and costs the 0.6B Q8_0 up to a
+  fifth at 32 to 63 rows against its own best. With the thresholds in
+  place, three runs each: 8B Q8_0 at 16, 32 and 64 rows 74.6, 102.4 and
+  174.7 tok/s (52.3, 100.7 and 173.1 before), 8B Q4_K_M 101.4, 103.0 and
+  102.6 (33.7, 63.4 and 102.0). The server's figures are in the server
+  block. The backend-vulkan test's row-kernel reference follows the two
+  thresholds, the Linux build passes CTest with the test skipping on
+  llvmpipe, and the device suite passes.
 - **Left:** decode on the 4- and 5-bit files, 99 and 89 percent of the
   reference on 0.6B and 90 on the 8B Q4_K_M. On 0.6B the bound is the
   dispatch count, not a kernel; replaying a recorded pass (the server

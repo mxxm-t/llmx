@@ -330,15 +330,19 @@ size_t check_kernels(backend::Backend& vk) {
         Pair::In wfi = p.in(wf), wqi = p.in(wq.data(), wq.size()), w4i = p.in(w4.data(), w4.size());
         Pair::In w41i = p.in(w41.data(), w41.size()), w6i = p.in(w6.data(), w6.size());
         Pair::In w4ki = p.in(w4k.data(), w4k.size()), w5ki = p.in(w5k.data(), w5k.size());
-        // 1 to 13 take the row kernel, whose quantized rows meet 16-bit
-        // activations; 16, 64, 100 and 247 the tile kernel, on, inside and
-        // past its 64-column tiles, with float activations.
+        // The row kernel, whose quantized rows meet 16-bit activations,
+        // takes batches below 32 for F32 and Q8_0 and below 64 for the
+        // other types; the tile kernel takes the rest with float
+        // activations. 1 to 16 are row for every type, 64 is tile for
+        // Q8_0 and row for the 4-, 5- and 6-bit types, 100 and 247 are
+        // tile for every type, inside and past its 64-column tiles.
         for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(16), size_t(64),
                               size_t(100), size_t(247)}) {
             const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
-            const auto xr = nbatch < 16 ? row_activations(x) : x;   // adopted, so it must outlive the call
-            Pair::In xri = p.in(xr);
+            const auto xr32 = nbatch < 32 ? row_activations(x) : x;   // adopted, so they must outlive the calls
+            const auto xr64 = nbatch < 64 ? row_activations(x) : x;
+            Pair::In xri32 = p.in(xr32), xri64 = p.in(xr64);
             for (int q = 0; q < 7; ++q) {
                 if (q >= 4 && nin % 256) continue;   // K-quant blocks are 256 wide
                 const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0
@@ -348,7 +352,7 @@ size_t check_kernels(backend::Backend& vk) {
                 const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i
                                    : q == 5 ? w4ki : q == 6 ? w5ki : wfi;
                 Pair::Out d = p.out(nbatch * nout);
-                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : xri).cs(), d.cs(), nin, nout, nbatch);
+                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : q == 1 ? xri32 : xri64).cs(), d.cs(), nin, nout, nbatch);
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
                 auto r = p.results(d);
                 try {
@@ -594,7 +598,7 @@ size_t check_kernels(backend::Backend& vk) {
         for (size_t nbatch : {size_t(1), size_t(3), size_t(64)}) {
             const auto xa = uniform(nbatch * nin, 20 + (uint32_t)nbatch);
             Pair::In xi = p.in(xa);
-            const auto xr = nbatch < 16 ? row_activations(xa) : xa;
+            const auto xr = nbatch < 32 ? row_activations(xa) : xa;
             Pair::In xri = p.in(xr);
             const auto y0 = uniform(nbatch * nout, 21 + (uint32_t)nbatch);
             Pair::Out d = p.out(nbatch * nout);

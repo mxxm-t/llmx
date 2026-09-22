@@ -356,7 +356,37 @@ reduction order. The HF gate measures the cost of it.
   247 and 512. Its staging source is unchanged, and the two directions
   in one run are the layout band rather than a result. Over both
   changes, prompt processing on the Qwen3-8B-Q4_K_M file went 95.98,
-  96.51 and 109.21 tok/s to 170.75, 240.31 and 281.73. The wide Q8_0 kernel is the exception and does not get
+  96.51 and 109.21 tok/s to 170.75, 240.31 and 281.73.
+
+  Half precision in the tile, tried four ways and not kept. The card
+  runs half-precision arithmetic at twice the float rate, and the tile
+  kernel issued 512 scalar `v_mac_f32` and no packed instruction at all,
+  which is what a fully occupied card drawing half its power looks like.
+  On the 8B file at 247 rows, against 240.31 tok/s:
+
+  | form | what the driver emitted | tok/s |
+  |---|---|---:|
+  | halves in shared memory, float math | 512 `v_mac_f32`, a convert per read | 179.77 |
+  | halves, two-wide accumulators | 256 `v_pk_mul_f16` and 248 `v_pk_add_f16` | 196.97 |
+  | halves, four-wide vectors and accumulators | the same, on wide reads | 227.41 |
+  | the same through `fma()` | 256 `v_pk_fma_f16` | 243.26 |
+
+  The last form is the one that reaches the hardware properly: exactly
+  half the arithmetic instructions of the float kernel, on half the
+  shared memory, 8192 bytes against 16384. It is worth 1.2 percent. So
+  the tile kernel is not arithmetic bound either, and halving its
+  multiplies buys about what halving the row kernels' did.
+
+  Two things the attempt did establish. The driver will not contract a
+  half multiply and add on its own, so a packed multiply-add has to be
+  written as `fma()`; asking for `a * b + c` gives two instructions and
+  no gain. And the kernel runs three waves per SIMD on 67 registers,
+  four above the 64 a fourth wave needs, which is the same limit the row
+  kernels were under and where 15 to 18 percent came from there. The
+  half-precision form raised registers to 77 rather than lowering them,
+  so it did not help that either. Prompt processing wants the register
+  count, not the precision, and a half tile would also need a second
+  module to keep F32 weights in float, so none of this is kept. The wide Q8_0 kernel is the exception and does not get
   a one-column build: it is the one row kernel whose eight-column build
   is not register starved, running five waves per SIMD, and the narrow
   build takes it to eight. On 8B Q8_0, already reading at the memory

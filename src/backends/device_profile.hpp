@@ -80,8 +80,18 @@ struct DeviceProfile {
     // Query rows from which attention takes its tiled kernel.
     size_t attention_tile_rows = 32;
     // Batch rows from which a matmul takes the tile kernel rather than the row
-    // kernel, by whether every projection of the call is 8-bit or float.
-    size_t tile_from_8bit = 32, tile_from_other = 64;
+    // kernel. The row kernel costs a weight pass per eight columns whatever a
+    // row carries, while the tile kernel costs a whole tile however little of
+    // it is filled, so the crossover moves with the width of a row as well as
+    // with the number of rows. Measured by forcing each kernel and sweeping:
+    // on a 1024-wide 8-bit projection it sits near 40 rows under the AMD
+    // proprietary driver and near 96 under Mesa, and on a 4096-wide one near
+    // 26 and 30. A narrow projection therefore wants a higher threshold on
+    // both, and 64 is the value that wins most across the band on both, giving
+    // up a little between 48 and 64 rows on the wider driver to avoid losing
+    // a quarter to a half below 48 on either.
+    size_t tile_from_8bit = 32, tile_from_8bit_narrow = 64, tile_from_other = 64;
+    size_t tile_narrow_nin = 4096;
     // Splitting a short attention history across workgroups: below this many
     // (row, head) pairs, cut the history into chunks of this many tokens, at
     // most this many ways.
@@ -95,6 +105,12 @@ struct DeviceProfile {
 // returns those numbers; a device wanting others gets a branch here on what it
 // reports rather than on who made it.
 inline DeviceProfile profile_for(const DeviceCaps&) { return DeviceProfile{}; }
+
+// Batch rows from which a matmul of this shape should take the tile kernel.
+inline size_t tile_from_for(const DeviceProfile& profile, bool every_projection_8bit_or_float, size_t nin) {
+    if (!every_projection_8bit_or_float) return profile.tile_from_other;
+    return nin < profile.tile_narrow_nin ? profile.tile_from_8bit_narrow : profile.tile_from_8bit;
+}
 
 // Rows of a matmul tile, given the shape of the call. A taller tile reads less
 // shared memory per product but yields fewer workgroups, so it is taken only

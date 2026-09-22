@@ -1182,10 +1182,11 @@ public:
         // wins from about 24 rows on Qwen3-8B-Q8_0, 64 on 8B-Q4_K_M and 64
         // on 0.6B-Q8_0, and loses at 16 rows on every file, so 8-bit rows
         // take it from 32 and the others from 64 (docs/VULKAN.md).
-        size_t tile_from = dev_->profile.tile_from_8bit;
+        bool eight_bit_or_float = true;
         for (const Projection* pr : live)
             if (pr->type != gguf::GGML_TYPE_Q8_0 && pr->type != gguf::GGML_TYPE_F32)
-                tile_from = dev_->profile.tile_from_other;
+                eight_bit_or_float = false;
+        const size_t tile_from = tile_from_for(dev_->profile, eight_bit_or_float, nin);
         if (nbatch >= tile_from) {
             const size_t gy = (nbatch + 63) / 64;
             if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])

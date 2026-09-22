@@ -1165,13 +1165,41 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   tree. The shape does move the crossover, but less than the driver
   does, and a rule fitted to one device mispredicts the other.
 
-  What that leaves is a number the profile must be told rather than
-  compute. The honest ways to tell it are a table of combinations that
-  have been measured, keyed by device and driver, or a short
-  calibration when a backend opens a device. Neither is written yet;
-  the shipped value stays the Radeon VII's, which is part of why the
-  MI50 reads 41 percent of the reference at 64 rows while reading 74 at
-  512.
+  Measured again with the current tile kernel, which had moved the
+  crossover since the table above, the picture is that width matters as
+  much as the driver. Forcing each kernel and sweeping rows on
+  Qwen3-0.6B-Q8_0 and Qwen3-8B-Q8_0:
+
+  | device | 1024-wide projection | 4096-wide |
+  |---|---:|---:|
+  | Radeon VII, AMD driver | 40 rows | 26 |
+  | MI50, Mesa | 96 | 30 |
+
+  A narrow projection wants a much higher threshold than a wide one on
+  both devices, which is why one constant of 32 was wrong for the small
+  model everywhere and right for the 8B everywhere. The threshold is
+  now 64 rows when a row carries fewer than 4096 values and 32
+  otherwise, the boundary put at 4096 because it is what separates the
+  two models: the 0.6B's widest projection is 3072 and the 8B's
+  narrowest is 4096. An earlier attempt at the same idea put the
+  boundary at 2048, which left the 0.6B feed-forward projection on the
+  wide side, so half the call still took the wrong kernel and the two
+  arms measured the same.
+
+  Interleaved, two passes, three models on the Radeon VII: 0.6B pp32
+  goes from 694 and 705 to 834 and 845 tok/s, pp48 from 973 and 978
+  down to 851 and 852, and pp16, pp64, pp96, pp128, pp512 and every 8B
+  figure are unchanged. On the MI50 the same change reads off the
+  sweeps as 422 to 883 tok/s at 32 rows, 614 to 897 at 48 and 825 to
+  900 at 64, with nothing given up, since its crossover is further from
+  the shipped value. So it costs 13 percent in one band on one device
+  to gain 20 percent in another there and 9 to 109 percent across three
+  bands on the other.
+
+  The per-device ideal is still 48 rows here and 96 there, so a single
+  number remains a compromise, and the argument for a measured table
+  keyed by device and driver, or a calibration at device open, stands.
+  Neither is written.
 
   A second, separate observation, and only an observation: the two
   drivers report different limits for the same Vega20 silicon, 32 KB

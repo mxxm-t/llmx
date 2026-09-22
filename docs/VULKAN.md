@@ -273,6 +273,30 @@ reduction order. The HF gate measures the cost of it.
   into the operand select, so the Q4_K kernel is 265 vector instructions
   rather than 249, but all of them issue at full rate against 345
   quarter-rate-weighted slots before.
+
+  Cutting a third of the issue slots was worth 3.4 percent of 8B Q4_K_M
+  decode and 1.2 of 0.6B Q5_K_M, with Q8_0 and every prefill cell flat,
+  which is the control the change wants: only the paths it touches
+  moved. The size of it says these kernels are not issue bound. They are
+  not bandwidth bound either, the Q4_K matmul reading 390 GB/s of a
+  thousand. They are latency bound, and the register file is what limits
+  how much latency the chip can hide: the K-quant kernels ran three
+  waves per SIMD where the Q8_0 wide kernel runs five.
+
+  Eight of those registers are the batch columns a lane keeps, and a
+  single-sequence decode uses one. So the column count is specialization
+  constant 0 and the backend builds each row kernel twice, dispatching
+  the one-column build whenever a chunk of columns is one wide:
+
+  | Kernel | Registers, 8 columns | Registers, 1 column | Waves per SIMD |
+  |--------|---------------------:|--------------------:|----------------|
+  | matmul_row_q4 | 69 | 57 | 3 -> 4 |
+  | matmul_row_k4 | 73 | 63 | 3 -> 4 |
+  | matmul_row_k5 | 83 | 69 | 3 |
+  | matmul_row_k  | 72 | 62 | 3 -> 4 |
+
+  Q5_K does not clear the 64 registers a fourth wave needs, which is why
+  it gains least.
 - **matmul, prefill** (the row counts below): a workgroup computes a
   TILE_ROWS x 64 output tile, walking the inner dimension 32 at a time;
   each step stages the dequantized W tile and the X tile in shared

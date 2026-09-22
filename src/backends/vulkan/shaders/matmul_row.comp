@@ -68,6 +68,16 @@
 #endif
 #include "q.glsl"
 layout(local_size_x = 256) in;
+// How many batch columns a lane keeps in registers, specialization constant
+// 0, so the same module builds a decode kernel that keeps one. The eight
+// accumulators are live across the whole weight loop whatever the pushed
+// column count holds, and on this chip they are eight of the Q4_K kernel's
+// 73 registers, which is the difference between three waves per SIMD and
+// four. These kernels are latency bound rather than issue bound, so that is
+// worth 15 percent of 8B Q4_K_M decode; the backend dispatches the
+// one-column build whenever a chunk of columns is one wide, which every
+// single-sequence decode is.
+layout(constant_id = 0) const uint MAX_COLS = 8;
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
     uint nout0; uint type0; uint wide0; uint start0;
@@ -233,8 +243,11 @@ void main() {
     uint rsub = lane / p.cluster;      // which of the subgroup's rows
     uint l = lane - rsub * p.cluster;  // lane within the row's cluster
     uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
-    float acc[8];
-    for (uint c = 0u; c < 8u; ++c) acc[c] = 0.0;
+    // Folded to one in the one-column build, so the loops below collapse
+    // and a single accumulator stays live.
+    const uint ncols = MAX_COLS == 1u ? 1u : p.ncols;
+    float acc[MAX_COLS];
+    for (uint c = 0u; c < MAX_COLS; ++c) acc[c] = 0.0;
     if (row < nout) {
 #ifdef LLMX_Q8W
         {
@@ -261,7 +274,7 @@ void main() {
                 wa = (wa >> 16u) | ((t == 3u ? sb : sa) << 16u);
                 wb = (wb >> 16u) | ((t == 3u ? sc : sb) << 16u);
                 if (t == 0u) wc = 0u;
-                for (uint c = 0u; c < p.ncols; ++c) {
+                for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a2 = xa_col(col) / 2u + j * 16u;
                     int p0 = 0, p1 = 0;
@@ -285,7 +298,7 @@ void main() {
                 float scale = unpackHalf2x16(uint(w16s[pi].w16[o >> 1u])).x;
                 uint q0 = hword_at(o + 2u), q1 = hword_at(o + 6u), q2 = hword_at(o + 10u), q3 = hword_at(o + 14u);
                 uint q4 = hword_at(o + 18u), q5 = hword_at(o + 22u), q6 = hword_at(o + 26u), q7 = hword_at(o + 30u);
-                for (uint c = 0u; c < p.ncols; ++c) {
+                for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a2 = xa_col(col) / 2u + b * 8u;
                     int s = byte_dot(q0, xq2[a2]) + byte_dot(q1, xq2[a2 + 1u]) + byte_dot(q2, xq2[a2 + 2u]) + byte_dot(q3, xq2[a2 + 3u]) +
@@ -297,7 +310,7 @@ void main() {
             uint wbase = row * p.nin;
             for (uint i = l; i < p.nin; i += p.cluster) {
                 float w = wfs[pi].wf[wbase + i];
-                for (uint c = 0u; c < p.ncols; ++c) acc[c] += w * x[(p.col0 + c) * p.nin + i];
+                for (uint c = 0u; c < ncols; ++c) acc[c] += w * x[(p.col0 + c) * p.nin + i];
             }
         }
 #endif
@@ -330,7 +343,7 @@ void main() {
                     n0 = wb; n1 = wc; n2 = wd; n3 = we;
                 }
                 uint b = 2u * j + t;
-                for (uint c = 0u; c < p.ncols; ++c) {
+                for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
@@ -352,7 +365,7 @@ void main() {
                 uint o = bbase + b * Q4_0_BYTES;
                 float d = unpackHalf2x16(uint(w16s[pi].w16[o >> 1u])).x;
                 uint n0 = hword_at(o + 2u), n1 = hword_at(o + 6u), n2 = hword_at(o + 10u), n3 = hword_at(o + 14u);
-                for (uint c = 0u; c < p.ncols; ++c) {
+                for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
@@ -376,7 +389,7 @@ void main() {
                 uint w1 = w32s[pi].w32[o + 1u], w2 = w32s[pi].w32[o + 2u];
                 uint w3 = w32s[pi].w32[o + 3u], w4 = w32s[pi].w32[o + 4u];
                 vec2 dm = unpackHalf2x16(w0);
-                for (uint c = 0u; c < p.ncols; ++c) {
+                for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     uvec4 lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
@@ -430,7 +443,7 @@ void main() {
                 float dl = dd.x * scl, dh = dd.x * sch;
                 float ml = h == 0u ? dd.y * mnl : 0.0, mh = h == 0u ? dd.y * mnh : 0.0;
                 uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
-                for (uint cc = 0u; cc < p.ncols; ++cc) {
+                for (uint cc = 0u; cc < ncols; ++cc) {
                     uint col = p.col0 + cc;
                     uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
                     QDOT pl = QDOT(0);
@@ -487,7 +500,7 @@ void main() {
                 uint q2a = ((lo0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 4u) & 0x03030303u) << 4u), q2b = ((lo1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 4u) & 0x03030303u) << 4u);
                 uint q3a = ((hi0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 6u) & 0x03030303u) << 4u), q3b = ((hi1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 6u) & 0x03030303u) << 4u);
                 uint bg = b * 8u + n * 4u;   // the 32-block of group 0
-                for (uint c = 0u; c < p.ncols; ++c) {
+                for (uint c = 0u; c < ncols; ++c) {
                     uint col = p.col0 + c;
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
                     uvec4 x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
@@ -513,10 +526,10 @@ void main() {
     }
     // Reduce within each cluster of lanes; every lane joins every shuffle
     // and lanes past the last row add zero.
-    for (uint c = 0u; c < p.ncols; ++c) {
+    for (uint c = 0u; c < ncols; ++c) {
         float s = acc[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
-        if (l == 0u && row < nout && c < p.ncols) {
+        if (l == 0u && row < nout && c < ncols) {
             if (p.accum != 0u) ys[pi].y[(p.col0 + c) * nout + row] += s;
             else ys[pi].y[(p.col0 + c) * nout + row] = s;
         }

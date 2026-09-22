@@ -241,6 +241,27 @@ inline KernelId row_dot_variant(KernelId plain) {
     }
 }
 
+// Whether a kernel id is one of the row kernels: the six families in their
+// two dot forms. They share the activation twin and take the column count as
+// a specialization constant.
+inline bool is_row_kernel(KernelId id) {
+    switch (id) {
+    case K_MATMUL_ROW: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4:
+    case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
+    case K_MATMUL_ROW_DOT: case K_MATMUL_ROW_Q8W_DOT: case K_MATMUL_ROW_Q4_DOT:
+    case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT:
+        return true;
+    default: return false;
+    }
+}
+
+// How many batch columns a row kernel is built for, specialization constant
+// 0 like the tile kernel's row count. A chunk one column wide, which every
+// single-sequence decode is, takes the narrow build: eight accumulators live
+// across the weight loop cost a wave per SIMD (shaders/matmul_row.comp).
+const uint32_t kRowColsWide = 8, kRowColsOne = 1;
+const int kVariants = 2;   // a kernel's pipelines: the wide build, then the one-column
+
 // The tile kernel's row count, set as specialization constant 0 at pipeline
 // creation. Two heights are built from one module: the shorter fills a device
 // that a taller tile would leave idle, the taller reads less shared memory per
@@ -852,15 +873,21 @@ public:
         d.fn.vkDeviceWaitIdle(d.device);
         for (auto& p : pending_) p.clear();
         for (auto& a : arena_) a.buffer.reset();
-        for (Kernel& k : kernels_) {
-            if (k.pipeline) d.fn.vkDestroyPipeline(d.device, k.pipeline, nullptr);
-            if (k.layout) d.fn.vkDestroyPipelineLayout(d.device, k.layout, nullptr);
-            if (k.set_layout) d.fn.vkDestroyDescriptorSetLayout(d.device, k.set_layout, nullptr);
-            if (k.module) d.fn.vkDestroyShaderModule(d.device, k.module, nullptr);
-        }
+        for (auto& variants : kernels_)
+            for (Kernel& k : variants) {
+                if (k.pipeline) d.fn.vkDestroyPipeline(d.device, k.pipeline, nullptr);
+                if (k.layout) d.fn.vkDestroyPipelineLayout(d.device, k.layout, nullptr);
+                if (k.set_layout) d.fn.vkDestroyDescriptorSetLayout(d.device, k.set_layout, nullptr);
+                if (k.module) d.fn.vkDestroyShaderModule(d.device, k.module, nullptr);
+            }
         staging_.reset();
         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
         if (pool_) d.fn.vkDestroyCommandPool(d.device, pool_, nullptr);
+    }
+
+    // A compiled kernel's name, the one-column build of a row kernel marked.
+    static std::string kernel_variant_name(int id, int variant) {
+        return std::string(kKernelNames[id]) + (variant ? "_1col" : "");
     }
 
     const std::string& name() const { return dev_->name; }
@@ -872,8 +899,9 @@ public:
         std::string out;
         const Device& d = *dev_;
         if (!d.exec_stats) return out;
-        for (int id = 0; id < K_COUNT; ++id) {
-            const Kernel& k = kernels_[id];
+        for (int slot = 0; slot < K_COUNT * kVariants; ++slot) {
+            const int id = slot / kVariants, variant = slot % kVariants;
+            const Kernel& k = kernels_[id][variant];
             if (!k.pipeline) continue;
             VkPipelineInfoKHR pi{};
             pi.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
@@ -893,7 +921,7 @@ public:
                     s.pNext = nullptr;
                 }
                 if (d.get_exec_stats(d.device, &ei, &ns, st.data()) != VK_SUCCESS) continue;
-                out += kKernelNames[id];
+                out += kernel_variant_name(id, variant);
                 out += ':';
                 for (const auto& s : st) {
                     out += ' ';
@@ -917,8 +945,9 @@ public:
         std::vector<std::pair<std::string, std::string>> out;
         const Device& d = *dev_;
         if (!d.exec_ir) return out;
-        for (int id = 0; id < K_COUNT; ++id) {
-            const Kernel& k = kernels_[id];
+        for (int slot = 0; slot < K_COUNT * kVariants; ++slot) {
+            const int id = slot / kVariants, variant = slot % kVariants;
+            const Kernel& k = kernels_[id][variant];
             if (!k.pipeline) continue;
             VkPipelineInfoKHR pi{};
             pi.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
@@ -958,7 +987,7 @@ public:
                     text += '\n';
                 }
             }
-            out.emplace_back(kKernelNames[id], std::move(text));
+            out.emplace_back(kernel_variant_name(id, variant), std::move(text));
         }
         return out;
     }
@@ -1039,7 +1068,7 @@ public:
     // homogeneous so the shares hold, and the totals are of the sample.
     size_t timed_dispatches() const {
         size_t n = 0;
-        for (int i = 0; i < K_COUNT; ++i) n += kernel_calls_[i];
+        for (size_t i = 0; i < K_COUNT * kVariants; ++i) n += kernel_calls_[i];
         return n;
     }
 
@@ -1054,13 +1083,14 @@ public:
                                            sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT)
                 == VK_SUCCESS) {
             for (size_t i = 0; i + 1 < query_kernel_.size() * 2 && i + 1 < stamps.size(); i += 2) {
-                const KernelId k = query_kernel_[i / 2];
+                const int k = query_kernel_[i / 2];
                 kernel_ns_[k] += double(stamps[i + 1] - stamps[i]) * dev_->timestamp_ns;
                 ++kernel_calls_[k];
             }
         }
-        for (int i = 0; i < K_COUNT; ++i)
-            if (kernel_calls_[i]) out.emplace_back(kKernelNames[i], kernel_ns_[i] / 1e6);
+        for (int i = 0; i < K_COUNT * kVariants; ++i)
+            if (kernel_calls_[i])
+                out.emplace_back(kernel_variant_name(i / kVariants, i % kVariants), kernel_ns_[i] / 1e6);
         return out;
     }
 
@@ -1433,7 +1463,7 @@ public:
                       bind(X),
                       bind(a.data), bind(b.data), bind(c.data),
                       xqi, xqi, xqi, xqi},
-                     pc, sizeof(pc), total);
+                     pc, sizeof(pc), total, 1, ncols == 1 ? 1 : 0);
         }
         // The outputs may be what the twin describes.
         for (const Projection* pr : live)
@@ -1762,8 +1792,8 @@ private:
         return info;
     }
 
-    Kernel& kernel(KernelId id) {
-        Kernel& k = kernels_[id];
+    Kernel& kernel(KernelId id, int variant = 0) {
+        Kernel& k = kernels_[id][variant];
         if (k.pipeline) return k;
         Device& d = *dev_;
         const KernelSource& src = kKernels[id];
@@ -1802,15 +1832,18 @@ private:
         ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
         ci.stage.module = k.module;
         ci.stage.pName = "main";
-        // The tile kernels take their row count as a specialization constant.
-        const uint32_t tile_rows = id == K_MATMUL_TILE_TALL ? kTileRowsTall : kTileRowsShort;
+        // The tile kernels take their row count as specialization constant
+        // 0 and the row kernels their column count.
+        const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL;
+        const uint32_t spec_value = tile ? (id == K_MATMUL_TILE_TALL ? kTileRowsTall : kTileRowsShort)
+                                         : (variant ? kRowColsOne : kRowColsWide);
         const VkSpecializationMapEntry entry{0, 0, sizeof(uint32_t)};
         VkSpecializationInfo spec{};
         spec.mapEntryCount = 1;
         spec.pMapEntries = &entry;
         spec.dataSize = sizeof(uint32_t);
-        spec.pData = &tile_rows;
-        if (id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL) ci.stage.pSpecializationInfo = &spec;
+        spec.pData = &spec_value;
+        if (tile || is_row_kernel(id)) ci.stage.pSpecializationInfo = &spec;
         ci.layout = k.layout;
         if (d.exec_stats) ci.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
         if (d.exec_ir) ci.flags |= VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR;
@@ -1823,14 +1856,11 @@ private:
     // One dispatch: bind the pipeline, push the buffers and the constants,
     // launch `groups` workgroups, and fence it off from the next command.
     void dispatch(KernelId id, std::initializer_list<VkDescriptorBufferInfo> buffers,
-                  const void* push, size_t push_bytes, uint32_t groups_x, uint32_t groups_y = 1) {
-        Kernel& k = kernel(id);
+                  const void* push, size_t push_bytes, uint32_t groups_x, uint32_t groups_y = 1,
+                  int variant = 0) {
+        Kernel& k = kernel(id, variant);
         if (buffers.size() != k.buffers) throw std::logic_error("vulkan: kernel binding count");
-        if (id != K_QUANTIZE_X && id != K_RMS_NORM_ROWS && id != K_SILU_MUL && id != K_MATMUL_ROW &&
-            id != K_MATMUL_ROW_Q8W && id != K_MATMUL_ROW_Q4 && id != K_MATMUL_ROW_K4 && id != K_MATMUL_ROW_K5 &&
-            id != K_MATMUL_ROW_K && id != K_MATMUL_ROW_DOT && id != K_MATMUL_ROW_Q8W_DOT &&
-            id != K_MATMUL_ROW_Q4_DOT && id != K_MATMUL_ROW_K4_DOT && id != K_MATMUL_ROW_K5_DOT &&
-            id != K_MATMUL_ROW_K_DOT)
+        if (!is_row_kernel(id) && id != K_QUANTIZE_X && id != K_RMS_NORM_ROWS && id != K_SILU_MUL)
             xq_tag_ = XqTag{};
         if (push_bytes > kPushBytes) throw std::logic_error("vulkan: push constants exceed 128 bytes");
         for (const auto& b : buffers)
@@ -1866,7 +1896,7 @@ private:
             dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_, query_next_);
             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
             dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_, query_next_ + 1);
-            query_kernel_.push_back(id);
+            query_kernel_.push_back(id * kVariants + variant);
             query_next_ += 2;
         } else {
             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
@@ -1957,9 +1987,9 @@ private:
     VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
     static const uint32_t kQueries = 8192;    // two per dispatch, reset each submission
     uint32_t query_next_ = 0;
-    std::vector<KernelId> query_kernel_;
-    double kernel_ns_[K_COUNT] = {0};
-    size_t kernel_calls_[K_COUNT] = {0};
+    std::vector<int> query_kernel_;   // id * kVariants + variant
+    double kernel_ns_[K_COUNT * kVariants] = {0};
+    size_t kernel_calls_[K_COUNT * kVariants] = {0};
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
     // What the twin in xq_ describes: the float input it was made from
     // and its length. Cleared by anything that writes a buffer other than
@@ -1968,7 +1998,7 @@ private:
     XqTag xq_tag_;
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];
     Arena arena_[kRing];
-    Kernel kernels_[K_COUNT];
+    Kernel kernels_[K_COUNT][kVariants];
 };
 
 inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s) {

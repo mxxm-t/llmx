@@ -154,8 +154,7 @@ int main(int argc, char** argv) {
         auto model = accepted(first, {quant, scalar, empty});
         require(model.kv.size() == 3, "split bookkeeping survived assembly");
         gguf::write_gguf(model, plain.string());
-        auto roundtrip = accepted(plain, {quant, scalar, empty});
-        require(roundtrip.kv.size() == 3, "single-file roundtrip changed metadata");
+        require(accepted(plain, {quant, scalar, empty}).kv.size() == 3, "single-file roundtrip changed metadata");
         auto adapter = format::open(first.string());
         require(adapter && adapter->tensors().size() == 3 && adapter->metadata_string("general.architecture") == "qwen3",
                 "format adapter lost assembled tensors or metadata");

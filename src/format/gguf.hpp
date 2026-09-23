@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include <string>
+#include <memory>
 #include <utility>
 #include <iostream>
 #include <fstream>
@@ -14,6 +15,7 @@
 #include <unordered_set>
 
 #include "format/format.hpp"
+#include "format/mapped_file.hpp"
 
 // GGUF file format reader/writer, implemented from scratch.
 // Implements GGUF v3 and the tensor types listed below.
@@ -134,16 +136,30 @@ struct TensorInfo {
 struct GGUFModel {
     std::vector<std::pair<std::string, MetaValue>> kv;
     std::vector<TensorInfo> tensors;
-    // All tensor data in ONE contiguous allocation.
+    // All tensor data in ONE contiguous range: a single-file GGUF's data section mapped read-only, or for sharded and in-memory models one allocation.
     // One heap block per tensor would fragment the weight stream that decode is bandwidth bound on.
     std::vector<uint8_t> blob;
+    std::shared_ptr<const format::MappedFile> mapped;
+    size_t mapped_start = 0;   // where the data section starts in the mapping
     std::vector<size_t> offsets;
 
     // Drop the tensor bytes, keeping the metadata and the tensor table. For a caller whose model no longer reads them in place, which is any model whose every weight a copying backend took. tensor_data is invalid afterwards.
-    void release_payload() { std::vector<uint8_t>().swap(blob); }
+    void release_payload() {
+        std::vector<uint8_t>().swap(blob);
+        mapped.reset();
+    }
 
-    const uint8_t* tensor_data(size_t i) const { return blob.data() + offsets[i]; }
-    uint8_t* tensor_data(size_t i) { return blob.data() + offsets[i]; }
+    // The tensor bytes and their extent, whichever holds them.
+    const uint8_t* payload() const { return mapped ? mapped->data() + mapped_start : blob.data(); }
+    size_t payload_size() const { return mapped ? mapped->size() - mapped_start : blob.size(); }
+    bool holds(const void* p) const {
+        const uint8_t* b = payload();
+        return b && (const uint8_t*)p >= b && (const uint8_t*)p < b + payload_size();
+    }
+
+    const uint8_t* tensor_data(size_t i) const { return payload() + offsets[i]; }
+    // The same bytes; a mapped model's are read-only memory, so only an in-memory model may be written through this.
+    uint8_t* tensor_data(size_t i) { return const_cast<uint8_t*>(payload()) + offsets[i]; }
     size_t tensor_bytes(size_t i) const { return (size_t)tensors[i].data_size(); }
 
     // Append one tensor's bytes.
@@ -500,6 +516,42 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
         m.kv.erase(std::remove_if(m.kv.begin(), m.kv.end(), [](const auto& kv) {
             return kv.first == "split.no" || kv.first == "split.count" || kv.first == "split.tensors.count";
         }), m.kv.end());
+    }
+
+    // One file is mapped, its tensors read in place; the pages are touched once in the steps the progress reports, so the model is resident before its first pass and the host can still drop what a device copied.
+    if (files.size() == 1 && !m.tensors.empty()) {
+        auto map = std::make_shared<const format::MappedFile>(path);
+        const uint64_t start = files[0].data_start;
+        if (start > map->size()) throw std::ios_base::failure("GGUF data section exceeds file extent");
+        size_t payload = 0;
+        m.offsets.reserve(m.tensors.size());
+        for (const auto& t : m.tensors) {
+            if (t.offset % alignof(float)) throw std::runtime_error("GGUF tensor offset is not float aligned");
+            if (t.offset > map->size() - start || t.data_size() > map->size() - start - t.offset)
+                throw std::ios_base::failure("GGUF tensor exceeds file extent");
+            m.offsets.push_back(size_t(t.offset));
+            payload = size_t(checked_add(payload, t.data_size()));
+        }
+        m.mapped = map;
+        m.mapped_start = size_t(start);
+        if (progress && payload) progress(0, payload);
+        size_t completed = 0;
+        volatile uint8_t sink = 0;
+        for (size_t i = 0; i < m.tensors.size(); ++i) {
+            const uint8_t* p = m.tensor_data(i);
+            const size_t bytes = m.tensor_bytes(i);
+            for (size_t offset = 0; offset < bytes;) {
+                const size_t chunk = std::min(bytes - offset, size_t(8 * 1024 * 1024));
+                uint8_t acc = 0;
+                for (size_t b = 0; b < chunk; b += 4096) acc ^= p[offset + b];
+                sink = sink ^ acc;
+                offset += chunk;
+                completed += chunk;
+                if (progress && completed < payload) progress(completed, payload);
+            }
+        }
+        if (progress) progress(completed, payload);
+        return m;
     }
 
     // Size the blob exactly, then read each tensor straight into place: no per-tensor temporary and no reallocation of an 8 GB buffer.

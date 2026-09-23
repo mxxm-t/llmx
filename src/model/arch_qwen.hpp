@@ -332,8 +332,8 @@ public:
             if (t.ne.size() > 4)
                 throw std::runtime_error("inference: invalid tensor rank " + t.name);
             const uint64_t bytes = t.data_size();
-            if (m.offsets[i] % alignof(float) || m.offsets[i] > m.blob.size() ||
-                bytes > m.blob.size() - m.offsets[i])
+            if (m.offsets[i] % alignof(float) || m.offsets[i] > m.payload_size() ||
+                bytes > m.payload_size() - m.offsets[i])
                 throw std::runtime_error("inference: invalid tensor storage " + t.name);
         }
 
@@ -719,7 +719,7 @@ private:
             const size_t i = tindex_.at(t.name);
             backend::BufferPtr buf = devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i));
             const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
-            if (hp && hp >= m_->blob.data() && hp < m_->blob.data() + m_->blob.size()) holds_payload_ = true;
+            if (hp && m_->holds(hp)) holds_payload_ = true;
             return Weight{t.type, std::move(buf), (size_t)input, (size_t)output};
         };
         const size_t ed = (size_t)place_.embed_device, od = (size_t)place_.output_device;
@@ -766,7 +766,7 @@ private:
         const size_t i = tindex_.at(t.name);
         backend::BufferPtr buf = devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i));
         const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
-        if (hp && hp >= m_->blob.data() && hp < m_->blob.data() + m_->blob.size()) holds_payload_ = true;
+        if (hp && m_->holds(hp)) holds_payload_ = true;
         return Weight{t.type, std::move(buf), (size_t)input, (size_t)output};
     }
 

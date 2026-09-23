@@ -226,7 +226,7 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
     std::vector<uint8_t> out;
     for (size_t i = 0; i < m.tensors.size(); i++) {
         const auto& t = m.tensors[i];
-        const uint8_t* raw = m.tensor_data(i);
+        const uint8_t* raw = std::as_const(m).tensor_data(i);
         size_t n = (size_t)t.n_elements();
         std::vector<float> f(n);
         if (t.type == gguf::GGML_TYPE_F32) {

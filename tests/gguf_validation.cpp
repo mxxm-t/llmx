@@ -280,6 +280,7 @@ int main(int argc, char** argv) {
                 std::memcmp(model.tensor_data(0), written.tensor_data(0), 4) == 0 &&
                 std::memcmp(model.tensor_data(1), written.tensor_data(1), 34) == 0, "custom alignment writer roundtrip changed bytes");
         ++cases;
+        model = {};   // unmaps the file before it is removed
         std::filesystem::remove(path);
         std::cout << "GGUF validation: " << cases << " independent file cases pass\n";
     } catch (const std::exception& error) {

@@ -1359,7 +1359,25 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-8B-Q8_0 | 759 vs 526, 144% | 888 vs 736, 121% | 934 vs 864, 108% | 61 vs 58, 104% |
 
   Prompt processing clears the reference in every cell. Decode on 8B Q4_K_M and 0.6B Q4_0 is at 97 percent, the one gap left.
-- **Left:** on the MI50 against one card of the reference, from the one-card gate in the forty-fifth paragraph: decode on 8B Q4_K_M and 0.6B Q4_0 at 97 percent, the Q6_K and Q4_0 matvecs being 1.28 and about 2.3 times the reference's; loading, which reads the whole file into host memory before uploading it; folding a layer's
+
+  Forty-sixth, the RMS norm over several workgroups a row. A decode profile put `rms_norm_rows` at 18 percent of 8B Q4_K_M's device time, and alone on an MI50 one 1024-wide row took 15 to 16.6 us against 4.2 for an empty dispatch. One workgroup took the row, and on such a device it also writes the 8-bit twin, a chain of dependent shuffles per value, so a 4096-wide row was sixteen serial steps on one compute unit. Now a row's 256-value chunks each have a workgroup; every one sums the whole row's squares in the same order, so all reach the same scale bit for bit, and writes its own chunk and its twin. When dst and src overlap, as before the output head, the row keeps one workgroup, since a chunk's output would change what another is summing.
+
+  Decode goes from 331 to 351 tok/s on 0.6B Q4_0, from 85 to 94 on 8B Q4_K_M and from 58 to 65 on 8B Q8_0. Reducing the sum of squares through subgroups rather than the shared-memory tree took the norm's barriers from eight to one but added in another order, and the HF gate's Q8_0 fixture then ranked a different fifth token on one prompt, a top-5 overlap of 4 against its frozen 5; the tree stays and the norm's arithmetic is unchanged.
+
+  Also tried and not kept, all on one MI50: a Q6_K decode kernel with a subgroup on two rows sharing their 16-bit activations, 175 us at 14336 x 4096 against the row kernel's 169; Q6_K with sixteen lanes a block, 225; and Q4_K with four lanes a block, 134 against 92. None of the row kernel's Q4_K or Q6_K lane layouts beats the one it has.
+
+  The one-card gate at this change, same protocol:
+
+  | model | pp64 | pp247 | pp512 | tg32 |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | 5037 vs 4889, 103% | 7268 vs 7223, 101% | 7901 vs 6836, 116% | 340 vs 329, 103% |
+  | Qwen3-0.6B-Q5_K_M | 4506 vs 2985, 151% | 6676 vs 4429, 151% | 7427 vs 5754, 129% | 359 vs 314, 115% |
+  | Qwen3-0.6B-Q8_0 | 5108 vs 4653, 110% | 7361 vs 6978, 105% | 8028 vs 6688, 120% | 345 vs 299, 116% |
+  | Qwen3-8B-Q4_K_M | 698 vs 261, 268% | 837 vs 633, 132% | 886 vs 764, 116% | 96 vs 89, 108% |
+  | Qwen3-8B-Q8_0 | 762 vs 526, 145% | 879 vs 735, 120% | 925 vs 865, 107% | 65 vs 58, 111% |
+
+  Every cell of the one-card MI50 gate clears the reference. The thinnest is 0.6B Q4_0 at 247 rows, 101 percent, within what one run can move.
+- **Left:** on the MI50 against one card of the reference, every cell of the gate in the forty-sixth paragraph clears it, the thinnest at 101 percent; the Q6_K and Q4_0 matvecs are still 1.28 and about 2.3 times the reference's; loading, which reads the whole file into host memory before uploading it; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
   barrier time measured in the twenty-ninth; the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the

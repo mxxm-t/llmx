@@ -1,16 +1,13 @@
 #version 450
-// One workgroup per row: dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i].
-// The sum of squares is reduced through shared memory so the kernel does
-// not depend on the subgroup size. dst and src may be the same buffer: every
-// element is read before the barrier and written after it. With `quant`
-// set the rows are dense and a multiple of 32 wide, and the row kernel's
-// 16-bit twin of the output is written beside it (xquant.glsl), which
-// saves the dispatch that would make it: a lane's elements are 256 apart,
-// so a block of 32 lies in 32 consecutive lanes.
+// dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i], per row, over `chunks` workgroups a row (below).
+// The sum of squares is reduced through shared memory as a tree, so the kernel does not depend on the subgroup size. A subgroup reduction took one barrier where the tree takes eight, but it adds in a different order, and on an MI50 the HF gate's Q8_0 fixture then ranked a different fifth token on one prompt, so the tree stays.
+// With `quant` set the rows are dense and a multiple of 32 wide, and the row kernel's twin of the output is written beside it (xquant.glsl), which saves the dispatch that would make it: a lane's elements are 256 apart, so a block of 32 lies in 32 consecutive lanes.
+// With one chunk dst and src may be the same buffer: every element is read before the barrier and written after it, each by its own lane.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; uint quant; } p;
+// `chunks` workgroups share a row: each sums the whole row's squares in the same order, so all reach the same scale bit for bit, and writes its own 256-value chunks. The twin's shuffles per value are a dependent chain, and one workgroup walking a 4096-wide row in sixteen steps on one compute unit took 15 us on an MI50. The backend takes one chunk when dst and src overlap, since a chunk's output would change what another is summing; the arithmetic is the same either way.
+layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; uint quant; uint chunks; } p;
 layout(set = 0, binding = 0) buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer S { float src[]; };
 layout(set = 0, binding = 2) readonly buffer W { float w[]; };
@@ -18,7 +15,7 @@ layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
 #include "xquant.glsl"
 shared float red[256];
 void main() {
-    uint row = gl_WorkGroupID.x;
+    uint row = gl_WorkGroupID.x / p.chunks, chunk = gl_WorkGroupID.x - row * p.chunks;
     uint lid = gl_LocalInvocationID.x;
     uint base = row * p.stride;
     float s = 0.0;
@@ -30,7 +27,7 @@ void main() {
         barrier();
     }
     float r = 1.0 / sqrt(red[0] / float(p.n) + p.eps);
-    for (uint i = lid; i < p.n; i += 256u) {
+    for (uint i = chunk * 256u + lid; i < p.n; i += 256u * p.chunks) {
         float v = src[base + i] * r * w[i];
         dst[base + i] = v;
         if (p.quant != 0u) xquant_twin(row * p.n + i, v, p.rows * p.n);

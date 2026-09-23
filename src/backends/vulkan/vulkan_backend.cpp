@@ -1241,9 +1241,14 @@ public:
                        size_t stride, float eps) override {
         if (!rows || !n) return;
         const bool quant = stride == n && n % 32 == 0;
-        struct { uint32_t rows, n, stride; float eps; uint32_t quant; } pc{u32(rows), u32(n), u32(stride), eps, quant ? 1u : 0u};
+        // Several workgroups a row when the output does not overlap the input (shaders/rms_norm_rows.comp).
+        const bool overlap = dst.buffer == src.buffer &&
+                             dst.offset < src.offset + rows * stride && src.offset < dst.offset + rows * stride;
+        const size_t chunks = overlap ? 1 : (n + 255) / 256;
+        struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks; }
+            pc{u32(rows), u32(n), u32(stride), eps, quant ? 1u : 0u, u32(chunks)};
         dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? xq_for(rows * n) : bind(dst)}, &pc, sizeof(pc),
-                 u32(rows), 1, twin_variant());
+                 u32(rows * chunks), 1, twin_variant());
         if (quant) xq_tag_ = XqTag{bind(dst), rows * n, want_x8_};
     }
 

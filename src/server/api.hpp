@@ -3,6 +3,7 @@
 // Both families share one parse, one scheduler request and one drain loop; one thread per connection parses, tokenizes, submits and drains.
 #include <atomic>
 #include <cmath>
+#include <cstdio>
 #include <ctime>
 #include <string>
 #include <thread>
@@ -113,7 +114,7 @@ private:
                   "{\"status\":\"ok\",\"model\":" + jmini::quote(cfg_.model_name) +
                   ",\"active\":" + std::to_string(s.active) + ",\"queued\":" + std::to_string(s.queued) +
                   ",\"donors\":" + std::to_string(s.donors) + ",\"prefix_hits\":" + std::to_string(s.prefix_hits) +
-                  ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + "}");
+                  ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + ",\"pauses\":" + std::to_string(s.pauses) + "}");
     }
     // The list clients read the model id from, with the file's context length and vocabulary beside the standard fields.
     void models(http::Connection& c) {
@@ -203,6 +204,17 @@ private:
         return "{\"prompt_tokens\":" + std::to_string(prompt_tokens) + ",\"completion_tokens\":" + std::to_string(tokens) +
                ",\"total_tokens\":" + std::to_string(prompt_tokens + tokens) + "}";
     }
+    // A finished request's speed in the fields clients such as Open WebUI read beside the standard usage: prompt tokens prefilled and reused, milliseconds to the first token, and generation after it.
+    static std::string timings_json(const Request& r, size_t tokens) {
+        const Request::Timings t = r.timings();
+        const size_t cached = r.reused(), prefilled = r.prompt_tokens() - cached, predicted = tokens > 1 ? tokens - 1 : 0;
+        auto rate = [](size_t n, double ms) { return ms > 0 ? 1000.0 * (double)n / ms : 0.0; };
+        auto num = [](double v) { char b[32]; std::snprintf(b, sizeof b, "%.3f", v); return std::string(b); };
+        return "{\"cache_n\":" + std::to_string(cached) + ",\"prompt_n\":" + std::to_string(prefilled) +
+               ",\"prompt_ms\":" + num(t.prompt_ms) + ",\"prompt_per_second\":" + num(rate(prefilled, t.prompt_ms)) +
+               ",\"predicted_n\":" + std::to_string(predicted) + ",\"predicted_ms\":" + num(t.predicted_ms) +
+               ",\"predicted_per_second\":" + num(rate(predicted, t.predicted_ms)) + ",\"queued_ms\":" + num(t.queued_ms) + "}";
+    }
     // The head every compatible object and chunk starts with.
     std::string head(const std::string& id, const char* object) const {
         return "{\"id\":" + jmini::quote(id) + ",\"object\":\"" + object + "\",\"created\":" + std::to_string(started_) +
@@ -221,6 +233,12 @@ private:
         return head(id, "text_completion") + ",\"choices\":[{\"index\":0,\"text\":" + jmini::quote(piece) +
                ",\"finish_reason\":" + fr + "}]}";
     }
+    // The same chunk with a request's timings, for the one that carries the finish reason.
+    std::string last_chunk(Route route, const std::string& id, const std::string& finish, const Request& r, size_t tokens) const {
+        std::string c = chunk(route, id, "", false, &finish);
+        c.pop_back();
+        return c + ",\"timings\":" + timings_json(r, tokens) + "}";
+    }
 
     void generate(http::Connection& c, const http::Request& req, Route route) {
         jmini::Value body;
@@ -237,11 +255,12 @@ private:
 
         std::vector<uint32_t> ids = tok_.encode(prompt);
         if (ids.empty()) throw BadRequest(400, "the prompt encodes to no tokens");
-        // An uncapped request reserves what is left of its token limit, so at admission it holds the pool that much and concurrent uncapped requests queue behind it rather than run beside it.
+        // An uncapped request may run to its token limit; the scheduler reserves its blocks as it grows, so uncapped requests run side by side.
         if (params.max_tokens == kUntilLimit) {
             if (ids.size() >= sched_.token_limit())
                 throw BadRequest(413, "the prompt fills the " + std::to_string(sched_.token_limit()) + " tokens a request may hold");
             params.max_tokens = (int)(sched_.token_limit() - ids.size());
+            params.until_limit = true;
         }
         if (ids.size() + (size_t)std::max(params.max_tokens, 0) > sched_.token_limit())
             throw BadRequest(413, "prompt plus max_tokens exceeds the " + std::to_string(sched_.token_limit()) +
@@ -277,10 +296,10 @@ private:
             text += pending;
             const std::string finish = r->finish();
             if (finish == "error") throw std::runtime_error(r->error());
-            const size_t prompt_tokens = r->prompt().size();
+            const size_t prompt_tokens = r->prompt_tokens();
             if (stream && compat) {
                 if (!pending.empty() || first) c.write_chunk("data: " + chunk(route, id, pending, first, nullptr) + "\n\n");
-                c.write_chunk("data: " + chunk(route, id, "", false, &finish) + "\n\n");
+                c.write_chunk("data: " + last_chunk(route, id, finish, *r, gen.size()) + "\n\n");
                 if (include_usage)
                     c.write_chunk("data: " + head(id, route == Route::chat_completions ? "chat.completion.chunk" : "text_completion") +
                                   ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size()) + "}\n\n");
@@ -295,12 +314,12 @@ private:
                 c.respond(200, "application/json",
                           head(id, "chat.completion") + ",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":" +
                           jmini::quote(text) + "},\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
-                          usage_json(prompt_tokens, gen.size()) + "}");
+                          usage_json(prompt_tokens, gen.size()) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
             } else if (route == Route::completions) {
                 c.respond(200, "application/json",
                           head(id, "text_completion") + ",\"choices\":[{\"index\":0,\"text\":" + jmini::quote(text) +
                           ",\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
-                          usage_json(prompt_tokens, gen.size()) + "}");
+                          usage_json(prompt_tokens, gen.size()) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
             } else {
                 std::string ids_json = "[";
                 for (size_t i = 0; i < gen.size(); ++i) ids_json += (i ? "," : "") + std::to_string(gen[i]);

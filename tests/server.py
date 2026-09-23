@@ -32,12 +32,15 @@ class Server:
         self.port = free_port()
         # The device and cache flags go on the command, not the executable path, which device_args would not recognise; the server then runs where the CLI it is compared with runs.
         args = ["serve", model, "--host", "127.0.0.1", "--port", str(self.port), "--max-seqs", "8"] + list(extra)
-        self.proc = subprocess.Popen([common.exe_path()] + common.device_args(args, "f32"), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        # The server logs a line per request on stderr, so it goes to a file: a pipe nobody reads would fill and block the server.
+        self.log = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+        self.proc = subprocess.Popen([common.exe_path()] + common.device_args(args, "f32"), stdout=subprocess.DEVNULL, stderr=self.log,
                                      text=True, encoding="utf-8")
         deadline = time.time() + 120
         while time.time() < deadline:
             if self.proc.poll() is not None:
-                raise AssertionError("server exited early: " + self.proc.stderr.read())
+                self.log.seek(0)
+                raise AssertionError("server exited early: " + self.log.read())
             try:
                 self.get("/v1/health")
                 return
@@ -76,6 +79,7 @@ class Server:
     def close(self):
         self.proc.kill()
         self.proc.wait()
+        self.log.close()
 
 
 def cli_greedy_text(model, prompt, n):
@@ -163,10 +167,14 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
         assert reply["choices"][0]["text"] == cli_greedy_text(model, prompts[0], n), reply
         assert reply["choices"][0]["finish_reason"] in ("stop", "length"), reply
         assert reply["usage"]["total_tokens"] == reply["usage"]["prompt_tokens"] + reply["usage"]["completion_tokens"], reply
+        # The timings a client shows speed from: prompt tokens prefilled and reused, and generation after the first token.
+        t = reply["timings"]
+        assert t["prompt_n"] + t["cache_n"] == reply["usage"]["prompt_tokens"], reply
+        assert t["predicted_n"] == max(reply["usage"]["completion_tokens"] - 1, 0) and t["prompt_ms"] >= 0, reply
         events = srv.stream("/v1/completions", {"prompt": prompts[0], "max_tokens": n, "temperature": 0, "stream": True,
                                                 "stream_options": {"include_usage": True}})
         assert events[-1] is None and events[-2]["usage"]["completion_tokens"] == len(expected[prompts[0]]), events[-3:]
-        assert events[-3]["choices"][0]["finish_reason"] in ("stop", "length"), events[-3]
+        assert events[-3]["choices"][0]["finish_reason"] in ("stop", "length") and "timings" in events[-3], events[-3]
         assert "".join(e["choices"][0]["text"] for e in events[:-2]) == reply["choices"][0]["text"], events
         status, err = srv.post("/v1/completions", {"prompt": prompts[0], "n": 2})
         assert status == 400 and err["error"]["message"], err
@@ -220,6 +228,29 @@ def check_limits(model):
         srv.close()
 
 
+def check_uncapped(model):
+    """Uncapped requests share a small pool: each reserves its prompt and grows, a request is paused when the pool runs out and resumes from its history, and every one runs to its own end."""
+    srv = Server(model, "--max-seqs", "4", "--ctx-size", "1024")
+    try:
+        results = {}
+        prompts = ["The capital of France is", "Once upon a time", "def fib(n):"]
+        def worker(p):
+            results[p] = srv.post("/v1/completions", {"prompt": p, "temperature": 0}, timeout=600)
+        threads = [threading.Thread(target=worker, args=(p,)) for p in prompts]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        for p in prompts:
+            status, reply = results[p]
+            assert status == 200 and reply["choices"][0]["finish_reason"] in ("stop", "length"), (p, reply)
+            assert reply["usage"]["total_tokens"] <= 1024, (p, reply)
+        health = srv.get("/v1/health")
+        assert health["active"] == 0 and health["pauses"] >= 1, health
+    finally:
+        srv.close()
+
+
 def run():
     if os.environ.get("LLMX_CACHE_TYPE", "f32") != "f32":
         print("server: SKIP - the greedy comparison with the CLI is made with f32 caches (LLMX_CACHE_TYPE=%s)"
@@ -239,8 +270,9 @@ def run():
         n = check_server(real, ["The capital of France is", "Once upon a time", "def fib(n):", "The three laws of"],
                          16, 4000, chat=True, prefix=excerpt)
         check_limits(real)
+        check_uncapped(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
-              "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits  [ok]"
+              "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool  [ok]"
               % (os.path.basename(real), n))
     else:
         print("server: SKIP real-model pass - fixture model not on disk")

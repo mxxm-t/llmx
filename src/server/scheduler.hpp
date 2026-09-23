@@ -1,8 +1,10 @@
 #pragma once
 // The scheduler of docs/SERVER.md: one thread drives the model, one Model::forward per iteration carrying every decoding request's next token and a slice of a prefilling prompt, sampling each request's logits into its channel.
-// Admission is by the KV pool's budget, in queue order, and nothing admitted is evicted. Finished requests stay as prefix donors, whose full blocks a repeating prompt forks.
+// Admission is by the KV pool's budget, in queue order. A capped request reserves its whole reach up front and is never paused; an uncapped one reserves its prompt and grows as it generates, and when the pool runs out the latest admitted uncapped request is paused and queued again with its history, resuming where it stopped. Finished requests stay as prefix donors, whose full blocks a repeating prompt forks.
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <cstdio>
 #include <condition_variable>
 #include <deque>
 #include <memory>
@@ -24,6 +26,8 @@ struct SampleParams {
     float penalty = 1.0f;
     uint64_t seed = 0;
     std::vector<std::string> stop;
+    // No cap from the client: max_tokens is what the request may hold, and its blocks are reserved as it grows.
+    bool until_limit = false;
 };
 
 // One request from submission to completion.
@@ -32,7 +36,8 @@ struct SampleParams {
 class Request {
 public:
     Request(std::vector<uint32_t> prompt, SampleParams params)
-        : prompt_(std::move(prompt)), params_(std::move(params)) {}
+        : prompt_(std::move(prompt)), params_(std::move(params)), prompt_tokens_(prompt_.size()),
+          submitted_(Clock::now()) {}
 
     // Blocks for the next sampled id; false when the request has ended, with `finish` set: "eos", "stop", "length", "cancel" or "error".
     bool next(uint32_t& id) {
@@ -53,22 +58,36 @@ public:
     }
     // Set by the connection thread when the client goes away; the scheduler drops the request at its next iteration.
     void cancel() { cancel_.store(true); }
-    const std::vector<uint32_t>& prompt() const { return prompt_; }
+    // The client's prompt tokens; a paused request's queued prompt also holds what it generated.
+    size_t prompt_tokens() const { return prompt_tokens_; }
     const SampleParams& params() const { return params_; }
     size_t generated() const { return generated_.load(); }
     // Prompt tokens taken from a donor's cache rather than prefilled.
     size_t reused() const { return reused_.load(); }
+    // Milliseconds from admission to the first token, and from the first token to the end; read once the request has ended.
+    struct Timings { double queued_ms = 0, prompt_ms = 0, predicted_ms = 0; };
+    Timings timings() const {
+        std::lock_guard<std::mutex> lk(m_);
+        auto ms = [](Clock::time_point a, Clock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+        Timings t;
+        if (admitted_ != Clock::time_point{}) t.queued_ms = ms(submitted_, admitted_);
+        if (first_ != Clock::time_point{}) t.prompt_ms = ms(admitted_, first_), t.predicted_ms = ms(first_, ended_);
+        return t;
+    }
 
 private:
     friend class Scheduler;
+    using Clock = std::chrono::steady_clock;
     void push(uint32_t id) {
         std::lock_guard<std::mutex> lk(m_);
+        if (first_ == Clock::time_point{}) first_ = Clock::now();
         out_.push_back(id);
         generated_.fetch_add(1);
         cv_.notify_all();
     }
     void end(const std::string& why, const std::string& err = "") {
         std::lock_guard<std::mutex> lk(m_);
+        ended_ = Clock::now();
         finish_ = why;
         error_ = err;
         done_ = true;
@@ -85,17 +104,22 @@ private:
     std::atomic<bool> cancel_{false};
     std::atomic<size_t> generated_{0};
     std::atomic<size_t> reused_{0};
+    const size_t prompt_tokens_;
+    Clock::time_point submitted_, admitted_, first_, ended_;   // admitted_ is set once, under m_
 
     // Scheduler state.
     infer::Sequence seq_;
     std::string finish_pending_;   // set by a sampled end, acted on after the pass
-    size_t need_ = 0;              // blocks reserved for it at admission
+    size_t need_ = 0;              // blocks reserved for it
     size_t prompt_done_ = 0;
     uint32_t last_id_ = 0;
     std::vector<uint32_t> gen_;
     std::string decoded_;
     infer::RNG rng_;
     std::vector<float> logits_;
+    uint64_t admission_ = 0;       // order of admission, for choosing whom to pause
+    bool resumed_ = false;         // paused once and queued again with its history
+    size_t resumed_gen_ = 0;       // generated tokens already folded into prompt_
 };
 
 // The queue is full: the request is refused now rather than waiting.
@@ -134,11 +158,11 @@ public:
     }
 
     struct Stats {
-        size_t active = 0, queued = 0, donors = 0, prefix_hits = 0, prefix_tokens = 0;
+        size_t active = 0, queued = 0, donors = 0, prefix_hits = 0, prefix_tokens = 0, pauses = 0;
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
-        return Stats{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_};
+        return Stats{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_};
     }
 
     // The loop, in the caller's thread, until stop().
@@ -152,18 +176,19 @@ public:
                 std::unique_lock<std::mutex> lk(m_);
                 cv_.wait(lk, [&] { return stopping_ || !queue_.empty() || !active.empty(); });
                 if (stopping_) break;
-                // Admission, in queue order, by the pool's budget: every admitted request reserves the blocks its prompt and max_tokens can reach, whether or not it holds them yet.
+                // Admission, in queue order, by the pool's budget: a capped request reserves the blocks its prompt and max_tokens can reach, an uncapped one its prompt and a growth step.
                 // Donors give theirs up, oldest first, when a request needs them.
                 while (!queue_.empty() && active.size() < max_seqs_) {
                     const auto& r = queue_.front();
                     if (r->cancel_.load()) { r->end("cancel"); queue_.pop_front(); continue; }
-                    const size_t tokens = r->prompt_.size() + (size_t)r->params_.max_tokens;
+                    const size_t tokens = r->prompt_.size() + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
                     const size_t bt = model_.kv_block_tokens();
-                    const size_t need = (tokens + bt - 1) / bt;
+                    const size_t need = std::min((tokens + bt - 1) / bt, model_.kv_blocks_total());
                     while (reserved_ + need > model_.kv_blocks_total() && !donors_.empty()) drop_donor();
                     if (reserved_ + need > model_.kv_blocks_total()) break;
                     reserved_ += need;
                     r->need_ = need;
+                    r->admission_ = ++admissions_;
                     admit(*r);
                     active.push_back(r);
                     queue_.pop_front();
@@ -175,6 +200,8 @@ public:
                 if (active[i]->cancel_.load()) finish(active, i, "cancel");
                 else ++i;
             }
+            if (active.empty()) continue;
+            grow(active);
             if (active.empty()) continue;
 
             // Decode entries first, then prompt slices up to ubatch tokens.
@@ -235,6 +262,52 @@ public:
     }
 
 private:
+    // Tokens an uncapped request reserves beyond what it holds, at admission and each time it grows.
+    static constexpr size_t kGrowTokens = 256;
+
+    // Before a pass, every uncapped decoding request whose next token would pass its reservation takes another step.
+    // When the pool is short, donors go first, then the latest admitted uncapped request is paused: its history becomes a donor and it is queued again at the front, so it resumes from its own blocks unless another request needs them.
+    void grow(std::vector<std::shared_ptr<Request>>& active) {
+        const size_t bt = model_.kv_block_tokens();
+        for (size_t i = 0; i < active.size();) {
+            Request& r = *active[i];
+            const size_t want = (r.seq_.length() + 1 + bt - 1) / bt;
+            if (!r.params_.until_limit || r.prompt_done_ < r.prompt_.size() || want <= r.need_) { ++i; continue; }
+            const size_t step = std::min((r.seq_.length() + 1 + kGrowTokens + bt - 1) / bt, model_.kv_blocks_total()) - r.need_;
+            {
+                std::lock_guard<std::mutex> lk(m_);
+                while (reserved_ + step > model_.kv_blocks_total() && !donors_.empty()) drop_donor();
+                if (reserved_ + step <= model_.kv_blocks_total()) {
+                    reserved_ += step;
+                    r.need_ += step;
+                    ++i;
+                    continue;
+                }
+            }
+            // The latest admitted uncapped request makes the room, which may be this one.
+            size_t victim = i;
+            for (size_t j = 0; j < active.size(); ++j)
+                if (active[j]->params_.until_limit && active[j]->admission_ > active[victim]->admission_) victim = j;
+            pause(active, victim);
+            if (victim < i) --i;
+        }
+    }
+
+    // A paused request's history goes to the donors and the request to the front of the queue, its prompt now what it has read and generated.
+    void pause(std::vector<std::shared_ptr<Request>>& active, size_t i) {
+        auto r = active[i];
+        std::vector<uint32_t> history(r->prompt_.begin(), r->prompt_.begin() + (std::ptrdiff_t)r->prompt_done_);
+        history.insert(history.end(), r->gen_.begin() + (std::ptrdiff_t)r->resumed_gen_, r->gen_.end());
+        park(active, i, history);
+        r->prompt_ = std::move(history);
+        r->prompt_done_ = 0;
+        r->resumed_gen_ = r->gen_.size();
+        r->resumed_ = true;
+        std::lock_guard<std::mutex> lk(m_);
+        ++pauses_;
+        queue_.push_front(r);
+    }
+
     // A finished request kept for its cache: the tokens its history holds, the sequence holding them and the blocks it has reserved.
     // Shared full blocks are immutable, so a fork of it is safe while it lives.
     struct Donor {
@@ -264,19 +337,25 @@ private:
     // A history for an admitted request: a fork of the best donor rolled back to the shared blocks, or a fresh sequence.
     // Under the lock.
     void admit(Request& r) {
+        {
+            std::lock_guard<std::mutex> lk(r.m_);
+            if (r.admitted_ == Request::Clock::time_point{}) r.admitted_ = Request::Clock::now();
+        }
         size_t shared = 0;
         const size_t d = best_donor(r.prompt_, shared);
         if (shared) {
             r.seq_ = model_.fork(donors_[d].seq);
             model_.truncate(r.seq_, shared);
             r.prompt_done_ = shared;
-            r.reused_.store(shared);
-            ++prefix_hits_;
-            prefix_tokens_ += shared;
+            if (!r.resumed_) {
+                r.reused_.store(shared);
+                ++prefix_hits_;
+                prefix_tokens_ += shared;
+            }
         } else {
             r.seq_ = model_.make_sequence();
         }
-        r.rng_.seed(r.params_.seed);
+        if (!r.resumed_) r.rng_.seed(r.params_.seed);
     }
 
     // The oldest donor's blocks back to the pool. Under the lock.
@@ -296,6 +375,7 @@ private:
 
     // One sampled token for a request whose logits are in: pushed to its channel unless it ends the request; a request that ends is finished after the pass, once every entry's logits have been read.
     void step(Request& r) {
+        // A resumed request's prompt ends with the last token it sent, so the logits after it are those its next token is sampled from, as they would have been.
         const bool has_eos = tok_.eos_id >= 0;
         const uint32_t id = infer::sample(r.logits_, r.params_.temp, r.params_.top_k, r.params_.top_p,
                                           r.params_.penalty, r.gen_, r.rng_);
@@ -311,21 +391,40 @@ private:
         if ((int)r.gen_.size() >= r.params_.max_tokens) r.finish_pending_ = "length";
     }
 
-    // A finished request becomes a donor when its history holds a full block; otherwise its blocks go back at once.
-    // A donor keeps only the blocks it holds reserved, and there are at most max_seqs donors, the oldest going when a newcomer needs the room.
+    // A finished request becomes a donor through park, and one line on stderr records it.
     void finish(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::string& why,
                 const std::string& err = "") {
+        auto r = active[i];
+        std::vector<uint32_t> history(r->prompt_.begin(), r->prompt_.begin() + (std::ptrdiff_t)r->prompt_done_);
+        history.insert(history.end(), r->gen_.begin() + (std::ptrdiff_t)r->resumed_gen_, r->gen_.end());
+        if (why == "error") {
+            active.erase(active.begin() + (std::ptrdiff_t)i);
+            release(*r);
+            r->seq_ = infer::Sequence{};
+            active_count_.store(active.size());
+        } else {
+            park(active, i, history);
+        }
+        r->end(why, err);
+        const Request::Timings t = r->timings();
+        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s\n",
+                     r->prompt_tokens(), r->reused(), r->gen_.size(), t.queued_ms, t.prompt_ms,
+                     t.predicted_ms > 0 ? 1000.0 * (double)(r->gen_.size() > 1 ? r->gen_.size() - 1 : 0) / t.predicted_ms : 0.0,
+                     why.c_str(), r->resumed_ ? ", resumed after a pause" : "");
+    }
+
+    // A request leaves the active set, its history kept as a donor when it holds a full block and its blocks returned otherwise.
+    // A donor keeps only the blocks it holds reserved, and there are at most max_seqs donors, the oldest going when a newcomer needs the room.
+    void park(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::vector<uint32_t>& history) {
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
         const size_t bt = model_.kv_block_tokens();
         const size_t held = r->seq_.length();
-        if (why != "error" && held >= bt) {
+        if (held >= bt) {
             std::lock_guard<std::mutex> lk(m_);
             while (donors_.size() >= max_seqs_) drop_donor();
             Donor d;
-            d.tokens.assign(r->prompt_.begin(), r->prompt_.begin() + (std::ptrdiff_t)r->prompt_done_);
-            d.tokens.insert(d.tokens.end(), r->gen_.begin(), r->gen_.end());
-            d.tokens.resize(std::min(d.tokens.size(), held));
+            d.tokens.assign(history.begin(), history.begin() + (std::ptrdiff_t)std::min(history.size(), held));
             d.seq = std::move(r->seq_);
             d.blocks = (held + bt - 1) / bt;
             reserved_ -= r->need_ - d.blocks;
@@ -335,7 +434,6 @@ private:
             release(*r);
         }
         r->seq_ = infer::Sequence{};
-        r->end(why, err);
         active_count_.store(active.size());
     }
     // reset waits for the last pass that touched the sequence, so its blocks return to the pool only once the device is done with them.
@@ -355,6 +453,8 @@ private:
     std::deque<Donor> donors_;
     std::atomic<size_t> active_count_{0};
     size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
+    uint64_t admissions_ = 0;   // the scheduler thread's
+    uint64_t pauses_ = 0;       // under the lock
     size_t reserved_ = 0;   // blocks promised to admitted requests and held by donors
     bool stopping_ = false;
 };

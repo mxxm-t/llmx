@@ -258,6 +258,20 @@ fits a 16 GB card with twelve layers' experts on the CPU:
 .\llmx.exe generate Qwen3-30B-A3B-Q4_K_M.gguf "The capital of France is" --device vulkan:0 --n-cpu-moe 12
 ```
 
+A long prompt makes those layers the bottleneck: its tokens between them
+use nearly every expert, and the work grows with the prompt. From
+`--moe-stream-from N` tokens (default 512) such a layer runs on the device
+instead, its experts copied there once per pass. The copy is a fixed cost
+per pass, about 0.9 s for twelve Q8_0 layers over the MI50's link and 3 s
+for thirty over the Radeon VII's, so it pays only past some length: on
+those two cards about 128 and 450 tokens. The length is the prompt's
+extent, its last position counting any earlier history, the same quantity
+every kernel choice follows, so a prompt computes the same whether it
+arrives alone or beside other requests; a short follow-up in a chat whose
+history already passed `N` pays the copy too. Generated tokens stay on the
+CPU. `0` never copies. The device holds one layer's experts for this
+(about 640 MB for Qwen3-30B-A3B Q8_0).
+
 ## KV cache types (`--cache-type-k`, `--cache-type-v`)
 
 Each side of the KV cache is stored as `f16`, the default, or `f32`,

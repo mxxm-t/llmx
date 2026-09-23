@@ -37,6 +37,7 @@ struct GenParams {
     int kv_tokens = 0;      // the KV pool's total token budget (0 = the model context)
     std::string device = "cpu"; // backend: cpu, or vulkan:N when built with it
     int cpu_moe = 0;        // routed layers whose experts run on the CPU beside a device: the first N, -1 all
+    int moe_stream_from = 512;  // a prompt extent from which those layers run on the device, their experts copied there per pass; 0 never
     float penalty = 1.0f;   // repetition penalty (>= 1)
     uint64_t seed = 0;      // 0 = non-deterministic
     std::string stop;       // stop generating when decoded output contains this

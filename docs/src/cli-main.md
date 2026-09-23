@@ -45,7 +45,8 @@ Commands and their entry points:
 - `make_model`: the model over the `--device` backend, or with
   `--n-cpu-moe N` / `--cpu-moe` over the CPU as device 0 and the device as
   device 1, the first `N` routed layers' feed-forward blocks placed on the
-  CPU and everything else on the device. Every model-building command goes
+  CPU and everything else on the device, and `--moe-stream-from` as the
+  placement's `stream_from`. Every model-building command goes
   through it.
 - `serve`: parses host, port, sequence and queue limits, the KV budget
   (`--ctx-size`), `--ubatch`, `--threads`, `--device` and the cache types,

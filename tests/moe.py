@@ -76,8 +76,11 @@ def run():
     assert weight_hash(weights) == golden["weights_sha256"], "MoE fixture weights changed"
     worst = 0.0
     # On a device the experts also run on the CPU beside it: the first routed layer's alone, and all of them.
+    # Streamed, the host's layers run on the device with their experts copied there: every run from extent 1, and from 4 only the longer prompts.
     device = os.environ.get("LLMX_DEVICE", "cpu")
-    placements = [[]] + ([["--n-cpu-moe", "1"], ["--cpu-moe"]] if device != "cpu" else [])
+    placements = [[]] + ([["--n-cpu-moe", "1", "--moe-stream-from", "0"], ["--cpu-moe", "--moe-stream-from", "0"],
+                          ["--cpu-moe", "--moe-stream-from", "1"], ["--n-cpu-moe", "1", "--moe-stream-from", "4"]]
+                         if device != "cpu" else [])
     with tempfile.TemporaryDirectory(prefix="llmx_moe_") as directory:
         model = write_model(os.path.join(directory, "tiny-moe.gguf"), weights, config=CONFIG, arch="qwen3moe")
         for threads in (1, 4):

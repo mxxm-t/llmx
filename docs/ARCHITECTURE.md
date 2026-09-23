@@ -56,7 +56,7 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `sha.hpp` (Hub file hashes) |
 | `hub/`          | Hub metadata/quant selection, curl HTTPS transport, verified download cache |
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants)                       |
-| `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3)            |
+| `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3), `mapped_file.hpp` (read-only mapping) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3 pretokenizer)             |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass), `kv_cache.hpp` (logical KV: block pool, sequence) |
 | `backends/`     | `backend.hpp` (interface), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |

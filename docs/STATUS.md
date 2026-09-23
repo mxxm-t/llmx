@@ -39,10 +39,40 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   12 routed layers on the CPU is what lets the rest fit the Radeon VII's 16 GB. With the decode dots over quantized activations (below), decode on the Radeon VII is 44.7 tok/s with 12 layers' experts on the CPU (163%) and 20.1 with all 48 (128%), and on the MI50 34.3 (133%) and 12.9 (106%); prefill is 195 and 76 on the Radeon VII, and 180 and 52 on the MI50. Some of the Radeon VII runs overlapped the model downloads and are to be repeated on a quiet machine.
 - **Prefill with experts on the CPU, the MI50's gap:** the rig is an EPYC 7262, 8 Zen 2 cores with eight memory channels, and the MI50 sits on PCIe 4.0 x16. The reference prefilled 151 tok/s at 512 rows with every expert on the CPU and 88.5 with `--no-op-offload 1`: from its CPU alone it is ahead of llmx's 52, and copying the CPU-held weights to the device for a large batch gains it another 1.7 times, which the Radeon VII's PCIe 3.0 link halves. Both are llmx's to close: a faster CPU path for a prompt's experts, then the same copy.
+- **Done, mapped loading:** a single-file GGUF is mapped read-only instead of read into one heap allocation (`format/mapped_file.hpp`). Qwen3-30B-A3B Q8_0 is 32.5 GB: on the Radeon VII's 32 GB host with thirty layers' experts on the CPU the heap copy paged through every pass, and on the rig's 62 GB host it sat beside its own page cache. The mapping lets the OS drop what the device copied. Sharded files keep the allocation that assembles them.
+- **Done, streamed experts (`--moe-stream-from`, default 512):** from that prompt extent a host-placed routed layer runs on its attention device, the norm and router copied there at load and the experts copied into one window per device once per pass; decode rows and shorter prompts stay on the host, a mixed server pass split into groups of consecutive entries. The host upload now fills one half of staging while the device copies from the other. The copy is a fixed cost per pass, so the break-even differs by link: on the rig 7.7 GB (twelve Q8_0 layers) takes 0.9 s (11 GB/s by DMA alone, under what the MI50's PCIe 4.0 x16 link allows), on the Radeon VII 19.2 GB (thirty layers) takes 3.3 s (6.4 GB/s by DMA alone). Keyed on extent like every kernel choice, so a prompt computes the same alone or batched, at the price that a short follow-up past the threshold pays the copy. Same greedy text as the host path on Qwen3-30B-A3B Q8_0; `tests/moe.py` adds streamed placements (every run, and prompts from extent 4) within 7.2e-7 of HF, and `tests/server.py` checks the synthetic MoE model's ids alone and four at a time with streamed prompt rows beside host decode rows.
+
+  | where | test | host path | streamed |
+  |---|---|---:|---:|
+  | MI50, 12 layers on CPU | pp16 | 50.8 | 17.8 |
+  | MI50, 12 layers on CPU | pp64 | 128 | 64.7 |
+  | MI50, 12 layers on CPU | pp128 | 123 | 125 |
+  | MI50, 12 layers on CPU | pp247 | 175 | 226 |
+  | MI50, 12 layers on CPU | pp512 | 230 | 412 |
+  | Radeon VII, 30 layers on CPU | pp128 | 92.7 | 37.1 |
+  | Radeon VII, 30 layers on CPU | pp247 | 114 | 69.4 |
+  | Radeon VII, 30 layers on CPU | pp512 | 118 | 132 |
+
+  A 256 MB staging buffer instead of 64 MB changed nothing. What is left is the copy overlapping the previous layer's compute, which needs a second window and a transfer queue (at pp512 on the MI50 the compute is about 0.35 s of the pass's 1.25 s).
+- **Measured, Qwen3-30B-A3B Q8_0 with experts on the CPU (MI50 card 4 with 12 layers and 16 threads, the reference pinned to the same card; Radeon VII with 30 layers and 8 threads against b11075; two interleaved rounds each):**
+
+  | where | test | llmx | llama.cpp Vulkan | share |
+  |---|---|---:|---:|---:|
+  | MI50 | pp64 | 102-106 | 56-58 | 180% |
+  | MI50 | pp247 | 188-212 | 152-153 | 123-139% |
+  | MI50 | pp512, host path | 229-241 | 291-305 | 75-83% |
+  | MI50 | pp512, streamed | 412 | 291-305 | 135-141% |
+  | MI50 | tg128 | 28.3-28.7 | 20.6-20.8 | 138% |
+  | Radeon VII | pp64 | 56-57 | 6.1-7.6 | 740% |
+  | Radeon VII | pp247 | 93-107 | 49-50 | 188-216% |
+  | Radeon VII | pp512 | 117-120 | 90-91 | 129-132% |
+  | Radeon VII | tg128 | 18.5-18.9 | 14.2 | 131% |
+
+  The Radeon VII's llmx prefill still varies by up to 35 tok/s between repeats, the host holding 19 GB of experts in 32 GB; the MI50 streamed row is a single round.
 - **Done, decode on the 8-bit twin:** the first MI50 gate run had Q6_K, Q4_0 and Q4_1 decode at 87 to 93 percent, all three rows reading the 16-bit twin because the HF gate's Q4_0 fixture had failed on 8 bits. That failure was the Q6_K output head: `Backend::matmul_logits` names the head, which keeps the 16-bit twin for those types, and every other Q6_K, Q4_0 and Q4_1 row reads the 8-bit twin (Q6_K folding its -32 into each weight byte). Decode at tg128 went from 82.0 to 92.4 tok/s on Q6_K (with at most 32 lanes a row, `q6k_row_lanes`), from 101.8 to 131.8 on Q4_0 and from 101.4 to 128.8 on Q4_1; the HF gate passes on all three fixtures. A second gate run with these is going.
 - **Done, server:** an uncapped request reserved its whole reach, the whole pool, so Open WebUI's chats and background requests ran one at a time and each admission dropped the cached prefixes. It now reserves its prompt and a step and grows, the latest admitted uncapped request pausing (history kept as a donor) when the pool runs out; `tests/server.py` checks three uncapped requests sharing a small pool with at least one pause. The compatible replies carry a `timings` object, which Open WebUI shows, and each request logs a line.
 - **Tried and reverted:** a prompt's routed entries through the decode dots as well, a dot per weight row and entry. Each dot unpacks the row's nibbles and scales again, where the batched float path unpacks a row once for all its expert's entries, and prefill with every expert on the CPU went from 52 to 35 tok/s on the rig (during a download). A prompt's entries want a multi-column kernel that unpacks a row once.
-- **Left:** `moe_tile_from` (32) is set, not measured, and the dense CPU cells before and after the decode dots are to be measured; a real file of every supported type (Q5_K_M, Q6_K, Q8_0, Q4_0, Q4_1 downloading on both machines) through the gate cells; CPU expert decode (the fused dots against float activations) and prefill with experts on the CPU, where the reference likely runs large batches on the device from host-held weights; a server check of routed layers; the 16k greedy check, whose CPU and device replies part at a near-tie (below).
+- **Left:** the default of `--moe-stream-from` (a user decision: extent keeps batch invariance but charges long chats' follow-ups the copy); the copy overlapping compute; `moe_tile_from` (32) is set, not measured, and the dense CPU cells before and after the decode dots are to be measured; a real file of every supported type (Q5_K_M, Q6_K, Q8_0, Q4_0, Q4_1 downloading on both machines) through the gate cells; CPU expert decode (the fused dots against float activations) and prefill with experts on the CPU, where the reference likely runs large batches on the device from host-held weights; a server check of routed layers; the 16k greedy check, whose CPU and device replies part at a near-tie (below).
 - **16k check, 2026-09-23:** on Qwen3-0.6B-Q8_0 the CPU and the MI50 agree for 68 characters of the uncapped reply and then part. At that position the CPU's top two logits are 18.498 and 18.379 and the device's 18.383 and 18.346, the two tokens swapped; the device's logits sit up to 0.23 from the CPU's after the 16k prompt, the size the 8-bit activations shift. A hash across two backends with different activation precision parts at the first near-tie, so the check needs redefining (open with the user).
 
 ## Multi-user server (ROADMAP #7, EXECUTION step 7) (2026-09-22)

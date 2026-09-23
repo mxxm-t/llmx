@@ -187,6 +187,9 @@ struct LayerWeights {
     // A routed layer's router and its stacked experts, whose nin and nout are one expert's.
     bool moe = false;
     Weight ffn_gate_inp, ffn_gate_exps, ffn_up_exps, ffn_down_exps;
+    // A host-placed routed layer whose long prompt runs its attention device takes over (Placement::stream_from): the norm and router copied there, the experts copied into that device's window in each pass that needs them.
+    int stream_device = -1;
+    Weight stream_norm, stream_router;
 };
 
 // Where each tensor role runs, as an index into the model's backends.
@@ -195,6 +198,9 @@ struct LayerWeights {
 struct Placement {
     std::vector<int> attn_device, ffn_device;
     int embed_device = 0, output_device = 0;
+    // A routed layer with its feed-forward block on a host and its attention on a device runs each prompt whose extent reaches this on the device, its experts copied there for the pass: past some length a prompt's expert products on the host cost more than moving the experts.
+    // By extent, like every kernel choice, so a prompt takes the same path however it is batched. Zero keeps every run on the host.
+    size_t stream_from = 0;
 };
 
 // Choices made once at construction, before the caches are allocated: how each cache side is stored (backend.hpp KVType, the CLI's --cache-type-k and --cache-type-v), the same on every backend or refused.
@@ -252,6 +258,7 @@ struct ExecContext {
     std::vector<uint32_t> ids, pos, pick;
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
     std::vector<backend::RowRun> runs, head_runs;      // the pass's rows and the head's, by entry
+    std::vector<backend::RowRun> part_runs;            // a streamed layer's group of entries, rebased
     std::vector<backend::Ticket> tickets;      // per device
     std::vector<float> staging;
 };
@@ -512,16 +519,23 @@ public:
             size_t cur = (size_t)place_.embed_device;
             devices_[cur]->b->embed(slot(ctx, cur, 0), token_embd_.type, token_embd_.slice(),
                                     token_embd_.nin, token_embd_.nout, ctx.ids.data(), rows);
+            bool long_runs = false;
+            for (const backend::RowRun& run : ctx.runs) long_runs = long_runs || (place_.stream_from && run.extent >= place_.stream_from);
+            const backend::RowRuns all{ctx.runs.data(), ctx.runs.size()};
             for (int l = 0; l < cfg.n_layer; l++) {
                 const size_t a = (size_t)place_.attn_device[(size_t)l];
-                if (a != cur) { cross(ctx, cur, a, rows * E); cur = a; }
+                if (a != cur) { cross(ctx, cur, a, 0, rows); cur = a; }
                 attention_half(ctx, cur, l, rows, n_entries);
+                if (long_runs && layers_[(size_t)l].stream_device == (int)cur) {
+                    ffn_split(ctx, cur, l);
+                    continue;
+                }
                 const size_t f = (size_t)place_.ffn_device[(size_t)l];
-                if (f != cur) { cross(ctx, cur, f, rows * E); cur = f; }
-                ffn_half(ctx, cur, l, rows);
+                if (f != cur) { cross(ctx, cur, f, 0, rows); cur = f; }
+                ffn_half(ctx, cur, l, 0, rows, all, false);
             }
             const size_t o = (size_t)place_.output_device;
-            if (o != cur) { cross(ctx, cur, o, rows * E); cur = o; }
+            if (o != cur) { cross(ctx, cur, o, 0, rows); cur = o; }
             if (want) {
                 // The rows that want logits are not contiguous once entries mix, so they are compacted first and the head runs once over exactly those rows.
                 backend::Backend& b = *devices_[cur]->b;
@@ -682,6 +696,9 @@ private:
     int ubatch_ = 512;   // the conventional default
     ModelOptions options_;
     bool any_dense_ = false;   // some layer has a dense feed-forward block
+    // Per device, what a streamed layer's experts are copied into: one buffer per projection, sized to the largest streamed layer's.
+    struct Window { backend::BufferPtr gate, up, down; };
+    std::vector<Window> windows_;
     std::string out_name_;
     std::unordered_map<std::string, size_t> tindex_;
     std::vector<LayerWeights> layers_;
@@ -748,6 +765,13 @@ private:
                 w.ffn_gate_exps = experts(f, pre + "ffn_gate_exps.weight", cfg.n_embd, cfg.n_ff_exp);
                 w.ffn_up_exps   = experts(f, pre + "ffn_up_exps.weight", cfg.n_embd, cfg.n_ff_exp);
                 w.ffn_down_exps = experts(f, pre + "ffn_down_exps.weight", cfg.n_ff_exp, cfg.n_embd);
+                // A host aliases the bytes it adopts and a device copies them, which is what tells the two apart here.
+                if (place_.stream_from && a != f && !w.attn_q.data->host_ptr() && w.ffn_gate_exps.data->host_ptr() &&
+                    w.ffn_up_exps.data->host_ptr() && w.ffn_down_exps.data->host_ptr()) {
+                    w.stream_device = (int)a;
+                    w.stream_norm = check(a, pre + "ffn_norm.weight", cfg.n_embd, 1, true);
+                    w.stream_router = check(a, pre + "ffn_gate_inp.weight", cfg.n_embd, cfg.n_expert);
+                }
                 continue;
             }
             if (!cfg.n_ff) throw std::runtime_error("inference: dense layer without a feed-forward width " + pre);
@@ -755,6 +779,22 @@ private:
             w.ffn_gate    = check(f, pre + "ffn_gate.weight", cfg.n_embd, cfg.n_ff);
             w.ffn_up      = check(f, pre + "ffn_up.weight", cfg.n_embd, cfg.n_ff);
             w.ffn_down    = check(f, pre + "ffn_down.weight", cfg.n_ff, cfg.n_embd);
+        }
+        // The windows are allocated with the weights, so a pass never fails for want of one.
+        windows_.resize(devices_.size());
+        std::vector<size_t> sizes(devices_.size() * 3, 0);
+        for (const LayerWeights& w : layers_) {
+            if (w.stream_device < 0) continue;
+            size_t* s = &sizes[(size_t)w.stream_device * 3];
+            s[0] = std::max(s[0], w.ffn_gate_exps.data->size());
+            s[1] = std::max(s[1], w.ffn_up_exps.data->size());
+            s[2] = std::max(s[2], w.ffn_down_exps.data->size());
+        }
+        for (size_t d = 0; d < devices_.size(); ++d) {
+            const size_t* s = &sizes[d * 3];
+            if (!s[0]) continue;
+            backend::Backend& b = *devices_[d]->b;
+            windows_[d] = Window{b.alloc(s[0]), b.alloc(s[1]), b.alloc(s[2])};
         }
     }
 
@@ -856,13 +896,47 @@ private:
     }
 
     // The residual stream moves from one device's x slot to another's, through host memory: a read, which waits for the source, then a write, which is enqueued on the destination.
-    // Once per placement boundary per pass; `n_embd * rows` floats, a few kilobytes on a decode token.
-    void cross(ExecContext& ctx, size_t from, size_t to, size_t floats) {
-        const size_t bytes = floats * sizeof(float);
-        ctx.staging.resize(floats);
+    // Once per placement boundary per pass, `rows` rows from `base`; a few kilobytes on a decode token.
+    void cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows) {
+        const size_t E = (size_t)cfg.n_embd, floats = rows * E, bytes = floats * sizeof(float);
         const backend::Slice src = slot(ctx, from, 0), dst = slot(ctx, to, 0);
-        devices_[from]->b->read(*src.buffer, src.offset * sizeof(float), ctx.staging.data(), bytes);
-        devices_[to]->b->write(*dst.buffer, dst.offset * sizeof(float), ctx.staging.data(), bytes);
+        ctx.staging.resize(floats);
+        devices_[from]->b->read(*src.buffer, (src.offset + base * E) * sizeof(float), ctx.staging.data(), bytes);
+        devices_[to]->b->write(*dst.buffer, (dst.offset + base * E) * sizeof(float), ctx.staging.data(), bytes);
+    }
+
+    // A streamed layer in a pass with long runs: consecutive entries alike form a group, the long ones run where the residual is, with the experts copied into the window once, and the rest on the host through a crossing each way.
+    // The residual ends where it started, on the layer's attention device.
+    void ffn_split(ExecContext& ctx, size_t dev, int l) {
+        const LayerWeights& w = layers_[(size_t)l];
+        const size_t host = (size_t)place_.ffn_device[(size_t)l];
+        bool copied = false;
+        for (size_t e = 0, base = 0; e < ctx.runs.size();) {
+            const bool on_device = ctx.runs[e].extent >= place_.stream_from;
+            ctx.part_runs.clear();
+            size_t end = base;
+            for (; e < ctx.runs.size() && (ctx.runs[e].extent >= place_.stream_from) == on_device; ++e) {
+                end = ctx.runs[e].end;
+                ctx.part_runs.push_back(backend::RowRun{end - base, ctx.runs[e].extent});
+            }
+            const backend::RowRuns runs{ctx.part_runs.data(), ctx.part_runs.size()};
+            if (on_device) {
+                if (!copied) {
+                    backend::Backend& b = *devices_[dev]->b;
+                    const Window& win = windows_[dev];
+                    b.write(*win.gate, 0, w.ffn_gate_exps.data->host_ptr(), w.ffn_gate_exps.data->size());
+                    b.write(*win.up, 0, w.ffn_up_exps.data->host_ptr(), w.ffn_up_exps.data->size());
+                    b.write(*win.down, 0, w.ffn_down_exps.data->host_ptr(), w.ffn_down_exps.data->size());
+                    copied = true;
+                }
+                ffn_half(ctx, dev, l, base, end - base, runs, true);
+            } else {
+                cross(ctx, dev, host, base, end - base);
+                ffn_half(ctx, host, l, base, end - base, runs, false);
+                cross(ctx, host, dev, base, end - base);
+            }
+            base = end;
+        }
     }
 
     // Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights.
@@ -896,26 +970,29 @@ private:
                      w.attn_output.nin, w.attn_output.nout, rows, runs);
     }
 
-    void ffn_half(ExecContext& ctx, size_t dev, int l, size_t rows) {
+    // `rows` rows of the residual from `base`, through the scratch slots from their start; a streamed layer's on its attention device reads the copies there.
+    void ffn_half(ExecContext& ctx, size_t dev, int l, size_t base, size_t rows, backend::RowRuns runs, bool streamed) {
         backend::Backend& b = *devices_[dev]->b;
         const LayerWeights& w = layers_[(size_t)l];
         const size_t E = (size_t)cfg.n_embd;
-        const backend::Slice x = slot(ctx, dev, 0), h = slot(ctx, dev, 1),
-                             gate = slot(ctx, dev, 6), up = slot(ctx, dev, 7), ffn = slot(ctx, dev, 8);
+        backend::Slice x = slot(ctx, dev, 0);
+        x.offset += base * E;
+        const backend::Slice h = slot(ctx, dev, 1), gate = slot(ctx, dev, 6), up = slot(ctx, dev, 7), ffn = slot(ctx, dev, 8);
 
-        b.rms_norm_rows(h, x, w.ffn_norm.slice(), rows, E, E, cfg.rms_eps);
+        b.rms_norm_rows(h, x, (streamed ? w.stream_norm : w.ffn_norm).slice(), rows, E, E, cfg.rms_eps);
 
-        const backend::RowRuns runs{ctx.runs.data(), ctx.runs.size()};
         if (w.moe) {
             const backend::Slice scores = slot(ctx, dev, 9), ids = slot(ctx, dev, 10), weights = slot(ctx, dev, 11);
             const size_t k = (size_t)cfg.n_expert_used, n_expert = (size_t)cfg.n_expert, ff = (size_t)cfg.n_ff_exp;
-            b.matmul(w.ffn_gate_inp.type, w.ffn_gate_inp.slice(), h, scores, E, n_expert, rows, runs);
+            const Weight& router = streamed ? w.stream_router : w.ffn_gate_inp;
+            const Window* win = streamed ? &windows_[dev] : nullptr;
+            b.matmul(router.type, router.slice(), h, scores, E, n_expert, rows, runs);
             b.route_experts(scores, rows, n_expert, k, cfg.expert_norm, ids, weights);
             const backend::Backend::Routing routing{ids, weights, k, n_expert};
-            b.matmul_experts({projection(w.ffn_gate_exps, gate),
-                              projection(w.ffn_up_exps, up)}, h, E, rows, routing, runs);
+            b.matmul_experts({projection(w.ffn_gate_exps, gate, win ? win->gate.get() : nullptr),
+                              projection(w.ffn_up_exps, up, win ? win->up.get() : nullptr)}, h, E, rows, routing, runs);
             b.silu_mul(ffn, gate, up, rows * k * ff);
-            b.matmul_experts_add(w.ffn_down_exps.type, w.ffn_down_exps.slice(), ffn, x,
+            b.matmul_experts_add(w.ffn_down_exps.type, {win ? win->down.get() : w.ffn_down_exps.data.get(), 0}, ffn, x,
                                  ff, E, rows, routing, runs);
             return;
         }
@@ -933,8 +1010,8 @@ private:
     }
 
     // The buffer is passed by raw pointer, not by handle: three projections per layer per token is nearly two hundred refcount pairs a token if a shared pointer is copied here instead.
-    static backend::Projection projection(const Weight& w, backend::Slice out) {
-        return {w.type, {w.data.get(), 0}, out, w.nout};
+    static backend::Projection projection(const Weight& w, backend::Slice out, const backend::Buffer* copy = nullptr) {
+        return {w.type, {copy ? copy : w.data.get(), 0}, out, w.nout};
     }
 };
 

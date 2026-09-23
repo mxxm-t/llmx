@@ -256,7 +256,10 @@ Two implementation notes for the crossing itself. A `read` whose
 destination is host-addressable lands directly in it, so a device-to-CPU
 crossing is one copy. And what the design does not do is stream weights
 into the device per token: moving an expert's bytes across the bus every
-token is slower than running it where it is.
+token is slower than running it where it is. A long prompt is the
+exception, since its tokens share each copy: from `--moe-stream-from`
+tokens of extent a host-placed routed layer runs on its attention device,
+its experts copied into a window there once per pass (`docs/USAGE.md`).
 
 ## Order of work
 

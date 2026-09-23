@@ -46,8 +46,16 @@ to a `backend::Backend`.
 - `Placement`: a device index per tensor role: each layer's attention and
   feed-forward block, the embedding table and the output head. Empty means
   everything on device 0. Per role rather than per layer so expert offload
-  can later put a layer's experts on the CPU while its attention stays on
-  the device (`docs/EXECUTION.md`).
+  puts a layer's experts on the CPU while its attention stays on the device
+  (`docs/EXECUTION.md`). `stream_from` is the prompt extent from which such
+  a layer runs on its attention device instead: the norm and router get a
+  copy there at load, the experts are written into a per-device window
+  (one buffer per projection, sized to the largest such layer) once per
+  pass that needs them, and `ffn_split` runs a pass's consecutive entries
+  alike as one group, the long ones on the device and the rest on the host
+  through a crossing each way. A host backend aliases what it adopts and a
+  device copies it, which is how the model tells which side a weight is
+  on.
 - `Sequence`: one request's history over a model's cache, made by
   `Model::make_sequence`: a block table per storage and the committed
   length, and per device the ticket of the last pass that touched it, which

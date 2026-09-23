@@ -16,12 +16,20 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
 - `TensorInfo`: name, dims (`ne[0]` fastest), type, offset; `n_elements()` and
   `data_size()` use checked arithmetic. Quantized rows must contain a whole
   number of blocks, even when the total element count would be divisible.
-- `GGUFModel`: metadata KVs, tensor infos, and ONE contiguous `blob` holding
-  all tensor data with per-tensor `offsets`; `tensor_data(i)` / `tensor_bytes(i)`
-  address it. `read_gguf` sizes the blob exactly and reads each tensor straight
-  into place. `release_payload()` frees the blob once a model on device
-  backends alone has copied every weight into device memory
+- `GGUFModel`: metadata KVs, tensor infos, and ONE contiguous range holding
+  all tensor data with per-tensor `offsets`: a single file's data section
+  mapped read-only (`mapped`, `mapped_start`, see [mapped_file](format-mapped_file.md)),
+  or for sharded and in-memory models the `blob`. `payload()`,
+  `payload_size()` and `holds(p)` name the range whichever holds it, and
+  `tensor_data(i)` / `tensor_bytes(i)` address it; a mapped model's bytes
+  are read-only. For a single file `read_gguf` maps it and touches every
+  page once in the steps the progress reports; for shards it sizes the
+  blob exactly and reads each tensor straight into place.
+  `release_payload()` drops the mapping or frees the blob once a model on
+  device backends alone has copied every weight into device memory
   (`Model::holds_payload`), so the host does not hold the weights twice.
+  A mapped model keeps its file open, which Windows will not let another
+  writer rewrite while it is loaded.
 - Both `read_gguf` and `add_tensor_data` preserve `alignof(float)` between
   in-memory tensors. A 34-byte quantized tensor must not misalign a following
   F32 tensor when the loader removes on-disk padding.

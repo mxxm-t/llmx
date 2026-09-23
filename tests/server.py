@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import baseline
 import common
 import f32
+import moe
 from common import run as cli
 
 # The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats; a bad body and a request past the context are refused; a client that goes away mid-stream leaves the server with nothing active; a chat turn renders.
@@ -82,17 +83,17 @@ class Server:
         self.log.close()
 
 
-def cli_greedy_text(model, prompt, n):
-    """What `generate --temp 0` prints between its pp and tg lines, with the f32 cache sides the server under test is started with."""
-    rc, out = cli(["generate", model, prompt, "-n", str(n), "--temp", "0"], cache="f32")
+def cli_greedy_text(model, prompt, n, flags=()):
+    """What `generate --temp 0` prints between its pp and tg lines, with the f32 cache sides and the flags the server under test is started with."""
+    rc, out = cli(["generate", model, prompt, "-n", str(n), "--temp", "0"] + list(flags), cache="f32")
     assert rc == 0, out
     lines = out.split("\n")
     assert lines[0].startswith("pp:") and lines[-2].startswith("tg:"), out
     return "\n".join(lines[1:-2])
 
 
-def check_server(model, prompts, n, long_n, chat, prefix=None):
-    srv = Server(model)
+def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
+    srv = Server(model, *flags)
     try:
         health = srv.get("/v1/health")
         assert health["status"] == "ok" and health["active"] == 0, health
@@ -103,7 +104,7 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
         # Greedy through the server gives the CLI's text, and the ids are kept for the checks that follow.
         expected = {}
         for prompt in prompts:
-            want = cli_greedy_text(model, prompt, n)
+            want = cli_greedy_text(model, prompt, n, flags)
             status, reply = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
             assert status == 200, reply
             assert reply["text"] == want, (prompt, reply["text"], want)
@@ -164,7 +165,7 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
             assert reply["usage"]["completion_tokens"] >= 1 and reply["usage"]["total_tokens"] <= limit, reply
         status, reply = srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": n, "temperature": 0})
         assert status == 200 and reply["object"] == "text_completion", reply
-        assert reply["choices"][0]["text"] == cli_greedy_text(model, prompts[0], n), reply
+        assert reply["choices"][0]["text"] == cli_greedy_text(model, prompts[0], n, flags), reply
         assert reply["choices"][0]["finish_reason"] in ("stop", "length"), reply
         assert reply["usage"]["total_tokens"] == reply["usage"]["prompt_tokens"] + reply["usage"]["completion_tokens"], reply
         # The timings a client shows speed from: prompt tokens prefilled and reused, and generation after the first token.
@@ -197,9 +198,36 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
             assert status == 200 and a["reused_tokens"] == 0, a
             status, b = srv.post("/v1/generate", {"prompt": second, "max_tokens": n, "temperature": 0})
             assert status == 200 and b["reused_tokens"] > 0, b
-            assert b["text"] == cli_greedy_text(model, second, n), (b["text"],)
+            assert b["text"] == cli_greedy_text(model, second, n, flags), (b["text"],)
             health = srv.get("/v1/health")
             assert health["prefix_hits"] >= 1 and health["donors"] >= 1, health
+        return len(prompts)
+    finally:
+        srv.close()
+
+
+# The ids each prompt gets alone, then four at a time, where a pass holds one request's prompt rows beside another's decode rows.
+# Ids rather than text: a synthetic model's greedy bytes need not be UTF-8.
+def check_mixed(model, prompts, n, flags):
+    srv = Server(model, *flags)
+    try:
+        alone = {}
+        for p in prompts:
+            status, reply = srv.post("/v1/generate", {"prompt": p, "max_tokens": n, "temperature": 0})
+            assert status == 200, reply
+            alone[p] = reply["ids"]
+        for group in (prompts[:4], prompts[2:]):
+            results = {}
+            def worker(p):
+                results[p] = srv.post("/v1/generate", {"prompt": p, "max_tokens": n, "temperature": 0})
+            threads = [threading.Thread(target=worker, args=(p,)) for p in group]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            for p in group:
+                status, reply = results[p]
+                assert status == 200 and reply["ids"] == alone[p], (p, reply, alone[p])
         return len(prompts)
     finally:
         srv.close()
@@ -263,6 +291,12 @@ def run():
         n = check_server(model, ["a", "ab", "abc", "abcdefg"], 6, 14, chat=False)
         print("server: synthetic F32 model, %d prompts greedy-equal to the CLI alone and four at a time, a stream, "
               "a seeded repeat, refusals, a cancelled stream, the compatible completions  [ok]" % n)
+        # On a device, the synthetic mixture of experts with its routed layers on the host and prompts from extent 3 streamed: four at a time, a pass holds streamed prompt rows beside host decode rows.
+        if os.environ.get("LLMX_DEVICE", "cpu") != "cpu":
+            routed = os.path.join(directory, "tiny-moe.gguf")
+            f32.write_model(routed, moe.tensors(), config=moe.CONFIG, arch="qwen3moe")
+            n = check_mixed(routed, ["a", "ab", "abc", "abcdefg", "abcd", "b"], 6, ("--cpu-moe", "--moe-stream-from", "3"))
+            print("server: synthetic MoE model, experts on the host and long prompts streamed, %d prompts alone and four at a time  [ok]" % n)
     real = baseline.find_fixture(baseline.BASELINE_MODELS[0])
     if real:
         with open(os.path.join(os.path.dirname(__file__), "data", "baseline_perplexity.json"), encoding="utf-8") as f:

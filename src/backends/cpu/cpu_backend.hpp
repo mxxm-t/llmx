@@ -1178,36 +1178,12 @@ private:
     }
 
     // out[e*nout ..] = expert id(e)'s matrix times X row e / per, X having xrows rows and entry e belonging to token row e / k.
-    // With quantized activations every entry takes the decode dots, the work split over (expert, row) pairs so a weight row is loaded once for all its expert's entries; an entry's arithmetic is then the same however the entries are batched.
-    // Without them, for a type without such a dot or the float reference, a generated token's entries take the float row dots and a prompt's a batched matmul per expert, by the row runs as matmul chooses.
+    // A generated token's entries take the decode dots, all of a call's in one pool dispatch; a prompt's entries take one batched matmul per expert over its rows, so an entry computes the same whatever else is routed beside it.
     void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
                          float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode) {
         const size_t row_bytes = row_bytes_of(type, nin), stride = size_mul(nout, row_bytes);
         span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
         const uint8_t* data = (const uint8_t*)bytes_at(data_s);
-        if (decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0) {
-            xq8_.reset(X, xrows, nin);
-            xq8_.prepare(type);
-            std::vector<uint32_t> used;
-            for (size_t e = 0; e < n_expert; ++e)
-                if (g.start[e + 1] > g.start[e]) used.push_back((uint32_t)e);
-            const size_t items = used.size() * nout;
-            // Items are striped over the workers, so an expert with many entries does not fall to one of them.
-            const size_t nt = (size_t)std::max(threads_, 1);
-            auto work = [&](size_t w, size_t stride_items) {
-                for (size_t it = w; it < items; it += stride_items) {
-                    const size_t u = it / nout, o = it - u * nout, e = used[u];
-                    const uint8_t* row = data + e * stride + o * row_bytes;
-                    for (size_t c = g.start[e]; c < g.start[e + 1]; ++c) {
-                        const size_t i = g.order[c];
-                        out[i * nout + o] = q8::dot(type, row, xq8_, i / per);
-                    }
-                }
-            };
-            if (nt <= 1 || items < nt * 8) work(0, 1);
-            else run_parallel([&](int w) { work((size_t)w, nt); });
-            return;
-        }
         std::vector<uint32_t> single, expert_of;
         for (size_t e = 0; e < n_expert; ++e)
             for (size_t c = g.start[e]; c < g.start[e + 1]; ++c)
@@ -1216,11 +1192,17 @@ private:
                     expert_of.push_back((uint32_t)e);
                 }
         if (!single.empty()) {
+            const bool q8 = decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0;
+            if (q8) {
+                xq8_.reset(X, xrows, nin);
+                xq8_.prepare(type);
+            }
             const size_t rows = single.size() * nout;
             auto work = [&](size_t r0, size_t r1) {
                 for (size_t r = r0; r < r1; ++r) {
                     const size_t s = r / nout, o = r - s * nout, i = single[s];
-                    out[i * nout + o] = row_dot(type, data + expert_of[s] * stride + o * row_bytes, X + (i / per) * nin, nin);
+                    const uint8_t* w = data + expert_of[s] * stride + o * row_bytes;
+                    out[i * nout + o] = q8 ? q8::dot(type, w, xq8_, i / per) : row_dot(type, w, X + (i / per) * nin, nin);
                 }
             };
             const size_t nt = (size_t)std::max(threads_, 1);

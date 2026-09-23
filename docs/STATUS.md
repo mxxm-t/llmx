@@ -1343,7 +1343,23 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-8B-Q8_0 | 757 vs 525, 144% | 889 vs 735, 121% | 934 vs 864, 108% | 60 vs 58, 103% |
 
   Three cells remain below the reference: 8B Q4_K_M decode at 97 percent, 0.6B Q4_0 decode at 99, and 0.6B Q4_0 prompt processing at 247 rows at 95.
-- **Left:** on the MI50 against one card of the reference, from the one-card gate in the forty-fourth paragraph: 8B Q4_K_M decode at 97 percent, 0.6B Q4_0 decode at 99, and 0.6B Q4_0 prompt processing at 247 rows at 95; loading, which reads the whole file into host memory before uploading it; folding a layer's
+
+  Forty-fifth, Q4_0 and Q4_1 staging in the integer-dot tile. A block's staged words w and w + 4 are the low and high nibbles of one source word, and two threads each loaded it and, for Q4_0, funnelled it. A thread that stages two or more words now takes source words whole and stages both halves. 0.6B Q4_0 prompt processing goes from about 6879 to 7285 tok/s at 247 rows and from 7467 to 7922 at 512.
+
+  Tried and not kept: a Q4_K decode kernel on the Q8_0 kernel's plan, a subgroup on two rows. With one nibble word a lane it read 4 bytes of weights against 16 of header and 24 of activations per step, and the 14336 x 4096 matvec took 201 us against the row kernel's 92. With sixteen bytes a lane it took 103, and 8B Q4_K_M decode read 80 tok/s against 84, so two rows sharing their activations does not pay for Q4_K here. The reference's Q4_K matvec at that shape takes 61 us and its Q6_K 132 against our 169; that file's output head is Q6_K, about 510 MB a token, which is where its decode gap is.
+
+  The one-card gate at this change, same protocol:
+
+  | model | pp64 | pp247 | pp512 | tg32 |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | 4998 vs 4881, 102% | 7277 vs 7221, 101% | 7918 vs 6840, 116% | 321 vs 330, 97% |
+  | Qwen3-0.6B-Q5_K_M | 4488 vs 2959, 152% | 6656 vs 4445, 150% | 7428 vs 5751, 129% | 339 vs 312, 109% |
+  | Qwen3-0.6B-Q8_0 | 5095 vs 4659, 109% | 7360 vs 6976, 105% | 8043 vs 6698, 120% | 326 vs 299, 109% |
+  | Qwen3-8B-Q4_K_M | 696 vs 261, 267% | 846 vs 634, 133% | 894 vs 764, 117% | 86 vs 89, 97% |
+  | Qwen3-8B-Q8_0 | 759 vs 526, 144% | 888 vs 736, 121% | 934 vs 864, 108% | 61 vs 58, 104% |
+
+  Prompt processing clears the reference in every cell. Decode on 8B Q4_K_M and 0.6B Q4_0 is at 97 percent, the one gap left.
+- **Left:** on the MI50 against one card of the reference, from the one-card gate in the forty-fifth paragraph: decode on 8B Q4_K_M and 0.6B Q4_0 at 97 percent, the Q6_K and Q4_0 matvecs being 1.28 and about 2.3 times the reference's; loading, which reads the whole file into host memory before uploading it; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
   barrier time measured in the twenty-ninth; the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the

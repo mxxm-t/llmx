@@ -119,13 +119,18 @@ void main() {
                 // Q4_0, 18-byte blocks: a half scale, then 16 bytes whose low nibbles are values 0 to 15 and high nibbles 16 to 31. The offset of 8 goes into each staged byte as Q6_K's 32 does, so the quants are signed and need no minimum. Blocks alternate word alignment, so the nibble words are funnelled when they straddle.
                 uint ob = (row * nblk + kb) * Q4_0_BYTES, q0 = ob + 2u;
                 bool odd = (q0 & 3u) != 0u;
-                for (uint m = 0u; m < WW; ++m) {
-                    uint w = wseg * WW + m, i = (q0 >> 2u) + (w & 3u);
+                // Staged words w and w + 4 are the low and high nibbles of the same source word, so where a thread stages two or more words it takes source words whole and stages both halves of each: one load and one funnel shift per source word, not two.
+                const uint SPT = WW >= 2u ? WW / 2u : 1u;   // source words a thread takes
+                for (uint m = 0u; m < SPT; ++m) {
+                    uint sw = WW >= 2u ? wseg * SPT + m : (wseg & 3u), i = (q0 >> 2u) + sw;
                     uint nw = odd ? (ws[pi].w32[i] >> 16u) | (ws[pi].w32[i + 1u] << 16u) : ws[pi].w32[i];
-                    uint b = (nw >> (w >= 4u ? 4u : 0u)) & 0x0F0F0F0Fu;
-                    // b - 8 per byte: flipping bit 3 gives b - 8 for b >= 8 and b + 8 otherwise, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
-                    uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
-                    wq[s * 8u + w][wrow] = t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
+                    for (uint h = 0u; h < 2u; ++h) {
+                        if (WW < 2u && h != (wseg >> 2u)) continue;
+                        uint b = (nw >> (4u * h)) & 0x0F0F0F0Fu;
+                        // b - 8 per byte: flipping bit 3 gives b - 8 for b >= 8 and b + 8 otherwise, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
+                        uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
+                        wq[s * 8u + sw + 4u * h][wrow] = t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
+                    }
                 }
                 if (wseg == 0u) {
                     uint sw = ws[pi].w32[ob >> 2u];
@@ -135,9 +140,15 @@ void main() {
             } else if (p.type == TYPE_Q4_1) {
                 // Q4_1, 20-byte blocks, always word aligned: a half scale and a half minimum, then Q4_0's nibble layout without the offset. The minimum is added rather than subtracted, so it is stored negated.
                 uint ob = (row * nblk + kb) * Q4_1_BYTES;
-                for (uint m = 0u; m < WW; ++m) {
-                    uint w = wseg * WW + m;
-                    wq[s * 8u + w][wrow] = (ws[pi].w32[(ob >> 2u) + 1u + (w & 3u)] >> (w >= 4u ? 4u : 0u)) & 0x0F0F0F0Fu;
+                // Both nibble halves of a source word per load where a thread stages two or more words, as for Q4_0.
+                const uint SPT = WW >= 2u ? WW / 2u : 1u;
+                for (uint m = 0u; m < SPT; ++m) {
+                    uint sw = WW >= 2u ? wseg * SPT + m : (wseg & 3u);
+                    uint nw = ws[pi].w32[(ob >> 2u) + 1u + sw];
+                    for (uint h = 0u; h < 2u; ++h) {
+                        if (WW < 2u && h != (wseg >> 2u)) continue;
+                        wq[s * 8u + sw + 4u * h][wrow] = (nw >> (4u * h)) & 0x0F0F0F0Fu;
+                    }
                 }
                 if (wseg == 0u) {
                     vec2 dm = unpackHalf2x16(ws[pi].w32[ob >> 2u]);

@@ -1,0 +1,73 @@
+#version 450
+// Expert routing (backend.hpp route_experts): a workgroup per row takes the k experts of highest softmax probability, the most probable first and ties to the lower id, with their probabilities, divided by the k probabilities' sum when `normalize`.
+// Every reduction is a shared-memory tree, so the arithmetic is the same on every subgroup width.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint n_expert; uint k; uint normalize; } p;
+layout(set = 0, binding = 0) readonly buffer S { float scores[]; };
+layout(set = 0, binding = 1) buffer I { uint ids[]; };
+layout(set = 0, binding = 2) buffer W { float weights[]; };
+
+const uint MAX_EXPERTS = 1024u;
+shared float prob[MAX_EXPERTS];
+shared float rv[256];
+shared uint ri[256];
+shared float chosen[256];
+
+// The tree over rv: its maximum, or its sum.
+float reduce(float v, bool sum) {
+    uint t = gl_LocalInvocationID.x;
+    rv[t] = v;
+    barrier();
+    for (uint h = 128u; h > 0u; h >>= 1u) {
+        if (t < h) rv[t] = sum ? rv[t] + rv[t + h] : max(rv[t], rv[t + h]);
+        barrier();
+    }
+    float r = rv[0];
+    barrier();
+    return r;
+}
+
+void main() {
+    uint r = gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
+    uint base = r * p.n_expert;
+    float top = -1.0 / 0.0;
+    for (uint e = t; e < p.n_expert; e += 256u) top = max(top, scores[base + e]);
+    top = reduce(top, false);
+    float part = 0.0;
+    for (uint e = t; e < p.n_expert; e += 256u) {
+        float v = exp(scores[base + e] - top);
+        prob[e] = v;
+        part += v;
+    }
+    float sum = reduce(part, true);
+    for (uint e = t; e < p.n_expert; e += 256u) prob[e] /= sum;
+    barrier();
+    for (uint j = 0u; j < p.k; ++j) {
+        // Each thread's best untaken expert, then the tree keeps the larger probability and, on a tie, the lower id; a taken expert holds -1, below every probability.
+        float bv = -2.0;
+        uint bi = 0xffffffffu;
+        for (uint e = t; e < p.n_expert; e += 256u)
+            if (prob[e] > bv) { bv = prob[e]; bi = e; }
+        rv[t] = bv;
+        ri[t] = bi;
+        barrier();
+        for (uint h = 128u; h > 0u; h >>= 1u) {
+            if (t < h && (rv[t + h] > rv[t] || (rv[t + h] == rv[t] && ri[t + h] < ri[t]))) {
+                rv[t] = rv[t + h];
+                ri[t] = ri[t + h];
+            }
+            barrier();
+        }
+        if (t == 0u) {
+            chosen[j] = rv[0];
+            ids[r * p.k + j] = ri[0];
+            prob[ri[0]] = -1.0;
+        }
+        barrier();
+    }
+    if (t == 0u) {
+        float total = 0.0;
+        for (uint j = 0u; j < p.k; ++j) total += chosen[j];
+        for (uint j = 0u; j < p.k; ++j) weights[r * p.k + j] = p.normalize != 0u ? chosen[j] / total : chosen[j];
+    }
+}

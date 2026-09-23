@@ -216,6 +216,12 @@ const uint32_t kSpvMatmulReduce[] = {
 const uint32_t kSpvMatmulVecQ8[] = {
 #include "vulkan/matmul_vec_q8.inc"
 };
+const uint32_t kSpvMoeRoute[] = {
+#include "vulkan/moe_route.inc"
+};
+const uint32_t kSpvMoeCombine[] = {
+#include "vulkan/moe_combine.inc"
+};
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
@@ -228,7 +234,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
-                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_COUNT };
+                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
 // F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
@@ -274,7 +280,7 @@ struct KernelSource {
     const uint32_t* counts;
 };
 
-const uint32_t kMatmulRowCounts[10] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1};
+const uint32_t kMatmulRowCounts[11] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1};
 // The integer-dot tile's outputs and weights, three of each, and the reduce's outputs.
 const uint32_t kMatmulTileQCounts[4] = {3, 3, 1, 1};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
@@ -291,7 +297,7 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
     "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
-    "matmul_reduce", "matmul_vec_q8",
+    "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -301,15 +307,15 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr},
     {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5, nullptr},
     {kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr},
-    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 10, kMatmulRowCounts},
+    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 11, kMatmulRowCounts},
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
     {kSpvAttention, sizeof(kSpvAttention), 7, nullptr},
     {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
-    {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 10, kMatmulRowCounts},
-    {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 10, kMatmulRowCounts},
-    {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 10, kMatmulRowCounts},
-    {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 10, kMatmulRowCounts},
+    {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 11, kMatmulRowCounts},
+    {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 11, kMatmulRowCounts},
+    {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 11, kMatmulRowCounts},
+    {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 11, kMatmulRowCounts},
     {kSpvNormRopeKv, sizeof(kSpvNormRopeKv), 11, nullptr},
     {kSpvAttentionTile, sizeof(kSpvAttentionTile), 5, nullptr},
     {kSpvKvWriteK16, sizeof(kSpvKvWriteK16), 5, nullptr},
@@ -325,19 +331,21 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvNormRopeKvV16, sizeof(kSpvNormRopeKvV16), 11, nullptr},
     {kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr},
     {kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr},
-    {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 10, kMatmulRowCounts},
+    {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 11, kMatmulRowCounts},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
-    {kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 10, kMatmulRowCounts},
-    {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 10, kMatmulRowCounts},
-    {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 10, kMatmulRowCounts},
-    {kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 10, kMatmulRowCounts},
+    {kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 11, kMatmulRowCounts},
+    {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 11, kMatmulRowCounts},
+    {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 11, kMatmulRowCounts},
+    {kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 11, kMatmulRowCounts},
     {kSpvQuantizeX8, sizeof(kSpvQuantizeX8), 2, nullptr},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 4, kMatmulTileQCounts},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 4, kMatmulTileQCounts},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 4, kMatmulTileQCounts},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 4, kMatmulTileQCounts},
     {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts},
-    {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 10, kMatmulRowCounts},
+    {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 11, kMatmulRowCounts},
+    {kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr},
+    {kSpvMoeCombine, sizeof(kSpvMoeCombine), 3, nullptr},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1160,16 +1168,6 @@ public:
                  pc, sizeof(pc), groups(width * count, 256));
     }
 
-    void route_experts(CSlice, size_t, size_t, size_t, bool, Slice, Slice) override {
-        throw std::runtime_error("vulkan: mixture-of-experts layers are not supported yet");
-    }
-    void matmul_experts(std::initializer_list<Projection>, CSlice, size_t, size_t, const Routing&, RowRuns) override {
-        throw std::runtime_error("vulkan: mixture-of-experts layers are not supported yet");
-    }
-    void matmul_experts_add(uint32_t, CSlice, CSlice, Slice, size_t, size_t, size_t, const Routing&, RowRuns) override {
-        throw std::runtime_error("vulkan: mixture-of-experts layers are not supported yet");
-    }
-
     // Row kernels: one workgroup per row, or per (row, head).
     void rms_norm(Slice dst, CSlice src, CSlice w, size_t n, float eps) override {
         rms_norm_rows(dst, src, w, 1, n, n, eps);
@@ -1452,8 +1450,19 @@ public:
                 run(rest);
                 return;
             }
-        // The row kernel's work units and the lanes that share one, per type (matmul_row.comp): Q8_0 pairs over four lanes and Q4_0 pairs over two when the block count is even, Q4_1 blocks over one, the K-quant blocks over eight, else one unit per block or value.
-        const uint32_t type = live[0]->type;
+        const RowPlan plan = row_plan(live[0]->type, nin);
+        const VkDescriptorBufferInfo xqi = row_twin(X, live[0]->type, plan.kernel, nbatch * nin);
+        for (size_t col0 = 0; col0 < nbatch; col0 += 8)
+            row_dispatch(plan, live, X, xqi, nin, nbatch, col0, std::min<size_t>(8, nbatch - col0), accumulate);
+    }
+
+    // The row kernel for a type at a width (matmul_row.comp): its module, whether rows take the wide layout, and how a subgroup's lanes split over rows.
+    // Q8_0 pairs go over four lanes and Q4_0 pairs over two when the block count is even, Q4_1 blocks over one, the K-quant blocks over eight, else one unit per block or value.
+    struct RowPlan {
+        KernelId kernel;
+        uint32_t type, wide, cluster, rows_per_sg, rows_per_group;
+    };
+    RowPlan row_plan(uint32_t type, size_t nin) const {
         const size_t nblocks = nin / block_values_of(type);
         uint32_t wide = 0, lanes = 1;
         size_t units = nin;
@@ -1497,59 +1506,121 @@ public:
             cluster = dev_->subgroup_size / 2;
         }
         const uint32_t rows_per_sg = dev_->subgroup_size / cluster;
-        const uint32_t rows_per_group = (256 / dev_->subgroup_size) * rows_per_sg;
+        return RowPlan{kernel, type, wide, cluster, rows_per_sg, (256 / dev_->subgroup_size) * rows_per_sg};
+    }
+
+    // What a row kernel reads X through: the floats for F32 rows, else the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag.
+    // An input without one gets a quantize dispatch here; the scratch is reused stream-ordered.
+    VkDescriptorBufferInfo row_twin(CSlice X, uint32_t type, KernelId kernel, size_t n) {
+        if (type == gguf::GGML_TYPE_F32) return bind(X);
+        const VkDescriptorBufferInfo xf = bind(X);
+        VkDescriptorBufferInfo xqi = xq_for(n);
+        const bool x8 = reads_x8(kernel);
+        // The first matmul reading the 8-bit twin has it made here; producers after it write both.
+        if (x8) want_x8_ = true;
+        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || xq_tag_.has8))) {
+            const uint32_t qpc[1] = {u32(n)};
+            dispatch(K_QUANTIZE_X, {xf, xqi}, qpc, sizeof(qpc), groups(n, 256), 1, twin_variant());
+            xq_tag_ = XqTag{xf, n, want_x8_};
+        }
+        if (x8) xqi.offset = x8_base_bytes(n);
+        return xqi;
+    }
+
+    // One row kernel dispatch over up to three projections of one type and columns col0 .. col0 + ncols of X, which has nbatch columns.
+    // A routed dispatch (`per` nonzero) instead runs one entry per workgroup row, `entries` of them, through the expert ids in `ids`.
+    void row_dispatch(const RowPlan& plan, const std::vector<const Projection*>& live, CSlice X, VkDescriptorBufferInfo xqi,
+                      size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate,
+                      uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {}) {
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
         uint32_t total = 0;
         for (size_t i = 0; i < live.size(); ++i) {
             nout[i] = u32(live[i]->rows);
             start[i] = total;
-            total += groups(live[i]->rows, rows_per_group);
+            total += groups(live[i]->rows, plan.rows_per_group);
         }
-        if (total > dev_->props.limits.maxComputeWorkGroupCount[0])
+        if (total > dev_->props.limits.maxComputeWorkGroupCount[0] || entries > dev_->props.limits.maxComputeWorkGroupCount[1])
             throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
-        // Quantized rows read the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag; an input without one gets a quantize dispatch here.
-        // F32 rows read the floats through the same slots.
-        // The scratch is reused stream-ordered.
-        VkDescriptorBufferInfo xqi = bind(X);
-        if (type != gguf::GGML_TYPE_F32) {
-            const VkDescriptorBufferInfo xf = bind(X);
-            xqi = xq_for(nbatch * nin);
-            const bool x8 = reads_x8(kernel);
-            // The first matmul reading the 8-bit twin has it made here; producers after it write both.
-            if (x8) want_x8_ = true;
-            if (!(xq_tag_.n == nbatch * nin && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset &&
-                  (!x8 || xq_tag_.has8))) {
-                const uint32_t qpc[1] = {u32(nbatch * nin)};
-                dispatch(K_QUANTIZE_X, {xf, xqi}, qpc, sizeof(qpc), groups(nbatch * nin, 256), 1, twin_variant());
-                xq_tag_ = XqTag{xf, nbatch * nin, want_x8_};
-            }
-            if (reads_x8(kernel)) xqi.offset = x8_base_bytes(nbatch * nin);
-        }
         // Unused projection slots bind the first one's buffers; no workgroup reaches them.
         const Projection& a = *live[0];
         const Projection& b = live.size() > 1 ? *live[1] : a;
         const Projection& c = live.size() > 2 ? *live[2] : a;
-        for (size_t col0 = 0; col0 < nbatch; col0 += 8) {
-            const size_t ncols = std::min<size_t>(8, nbatch - col0);
-            const uint32_t pc[20] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), cluster, rows_per_sg,
-                                     (uint32_t)live.size(),
-                                     nout[0], type, wide, start[0],
-                                     nout[1], type, wide, start[1],
-                                     nout[2], type, wide, start[2], accumulate ? 1u : 0u};
-            dispatch(kernel,
-                     {bind(a.out), bind(b.out), bind(c.out),
-                      bind(a.data), bind(b.data), bind(c.data),
-                      bind(a.data), bind(b.data), bind(c.data),
-                      bind(a.data), bind(b.data), bind(c.data),
-                      bind(X),
-                      bind(a.data), bind(b.data), bind(c.data),
-                      xqi, xqi, xqi, xqi},
-                     pc, sizeof(pc), total, 1,
-                     ncols == 1 && row_kernel_builds_one_column(kernel) ? 1 : 0);
-        }
+        const uint32_t t = plan.type, w = plan.wide;
+        const uint32_t pc[21] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, plan.rows_per_sg,
+                                 (uint32_t)live.size(),
+                                 nout[0], t, w, start[0],
+                                 nout[1], t, w, start[1],
+                                 nout[2], t, w, start[2], accumulate ? 1u : 0u, per};
+        dispatch(plan.kernel,
+                 {bind(a.out), bind(b.out), bind(c.out),
+                  bind(a.data), bind(b.data), bind(c.data),
+                  bind(a.data), bind(b.data), bind(c.data),
+                  bind(a.data), bind(b.data), bind(c.data),
+                  bind(X),
+                  bind(a.data), bind(b.data), bind(c.data),
+                  xqi, xqi, xqi, xqi, ids.buffer ? ids : bind(X)},
+                 pc, sizeof(pc), total, u32(entries),
+                 ncols == 1 && row_kernel_builds_one_column(plan.kernel) ? 1 : 0);
         // The outputs may be what the twin describes.
         for (const Projection* pr : live)
             if (bind(pr->out).buffer == xq_tag_.x.buffer) xq_tag_ = XqTag{};
+    }
+
+    // Expert routing and the routed projections (backend.hpp).
+    // Every entry goes through the row kernel, a workgroup row per entry, so an entry computes the same whatever else is routed beside it.
+    void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, Slice ids, Slice weights) override {
+        if (!k || k > n_expert || k > 256 || n_expert > 1024)
+            throw std::runtime_error("vulkan: routing takes 1 to 256 of at most 1024 experts");
+        if (!rows) return;
+        if (floats_from(scores) < rows * n_expert || floats_from(ids) < rows * k || floats_from(weights) < rows * k)
+            throw std::runtime_error("vulkan: routing operand outside its allocation");
+        const uint32_t pc[4] = {u32(rows), u32(n_expert), u32(k), normalize ? 1u : 0u};
+        dispatch(K_MOE_ROUTE, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows));
+    }
+
+    void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nrows,
+                        const Routing& routing, RowRuns) override {
+        const size_t entries = nrows * routing.k;
+        if (!entries || !projections.size()) return;
+        if (projections.size() > 3) throw std::logic_error("vulkan: more than three routed projections");
+        std::vector<const Projection*> live;
+        for (const Projection& pr : projections) {
+            check_experts(pr.type, pr.data, nin, pr.rows, routing.n_expert);
+            if (floats_from(pr.out) < entries * pr.rows) throw std::runtime_error("vulkan: matmul operand outside its allocation");
+            if (!live.empty() && pr.type != live[0]->type) throw std::runtime_error("vulkan: routed projections of different types");
+            live.push_back(&pr);
+        }
+        if (floats_from(X) < nrows * nin || floats_from(routing.ids) < entries)
+            throw std::runtime_error("vulkan: matmul operand outside its allocation");
+        const RowPlan plan = row_plan(live[0]->type, nin);
+        const VkDescriptorBufferInfo xqi = row_twin(X, plan.type, plan.kernel, nrows * nin);
+        row_dispatch(plan, live, X, xqi, nin, nrows, 0, 1, false, u32(routing.k), entries, bind(routing.ids));
+    }
+
+    void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout, size_t nrows,
+                            const Routing& routing, RowRuns) override {
+        const size_t k = routing.k, entries = nrows * k;
+        if (!entries) return;
+        check_experts(type, data, nin, nout, routing.n_expert);
+        if (floats_from(X) < entries * nin || floats_from(Y) < nrows * nout || floats_from(routing.ids) < entries ||
+            floats_from(routing.weights) < entries)
+            throw std::runtime_error("vulkan: matmul operand outside its allocation");
+        if (!moe_out_ || moe_out_->size() < entries * nout * sizeof(float)) grow(moe_out_, entries * nout * sizeof(float));
+        const Slice part{moe_out_.get(), 0};
+        const Projection one{type, data, part, nout};
+        const RowPlan plan = row_plan(type, nin);
+        const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, entries * nin);
+        row_dispatch(plan, {&one}, X, xqi, nin, entries, 0, 1, false, 1, entries, bind(routing.ids));
+        const uint32_t pc[3] = {u32(nrows), u32(nout), u32(k)};
+        dispatch(K_MOE_COMBINE, {bind(Y), bind(CSlice(part)), bind(routing.weights)}, pc, sizeof(pc), groups(nrows * nout, 256));
+    }
+
+    void check_experts(uint32_t type, CSlice data, size_t nin, size_t nout, size_t n_expert) {
+        if (!data.buffer) throw std::runtime_error("vulkan: projection without storage");
+        const size_t row_bytes = row_bytes_of(type, nin);
+        if (!row_bytes) throw std::runtime_error("vulkan: unsupported matrix type " + std::to_string(type));
+        if (nin % block_values_of(type)) throw std::runtime_error("vulkan: matrix width is not whole blocks");
+        if (bytes_from(data) < n_expert * nout * row_bytes) throw std::runtime_error("vulkan: matmul operand outside its allocation");
     }
 
     // The scratch the twin of an n-value input lives in.
@@ -2068,6 +2139,7 @@ private:
     std::shared_ptr<VulkanBuffer> x8_;        // the integer-dot tile's 8-bit activations
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
+    std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     // What the twin buffer holds: the float input it was made from, its length, and whether the 8-bit twin was written; cleared by anything else that writes a buffer, since the input may be what was written.
     struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; };
     // Set once a matmul that reads the 8-bit twin has run, so producers take their build that writes it from then on.

@@ -1058,6 +1058,80 @@ size_t check_kernels(backend::Backend& vk) {
         std::cout << "backend-vulkan: Q8_0 matvec 4096x4096 " << ms << " ms, "
                   << (double)wq.size() / ms / 1e6 << " GB/s\n";
     }
+    // Mixture of experts: routing the same scores gives the same ids and weights, and the routed projections match the CPU over stacked experts of every type, gate and up in one call and the weighted down projection into a residual.
+    // Every entry takes the row kernel, so the reference is fed the twin that type's row family reads.
+    {
+        const size_t n_expert = 6, k = 2, rows = 5, entries = rows * k, nin = 256, nff = 67, nout = 45;
+        const auto scores = uniform(rows * n_expert, 90, -3.0f, 3.0f);
+        Pair::In si = p.in(scores);
+        Pair::Out ids = p.out(entries), wts = p.out(entries);
+        p.cpu.route_experts(si.cs(), rows, n_expert, k, true, ids.cs(), wts.cs());
+        p.vk.route_experts(si.vs(), rows, n_expert, k, true, ids.vs(), wts.vs());
+        auto ri = p.results(ids);
+        values += exact(ri.first, ri.second, "routed expert ids differ");
+        auto rw = p.results(wts);
+        values += close(rw.first, rw.second, 1e-6, "routing weights differ beyond 1e-6");
+        const backend::Backend::Routing rc{ids.cs(), wts.cs(), k, n_expert}, rv{ids.vs(), wts.vs(), k, n_expert};
+        // Stacked expert bytes of a type: F32 and the block quantizers from floats, the K-quants from a byte pattern with small half scales, as the matmul check above builds them.
+        auto stacked = [&](uint32_t type, size_t in, size_t out, uint32_t seed) {
+            const size_t n_rows = n_expert * out;
+            const auto f = uniform(n_rows * in, seed);
+            std::vector<uint8_t> bytes;
+            if (type == gguf::GGML_TYPE_F32) {
+                bytes.resize(f.size() * sizeof(float));
+                std::memcpy(bytes.data(), f.data(), bytes.size());
+            } else if (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_0 || type == gguf::GGML_TYPE_Q4_1) {
+                const size_t ts = type == gguf::GGML_TYPE_Q8_0 ? gguf::Q8_0_TYPESIZE : type == gguf::GGML_TYPE_Q4_0 ? gguf::Q4_0_TYPESIZE : gguf::Q4_1_TYPESIZE;
+                bytes.resize(n_rows * (in / 32) * ts);
+                for (size_t r = 0; r < n_rows; ++r) {
+                    uint8_t* dst = bytes.data() + r * (in / 32) * ts;
+                    if (type == gguf::GGML_TYPE_Q8_0) quant::quantize_row_q8_0(f.data() + r * in, dst, in / 32);
+                    else if (type == gguf::GGML_TYPE_Q4_0) quant::quantize_row_q4_0(f.data() + r * in, dst, in / 32);
+                    else quant::quantize_row_q4_1(f.data() + r * in, dst, in / 32);
+                }
+            } else {
+                const size_t ts = type == gguf::GGML_TYPE_Q6_K ? gguf::Q6_K_TYPESIZE : type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE : gguf::Q5_K_TYPESIZE;
+                bytes.resize(n_rows * (in / 256) * ts);
+                for (size_t i = 0; i < bytes.size(); ++i) bytes[i] = uint8_t(i * (61 + seed % 7) + 3);
+                for (size_t b = 0; b < n_rows * (in / 256); ++b) {
+                    uint8_t* blk = bytes.data() + b * ts;
+                    if (type == gguf::GGML_TYPE_Q6_K) { blk[208] = 0x00; blk[209] = 0x14; }
+                    else { blk[0] = 0x00; blk[1] = 0x14; blk[2] = 0x00; blk[3] = 0x10; }
+                }
+            }
+            return bytes;
+        };
+        const auto x = uniform(rows * nin, 91), x2 = uniform(entries * nin, 92), y0 = uniform(rows * nout, 93);
+        Pair::In xi = p.in(x), x2i = p.in(x2);
+        for (uint32_t type : {gguf::GGML_TYPE_F32, gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
+                              gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K}) {
+            const bool f32 = type == gguf::GGML_TYPE_F32;
+            const bool reads8 = twin8 && (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K);
+            const double tol = f32 || !reads8 ? 1e-4 : twin_tol;
+            const auto wg = stacked(type, nin, nff, 94), wu = stacked(type, nin, nff, 95), wd = stacked(type, nin, nout, 96);
+            Pair::In wgi = p.in(wg.data(), wg.size()), wui = p.in(wu.data(), wu.size()), wdi = p.in(wd.data(), wd.size());
+            const auto xr = f32 ? x : twin_activations(x, reads8), x2r = f32 ? x2 : twin_activations(x2, reads8);
+            Pair::In xri = p.in(xr), x2ri = p.in(x2r);
+            try {
+                Pair::Out g = p.out(entries * nff), u = p.out(entries * nff);
+                p.cpu.matmul_experts({{type, wgi.cs(), g.cs(), nff}, {type, wui.cs(), u.cs(), nff}}, xri.cs(), nin, rows, rc);
+                p.vk.matmul_experts({{type, wgi.vs(), g.vs(), nff}, {type, wui.vs(), u.vs(), nff}}, xi.vs(), nin, rows, rv);
+                auto rg = p.results(g), ru = p.results(u);
+                values += close(rg.first, rg.second, tol, "routed gate projection differs beyond its bound");
+                values += close(ru.first, ru.second, tol, "routed up projection differs beyond its bound");
+                Pair::Out y = p.out(rows * nout);
+                p.cpu.write(*y.c, 0, y0.data(), y0.size() * sizeof(float));
+                p.vk.write(*y.v, 0, y0.data(), y0.size() * sizeof(float));
+                p.cpu.matmul_experts_add(type, wdi.cs(), x2ri.cs(), y.cs(), nin, nout, rows, rc);
+                p.vk.matmul_experts_add(type, wdi.vs(), x2i.vs(), y.vs(), nin, nout, rows, rv);
+                auto ry = p.results(y);
+                values += close(ry.first, ry.second, tol, "routed down projection differs beyond its bound");
+            } catch (const std::runtime_error&) {
+                std::fprintf(stderr, "  routed experts type %u\n", type);
+                throw;
+            }
+        }
+    }
     return values;
 }
 

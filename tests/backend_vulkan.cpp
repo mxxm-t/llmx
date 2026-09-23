@@ -118,7 +118,7 @@ std::vector<float> tile_activations8(const std::vector<float>& x) {
     return out;
 }
 
-// The activations as a row family reads them: on a device whose integer dot is native the Q4_K and Q5_K families read the 8-bit twin and the others the 16-bit one; elsewhere every family reads the 16-bit one.
+// The activations as a row family reads them: on a device whose integer dot is native the Q4_K, Q5_K and Q6_K families read the 8-bit twin and the others the 16-bit one; elsewhere every family reads the 16-bit one.
 std::vector<float> twin_activations(const std::vector<float>& x, bool twin8) {
     return twin8 ? tile_activations8(x) : row_activations(x);
 }
@@ -352,7 +352,7 @@ size_t check_kernels(backend::Backend& vk) {
             // A device whose integer dot is native takes wide quantized batches through the integer-dot tile, which reads 8-bit activations.
             const bool idot = profile.prefer_integer_dot;
             const auto xr8 = nbatch < tile_from_8bit ? twin_activations(x, idot) : idot ? tile_activations8(x) : x;   // adopted, so they must outlive the calls; Q8_0 rows read the 8-bit twin where the integer dot is native
-            const auto xr4 = nbatch < tile_from_other ? row_activations(x) : idot ? tile_activations8(x) : x;   // Q4_0, Q4_1 and Q6_K read the 16-bit twin
+            const auto xr4 = nbatch < tile_from_other ? row_activations(x) : idot ? tile_activations8(x) : x;   // Q4_0 and Q4_1 read the 16-bit twin
             const auto xrk = nbatch < tile_from_other ? twin_activations(x, idot) : idot ? tile_activations8(x) : x;
             Pair::In xri8 = p.in(xr8), xri4 = p.in(xr4), xrik = p.in(xrk);
             for (int q = 0; q < 7; ++q) {
@@ -364,11 +364,12 @@ size_t check_kernels(backend::Backend& vk) {
                 const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i
                                    : q == 5 ? w4ki : q == 6 ? w5ki : wfi;
                 Pair::Out d = p.out(nbatch * nout);
-                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : q == 1 ? xri8 : q <= 4 ? xri4 : xrik).cs(), d.cs(), nin, nout, nbatch);
+                p.cpu.matmul(type, wi.cs(), (q == 0 ? xi : q == 1 ? xri8 : q <= 3 ? xri4 : xrik).cs(), d.cs(), nin, nout, nbatch);
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
                 auto r = p.results(d);
                 try {
-                    const bool row16 = (q == 1 && nbatch < tile_from_8bit && !idot) || (q >= 2 && q <= 4 && nbatch < tile_from_other);
+                    const bool row16 = (q == 1 && nbatch < tile_from_8bit && !idot) || (q >= 2 && q <= 3 && nbatch < tile_from_other) ||
+                                       (q == 4 && nbatch < tile_from_other && !idot);
                     const double tol = q == 0 || row16 ? 1e-4 : twin_tol;
                     values += close(r.first, r.second, tol, q == 1 ? "Q8_0 matmul differs beyond 1e-4"
                                                             : q == 2 ? "Q4_0 matmul differs beyond 1e-4"
@@ -377,6 +378,14 @@ size_t check_kernels(backend::Backend& vk) {
                                                             : q == 5 ? "Q4_K matmul differs beyond 1e-4"
                                                             : q == 6 ? "Q5_K matmul differs beyond 1e-4"
                                                                      : "F32 matmul differs beyond 1e-4");
+                    // The output head keeps the 16-bit twin for Q6_K rows.
+                    if (q == 4 && nbatch < tile_from_other) {
+                        Pair::Out h = p.out(nbatch * nout);
+                        p.cpu.matmul(type, wi.cs(), xri4.cs(), h.cs(), nin, nout, nbatch);
+                        p.vk.matmul_logits(type, wi.vs(), xi.vs(), h.vs(), nin, nout, nbatch);
+                        auto rh = p.results(h);
+                        values += close(rh.first, rh.second, 1e-4, "Q6_K output head differs beyond 1e-4");
+                    }
                 } catch (const std::runtime_error&) {
                     std::fprintf(stderr, "  matmul type %u nin %zu nbatch %zu\n", type, nin, nbatch);
                     throw;
@@ -1125,7 +1134,8 @@ size_t check_kernels(backend::Backend& vk) {
             for (uint32_t type : {gguf::GGML_TYPE_F32, gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
                                   gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K}) {
                 const bool f32 = type == gguf::GGML_TYPE_F32;
-                const bool reads8 = twin8 && (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K);
+                const bool reads8 = twin8 && (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K ||
+                                          type == gguf::GGML_TYPE_Q6_K);
                 // The row kernel reads a twin, 8-bit or 16-bit by family; the tile reads 8-bit activations where the integer dot takes quantized types, else floats.
                 const bool tile8 = twin8 && !f32;
                 auto fed = [&](const std::vector<float>& v, size_t per_row, size_t per_entry_rows) {

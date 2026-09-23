@@ -528,9 +528,9 @@ public:
                 b.gather_rows(slot(ctx, cur, 1), slot(ctx, cur, 0), E, ctx.pick.data(), want);
                 b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), output_norm_.slice(),
                                 want, E, E, cfg.rms_eps);
-                b.matmul(output_.type, output_.slice(), slot(ctx, cur, 1),
-                         {ctx.logits_buf.get(), 0}, output_.nin, output_.nout, want,
-                         backend::RowRuns{ctx.head_runs.data(), ctx.head_runs.size()});
+                b.matmul_logits(output_.type, output_.slice(), slot(ctx, cur, 1),
+                                {ctx.logits_buf.get(), 0}, output_.nin, output_.nout, want,
+                                backend::RowRuns{ctx.head_runs.data(), ctx.head_runs.size()});
             }
             for (size_t d = 0; d < devices_.size(); ++d)
                 if (devices_[d]->used) ctx.tickets[d] = devices_[d]->b->submit();

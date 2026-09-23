@@ -150,6 +150,12 @@ public:
     virtual void matmul(uint32_t type, CSlice data, CSlice X,
                         Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}) = 0;
 
+    // The output head: its results are the logits a caller reads directly, so a backend may keep more precise activations for it than for the projections inside the layers.
+    virtual void matmul_logits(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch,
+                               RowRuns runs = {}) {
+        matmul(type, data, X, Y, nin, nout, nbatch, runs);
+    }
+
     // Y += W X, the projection whose output joins the residual stream: the model asks for the sum and each backend produces it its own way.
     // The CPU computes the product into scratch and adds; a device folds the add into the matmul's store, one dispatch fewer per projection.
     virtual void matmul_add(uint32_t type, CSlice data, CSlice X,

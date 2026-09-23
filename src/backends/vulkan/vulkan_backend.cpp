@@ -1263,6 +1263,12 @@ public:
                  pc, sizeof(pc), u32(count));
     }
 
+    void matmul_logits(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
+                       size_t nbatch, RowRuns runs = {}) override {
+        logits_ = true;
+        try { matmul(type, w, X, Y, nin, nout, nbatch, runs); } catch (...) { logits_ = false; throw; }
+        logits_ = false;
+    }
     void matmul(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
                 size_t nbatch, RowRuns runs = {}) override {
         const Projection one{type, w, Y, nout};
@@ -1508,8 +1514,8 @@ public:
         default: break;
         }
         if (dev_->profile.prefer_integer_dot) kernel = row_dot_variant(kernel);
-        // Q6_K rows on the 8-bit twin where the integer dot is native, the -32 folded into each weight byte.
-        if (kernel == K_MATMUL_ROW_K_DOT) kernel = K_MATMUL_ROW_K_DOT8;
+        // Q6_K rows on the 8-bit twin where the integer dot is native, the -32 folded into each weight byte, except in the output head, where on 8 bits the HF gate's Q4_0 file fails its top-5 bound.
+        if (kernel == K_MATMUL_ROW_K_DOT && !logits_) kernel = K_MATMUL_ROW_K_DOT8;
         uint32_t cluster = lanes;
         while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
         // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin (shaders/matmul_vec_q8.comp).
@@ -1752,7 +1758,7 @@ public:
 
     // Where the 8-bit twin starts after the 16-bit one, in bytes, rounded up to 256 so it is a valid binding offset (shaders/xquant.glsl).
     static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 8 + 63) & ~size_t(63)) * 4; }
-    // The row kernels that read the 8-bit twin: the Q4_K and Q5_K families built with LLMX_X8, and the Q8_0 kernel. Q4_0 and Q6_K stay on the 16-bit twin, since on the 8-bit one the HF gate's Q4_0 fixture failed its top-5 bound (docs/STATUS.md).
+    // The row kernels that read the 8-bit twin: the Q4_K, Q5_K and Q6_K families built with LLMX_X8, and the Q8_0 kernel. Q4_0 and a Q6_K output head stay on the 16-bit twin, since on the 8-bit one the HF gate's Q4_0 fixture failed its top-5 bound (docs/STATUS.md).
     static bool reads_x8(KernelId id) {
         return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K_DOT8 || id == K_MATMUL_VEC_Q8;
     }
@@ -2260,6 +2266,7 @@ private:
     std::shared_ptr<VulkanBuffer> x8_;        // the integer-dot tile's 8-bit activations
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
+    bool logits_ = false;                     // inside matmul_logits
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
     // Which ids moe_tab_ groups: their location and count, cleared by every routing and by anything that writes a buffer from the host.

@@ -36,8 +36,9 @@ def free_port():
 class Server:
     def __init__(self, model, *extra):
         self.port = free_port()
-        args = [common.exe_path(), "serve", model, "--host", "127.0.0.1", "--port", str(self.port), "--max-seqs", "8"] + list(extra)
-        self.proc = subprocess.Popen(common.device_args(args, "f32"), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        # The device and cache flags go on the command, not the executable path, which device_args would not recognise; the server then runs where the CLI it is compared with runs.
+        args = ["serve", model, "--host", "127.0.0.1", "--port", str(self.port), "--max-seqs", "8"] + list(extra)
+        self.proc = subprocess.Popen([common.exe_path()] + common.device_args(args, "f32"), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                      text=True, encoding="utf-8")
         deadline = time.time() + 120
         while time.time() < deadline:
@@ -84,8 +85,8 @@ class Server:
 
 
 def cli_greedy_text(model, prompt, n):
-    """What `generate --temp 0` prints between its pp and tg lines."""
-    rc, out = cli(["generate", model, prompt, "-n", str(n), "--temp", "0"])
+    """What `generate --temp 0` prints between its pp and tg lines, with the f32 cache sides the server under test is started with."""
+    rc, out = cli(["generate", model, prompt, "-n", str(n), "--temp", "0"], cache="f32")
     assert rc == 0, out
     lines = out.split("\n")
     assert lines[0].startswith("pp:") and lines[-2].startswith("tg:"), out

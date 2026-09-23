@@ -53,8 +53,8 @@ struct DeviceProfile {
     size_t moe_tile_from = 32, moe_tile_from_q4 = 96, moe_tile_from_q4k = 64, moe_tile_from_q5k = 48;
     // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row.
     size_t attention_split_chunk = 32, attention_split_max = 64;
-    // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, and the fewest quant blocks of 32 a part may sum.
-    uint32_t tile_split_per_cu = 8, tile_split_min_blocks = 16;
+    // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, for rows at least tile_narrow_nin wide and narrower, and the fewest quant blocks of 32 a part may sum.
+    uint32_t tile_split_per_cu = 8, tile_split_per_cu_narrow = 4, tile_split_min_blocks = 16;
     // Dispatches recorded before a submission, so the device starts on a pass while the host is still recording it.
     uint32_t dispatch_chunk = 64;
     // Whether the matmuls take their dots through the integer dot product instructions: measured per device and driver, since the same silicon gains under Mesa and loses under the AMD proprietary driver.

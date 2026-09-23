@@ -443,7 +443,7 @@ HF gate measures the cost of it.
 
   First, `quantize_x8.comp` now orders the 8-bit blocks by block of the inner dimension, then by column. Before, it wrote them column after column, which put the tile's 64 columns of one block a row width apart. Now one step of the tile reads its activations as a single 2 KB run.
 
-  Second, a call with fewer workgroups than `tile_split_per_cu` per compute unit (eight, measured) splits its inner dimension into parts of at least `tile_split_min_blocks` quant blocks (16). Each part writes its partial sums to a scratch buffer. `matmul_reduce.comp` then adds the parts in order, so the result does not depend on which workgroup finishes first.
+  Second, a call with fewer workgroups than `tile_split_per_cu` per compute unit (eight, measured; four for rows narrower than `tile_narrow_nin`, where on the MI50 Qwen3-0.6B prefill at 512 rows went from about 7300 to 8100 tok/s on Q4_0 and Q8_0 and from 6700 to 7300 on Q5_K_M, while Qwen3-8B Q4_K_M lost 3 percent with four) splits its inner dimension into parts of at least `tile_split_min_blocks` quant blocks (16). Each part writes its partial sums to a scratch buffer. `matmul_reduce.comp` then adds the parts in order, so the result does not depend on which workgroup finishes first.
 
   The workgroups counted are those of a pass over the row's whole prompt, up to a microbatch of 512 rows, rather than those of the call, so a row sums its inner dimension in the same parts however its prompt was batched (Batch invariance, below). Taking the split from the projection's shape alone, as if every call were one column tile, did that too, but split 512-row passes as finely as 64-row ones: 8B Q8_0 at 512 rows fell from 866 to 802 tok/s.
 

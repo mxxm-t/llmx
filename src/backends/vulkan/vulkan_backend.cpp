@@ -1777,10 +1777,10 @@ public:
                type != gguf::GGML_TYPE_F32;
     }
 
-    // The scratch the 8-bit twin of an n-value batch lives in (shaders/quantize_x8.comp), reused stream-ordered.
-    // The quant blocks each part of a split integer-dot tile call sums, the whole inner dimension when unsplit: a call of fewer workgroups than tile_split_per_cu per compute unit splits, keeping at least tile_split_min_blocks per part.
+    // The quant blocks each part of a split integer-dot tile call sums, the whole inner dimension when unsplit: a call of fewer workgroups than tile_split_per_cu (tile_split_per_cu_narrow for narrow rows) per compute unit splits, keeping at least tile_split_min_blocks per part.
     size_t split_blocks(size_t workgroups, size_t nblk) const {
-        const size_t target = (size_t)dev_->profile.tile_split_per_cu * dev_->caps.compute_units;
+        const bool narrow = nblk * 32 < dev_->profile.tile_narrow_nin;
+        const size_t target = (size_t)(narrow ? dev_->profile.tile_split_per_cu_narrow : dev_->profile.tile_split_per_cu) * dev_->caps.compute_units;
         const size_t floor_blocks = std::max<size_t>(dev_->profile.tile_split_min_blocks, 2);
         if (workgroups >= target) return nblk;
         size_t parts = std::min((target + workgroups - 1) / workgroups, std::max<size_t>(1, nblk / floor_blocks));
@@ -1790,6 +1790,7 @@ public:
         return std::min(kper, nblk);
     }
 
+    // The scratch the 8-bit twin of an n-value batch lives in (shaders/quantize_x8.comp), reused stream-ordered.
     VkDescriptorBufferInfo x8_for(size_t n) {
         const size_t bytes = n + (n / 32) * 8;
         if (!x8_ || x8_->size() < bytes) grow(x8_, bytes);

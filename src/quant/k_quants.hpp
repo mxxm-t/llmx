@@ -5,21 +5,15 @@
 #include "core/fp16.hpp"
 #include "format/gguf.hpp"
 
-// K-quant block formats. These differ from the simple block types in quant.hpp
-// in two ways: the block is a 256-value SUPER-block, and each super-block
-// carries per-32-value sub-scales that are themselves quantized to 6 bits
-// against a pair of f16 super-block scales.
+// K-quant block formats.
+// These differ from the simple block types in quant.hpp in two ways: the block is a 256-value SUPER-block, and each super-block carries per-32-value sub-scales that are themselves quantized to 6 bits against a pair of f16 super-block scales.
 //
-// All of these are READ-ONLY here. llmx must load them because they are what
-// the Hugging Face Hub actually hosts, but nothing in llmx produces one and a
-// quantizer would be unused code.
+// Read-only: llmx loads these because the Hub hosts them, but produces none.
 
 namespace quant {
 
-// Unpack the 6-bit sub-scale and sub-min for sub-block j (0..7) out of the
-// 12 packed bytes. The first four pairs sit in the low 6 bits of bytes 0..7;
-// the last four are split, taking their low 4 bits from bytes 8..11 and their
-// high 2 bits from the top of the earlier bytes. Shared by Q4_K and Q5_K.
+// Unpack the 6-bit sub-scale and sub-min of sub-block j (0..7) from the 12 packed bytes, shared by Q4_K and Q5_K.
+// The first four pairs sit in the low 6 bits of bytes 0..7; the last four take their low 4 bits from bytes 8..11 and their high 2 bits from the top of the earlier bytes.
 inline void get_scale_min_k4(int j, const uint8_t* q, uint8_t* d, uint8_t* m) {
     if (j < 4) {
         *d = q[j] & 63;
@@ -35,8 +29,7 @@ inline void get_scale_min_k4(int j, const uint8_t* q, uint8_t* d, uint8_t* m) {
 //   dmin   f16 super-block scale for the sub-mins
 //   sc[12] eight 6-bit sub-scales and eight 6-bit sub-mins, packed
 //   qs[128] 4-bit quants, low nibble first for each group of 32
-// A value is d*sc[sub] * q - dmin*m[sub]; unlike Q4_0 the nibble is unsigned
-// and each sub-block carries its own offset.
+// A value is d*sc[sub] * q - dmin*m[sub]; unlike Q4_0 the nibble is unsigned and each sub-block carries its own offset.
 inline void dequantize_row_q4_K(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
         const uint8_t* p = src + b * gguf::Q4_K_TYPESIZE;
@@ -65,9 +58,8 @@ inline void dequantize_row_q4_K(const uint8_t* src, float* dst, size_t nblocks) 
 //   sc[12]  eight 6-bit sub-scales and eight 6-bit sub-mins, packed as in Q4_K
 //   qh[32]  the FIFTH bit of every quant, one bit per value
 //   qs[128] the low 4 bits
-// Q4_K with a fifth bit bolted on: the value is d*sc*(nibble + 16*bit) -
-// dmin*m. The bit for a given value lives in qh at a position that advances by
-// two per 64-value group, which is what u1/u2 track.
+// Q4_K with a fifth bit: the value is d*sc*(nibble + 16*bit) - dmin*m.
+// A value's bit lives in qh at a position that advances by two per 64-value group, which is what u1/u2 track.
 inline void dequantize_row_q5_K(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
         const uint8_t* p = src + b * gguf::Q5_K_TYPESIZE;
@@ -101,9 +93,8 @@ inline void dequantize_row_q5_K(const uint8_t* src, float* dst, size_t nblocks) 
 //   qh[64]   high 2 bits, packed 4 quants per byte
 //   sc[16]   int8 per-16-value scale
 //   d        f16 super-block scale
-// A quant is (low4 | high2 << 4) - 32, scaled by d * sc[group]. The layout
-// walks the block in two halves of 128, which is why the strides below are 64
-// for ql, 32 for qh and 8 for sc.
+// A quant is (low4 | high2 << 4) - 32, scaled by d * sc[group].
+// The layout walks the block in two halves of 128, hence strides of 64 for ql, 32 for qh and 8 for sc.
 inline void dequantize_row_q6_K(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
         const uint8_t* p = src + b * gguf::Q6_K_TYPESIZE;

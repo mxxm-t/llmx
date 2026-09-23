@@ -34,25 +34,10 @@ TOOLS = Path(__file__).resolve().parent
 RATE = re.compile(r"^(pp|tg): .*?, ([0-9.]+) tok/s", re.M)
 KV = re.compile(r"^kv: allocated ([0-9]+) bytes, peak ([0-9]+) bytes, used ([0-9]+) bytes", re.M)
 
-# Frozen before any timing. A step advances unless a phase shows a real
-# regression: mean or median below the noise band, or a baseline win count that
-# is itself unlikely by chance.
-#
-# The win count needs a significance threshold, not a majority. Under no real
-# difference the count is Binomial(pairs, 0.5), so "baseline wins no more than
-# half" rejects a genuinely neutral change about half the time -- with 9 pairs,
-# P(wins <= 4) is exactly 256/512. A criterion that fails a coin flip is not a
-# gate. The threshold below is the smallest count whose one-sided tail is at
-# most 5%, so a neutral change passes about 95% of the time and a consistent
-# regression still fails.
-#
-# noise_fraction is CALIBRATED BY AN A/A RUN, not guessed. Publishing the same
-# binary as both arms on this harness moved prefill +1.59% and decode -1.62% by
-# median over 15 pairs, with zero code difference. A 1% band therefore failed
-# its own A/A, which means it was measuring the harness rather than the change.
-# 3% leaves roughly a factor of two over the observed A/A spread. Re-run the
-# A/A on new hardware or a new workload before trusting this number there: if
-# the A/A does not pass, the band is wrong and no result from it means anything.
+# Frozen before any timing.
+# A step advances unless a phase shows a real regression: mean or median below the noise band, or a baseline win count unlikely by chance.
+# The win threshold is the smallest count whose one-sided Binomial(pairs, 0.5) tail is at most 5%, so a neutral change passes about 95% of the time; a majority rule would fail one half the time.
+# noise_fraction comes from an A/A run (docs/benchmarks); rerun the A/A on new hardware or a new workload before trusting it there.
 ADVANCE = {
     "noise_fraction": 0.03,
     "alpha": 0.05,
@@ -90,8 +75,7 @@ def cmd_plan(args):
     plan_path = out / "plan.json"
     if plan_path.exists():
         sys.exit("plan.json exists; refusing to rewrite a frozen plan")
-    # Absolute native paths: CreateProcess does not accept a relative
-    # forward-slash command token, and a frozen plan must not depend on cwd.
+    # Absolute native paths: CreateProcess does not accept a relative forward-slash command token, and a frozen plan must not depend on cwd.
     arms = {"base": str(Path(args.base).resolve())}
     for i, c in enumerate(args.cand):
         name, _, exe = c.rpartition("=")
@@ -127,9 +111,7 @@ def cmd_plan(args):
 
 
 def invoke(exe, model, prompt_text, threads, max_tokens):
-    # A hung arm used to hang the whole run, and the generated text is decoded
-    # with the ANSI codepage unless this says otherwise, which raises on any
-    # non-ASCII token.
+    # A timeout so a hung arm cannot hang the run, and UTF-8 since the ANSI codepage raises on any non-ASCII token.
     proc = subprocess.run(
         [str(exe), "generate", str(model), prompt_text, "-n", str(max_tokens),
          "--temp", "0", "--seed", "1", "--threads", str(threads), "--verbose"],
@@ -164,8 +146,7 @@ def monitored(out, tag, fn):
         try:
             mon.wait(timeout=30)
         except subprocess.TimeoutExpired:
-            # Leaving it running would put an unaccounted process alongside
-            # every later arm, which is exactly what it is here to detect.
+            # Leaving it running would put an unaccounted process alongside every later arm, which is exactly what it is here to detect.
             mon.kill()
             mon.wait()
         stop.unlink(missing_ok=True)
@@ -219,9 +200,8 @@ def cmd_report(args):
     plan = json.loads((out / "plan.json").read_text(encoding="ascii"))
     samples = json.loads((out / "samples.json").read_text(encoding="ascii"))
     adv = plan["advance"]
-    # A run is scored by the rule frozen with it, never by a newer one. A plan
-    # missing a criterion predates that criterion, and rescoring it under the
-    # current rule would be choosing the test after seeing the data.
+    # A run is scored by the rule frozen with it, never by a newer one.
+    # A plan missing a criterion predates that criterion, and rescoring it under the current rule would be choosing the test after seeing the data.
     missing = [k for k in ("noise_fraction", "alpha") if k not in adv]
     if missing:
         sys.exit(f"plan predates {', '.join(missing)}; it must be scored by the "
@@ -244,11 +224,8 @@ def cmd_report(args):
         c = [pick(r, cand, ph) for r in rounds]
         wins = sum(1 for i in range(len(b)) if b[i] > c[i])
         keep = 1 - adv["noise_fraction"]
-        # Paired ratios, not a ratio of marginals. The arms alternate so that
-        # drift cancels WITHIN a pair; comparing median(cand) to median(base)
-        # discards that pairing and lets a monotonic drift dominate. A run
-        # whose throughput fell 289 -> 222 across 15 rounds reported a -11.15%
-        # unpaired prefill median on identical code, against +1.24% paired.
+        # Paired ratios, not a ratio of marginals.
+        # The arms alternate so that drift cancels WITHIN a pair; comparing median(cand) to median(base) discards that pairing and lets a monotonic drift dominate.
         ratios = sorted(c[i] / b[i] for i in range(len(b)))
         mean_ratio = sum(ratios) / len(ratios)
         median_ratio = st.median(ratios)

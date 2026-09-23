@@ -1,9 +1,5 @@
-// The HTTP layer of docs/SERVER.md step 1: a listener on a system-chosen
-// port served from a thread, requests sent with the layer's own client. A
-// whole response, a body echoed back, a chunked stream whose chunks arrive
-// as written, an oversized body refused with 413, a malformed request line
-// refused with 400, an unknown route 404, and the listener closed from the
-// main thread ending the accept loop.
+// The HTTP layer of docs/SERVER.md step 1: a listener on a system-chosen port served from a thread, requests sent with the layer's own client.
+// A whole response, a body echoed back, a chunked stream whose chunks arrive as written, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, and the listener closed from the main thread ending the accept loop.
 #include <atomic>
 #include <cstdio>
 #include <iostream>
@@ -33,8 +29,7 @@ void serve_one(http::Connection& c) {
         c.respond(200, req.headers["content-type"], req.body);
     } else if (req.method == "GET" && req.path == "/stream") {
         c.begin_stream(200, "text/event-stream");
-        // Three chunks; the second and third split a two-byte character's
-        // neighbourhood only at chunk edges, never inside a character.
+        // Three chunks; the second and third split a two-byte character's neighbourhood only at chunk edges, never inside a character.
         c.write_chunk("data: one\n\n");
         c.write_chunk("data: tw\xc3\xb6\n\n");
         c.write_chunk("data: [DONE]\n\n");

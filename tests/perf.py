@@ -5,19 +5,15 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli
 
-# Perf-regression gate: run the `bench` command and assert the hot paths beat a
-# generous floor, so catastrophic slowdowns fail loudly without being flaky.
-# This is a smoke gate, not a benchmark harness - the printed numbers are what
-# you compare across commits when changing a hot path.
+# Perf-regression gate: run the `bench` command and assert the hot paths beat a generous floor, so catastrophic slowdowns fail loudly without being flaky.
+# This is a smoke gate, not a benchmark harness - the printed numbers are what you compare across commits when changing a hot path.
 
-# matmul matvec on 2048x2048 must beat this. Dev machine (Ryzen 7 5800X, 8
-# cores, AVX2) hits ~18 GFLOPS; 8.0 catches catastrophic regressions (e.g. the
-# ~3.6 GFLOPS per-row-cpuid slowdown) with ~2x margin while staying non-flaky.
+# matmul matvec on 2048x2048 must beat this.
+# About half of what the dev machine reaches, so only catastrophic regressions fail.
 FLOOR_GFLOPS = 8.0
 
-# End-to-end TPS on the synthetic Qwen3 model (2 layers, 256 embd). Dev machine
-# hits ~4200 (prefill) / ~3700 (decode) tok/s; floors are ~4x below so only
-# catastrophic model/runtime regressions fail while staying non-flaky.
+# End-to-end TPS on the synthetic Qwen3 model (2 layers, 256 embd).
+# Floors about 4x below the dev machine, so only catastrophic regressions fail.
 FLOOR_PREFILL_TPS = 1000.0
 FLOOR_DECODE_TPS = 800.0
 

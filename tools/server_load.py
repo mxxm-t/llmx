@@ -121,8 +121,7 @@ def main():
     p.add_argument("--rounds", type=int, default=2, help="repeats per concurrency level; the best is reported")
     args = p.parse_args()
     # A warm-up of one request at the full length, so the first level does not carry the server's first pass or its first growth of scratch past the warm-up's length.
-    # Eight tokens left a 13 to 24 ms gap in the first request past sixty tokens.
-    # Wider warm-ups are not neutral: one at the widest level halved another server's rate at 4 to 16.
+    # A shorter warm-up leaves a gap in the first long request, and a wider one is not neutral either.
     measure(args.url, args.api, 1, args.tokens, 1)
     print("%-10s %5s %9s %8s %10s %10s %10s %10s" % ("api", "conc", "tok/s", "req/s", "ttft p50", "ttft p99",
                                                      "itl p50", "itl p99"))

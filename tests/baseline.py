@@ -11,15 +11,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common
 from common import run as cli
 
-# Correctness baseline: compare llmx against golden fixtures generated once
-# from the HF reference tokenizer (tools/gen_baseline.py). This real-model
-# gate and f32.py have EXTERNAL ground truth -- roundtrip checks the quant
-# kernels against themselves, and the tokenizer test is a self-consistency
-# round-trip that a consistently-wrong encoder passes happily.
-#
-# It needs a real model, so unlike the rest of the suite it SKIPS when one is
-# not present rather than failing. Point it at a file with LLMX_BASELINE_GGUF,
-# or let it find the fixture model in the HF cache.
+# Correctness baseline: llmx against golden fixtures generated once from the HF reference (tools/gen_baseline.py); with f32.py it is the suite's external ground truth.
+# It needs a real model, so it skips when none is present; point it at one with LLMX_BASELINE_GGUF, or let it find the fixture model in the HF cache.
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GOLDEN = os.path.join(HERE, "data", "baseline_tokenizer.json")
@@ -28,16 +21,8 @@ GOLDEN = os.path.join(HERE, "data", "baseline_tokenizer.json")
 GOLDEN_LOGITS = os.path.join(HERE, "data", "baseline_logits.json")
 GOLDEN_PPL = os.path.join(HERE, "data", "baseline_perplexity.json")
 
-# Fixture models for the logit/PPL gates, each with the top-5 overlap it is expected
-# to reach against the FULL-PRECISION reference. Coarser quantization reorders
-# more of the tail, so the bound is per-model and measured, not guessed.
-#
-# The Q4_0 entry is not redundant. A published "Q4_0" file is mixed, and
-# its token_embd is Q6_K whose super-block scale is a SUBNORMAL half. The Q8_0
-# fixture has almost no subnormal scales (0.0061% of blocks, against 5.89% in
-# Qwen3-8B), so it is structurally blind to the f16 subnormal bug class - the
-# gate passed with that bug deliberately reintroduced until this model was
-# added.
+# Fixture models for the logit/PPL gates, each with the top-5 overlap it reaches against the full-precision reference, measured per model since coarser quantization reorders more of the tail.
+# The Q4_0 entry covers subnormal f16 scales: its token_embd is Q6_K with a subnormal super-block scale, which the Q8_0 fixture almost never has.
 BASELINE_MODELS = [
     {"repo": "Qwen/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q8_0.gguf",
      "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
@@ -47,18 +32,16 @@ BASELINE_MODELS = [
      "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
      "min_overlap": 4, "max_nll_delta": 0.16, "max_chunk_nll_delta": 0.20},
-    # 168 Q5_K, 29 Q6_K and 113 F32 tensors: the K-quant path in every
-    # matmul and the Q6_K head, on both backends. Same repo and revision as
-    # the Q4_0 file, so no third download source.
+    # 168 Q5_K, 29 Q6_K and 113 F32 tensors: the K-quant path in every matmul and the Q6_K head, on both backends.
+    # Same repo and revision as the Q4_0 file, so no third download source.
     {"repo": "unsloth/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q5_K_M.gguf",
      "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
      "min_overlap": 4, "max_nll_delta": 0.05, "max_chunk_nll_delta": 0.16},
 ]
 
-# A correct next-token logit for these models sits around 15-25. Gross
-# corruption blows this up (the reintroduced f16 bug gave 582), so a magnitude
-# bound catches whole classes of damage that a ranking check can miss.
+# A correct next-token logit for these models sits around 15-25.
+# Gross corruption blows this up (the reintroduced f16 bug gave 582), so a magnitude bound catches whole classes of damage that a ranking check can miss.
 MAX_PLAUSIBLE_LOGIT = 100.0
 
 
@@ -261,8 +244,7 @@ def run_tokenizer():
         print("baseline: %d/%d cases MATCH the HF reference, %d differ:"
               % (n - len(failures), n, len(failures)))
         for text, want, got in failures:
-            # The Windows console is not UTF-8, so escape non-ASCII rather
-            # than crashing the report on the cases most likely to fail.
+            # The Windows console is not UTF-8, so escape non-ASCII rather than crashing the report on the cases most likely to fail.
             safe = text.encode("unicode_escape").decode("ascii")
             print("    text : '%s'" % safe)
             print("    want : %s" % want)

@@ -859,7 +859,7 @@ int main(int argc, char** argv) {
     SetConsoleOutputCP(CP_UTF8);
 #endif
     try {
-        // Populate the quant registry once, here, rather than relying on a Model being constructed. info and dequantize never build one, so they used to run against an empty registry.
+        // Populate the quant registry here, since info and dequantize never build a Model.
         quant::register_builtins();
         if (argc < 2) { print_usage(); return 1; }
         std::string cmd = argv[1];

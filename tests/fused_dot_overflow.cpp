@@ -1,14 +1,5 @@
-// A fused K-quant dot accumulates sum(q*x) and applies the block scale
-// afterwards. q is bounded but x is not, so a large activation can drive the
-// inner sum past FLT_MAX before a small or zero scale would have kept the
-// product finite: d*Inf is Inf, and 0*Inf is NaN. Dequantizing first
-// multiplies the scale into each weight and stays finite.
-//
-// These cases come from the release audit that caught the regression. Each
-// type's weights are set to one repeated value with unit group scales, so the
-// exact answer is known in closed form and no oracle library is needed. That
-// value is the type's largest magnitude: 127 for Q8_0, 15 for Q4_K, 31 for
-// Q5_K and Q6_K.
+// A fused K-quant dot sums q*x and applies the block scale afterwards, so a large activation can drive the sum past FLT_MAX where dequantizing first stays finite (d*Inf is Inf, 0*Inf is NaN).
+// Each type's weights are one repeated value with unit group scales, so the exact answer is known in closed form; the value is the type's largest magnitude, 127 for Q8_0, 15 for Q4_K, 31 for Q5_K and Q6_K.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -30,10 +21,9 @@ void put16(std::vector<uint8_t>& v, size_t at, uint16_t x) {
     v[at + 1] = (uint8_t)(x >> 8);
 }
 
-// Q8_0 for contrast. Its kernel folds the scale into each weight before the
-// activation, (q*d)*x, rather than accumulating sum(q*x) first, so it should
-// have no overflow window at all. Included to verify that by measurement
-// rather than by reading the kernel, and to catch it if that ever changes.
+// Q8_0 for contrast.
+// Its kernel folds the scale into each weight before the activation, (q*d)*x, rather than accumulating sum(q*x) first, so it should have no overflow window at all.
+// Included to verify that by measurement rather than by reading the kernel, and to catch it if that ever changes.
 // Eight 32-value blocks, every weight 127.
 std::vector<uint8_t> block_q8_0(uint16_t half) {
     std::vector<uint8_t> b(8 * gguf::Q8_0_TYPESIZE, 0);
@@ -46,8 +36,8 @@ std::vector<uint8_t> block_q8_0(uint16_t half) {
     return b;
 }
 
-// Q4_K: every nibble 15, unit group scales, zero mins, so each weight
-// decodes to 15. Same 144-byte layout as the dequantizer expects.
+// Q4_K: every nibble 15, unit group scales, zero mins, so each weight decodes to 15.
+// Same 144-byte layout as the dequantizer expects.
 std::vector<uint8_t> block_q4_K(uint16_t half) {
     std::vector<uint8_t> b(gguf::Q4_K_TYPESIZE, 0);
     put16(b, 0, half);          // d
@@ -59,8 +49,7 @@ std::vector<uint8_t> block_q4_K(uint16_t half) {
     return b;
 }
 
-// One 256-value super-block whose every decoded weight is 31, with the given
-// half-precision super-block scale.
+// One 256-value super-block whose every decoded weight is 31, with the given half-precision super-block scale.
 std::vector<uint8_t> block_q5_K(uint16_t half) {
     std::vector<uint8_t> b(gguf::Q5_K_TYPESIZE, 0);
     put16(b, 0, half);          // d

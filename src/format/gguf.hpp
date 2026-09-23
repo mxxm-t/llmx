@@ -135,7 +135,7 @@ struct GGUFModel {
     std::vector<std::pair<std::string, MetaValue>> kv;
     std::vector<TensorInfo> tensors;
     // All tensor data in ONE contiguous allocation.
-    // This used to be a separate heap block per tensor (399 of them on Qwen3-8B), which fragments the very weight stream that decode is bandwidth bound on.
+    // One heap block per tensor would fragment the weight stream that decode is bandwidth bound on.
     std::vector<uint8_t> blob;
     std::vector<size_t> offsets;
 

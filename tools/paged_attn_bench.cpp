@@ -1,22 +1,6 @@
-// Does paging the KV cache cost CPU attention anything?
-//
-// Paged serving runtimes page because uniform blocks remove fragmentation and make prefix sharing a refcount.
-// They accept block-table indirection because GPU attention is bandwidth bound regardless. Our decode attention is 20.6% of a token and
-// memory bound at about 21 GB/s per thread, so the indirection is not
-// obviously free here. This measures it before the design is chosen.
-//
-// Two honesty requirements, both learned the hard way in this project:
-//   - The KV must be COLD. An earlier attention benchmark reused one buffer
-//     and reported 72 GB/s, above this machine's DRAM bandwidth, because it
-//     was measuring cache. Here a pool of distinct KV sets is rotated so each
-//     iteration touches memory the weight stream would have evicted.
-//   - The block table must be SHUFFLED. Sequentially allocated blocks are
-//     indistinguishable from a contiguous layout and would flatter paging.
-//     Real allocation interleaves sequences and reuses freed blocks.
-//
-// Usage: paged_attn_bench [n_past] [iters] [heads] [kv_heads] [repeats]
-// Each repeat times both arms back to back and the median paired ratio is
-// reported, so drift lands on both arms and one slow repeat does not decide.
+// Measures what paging the KV cache costs CPU attention: a contiguous layout against a block table (docs/KV-CACHE.md).
+// The KV is cold, a pool of distinct KV sets rotated so no iteration reads from cache, and the block table is shuffled, since sequential blocks would look contiguous and flatter paging.
+// Usage: paged_attn_bench [n_past] [iters] [heads] [kv_heads] [repeats]; each repeat times both arms back to back and the median paired ratio is reported.
 // Build: cl /O2 /arch:AVX2 /EHsc tools/paged_attn_bench.cpp
 #include <algorithm>
 #include <chrono>
@@ -63,8 +47,7 @@ void accumulate(float* acc, const float* v, float w, int n) {
     for (; d < n; ++d) acc[d] += w * v[d];
 }
 
-// One decode step for one head, contiguous history: position t is at
-// base + t*head_dim, exactly as HostKVCache lays it out today.
+// One decode step for one head, contiguous history: position t is at base + t*head_dim, exactly as HostKVCache lays it out today.
 void attend_contiguous(const float* q, const float* K, const float* V,
                        int n_past, float* out, std::vector<float>& scores) {
     const int end = n_past + 1;
@@ -81,9 +64,8 @@ void attend_contiguous(const float* q, const float* K, const float* V,
         accumulate(out, V + (size_t)t * kHeadDim, scores[t] / sum, kHeadDim);
 }
 
-// Same arithmetic, paged: logical position t lives in physical block
-// table[t / bs] at offset t % bs. Iterated block by block so the block index
-// is computed once per block rather than once per position.
+// Same arithmetic, paged: logical position t lives in physical block table[t / bs] at offset t % bs.
+// Iterated block by block so the block index is computed once per block rather than once per position.
 void attend_paged(const float* q, const float* pool_k, const float* pool_v,
                   const int* table, int bs, int n_past, float* out,
                   std::vector<float>& scores) {

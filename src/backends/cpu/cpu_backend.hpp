@@ -51,8 +51,10 @@ private:
 // 128 tokens per KV block: chosen by the real-model screening recorded in docs/KV-CACHE.md. 64 lost prefill consistently; 256 was not separable from 128 on decode and doubles the partial-tail waste.
 static const size_t KV_BLOCK_TOKENS = 128;
 
-// KV blocks, one K and one V buffer per layer; block b starts at b*block_floats() and holds [kv_head][token][head_dim]. Blocks are backed in doubling steps as ids are first written.
-// The storage allocates through its backend, so growth is alloc then copy. A resolved host pointer per layer is cached since attention asks for one per head, query and block.
+// KV blocks, one K and one V buffer per layer; block b starts at b*block_floats() and holds [kv_head][token][head_dim].
+// Blocks are backed in doubling steps as ids are first written.
+// The storage allocates through its backend, so growth is alloc then copy.
+// A resolved host pointer per layer is cached since attention asks for one per head, query and block.
 class CpuKVStorage final : public KVStorage {
 public:
     CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim,
@@ -381,9 +383,8 @@ public:
         const size_t nblocks = f32 ? 0 : nin / qt->block_size;
         const size_t rowbytes = f32 ? nin * sizeof(float) : nblocks * qt->type_size;
 
-        // Rows dequantized together before walking the batch.
-        // This is the fused kernel's row width, not a tuning constant: dot_f32_x4 shares one activation load across exactly 4 rows, and grouping more buys nothing while enlarging the dequantized working set.
-        // A cache-BYTE budget was tried instead and measured worse at every size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against 24.04 for a flat 4), because the knee follows the kernel width rather than the working-set size.
+        // Rows dequantized together before walking the batch: the fused kernel's row width, since dot_f32_x4 shares one activation load across exactly 4 rows.
+        // A cache-byte budget measured worse at every size, because the knee follows the kernel width, not the working set.
         const size_t RB = (size_t)DOT_ROWS;
 
         auto do_rows = [&](int w, size_t o0, size_t o1) {
@@ -1062,7 +1063,7 @@ private:
     }
 
     // Row-wise dispatch.
-    // Below two rows per worker the dispatch costs more than it saves -- small-batch timing regressed without this bound when the same rule lived in the model layer.
+    // Below two rows per worker the dispatch costs more than it saves.
     template <typename Fn>
     void spread(size_t rows, const Fn& fn) {
         if (threads_ <= 1 || rows < (size_t)threads_ * 2) {
@@ -1445,8 +1446,7 @@ private:
             // A single chained accumulator serialised the loop at FMA latency, which also capped how many loads could be in flight; decode is bandwidth bound, so fewer outstanding loads means less memory-level parallelism and less achieved bandwidth.
             __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
             __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
-            // Software prefetch of the weight stream was measured here and made no difference (4.10/4.14 against 4.12/4.12 tok/s): the hardware prefetcher already keeps up with these sequential streams.
-            // Not reinstated.
+            // No software prefetch: the hardware prefetcher already keeps up with these sequential streams.
             for (size_t b = 0; b < nblocks; b++) {
                 const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
                 // Hardware f16 convert.

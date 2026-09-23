@@ -137,10 +137,8 @@ public:
     //   | \s*[\r\n]+
     //   | \s+(?!\S)
     //   | \s+
-    // This is NOT the GPT-2 regex. Three differences matter: a leading
-    // punctuation or underscore binds to the following word ("_snake", "(x"),
-    // digits are emitted one at a time, and a whitespace run ending in newlines
-    // stays a single piece. Alternatives are ordered, first match wins.
+    // This is not the GPT-2 regex: leading punctuation or underscore binds to the following word ("_snake", "(x"), digits are emitted one at a time, and a whitespace run ending in newlines stays one piece.
+    // Alternatives are ordered; the first match wins.
     static bool is_space(unsigned char c) { return c==' '||c=='\t'||c=='\n'||c=='\r'||c=='\f'||c=='\v'; }
     static bool is_ascii_letter(unsigned char c) { return (c>='a'&&c<='z')||(c>='A'&&c<='Z'); }
     static bool is_digit(unsigned char c) { return c>='0'&&c<='9'; }

@@ -12,12 +12,8 @@
 #include "format/gguf.hpp"
 
 // Minimal Jinja2-subset renderer for GGUF `tokenizer.chat_template` strings.
-// Supports the control-flow and expressions used by common chat templates
-// (Qwen2/3, Llama, Mistral, Gemma): {{ ... }} output, {% if/elif/else/for/set %},
-// dict/list/string access, .get()/.keys()/etc., and the `messages`,
-// `add_generation_prompt`, `bos_token`, `eos_token` context variables.
-// Undefined variables evaluate to none (empty) so unknown templates degrade
-// gracefully rather than throwing.
+// Supports the control-flow and expressions used by common chat templates (Qwen2/3, Llama, Mistral, Gemma): {{ ... }} output, {% if/elif/else/for/set %}, dict/list/string access, .get()/.keys()/etc., and the `messages`, `add_generation_prompt`, `bos_token`, `eos_token` context variables.
+// Undefined variables evaluate to none (empty) so unknown templates degrade gracefully rather than throwing.
 
 namespace chat {
 
@@ -523,8 +519,7 @@ struct ExprParser {
         if (is_op("-")) { adv(); return std::make_shared<Unary>("-", parse_unary()); }
         return parse_filter(parse_postfix());
     }
-    // Postfix `| filter` and `is [not] test` chain (Jinja binds these tighter
-    // than comparisons).
+    // Postfix `| filter` and `is [not] test` chain (Jinja binds these tighter than comparisons).
     std::shared_ptr<Expr> parse_filter(std::shared_ptr<Expr> e) {
         while (true) {
             if (cur().k == Tok::ID && cur().text == "is") {
@@ -696,11 +691,9 @@ inline std::string strip_ws(const std::string& s) {
 
 struct Block { std::string kind; std::string raw; bool trim_l = false, trim_r = false; };
 
-// Recursive-descent parser over the lexed blocks. Each compound statement
-// ({% if %}, {% for %}) parses its own body via parse_body, so control flow
-// nests to any depth. A body returns at the first terminator tag
-// (elif/else/endif/endfor) or at EOF (term = ""); the tag is consumed and its
-// name reported in term, so each caller can check it is the one it expects.
+// Recursive-descent parser over the lexed blocks.
+// Each compound statement ({% if %}, {% for %}) parses its own body via parse_body, so control flow nests to any depth.
+// A body returns at the first terminator tag (elif/else/endif/endfor) or at EOF (term = ""); the tag is consumed and its name reported in term, so each caller can check it is the one it expects.
 struct Parser {
     const std::vector<Block>& blk;
     size_t i = 0;
@@ -801,8 +794,7 @@ inline std::vector<Block> lex_template(const std::string& s) {
         std::string content = s.substr(best + 2, epos - (best + 2));
         std::string kind = (marker == "{{") ? "output" : (marker == "{%") ? "tag" : "comment";
         Block blk{ kind, content, false, false };
-        // Jinja whitespace control: a leading '-' on the tag trims whitespace
-        // before it, a trailing '-' trims whitespace after it.
+        // Jinja whitespace control: a leading '-' on the tag trims whitespace before it, a trailing '-' trims whitespace after it.
         size_t a = 0; while (a < blk.raw.size() && std::isspace((unsigned char)blk.raw[a])) a++;
         if (a < blk.raw.size() && blk.raw[a] == '-') blk.trim_l = true;
         size_t b = blk.raw.size(); while (b > 0 && std::isspace((unsigned char)blk.raw[b - 1])) b--;
@@ -843,8 +835,7 @@ inline std::vector<Block> lex_template(const std::string& s) {
 } // namespace jj
 
 // Render a chat template with the given message list.
-// `add_generation_prompt` appends the trailing assistant header if the template
-// opts in via `{% if add_generation_prompt %}`.
+// `add_generation_prompt` appends the trailing assistant header if the template opts in via `{% if add_generation_prompt %}`.
 inline std::string render(const std::string& tpl,
                           const std::vector<Message>& messages,
                           bool add_generation_prompt,
@@ -877,8 +868,8 @@ inline std::string render(const std::string& tpl,
     return out;
 }
 
-// Read the chat template metadata key from a GGUF model. Returns empty if
-// absent.
+// Read the chat template metadata key from a GGUF model.
+// Returns empty if absent.
 inline std::string get_chat_template(const gguf::GGUFModel& m) {
     for (const auto& kv : m.kv) {
         if (kv.first == "tokenizer.chat_template" && kv.second.vtype == gguf::V_STRING)

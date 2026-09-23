@@ -37,10 +37,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "tests", "data")
 REFERENCE_REVISION = "c1899de289a04d12100db370d81485cdf75e47ca"
 
-# Each case targets a class of pretokenizer behaviour. The multi-space and
-# indentation cases are the ones that caught the GPT-2 `\s+(?!\S)` bug, where
-# runs of 2+ spaces were emitted whole instead of leaving the last space to
-# attach to the following word.
+# Each case targets a class of pretokenizer behaviour.
+# The multi-space and indentation cases are the ones that caught the GPT-2 `\s+(?!\S)` bug, where runs of 2+ spaces were emitted whole instead of leaving the last space to attach to the following word.
 CASES = [
     "hello world",
     "The capital of France is Paris.",
@@ -64,9 +62,8 @@ CASES = [
     "\u036d",
 ]
 
-# Prompts for the logit golden. Plain ASCII and short, so the fixture stays
-# small and the comparison is about the forward pass rather than tokenization,
-# which the tokenizer golden already covers.
+# Prompts for the logit golden.
+# Plain ASCII and short, so the fixture stays small and the comparison is about the forward pass rather than tokenization, which the tokenizer golden already covers.
 LOGIT_PROMPTS = [
     "The capital of France is",
     "Machine learning is",

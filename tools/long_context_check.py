@@ -70,8 +70,7 @@ def build_prompt(port, want_tokens):
             best = (n, text)
         if n == want_tokens or n == 0:
             break
-        # The corpus is uniform enough that one linear step lands within a
-        # few tokens; the loop is there for the rounding.
+        # The corpus is uniform enough that one linear step lands within a few tokens; the loop is there for the rounding.
         step = int(chars * (want_tokens / n - 1.0))
         if step == 0:
             break
@@ -157,16 +156,14 @@ def main():
     global TIMEOUT
     TIMEOUT = args.timeout or None
     extra = ["--threads", str(args.threads)] if args.threads else []
-    # No cap means the generation is bounded only by what the KV pool holds
-    # after the prompt, so the model stops when it stops. The finish reason
-    # in the report says which happened.
+    # No cap means the generation is bounded only by what the KV pool holds after the prompt, so the model stops when it stops.
+    # The finish reason in the report says which happened.
     max_tokens = args.max_tokens
     ctx = args.ctx_size or (args.tokens + (max_tokens or args.tokens) + 512)
     if not max_tokens:
         max_tokens = ctx - args.tokens - 512
 
-    # The device arm opens first and sizes the prompt, since a probe is a
-    # whole prefill and this is the backend that does one quickly.
+    # The device arm opens first and sizes the prompt, since a probe is a whole prefill and this is the backend that does one quickly.
     proc, port = serve(args.exe, args.model, args.device, ctx, extra)
     try:
         n, prompt = build_prompt(port, args.tokens)

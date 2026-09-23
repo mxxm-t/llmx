@@ -361,8 +361,7 @@ int main(int argc, char** argv) {
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
-        // Leaving the fixture behind makes every later run fail on the
-        // create_directory guard rather than on what actually broke.
+        // Leaving the fixture behind makes every later run fail on the create_directory guard rather than on what actually broke.
         std::error_code ignored;
         std::filesystem::remove_all(directory, ignored);
         return 1;

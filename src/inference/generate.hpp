@@ -11,14 +11,12 @@
 #include "inference/sampler.hpp"
 #include "inference/chat.hpp"
 
-// High-level inference drivers built on the model + tokenizer: prefill,
-// generate, and the generate / perplexity / chat entry points.
+// High-level inference drivers built on the model + tokenizer: prefill, generate, and the generate / perplexity / chat entry points.
 
 namespace infer {
 
-// Feed every id in `ids` through the model (prefill / continue), updating the
-// KV cache. Returns the logits predicted by the last token (i.e. the
-// distribution over the next token).
+// Feed every id in `ids` through the model (prefill / continue), updating the KV cache.
+// Returns the logits predicted by the last token (i.e. the distribution over the next token).
 inline std::vector<float> prefill(infer::Model& model,
                                   const std::vector<uint32_t>& ids) {
     return model.prefill(ids);
@@ -31,16 +29,16 @@ inline int find_token_by_substr(const bpe::Tokenizer& tok, const std::string& su
     return -1;
 }
 
-// Generate tokens starting from `logits` (the prediction after the last fed
-// token), stopping at eos. Returns generated ids (excluding the eos token).
+// Generate tokens starting from `logits` (the prediction after the last fed token), stopping at eos.
+// Returns generated ids (excluding the eos token).
 // Text callbacks run synchronously and may split a UTF-8 character between chunks.
 // Legacy reasoning filters need the full sequence because later markers can discard earlier text.
 inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
                                       const infer::GenParams& gp, infer::RNG& rng,
                                       std::vector<float> logits,
                                       const std::function<void(const std::string&)>& emit = {}) {
-    // A model without an EOS id has no stop token at all. Folding that to 0
-    // made token zero, which is an ordinary token, end every generation.
+    // A model without an EOS id has no stop token at all.
+    // Folding that to 0 made token zero, which is an ordinary token, end every generation.
     const bool has_eos = tok.eos_id >= 0;
     const uint32_t eos = has_eos ? (uint32_t)tok.eos_id : 0;
     const int tstart = gp.show_thinking ? -1 : find_token_by_substr(tok, "thinking_start");
@@ -64,9 +62,8 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
     size_t begin = 0;
     size_t end = gen.size();
     if (buffered) {
-        // Both markers have to exist for the filter to mean anything. With a
-        // start and no end, the search for (uint32_t)-1 failed and the whole
-        // reply was dropped rather than the reasoning block.
+        // Both markers have to exist for the filter to mean anything.
+        // With a start and no end, the search for (uint32_t)-1 failed and the whole reply was dropped rather than the reasoning block.
         if (tstart >= 0 && tend >= 0) {
             auto ts = std::find(gen.begin(), gen.end(), (uint32_t)tstart);
             if (ts != gen.end()) {

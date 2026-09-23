@@ -15,14 +15,8 @@ import common
 import f32
 from common import run as cli
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy
-# request through /v1/generate gives the text `generate --temp 0` gives,
-# alone and while three other requests decode beside it; a streamed request
-# arrives as events with the same ids; a seeded request repeats; a bad body
-# and a request past the context are refused; a client that goes away
-# mid-stream leaves the server with nothing active; a chat turn renders.
-# The synthetic F32 model (16-token context) needs no download; the real
-# Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
+# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats; a bad body and a request past the context are refused; a client that goes away mid-stream leaves the server with nothing active; a chat turn renders.
+# The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 
 
 def free_port():
@@ -102,8 +96,7 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
         assert models["object"] == "list" and models["data"][0]["object"] == "model", models
         assert models["data"][0]["id"] and models["data"][0]["context_length"] > 0, models
 
-        # Greedy through the server gives the CLI's text, and the ids are
-        # kept for the checks that follow.
+        # Greedy through the server gives the CLI's text, and the ids are kept for the checks that follow.
         expected = {}
         for prompt in prompts:
             want = cli_greedy_text(model, prompt, n)
@@ -141,8 +134,7 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
         assert srv.post("/v1/generate", {"prompt": ""})[0] == 400
         assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": 10 ** 9})[0] == 413
 
-        # A client that leaves mid-stream: open the socket, start a request,
-        # close after the first bytes, and the server ends with nothing active.
+        # A client that leaves mid-stream: open the socket, start a request, close after the first bytes, and the server ends with nothing active.
         s = socket.create_connection(("127.0.0.1", srv.port))
         body = json.dumps({"prompt": prompts[0], "max_tokens": long_n, "temperature": 0, "stream": True}).encode()
         s.sendall(b"POST /v1/generate HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % len(body) + body)
@@ -153,20 +145,14 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
             time.sleep(0.2)
         assert srv.get("/v1/health")["active"] == 0, "a cancelled request stayed active"
 
-        # /v1/chat renders through the template and answers; the synthetic
-        # model's 16-token context has no room for a rendered turn.
+        # /v1/chat renders through the template and answers; the synthetic model's 16-token context has no room for a rendered turn.
         if chat:
             status, reply = srv.post("/v1/chat", {"messages": [{"role": "user", "content": prompts[0]}],
                                                   "max_tokens": 2, "temperature": 0})
             assert status == 200 and reply["tokens"] >= 1, reply
 
-        # The compatible routes: /v1/completions gives the native route's
-        # greedy text in the standard shape, whole and streamed with the
-        # finish chunk then the end marker; /v1/chat/completions renders
-        # the same template as /v1/chat, its first chunk carries the role
-        # and its usage counts add up; the standard refusals have the
-        # standard shape.
-        # No cap: the compatible routes take an absent max_tokens as the standard does, running to the end of text or to what the request may hold. On the synthetic model's 16-token context the old default of 64 was refused outright; the real model's reply would run long, so only there.
+        # The compatible routes: /v1/completions gives the native route's greedy text in the standard shape, whole and streamed with the finish chunk then the end marker; /v1/chat/completions renders the same template as /v1/chat, its first chunk carries the role and its usage counts add up; the standard refusals have the standard shape.
+        # An absent max_tokens means no cap, checked on the synthetic model only, since the real model's uncapped reply would run long.
         if not chat:
             status, reply = srv.post("/v1/completions", {"prompt": prompts[0], "temperature": 0})
             limit = models["data"][0]["context_length"]
@@ -195,9 +181,7 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
             assert events[0]["choices"][0]["delta"]["role"] == "assistant", events[0]
             assert events[-1] is None and events[-2]["choices"][0]["finish_reason"] in ("stop", "length"), events[-2:]
 
-        # Prefix reuse: a long prompt, then the same prompt with a different
-        # ending; the second forks the first's full blocks, prefills only
-        # what follows, and its greedy text equals the CLI's for the whole.
+        # Prefix reuse: a long prompt, then the same prompt with a different ending; the second forks the first's full blocks, prefills only what follows, and its greedy text equals the CLI's for the whole.
         if prefix:
             first = prefix + " The first"
             second = prefix + " The second"

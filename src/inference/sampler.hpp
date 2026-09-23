@@ -6,8 +6,7 @@
 #include <algorithm>
 #include <unordered_set>
 
-// Sampling logic and generation parameters, split out of the CLI so the same
-// sampler can drive generate, perplexity, and chat.
+// Sampling logic and generation parameters, split out of the CLI so the same sampler can drive generate, perplexity, and chat.
 
 namespace infer {
 
@@ -45,15 +44,14 @@ struct GenParams {
 };
 
 // Temperature + top-k + top-p nucleus sampling with repetition penalty.
-// `penalty` >= 1: divide the score of each already-generated token by penalty
-// to discourage repeats. Returns the chosen token id.
+// `penalty` >= 1: divide the score of each already-generated token by penalty to discourage repeats.
+// Returns the chosen token id.
 inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
                        float top_p, float penalty, const std::vector<uint32_t>& gen,
                        RNG& rng) {
     const size_t n = logits.size();
 
-    // Repetition penalty, read through rather than materialized: the greedy
-    // path below never needs a second array.
+    // Repetition penalty, read through rather than materialized: the greedy path below never needs a second array.
     std::unordered_set<uint32_t> seen;
     const bool repeat = (penalty > 0.0f && penalty != 1.0f && !gen.empty());
     if (repeat) for (uint32_t id : gen) seen.insert(id);
@@ -63,10 +61,8 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
         return (v > 0.0f) ? (v / penalty) : (v * penalty);
     };
 
-    // Greedy needs the largest score, not an ordering of the rest. Sorting the
-    // whole vocabulary first cost 12.5 ms per token on Qwen3-8B, about 5% of
-    // decode, for a result that reads one element. Ties take the lowest token
-    // id; the sort this replaces left ties unspecified.
+    // Greedy needs the largest score, not an ordering of the rest.
+    // Sorting the vocabulary first costs a few percent of decode for a result that reads one element; ties take the lowest token id.
     if (temp <= 0.0f) {
         size_t best = 0;
         float best_score = score(0);
@@ -86,9 +82,8 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
         return a.first > b.first;
     };
 
-    // top-k truncation. Nothing below reads past `keep`, so the tail is left
-    // unordered: with a 40-token window out of 151936 that is the difference
-    // between one pass and a full sort.
+    // top-k truncation.
+    // Nothing below reads past `keep`, so the tail is left unordered: with a 40-token window out of 151936 that is the difference between one pass and a full sort.
     const size_t keep = (top_k > 0 && (size_t)top_k < n) ? (size_t)top_k : n;
     if (keep < n)
         std::partial_sort(ranked.begin(), ranked.begin() + (ptrdiff_t)keep,
@@ -96,9 +91,8 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
     else
         std::sort(ranked.begin(), ranked.end(), by_score);
 
-    // softmax over the kept window. Temperature is applied exactly once, here:
-    // pre-scaling the scores by temp as well would cancel this division and
-    // make --temp a no-op at every value > 0.
+    // softmax over the kept window.
+    // Temperature is applied exactly once, here: pre-scaling the scores by temp as well would cancel this division and make --temp a no-op at every value > 0.
     float maxv = ranked[0].first;
     std::vector<float> p(keep);
     double sum = 0.0;

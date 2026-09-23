@@ -2,7 +2,8 @@
 // What a device backend needs to know about its device to shape its kernels, apart from any one vendor's API.
 // `DeviceCaps` holds what the hardware reports (subgroup width, compute units, shared memory, instruction classes), filled by each backend from its own API.
 // `DeviceProfile` holds numbers found by measuring the kernels (lanes per block, tile crossovers, splits), shared across backends because the reasoning is the same.
-// A capability decides which kernel to launch; a profile number shapes the same kernel. Bringing up a device: fill `DeviceCaps`, check whether a capability calls for a kernel that does not exist yet, measure, and give `profile_for` a row if the numbers differ.
+// A capability decides which kernel to launch; a profile number shapes the same kernel.
+// Bringing up a device: fill `DeviceCaps`, check whether a capability calls for a kernel that does not exist yet, measure, and give `profile_for` a row if the numbers differ.
 // Branch on what a device reports, never on its vendor name.
 #include <cstddef>
 #include <cstdint>

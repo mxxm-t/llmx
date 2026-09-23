@@ -57,8 +57,7 @@ def weight_hash(weights):
 
 
 def write_model(path, weights, chat_template=None, eos_id=None, shards=1):
-    # A 34-byte Q8 tensor exposes unaligned F32 rows if the loader discards
-    # file padding without preserving float alignment in its in-memory blob.
+    # A 34-byte Q8 tensor exposes unaligned F32 rows if the loader discards file padding without preserving float alignment in its in-memory blob.
     entries = [("unused.weight", [32], 8, b"\0" * 34)]
     entries += [(name, shape, 0, struct.pack("<%df" % len(v), *v))
                 for name, _, shape, v in weights]
@@ -112,8 +111,7 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1):
 
 
 def run():
-    # This gate compares exact f32 arithmetic against the HF fixture; an f16
-    # cache rounds keys and values and is checked by the real-model gate.
+    # This gate compares exact f32 arithmetic against the HF fixture; an f16 cache rounds keys and values and is checked by the real-model gate.
     if os.environ.get("LLMX_CACHE_TYPE", "f32") != "f32":
         print("f32: SKIP - the exact F32 gate needs f32 caches (LLMX_CACHE_TYPE=%s)" % os.environ["LLMX_CACHE_TYPE"])
         return True

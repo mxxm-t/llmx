@@ -8,8 +8,7 @@ from tokenizer import build_byte_vocab, w_str
 
 
 def build_model(path):
-    # Constant activations and a nonuniform output distribution give an analytic
-    # scoring oracle; different target IDs expose miscounted window boundaries.
+    # Constant activations and a nonuniform output distribution give an analytic scoring oracle; different target IDs expose miscounted window boundaries.
     config = {"block_count": 1, "embedding_length": 32, "feed_forward_length": 32,
               "attention.head_count": 1, "attention.head_count_kv": 1,
               "attention.key_length": 32, "context_length": 4}

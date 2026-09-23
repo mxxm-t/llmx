@@ -45,8 +45,7 @@ static size_t check_q8_scales(backend::CpuBackend& cpu) {
     size_t count = 0;
     std::array<uint8_t, 34> row{};
     std::array<float, 32> x{};
-    // The CPU backend adopts the caller's pointer rather than copying, so one
-    // handle per array stays valid while the sweep rewrites them in place.
+    // The CPU backend adopts the caller's pointer rather than copying, so one handle per array stays valid while the sweep rewrites them in place.
     float actual = 0.0f;
     const auto row_buf = cpu.adopt(row.data(), row.size());
     const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
@@ -59,8 +58,7 @@ static size_t check_q8_scales(backend::CpuBackend& cpu) {
         x[lane] = 1.0f;
         for (int q : {-128, -1, 0, 127}) {
             std::fill(row.begin() + 2, row.end(), uint8_t(q));
-            // A one-hot input makes every finite f16 scale times int8 exact
-            // in f32, independently of the SIMD reduction order.
+            // A one-hot input makes every finite f16 scale times int8 exact in f32, independently of the SIMD reduction order.
             const float expected = f16_to_f32(uint16_t(h)) * float(q);
             actual = 0.0f;
             cpu.matmul(gguf::GGML_TYPE_Q8_0, {row_buf.get(), 0}, {x_buf.get(), 0},
@@ -181,12 +179,9 @@ static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
     return count;
 }
 
-// Activation magnitude sweep. The ordinary cases above generate x within
-// about +-1.6, which is why this file passed a kernel that produced Inf and
-// NaN on large inputs: a fused dot accumulates sum(q*x) and applies the block
-// scale afterwards, so the inner sum can overflow before a small scale would
-// have bounded it. The oracle bound is relative to magnitude, so extreme
-// scales are testable here without loosening anything.
+// Activation magnitude sweep.
+// The ordinary cases above generate x within about +-1.6, which is why this file passed a kernel that produced Inf and NaN on large inputs: a fused dot accumulates sum(q*x) and applies the block scale afterwards, so the inner sum can overflow before a small scale would have bounded it.
+// The oracle bound is relative to magnitude, so extreme scales are testable here without loosening anything.
 static size_t check_magnitudes(backend::CpuBackend& cpu) {
     size_t values = 0;
     for (float mag : {1e-30f, 1e-8f, 1.0f, 1e8f, 1e30f, 1e36f}) {
@@ -198,10 +193,9 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
             Matrix m(type, 17, width, 1);
             std::vector<float> x(width);
             const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
-            // Sign matters as much as magnitude. A mixed-sign pattern lets the
-            // inner sum cancel and never reach the overflow window, which is
-            // why an earlier version of this sweep passed a kernel that
-            // produced Inf. Same-sign inputs maximise sum(q*x) instead.
+            // Sign matters as much as magnitude.
+            // A mixed-sign pattern lets the inner sum cancel and never reach the overflow window.
+            // Same-sign inputs maximise sum(q*x) instead.
             for (size_t i = 0; i < width; ++i)
                 x[i] = mag >= 1e30f ? mag
                      : mag * float(int((i * 19 + 7) % 101) - 50) / 50.0f;
@@ -214,12 +208,9 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
                     expected += product;
                     magnitude += std::abs(product);
                 }
-                // Only meaningful where the true answer is representable. At
-                // extreme magnitudes some rows genuinely exceed FLT_MAX, and
-                // returning infinity for those is correct rather than a bug.
-                // The interesting rows are the ones whose result fits while
-                // the kernel's intermediate sum(q*x) does not - which is the
-                // overflow this sweep exists to catch.
+                // Only meaningful where the true answer is representable.
+                // At extreme magnitudes some rows genuinely exceed FLT_MAX, and returning infinity for those is correct rather than a bug.
+                // The interesting rows are the ones whose result fits while the kernel's intermediate sum(q*x) does not - which is the overflow this sweep exists to catch.
                 if (!(std::abs(expected) <= 3.0e38)) continue;
                 const float actual = m.separate[1 + o];
                 require(std::isfinite(actual),
@@ -235,10 +226,8 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
     return values;
 }
 
-// Rows of a batch carry their own positions. Three rows at positions that
-// are neither consecutive nor ordered, two heads each and a padded stride,
-// against a double-precision norm-then-rotate reference reading the same
-// table at the row's own position.
+// Rows of a batch carry their own positions.
+// Three rows at positions that are neither consecutive nor ordered, two heads each and a padded stride, against a double-precision norm-then-rotate reference reading the same table at the row's own position.
 static size_t check_row_positions(backend::CpuBackend& cpu) {
     const size_t rows = 3, heads = 2, half = 4, head_dim = 2 * half;
     const size_t stride = heads * head_dim + 3, table = 12;
@@ -282,8 +271,7 @@ static size_t check_row_positions(backend::CpuBackend& cpu) {
     return count;
 }
 
-// Rows picked out of order, one of them twice, land in pick order; a row
-// beyond the source is refused before anything is written.
+// Rows picked out of order, one of them twice, land in pick order; a row beyond the source is refused before anything is written.
 static size_t check_gather(backend::CpuBackend& cpu) {
     const size_t width = 7, n = 5;
     std::vector<float> src(n * width), dst(4 * width, -1.0f);
@@ -338,8 +326,7 @@ int main() {
                 }
             }
         }
-        // An unknown quant type must be rejected, with real storage behind
-        // the projection so the type is what fails.
+        // An unknown quant type must be rejected, with real storage behind the projection so the type is what fails.
         std::vector<uint8_t> scratch(65 * 256, 0);
         const auto storage = cpu.adopt(scratch.data(), scratch.size());
         std::vector<float> sink(67, 0.0f);

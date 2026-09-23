@@ -6,9 +6,8 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli
 
-# Tokenizer round-trip gate. Builds a minimal GGUF with a tiny GPT-2-style BPE
-# vocab + merges (via the CLI's own quantize path is overkill, so we write the
-# GGUF directly), then exercises encode/decode incl. unicode and specials.
+# Tokenizer round-trip gate.
+# Builds a minimal GGUF with a tiny GPT-2-style BPE vocab + merges (via the CLI's own quantize path is overkill, so we write the GGUF directly), then exercises encode/decode incl. unicode and specials.
 
 ALIGN = 32
 
@@ -20,9 +19,8 @@ def w_str(f, s):
 
 
 def build_byte_vocab():
-    # Mirrors the C++ GPT-2 bytes_to_unicode() in tokenizer.hpp. The C++
-    # utf8_encode(cp) returns the UTF-8 bytes of codepoint cp, which as a Python
-    # string is simply chr(cp) (w_str then encodes it back to those bytes).
+    # Mirrors the C++ GPT-2 bytes_to_unicode() in tokenizer.hpp.
+    # The C++ utf8_encode(cp) returns the UTF-8 bytes of codepoint cp, which as a Python string is simply chr(cp) (w_str then encodes it back to those bytes).
     m = {}
     for b in range(33, 127):
         m[b] = chr(b)
@@ -78,8 +76,7 @@ def build_tokenizer_gguf(path, tokens, merges, specials):
 def run():
     d = tempfile.mkdtemp(prefix="llmx_tok_")
     try:
-        # Tiny vocab: ascii bytes 33..126 mapped via the GPT-2 byte scheme, plus
-        # a couple of merged words and a special control token.
+        # Tiny vocab: ascii bytes 33..126 mapped via the GPT-2 byte scheme, plus a couple of merged words and a special control token.
         tokens = build_byte_vocab() + ["he", "llo", "world", "<|endoftext|>"]
         bos_id, eos_id = 0, len(tokens) - 1
 

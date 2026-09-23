@@ -8,7 +8,8 @@
 
 // Compute backend abstraction: the model runs its primitive ops (matmul, attention, RMSNorm, RoPE) through a Backend, so the same model code targets every device.
 // Operands are a Buffer and an offset, not host pointers, so a backend owns its storage and a device backend keeps weights and activations resident (docs/DEVICE-EXECUTION.md).
-// Host parallelism is not on this interface; backends parallelize inside their own ops. Multi-device split strategies live at the model layer (docs/ROADMAP.md).
+// Host parallelism is not on this interface; backends parallelize inside their own ops.
+// Multi-device split strategies live at the model layer (docs/ROADMAP.md).
 
 namespace backend {
 
@@ -56,7 +57,8 @@ struct Projection {
 };
 
 // The rows of a matmul grouped by the prompt they belong to, so a device picks a row's kernel by `extent` rather than by the call's width and a prompt computes the same however its rows are batched (docs/VULKAN.md, batch invariance).
-// `end` is one past the run's last row, runs in row order; `extent` is the position one past the prompt's last token for prompt rows, 1 for a generated token. Without runs a backend chooses by the call's width.
+// `end` is one past the run's last row, runs in row order; `extent` is the position one past the prompt's last token for prompt rows, 1 for a generated token.
+// Without runs a backend chooses by the call's width.
 struct RowRun {
     size_t end;
     size_t extent;
@@ -88,7 +90,8 @@ public:
 };
 
 // One sequence's history in one storage: logical block i is physical block blocks[i], `length` entries are committed, and `nq` rows of this pass belong to the sequence.
-// Row b is at position length + b and attends through it, so the table must cover length + nq. `extent` is the rows' RowRun extent, 0 when unknown.
+// Row b is at position length + b and attends through it, so the table must cover length + nq.
+// `extent` is the rows' RowRun extent, 0 when unknown.
 struct KVView {
     KVStorage* storage;
     const int32_t* blocks;
@@ -121,8 +124,8 @@ public:
     // Model already requires the GGUF model to outlive it, so this is free on CPU, and a backend that copies simply never relies on the guarantee.
     virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
 
-    // Every op below enqueues on this backend's single implicit stream. submit() flushes and returns a monotonic ticket; wait(t) blocks until that submission and everything before it retired. Results are observable only after wait(), sync() or read().
-    // sync() waits for everything, including work behind no ticket, which an error path needs. wait() and sync() are noexcept: a caller frees storage on the strength of them, so a backend that cannot establish completion must fail hard.
+    // Every op below enqueues on this backend's single implicit stream. submit() flushes and returns a monotonic ticket; wait(t) blocks until that submission and everything before it retired.
+    // Results are observable only after wait(), sync() or read(). sync() waits for everything, including work behind no ticket, which an error path needs. wait() and sync() are noexcept: a caller frees storage on the strength of them, so a backend that cannot establish completion must fail hard.
     // The CPU backend runs each op to completion as it is called.
     virtual Ticket submit() = 0;
     virtual void wait(Ticket t) noexcept = 0;
@@ -171,7 +174,8 @@ public:
     virtual KVLayout kv_layout() const = 0;
 
     // Keys and values for `layers` layers of n_head_kv x head_dim, whole blocks for max_tokens positions, each side stored as f32 or f16 (round-to-nearest, read back exactly), so only the stored precision differs between backends.
-    // Nothing is backed until a block is written. A backend without a type throws rather than substituting.
+    // Nothing is backed until a block is written.
+    // A backend without a type throws rather than substituting.
     virtual std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv,
                                                 size_t head_dim, size_t max_tokens,
                                                 KVType k_type = KVType::f32,

@@ -10,15 +10,11 @@
 namespace infer {
 
 // Logical KV bookkeeping, identical on every backend (docs/KV-CACHE.md).
-// Physical blocks live in a backend::KVStorage; this layer only hands out ids
-// and counts references. Ids are dense from zero, so storage can grow toward
-// the budget on demand instead of allocating it up front.
+// Physical blocks live in a backend::KVStorage; this layer only hands out ids and counts references.
+// Ids are dense from zero, so storage can grow toward the budget on demand instead of allocating it up front.
 //
-// Every vector is reserved to the budget when configured, so alloc, release,
-// abort and reset publish their state without an allocation that could throw
-// half way. Sequences hold the pool's address, so a pool stays where it was
-// constructed: it is neither copyable nor movable, and it can be configured
-// only while nothing is allocated from it.
+// Every vector is reserved to the budget when configured, so alloc, release, abort and reset publish their state without an allocation that could throw half way.
+// Sequences hold the pool's address, so a pool stays where it was constructed: it is neither copyable nor movable, and it can be configured only while nothing is allocated from it.
 class BlockPool {
 public:
     BlockPool() = default;
@@ -58,9 +54,7 @@ public:
         ++r;
     }
 
-    // On the eager CPU backend every reader of a block has finished by the
-    // time it is released; an async backend must also wait for completion
-    // before the id is reused.
+    // On the eager CPU backend every reader of a block has finished by the time it is released; an async backend must also wait for completion before the id is reused.
     void release(int32_t id) {
         uint32_t& r = refs_.at((size_t)id);
         if (r == 0) throw std::logic_error("KV cache: block released twice");
@@ -79,11 +73,9 @@ private:
     std::vector<uint32_t> refs_;
 };
 
-// One sequence's block table and committed length. Blocks for a step are
-// taken before the write and committed after the whole step succeeds, so a
-// step that fails leaves the previous history valid and returns the blocks it
-// took. A sequence owns its blocks: it cannot be copied, and destroying or
-// moving from it returns them to the pool.
+// One sequence's block table and committed length.
+// Blocks for a step are taken before the write and committed after the whole step succeeds, so a step that fails leaves the previous history valid and returns the blocks it took.
+// A sequence owns its blocks: it cannot be copied, and destroying or moving from it returns them to the pool.
 class KVSequence {
 public:
     KVSequence() = default;
@@ -105,9 +97,8 @@ public:
     size_t length() const { return length_; }
     size_t n_blocks() const { return blocks_.size(); }
 
-    // Make positions [length, length + n) addressable. A block another
-    // sequence shares is read-only, so a history that was truncated into a
-    // shared block cannot be appended to; fork it instead.
+    // Make positions [length, length + n) addressable.
+    // A block another sequence shares is read-only, so a history that was truncated into a shared block cannot be appended to; fork it instead.
     void prepare(size_t n) {
         if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");
         if (pending_) throw std::logic_error("KV cache: step already in progress");
@@ -117,9 +108,7 @@ public:
             throw std::logic_error("KV cache: append into a block shared with another sequence");
         const size_t total = length_ + n;
         const size_t need = total / block_tokens_ + (total % block_tokens_ != 0);
-        // The pool may have been reconfigured larger since this sequence was
-        // bound; reserve to its current budget before taking any id, so no
-        // push_back below can throw with an unrecorded id in hand.
+        // The pool may have been reconfigured larger since this sequence was bound; reserve to its current budget before taking any id, so no push_back below can throw with an unrecorded id in hand.
         blocks_.reserve(pool_->max_blocks());
         try {
             while (blocks_.size() < need) blocks_.push_back(pool_->alloc());
@@ -140,26 +129,23 @@ public:
         pending_ = 0;
     }
 
-    // Roll the committed history back to `length`, returning the blocks
-    // beyond it. Used when a multi-step operation fails part way.
+    // Roll the committed history back to `length`, returning the blocks beyond it.
+    // Used when a multi-step operation fails part way.
     void truncate(size_t length) noexcept {
         if (length < length_) length_ = length;
         pending_ = 0;
         shrink_to(length_ / block_tokens_ + (length_ % block_tokens_ != 0));
     }
 
-    // Start a new history. Blocks return to the pool; the backend keeps the
-    // physical storage they occupied, so a reused sequence does not reallocate.
+    // Start a new history.
+    // Blocks return to the pool; the backend keeps the physical storage they occupied, so a reused sequence does not reallocate.
     void reset() noexcept { truncate(0); }
 
-    // The block a fork's partial tail must be filled from, and the private
-    // block it goes to; -1 when the history ends on a block boundary.
+    // The block a fork's partial tail must be filled from, and the private block it goes to; -1 when the history ends on a block boundary.
     struct Tail { int32_t from = -1, to = -1; };
 
-    // A second history with the same committed tokens: every full block is
-    // shared, read-only from now on, and a partial tail gets a fresh block
-    // the caller fills from ours before either sequence appends. The tail
-    // is taken first, so a failure part way leaves nothing retained.
+    // A second history with the same committed tokens: every full block is shared, read-only from now on, and a partial tail gets a fresh block the caller fills from ours before either sequence appends.
+    // The tail is taken first, so a failure part way leaves nothing retained.
     KVSequence fork(Tail& tail) const {
         if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");
         if (pending_) throw std::logic_error("KV cache: fork during a step");

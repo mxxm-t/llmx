@@ -10,9 +10,7 @@ import subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, exe_path, write_bin, read_bin_floats, max_err
 
-# Regression gate for quant/ + format/: build a random F32 model, quantize it to
-# Q8_0 (and Q4_0) via the CLI, dequantize it back, and check the max error is
-# within each type's quantization bound.
+# Regression gate for quant/ + format/: build a random F32 model, quantize it to Q8_0 (and Q4_0) via the CLI, dequantize it back, and check the max error is within each type's quantization bound.
 
 rng = random.Random(42)
 UNICODE_NAME = "layer.\u00e9.\u4e2d.\U0001f600.\"\\\n.weight"
@@ -26,14 +24,9 @@ def make_fixtures(d):
     t1 = tensor(512, 256)   # 131072 = 32*4096
     t2 = [rng.gauss(0, 1) for _ in range(256)]
     t3 = tensor(64, 32)
-    # Tiny magnitudes on purpose: the per-block scale is amax/127 (Q8_0) or
-    # amax/7 (Q4_0), so values around 1e-4 put the scale in the f16 SUBNORMAL
-    # band, below the normal minimum of ~6.1e-5 but above the smallest
-    # subnormal of ~5.96e-8. A bug in that decode path made every subnormal
-    # 16x too large and went unnoticed for the life of the project, because
-    # ordinary weights never produce one.
-    # Do not shrink this further: below about 1e-5 the scale itself underflows
-    # to zero, which is a real f16 limit rather than a defect.
+    # Tiny magnitudes on purpose: the per-block scale is amax/127 (Q8_0) or amax/7 (Q4_0), so values around 1e-4 put the scale in the f16 SUBNORMAL band, below the normal minimum of ~6.1e-5 but above the smallest subnormal of ~5.96e-8.
+    # A bug in that decode path made every subnormal 16x too large and went unnoticed for the life of the project, because ordinary weights never produce one.
+    # Do not shrink this further: below about 1e-5 the scale itself underflows to zero, which is a real f16 limit rather than a defect.
     t4 = [rng.gauss(0.0, 1e-4) for _ in range(256)]
 
     json_doc = {
@@ -146,11 +139,8 @@ def check_tensor_extents(d):
               "integral spellings and empty model [ok]" % (qtype, len(invalid)))
 
 
-# Decoding straight from the format description, so the check below compares
-# llmx against the spec rather than against itself. Both layouts are a 2-byte
-# f16 scale followed by the payload: Q8_0 stores 32 signed bytes and decodes as
-# d*q; Q4_0 packs 32 values into 16 bytes, where the low nibble of byte j is
-# value j and the high nibble is value j+16, each decoding as d*(nibble-8).
+# Decoding straight from the format description, so the check compares llmx against the spec rather than against itself.
+# Both layouts are a 2-byte f16 scale then the payload: Q8_0 stores 32 signed bytes decoding as d*q; Q4_0 packs 32 values in 16 bytes, byte j's low nibble value j and high nibble value j+16, each decoding as d*(nibble-8).
 def decode_blocks(payload, qtype, count):
     block, typesize = (32, 34) if qtype == "q8_0" else (32, 18)
     out = []
@@ -166,10 +156,8 @@ def decode_blocks(payload, qtype, count):
     return out
 
 
-# A single-tensor model puts the payload at the end of the file, so this needs
-# no GGUF parser of its own to find it. The suite's own parser is not used on
-# purpose: a check that shares a reader with the thing it checks is not
-# independent of it.
+# A single-tensor model puts the payload at the end of the file, so this needs no GGUF parser of its own to find it.
+# The suite's own parser is not used on purpose: a check that shares a reader with the thing it checks is not independent of it.
 def check_independent_decode(d):
     count = 4096
     values = [((i * 37 % 199) - 99) / 23.0 for i in range(count)]
@@ -230,9 +218,7 @@ def run():
             assert len(got) == len(original), "element count mismatch"
 
             err = max_err(original, got)
-            # The tiny tensor needs a RELATIVE check: its absolute error is
-            # ~1e-7 no matter how badly the scale decodes, so an absolute
-            # bound would pass a 16x subnormal error silently.
+            # The tiny tensor needs a RELATIVE check: its absolute error is ~1e-7 no matter how badly the scale decodes, so an absolute bound would pass a 16x subnormal error silently.
             tiny_o, tiny_g = original[-256:], got[-256:]
             scale = max(abs(x) for x in tiny_o)
             tiny_err = max_err(tiny_o, tiny_g) / scale
@@ -240,8 +226,7 @@ def run():
                 "%s subnormal-scale round-trip relative error %.6f exceeds %.3f"
                 % (qtype, tiny_err, bound))
             # Q8_0: f16 + 7-bit mantissa scale -> ~0.05 for unit-variance gaussian.
-            # Q4_0: 4-bit signed range scaled by amax/7 -> ~0.3 typical; 1.0 is a
-            # generous bound that still catches real corruption.
+            # Q4_0: 4-bit signed range scaled by amax/7 -> ~0.3 typical; 1.0 is a generous bound that still catches real corruption.
             assert err < bound, "%s round-trip error %.6f exceeds bound %.3f" % (
                 qtype, err, bound)
             print("roundtrip: %s, %d elements, max abs err = %.6f, "

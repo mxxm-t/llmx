@@ -2,7 +2,8 @@ import os
 import sys
 import argparse
 
-# llmx test runner. Each test generates its own fixtures and cleans up.
+# llmx test runner.
+# Each test generates its own fixtures and cleans up.
 # Exit code 0 = all passed.
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

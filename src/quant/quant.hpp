@@ -8,11 +8,9 @@
 #include "format/gguf.hpp"
 #include "quant/k_quants.hpp"
 
-// Q8_0 block quantization kernels, from scratch. A block holds 32 float values
-// that are compressed into a 2-byte f16 scale + 32 int8 quantized values
-// (gguf::Q8_0_TYPESIZE bytes per block). These kernels are the building blocks
-// for both the quantize command (float -> Q8_0) and the dequantize command /
-// CPU inference path (Q8_0 -> float).
+// Q8_0 block quantization kernels, from scratch.
+// A block holds 32 float values that are compressed into a 2-byte f16 scale + 32 int8 quantized values (gguf::Q8_0_TYPESIZE bytes per block).
+// These kernels are the building blocks for both the quantize command (float -> Q8_0) and the dequantize command / CPU inference path (Q8_0 -> float).
 
 namespace quant {
 
@@ -52,11 +50,10 @@ inline void dequantize_row_q8_0(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
-// Q4_0 block quantization. A block holds 32 floats compressed into a 2-byte f16
-// scale + 16 bytes of nibbles (gguf::Q4_0_TYPESIZE = 18 bytes per block). The
-// scale is d = amax/7 so the quantized range [-8, 7] maps to [-amax, amax]. Each
-// byte holds two values: the low nibble is element j, the high nibble element
-// j+16; the stored nibble is unsigned 0..15 where the true value = nibble - 8.
+// Q4_0 block quantization.
+// A block holds 32 floats compressed into a 2-byte f16 scale + 16 bytes of nibbles (gguf::Q4_0_TYPESIZE = 18 bytes per block).
+// The scale is d = amax/7 so the quantized range [-8, 7] maps to [-amax, amax].
+// Each byte holds two values: the low nibble is element j, the high nibble element j+16; the stored nibble is unsigned 0..15 where the true value = nibble - 8.
 inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
         const float* x = src + b * gguf::Q4_0_BLOCK;
@@ -97,9 +94,8 @@ inline void dequantize_row_q4_0(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
-// Q4_1 block: 2-byte f16 scale d, 2-byte f16 min m, then 16 bytes of nibbles
-// (gguf::Q4_1_TYPESIZE = 20). Unlike Q4_0 the nibble is unsigned and the block
-// carries its own offset, so the value is d*q + m rather than d*(q-8).
+// Q4_1 block: 2-byte f16 scale d, 2-byte f16 min m, then 16 bytes of nibbles (gguf::Q4_1_TYPESIZE = 20).
+// Unlike Q4_0 the nibble is unsigned and the block carries its own offset, so the value is d*q + m rather than d*(q-8).
 inline void quantize_row_q4_1(const float* src, uint8_t* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
         const float* x = src + b * gguf::Q4_1_BLOCK;
@@ -138,9 +134,8 @@ inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
-// Description of a quantized storage type: fixed block size, bytes per block,
-// and block-wise (de)quantize routines. Register each type with the
-// quant::Registry so consumers can look a type up by its GGML id.
+// A quantized storage type: block size, bytes per block, and block-wise (de)quantize routines.
+// Register each type with the quant::Registry so consumers can look a type up by its GGML id.
 struct QuantType {
     const char* name = "?";
     size_t block_size = 0;   // values per block
@@ -149,8 +144,8 @@ struct QuantType {
     void (*dequantize)(const uint8_t*, float*, size_t) = nullptr;
 };
 
-// Registry of quant types keyed by GGML type id. Populate at startup with
-// quant::register_builtins().
+// Registry of quant types keyed by GGML type id.
+// Populate at startup with quant::register_builtins().
 class Registry {
 public:
     static Registry& instance() {
@@ -182,9 +177,7 @@ inline void register_builtins() {
     r.add(gguf::GGML_TYPE_Q4_1,
           { "Q4_1", gguf::Q4_1_BLOCK, gguf::Q4_1_TYPESIZE,
             quantize_row_q4_1, dequantize_row_q4_1 });
-    // Q6_K is read-only: converters upgrade a few tensors to it inside an
-    // otherwise Q4_0 file, so llmx needs to LOAD it, but nothing here produces
-    // it and a quantizer would be unused code.
+    // Q6_K is read-only: converters upgrade a few tensors to it inside an otherwise Q4_0 file, so llmx needs to LOAD it, but nothing here produces it and a quantizer would be unused code.
     r.add(gguf::GGML_TYPE_Q4_K,
           { "Q4_K", gguf::Q4_K_BLOCK, gguf::Q4_K_TYPESIZE,
             nullptr, dequantize_row_q4_K });

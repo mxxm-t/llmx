@@ -1,11 +1,7 @@
 #pragma once
-// HTTP/1.1 over blocking sockets, enough for the server in docs/SERVER.md:
-// listen, accept, read one request with a Content-Length body, write one
-// response or a chunked stream. One thread per connection, no keep-alive
-// beyond one request, no TLS, no external library: a reverse proxy does
-// the rest when the server faces a network. Windows uses Winsock, everything
-// else BSD sockets; the two differ only in the handle type and in how a
-// socket is closed, which is what the few #if blocks below cover.
+// HTTP/1.1 over blocking sockets, enough for the server in docs/SERVER.md: listen, accept, read one request with a Content-Length body, write one response or a chunked stream.
+// One thread per connection, no keep-alive beyond one request, no TLS, no external library: a reverse proxy does the rest when the server faces a network.
+// Windows uses Winsock, everything else BSD sockets; the two differ only in the handle type and in how a socket is closed, which is what the few #if blocks below cover.
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -40,8 +36,7 @@ using Socket = SOCKET;
 constexpr Socket kInvalid = INVALID_SOCKET;
 inline void close_socket(Socket s) { closesocket(s); }
 inline int last_error() { return WSAGetLastError(); }
-// Winsock wants one startup per process; the first listener does it and
-// nothing undoes it, since the process ends with the server.
+// Winsock wants one startup per process; the first listener does it and nothing undoes it, since the process ends with the server.
 inline void platform_init() {
     static std::once_flag once;
     std::call_once(once, [] {
@@ -54,10 +49,7 @@ using Socket = int;
 constexpr Socket kInvalid = -1;
 inline void close_socket(Socket s) { ::close(s); }
 inline int last_error() { return errno; }
-// A write to a socket the peer has closed raises SIGPIPE and ends the
-// process unless the process ignores it; a client leaving mid-stream is
-// ordinary here, so the signal is ignored once and every send also
-// passes MSG_NOSIGNAL where the platform has it.
+// A write to a socket the peer has closed raises SIGPIPE and ends the process unless the process ignores it; a client leaving mid-stream is ordinary here, so the signal is ignored once and every send also passes MSG_NOSIGNAL where the platform has it.
 inline void platform_init() {
     static std::once_flag once;
     std::call_once(once, [] { signal(SIGPIPE, SIG_IGN); });
@@ -75,8 +67,7 @@ struct Request {
     std::string body;
 };
 
-// Sizes a request may not exceed; past them the connection answers 413 or
-// 431 and closes rather than reading on.
+// Sizes a request may not exceed; past them the connection answers 413 or 431 and closes rather than reading on.
 struct Limits {
     size_t max_header_bytes = 64 * 1024;
     size_t max_body_bytes = 64 * 1024 * 1024;
@@ -96,9 +87,8 @@ inline const char* reason(int status) {
     }
 }
 
-// One accepted connection. Reads exactly one request, then writes either a
-// whole response or a chunked stream; either way the socket closes with
-// the object, and a write to a peer that has gone away throws.
+// One accepted connection.
+// Reads exactly one request, then writes either a whole response or a chunked stream; either way the socket closes with the object, and a write to a peer that has gone away throws.
 class Connection {
 public:
     explicit Connection(Socket s) : s_(s) {}
@@ -107,8 +97,8 @@ public:
     Connection& operator=(const Connection&) = delete;
     Connection(Connection&& o) noexcept : s_(o.s_), streaming_(o.streaming_) { o.s_ = kInvalid; }
 
-    // False on a malformed request; `status` then says which answer to
-    // send (400, 413, 431). A closed socket before any byte is 0.
+    // False on a malformed request; `status` then says which answer to send (400, 413, 431).
+    // A closed socket before any byte is 0.
     bool read_request(Request& req, const Limits& limits, int& status) {
         status = 0;
         std::string head;
@@ -154,9 +144,8 @@ public:
         send_all(out);
     }
 
-    // A chunked response: the head now, chunks as they come, end_stream()
-    // last. Text arrives at the client exactly as written, so a caller
-    // that streams UTF-8 must not split a character across chunks.
+    // A chunked response: the head now, chunks as they come, end_stream() last.
+    // Text arrives at the client exactly as written, so a caller that streams UTF-8 must not split a character across chunks.
     void begin_stream(int status, const std::string& content_type) {
         std::string out = "HTTP/1.1 " + std::to_string(status) + " " + reason(status) + "\r\n";
         out += "Content-Type: " + content_type + "\r\n";
@@ -230,8 +219,8 @@ private:
     bool streaming_ = false;
 };
 
-// A listening socket. Port 0 asks the system for a free one; port() says
-// which, for tests.
+// A listening socket.
+// Port 0 asks the system for a free one; port() says which, for tests.
 class Listener {
 public:
     Listener(const std::string& host, uint16_t port) {
@@ -274,8 +263,7 @@ public:
 
     uint16_t port() const { return port_; }
 
-    // Blocks for the next client; an invalid connection means the listener
-    // was closed from another thread, which is how the server stops.
+    // Blocks for the next client; an invalid connection means the listener was closed from another thread, which is how the server stops.
     Connection accept() {
         const Socket c = ::accept(s_, nullptr, nullptr);
         if (c != kInvalid) {
@@ -301,10 +289,8 @@ private:
     uint16_t port_ = 0;
 };
 
-// The client side, for tests and for the CLI's own checks: one request,
-// the whole response read to the end, chunked bodies decoded. Returns the
-// status; `chunks` receives each chunk as it arrived when the reply was
-// chunked, so a test can see where the server split the stream.
+// The client side, for tests and for the CLI's own checks: one request, the whole response read to the end, chunked bodies decoded.
+// Returns the status; `chunks` receives each chunk as it arrived when the reply was chunked, so a test can see where the server split the stream.
 inline int fetch(const std::string& host, uint16_t port, const std::string& method, const std::string& path,
                  const std::string& body, std::string& out, std::vector<std::string>* chunks = nullptr,
                  const std::string& content_type = "application/json") {

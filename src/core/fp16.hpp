@@ -23,12 +23,8 @@ inline uint16_t f32_to_f16(float f) {
         if (es < -10) {                    // underflow to zero
             return (uint16_t)s;
         }
-        // Subnormal half: the result is the full 24-bit significand shifted
-        // right by (14 - es), with no implicit leading 1 left in it.
-        // The 0xfff round-to-nearest bias that the NORMAL path uses belongs
-        // before a pending 13-bit shift; applying it here added 4095 to an
-        // already-shifted 10-bit value and produced a normal half roughly
-        // 200x too large.
+        // Subnormal half: the result is the full 24-bit significand shifted right by (14 - es), with no implicit leading 1 left in it.
+        // The 0xfff round-to-nearest bias that the NORMAL path uses belongs before a pending 13-bit shift; applying it here added 4095 to an already-shifted 10-bit value and produced a normal half roughly 200x too large.
         m |= 0x800000u;                    // restore implicit leading 1
         const uint32_t shift = (uint32_t)(14 - es);   // 14..24
         uint32_t half = m >> shift;
@@ -38,14 +34,11 @@ inline uint16_t f32_to_f16(float f) {
         return (uint16_t)(s | half);
     }
     // Round to nearest, ties to even, matching the subnormal path above.
-    // The exponent is ADDED, not OR-ed: a mantissa that rounds up out of ten
-    // bits carries into the exponent field, and OR-ing dropped that carry
-    // whenever es was odd, which returned exactly half the right value.
+    // The exponent is ADDED, not OR-ed: a mantissa that rounds up out of ten bits carries into the exponent field, and OR-ing dropped that carry whenever es was odd, which returned exactly half the right value.
     const uint32_t rem = m & 0x1fffu;              // the 13 bits being dropped
     uint32_t h = ((uint32_t)es << 10) + (m >> 13);
     if (rem > 0x1000u || (rem == 0x1000u && (h & 1u))) h++;
-    // Rounding can carry out of the largest finite half, which IEEE 754
-    // resolves to infinity.
+    // Rounding can carry out of the largest finite half, which IEEE 754 resolves to infinity.
     if (h >= 0x7c00u) return (uint16_t)(s | 0x7c00u);
     return (uint16_t)(s | h);
 }
@@ -60,11 +53,8 @@ inline float f16_to_f32(uint16_t h) {
             u = sign;                      // zero
         } else {
             // Subnormal half: value is m * 2^-24, with no implicit leading 1.
-            // Shift left until bit 10 becomes that implicit 1; after k shifts
-            // the value is (1+frac) * 2^(-14-k), so the f32 exponent field is
-            // 113 - k. Incrementing instead of decrementing here made every
-            // subnormal 2^(2k) too large -- 16x for the k=2 case that Q6_K
-            // super-block scales land in.
+            // Shift left until bit 10 becomes that implicit 1; after k shifts the value is (1+frac) * 2^(-14-k), so the f32 exponent field is 113 - k.
+            // Incrementing instead of decrementing here made every subnormal 2^(2k) too large -- 16x for the k=2 case that Q6_K super-block scales land in.
             uint32_t k = 0;
             while ((m & 0x400u) == 0) { m <<= 1; k++; }
             m &= 0x3ffu;

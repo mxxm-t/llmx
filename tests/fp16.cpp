@@ -1,17 +1,5 @@
 // binary32 <-> binary16 conversion, checked without an oracle library.
-//
-// The decode direction is exercised constantly by every quantized matmul, so
-// it was correct. The encode direction is reached only by `llmx quantize`,
-// which nothing compared against a reference, and it was wrong twice: a
-// mantissa that rounded up out of ten bits had its carry OR-ed into the
-// exponent field instead of added, which silently halved the result whenever
-// the exponent was odd, and ties rounded half-up while the subnormal path in
-// the same function rounded half-to-even.
-//
-// The oracle here is binary16 itself. Every finite half is a float exactly, so
-// encoding that float must return the same bits; and for any float, the
-// encoded half must be at least as close to it as either neighbouring half,
-// which is the definition of round-to-nearest with ties resolved to even.
+// The oracle is binary16 itself: every finite half is exactly a float, so encoding that float must return the same bits, and any float's encoded half must be at least as close as either neighbouring half, which is round-to-nearest with ties to even.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -30,8 +18,8 @@ void require(bool ok, const char* message) {
 
 bool is_finite_half(uint16_t h) { return (h & 0x7c00u) != 0x7c00u; }
 
-// Every finite half is exactly representable as a float, so the encoder has to
-// return the bits it started from. This is the whole range, not a sample.
+// Every finite half is exactly representable as a float, so the encoder has to return the bits it started from.
+// This is the whole range, not a sample.
 void round_trip() {
     for (uint32_t h = 0; h < 0x10000u; ++h) {
         if (!is_finite_half((uint16_t)h)) continue;
@@ -47,8 +35,7 @@ void round_trip() {
     }
 }
 
-// Nearest with ties to even, stated as a property: no other half is strictly
-// closer, and where a neighbour is equally close the even significand wins.
+// Nearest with ties to even, stated as a property: no other half is strictly closer, and where a neighbour is equally close the even significand wins.
 void nearest(float f) {
     const uint16_t got = f32_to_f16(f);
     require(is_finite_half(got), "finite input encoded to inf or nan");
@@ -72,18 +59,15 @@ float from_bits(uint32_t u) {
     return f;
 }
 
-// The two cases the old encoder got wrong, pinned by name so a regression
-// says which defect came back.
+// The two cases the old encoder got wrong, pinned by name so a regression says which defect came back.
 void regressions() {
-    // Carry out of the mantissa with an odd exponent. 0x3FFFF800 is just below
-    // 2.0 and rounds up to it; the OR-ed carry returned 1.0, exactly half.
+    // Carry out of the mantissa with an odd exponent. 0x3FFFF800 is just below 2.0 and rounds up to it; the OR-ed carry returned 1.0, exactly half.
     const float just_under_two = from_bits(0x3FFFF800u);
     require(f32_to_f16(just_under_two) == 0x4000u, "mantissa carry lost in the exponent");
     require(f16_to_f32(f32_to_f16(just_under_two)) == 2.0f, "carry case did not round to 2");
     ++checks;
 
-    // Same carry one binade down, where the old code produced 0x0400 for a
-    // value that is 0x0800.
+    // Same carry one binade down, where the old code produced 0x0400 for a value that is 0x0800.
     require(f32_to_f16(from_bits(0x38FFFFC0u)) == 0x0800u, "mantissa carry lost near 2^-14");
     ++checks;
 
@@ -110,9 +94,7 @@ void regressions() {
 int main() {
     try {
         round_trip();
-        // Exhaustive nearest-half checking is 65536 comparisons per input, so
-        // this walks a coprime stride through the float space rather than all
-        // of it, plus the boundaries that the stride would miss.
+        // Exhaustive nearest-half checking is 65536 comparisons per input, so this walks a coprime stride through the float space rather than all of it, plus the boundaries that the stride would miss.
         for (uint32_t bits = 0; bits < 0x40000000u; bits += 7370029u) nearest(from_bits(bits));
         for (uint32_t bits = 0x80000000u; bits < 0xc0000000u; bits += 7370029u)
             nearest(from_bits(bits));

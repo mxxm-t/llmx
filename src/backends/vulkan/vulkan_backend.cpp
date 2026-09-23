@@ -1567,9 +1567,9 @@ public:
                   xqi, xqi, xqi, xqi, ids.buffer ? ids : bind(X)},
                  pc, sizeof(pc), total, u32(entries),
                  ncols == 1 && row_kernel_builds_one_column(plan.kernel) ? 1 : 0);
-        // The outputs may be what the twin describes.
+        // The outputs may overlap what the twin describes; a router's scores beside its input do not, so the experts read the same twin.
         for (const Projection* pr : live)
-            if (bind(pr->out).buffer == xq_tag_.x.buffer) xq_tag_ = XqTag{};
+            if (overlaps_twin(bind(pr->out), (per ? entries : nbatch) * pr->rows)) xq_tag_ = XqTag{};
     }
 
     // Expert routing and the routed projections (backend.hpp).
@@ -1584,6 +1584,7 @@ public:
         const uint32_t pc[4] = {u32(rows), u32(n_expert), u32(k), normalize ? 1u : 0u};
         dispatch(K_MOE_ROUTE, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows));
         group_tag_ = GroupTag{};
+        if (overlaps_twin(bind(ids), rows * k) || overlaps_twin(bind(weights), rows * k)) xq_tag_ = XqTag{};
     }
 
     // Calls `each(first, count, tile)` over the token rows of a routed call, a call per stretch of rows that take the same kernel.
@@ -1716,6 +1717,13 @@ public:
         }
         for (const Projection* pr : live)
             if (bind(pr->out).buffer == xq_tag_.x.buffer) xq_tag_ = XqTag{};
+    }
+
+    // Whether `floats` floats at a binding overlap the input the activations' twin was made from.
+    bool overlaps_twin(const VkDescriptorBufferInfo& b, size_t floats) const {
+        if (!xq_tag_.n || b.buffer != xq_tag_.x.buffer) return false;
+        const VkDeviceSize end = b.offset + floats * sizeof(float), tag_end = xq_tag_.x.offset + xq_tag_.n * sizeof(float);
+        return b.offset < tag_end && xq_tag_.x.offset < end;
     }
 
     void check_experts(uint32_t type, CSlice data, size_t nin, size_t nout, size_t n_expert) {
@@ -2121,7 +2129,9 @@ private:
                   int variant = 0) {
         Kernel& k = kernel(id, variant);
         if (buffers.size() != k.buffers) throw std::logic_error("vulkan: kernel binding count");
-        if (!is_row_kernel(id) && id != K_QUANTIZE_X && id != K_RMS_NORM_ROWS && id != K_SILU_MUL)
+        // Routing and grouping write only ids, weights and their own table; route_experts checks those against the twin itself.
+        if (!is_row_kernel(id) && id != K_QUANTIZE_X && id != K_RMS_NORM_ROWS && id != K_SILU_MUL &&
+            id != K_MOE_ROUTE && id != K_MOE_GROUP)
             xq_tag_ = XqTag{};
         if (push_bytes > kPushBytes) throw std::logic_error("vulkan: push constants exceed 128 bytes");
         for (const auto& b : buffers)

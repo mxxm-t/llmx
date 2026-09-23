@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <string>
 
+#include "format/gguf.hpp"
+
 namespace backend {
 
 // What the device reports about itself.
@@ -47,8 +49,8 @@ struct DeviceProfile {
     size_t tile_from_8bit = 32, tile_from_8bit_narrow = 64, tile_from_other = 64;
     size_t tile_from_other_narrow = 64;
     size_t tile_narrow_nin = 4096;
-    // Prompt extent from which a routed projection takes the tile kernel over each expert's rows rather than the row kernel per entry.
-    size_t moe_tile_from = 32;
+    // Prompt extent from which a routed projection takes the tile kernel over each expert's rows rather than the row kernel per entry, by weight family (moe_tile_from_for): F32, Q8_0 and Q6_K, then Q4_0 and Q4_1, Q4_K and Q5_K.
+    size_t moe_tile_from = 32, moe_tile_from_q4 = 32, moe_tile_from_q4k = 32, moe_tile_from_q5k = 32;
     // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row.
     size_t attention_split_chunk = 32, attention_split_max = 64;
     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, and the fewest quant blocks of 32 a part may sum.
@@ -66,13 +68,15 @@ struct MeasuredProfile {
     // Where the tile matmul overtakes the per-row one: 8-bit projections at least 4096 wide and narrower, then the other types the same two ways.
     size_t tile_from_8bit, tile_from_8bit_narrow, tile_from_other, tile_from_other_narrow;
     bool prefer_integer_dot;         // whether the matmuls want the integer dot instructions
+    // Where a routed projection's tile overtakes its row kernel, by weight family as DeviceProfile orders them.
+    size_t moe_tile_from, moe_tile_from_q4, moe_tile_from_q4k, moe_tile_from_q5k;
 };
 
 // The measured rows: the tile crossover moves with the driver and with the tile kernel it runs, and a row measured against the integer-dot tile applies only where the device has the integer dot (docs/VULKAN.md).
 inline const MeasuredProfile* measured_profiles(size_t& count) {
     static const MeasuredProfile table[] = {
-        {"Radeon VII", "AMD proprietary", 32, 48, 64, 64, false},
-        {"MI60 / MI50", "radv", 16, 32, 24, 40, true},
+        {"Radeon VII", "AMD proprietary", 32, 48, 64, 64, false, 32, 32, 32, 32},
+        {"MI60 / MI50", "radv", 16, 32, 24, 40, true, 32, 96, 64, 48},
     };
     count = sizeof(table) / sizeof(table[0]);
     return table;
@@ -92,6 +96,10 @@ inline DeviceProfile profile_for(const DeviceCaps& caps) {
         p.tile_from_other = table[i].tile_from_other;
         p.tile_from_other_narrow = table[i].tile_from_other_narrow;
         p.prefer_integer_dot = table[i].prefer_integer_dot;
+        p.moe_tile_from = table[i].moe_tile_from;
+        p.moe_tile_from_q4 = table[i].moe_tile_from_q4;
+        p.moe_tile_from_q4k = table[i].moe_tile_from_q4k;
+        p.moe_tile_from_q5k = table[i].moe_tile_from_q5k;
         break;
     }
     return p;
@@ -102,6 +110,16 @@ inline size_t tile_from_for(const DeviceProfile& profile, bool every_projection_
     if (!every_projection_8bit_or_float)
         return nin < profile.tile_narrow_nin ? profile.tile_from_other_narrow : profile.tile_from_other;
     return nin < profile.tile_narrow_nin ? profile.tile_from_8bit_narrow : profile.tile_from_8bit;
+}
+
+// Prompt extent from which a routed projection of this weight type takes the tile kernel: the 4-bit rows, cheap to unpack per entry, stay ahead of the tile's grouping longer.
+inline size_t moe_tile_from_for(const DeviceProfile& profile, uint32_t type) {
+    switch (type) {
+    case gguf::GGML_TYPE_Q4_0: case gguf::GGML_TYPE_Q4_1: return profile.moe_tile_from_q4;
+    case gguf::GGML_TYPE_Q4_K: return profile.moe_tile_from_q4k;
+    case gguf::GGML_TYPE_Q5_K: return profile.moe_tile_from_q5k;
+    default: return profile.moe_tile_from;
+    }
 }
 
 // Rows of a matmul tile given the call's shape: the tallest height that still yields a workgroup per compute unit, then the middle one, then the smallest.

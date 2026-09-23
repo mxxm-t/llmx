@@ -68,7 +68,7 @@ kernel notes and measurements are `docs/VULKAN.md`.
   runs one tile of up to 64 entries of one expert from the grouping
   `shaders/moe_group.comp` writes, a workgroup per expert in a stable
   order. A row's entries take the tile when its prompt's extent reaches the
-  profile's `moe_tile_from`; a routed tile is never split, so an entry
+  weight type's `moe_tile_from_for` (`device_profile.hpp`); a routed tile is never split, so an entry
   computes the same whatever else is routed beside it. The down
   projection's slots land in scratch and `shaders/moe_combine.comp` adds
   their weighted sum to the residual; the grouping and the activation

@@ -1592,7 +1592,7 @@ public:
     }
 
     // Expert routing and the routed projections (backend.hpp).
-    // A row's entries take the row kernel, one workgroup row per entry, or with a prompt extent of at least moe_tile_from the tile kernel over each expert's grouped entries.
+    // A row's entries take the row kernel, one workgroup row per entry, or with a prompt extent of at least the weight type's moe_tile_from the tile kernel over each expert's grouped entries.
     // Either way an entry computes the same whatever else is routed beside it, since neither kernel's arithmetic for a column depends on the other columns and a routed tile is never split.
     void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, Slice ids, Slice weights) override {
         if (!k || k > n_expert || k > 256 || n_expert > 1024)
@@ -1608,8 +1608,8 @@ public:
 
     // Calls `each(first, count, tile)` over the token rows of a routed call, a call per stretch of rows that take the same kernel.
     template <typename Fn>
-    void expert_runs(size_t nrows, RowRuns runs, const Fn& each) {
-        const size_t from = dev_->profile.moe_tile_from;
+    void expert_runs(uint32_t type, size_t nrows, RowRuns runs, const Fn& each) {
+        const size_t from = moe_tile_from_for(dev_->profile, type);
         if (!runs.n) { each(0, nrows, nrows >= from); return; }
         if (runs.runs[runs.n - 1].end != nrows) throw std::runtime_error("vulkan: row runs do not cover the batch");
         size_t start = 0;
@@ -1640,7 +1640,7 @@ public:
         }
         if (floats_from(X) < nrows * nin || floats_from(routing.ids) < entries)
             throw std::runtime_error("vulkan: matmul operand outside its allocation");
-        expert_runs(nrows, runs, [&](size_t first, size_t count, bool tile) {
+        expert_runs(projections.begin()->type, nrows, runs, [&](size_t first, size_t count, bool tile) {
             std::vector<Projection> at(projections);
             for (Projection& pr : at) pr.out = at_float(pr.out, first * k * pr.rows);
             std::vector<const Projection*> live;
@@ -1658,7 +1658,7 @@ public:
             floats_from(routing.weights) < entries)
             throw std::runtime_error("vulkan: matmul operand outside its allocation");
         if (!moe_out_ || moe_out_->size() < entries * nout * sizeof(float)) grow(moe_out_, entries * nout * sizeof(float));
-        expert_runs(nrows, runs, [&](size_t first, size_t count, bool tile) {
+        expert_runs(type, nrows, runs, [&](size_t first, size_t count, bool tile) {
             const Slice part{moe_out_.get(), first * k * nout};
             const Projection one{type, data, part, nout};
             routed_call({&one}, at_float(X, first * k * nin), nin, count * k, count, k, at_float(routing.ids, first * k),

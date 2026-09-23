@@ -1075,7 +1075,7 @@ size_t check_kernels(backend::Backend& vk) {
     {
         const size_t n_expert = 6, k = 2, nin = 256, nff = 67, nout = 45;
         const backend::DeviceProfile prof = backend::vulkan_device_profile(p.vk);
-        const size_t from = prof.moe_tile_from;
+        size_t from = prof.moe_tile_from;   // the weight type's, set per type below
         // Stacked expert bytes of a type: F32 and the block quantizers from floats, the K-quants from a byte pattern with small half scales, as the matmul check above builds them.
         auto stacked = [&](uint32_t type, size_t in, size_t out, uint32_t seed) {
             const size_t n_rows = n_expert * out;
@@ -1134,6 +1134,7 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::In xi = p.in(x), x2i = p.in(x2);
             for (uint32_t type : {gguf::GGML_TYPE_F32, gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
                                   gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K}) {
+                from = backend::moe_tile_from_for(prof, type);
                 const bool f32 = type == gguf::GGML_TYPE_F32;
                 const bool reads8 = twin8 && !f32;
                 // The row kernel reads a twin, 8-bit or 16-bit by family; the tile reads 8-bit activations where the integer dot takes quantized types, else floats.

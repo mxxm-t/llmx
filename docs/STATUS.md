@@ -4,6 +4,42 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Mixture of experts: qwen3moe on both backends (ROADMAP #2) (2026-09-23, branch feat/moe)
+
+- **Goal:** Qwen3's mixture-of-experts form (`general.architecture = qwen3moe`, Qwen3-30B-A3B and Qwen3-Coder-30B-A3B) on the CPU and Vulkan backends, gated against HF, at or above llama.cpp's own Vulkan backend on the MI50 and the Radeon VII, and with experts on the CPU where the device is too small.
+- **Done:** a layer is routed when its GGUF has `ffn_gate_inp`, so files that mix dense and routed layers load. Three backend ops carry a routed layer (`backend.hpp`): `route_experts` (softmax over the router scores, the top k, renormalized), `matmul_experts` (gate and up of each token's chosen experts) and `matmul_experts_add` (the down projection, weighted and summed in slot order into the residual). Expert ids and weights stay in the activation arena, so nothing leaves the device.
+- **Done, CPU:** entries grouped by expert; an expert with fewer than four entries takes the fused row dots, all such entries of a call in one pool dispatch, and a busier one a batched matmul over its rows.
+- **Done, Vulkan:** decode runs one entry per workgroup row through the row kernels, which take an expert offset on the weight rows; a prompt whose extent reaches `moe_tile_from` (32) takes the tile kernels over each expert's entries, grouped on the device by `moe_group.comp` (a workgroup per expert, stable order) and never split, so an entry computes the same whatever else is routed beside it. `moe_route.comp` routes through subgroup reductions and `moe_combine.comp` adds the weighted slots. The experts read the activation twin the router's input already has.
+- **Done, placement:** `--n-cpu-moe N` and `--cpu-moe` put the experts of the first N (or all) routed layers on the CPU beside a device, through the per-role placement the model layer already had; attention, the dense blocks, the embedding and the head stay on the device.
+- **Gates:** `tests/moe.py`, a tiny random-weight qwen3moe (two routed layers, one dense, 8 experts, top 3) against HF `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`): all 257 logits within 7.5e-7 and windowed NLL within 1e-5 on the CPU, the Radeon VII and the MI50, across batch widths, threads and both placements. `tests/backend_vulkan.cpp` checks routing and the routed projections against the CPU for every supported type on the row kernel, the tile kernel and a batch mixing decode rows with a prompt. Qwen3-30B-A3B Q4_K_M gives the same greedy text on the CPU and the MI50.
+- **Measured, Qwen3-30B-A3B Q4_K_M, one MI50 (card 4, idle), two interleaved rounds:**
+
+  | test | llmx | llama.cpp Vulkan | share |
+  |---|---:|---:|---:|
+  | pp64 | 398 | 340 | 117% |
+  | pp247 | 859 | 602 | 143% |
+  | pp512 | 1165 | 1093 | 107% |
+  | tg32 | 123.5 | 107.7 | 115% |
+  | tg128 | 116.6 | 107.5 | 108% |
+
+  Through the row kernels alone prefill was 383 against 1112; grouping by expert took it to 1048, and a grouping workgroup per expert, reused by the down projection, to 1214. Decode went from 99.3 to 116.6 with the twin reused past the router, subgroup routing (8 to 4 percent of decode time) and F32 router rows four values a load (8.8 to 4.0 percent).
+- **Measured, experts on the CPU (b11075 on the Radeon VII, 8 threads; the rig's reference on card 4, 16 threads):**
+
+  | where | experts on CPU | test | llmx | llama.cpp | share |
+  |---|---:|---|---:|---:|---:|
+  | Radeon VII | 12 of 48 | pp512 | 196 | 121 | 162% |
+  | Radeon VII | 12 of 48 | tg32 | 31.3 | 27.4 | 114% |
+  | Radeon VII | 48 | pp512 | 75.6 | 76.7 | 99% |
+  | Radeon VII | 48 | tg32 | 11.4 | 15.7 | 72% |
+  | MI50 | 12 | pp512 | 223 | 404 | 55% |
+  | MI50 | 12 | tg32 | 27.2 | 25.8 | 106% |
+  | MI50 | 48 | pp512 | 69 | 166 | 42% |
+  | MI50 | 48 | tg32 | 11.0 | 12.2 | 91% |
+
+  12 routed layers on the CPU is what lets the rest fit the Radeon VII's 16 GB.
+- **Left:** a real file of every supported type (Q5_K_M, Q6_K, Q8_0, Q4_0, Q4_1 downloading on both machines) through the gate cells; CPU expert decode (the fused dots against float activations) and prefill with experts on the CPU, where the reference likely runs large batches on the device from host-held weights; a server check of routed layers; the 16k greedy check, whose CPU and device replies part at a near-tie (below).
+- **16k check, 2026-09-23:** on Qwen3-0.6B-Q8_0 the CPU and the MI50 agree for 68 characters of the uncapped reply and then part. At that position the CPU's top two logits are 18.498 and 18.379 and the device's 18.383 and 18.346, the two tokens swapped; the device's logits sit up to 0.23 from the CPU's after the 16k prompt, the size the 8-bit activations shift. A hash across two backends with different activation precision parts at the first near-tie, so the check needs redefining (open with the user).
+
 ## Multi-user server (ROADMAP #7, EXECUTION step 7) (2026-09-22)
 
 - **Goal:** the HTTP front-end over the model layer the execution plan

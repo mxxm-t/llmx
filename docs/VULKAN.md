@@ -629,6 +629,16 @@ A row computes the same, bit for bit, whatever else shares its pass. The row ker
 
 `backend-vulkan` checks this bitwise at the model's shapes, 2048 and 6144 outputs over 249 rows, where the whole prompt takes the tallest tile and its 9-row tail the shortest. It compares a prompt's last rows alone against the same rows of one pass, a generated row alone against it beside others, a call mixing both against each, attention over a prompt's tail after a reused history against one pass, and a decode row beside a longer history against it alone. At the model API, Qwen3-0.6B-Q8_0 on an MI50 gives bit-identical logits through one pass, a forked reused prefix and a prefix-then-tail pass.
 
+## Mixture of experts
+
+A routed layer (`qwen3moe`) is five dispatches after its norm: the router matmul, routing, gate and up, SiLU over every slot, and the down projection with its combine.
+
+- **Routing.** `moe_route.comp` takes a row per 64-invocation workgroup: the softmax's maximum and sum, then k rounds of the largest untaken probability and the lowest id holding it, through subgroup reductions joined in shared memory when the workgroup is two subgroups. With shared-memory trees it cost about seventy barriers a token and 8 percent of a Qwen3-30B-A3B decode pass; with subgroups 4.
+- **Decode.** The row kernels and `matmul_vec_q8.comp` take a routed mode: workgroup row y is entry y, which reads X column y / per through its expert's rows, found by offsetting the weight row by the expert times the rows per expert, since a GGUF stacks the experts back to back. Nothing else in the kernels changes, so every type's decode path serves routed rows.
+- **Prompts.** A row whose prompt extent reaches `moe_tile_from` (32) takes the tile kernels over each expert's entries. `moe_group.comp` groups a call's entries, a workgroup per expert: a shared histogram of every id, the expert's first entry and first tile from the lower experts' counts, and its entries placed in order by a prefix sum over chunks of 256. The tile's workgroup row y is tile y, up to 64 entries of one expert, gathered as its columns and scattered back as output rows; a routed tile is never split. Through the row kernels a prompt read an expert's weights once per entry, and Qwen3-30B-A3B prefilled 383 tok/s at 512 rows on an MI50; through the tiles 1048, and with the grouping a workgroup per expert and reused by the down projection 1214.
+- **Invariance.** Neither kernel's arithmetic for a column depends on the other columns, and the kernel follows the row's extent, so an entry computes the same whatever else is routed beside it, as the dense rows do.
+- **The twin.** A row kernel's output dropped the activation twin whenever it shared a buffer with the input, which the arena always does; only an overlapping output drops it now, so the experts read the twin the router's input has, and routing keeps it the same way.
+
 ## Selection and reporting
 
 `--device cpu` is the default and `--device vulkan:N` selects a device;

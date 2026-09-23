@@ -89,6 +89,19 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   `rows[i]` of `src`. Compacts the rows of a pass that want logits, which a
   batch mixing prefill and decode entries leaves non-contiguous, so the
   output head runs once over exactly them.
+- `Routing`, `route_experts(scores, rows, n_expert, k, normalize, ids,
+  weights)`: a mixture-of-experts layer's routing, the k experts of highest
+  softmax probability per row, most probable first and ties to the lower
+  id, with their probabilities renormalized over the k when asked. Slot `j`
+  of row `r` is entry `r*k + j`; the ids are 32-bit integers in float-sized
+  slots, so they stay in the activation arena.
+- `matmul_experts(projections, X, nin, nrows, routing, runs)`: up to three
+  routed projections of one X, entry `e` of a projection being its expert
+  `ids[e]`'s rows times X row `e / k`. A projection's data holds its
+  `n_expert` matrices back to back, as a GGUF stacks them.
+- `matmul_experts_add(type, data, X, Y, nin, nout, nrows, routing, runs)`:
+  the routed down projection joining the residual, row `r` of `Y` adding
+  the weighted sum of its k slots, formed in slot order before the add.
 - `BackendPtr` / factory (`make_cpu_backend`).
 
 The batched forms exist so the model layer holds no elementwise loops and needs

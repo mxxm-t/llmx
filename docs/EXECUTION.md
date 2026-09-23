@@ -246,9 +246,9 @@ Flags follow llama.cpp's names so the vocabulary carries over: `--device`
 selects the backend (`cpu`, `vulkan:0`, `rocm:0`), `--n-gpu-layers N` puts
 the last `N` layers on it and the rest on CPU, and the embedding table
 stays on CPU unless every layer is on the device. `--tensor-split` waits
-for a second device to exist, and an expert override waits for a model
-with experts. The placement is implemented and none of these flags exists
-yet; they land in `docs/USAGE.md` and `print_usage` together. Choosing a fit automatically needs each backend to
+for a second device to exist. `--n-cpu-moe N` and `--cpu-moe` exist: the
+experts of the first `N` routed layers, or all, on the CPU beside a device
+(`docs/USAGE.md`); `--n-gpu-layers` and `--tensor-split` do not yet. Choosing a fit automatically needs each backend to
 report its free memory; that query is added with the first device backend
 that can answer it.
 
@@ -305,6 +305,8 @@ The assumptions to avoid are marked.
 - **Mixture of experts.** A routed matmul over the experts each token
   selected, and expert placement, which the per-role placement above
   carries. Do not assume the feed-forward block is on the layer's device.
+  Implemented for `qwen3moe`: `route_experts`, `matmul_experts` and
+  `matmul_experts_add` in `backend.hpp`, and `--n-cpu-moe` for placement.
 - **Lookup-table memory** (Engram: hashed n-gram tables, 196B parameters
   on V4.1-Flash). An embed-like gather over a table that on any hardware
   here lives in host memory; per-tensor placement is what puts it there.

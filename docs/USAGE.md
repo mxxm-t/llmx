@@ -237,10 +237,26 @@ device `N`, counted as the loader lists them, in a build configured with
 `-DLLMX_HAS_BACKEND_VULKAN=ON` (`docs/VULKAN.md`); a build without it says
 so rather than falling back. `generate`, `chat`, `logits`, `perplexity`,
 `serve` and `bench` take the flag. On a device `--threads` and `--threads-batch` do
-nothing and `--verbose` reports 0 threads; `--ubatch` keeps its meaning.
-Placement across several devices, such as some layers on the CPU, is
-implemented in the model layer, but no flag selects it yet; the CLI and
-the server run the whole model on the one `--device`.
+nothing and `--verbose` reports 0 threads, unless experts run on the CPU
+beside it (below); `--ubatch` keeps its meaning.
+
+## Experts on the CPU (`--n-cpu-moe N`, `--cpu-moe`)
+
+A mixture-of-experts model (`qwen3moe`, such as Qwen3-30B-A3B) larger than
+the device's memory can keep its experts in host memory:
+`--n-cpu-moe N` runs the routed feed-forward block of the first `N` routed
+layers on the CPU, `--cpu-moe` that of every routed layer. Attention, dense
+feed-forward blocks, the embedding table and the output head stay on the
+`--device`, and the residual stream crosses to the CPU and back once per
+offloaded layer. `--threads` then sets the CPU's workers. With
+`--device cpu` the flags change nothing, and on a model without routed
+layers they are refused. `generate`, `chat`, `logits`, `perplexity`,
+`serve` and `bench --model` take them. For example, Qwen3-30B-A3B Q4_K_M
+fits a 16 GB card with twelve layers' experts on the CPU:
+
+```powershell
+.\llmx.exe generate Qwen3-30B-A3B-Q4_K_M.gguf "The capital of France is" --device vulkan:0 --n-cpu-moe 12
+```
 
 ## KV cache types (`--cache-type-k`, `--cache-type-v`)
 

@@ -88,6 +88,12 @@ the compiled binary portable to older CPUs.
   registers across the KV sequence: 32-lane tiles, eight-lane remainders, and
   scalar tails. This avoids repeatedly loading/storing output rows while
   retaining each value lane's sequence order.
+- `route_experts`, `matmul_experts`, `matmul_experts_add`: routing in
+  float, then the entries grouped by expert. An expert with fewer than four
+  entries takes the fused row dots, every such entry's rows of a call in one
+  pool dispatch, which is what decode routes; a busier expert takes one
+  batched matmul over its gathered rows (`matmul_raw`, the matmul on host
+  addresses, reaches an expert's matrix inside the stacked tensor).
 - `make_cpu_backend()` factory.
 
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a

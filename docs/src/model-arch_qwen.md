@@ -1,8 +1,22 @@
 # `src/model/arch_qwen.hpp` - Qwen3 forward pass
 
-Qwen3-style transformer forward pass, from scratch, in namespace `infer`. The
-compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
-`backend::Backend`.
+Qwen3-style transformer forward pass, from scratch, in namespace `infer`:
+dense Qwen3 and its mixture-of-experts form, `qwen3moe`. The compute
+primitives (matmul, attention, RMSNorm, RoPE, expert routing) are delegated
+to a `backend::Backend`.
+
+- Mixture of experts: `general.architecture = qwen3moe` reads every key
+  under the `qwen3moe.` prefix, plus `expert_count`, `expert_used_count`,
+  `expert_feed_forward_length` and an optional `expert_weights_norm`
+  (default true); a sigmoid gate, shared experts or scaled expert weights
+  are refused. A layer is routed when `blk.N.ffn_gate_inp.weight` is
+  present, its experts the stacked `ffn_{gate,up,down}_exps` tensors, so
+  dense and routed layers can mix. A routed feed-forward block is the
+  router matmul, `route_experts`, `matmul_experts` for gate and up,
+  `silu_mul` over every slot and `matmul_experts_add` into the residual;
+  the arena gains the router scores, expert ids and weights as slots 9 to
+  11, and the feed-forward slots are as wide as a dense layer or k
+  experts, whichever is wider.
 
 - `QwenConfig` + `load_config(GGUFModel)`: reads Qwen3 metadata
   (`block_count`, `embedding_length`, `feed_forward_length`,
@@ -40,7 +54,7 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   a reset waits on. Movable, not copyable. The server keeps one per request;
   the CLI's model keeps one.
 - `ExecContext`: one pass in flight, plain data the model fills: the
-  activation arena (nine slots at 64-byte offsets in one backend allocation),
+  activation arena (twelve slots at 64-byte offsets in one backend allocation),
   the host-visible logits rows and the submission's ticket. Allocated by the
   first forward that needs it and grown to the largest pass seen. Two
   contexts let a scheduler keep one pass on the device while it reads
@@ -122,7 +136,7 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
     aliases and unused scalar/empty F32 tensors remain supported. The backend
     can already have allocated its worker pool before these checks.
 
-Supports dense Qwen3 with Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K weights
+Supports dense and mixture-of-experts Qwen3 with Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K weights
 and F32 embeddings/matrices/norms. F32 embedding rows are copied directly;
 F32 matmul reads weight rows without staging. Missing
 `output.weight` selects tied token embeddings for the output projection.

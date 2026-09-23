@@ -59,6 +59,18 @@ kernel notes and measurements are `docs/VULKAN.md`.
   sequences, and the server gives the CLI's text.
 - `rms_norm_rows` spreads a row over several workgroups when the output
   does not overlap the input, with the same tree reduction as one.
+- Mixture of experts: `shaders/moe_route.comp` routes a row per workgroup
+  through subgroup reductions. The row kernels and both tile kernels take a
+  routed mode (push constant `per`): a row kernel runs one entry per
+  workgroup row with its expert's offset on the weight rows, and a tile
+  runs one tile of up to 64 entries of one expert from the grouping
+  `shaders/moe_group.comp` writes, a workgroup per expert in a stable
+  order. A row's entries take the tile when its prompt's extent reaches the
+  profile's `moe_tile_from`; a routed tile is never split, so an entry
+  computes the same whatever else is routed beside it. The down
+  projection's slots land in scratch and `shaders/moe_combine.comp` adds
+  their weighted sum to the residual; the grouping and the activation
+  twin made for gate and up are reused by it.
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16,
   written and read through a view table so every cache kernel runs once
   per layer over every view of a batch. Attention gives views of 128-wide

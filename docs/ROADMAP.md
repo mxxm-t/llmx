@@ -37,8 +37,11 @@ constants has to change. Block kernels and the registry live in
 - Extend `tests/roundtrip.py` to cover each new type that has a quantizer
 
 ## 2. More model architectures
-The `infer::Model` layer is Qwen3-specific today. Generalize to an architecture
-registry keyed by `general.architecture`:
+The `infer::Model` layer covers Qwen3 and its mixture-of-experts form today.
+Generalize to an architecture registry keyed by `general.architecture`:
+- Done: `qwen3moe` (Qwen3-30B-A3B), routed layers on the CPU and Vulkan
+  backends with experts optionally on the CPU beside a device; the gate is a
+  tiny random-weight model through HF `Qwen3MoeForCausalLM` (`docs/STATUS.md`)
 - Llama (GQA + RoPE, close to Qwen3)
 - Mistral, Gemma (rotary/context differences), Phi
 - DeepSeek V4-class: hybrid compressed sparse attention, mixture of

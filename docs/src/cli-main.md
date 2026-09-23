@@ -42,6 +42,11 @@ Commands and their entry points:
   repeats of `pp N` and `tg N`, model time only, `--profile` for device time
   per kernel and the driver's statistics of each kernel (registers,
   occupancy) where it reports them.
+- `make_model`: the model over the `--device` backend, or with
+  `--n-cpu-moe N` / `--cpu-moe` over the CPU as device 0 and the device as
+  device 1, the first `N` routed layers' feed-forward blocks placed on the
+  CPU and everything else on the device. Every model-building command goes
+  through it.
 - `serve`: parses host, port, sequence and queue limits, the KV budget
   (`--ctx-size`), `--ubatch`, `--threads`, `--device` and the cache types,
   then runs `server::serve` (see [server](server.md)).

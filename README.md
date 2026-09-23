@@ -15,7 +15,9 @@ backends and further architectures are planned.
 
 ## Works today
 
-- Dense **Qwen3** inference on x86 CPU with **AVX2/FMA/F16C**.
+- **Qwen3** inference, dense and mixture of experts (`qwen3moe`, such as
+  Qwen3-30B-A3B), on x86 CPU with **AVX2/FMA/F16C** and on Vulkan devices,
+  with a model's experts optionally on the CPU beside a device (`--n-cpu-moe`).
 - GGUF v3 reading/writing, including mixed Q8_0, Q4_0, Q4_1, Q4_K, Q5_K,
   Q6_K and F32 tensors. The CLI quantizes to Q8_0 or Q4_0; K-quants are read-only.
 - Native `llmx pull` downloads pinned GGUF models with multiple streams,
@@ -50,7 +52,7 @@ backends and additional model architectures are not implemented yet; see
 
 | Area | State and plan |
 |---|---|
-| Model coverage | Dense Qwen3 today; Llama, Mistral, Gemma and Phi and additional quantizations planned |
+| Model coverage | Qwen3, dense and mixture of experts, today; Llama, Mistral, Gemma and Phi and additional quantizations planned |
 | Hugging Face | `llmx pull` today; safetensors, BF16/F16 tensors and the HF tokenizer/config files planned |
 | Execution model | Done: tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
 | Server | Done: `llmx serve` with continuous batching, streaming HTTP without dependencies, prefix reuse and the OpenAI-compatible routes (`docs/SERVER.md`, `docs/USAGE.md`) |

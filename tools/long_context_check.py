@@ -100,13 +100,17 @@ def serve(exe, model, device, ctx, extra):
     raise SystemExit("serve did not become healthy")
 
 
+# Seconds to wait for a reply; None waits as long as it takes. An uncapped greedy reply on the CPU after a 16k-token prompt can run for hours.
+TIMEOUT = None
+
+
 def run_once(port, prompt, max_tokens):
     body = json.dumps({"prompt": prompt, "max_tokens": max_tokens,
                        "temperature": 0.0, "seed": 0}).encode("utf-8")
     req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/generate", data=body,
                                  headers={"Content-Type": "application/json"})
     start = time.time()
-    with urllib.request.urlopen(req, timeout=7200) as r:
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
         out = json.load(r)
     out["wall_s"] = time.time() - start
     return out
@@ -145,10 +149,13 @@ def main():
     ap.add_argument("--ctx-size", type=int, default=0,
                     help="KV budget; 0 uses the prompt plus the cap plus a margin")
     ap.add_argument("--threads", type=int, default=0)
+    ap.add_argument("--timeout", type=float, default=0, help="seconds to wait for each reply; 0 waits as long as it takes")
     ap.add_argument("--skip-baseline", action="store_true",
                     help="run the device arm only and print its hash")
     args = ap.parse_args()
 
+    global TIMEOUT
+    TIMEOUT = args.timeout or None
     extra = ["--threads", str(args.threads)] if args.threads else []
     # No cap means the generation is bounded only by what the KV pool holds
     # after the prompt, so the model stops when it stops. The finish reason

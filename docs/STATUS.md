@@ -1377,7 +1377,31 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-8B-Q8_0 | 762 vs 526, 145% | 879 vs 735, 120% | 925 vs 865, 107% | 65 vs 58, 111% |
 
   Every cell of the one-card MI50 gate clears the reference. The thinnest is 0.6B Q4_0 at 247 rows, 101 percent, within what one run can move.
-- **Left:** on the MI50 against one card of the reference, every cell of the gate in the forty-sixth paragraph clears it, the thinnest at 101 percent; the Q6_K and Q4_0 matvecs are still 1.28 and about 2.3 times the reference's; loading, which reads the whole file into host memory before uploading it; folding a layer's
+
+  Forty-seventh, the gate on both platforms. The user set the device gate as llmx against llama.cpp's own Vulkan backend, the same backend type, on the Linux MI50 and on the Windows Radeon VII. A second MI50 run at `8c07a29`, four interleaved passes per file on cards 3 to 7, best of each arm:
+
+  | model | pp64 | pp247 | pp512 | tg32 |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | 5044 vs 4883, 103% | 7259 vs 7104, 102% | 7869 vs 6739, 117% | 325 vs 318, 102% |
+  | Qwen3-0.6B-Q5_K_M | 4512 vs 2932, 154% | 6651 vs 4362, 152% | 7385 vs 5677, 130% | 348 vs 303, 115% |
+  | Qwen3-0.6B-Q8_0 | 5006 vs 4645, 108% | 7318 vs 6912, 106% | 8004 vs 6611, 121% | 331 vs 290, 114% |
+  | Qwen3-8B-Q4_K_M | 695 vs 261, 267% | 831 vs 633, 131% | 874 vs 761, 115% | 93 vs 84, 110% |
+  | Qwen3-8B-Q8_0 | 759 vs 524, 145% | 881 vs 732, 120% | 926 vs 863, 107% | 65 vs 57, 114% |
+
+  The Radeon VII against llama.cpp b11075's Vulkan backend on the same card, two interleaved passes of five repetitions, best of each arm:
+
+  | model | pp64 | pp247 | pp512 | tg32 |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | 1040 vs 952, 109% | 2241 vs 670, 335% | 2528 vs 1825, 138% | 228 vs 224, 102% |
+  | Qwen3-0.6B-Q5_K_M | 982 vs 647, 152% | 2395 vs 526, 455% | 2613 vs 1174, 223% | 228 vs 219, 104% |
+  | Qwen3-0.6B-Q8_0 | 1019 vs 922, 110% | 2869 vs 653, 440% | 3111 vs 1655, 188% | 215 vs 194, 111% |
+  | Qwen3-8B-Q4_K_M | 175 vs 58, 300% | 239 vs 78, 308% | 280 vs 111, 252% | 60 vs 52, 115% |
+  | Qwen3-8B-Q8_0 | 221 vs 80, 275% | 278 vs 99, 281% | 338 vs 147, 230% | 42 vs 39, 107% |
+
+  The 0.6B Q4_0 decode cell was rerun four times alone, 228 to 239 against 223.5 tok/s; llmx decodes after a 247-token prompt and the reference from an empty one. Every cell on both platforms clears the reference.
+
+  For information, not the gate: the mx fork `eefc4e732` for gfx906 with ROCm, pinned to one MI50, reads ahead of llmx's Vulkan backend on the Q8_0 files, 8B Q8_0 at 512 rows 1301 tok/s against 904 and its decode 71 against 66, and behind it on the 4- and 5-bit ones, 0.6B Q5_K_M at 64 rows 896 against 4388. A ROCm backend is where that comparison belongs.
+- **Left:** the device gate passes on both platforms (the forty-seventh paragraph), the thinnest cells at 102 percent; the Q6_K and Q4_0 matvecs are still 1.28 and about 2.3 times the reference's; loading, which reads the whole file into host memory before uploading it; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
   barrier time measured in the twenty-ninth; the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the

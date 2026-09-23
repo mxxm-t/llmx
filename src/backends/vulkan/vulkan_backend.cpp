@@ -1518,6 +1518,7 @@ public:
         if (kernel == K_MATMUL_ROW_K_DOT && !logits_) kernel = K_MATMUL_ROW_K_DOT8;
         uint32_t cluster = lanes;
         while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
+        if (kernel == K_MATMUL_ROW_K_DOT8) cluster = std::min(cluster, std::max(lanes, dev_->profile.q6k_row_lanes));
         // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin (shaders/matmul_vec_q8.comp).
         if (type == gguf::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot && dev_->subgroup_size >= 8) {
             kernel = K_MATMUL_VEC_Q8;

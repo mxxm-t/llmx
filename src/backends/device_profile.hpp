@@ -39,6 +39,8 @@ struct DeviceProfile {
     // Lanes sharing one Q8_0 block pair in the per-row matmul, and one K-quant block there (a 256-value block is eight groups of 32).
     uint32_t q8_lanes_per_pair = 4;
     uint32_t kquant_lanes = 8;
+    // Lanes a Q6_K row takes at most on the 8-bit twin, so a subgroup takes several rows and one row's loads hide behind another's (docs/VULKAN.md).
+    uint32_t q6k_row_lanes = 32;
     // Query rows from which attention takes its tiled kernel.
     size_t attention_tile_rows = 32;
     // Batch rows from which a matmul takes the tile kernel rather than the row kernel, for 8-bit and other types, narrow and wide rows; the crossover moves with the row width, and the values are measured (docs/VULKAN.md).

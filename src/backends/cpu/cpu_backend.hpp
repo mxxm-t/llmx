@@ -1117,21 +1117,42 @@ private:
         return g;
     }
 
-    // out[e*nout ..] = expert id(e)'s matrix times X row e / per, one batched matmul per expert over the rows routed to it.
+    // out[e*nout ..] = expert id(e)'s matrix times X row e / per.
+    // An expert with few entries takes the fused row dots, every such entry's rows of the call in one pool dispatch, which is what decode routes; an expert with more takes one batched matmul over its rows.
+    static const size_t kExpertBatchFrom = 4;
     void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t per, float* out,
                          size_t nin, size_t nout, const Grouping& g) {
-        const size_t stride = size_mul(nout, row_bytes_of(type, nin));
+        const size_t row_bytes = row_bytes_of(type, nin), stride = size_mul(nout, row_bytes);
         span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
         const uint8_t* data = (const uint8_t*)bytes_at(data_s);
+        std::vector<uint32_t> single, expert_of;
         for (size_t e = 0; e < n_expert; ++e) {
             const size_t first = g.start[e], count = g.start[e + 1] - first;
-            if (!count) continue;
-            const uint8_t* w = data + e * stride;
-            if (count == 1) {
-                const size_t i = g.order[first];
-                matmul_raw(type, w, X + (i / per) * nin, out + i * nout, nin, nout, 1);
-                continue;
+            if (!count || count >= kExpertBatchFrom) continue;
+            for (size_t c = 0; c < count; ++c) {
+                single.push_back(g.order[first + c]);
+                expert_of.push_back((uint32_t)e);
             }
+        }
+        if (!single.empty()) {
+            const size_t rows = single.size() * nout;
+            auto work = [&](size_t r0, size_t r1) {
+                for (size_t r = r0; r < r1; ++r) {
+                    const size_t s = r / nout, o = r - s * nout, i = single[s];
+                    out[i * nout + o] = row_dot(type, data + expert_of[s] * stride + o * row_bytes, X + (i / per) * nin, nin);
+                }
+            };
+            const size_t nt = (size_t)std::max(threads_, 1);
+            if (nt <= 1 || rows < nt * 8) work(0, rows);
+            else {
+                const size_t chunk = (rows + nt - 1) / nt;
+                run_parallel([&](int w) { work(std::min(rows, (size_t)w * chunk), std::min(rows, (size_t)(w + 1) * chunk)); });
+            }
+        }
+        for (size_t e = 0; e < n_expert; ++e) {
+            const size_t first = g.start[e], count = g.start[e + 1] - first;
+            if (count < kExpertBatchFrom) continue;
+            const uint8_t* w = data + e * stride;
             expert_x_.resize(count * nin);
             expert_y_.resize(count * nout);
             for (size_t c = 0; c < count; ++c)
@@ -1139,6 +1160,24 @@ private:
             matmul_raw(type, w, expert_x_.data(), expert_y_.data(), nin, nout, count);
             for (size_t c = 0; c < count; ++c)
                 std::memcpy(out + (size_t)g.order[first + c] * nout, expert_y_.data() + c * nout, nout * sizeof(float));
+        }
+    }
+
+    // One weight row against one activation row: the fused dots where a type has one, and for the K-quants the dequantized dot when a fused sum overflows.
+    float row_dot(uint32_t type, const uint8_t* row, const float* x, size_t nin) {
+        switch (type) {
+        case gguf::GGML_TYPE_F32: return dot_f32((const float*)row, x, nin);
+        case gguf::GGML_TYPE_Q8_0: return dot_row_impl(row, x, nin / gguf::Q8_0_BLOCK);
+        case gguf::GGML_TYPE_Q4_K: case gguf::GGML_TYPE_Q5_K: case gguf::GGML_TYPE_Q6_K: {
+            const size_t nb = nin / gguf::Q4_K_BLOCK;
+            const float v = type == gguf::GGML_TYPE_Q4_K ? dot_row_q4_K(row, x, nb)
+                          : type == gguf::GGML_TYPE_Q5_K ? dot_row_q5_K(row, x, nb) : dot_row_q6_K(row, x, nb);
+            return std::isfinite(v) ? v : dot_row_dequant(type, row, x, nin, nb);
+        }
+        default: {
+            const quant::QuantType* qt = quant::Registry::instance().get(type);
+            return dot_row_dequant(type, row, x, nin, nin / qt->block_size);
+        }
         }
     }
 

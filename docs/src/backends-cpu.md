@@ -88,12 +88,22 @@ the compiled binary portable to older CPUs.
   registers across the KV sequence: 32-lane tiles, eight-lane remainders, and
   scalar tails. This avoids repeatedly loading/storing output rows while
   retaining each value lane's sequence order.
+- Decode rows and prompt rows: with row runs a generated token (extent 1)
+  takes the decode dots and a prompt's rows the batched float path, so a row
+  computes the same alone or beside others; without runs a one-column call is
+  decode. The decode dots (`q8_dots.hpp`) quantize a call's activations once
+  per block of 32, 8-bit for Q8_0, Q4_K and Q5_K and 16-bit for Q4_0, Q4_1
+  and Q6_K, the same split as the device's row kernels, and meet the packed
+  weights in integers (`maddubs` and `madd`), one scale per block; the float
+  dots they replaced converted every weight and were bound by arithmetic.
+  `set_decode_activations8(false)` keeps the float dots, which the device
+  comparison test's reference and the float-kernel checks use.
 - `route_experts`, `matmul_experts`, `matmul_experts_add`: routing in
-  float, then the entries grouped by expert. An expert with fewer than four
-  entries takes the fused row dots, every such entry's rows of a call in one
-  pool dispatch, which is what decode routes; a busier expert takes one
-  batched matmul over its gathered rows (`matmul_raw`, the matmul on host
-  addresses, reaches an expert's matrix inside the stacked tensor).
+  float, then the entries grouped by expert. A generated token's entries take
+  the decode dots, every such entry's rows of a call in one pool dispatch; a
+  prompt's entries take one batched matmul per expert over its gathered rows
+  (`matmul_raw`, the matmul on host addresses, reaches an expert's matrix
+  inside the stacked tensor).
 - `make_cpu_backend()` factory.
 
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a

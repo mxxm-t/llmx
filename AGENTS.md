@@ -195,7 +195,14 @@ window; the fused K-quant dots accumulate first and apply the scale after,
 which is what makes them fast and what lets a large activation reach infinity
 before a small scale could bound it. Those rows fall back to dequantizing.
 Sixteen cases across Q8_0/Q4_K/Q5_K/Q6_K cover tiny and zero scales against
-huge and ordinary inputs.
+huge and ordinary inputs, once on the float dots and once on the decode dots
+over quantized activations, which cannot overflow since each block is scaled
+first and are bounded against the sum of magnitudes.
+
+`q8-dots` checks those decode dots (`backends/cpu/q8_dots.hpp`), 8-bit for
+Q8_0/Q4_K/Q5_K and 16-bit for Q4_0/Q4_1/Q6_K, against a double-precision
+reference fed the same quantized activations, and that a decode row computes
+the same alone, beside other rows and in a grouped call, bit for bit.
 
 `prefill-scope` uses self-generated model fixtures to check caller-once execution,
 nesting/thread guards, allocation and microbatch boundaries, error draining and
@@ -316,6 +323,10 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model.
+- **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF
+  `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and
+  one dense, across batch widths and threads and, on a device, with the
+  experts of one or every routed layer on the CPU (`--n-cpu-moe`).
 - **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
   Compares llmx against golden fixtures generated once from the HF
   reference by `tools/gen_baseline.py` and committed to `tests/data/`. Needs a
@@ -380,7 +391,7 @@ matters: **each layer depends only on the layers below it** -
 | `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
 | `format/`    | ModelFormat interface + GGUF v3 impl           |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3 pretokenizer       |
-| `model/`     | Qwen3 config + forward pass, KV cache          |
+| `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
 | `inference/` | sampler, generate, perplexity, chat template renderer      |
 | `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler with prefix reuse, routes |
@@ -428,7 +439,7 @@ reports the embedded value, with `unknown` for builds without Git metadata.
   `LLMX_HAS_BACKEND_*` in `src/config.hpp` (see `cmake/llmx-config.hpp.in`).
   Vulkan is implemented; the ROCm, CUDA and SYCL options exist without code.
 - **Model architectures** are planned to be compiled in and selected from
-  metadata; today only dense Qwen3 is implemented.
+  metadata; today Qwen3, dense and mixture of experts (`qwen3moe`), is implemented.
 - **Split mode / node count** are planned runtime params, not implemented flags. See
   `docs/ROADMAP.md`.
 

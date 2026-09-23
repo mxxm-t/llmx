@@ -37,7 +37,8 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   last token for prompt rows and 1 for a generated token. A device picks a
   row's kernel by its extent rather than by the call's width, so a prompt
   computes the same however its rows are batched; without runs a backend
-  chooses by the width. The CPU does not read them.
+  chooses by the width. The CPU reads them the same way: a generated token
+  takes its decode dots and a prompt's rows the batched path.
 - `matmul_group(projections, X, nin, nbatch, runs)`: independent projections sharing
   activations. Each descriptor gives type, weights, output and row count.
   Outputs must be disjoint from one another, inputs and weights. The default

@@ -1059,19 +1059,12 @@ size_t check_kernels(backend::Backend& vk) {
                   << (double)wq.size() / ms / 1e6 << " GB/s\n";
     }
     // Mixture of experts: routing the same scores gives the same ids and weights, and the routed projections match the CPU over stacked experts of every type, gate and up in one call and the weighted down projection into a residual.
-    // Every entry takes the row kernel, so the reference is fed the twin that type's row family reads.
+    // Three shapes: a few rows on the row kernel, a prompt past moe_tile_from on the tile kernel over each expert's entries, and a batch mixing decode rows with a prompt, split by its row runs.
+    // The reference is fed, row by row, the activations the kernel that row takes reads.
     {
-        const size_t n_expert = 6, k = 2, rows = 5, entries = rows * k, nin = 256, nff = 67, nout = 45;
-        const auto scores = uniform(rows * n_expert, 90, -3.0f, 3.0f);
-        Pair::In si = p.in(scores);
-        Pair::Out ids = p.out(entries), wts = p.out(entries);
-        p.cpu.route_experts(si.cs(), rows, n_expert, k, true, ids.cs(), wts.cs());
-        p.vk.route_experts(si.vs(), rows, n_expert, k, true, ids.vs(), wts.vs());
-        auto ri = p.results(ids);
-        values += exact(ri.first, ri.second, "routed expert ids differ");
-        auto rw = p.results(wts);
-        values += close(rw.first, rw.second, 1e-6, "routing weights differ beyond 1e-6");
-        const backend::Backend::Routing rc{ids.cs(), wts.cs(), k, n_expert}, rv{ids.vs(), wts.vs(), k, n_expert};
+        const size_t n_expert = 6, k = 2, nin = 256, nff = 67, nout = 45;
+        const backend::DeviceProfile prof = backend::vulkan_device_profile(p.vk);
+        const size_t from = prof.moe_tile_from;
         // Stacked expert bytes of a type: F32 and the block quantizers from floats, the K-quants from a byte pattern with small half scales, as the matmul check above builds them.
         auto stacked = [&](uint32_t type, size_t in, size_t out, uint32_t seed) {
             const size_t n_rows = n_expert * out;
@@ -1101,34 +1094,75 @@ size_t check_kernels(backend::Backend& vk) {
             }
             return bytes;
         };
-        const auto x = uniform(rows * nin, 91), x2 = uniform(entries * nin, 92), y0 = uniform(rows * nout, 93);
-        Pair::In xi = p.in(x), x2i = p.in(x2);
-        for (uint32_t type : {gguf::GGML_TYPE_F32, gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
-                              gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K}) {
-            const bool f32 = type == gguf::GGML_TYPE_F32;
-            const bool reads8 = twin8 && (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K);
-            const double tol = f32 || !reads8 ? 1e-4 : twin_tol;
-            const auto wg = stacked(type, nin, nff, 94), wu = stacked(type, nin, nff, 95), wd = stacked(type, nin, nout, 96);
-            Pair::In wgi = p.in(wg.data(), wg.size()), wui = p.in(wu.data(), wu.size()), wdi = p.in(wd.data(), wd.size());
-            const auto xr = f32 ? x : twin_activations(x, reads8), x2r = f32 ? x2 : twin_activations(x2, reads8);
-            Pair::In xri = p.in(xr), x2ri = p.in(x2r);
-            try {
-                Pair::Out g = p.out(entries * nff), u = p.out(entries * nff);
-                p.cpu.matmul_experts({{type, wgi.cs(), g.cs(), nff}, {type, wui.cs(), u.cs(), nff}}, xri.cs(), nin, rows, rc);
-                p.vk.matmul_experts({{type, wgi.vs(), g.vs(), nff}, {type, wui.vs(), u.vs(), nff}}, xi.vs(), nin, rows, rv);
-                auto rg = p.results(g), ru = p.results(u);
-                values += close(rg.first, rg.second, tol, "routed gate projection differs beyond its bound");
-                values += close(ru.first, ru.second, tol, "routed up projection differs beyond its bound");
-                Pair::Out y = p.out(rows * nout);
-                p.cpu.write(*y.c, 0, y0.data(), y0.size() * sizeof(float));
-                p.vk.write(*y.v, 0, y0.data(), y0.size() * sizeof(float));
-                p.cpu.matmul_experts_add(type, wdi.cs(), x2ri.cs(), y.cs(), nin, nout, rows, rc);
-                p.vk.matmul_experts_add(type, wdi.vs(), x2i.vs(), y.vs(), nin, nout, rows, rv);
-                auto ry = p.results(y);
-                values += close(ry.first, ry.second, tol, "routed down projection differs beyond its bound");
-            } catch (const std::runtime_error&) {
-                std::fprintf(stderr, "  routed experts type %u\n", type);
-                throw;
+        struct Shape { size_t rows; std::vector<backend::RowRun> runs; };
+        const Shape shapes[] = {{5, {}}, {70, {{70, 512}}}, {70, {{3, 1}, {70, 512}}}};
+        for (const Shape& sh : shapes) {
+            const size_t rows = sh.rows, entries = rows * k;
+            const backend::RowRuns runs{sh.runs.data(), sh.runs.size()};
+            // Whether token row r takes the tile kernel.
+            auto tiled = [&](size_t r) {
+                if (sh.runs.empty()) return rows >= from;
+                size_t start = 0;
+                for (const backend::RowRun& run : sh.runs) {
+                    if (r < run.end) return r >= start && run.extent >= from;
+                    start = run.end;
+                }
+                return false;
+            };
+            const auto scores = uniform(rows * n_expert, 90 + (uint32_t)rows + (uint32_t)sh.runs.size(), -3.0f, 3.0f);
+            Pair::In si = p.in(scores);
+            Pair::Out ids = p.out(entries), wts = p.out(entries);
+            p.cpu.route_experts(si.cs(), rows, n_expert, k, true, ids.cs(), wts.cs());
+            p.vk.route_experts(si.vs(), rows, n_expert, k, true, ids.vs(), wts.vs());
+            auto ri = p.results(ids);
+            values += exact(ri.first, ri.second, "routed expert ids differ");
+            auto rw = p.results(wts);
+            values += close(rw.first, rw.second, 1e-6, "routing weights differ beyond 1e-6");
+            const backend::Backend::Routing rc{ids.cs(), wts.cs(), k, n_expert}, rv{ids.vs(), wts.vs(), k, n_expert};
+            const auto x = uniform(rows * nin, 91), x2 = uniform(entries * nin, 92), y0 = uniform(rows * nout, 93);
+            Pair::In xi = p.in(x), x2i = p.in(x2);
+            for (uint32_t type : {gguf::GGML_TYPE_F32, gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
+                                  gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K}) {
+                const bool f32 = type == gguf::GGML_TYPE_F32;
+                const bool reads8 = twin8 && (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K);
+                // The row kernel reads a twin, 8-bit or 16-bit by family; the tile reads 8-bit activations where the integer dot takes quantized types, else floats.
+                const bool tile8 = twin8 && !f32;
+                auto fed = [&](const std::vector<float>& v, size_t per_row, size_t per_entry_rows) {
+                    std::vector<float> out(v.size());
+                    for (size_t i = 0; i < v.size() / per_row; ++i) {
+                        const std::vector<float> row(v.begin() + i * per_row, v.begin() + (i + 1) * per_row);
+                        const bool t = tiled(i / per_entry_rows);
+                        const std::vector<float> got = f32 ? row : t ? (tile8 ? tile_activations8(row) : row) : twin_activations(row, reads8);
+                        std::copy(got.begin(), got.end(), out.begin() + i * per_row);
+                    }
+                    return out;
+                };
+                // The 8-bit bound wherever any row's kernel reads 8-bit activations.
+                bool eight = false;
+                for (size_t r = 0; r < rows; ++r) eight = eight || (tiled(r) ? tile8 : reads8);
+                const double tol = eight ? twin_tol : 1e-4;
+                const auto wg = stacked(type, nin, nff, 94), wu = stacked(type, nin, nff, 95), wd = stacked(type, nin, nout, 96);
+                Pair::In wgi = p.in(wg.data(), wg.size()), wui = p.in(wu.data(), wu.size()), wdi = p.in(wd.data(), wd.size());
+                const auto xr = fed(x, nin, 1), x2r = fed(x2, nin, k);
+                Pair::In xri = p.in(xr), x2ri = p.in(x2r);
+                try {
+                    Pair::Out g = p.out(entries * nff), u = p.out(entries * nff);
+                    p.cpu.matmul_experts({{type, wgi.cs(), g.cs(), nff}, {type, wui.cs(), u.cs(), nff}}, xri.cs(), nin, rows, rc, runs);
+                    p.vk.matmul_experts({{type, wgi.vs(), g.vs(), nff}, {type, wui.vs(), u.vs(), nff}}, xi.vs(), nin, rows, rv, runs);
+                    auto rg = p.results(g), ru = p.results(u);
+                    values += close(rg.first, rg.second, tol, "routed gate projection differs beyond its bound");
+                    values += close(ru.first, ru.second, tol, "routed up projection differs beyond its bound");
+                    Pair::Out y = p.out(rows * nout);
+                    p.cpu.write(*y.c, 0, y0.data(), y0.size() * sizeof(float));
+                    p.vk.write(*y.v, 0, y0.data(), y0.size() * sizeof(float));
+                    p.cpu.matmul_experts_add(type, wdi.cs(), x2ri.cs(), y.cs(), nin, nout, rows, rc, runs);
+                    p.vk.matmul_experts_add(type, wdi.vs(), x2i.vs(), y.vs(), nin, nout, rows, rv, runs);
+                    auto ry = p.results(y);
+                    values += close(ry.first, ry.second, tol, "routed down projection differs beyond its bound");
+                } catch (const std::runtime_error&) {
+                    std::fprintf(stderr, "  routed experts type %u, %zu rows in %zu runs\n", type, rows, sh.runs.size());
+                    throw;
+                }
             }
         }
     }

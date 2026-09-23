@@ -45,6 +45,8 @@ struct DeviceProfile {
     size_t tile_from_8bit = 32, tile_from_8bit_narrow = 64, tile_from_other = 64;
     size_t tile_from_other_narrow = 64;
     size_t tile_narrow_nin = 4096;
+    // Prompt extent from which a routed projection takes the tile kernel over each expert's rows rather than the row kernel per entry.
+    size_t moe_tile_from = 32;
     // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row.
     size_t attention_split_chunk = 32, attention_split_max = 64;
     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, and the fewest quant blocks of 32 a part may sum.

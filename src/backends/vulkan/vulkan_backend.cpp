@@ -222,6 +222,9 @@ const uint32_t kSpvMoeRoute[] = {
 const uint32_t kSpvMoeCombine[] = {
 #include "vulkan/moe_combine.inc"
 };
+const uint32_t kSpvMoeGroup[] = {
+#include "vulkan/moe_group.inc"
+};
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
@@ -234,7 +237,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
-                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_COUNT };
+                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
 // F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
@@ -282,7 +285,7 @@ struct KernelSource {
 
 const uint32_t kMatmulRowCounts[11] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1};
 // The integer-dot tile's outputs and weights, three of each, and the reduce's outputs.
-const uint32_t kMatmulTileQCounts[4] = {3, 3, 1, 1};
+const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
 
 const char* const kKernelNames[K_COUNT] = {
@@ -297,7 +300,7 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
     "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
-    "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine",
+    "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -311,7 +314,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
     {kSpvAttention, sizeof(kSpvAttention), 7, nullptr},
     {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr},
-    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
+    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr},
     {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 11, kMatmulRowCounts},
     {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 11, kMatmulRowCounts},
     {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 11, kMatmulRowCounts},
@@ -332,20 +335,21 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr},
     {kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr},
     {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 11, kMatmulRowCounts},
-    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
+    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr},
     {kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 11, kMatmulRowCounts},
     {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 11, kMatmulRowCounts},
     {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 11, kMatmulRowCounts},
     {kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 11, kMatmulRowCounts},
     {kSpvQuantizeX8, sizeof(kSpvQuantizeX8), 2, nullptr},
-    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 4, kMatmulTileQCounts},
-    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 4, kMatmulTileQCounts},
-    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 4, kMatmulTileQCounts},
-    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 4, kMatmulTileQCounts},
+    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts},
+    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts},
+    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts},
+    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts},
     {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts},
     {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 11, kMatmulRowCounts},
     {kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr},
     {kSpvMoeCombine, sizeof(kSpvMoeCombine), 3, nullptr},
+    {kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1366,9 +1370,9 @@ public:
                 const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
                                                       pr->rows, gy, nin);
                 const bool tall = height == kTileRowsTall;
-                const uint32_t pc[5] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u};
+                const uint32_t pc[7] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u, 0, 0};
                 dispatch(tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE,
-                         {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data)},
+                         {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data), bind(X)},
                          pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, height == kTileRowsSmall ? 1 : 0);
             }
             // The integer-dot tile takes the projections of one type in one dispatch, since each alone can be too small to fill the device.
@@ -1407,8 +1411,8 @@ public:
                 for (const Projection* pr : group) gxs += groups(pr->rows, hs);
                 const size_t kper = split_blocks(gxs * st, nblk);
                 const size_t parts = (nblk + kper - 1) / kper;
-                const uint32_t pc[12] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
-                                         u32(group.size()), nout[0], start[0], nout[1], start[1], nout[2], start[2]};
+                const uint32_t pc[14] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
+                                         u32(group.size()), nout[0], start[0], nout[1], start[1], nout[2], start[2], 0, 0};
                 const Projection& a = *group[0];
                 const Projection& b = group.size() > 1 ? *group[1] : a;
                 const Projection& c = group.size() > 2 ? *group[2] : a;
@@ -1417,7 +1421,7 @@ public:
                     const size_t n = nbatch * rows;
                     if (!parts_ || parts_->size() < parts * n * sizeof(float)) grow(parts_, parts * n * sizeof(float));
                     const VkDescriptorBufferInfo pb{parts_->handle(), 0, VK_WHOLE_SIZE};
-                    dispatch(kernel, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), x8, x8}, pc, sizeof(pc), u32(gx),
+                    dispatch(kernel, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), x8, x8, x8}, pc, sizeof(pc), u32(gx),
                              u32(gy * parts), small);
                     const size_t n0 = nbatch * a.rows, n1 = group.size() > 1 ? nbatch * b.rows : 0,
                                  n2 = group.size() > 2 ? nbatch * c.rows : 0;
@@ -1428,7 +1432,7 @@ public:
                     dispatch(K_MATMUL_REDUCE, {bind(a.out), bind(b.out), bind(c.out), pb}, rc, sizeof(rc),
                              u32(start2 + groups(n2, 256)));
                 } else {
-                    dispatch(kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8},
+                    dispatch(kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, x8},
                              pc, sizeof(pc), u32(gx), (uint32_t)gy, small);
                 }
             }
@@ -1567,7 +1571,8 @@ public:
     }
 
     // Expert routing and the routed projections (backend.hpp).
-    // Every entry goes through the row kernel, a workgroup row per entry, so an entry computes the same whatever else is routed beside it.
+    // A row's entries take the row kernel, one workgroup row per entry, or with a prompt extent of at least moe_tile_from the tile kernel over each expert's grouped entries.
+    // Either way an entry computes the same whatever else is routed beside it, since neither kernel's arithmetic for a column depends on the other columns and a routed tile is never split.
     void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, Slice ids, Slice weights) override {
         if (!k || k > n_expert || k > 256 || n_expert > 1024)
             throw std::runtime_error("vulkan: routing takes 1 to 256 of at most 1024 experts");
@@ -1578,27 +1583,51 @@ public:
         dispatch(K_MOE_ROUTE, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows));
     }
 
+    // Calls `each(first, count, tile)` over the token rows of a routed call, a call per stretch of rows that take the same kernel.
+    template <typename Fn>
+    void expert_runs(size_t nrows, RowRuns runs, const Fn& each) {
+        const size_t from = dev_->profile.moe_tile_from;
+        if (!runs.n) { each(0, nrows, nrows >= from); return; }
+        if (runs.runs[runs.n - 1].end != nrows) throw std::runtime_error("vulkan: row runs do not cover the batch");
+        size_t start = 0;
+        for (size_t i = 0; i < runs.n;) {
+            const bool tile = runs.runs[i].extent >= from;
+            size_t j = i + 1;
+            while (j < runs.n && (runs.runs[j].extent >= from) == tile) ++j;
+            const size_t end = runs.runs[j - 1].end;
+            if (end < start) throw std::runtime_error("vulkan: row runs out of order");
+            if (end > start) each(start, end - start, tile);
+            start = end;
+            i = j;
+        }
+    }
+
+    static CSlice at_float(CSlice s, size_t floats) { return CSlice{s.buffer, s.offset + floats}; }
+    static Slice at_float(Slice s, size_t floats) { return Slice{s.buffer, s.offset + floats}; }
+
     void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nrows,
-                        const Routing& routing, RowRuns) override {
-        const size_t entries = nrows * routing.k;
+                        const Routing& routing, RowRuns runs) override {
+        const size_t k = routing.k, entries = nrows * k;
         if (!entries || !projections.size()) return;
         if (projections.size() > 3) throw std::logic_error("vulkan: more than three routed projections");
-        std::vector<const Projection*> live;
         for (const Projection& pr : projections) {
             check_experts(pr.type, pr.data, nin, pr.rows, routing.n_expert);
             if (floats_from(pr.out) < entries * pr.rows) throw std::runtime_error("vulkan: matmul operand outside its allocation");
-            if (!live.empty() && pr.type != live[0]->type) throw std::runtime_error("vulkan: routed projections of different types");
-            live.push_back(&pr);
+            if (pr.type != projections.begin()->type) throw std::runtime_error("vulkan: routed projections of different types");
         }
         if (floats_from(X) < nrows * nin || floats_from(routing.ids) < entries)
             throw std::runtime_error("vulkan: matmul operand outside its allocation");
-        const RowPlan plan = row_plan(live[0]->type, nin);
-        const VkDescriptorBufferInfo xqi = row_twin(X, plan.type, plan.kernel, nrows * nin);
-        row_dispatch(plan, live, X, xqi, nin, nrows, 0, 1, false, u32(routing.k), entries, bind(routing.ids));
+        expert_runs(nrows, runs, [&](size_t first, size_t count, bool tile) {
+            std::vector<Projection> at(projections);
+            for (Projection& pr : at) pr.out = at_float(pr.out, first * k * pr.rows);
+            std::vector<const Projection*> live;
+            for (const Projection& pr : at) live.push_back(&pr);
+            routed_call(live, at_float(X, first * nin), nin, count, count, k, at_float(routing.ids, first * k), routing.n_expert, tile);
+        });
     }
 
     void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout, size_t nrows,
-                            const Routing& routing, RowRuns) override {
+                            const Routing& routing, RowRuns runs) override {
         const size_t k = routing.k, entries = nrows * k;
         if (!entries) return;
         check_experts(type, data, nin, nout, routing.n_expert);
@@ -1606,13 +1635,75 @@ public:
             floats_from(routing.weights) < entries)
             throw std::runtime_error("vulkan: matmul operand outside its allocation");
         if (!moe_out_ || moe_out_->size() < entries * nout * sizeof(float)) grow(moe_out_, entries * nout * sizeof(float));
-        const Slice part{moe_out_.get(), 0};
-        const Projection one{type, data, part, nout};
-        const RowPlan plan = row_plan(type, nin);
-        const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, entries * nin);
-        row_dispatch(plan, {&one}, X, xqi, nin, entries, 0, 1, false, 1, entries, bind(routing.ids));
-        const uint32_t pc[3] = {u32(nrows), u32(nout), u32(k)};
-        dispatch(K_MOE_COMBINE, {bind(Y), bind(CSlice(part)), bind(routing.weights)}, pc, sizeof(pc), groups(nrows * nout, 256));
+        expert_runs(nrows, runs, [&](size_t first, size_t count, bool tile) {
+            const Slice part{moe_out_.get(), first * k * nout};
+            const Projection one{type, data, part, nout};
+            routed_call({&one}, at_float(X, first * k * nin), nin, count * k, count, k, at_float(routing.ids, first * k),
+                        routing.n_expert, tile, 1);
+            const uint32_t pc[3] = {u32(count), u32(nout), u32(k)};
+            dispatch(K_MOE_COMBINE, {bind(at_float(Y, first * nout)), bind(CSlice(part)), bind(at_float(routing.weights, first * k))},
+                     pc, sizeof(pc), groups(count * nout, 256));
+        });
+    }
+
+    // One routed call over `nrows` token rows, k entries each, whose X has `xcols` columns: entry e reads column e / per, per being k when X is the token rows and 1 when it holds a column per entry.
+    void routed_call(const std::vector<const Projection*>& live, CSlice X, size_t nin, size_t xcols, size_t nrows, size_t k,
+                     CSlice ids, size_t n_expert, bool tile, size_t per = 0) {
+        if (!per) per = k;
+        const size_t entries = nrows * k;
+        const uint32_t type = live[0]->type;
+        if (!tile) {
+            const RowPlan plan = row_plan(type, nin);
+            const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, xcols * nin);
+            row_dispatch(plan, live, X, xqi, nin, xcols, 0, 1, false, u32(per), entries, bind(ids));
+            return;
+        }
+        // Tiles: every expert's entries in runs of 64, at most one partial tile per expert that has any.
+        const size_t max_tiles = (entries + 63) / 64 + std::min(n_expert, entries);
+        const size_t tab_bytes = (4 * max_tiles + entries) * sizeof(uint32_t);
+        if (!moe_tab_ || moe_tab_->size() < tab_bytes) grow(moe_tab_, tab_bytes);
+        const VkDescriptorBufferInfo tab{moe_tab_->handle(), 0, VK_WHOLE_SIZE};
+        const uint32_t gpc[3] = {u32(entries), u32(n_expert), u32(max_tiles)};
+        dispatch(K_MOE_GROUP, {bind(ids), tab}, gpc, sizeof(gpc), 1);
+        if (max_tiles > dev_->props.limits.maxComputeWorkGroupCount[1])
+            throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
+        const uint32_t order0 = u32(4 * max_tiles);
+        if (integer_dot_tile(type)) {
+            const VkDescriptorBufferInfo x8 = x8_for(xcols * nin);
+            const uint32_t qpc[3] = {u32(xcols * nin), u32(nin), u32(xcols)};
+            dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(xcols * nin, 256));
+            size_t rows = 0;
+            for (const Projection* pr : live) rows += pr->rows;
+            const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
+                                                  rows, max_tiles, nin);
+            const bool tall = height == kTileRowsTall, q6 = type == gguf::GGML_TYPE_Q6_K;
+            const KernelId kernel = q6 ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6) : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
+            uint32_t start[3] = {0, 0, 0}, nout[3] = {0, 0, 0};
+            size_t gx = 0;
+            for (size_t i = 0; i < live.size(); ++i) {
+                start[i] = u32(gx);
+                nout[i] = u32(live[i]->rows);
+                gx += groups(live[i]->rows, height);
+            }
+            const Projection& a = *live[0];
+            const Projection& b = live.size() > 1 ? *live[1] : a;
+            const Projection& c = live.size() > 2 ? *live[2] : a;
+            const uint32_t pc[14] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
+                                     nout[0], start[0], nout[1], start[1], nout[2], start[2], u32(per), order0};
+            dispatch(kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, tab},
+                     pc, sizeof(pc), u32(gx), u32(max_tiles), height == kTileRowsSmall ? 1 : 0);
+        } else {
+            for (const Projection* pr : live) {
+                const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
+                                                      pr->rows, max_tiles, nin);
+                const uint32_t pc[7] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0};
+                dispatch(height == kTileRowsTall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE,
+                         {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data), tab},
+                         pc, sizeof(pc), groups(pr->rows, height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0);
+            }
+        }
+        for (const Projection* pr : live)
+            if (bind(pr->out).buffer == xq_tag_.x.buffer) xq_tag_ = XqTag{};
     }
 
     void check_experts(uint32_t type, CSlice data, size_t nin, size_t nout, size_t n_expert) {
@@ -2140,6 +2231,7 @@ private:
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
+    std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
     // What the twin buffer holds: the float input it was made from, its length, and whether the 8-bit twin was written; cleared by anything else that writes a buffer, since the input may be what was written.
     struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; };
     // Set once a matmul that reads the 8-bit twin has run, so producers take their build that writes it from then on.

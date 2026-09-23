@@ -8,13 +8,16 @@
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
-layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; } p;
+layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
 layout(set = 0, binding = 3) readonly buffer X { float x[]; };
 // The weights as words, since this driver issues one load per byte: a K-quant run is 2 or 4 aligned words, and scattered bytes are extracted from the word holding them.
 layout(set = 0, binding = 4) readonly buffer W32 { uint w32[]; };
+// A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to 64 entries of one expert, column c being entry
+// tab[order0 + first + c], which reads X column entry / per through the expert's rows and writes output row entry. A routed call is never split.
+layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
 #define QBYTE(i) ((w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #include "qdecode.glsl"
 
@@ -34,18 +37,34 @@ void main() {
     uint tid = gl_LocalInvocationID.x;
     uint row_base = gl_WorkGroupID.x * TILE_ROWS;
     uint col_base = gl_WorkGroupID.y * 64u;
+    uint expert = 0u, first = 0u, ncols = 64u;
+    if (p.per != 0u) {
+        uint y = gl_WorkGroupID.y;
+        expert = tab[4u * y];
+        first = tab[4u * y + 1u];
+        ncols = tab[4u * y + 2u];
+        if (ncols == 0u) return;
+        col_base = 0u;
+    }
     uint tr = tid / 16u, tc = tid - tr * 16u;   // micro-tile at rows tr*MROWS.., cols tc*4..
     uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W loader: row wrow, k segment wseg*WVALS
     uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X loader: column xcol, k segment xseg*8..+8
+    // The X column this thread loads.
+    uint xc = col_base + xcol;
+    bool xin = xc < p.nbatch;
+    if (p.per != 0u) {
+        xin = xcol < ncols;
+        xc = xin ? tab[p.order0 + first + xcol] / p.per : 0u;
+    }
     float acc[MROWS][4];
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
     uint nblocks = p.nin / 32u;   // Q8_0 and Q4_0 both have 32-value blocks
     for (uint k0 = 0u; k0 < p.nin; k0 += 32u) {
         // W tile: TILE_ROWS rows x 32 values.
-        uint row = row_base + wrow;
+        uint row = row_base + wrow, wr = expert * p.nout + row;
         if (row < p.nout) {
             if (p.type == TYPE_Q8_0) {
-                uint o = (row * nblocks + k0 / Q8_0_BLOCK) * 17u;
+                uint o = (wr * nblocks + k0 / Q8_0_BLOCK) * 17u;
                 float scale = unpackHalf2x16(uint(w16[o])).x;
                 for (uint i = 0u; i < WVALS / 2u; ++i) {
                     uint word = uint(w16[o + 1u + wseg * (WVALS / 2u) + i]);
@@ -53,14 +72,14 @@ void main() {
                     ws[wseg * WVALS + 2u * i + 1u][wrow] = scale * float(hi8(word));
                 }
             } else if (p.type == TYPE_Q4_0) {
-                uint o = (row * nblocks + k0 / Q4_0_BLOCK) * Q4_0_BYTES;
+                uint o = (wr * nblocks + k0 / Q4_0_BLOCK) * Q4_0_BYTES;
                 float d = half_at(QBYTE(o), QBYTE(o + 1u));
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
                     ws[k][wrow] = q4_0_at(o, k, d);
                 }
             } else if (p.type == TYPE_Q4_1) {
-                uint o = (row * nblocks + k0 / 32u) * Q4_1_BYTES;
+                uint o = (wr * nblocks + k0 / 32u) * Q4_1_BYTES;
                 float d = half_at(QBYTE(o), QBYTE(o + 1u)), m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
@@ -68,7 +87,7 @@ void main() {
                 }
             } else if (is_kquant(p.type)) {
                 // 256-value blocks: this 32-wide step is a slice of one and a thread's run lies inside one group of 32, so the sub-scale, sub-min, nibble half and start byte are read once per run rather than per value.
-                uint o = (row * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * block_bytes(p.type);
+                uint o = (wr * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * block_bytes(p.type);
                 uint k_in = k0 - (k0 / Q6_K_BLOCK) * Q6_K_BLOCK;
                 uint j0 = k_in + wseg * WVALS;   // the run's first value in the block
                 uint l0 = j0 & 31u;              // and its position within the group
@@ -119,17 +138,16 @@ void main() {
             } else {
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = k0 + wseg * WVALS + i;
-                    ws[wseg * WVALS + i][wrow] = k < p.nin ? wf[row * p.nin + k] : 0.0;
+                    ws[wseg * WVALS + i][wrow] = k < p.nin ? wf[wr * p.nin + k] : 0.0;
                 }
             }
         } else {
             for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = 0.0;
         }
         // X tile: 64 columns x 32 values, four threads to a column.
-        uint col = col_base + xcol;
         for (uint i = 0u; i < 8u; ++i) {
             uint k = k0 + xseg * 8u + i;
-            xs[xseg * 8u + i][xcol] = (col < p.nbatch && k < p.nin) ? x[col * p.nin + k] : 0.0;
+            xs[xseg * 8u + i][xcol] = (xin && k < p.nin) ? x[xc * p.nin + k] : 0.0;
         }
         barrier();
         // Unrolled by eight so the steps' shared-memory reads carry immediate offsets rather than recomputed addresses.
@@ -154,7 +172,12 @@ void main() {
         if (row >= p.nout) continue;
         for (uint j = 0u; j < 4u; ++j) {
             uint col = col_base + tc * 4u + j;
-            if (col < p.nbatch) {
+            bool cv = col < p.nbatch;
+            if (p.per != 0u) {
+                cv = tc * 4u + j < ncols;
+                col = cv ? tab[p.order0 + first + tc * 4u + j] : 0u;
+            }
+            if (cv) {
                 if (p.accum != 0u) y[col * p.nout + row] += acc[i][j];
                 else y[col * p.nout + row] = acc[i][j];
             }

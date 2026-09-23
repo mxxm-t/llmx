@@ -28,12 +28,17 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   cannot throw.
 
 - `set_threads(n)`, `threads_available()`: worker-thread control.
-- `matmul(ggml_type, data, X, Y, nin, nout, nbatch)`: the type-generic matmul.
-  The quant type is resolved through `quant::Registry`, so every block format
-  gets the batched path and a new type needs no backend change. `nbatch == 1`
-  is the single-column case that `Model::matvec` uses, so there is one dispatch
-  path rather than two.
-- `matmul_group(projections, X, nin, nbatch)`: independent projections sharing
+- `matmul(ggml_type, data, X, Y, nin, nout, nbatch, runs)`: the type-generic
+  matmul. The quant type is resolved through `quant::Registry`, so every block
+  format gets the batched path and a new type needs no backend change. A decode
+  token is the one-column case of the same call.
+- `RowRun` / `RowRuns`: the rows of a call grouped by the prompt they belong
+  to, each run's `end` and its `extent`, the position one past the prompt's
+  last token for prompt rows and 1 for a generated token. A device picks a
+  row's kernel by its extent rather than by the call's width, so a prompt
+  computes the same however its rows are batched; without runs a backend
+  chooses by the width. The CPU does not read them.
+- `matmul_group(projections, X, nin, nbatch, runs)`: independent projections sharing
   activations. Each descriptor gives type, weights, output and row count.
   Outputs must be disjoint from one another, inputs and weights. The default
   calls `matmul` sequentially; all outputs are ready when the call returns.
@@ -43,8 +48,8 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   `kv_write(layer, views, n_views, k, v)`: the backend-owned half of the
   paged KV cache in `docs/KV-CACHE.md`. The backend chooses the block size and
   the layout inside a block; the model layer hands it `KVView`s (storage
-  handle, block table, committed length, `nq` rows of this pass) and never
-  computes an offset. Rows are laid out in view order and view `v`'s rows go
+  handle, block table, committed length, `nq` rows of this pass, and the
+  rows' extent as in `RowRuns`) and never computes an offset. Rows are laid out in view order and view `v`'s rows go
   to positions `length .. length + nq` of its sequence. Storage is backed on
   demand up to the blocks `max_tokens` needs; it reports retained bytes and
   the peak held during a growth copy.

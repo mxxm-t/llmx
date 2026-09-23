@@ -21,14 +21,14 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   existing synthetic models. RoPE scaling is unsupported: type must be absent
   or `none`, and current/legacy factors absent or exactly one. These keys use
   the [GGUF metadata vocabulary](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
-- `Weight` / `LayerWeights`: a tensor resolved once at load - type, storage
-  pointer and the two dimensions - and the eleven per-layer weights grouped
-  together. `Weight::f32()` is the whole row for a normalization weight, which
-  validation guarantees is F32. The forward pass indexes `layers_[l]` instead
-  of rebuilding `"blk.N."` and hashing a tensor name for every projection of
-  every layer of every token. It exists so a device backend can recognize the
-  same weight across calls and keep it resident; no admissible CPU performance
-  measurement exists yet. See `docs/DEVICE-EXECUTION.md` step 1.
+- `Weight` / `LayerWeights`: a tensor resolved once at load - type, a buffer
+  handle from the backend that hosts it and the two dimensions - and the
+  eleven per-layer weights grouped together. `Weight::slice()` names the
+  weight's location; the model never dereferences it. The forward pass
+  indexes `layers_[l]` instead of rebuilding `"blk.N."` and hashing a tensor
+  name for every projection of every layer of every token, and a device
+  backend recognizes the same weight across calls. See
+  `docs/DEVICE-EXECUTION.md` step 1.
 - `Placement`: a device index per tensor role: each layer's attention and
   feed-forward block, the embedding table and the output head. Empty means
   everything on device 0. Per role rather than per layer so expert offload
@@ -49,7 +49,10 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
   it and whether the logits after its last token are wanted, or with
   `every_logits` the logits after every one of its tokens. A prefill
   microbatch is one entry with many tokens, a decode batch is many entries
-  with one, and they mix.
+  with one, and they mix. `extent` is what a device picks the entry's
+  kernels by (`backend.hpp` `RowRuns`): for a prompt's rows the position one
+  past its last token, for a generated token 1. `prefill`, `score` and the
+  server set it, so a prompt computes the same in one pass or in slices.
 - `Model`: loads tensors from a `GGUFModel` over one backend, or over
   several with a `Placement`. Each weight is adopted by the backend that
   hosts its role, which on the CPU aliases the loaded file bytes and costs no
@@ -67,7 +70,7 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
     want logits are gathered, normed and projected once on the output
     device; the pass is one submission per device, waited on only when
     logits are wanted. It is one transaction: every sequence
-    commits only once the logits exist, and a failure anywhere drains the
+    commits only once the pass is submitted, and a failure anywhere drains the
     backend and leaves every history as it was. A sequence listed twice is
     refused.
   - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
@@ -92,25 +95,20 @@ compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a
     has no logical batch; see `docs/USAGE.md`.
   - `reset()`: the default sequence's history returns to the pool while
     allocated KV capacity is retained.
-  - Both forward paths call `Backend::attention` over the KV cache; score
-    scratch, causal masking and head scheduling belong to the backend.
-    Storage grows before the forward pass, preserving the used prefix of
-    every head and layer. Projected token-major K/V rows are written into
-    contiguous per-head histories, with an explicit head stride for attention.
+  - Both forward paths call `Backend::attention` over the paged KV cache;
+    score scratch, causal masking and head scheduling belong to the backend.
+    `norm_rope_kv` norms and rotates q and k and writes k and v into the
+    views' blocks in one op.
   - Q/K/V and FFN gate/up share activations and use `matmul_group` in both
     forward paths. CPU groups eligible decode projections; batched prefill
     retains sequential matrix calls through the backend fallback.
   - Batched norms, per-head norm/RoPE, SiLU and the residual adds are backend
-    ops (`rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`), so the model
+    ops (`rms_norm_rows`, `norm_rope_kv`, `silu_mul`, and `matmul_add`, which
+    folds the residual add into the output projections), so the model
     holds no elementwise loops and needs no host parallelism of its own. Each
     row keeps the same arithmetic, and the operations finish before dependent
     matrix operations or KV writes begin. Whether to spread a stage across
     workers is the backend's decision, not the model's.
-  - `matvec` / `matmul` / `dequant_row`: helpers taking a resolved `Weight`,
-    which carries the type and dimensions, so they dispatch through
-    `quant::Registry` without a name lookup. Q8_0 uses the backend's fused AVX2
-    matvec; Q4_K, Q5_K and Q6_K have fused decode dots; other supported quants
-    use a generic dequant-row-to-f32 + dot path.
   - The constructor calls `quant::register_builtins()` (idempotent) so the
     quant registry is populated before any tensor is processed.
   - Before model activation/KV/RoPE allocation, construction checks tensor-name

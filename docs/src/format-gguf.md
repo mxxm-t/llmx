@@ -19,7 +19,9 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
 - `GGUFModel`: metadata KVs, tensor infos, and ONE contiguous `blob` holding
   all tensor data with per-tensor `offsets`; `tensor_data(i)` / `tensor_bytes(i)`
   address it. `read_gguf` sizes the blob exactly and reads each tensor straight
-  into place.
+  into place. `release_payload()` frees the blob once a model on device
+  backends alone has copied every weight into device memory
+  (`Model::holds_payload`), so the host does not hold the weights twice.
 - Both `read_gguf` and `add_tensor_data` preserve `alignof(float)` between
   in-memory tensors. A 34-byte quantized tensor must not misalign a following
   F32 tensor when the loader removes on-disk padding.

@@ -40,7 +40,8 @@ Commands and their entry points:
 - `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS),
   or with `--model` the matched real-model measurement: warm-up, then `--r`
   repeats of `pp N` and `tg N`, model time only, `--profile` for device time
-  per kernel.
+  per kernel and the driver's statistics of each kernel (registers,
+  occupancy) where it reports them.
 - `serve`: parses host, port, sequence and queue limits, the KV budget
   (`--ctx-size`), `--ubatch`, `--threads`, `--device` and the cache types,
   then runs `server::serve` (see [server](server.md)).

@@ -18,7 +18,7 @@ merge algorithm are GPT-2's; the pretokenizer is not.
   `add_bos_token`).
   - `encode(text) -> vector<uint32_t>`: pretokenize, byte-encode, BPE merge by
     rank, map to ids.
-  - `decode(ids) -> string`: reverse.
+  - `decode(ids) -> string`: reverse; an id outside the vocabulary throws.
   - `token_id(s)`, `bpe(word)`, `byte_encode(raw)`.
   - Tracks `bos_id`, `eos_id`, `pad_id`, `add_bos`, special tokens.
 

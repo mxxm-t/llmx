@@ -144,6 +144,14 @@ void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, XWT xl, XWT xh,
 uint fifth(uint hb, uint s) { return ((hb >> s) & 0x00010001u) << 4u; }
 #endif
 
+#if defined(LLMX_KQUANT) && defined(LLMX_X8)
+// Four 6-bit values, a byte each, as the signed bytes value - 32: flipping bit 5 gives value - 32 or value + 32, and a set bit 5 then means negative, so it is copied into bits 6 and 7.
+uint signed6(uint q) {
+    uint t = q ^ 0x20202020u, neg = t & 0x20202020u;
+    return t | (neg << 1u) | (neg << 2u);
+}
+#endif
+
 #if defined(LLMX_KQUANT) || defined(LLMX_K4) || defined(LLMX_K5)
 // A word at any even byte offset: aligned, or the high half of one word and the low half of the next.
 uint word_at(uint byte_off) {
@@ -439,6 +447,21 @@ void main() {
                 uint q2a = ((lo0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 4u) & 0x03030303u) << 4u), q2b = ((lo1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 4u) & 0x03030303u) << 4u);
                 uint q3a = ((hi0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 6u) & 0x03030303u) << 4u), q3b = ((hi1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 6u) & 0x03030303u) << 4u);
                 uint bg = b * 8u + n * 4u;   // the 32-block of group 0
+#ifdef LLMX_X8
+                // On the 8-bit twin the -32 goes into each byte, so a group is two four-wide dots of signed bytes and needs no half sums.
+                q0a = signed6(q0a); q0b = signed6(q0b); q1a = signed6(q1a); q1b = signed6(q1b);
+                q2a = signed6(q2a); q2b = signed6(q2b); q3a = signed6(q3a); q3b = signed6(q3b);
+                for (uint c = 0u; c < ncols; ++c) {
+                    uint col = col0 + c;
+                    uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
+                    XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
+                    int p0 = dot4(q0a, x0v.x) + dot4(q0b, x0v.y), p1 = dot4(q1a, x1v.x) + dot4(q1b, x1v.y);
+                    int p2 = dot4(q2a, x2v.x) + dot4(q2b, x2v.y), p3 = dot4(q3a, x3v.x) + dot4(q3b, x3v.y);
+                    vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
+                    acc[c] += d * (s0 * (xa.x * float(p0)) + s1 * (xa.z * float(p1)) +
+                                   s2 * (xb.x * float(p2)) + s3 * (xb.z * float(p3)));
+                }
+#else
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = col0 + c;
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
@@ -457,6 +480,7 @@ void main() {
                                                        : s0 * ha.y + s1 * ha.w + s2 * hb.y + s3 * hb.w);
                     }
                 }
+#endif
             }
         }
 #endif

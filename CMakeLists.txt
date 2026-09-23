@@ -64,6 +64,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_row_k4_dot=matmul_row=LLMX_K4+LLMX_DOT+LLMX_X8
         matmul_row_k5_dot=matmul_row=LLMX_K5+LLMX_DOT+LLMX_X8
         matmul_row_k_dot=matmul_row=LLMX_KQUANT+LLMX_DOT
+        matmul_row_k_dot8=matmul_row=LLMX_KQUANT+LLMX_DOT+LLMX_X8
         kv_write_k16=kv_write=LLMX_K16 kv_write_v16=kv_write=LLMX_V16 kv_write_kv16=kv_write=LLMX_K16+LLMX_V16
         attention_k16=attention=LLMX_K16 attention_v16=attention=LLMX_V16 attention_kv16=attention=LLMX_K16+LLMX_V16
         attention_tile_k16=attention_tile=LLMX_K16 attention_tile_v16=attention_tile=LLMX_V16

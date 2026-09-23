@@ -200,6 +200,9 @@ const uint32_t kSpvMatmulRowKDot[] = {
 const uint32_t kSpvMatmulRowKDot8[] = {
 #include "vulkan/matmul_row_k_dot8.inc"
 };
+const uint32_t kSpvMatmulRowQ4Dot8[] = {
+#include "vulkan/matmul_row_q4_dot8.inc"
+};
 
 const uint32_t kSpvMatmulTile[] = {
 #include "vulkan/matmul_tile.inc"
@@ -240,7 +243,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
-                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_COUNT };
+                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
 // F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
@@ -260,7 +263,7 @@ inline bool is_row_kernel(KernelId id) {
     case K_MATMUL_ROW: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4:
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_Q4_DOT:
-    case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT: case K_MATMUL_VEC_Q8: case K_MATMUL_ROW_K_DOT8:
+    case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT: case K_MATMUL_VEC_Q8: case K_MATMUL_ROW_K_DOT8: case K_MATMUL_ROW_Q4_DOT8:
         return true;
     default: return false;
     }
@@ -303,7 +306,7 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
     "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
-    "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8",
+    "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -354,6 +357,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMoeCombine, sizeof(kSpvMoeCombine), 3, nullptr},
     {kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr},
     {kSpvMatmulRowKDot8, sizeof(kSpvMatmulRowKDot8), 11, kMatmulRowCounts},
+    {kSpvMatmulRowQ4Dot8, sizeof(kSpvMatmulRowQ4Dot8), 11, kMatmulRowCounts},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1514,11 +1518,13 @@ public:
         default: break;
         }
         if (dev_->profile.prefer_integer_dot) kernel = row_dot_variant(kernel);
-        // Q6_K rows on the 8-bit twin where the integer dot is native, the -32 folded into each weight byte, except in the output head, where on 8 bits the HF gate's Q4_0 file fails its top-5 bound.
+        // Q6_K, Q4_0 and Q4_1 rows on the 8-bit twin where the integer dot is native, except in the output head, where on 8 bits the HF gate's Q4_0 file fails its top-5 bound.
         if (kernel == K_MATMUL_ROW_K_DOT && !logits_) kernel = K_MATMUL_ROW_K_DOT8;
+        if (kernel == K_MATMUL_ROW_Q4_DOT && !logits_) kernel = K_MATMUL_ROW_Q4_DOT8;
         uint32_t cluster = lanes;
         while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
-        if (kernel == K_MATMUL_ROW_K_DOT8) cluster = std::min(cluster, std::max(lanes, dev_->profile.q6k_row_lanes));
+        if (kernel == K_MATMUL_ROW_K_DOT8 || kernel == K_MATMUL_ROW_Q4_DOT8)
+            cluster = std::min(cluster, std::max(lanes, dev_->profile.q6k_row_lanes));
         // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin (shaders/matmul_vec_q8.comp).
         if (type == gguf::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot && dev_->subgroup_size >= 8) {
             kernel = K_MATMUL_VEC_Q8;
@@ -1759,9 +1765,10 @@ public:
 
     // Where the 8-bit twin starts after the 16-bit one, in bytes, rounded up to 256 so it is a valid binding offset (shaders/xquant.glsl).
     static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 8 + 63) & ~size_t(63)) * 4; }
-    // The row kernels that read the 8-bit twin: the Q4_K, Q5_K and Q6_K families built with LLMX_X8, and the Q8_0 kernel. Q4_0 and a Q6_K output head stay on the 16-bit twin, since on the 8-bit one the HF gate's Q4_0 fixture failed its top-5 bound (docs/STATUS.md).
+    // The row kernels that read the 8-bit twin: the Q4_0/Q4_1, Q4_K, Q5_K and Q6_K families built with LLMX_X8, and the Q8_0 kernel. An output head of those first three stays on the 16-bit twin, since on the 8-bit one the HF gate's Q4_0 fixture failed its top-5 bound (docs/STATUS.md).
     static bool reads_x8(KernelId id) {
-        return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K_DOT8 || id == K_MATMUL_VEC_Q8;
+        return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K_DOT8 || id == K_MATMUL_ROW_Q4_DOT8 ||
+               id == K_MATMUL_VEC_Q8;
     }
 
     // Whether a type's wide matmul goes through the integer-dot tile on this device.

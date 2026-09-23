@@ -61,6 +61,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
     set(LLMX_VK_VARIANTS matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
         matmul_row_k=matmul_row=LLMX_KQUANT
         matmul_row_q4_dot=matmul_row=LLMX_Q4+LLMX_DOT
+        matmul_row_q4_dot8=matmul_row=LLMX_Q4+LLMX_DOT+LLMX_X8
         matmul_row_k4_dot=matmul_row=LLMX_K4+LLMX_DOT+LLMX_X8
         matmul_row_k5_dot=matmul_row=LLMX_K5+LLMX_DOT+LLMX_X8
         matmul_row_k_dot=matmul_row=LLMX_KQUANT+LLMX_DOT

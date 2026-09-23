@@ -12,15 +12,20 @@
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
-// kper is the quant blocks of the inner dimension a workgroup sums, a multiple of STEP; below the block count the call is split and part z of every output goes to y at z * nbatch * nout, which matmul_reduce.comp then adds.
-layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint kper; } p;
-layout(set = 0, binding = 0) buffer Y { float y[]; };
-layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
-layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; };
+// Up to three projections of one X and one type in one dispatch, as the row kernel takes a layer's q, k and v or gate and up: workgroups start0, start1 and start2 on begin each projection's row tiles.
+// Separately, a 0.6B layer's q, k and v at 64 columns took 232 us on an MI50 against 89 us as one 4096-row call, since each was too small to fill the device alone.
+// kper is the quant blocks of the inner dimension a workgroup sums, a multiple of STEP. Below the block count the call is split: projection q's part z goes to y at parts * nbatch * (the rows of the projections before q) + z * nbatch * nout_q, every projection's y being the one scratch buffer then, and matmul_reduce.comp adds the parts.
+layout(push_constant) uniform P {
+    uint nin; uint nbatch; uint type; uint accum; uint kper; uint nproj;
+    uint nout0; uint start0; uint nout1; uint start1; uint nout2; uint start2;
+} p;
+layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
+layout(set = 0, binding = 1) readonly buffer W32 { uint w32[]; } ws[3];
 // The 8-bit activations bound twice, as words for the quants and as pairs for the per-block scale table after them.
-layout(set = 0, binding = 3) readonly buffer XQ { uint xq[]; };
-layout(set = 0, binding = 4) readonly buffer XS { vec2 xs[]; };
-#define QBYTE(i) ((w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+layout(set = 0, binding = 2) readonly buffer XQ { uint xq[]; };
+layout(set = 0, binding = 3) readonly buffer XS { vec2 xs[]; };
+uint pi = 0u;   // this workgroup's projection, uniform across it
+#define QBYTE(i) ((ws[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #include "qdecode.glsl"
 
 #define MROWS (TILE_ROWS / 16u)
@@ -40,7 +45,11 @@ shared vec2 xsc[STEP * 64u];     // per column and block: the activation scale a
 
 void main() {
     uint tid = gl_LocalInvocationID.x;
-    uint row_base = gl_WorkGroupID.x * TILE_ROWS;
+    uint wg = gl_WorkGroupID.x;
+    if (p.nproj > 1u && wg >= p.start1) pi = 1u;
+    if (p.nproj > 2u && wg >= p.start2) pi = 2u;
+    uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
+    uint row_base = (wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2))) * TILE_ROWS;
     uint ncg = (p.nbatch + 63u) / 64u;                 // column tiles; the workgroup's y is column tile plus ncg times its part
     uint part = gl_WorkGroupID.y / ncg;
     uint col_base = (gl_WorkGroupID.y - part * ncg) * 64u;
@@ -50,30 +59,32 @@ void main() {
     uint nblk = p.nin / 32u;
     uint xtab = p.nbatch * p.nin / 8u;                // the scale table's start, in pairs
     uint kbeg = part * p.kper, kend = min(nblk, kbeg + p.kper);
-    uint yo = part * p.nbatch * p.nout;
+    uint parts = (nblk + p.kper - 1u) / p.kper;
+    uint before = (pi > 0u ? p.nout0 : 0u) + (pi > 1u ? p.nout1 : 0u);
+    uint yo = parts > 1u ? p.nbatch * (parts * before + part * nout) : 0u;
     float acc[MROWS][4];
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
     for (uint k0 = kbeg; k0 < kend; k0 += STEP) {
       for (uint s = 0u; s < STEP; ++s) {
         uint kb = k0 + s;
         uint row = row_base + wrow;
-        if (row < p.nout && kb < kend) {
+        if (row < nout && kb < kend) {
             if (p.type == TYPE_Q8_0) {
                 // A 34-byte block: the half scale, then the 32 quants. A block's quants start either on a word boundary or two bytes past one, so a thread loads its words plus one and funnels them when they straddle: one load per quant word rather than the two halves each took, which is what held Q8_0 below Q4_K here.
                 uint ob = (row * nblk + kb) * 34u, q0 = ob + 2u;
                 uint base = (q0 >> 2u) + wseg * WW;
                 if ((q0 & 3u) == 0u) {
-                    for (uint m = 0u; m < WW; ++m) wq[s * 8u + wseg * WW + m][wrow] = w32[base + m];
+                    for (uint m = 0u; m < WW; ++m) wq[s * 8u + wseg * WW + m][wrow] = ws[pi].w32[base + m];
                 } else {
-                    uint prev = w32[base];
+                    uint prev = ws[pi].w32[base];
                     for (uint m = 0u; m < WW; ++m) {
-                        uint next = w32[base + m + 1u];
+                        uint next = ws[pi].w32[base + m + 1u];
                         wq[s * 8u + wseg * WW + m][wrow] = (prev >> 16u) | (next << 16u);
                         prev = next;
                     }
                 }
                 if (wseg == 0u) {
-                    uint sw = w32[ob >> 2u];
+                    uint sw = ws[pi].w32[ob >> 2u];
                     float d = unpackHalf2x16((ob & 3u) == 0u ? sw : (sw >> 16u)).x;
                     wsc[s * TILE_ROWS + wrow] = vec4(d, d, 0.0, 0.0);
                 }
@@ -86,9 +97,9 @@ void main() {
                 uint hi = o + 128u + n * 32u + wseg * WW * 4u;
                 uint nsh = which >= 2u ? 4u : 0u, hsh = 2u * which;
                 bool odd = (lo & 3u) != 0u;   // o is even, so both runs share this
-                uint lp = w32[lo >> 2u], hp = w32[hi >> 2u];
+                uint lp = ws[pi].w32[lo >> 2u], hp = ws[pi].w32[hi >> 2u];
                 for (uint m = 0u; m < WW; ++m) {
-                    uint ln = w32[(lo >> 2u) + m + 1u], hn = w32[(hi >> 2u) + m + 1u];
+                    uint ln = ws[pi].w32[(lo >> 2u) + m + 1u], hn = ws[pi].w32[(hi >> 2u) + m + 1u];
                     uint ql = odd ? (lp >> 16u) | (ln << 16u) : lp;
                     uint qh = odd ? (hp >> 16u) | (hn << 16u) : hp;
                     lp = ln; hp = hn;
@@ -110,14 +121,14 @@ void main() {
                 bool odd = (q0 & 3u) != 0u;
                 for (uint m = 0u; m < WW; ++m) {
                     uint w = wseg * WW + m, i = (q0 >> 2u) + (w & 3u);
-                    uint nw = odd ? (w32[i] >> 16u) | (w32[i + 1u] << 16u) : w32[i];
+                    uint nw = odd ? (ws[pi].w32[i] >> 16u) | (ws[pi].w32[i + 1u] << 16u) : ws[pi].w32[i];
                     uint b = (nw >> (w >= 4u ? 4u : 0u)) & 0x0F0F0F0Fu;
                     // b - 8 per byte: flipping bit 3 gives b - 8 for b >= 8 and b + 8 otherwise, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
                     uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
                     wq[s * 8u + w][wrow] = t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
                 }
                 if (wseg == 0u) {
-                    uint sw = w32[ob >> 2u];
+                    uint sw = ws[pi].w32[ob >> 2u];
                     float d = unpackHalf2x16((ob & 3u) == 0u ? sw : (sw >> 16u)).x;
                     wsc[s * TILE_ROWS + wrow] = vec4(d, d, 0.0, 0.0);
                 }
@@ -126,10 +137,10 @@ void main() {
                 uint ob = (row * nblk + kb) * Q4_1_BYTES;
                 for (uint m = 0u; m < WW; ++m) {
                     uint w = wseg * WW + m;
-                    wq[s * 8u + w][wrow] = (w32[(ob >> 2u) + 1u + (w & 3u)] >> (w >= 4u ? 4u : 0u)) & 0x0F0F0F0Fu;
+                    wq[s * 8u + w][wrow] = (ws[pi].w32[(ob >> 2u) + 1u + (w & 3u)] >> (w >= 4u ? 4u : 0u)) & 0x0F0F0F0Fu;
                 }
                 if (wseg == 0u) {
-                    vec2 dm = unpackHalf2x16(w32[ob >> 2u]);
+                    vec2 dm = unpackHalf2x16(ws[pi].w32[ob >> 2u]);
                     wsc[s * TILE_ROWS + wrow] = vec4(dm.x, dm.x, -dm.y, 0.0);
                 }
             } else if (p.type == TYPE_Q5_K) {
@@ -140,10 +151,10 @@ void main() {
                 uint shift = 4u * (g & 1u);
                 for (uint m = 0u; m < WW; ++m) {
                     uint w = wseg * WW + m;
-                    wq[s * 8u + w][wrow] = ((w32[base + w] >> shift) & 0x0F0F0F0Fu) | (((w32[hb + w] >> g) & 0x01010101u) << 4u);
+                    wq[s * 8u + w][wrow] = ((ws[pi].w32[base + w] >> shift) & 0x0F0F0F0Fu) | (((ws[pi].w32[hb + w] >> g) & 0x01010101u) << 4u);
                 }
                 if (wseg == 0u) {
-                    vec2 dd = unpackHalf2x16(w32[o / 4u]);
+                    vec2 dd = unpackHalf2x16(ws[pi].w32[o / 4u]);
                     uint sc, mn;
                     scale_min_k4(o + 4u, g, sc, mn);
                     wsc[s * TILE_ROWS + wrow] = vec4(dd.x * float(sc), dd.x * float(sc), dd.y * float(mn), 0.0);
@@ -156,10 +167,10 @@ void main() {
                 uint shift = 4u * (g & 1u);
                 for (uint m = 0u; m < WW; ++m) {
                     uint w = wseg * WW + m;
-                    wq[s * 8u + w][wrow] = (w32[base + w] >> shift) & 0x0F0F0F0Fu;
+                    wq[s * 8u + w][wrow] = (ws[pi].w32[base + w] >> shift) & 0x0F0F0F0Fu;
                 }
                 if (wseg == 0u) {
-                    vec2 dd = unpackHalf2x16(w32[o / 4u]);
+                    vec2 dd = unpackHalf2x16(ws[pi].w32[o / 4u]);
                     uint sc, mn;
                     scale_min_k4(o + 4u, g, sc, mn);
                     wsc[s * TILE_ROWS + wrow] = vec4(dd.x * float(sc), dd.x * float(sc), dd.y * float(mn), 0.0);
@@ -223,12 +234,12 @@ void main() {
     }
     for (uint i = 0u; i < MROWS; ++i) {
         uint row = row_base + tr * MROWS + i;
-        if (row >= p.nout) continue;
+        if (row >= nout) continue;
         for (uint j = 0u; j < 4u; ++j) {
             uint col = col_base + tc * 4u + j;
             if (col < p.nbatch) {
-                if (p.accum != 0u) y[yo + col * p.nout + row] += acc[i][j];
-                else y[yo + col * p.nout + row] = acc[i][j];
+                if (p.accum != 0u) ys[pi].y[yo + col * nout + row] += acc[i][j];
+                else ys[pi].y[yo + col * nout + row] = acc[i][j];
             }
         }
     }

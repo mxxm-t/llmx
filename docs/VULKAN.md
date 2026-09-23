@@ -445,6 +445,8 @@ HF gate measures the cost of it.
 
   The workgroups counted are those of a pass over the row's whole prompt, up to a microbatch of 512 rows, rather than those of the call, so a row sums its inner dimension in the same parts however its prompt was batched (Batch invariance, below). Taking the split from the projection's shape alone, as if every call were one column tile, did that too, but split 512-row passes as finely as 64-row ones: 8B Q8_0 at 512 rows fell from 866 to 802 tok/s.
 
+  A layer's projections of one type go through one tile dispatch, as the row kernel's do: q, k and v, and gate and up. Workgroups from start_q on take projection q's row tiles, and a split call's reduce adds every projection's parts in one dispatch, each projection on whole workgroups of its own so the output buffer a workgroup indexes is uniform across it. On an MI50 at 64 columns a 0.6B layer's q, k and v took 232 us as three dispatches and 89 us as one, and gate and up 177 against 120, since each projection alone was too small to fill the device. Qwen3-0.6B-Q8_0 prompt processing at 64 rows goes from 3761 to 5043 tok/s.
+
   Same card, Q8_0 at 64 columns:
 
   | projection | before | block-major | block-major and split |

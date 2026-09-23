@@ -306,6 +306,9 @@ struct KernelSource {
 };
 
 const uint32_t kMatmulRowCounts[10] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1};
+// The integer-dot tile's outputs and weights, three of each, and the reduce's outputs.
+const uint32_t kMatmulTileQCounts[4] = {3, 3, 1, 1};
+const uint32_t kMatmulReduceCounts[2] = {3, 1};
 
 const char* const kKernelNames[K_COUNT] = {
     "add", "silu_mul", "gather_rows", "rms_norm_rows", "norm_rope_rows", "embed",
@@ -362,11 +365,11 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 10, kMatmulRowCounts},
     {kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 10, kMatmulRowCounts},
     {kSpvQuantizeX8, sizeof(kSpvQuantizeX8), 2, nullptr},
-    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, nullptr},
-    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, nullptr},
-    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, nullptr},
-    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, nullptr},
-    {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, nullptr},
+    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 4, kMatmulTileQCounts},
+    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 4, kMatmulTileQCounts},
+    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 4, kMatmulTileQCounts},
+    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 4, kMatmulTileQCounts},
+    {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1423,7 +1426,10 @@ public:
                 throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
             // Where the device's integer dot is native, the types the integer-dot tile takes go through it (shaders/matmul_tile_q.comp), X quantized to 8 bits once for every projection of the call that needs it. The float tile multiplies dequantized floats one product per instruction; on the MI50 under Mesa it reads 4.87 TFLOPS at an 8B feed-forward shape where an integer-dot tile reads 13.3 (docs/VULKAN.md).
             VkDescriptorBufferInfo x8{};
+            const size_t nblk = nin / 32;
+            // The float tile, one projection a dispatch.
             for (const Projection* pr : live) {
+                if (integer_dot_tile(pr->type)) continue;
                 // The taller tile reads two thirds of the shared memory per
                 // product and is worth about half again on a wide call, but it
                 // halves the workgroups; below one per compute unit the device
@@ -1431,41 +1437,71 @@ public:
                 const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
                                                       pr->rows, gy, nin);
                 const bool tall = height == kTileRowsTall;
-                const bool q = integer_dot_tile(pr->type);
-                if (q && !x8.buffer) {
+                const uint32_t pc[5] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u};
+                dispatch(tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE,
+                         {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data)},
+                         pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, height == kTileRowsSmall ? 1 : 0);
+            }
+            // The integer-dot tile, the projections of one type in one dispatch: a 0.6B layer's q, k and v at 64 columns took 232 us as three dispatches on an MI50 and 89 us as one, each alone being too small to fill the device.
+            std::vector<const Projection*> pending;
+            for (const Projection* pr : live)
+                if (integer_dot_tile(pr->type)) pending.push_back(pr);
+            while (!pending.empty()) {
+                std::vector<const Projection*> group, rest;
+                for (const Projection* pr : pending)
+                    (pr->type == pending[0]->type ? group : rest).push_back(pr);
+                pending.swap(rest);
+                if (!x8.buffer) {
                     x8 = x8_for(nbatch * nin);
                     const uint32_t qpc[3] = {u32(nbatch * nin), u32(nin), u32(nbatch)};
                     dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(nbatch * nin, 256));
                 }
-                const bool q6 = pr->type == gguf::GGML_TYPE_Q6_K;
-                const KernelId kernel = q ? (q6 ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
-                                                : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q))
-                                          : (tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE);
-                const uint32_t gx = groups(pr->rows, height);
-                const int small = height == kTileRowsSmall ? 1 : 0;
-                const size_t nblk = nin / 32;
-                // The split is the one the row's whole prompt would take (matmul_runs), so a prompt sums its inner dimension in the same parts however its rows were batched.
+                size_t rows = 0;
+                for (const Projection* pr : group) rows += pr->rows;
+                const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
+                                                      rows, gy, nin);
+                const bool tall = height == kTileRowsTall;
+                const bool q6 = group[0]->type == gguf::GGML_TYPE_Q6_K;
+                const KernelId kernel = q6 ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
+                                           : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
+                uint32_t start[3] = {0, 0, 0}, nout[3] = {0, 0, 0};
+                size_t gx = 0;
+                for (size_t i = 0; i < group.size(); ++i) {
+                    start[i] = u32(gx);
+                    nout[i] = u32(group[i]->rows);
+                    gx += groups(group[i]->rows, height);
+                }
+                // The split is the one the rows' whole prompt would take (matmul_runs), so a prompt sums its inner dimension in the same parts however its rows were batched.
                 const size_t st = split_tiles ? split_tiles : gy;
-                const size_t gxs = groups(pr->rows, tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort,
-                                                                  kTileRowsTall, pr->rows, st, nin));
-                const size_t kper = q ? split_blocks(gxs * st, nblk) : nblk;
+                const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, rows, st, nin);
+                size_t gxs = 0;
+                for (const Projection* pr : group) gxs += groups(pr->rows, hs);
+                const size_t kper = split_blocks(gxs * st, nblk);
                 const size_t parts = (nblk + kper - 1) / kper;
-                const uint32_t pc[6] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type,
-                                        accumulate && parts == 1 ? 1u : 0u, u32(kper)};
-                if (q && parts > 1) {
-                    const size_t n = nbatch * pr->rows;
+                const uint32_t pc[12] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
+                                         u32(group.size()), nout[0], start[0], nout[1], start[1], nout[2], start[2]};
+                const Projection& a = *group[0];
+                const Projection& b = group.size() > 1 ? *group[1] : a;
+                const Projection& c = group.size() > 2 ? *group[2] : a;
+                const int small = height == kTileRowsSmall ? 1 : 0;
+                if (parts > 1) {
+                    const size_t n = nbatch * rows;
                     if (!parts_ || parts_->size() < parts * n * sizeof(float)) grow(parts_, parts * n * sizeof(float));
                     const VkDescriptorBufferInfo pb{parts_->handle(), 0, VK_WHOLE_SIZE};
-                    dispatch(kernel, {pb, bind(pr->data), bind(pr->data), x8, x8}, pc, sizeof(pc), gx,
+                    dispatch(kernel, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), x8, x8}, pc, sizeof(pc), u32(gx),
                              u32(gy * parts), small);
-                    const uint32_t rc[3] = {u32(n), u32(parts), accumulate ? 1u : 0u};
-                    dispatch(K_MATMUL_REDUCE, {bind(pr->out), pb}, rc, sizeof(rc), groups(n, 256));
-                } else if (q)
-                    dispatch(kernel, {bind(pr->out), bind(pr->data), bind(pr->data), x8, x8}, pc, sizeof(pc), gx,
-                             (uint32_t)gy, small);
-                else
-                    dispatch(kernel, {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data)},
-                             pc, sizeof(pc), gx, (uint32_t)gy, small);
+                    const size_t n0 = nbatch * a.rows, n1 = group.size() > 1 ? nbatch * b.rows : 0,
+                                 n2 = group.size() > 2 ? nbatch * c.rows : 0;
+                    const size_t start1 = groups(n0, 256), start2 = start1 + groups(n1, 256);
+                    // An unused projection's start is past every workgroup.
+                    const uint32_t rc[7] = {u32(n0), u32(n1), u32(n2), u32(parts), accumulate ? 1u : 0u,
+                                            u32(n1 ? start1 : start2 + groups(n2, 256)), u32(n2 ? start2 : start2 + groups(n2, 256) + 1)};
+                    dispatch(K_MATMUL_REDUCE, {bind(a.out), bind(b.out), bind(c.out), pb}, rc, sizeof(rc),
+                             u32(start2 + groups(n2, 256)));
+                } else {
+                    dispatch(kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8},
+                             pc, sizeof(pc), u32(gx), (uint32_t)gy, small);
+                }
             }
             return;
         }

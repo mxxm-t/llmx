@@ -1315,7 +1315,21 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-8B-Q8_0 | 690 vs 527, 131% | 848 vs 736, 115% | 914 vs 865, 106% | 50 vs 58, 86% |
 
   Prompt processing now clears the reference on every file at 512 rows and on both 8B files everywhere. Below it: 0.6B Q4_0 and Q8_0 at 64 and 247 rows, decode on the 8-bit files at 86 and 91 percent, and many concurrent short prompts' first token.
-- **Left:** on the MI50 against one card of the reference, from the one-card gate in the forty-second paragraph: 0.6B Q4_0 and Q8_0 prompt processing at 82 to 98 percent at 64 and 247 rows, decode on the 8-bit files at 86 and 91 percent, and first-token time for many concurrent short prompts; loading, which reads the whole file into host memory before uploading it; folding a layer's
+
+  Forty-third, a layer's projections of one type in one integer-dot tile dispatch. At 64 columns on one MI50 a 0.6B layer's q, k and v took 232 us as three tile calls and 89 us as one call over their 4096 rows, and gate and up 177 against 120: each projection alone left most of the device idle. The tile now takes up to three projections of one type as the row kernel does, their row tiles on consecutive workgroups, and a split call's reduce adds all their parts in one dispatch. A reduce workgroup that straddled two projections indexed their output buffers non-uniformly and lost the second one's writes; each projection now has whole workgroups of its own, which a new check of three grouped projections at 64 and 249 columns caught. The split is the fused group's, so a row still sums the same parts however its prompt is batched. Qwen3-0.6B-Q8_0 at 64 rows goes from 3754 to 5047 tok/s; short prompts, decode and server load are unchanged.
+
+  The one-card gate at this change, same protocol:
+
+  | model | pp64 | pp247 | pp512 | tg32 |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | 4917 vs 4883, 101% | 6858 vs 7224, 95% | 7452 vs 6795, 110% | 323 vs 331, 98% |
+  | Qwen3-0.6B-Q5_K_M | 4528 vs 2971, 152% | 6692 vs 4436, 151% | 7455 vs 5747, 130% | 337 vs 314, 107% |
+  | Qwen3-0.6B-Q8_0 | 5036 vs 4654, 108% | 7383 vs 6974, 106% | 8093 vs 6692, 121% | 271 vs 298, 91% |
+  | Qwen3-8B-Q4_K_M | 696 vs 261, 267% | 848 vs 634, 134% | 894 vs 763, 117% | 86 vs 89, 97% |
+  | Qwen3-8B-Q8_0 | 760 vs 524, 145% | 889 vs 735, 121% | 936 vs 865, 108% | 50 vs 58, 86% |
+
+  Prompt processing clears the reference in every cell but 0.6B Q4_0 at 247 rows, 95 percent. Decode is the gap now: 86 and 91 percent on the Q8_0 files, 97 and 98 on 8B Q4_K_M and 0.6B Q4_0.
+- **Left:** on the MI50 against one card of the reference, from the one-card gate in the forty-third paragraph: decode at 86 and 91 percent on the Q8_0 files and 97 and 98 on 8B Q4_K_M and 0.6B Q4_0, 0.6B Q4_0 prompt processing at 95 percent at 247 rows, and first-token time for many concurrent short prompts; loading, which reads the whole file into host memory before uploading it; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
   barrier time measured in the twenty-ninth; the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the

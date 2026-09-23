@@ -1,13 +1,20 @@
 #version 450
-// y[i] = the partial sums of a split inner dimension added in part order, plus y[i] when accumulating: the second half of a split tile call (matmul_tile_q.comp), which wrote part z of each output at z * n.
+// y[i] = the partial sums of a split inner dimension added in part order, plus y[i] when accumulating: the second half of a split tile call (matmul_tile_q.comp).
+// Up to three projections, as the tile call took them: projection q's n_q outputs have their parts at parts * (the outputs of the projections before q), part z at z * n_q after that.
+// Each projection has whole workgroups of its own, from workgroup start_q on, so the output buffer a workgroup indexes is uniform across it.
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint n; uint parts; uint accum; } p;
-layout(set = 0, binding = 0) buffer Y { float y[]; };
+layout(push_constant) uniform P { uint n0; uint n1; uint n2; uint parts; uint accum; uint start1; uint start2; } p;
+layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 1) readonly buffer S { float part[]; };
 void main() {
-    uint i = gl_GlobalInvocationID.x;
-    if (i >= p.n) return;
-    float s = p.accum != 0u ? y[i] : 0.0;
-    for (uint z = 0u; z < p.parts; ++z) s += part[z * p.n + i];
-    y[i] = s;
+    uint wg = gl_WorkGroupID.x;
+    uint q = wg >= p.start2 ? 2u : (wg >= p.start1 ? 1u : 0u);
+    uint first = q == 0u ? 0u : (q == 1u ? p.start1 : p.start2);
+    uint local = (wg - first) * 256u + gl_LocalInvocationID.x, n = q == 0u ? p.n0 : (q == 1u ? p.n1 : p.n2);
+    if (local >= n) return;
+    uint before = (q > 0u ? p.n0 : 0u) + (q > 1u ? p.n1 : 0u);
+    uint base = p.parts * before + local;
+    float s = p.accum != 0u ? ys[q].y[local] : 0.0;
+    for (uint z = 0u; z < p.parts; ++z) s += part[base + z * n];
+    ys[q].y[local] = s;
 }

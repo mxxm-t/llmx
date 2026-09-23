@@ -842,6 +842,32 @@ size_t check_kernels(backend::Backend& vk) {
                 values += exact(a, b, "grouped projections differ from separate ones");
             }
         }
+        // At tile widths the integer-dot tile takes the projections of one type in one dispatch, split or not, and a type of its own in another: two Q8_0 projections and a Q4_0 one between them, against the CPU fed the activations the tile reads.
+        for (size_t nbatch : {size_t(64), size_t(249)}) {
+            const auto x = uniform(nbatch * nin, 40 + (uint32_t)nbatch);
+            const backend::DeviceProfile prof = backend::vulkan_device_profile(p.vk);
+            const bool tiled = nbatch >= backend::tile_from_for(prof, false, nin);
+            const auto xr = !tiled ? x : prof.prefer_integer_dot ? tile_activations8(x) : x;
+            if (!tiled) continue;
+            Pair::In xi = p.in(x), xri = p.in(xr);
+            const size_t rows[3] = {nout, 5, 33};
+            const uint32_t types[3] = {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q8_0};
+            Pair::Out grp[3] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1]), p.out(nbatch * rows[2])};
+            p.vk.matmul_group({{types[0], wqi.vs(), grp[0].vs(), rows[0]},
+                               {types[1], w4i.vs(), grp[1].vs(), rows[1]},
+                               {types[2], wqi.vs(), grp[2].vs(), rows[2]}},
+                              xi.vs(), nin, nbatch);
+            for (int i = 0; i < 3; ++i) {
+                p.cpu.matmul(types[i], (i == 1 ? w4i : wqi).cs(), xri.cs(), grp[i].cs(), nin, rows[i], nbatch);
+                auto r = p.results(grp[i]);
+                try {
+                    values += close(r.first, r.second, twin_tol, "grouped tile projections differ beyond their bound");
+                } catch (const std::runtime_error&) {
+                    std::fprintf(stderr, "  grouped tile: projection %d of type %u, %zu rows, %zu columns\n", i, types[i], rows[i], nbatch);
+                    throw;
+                }
+            }
+        }
     }
     // The KV cache: the same token-major rows written through each backend's
     // own storage and block size, then attention over each backend's own

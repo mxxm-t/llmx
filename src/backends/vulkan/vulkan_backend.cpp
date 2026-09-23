@@ -1114,6 +1114,7 @@ public:
 
     void write(Buffer& dst_b, size_t off, const void* src, size_t bytes) override {
         xq_tag_ = XqTag{};
+        group_tag_ = GroupTag{};
         if (!src && bytes) throw std::runtime_error("vulkan: writing from null storage");
         VulkanBuffer& dst = as_vulkan(dst_b);
         span(dst, off, bytes);
@@ -1130,6 +1131,7 @@ public:
     void copy(Buffer& dst_b, size_t dst_off, const Buffer& src_b, size_t src_off,
               size_t bytes) override {
         xq_tag_ = XqTag{};
+        group_tag_ = GroupTag{};
         VulkanBuffer& dst = as_vulkan(dst_b);
         const VulkanBuffer& src = as_vulkan(src_b);
         span(dst, dst_off, bytes);
@@ -1581,6 +1583,7 @@ public:
             throw std::runtime_error("vulkan: routing operand outside its allocation");
         const uint32_t pc[4] = {u32(rows), u32(n_expert), u32(k), normalize ? 1u : 0u};
         dispatch(K_MOE_ROUTE, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows));
+        group_tag_ = GroupTag{};
     }
 
     // Calls `each(first, count, tile)` over the token rows of a routed call, a call per stretch of rows that take the same kernel.
@@ -1661,10 +1664,19 @@ public:
         // Tiles: every expert's entries in runs of 64, at most one partial tile per expert that has any.
         const size_t max_tiles = (entries + 63) / 64 + std::min(n_expert, entries);
         const size_t tab_bytes = (4 * max_tiles + entries) * sizeof(uint32_t);
-        if (!moe_tab_ || moe_tab_->size() < tab_bytes) grow(moe_tab_, tab_bytes);
+        if (!moe_tab_ || moe_tab_->size() < tab_bytes) {
+            grow(moe_tab_, tab_bytes);
+            group_tag_ = GroupTag{};
+        }
         const VkDescriptorBufferInfo tab{moe_tab_->handle(), 0, VK_WHOLE_SIZE};
-        const uint32_t gpc[3] = {u32(entries), u32(n_expert), u32(max_tiles)};
-        dispatch(K_MOE_GROUP, {bind(ids), tab}, gpc, sizeof(gpc), 1);
+        // The down projection routes the same ids as gate and up, so their grouping is reused.
+        const VkDescriptorBufferInfo idb = bind(ids);
+        if (!(group_tag_.ids.buffer == idb.buffer && group_tag_.ids.offset == idb.offset && group_tag_.entries == entries &&
+              group_tag_.n_expert == n_expert)) {
+            const uint32_t gpc[3] = {u32(entries), u32(n_expert), u32(max_tiles)};
+            dispatch(K_MOE_GROUP, {idb, tab}, gpc, sizeof(gpc), u32(n_expert));
+            group_tag_ = GroupTag{idb, entries, n_expert};
+        }
         if (max_tiles > dev_->props.limits.maxComputeWorkGroupCount[1])
             throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
         const uint32_t order0 = u32(4 * max_tiles);
@@ -2232,6 +2244,9 @@ private:
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
+    // Which ids moe_tab_ groups: their location and count, cleared by every routing and by anything that writes a buffer from the host.
+    struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0; };
+    GroupTag group_tag_;
     // What the twin buffer holds: the float input it was made from, its length, and whether the 8-bit twin was written; cleared by anything else that writes a buffer, since the input may be what was written.
     struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; };
     // Set once a matmul that reads the 8-bit twin has run, so producers take their build that writes it from then on.

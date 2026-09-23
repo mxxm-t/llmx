@@ -1,5 +1,5 @@
 #version 450
-// A routed call's entries grouped by expert for the tile kernels (matmul_tile.comp, matmul_tile_q.comp), in one workgroup.
+// A routed call's entries grouped by expert for the tile kernels (matmul_tile.comp, matmul_tile_q.comp), a workgroup per expert.
 // tab holds max_tiles tiles as (expert, first, count, 0), each at most 64 entries of one expert and unused ones with count 0, then from word 4 * max_tiles the entries in expert order, entry order within an expert.
 // The order is stable, so the grouping of a set of ids is always the same.
 layout(local_size_x = 256) in;
@@ -8,55 +8,70 @@ layout(set = 0, binding = 0) readonly buffer I { uint ids[]; };
 layout(set = 0, binding = 1) buffer T { uint tab[]; };
 
 const uint MAX_EXPERTS = 1024u;
-shared uint count[MAX_EXPERTS];
-shared uint cursor[MAX_EXPERTS];
-shared uint chunk_ids[256];
+shared uint hist[MAX_EXPERTS];
+shared uint sa[256];
+shared uint sb[256];
+
+// The sums of a and b over the workgroup, by a tree.
+uvec2 total(uint a, uint b) {
+    uint t = gl_LocalInvocationID.x;
+    sa[t] = a;
+    sb[t] = b;
+    barrier();
+    for (uint h = 128u; h > 0u; h >>= 1u) {
+        if (t < h) { sa[t] += sa[t + h]; sb[t] += sb[t + h]; }
+        barrier();
+    }
+    uvec2 r = uvec2(sa[0], sb[0]);
+    barrier();
+    return r;
+}
 
 void main() {
-    uint t = gl_LocalInvocationID.x;
-    for (uint e = t; e < p.n_expert; e += 256u) count[e] = 0u;
+    uint e = gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
+    for (uint x = t; x < p.n_expert; x += 256u) hist[x] = 0u;
     barrier();
-    for (uint i = t; i < p.entries; i += 256u) atomicAdd(count[ids[i]], 1u);
+    for (uint i = t; i < p.entries; i += 256u) atomicAdd(hist[ids[i]], 1u);
     barrier();
-    // Each expert's first entry and first tile, walked by one thread since there are at most a thousand experts.
-    if (t == 0u) {
-        uint first = 0u, tile = 0u;
-        for (uint e = 0u; e < p.n_expert; ++e) {
-            uint c = count[e];
-            cursor[e] = first;
-            for (uint j = 0u; j < c; j += 64u) {
-                tab[4u * tile] = e;
-                tab[4u * tile + 1u] = first + j;
-                tab[4u * tile + 2u] = min(64u, c - j);
-                tab[4u * tile + 3u] = 0u;
-                ++tile;
-            }
-            first += c;
-        }
-        for (; tile < p.max_tiles; ++tile) {
-            tab[4u * tile] = 0u;
-            tab[4u * tile + 1u] = 0u;
-            tab[4u * tile + 2u] = 0u;
-            tab[4u * tile + 3u] = 0u;
+    // This expert's first entry and first tile follow the experts below it; expert 0's workgroup also clears the tiles past the last one used.
+    uint f = 0u, tl = 0u;
+    for (uint x = t; x < e; x += 256u) { f += hist[x]; tl += (hist[x] + 63u) / 64u; }
+    uvec2 before = total(f, tl);
+    uint first = before.x, tile0 = before.y, count = hist[e];
+    if (e == 0u) {
+        uint all = 0u;
+        for (uint x = t; x < p.n_expert; x += 256u) all += (hist[x] + 63u) / 64u;
+        uint used = total(all, 0u).x;
+        for (uint y = used + t; y < p.max_tiles; y += 256u) {
+            tab[4u * y] = 0u;
+            tab[4u * y + 1u] = 0u;
+            tab[4u * y + 2u] = 0u;
+            tab[4u * y + 3u] = 0u;
         }
     }
-    barrier();
-    // Placement 256 entries at a time: an entry's slot is its expert's cursor plus the earlier entries of the chunk with the same expert.
-    uint order0 = 4u * p.max_tiles;
+    if (count == 0u) return;
+    for (uint j = t * 64u; j < count; j += 256u * 64u) {
+        uint y = tile0 + j / 64u;
+        tab[4u * y] = e;
+        tab[4u * y + 1u] = first + j;
+        tab[4u * y + 2u] = min(64u, count - j);
+        tab[4u * y + 3u] = 0u;
+    }
+    // Placement 256 entries at a time: an entry's slot is the expert's cursor plus the chunk's earlier entries of this expert, by a prefix sum.
+    uint order0 = 4u * p.max_tiles, cursor = first;
     for (uint c0 = 0u; c0 < p.entries; c0 += 256u) {
         uint i = c0 + t;
-        uint id = i < p.entries ? ids[i] : 0xffffffffu;
-        chunk_ids[t] = id;
+        uint m = i < p.entries && ids[i] == e ? 1u : 0u;
+        sa[t] = m;
         barrier();
-        uint rank = 0u;
-        bool last = true;
-        if (id != 0xffffffffu) {
-            for (uint j = 0u; j < t; ++j) rank += chunk_ids[j] == id ? 1u : 0u;
-            for (uint j = t + 1u; j < 256u; ++j) if (chunk_ids[j] == id) { last = false; break; }
-            tab[order0 + cursor[id] + rank] = i;
+        for (uint off = 1u; off < 256u; off <<= 1u) {
+            uint v = t >= off ? sa[t - off] : 0u;
+            barrier();
+            sa[t] += v;
+            barrier();
         }
-        barrier();
-        if (id != 0xffffffffu && last) cursor[id] += rank + 1u;
+        if (m != 0u) tab[order0 + cursor + sa[t] - 1u] = i;
+        cursor += sa[255];
         barrier();
     }
 }

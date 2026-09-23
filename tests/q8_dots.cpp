@@ -101,6 +101,51 @@ size_t check_type(uint32_t type, size_t nin, std::mt19937& rng) {
     }
     return rows * cols;
 }
+// A generated token's routed entries through the same dots: every entry equals a one-column matmul of its expert's matrix and its token's row, bit for bit, and the down projection their weighted sum.
+size_t check_experts(uint32_t type, std::mt19937& rng) {
+    const quant::QuantType* qt = quant::Registry::instance().get(type);
+    const size_t n_expert = 5, k = 2, rows = 6, entries = rows * k, nin = 256, nout = 8;
+    const size_t stride = nout * (nin / qt->block_size) * qt->type_size;
+    const auto w = packed(type, n_expert * nout, nin, rng);
+    std::uniform_real_distribution<float> u(-1.0f, 1.0f);
+    std::vector<float> x(rows * nin), x2(entries * nin), ids(entries), weights(entries, 0.5f);
+    for (float& v : x) v = u(rng);
+    for (float& v : x2) v = u(rng);
+    for (size_t e = 0; e < entries; ++e) {
+        const uint32_t id = (uint32_t)((e * 7 + e / k) % n_expert);
+        std::memcpy(&ids[e], &id, sizeof(id));
+    }
+    backend::CpuBackend cpu;
+    cpu.set_threads(4);
+    const auto wb = cpu.adopt(w.data(), w.size());
+    const auto xb = cpu.adopt(x.data(), x.size() * sizeof(float)), x2b = cpu.adopt(x2.data(), x2.size() * sizeof(float));
+    const auto ib = cpu.adopt(ids.data(), ids.size() * sizeof(float)), gb = cpu.adopt(weights.data(), weights.size() * sizeof(float));
+    const backend::Backend::Routing routing{{ib.get(), 0}, {gb.get(), 0}, k, n_expert};
+    const backend::RowRun decode[6] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}};
+    const backend::RowRuns runs{decode, 6};
+    std::vector<float> up(entries * nout), down(rows * nout, 0.0f);
+    const auto ub = cpu.adopt(up.data(), up.size() * sizeof(float));
+    cpu.matmul_experts({{type, {wb.get(), 0}, {ub.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, runs);
+    for (size_t e = 0; e < entries; ++e) {
+        uint32_t id;
+        std::memcpy(&id, &ids[e], sizeof(id));
+        std::vector<float> y(nout), yd(nout);
+        const auto xe = cpu.adopt(x.data() + (e / k) * nin, nin * sizeof(float)), ye = cpu.adopt(y.data(), nout * sizeof(float));
+        cpu.matmul(type, {wb.get(), id * stride / sizeof(float)}, {xe.get(), 0}, {ye.get(), 0}, nin, nout, 1);
+        require(std::memcmp(y.data(), up.data() + e * nout, nout * sizeof(float)) == 0,
+                "type " + std::to_string(type) + ": a routed entry differs from its expert's matmul");
+        const auto xd = cpu.adopt(x2.data() + e * nin, nin * sizeof(float)), yb = cpu.adopt(yd.data(), nout * sizeof(float));
+        cpu.matmul(type, {wb.get(), id * stride / sizeof(float)}, {xd.get(), 0}, {yb.get(), 0}, nin, nout, 1);
+        for (size_t o = 0; o < nout; ++o) down[(e / k) * nout + o] += 0.5f * yd[o];
+    }
+    std::vector<float> y(rows * nout, 0.0f);
+    const auto yb = cpu.adopt(y.data(), y.size() * sizeof(float));
+    cpu.matmul_experts_add(type, {wb.get(), 0}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);
+    for (size_t i = 0; i < rows * nout; ++i)
+        require(std::fabs(y[i] - down[i]) <= 1e-6f * (1.0f + std::fabs(down[i])),
+                "type " + std::to_string(type) + ": a routed down projection differs from its experts' matmuls");
+    return entries;
+}
 }  // namespace
 
 int main() {
@@ -111,7 +156,12 @@ int main() {
         for (uint32_t type : {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
                               gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K})
             for (size_t nin : {size_t(256), size_t(2048)}) n += check_type(type, nin, rng);
-        std::printf("q8 dots: %zu rows against the reference, alone, beside others and grouped\n", n);
+        size_t routed = 0;
+        for (uint32_t type : {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
+                              gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K})
+            routed += check_experts(type, rng);
+        std::printf("q8 dots: %zu rows against the reference, alone, beside others and grouped; %zu routed entries against their experts\n",
+                    n, routed);
         return 0;
     } catch (const std::exception& e) {
         std::printf("FAIL: %s\n", e.what());

@@ -199,7 +199,7 @@ struct Placement {
     std::vector<int> attn_device, ffn_device;
     int embed_device = 0, output_device = 0;
     // A routed layer with its feed-forward block on a host and its attention on a device runs each prompt whose extent reaches this on the device, its experts copied there for the pass: past some length a prompt's expert products on the host cost more than moving the experts.
-    // By extent, like every kernel choice, so a prompt takes the same path however it is batched. Zero keeps every run on the host.
+    // By extent, like every kernel choice, so a prompt takes the same path however it is batched. Zero keeps every run on the host, and a generated token (extent 1) never streams: one row cannot pay for moving a layer's experts.
     size_t stream_from = 0;
 };
 
@@ -520,7 +520,7 @@ public:
             devices_[cur]->b->embed(slot(ctx, cur, 0), token_embd_.type, token_embd_.slice(),
                                     token_embd_.nin, token_embd_.nout, ctx.ids.data(), rows);
             bool long_runs = false;
-            for (const backend::RowRun& run : ctx.runs) long_runs = long_runs || (place_.stream_from && run.extent >= place_.stream_from);
+            for (const backend::RowRun& run : ctx.runs) long_runs = long_runs || streams(run);
             const backend::RowRuns all{ctx.runs.data(), ctx.runs.size()};
             for (int l = 0; l < cfg.n_layer; l++) {
                 const size_t a = (size_t)place_.attn_device[(size_t)l];
@@ -905,6 +905,11 @@ private:
         devices_[to]->b->write(*dst.buffer, (dst.offset + base * E) * sizeof(float), ctx.staging.data(), bytes);
     }
 
+    // Whether a run takes a streamed layer on the device (Placement::stream_from).
+    bool streams(const backend::RowRun& run) const {
+        return place_.stream_from && run.extent >= std::max<size_t>(place_.stream_from, 2);
+    }
+
     // A streamed layer in a pass with long runs: consecutive entries alike form a group, the long ones run where the residual is, with the experts copied into the window once, and the rest on the host through a crossing each way.
     // The residual ends where it started, on the layer's attention device.
     void ffn_split(ExecContext& ctx, size_t dev, int l) {
@@ -912,10 +917,10 @@ private:
         const size_t host = (size_t)place_.ffn_device[(size_t)l];
         bool copied = false;
         for (size_t e = 0, base = 0; e < ctx.runs.size();) {
-            const bool on_device = ctx.runs[e].extent >= place_.stream_from;
+            const bool on_device = streams(ctx.runs[e]);
             ctx.part_runs.clear();
             size_t end = base;
-            for (; e < ctx.runs.size() && (ctx.runs[e].extent >= place_.stream_from) == on_device; ++e) {
+            for (; e < ctx.runs.size() && streams(ctx.runs[e]) == on_device; ++e) {
                 end = ctx.runs[e].end;
                 ctx.part_runs.push_back(backend::RowRun{end - base, ctx.runs[e].extent});
             }

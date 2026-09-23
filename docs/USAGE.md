@@ -269,7 +269,8 @@ extent, its last position counting any earlier history, the same quantity
 every kernel choice follows, so a prompt computes the same whether it
 arrives alone or beside other requests; a short follow-up in a chat whose
 history already passed `N` pays the copy too. Generated tokens stay on the
-CPU. `0` never copies. The device holds one layer's experts for this
+CPU whatever `N` is, since one token cannot pay for the copy. `0` never
+copies. The device holds one layer's experts for this
 (about 640 MB for Qwen3-30B-A3B Q8_0).
 
 ## KV cache types (`--cache-type-k`, `--cache-type-v`)

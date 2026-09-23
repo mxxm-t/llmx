@@ -76,6 +76,17 @@ struct Projection {
     size_t rows;
 };
 
+// The rows of a matmul grouped by the prompt they belong to. A device whose kernels differ with the width of a batch picks a row's kernel by `extent` rather than by the call's width, so a prompt computes the same whether its rows arrive in one pass or several, alone or beside other sequences' rows, and a server reusing a cached prefix produces what one pass over the whole prompt does.
+// `end` is one past the run's last row, runs in row order; `extent` is the position one past the prompt's last token for prompt rows, and 1 for a generated token. Without runs a backend chooses by the call's width.
+struct RowRun {
+    size_t end;
+    size_t extent;
+};
+struct RowRuns {
+    const RowRun* runs = nullptr;
+    size_t n = 0;
+};
+
 // KV cache storage belongs to the backend; the model layer keeps only the
 // logical view (docs/KV-CACHE.md). Block ids index one KVStorage and the same
 // id addresses every layer of it. Block size and the layout inside a block
@@ -105,12 +116,14 @@ public:
 // and attends through it, so the table must cover length + nq. Entries are
 // whatever the storage was allocated to hold, tokens for the dense cache
 // (docs/EXECUTION.md).
+// `extent` is what RowRun's is for these rows, 0 when unknown, and a device choosing an attention kernel by it computes a row the same way whatever shares its pass.
 struct KVView {
     KVStorage* storage;
     const int32_t* blocks;
     size_t n_blocks;
     size_t length;
     size_t nq;
+    size_t extent = 0;
 };
 
 class Backend {
@@ -186,14 +199,14 @@ public:
     // format/gguf.hpp, where the constants are. Rows are iterated
     // outer and the batch inner so each weight row is read once per block.
     virtual void matmul(uint32_t type, CSlice data, CSlice X,
-                        Slice Y, size_t nin, size_t nout, size_t nbatch) = 0;
+                        Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}) = 0;
 
     // Y += W X, the projection whose output joins the residual stream: the
     // model asks for the sum and each backend produces it its own way. The
     // CPU computes the product into scratch and adds; a device folds the
     // add into the matmul's store, one dispatch fewer per projection.
     virtual void matmul_add(uint32_t type, CSlice data, CSlice X,
-                            Slice Y, size_t nin, size_t nout, size_t nbatch) = 0;
+                            Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}) = 0;
 
     // Gather `count` rows of an embedding table into `dst`, row-major, `nin`
     // floats each. This is an op rather than a model-side read because the
@@ -206,10 +219,10 @@ public:
     // Independent projections of the same X; outputs must not overlap each
     // other, X, or any weights. All outputs are complete on return.
     virtual void matmul_group(std::initializer_list<Projection> projections,
-                              CSlice X, size_t nin, size_t nbatch) {
+                              CSlice X, size_t nin, size_t nbatch, RowRuns runs = {}) {
         for (const auto& p : projections) {
             if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
-            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch);
+            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch, runs);
         }
     }
 

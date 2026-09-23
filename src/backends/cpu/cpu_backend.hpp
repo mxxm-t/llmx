@@ -341,8 +341,9 @@ public:
 
     // The product lands in a scratch buffer kept across calls and is added
     // to Y, so the arithmetic is the separate matmul and add exactly.
+    // Row runs are for a device whose kernels differ by width; the CPU does not read them.
     void matmul_add(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
-                    size_t nin, size_t nout, size_t nbatch) override {
+                    size_t nin, size_t nout, size_t nbatch, RowRuns = {}) override {
         const size_t bytes = nout * nbatch * sizeof(float);
         if (!add_scratch_ || add_scratch_bytes_ < bytes) {
             add_scratch_ = alloc(bytes, Memory::device);
@@ -355,7 +356,7 @@ public:
     size_t add_scratch_bytes_ = 0;
 
     void matmul(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
-                size_t nin, size_t nout, size_t nbatch) override {
+                size_t nin, size_t nout, size_t nbatch, RowRuns = {}) override {
         const uint8_t* data = (const uint8_t*)bytes_at(weights);
         const float* X = at(X_s);
         float* Y = at(Y_s);
@@ -492,7 +493,7 @@ public:
     }
 
     void matmul_group(std::initializer_list<Projection> projections,
-                      CSlice X_s, size_t nin, size_t nbatch) override {
+                      CSlice X_s, size_t nin, size_t nbatch, RowRuns = {}) override {
         bool grouped = threads_ > 1 && nbatch == 1 && projections.size() > 1;
         for (const auto& p : projections)
             if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");

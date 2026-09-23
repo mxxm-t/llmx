@@ -232,6 +232,7 @@ struct ExecContext {
     size_t logit_rows = 0;
     std::vector<uint32_t> ids, pos, pick;
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
+    std::vector<backend::RowRun> runs, head_runs;      // the pass's rows and the head's, by entry
     std::vector<backend::Ticket> tickets;      // per device
     std::vector<float> staging;
 };
@@ -247,6 +248,9 @@ struct BatchEntry {
     bool want_logits;
     // The logits after every token of the entry rather than only its last, for scoring a text through the same batched passes a prompt takes; with want_logits.
     bool every_logits = false;
+    // What a device chooses this entry's kernels by (backend::RowRun): for a prompt's rows the position one past the prompt's last token, for a generated token 1. Zero takes the entry's own row count.
+    // A prompt given its extent computes the same whether it arrives in one pass or in slices, alone or beside other sequences, with or without a reused prefix.
+    size_t extent = 0;
 };
 
 class Model {
@@ -462,6 +466,8 @@ public:
         ctx.ids.resize(rows);
         ctx.pos.resize(rows);
         ctx.pick.resize(want);
+        ctx.runs.resize(n_entries);
+        ctx.head_runs.clear();
         ctx.views.resize(storages_.size());
         for (auto& v : ctx.views) v.resize(n_entries);
 
@@ -486,12 +492,22 @@ public:
                 ctx.ids[r + b] = en.ids[b];
                 ctx.pos[r + b] = (uint32_t)(len + b);
             }
-            for (size_t s = 0; s < storages_.size(); ++s)
+            const size_t extent = en.extent ? en.extent : en.n;
+            for (size_t s = 0; s < storages_.size(); ++s) {
                 ctx.views[s][e] = en.seq->kv_[s].view(storages_[s]->storage.get());
-            if (en.want_logits && en.every_logits)
+                ctx.views[s][e].extent = extent;
+            }
+            ctx.runs[e] = backend::RowRun{r + en.n, extent};
+            // The head reads one row per entry as a generated token's, or every row of a scored text as its prompt's.
+            if (en.want_logits && en.every_logits) {
                 for (size_t b = 0; b < en.n; ++b) ctx.pick[w++] = (uint32_t)(r + b);
+                ctx.head_runs.push_back(backend::RowRun{w, extent});
+            }
             r += en.n;
-            if (en.want_logits && !en.every_logits) ctx.pick[w++] = (uint32_t)(r - 1);
+            if (en.want_logits && !en.every_logits) {
+                ctx.pick[w++] = (uint32_t)(r - 1);
+                ctx.head_runs.push_back(backend::RowRun{w, 1});
+            }
         }
 
         try {
@@ -518,7 +534,8 @@ public:
                 b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), output_norm_.slice(),
                                 want, E, E, cfg.rms_eps);
                 b.matmul(output_.type, output_.slice(), slot(ctx, cur, 1),
-                         {ctx.logits_buf.get(), 0}, output_.nin, output_.nout, want);
+                         {ctx.logits_buf.get(), 0}, output_.nin, output_.nout, want,
+                         backend::RowRuns{ctx.head_runs.data(), ctx.head_runs.size()});
             }
             for (size_t d = 0; d < devices_.size(); ++d)
                 if (devices_[d]->used) ctx.tickets[d] = devices_[d]->b->submit();
@@ -593,7 +610,8 @@ public:
             size_t i = 0;
             while (i < ids.size()) {
                 const size_t B = std::min((size_t)ubatch(), ids.size() - i);
-                const BatchEntry entry{&seq_, ids.data() + i, B, i + B == ids.size()};
+                BatchEntry entry{&seq_, ids.data() + i, B, i + B == ids.size()};
+                entry.extent = start + ids.size();
                 forward(ctx_, &entry, 1);
                 i += B;
             }
@@ -618,6 +636,7 @@ public:
                 const size_t B = std::min((size_t)ubatch(), ids.size() - i);
                 BatchEntry entry{&seq_, ids.data() + i, B, true};
                 entry.every_logits = true;
+                entry.extent = ids.size();
                 forward(ctx_, &entry, 1);
                 for (size_t j = 0; j < B; ++j) each(i + j, ctx_.logits(j));
                 i += B;
@@ -862,9 +881,10 @@ private:
 
         b.rms_norm_rows(h, x, w.attn_norm.slice(), rows, E, E, cfg.rms_eps);
 
+        const backend::RowRuns runs{ctx.runs.data(), ctx.runs.size()};
         b.matmul_group({projection(w.attn_q, q),
                         projection(w.attn_k, k),
-                        projection(w.attn_v, v)}, h, E, rows);
+                        projection(w.attn_v, v)}, h, E, rows, runs);
 
         const backend::Backend::RopeArgs rope{{d.rope_cos.get(), 0}, {d.rope_sin.get(), 0},
                                               half, ctx.pos.data(), cfg.rms_eps};
@@ -875,7 +895,7 @@ private:
                     cfg.n_head, cfg.n_head_kv, cfg.head_dim);
 
         b.matmul_add(w.attn_output.type, w.attn_output.slice(), attn, x,
-                     w.attn_output.nin, w.attn_output.nout, rows);
+                     w.attn_output.nin, w.attn_output.nout, rows, runs);
     }
 
     void ffn_half(ExecContext& ctx, size_t dev, int l, size_t rows) {
@@ -887,11 +907,12 @@ private:
 
         b.rms_norm_rows(h, x, w.ffn_norm.slice(), rows, E, E, cfg.rms_eps);
 
+        const backend::RowRuns runs{ctx.runs.data(), ctx.runs.size()};
         b.matmul_group({projection(w.ffn_gate, gate),
-                        projection(w.ffn_up, up)}, h, E, rows);
+                        projection(w.ffn_up, up)}, h, E, rows, runs);
         b.silu_mul(ffn, gate, up, rows * (size_t)cfg.n_ff);
         b.matmul_add(w.ffn_down.type, w.ffn_down.slice(), ffn, x,
-                     w.ffn_down.nin, w.ffn_down.nout, rows);
+                     w.ffn_down.nin, w.ffn_down.nout, rows, runs);
     }
 
     // A block returns to the pool only once the backend has retired every

@@ -470,18 +470,22 @@ size_t check_kernels(backend::Backend& vk) {
             values += close(ac, av, 1e-4, "norm_rope_kv attention differs beyond 1e-4");
         }
         // attention over a wide pass of 128-wide heads takes the tiled
-        // kernel: 32 and 45 query rows (one full tile, then a partial one
-        // whose last rows mask part of a K/V tile) after histories of 0 and
-        // 70 tokens, against the CPU at 1e-4.
-        for (size_t hist : {size_t(0), size_t(70)}) {
-            for (size_t nq : {size_t(32), size_t(45)}) {
+        // kernel: 32, 45 and 100 query rows (one full tile, then partial ones
+        // whose last rows mask part of a K/V tile) after histories of 0, 70
+        // and 600 tokens, against the CPU at 1e-4. The queries are scaled so
+        // a row's scores spread over about ten, peaked as a trained model's
+        // are rather than the near-uniform softmax of unit random values, and
+        // the cache is taken both as f32 and as f16.
+        for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16})
+        for (size_t hist : {size_t(0), size_t(70), size_t(600)}) {
+            for (size_t nq : {size_t(32), size_t(45), size_t(100)}) {
                 const int n_head = 4, n_head_kv = 2, head_dim = 128;
                 const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
                 const auto hk = uniform((hist + nq) * kvw, 50 + (uint32_t)nq), hv = uniform((hist + nq) * kvw, 51 + (uint32_t)nq);
-                const auto qq = uniform(nq * qw, 52 + (uint32_t)hist);
+                const auto qq = uniform(nq * qw, 52 + (uint32_t)hist, -6.0f, 6.0f);
                 auto run = [&](backend::Backend& b, std::vector<float>& att) {
                     const size_t bt = b.kv_layout().block_tokens;
-                    auto st = b.kv_alloc(1, n_head_kv, head_dim, 512);
+                    auto st = b.kv_alloc(1, n_head_kv, head_dim, 1024, kt, kt);
                     infer::BlockPool pool(st->max_blocks());
                     infer::KVSequence seq(&pool, bt);
                     const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
@@ -504,7 +508,138 @@ size_t check_kernels(backend::Backend& vk) {
                 std::vector<float> ac, av;
                 run(p.cpu, ac);
                 run(p.vk, av);
-                values += close(ac, av, 1e-4, "tiled attention differs beyond 1e-4");
+                try {
+                    values += close(ac, av, 1e-4, "tiled attention differs beyond 1e-4");
+                } catch (const std::runtime_error&) {
+                    std::fprintf(stderr, "  tiled attention hist %zu rows %zu cache %s\n", hist, nq,
+                                 kt == backend::KVType::f16 ? "f16" : "f32");
+                    throw;
+                }
+            }
+        }
+        // Batch invariance: a row computes the same, bit for bit, whatever else shares its call, once the caller says which prompt each row belongs to (backend::RowRun).
+        // A prompt's last rows alone against the same rows of one call over the whole prompt, a generated row alone against it beside others, and a call mixing both against each.
+        // The row kernel and the tile round differently; a server that reused a cached prefix prefilled the prompt's tail through the row kernel where one pass over the whole prompt took the tile, and the two gave different greedy text.
+        // A 249-row prompt at 2048 and 6144 outputs takes the tallest tile and its 9-row tail the shortest, so the heights are compared as well as the widths.
+        if (nin == 1024)
+        for (size_t n_out : {size_t(300), size_t(2048), size_t(6144)}) {
+            const size_t n_in = 1024, rows = 249, tail = 9, prompt = 249;
+            const auto wi = uniform(n_in * n_out, 70);
+            std::vector<uint8_t> wi8(n_out * (n_in / 32) * gguf::Q8_0_TYPESIZE), wi40(n_out * (n_in / 32) * gguf::Q4_0_TYPESIZE);
+            for (size_t r = 0; r < n_out; ++r) {
+                quant::quantize_row_q8_0(wi.data() + r * n_in, wi8.data() + r * (n_in / 32) * gguf::Q8_0_TYPESIZE, n_in / 32);
+                quant::quantize_row_q4_0(wi.data() + r * n_in, wi40.data() + r * (n_in / 32) * gguf::Q4_0_TYPESIZE, n_in / 32);
+            }
+            std::vector<uint8_t> wi6(n_out * (n_in / 256) * gguf::Q6_K_TYPESIZE), wi4k(n_out * (n_in / 256) * gguf::Q4_K_TYPESIZE);
+            for (size_t i = 0; i < wi6.size(); ++i) wi6[i] = uint8_t(i * 131 + 7);
+            for (size_t i = 0; i < wi4k.size(); ++i) wi4k[i] = uint8_t(i * 61 + 3);
+            for (size_t r = 0; r < n_out * (n_in / 256); ++r) {
+                wi6[r * gguf::Q6_K_TYPESIZE + 208] = 0x00;
+                wi6[r * gguf::Q6_K_TYPESIZE + 209] = 0x14;
+                uint8_t* blk = wi4k.data() + r * gguf::Q4_K_TYPESIZE;
+                blk[0] = 0x00; blk[1] = 0x14; blk[2] = 0x00; blk[3] = 0x10;
+            }
+            const auto x = uniform(rows * n_in, 71);
+            const auto y0 = uniform(rows * n_out, 72);
+            const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+            struct W { uint32_t type; const void* data; size_t bytes; };
+            for (const W& t : {W{gguf::GGML_TYPE_F32, wi.data(), wi.size() * sizeof(float)},
+                               W{gguf::GGML_TYPE_Q8_0, wi8.data(), wi8.size()}, W{gguf::GGML_TYPE_Q4_0, wi40.data(), wi40.size()},
+                               W{gguf::GGML_TYPE_Q6_K, wi6.data(), wi6.size()}, W{gguf::GGML_TYPE_Q4_K, wi4k.data(), wi4k.size()}}) {
+                const auto wb = vk.adopt(t.data, t.bytes);
+                for (bool add : {false, true}) {
+                    auto run = [&](size_t first, size_t n, const std::vector<backend::RowRun>& runs) {
+                        const auto yb = vk.alloc(n * n_out * sizeof(float), backend::Memory::device);
+                        vk.write(*yb, 0, y0.data() + first * n_out, n * n_out * sizeof(float));
+                        const backend::RowRuns rr{runs.data(), runs.size()};
+                        if (add) vk.matmul_add(t.type, {wb.get(), 0}, {xb.get(), first * n_in}, {yb.get(), 0}, n_in, n_out, n, rr);
+                        else vk.matmul(t.type, {wb.get(), 0}, {xb.get(), first * n_in}, {yb.get(), 0}, n_in, n_out, n, rr);
+                        std::vector<float> y(n * n_out);
+                        vk.read(*yb, 0, y.data(), y.size() * sizeof(float));
+                        return y;
+                    };
+                    auto part = [&](const std::vector<float>& v, size_t from, size_t to) {
+                        return std::vector<float>(v.begin() + from * n_out, v.begin() + to * n_out);
+                    };
+                    try {
+                        const auto whole = run(0, rows, {{rows, prompt}});
+                        values += exact(part(whole, rows - tail, rows), run(rows - tail, tail, {{tail, prompt}}),
+                                        "a prompt's last rows differ from the same rows of one pass");
+                        std::vector<backend::RowRun> each;
+                        for (size_t r = 0; r < 13; ++r) each.push_back({r + 1, 1});
+                        const auto gen = run(0, 13, each);
+                        values += exact(part(gen, 5, 6), run(5, 1, {{1, 1}}), "a generated row alone differs from it beside others");
+                        const auto mixed = run(0, rows, {{3, 1}, {rows, prompt}});
+                        values += exact(part(mixed, 0, 3), part(gen, 0, 3), "generated rows beside a prompt differ from them alone");
+                        values += exact(part(mixed, 3, rows), part(whole, 3, rows), "a prompt beside generated rows differs from it alone");
+                    } catch (const std::runtime_error&) {
+                        std::fprintf(stderr, "  batch invariance: matmul type %u, %zu outputs%s\n", t.type, n_out, add ? ", accumulating" : "");
+                        throw;
+                    }
+                }
+            }
+        }
+        // The same for attention: a prompt's tail after its reused history against those rows of one pass over the whole prompt, and a decode row alone against it beside a sequence with a longer history, which splits the dispatch more ways.
+        if (nin == 1024)
+        for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16}) {
+            const int n_head = 4, n_head_kv = 2, head_dim = 128;
+            const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
+            const size_t len = 100, pre = 91, ha = 500, hb = 1500;
+            const auto K = uniform(2048 * kvw, 80), V = uniform(2048 * kvw, 81), Q = uniform(2048 * qw, 82, -6.0f, 6.0f);
+            const auto Kb = vk.adopt(K.data(), K.size() * sizeof(float));
+            const auto Vb = vk.adopt(V.data(), V.size() * sizeof(float));
+            const auto Qb = vk.adopt(Q.data(), Q.size() * sizeof(float));
+            const size_t bt = vk.kv_layout().block_tokens;
+            auto st = vk.kv_alloc(1, n_head_kv, head_dim, 4096, kt, kt);
+            infer::BlockPool pool(st->max_blocks());
+            auto read_rows = [&](const backend::KVView* views, size_t n_views, size_t q_first, size_t nrows) {
+                const auto ob = vk.alloc(nrows * qw * sizeof(float), backend::Memory::device);
+                vk.attention({Qb.get(), q_first * qw}, 0, views, n_views, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+                std::vector<float> o(nrows * qw);
+                vk.read(*ob, 0, o.data(), o.size() * sizeof(float));
+                return o;
+            };
+            auto prompt_rows = [&](size_t hist, size_t nq, size_t extent) {
+                infer::KVSequence seq(&pool, bt);
+                if (hist) {
+                    seq.prepare(hist);
+                    const backend::KVView h = seq.view(st.get());
+                    vk.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                    seq.commit();
+                }
+                seq.prepare(nq);
+                backend::KVView v = seq.view(st.get());
+                v.extent = extent;
+                vk.kv_write(0, &v, 1, {Kb.get(), hist * kvw}, {Vb.get(), hist * kvw});
+                auto o = read_rows(&v, 1, hist, nq);
+                seq.abort();
+                return o;
+            };
+            try {
+                const auto whole = prompt_rows(0, len, len);
+                values += exact(std::vector<float>(whole.end() - (len - pre) * qw, whole.end()), prompt_rows(pre, len - pre, len),
+                                "attention over a prompt's tail differs from those rows of one pass");
+                infer::KVSequence a(&pool, bt), b(&pool, bt);
+                for (auto* s : {&a, &b}) {
+                    const size_t hist = s == &a ? ha : hb;
+                    s->prepare(hist);
+                    const backend::KVView h = s->view(st.get());
+                    vk.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                    s->commit();
+                    s->prepare(1);
+                }
+                backend::KVView both[2] = {a.view(st.get()), b.view(st.get())};
+                both[0].extent = both[1].extent = 1;
+                vk.kv_write(0, &both[0], 1, {Kb.get(), ha * kvw}, {Vb.get(), ha * kvw});
+                vk.kv_write(0, &both[1], 1, {Kb.get(), hb * kvw}, {Vb.get(), hb * kvw});
+                const auto pair = read_rows(both, 2, 0, 2);
+                values += exact(std::vector<float>(pair.begin(), pair.begin() + qw), read_rows(both, 1, 0, 1),
+                                "a decode row's attention beside a longer history differs from it alone");
+                a.abort();
+                b.abort();
+            } catch (const std::runtime_error&) {
+                std::fprintf(stderr, "  batch invariance: attention, cache %s\n", kt == backend::KVType::f16 ? "f16" : "f32");
+                throw;
             }
         }
         // The twin the per-row attention kernel, or its merge after a

@@ -1308,19 +1308,65 @@ public:
     }
 
     void matmul(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
-                size_t nbatch) override {
+                size_t nbatch, RowRuns runs = {}) override {
         const Projection one{type, w, Y, nout};
-        matmul_group_impl({one}, X, nin, nbatch, false);
+        matmul_runs({one}, X, nin, nbatch, false, runs);
     }
     // The residual add folded into the kernels' store: Y += W X.
     void matmul_add(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
-                    size_t nbatch) override {
+                    size_t nbatch, RowRuns runs = {}) override {
         const Projection one{type, w, Y, nout};
-        matmul_group_impl({one}, X, nin, nbatch, true);
+        matmul_runs({one}, X, nin, nbatch, true, runs);
     }
     void matmul_group(std::initializer_list<Projection> projections, CSlice X,
-                      size_t nin, size_t nbatch) override {
-        matmul_group_impl(projections, X, nin, nbatch, false);
+                      size_t nin, size_t nbatch, RowRuns runs = {}) override {
+        matmul_runs(projections, X, nin, nbatch, false, runs);
+    }
+
+    // With row runs, each row takes the kernel its prompt's extent selects rather than the one the call's width does: the row kernel below the tile threshold, the tile from it.
+    // The row kernel and the tile round differently, so choosing by width made a prompt's result depend on how its rows were batched; a server reusing a cached prefix prefilled a short tail through the row kernel where one pass over the whole prompt took the tile, and its greedy text could differ from the CLI's.
+    // Adjacent runs that take the same kernel are one call; a call of mixed runs becomes one call per kernel, each over its rows at their offsets.
+    // A tile row's inner-dimension split (shaders/matmul_tile_q.comp) is the one a pass over its whole prompt would take, from the prompt's column tiles up to a full microbatch of 512 rows, so a split row's sums are grouped the same way however it was batched; runs whose splits differ are separate calls.
+    static size_t split_tiles_of(size_t extent) { return (std::min<size_t>(extent, 512) + 63) / 64; }
+    void matmul_runs(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nbatch,
+                     bool accumulate, RowRuns runs) {
+        if (!runs.n || !nbatch) {
+            matmul_group_impl(projections, X, nin, nbatch, accumulate);
+            return;
+        }
+        if (runs.runs[runs.n - 1].end != nbatch) throw std::runtime_error("vulkan: row runs do not cover the batch");
+        bool eight_bit_or_float = true;
+        for (const Projection& pr : projections)
+            if (pr.type != gguf::GGML_TYPE_Q8_0 && pr.type != gguf::GGML_TYPE_F32) eight_bit_or_float = false;
+        const size_t tile_from = tile_from_for(dev_->profile, eight_bit_or_float, nin);
+        size_t start = 0;
+        for (size_t i = 0; i < runs.n;) {
+            const bool tile = runs.runs[i].extent >= tile_from;
+            const size_t split = tile ? split_tiles_of(runs.runs[i].extent) : 0;
+            auto same = [&](const RowRun& r) {
+                return (r.extent >= tile_from) == tile && (!tile || split_tiles_of(r.extent) == split);
+            };
+            size_t j = i + 1;
+            while (j < runs.n && same(runs.runs[j])) ++j;
+            const size_t end = runs.runs[j - 1].end;
+            if (end < start) throw std::runtime_error("vulkan: row runs out of order");
+            if (end > start) {
+                const int k = tile ? 1 : 0;
+                if (start == 0 && end == nbatch) {
+                    matmul_group_impl(projections, X, nin, nbatch, accumulate, k, split);
+                } else {
+                    std::vector<Projection> at(projections);
+                    for (Projection& pr : at) pr.out.offset += start * pr.rows;
+                    const CSlice xs{X.buffer, X.offset + start * nin};
+                    if (at.size() == 1) matmul_group_impl({at[0]}, xs, nin, end - start, accumulate, k, split);
+                    else if (at.size() == 2) matmul_group_impl({at[0], at[1]}, xs, nin, end - start, accumulate, k, split);
+                    else if (at.size() == 3) matmul_group_impl({at[0], at[1], at[2]}, xs, nin, end - start, accumulate, k, split);
+                    else throw std::logic_error("vulkan: a row-run call of more than three projections");
+                }
+            }
+            start = end;
+            i = j;
+        }
     }
 
     // Up to three projections of one X in one dispatch when the batch is
@@ -1328,8 +1374,9 @@ public:
     // are: the row kernel hands workgroups to projections in order. Wide
     // batches go to the tile kernel, one dispatch per projection, which
     // reads a weight once per pass.
+    // `kernel_choice` forces the row kernel (0) or the tile (1); below zero the call's width chooses. `split_tiles` is the column tiles the tile's inner-dimension split is taken for, zero for the call's own.
     void matmul_group_impl(std::initializer_list<Projection> projections, CSlice X,
-                           size_t nin, size_t nbatch, bool accumulate) {
+                           size_t nin, size_t nbatch, bool accumulate, int kernel_choice = -1, size_t split_tiles = 0) {
         if (projections.size() > 3) {
             // The kernel's limit, and no caller passes more; split.
             std::vector<Projection> all(projections);
@@ -1338,7 +1385,7 @@ public:
                     i + 3 <= all.size() ? std::initializer_list<Projection>{all[i], all[i + 1], all[i + 2]}
                     : (i + 2 == all.size() ? std::initializer_list<Projection>{all[i], all[i + 1]}
                                            : std::initializer_list<Projection>{all[i]});
-                matmul_group_impl(part, X, nin, nbatch, accumulate);
+                matmul_group_impl(part, X, nin, nbatch, accumulate, kernel_choice, split_tiles);
             }
             return;
         }
@@ -1370,7 +1417,7 @@ public:
             if (pr->type != gguf::GGML_TYPE_Q8_0 && pr->type != gguf::GGML_TYPE_F32)
                 eight_bit_or_float = false;
         const size_t tile_from = tile_from_for(dev_->profile, eight_bit_or_float, nin);
-        if (nbatch >= tile_from) {
+        if (kernel_choice == 1 || (kernel_choice < 0 && nbatch >= tile_from)) {
             const size_t gy = (nbatch + 63) / 64;
             if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
                 throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
@@ -1397,7 +1444,11 @@ public:
                 const uint32_t gx = groups(pr->rows, height);
                 const int small = height == kTileRowsSmall ? 1 : 0;
                 const size_t nblk = nin / 32;
-                const size_t kper = q ? split_blocks(gx * gy, nblk) : nblk;
+                // The split is the one the row's whole prompt would take (matmul_runs), so a prompt sums its inner dimension in the same parts however its rows were batched.
+                const size_t st = split_tiles ? split_tiles : gy;
+                const size_t gxs = groups(pr->rows, tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort,
+                                                                  kTileRowsTall, pr->rows, st, nin));
+                const size_t kper = q ? split_blocks(gxs * st, nblk) : nblk;
                 const size_t parts = (nblk + kper - 1) / kper;
                 const uint32_t pc[6] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type,
                                         accumulate && parts == 1 ? 1u : 0u, u32(kper)};
@@ -1429,9 +1480,9 @@ public:
                 for (const Projection* pr : live)
                     (pr->type == live[0]->type ? same : rest).push_back(*pr);
                 auto run = [&](const std::vector<Projection>& v) {
-                    if (v.size() == 1) matmul_group_impl({v[0]}, X, nin, nbatch, accumulate);
-                    else if (v.size() == 2) matmul_group_impl({v[0], v[1]}, X, nin, nbatch, accumulate);
-                    else matmul_group_impl({v[0], v[1], v[2]}, X, nin, nbatch, accumulate);
+                    if (v.size() == 1) matmul_group_impl({v[0]}, X, nin, nbatch, accumulate, kernel_choice);
+                    else if (v.size() == 2) matmul_group_impl({v[0], v[1]}, X, nin, nbatch, accumulate, kernel_choice);
+                    else matmul_group_impl({v[0], v[1], v[2]}, X, nin, nbatch, accumulate, kernel_choice);
                 };
                 run(same);
                 run(rest);
@@ -1646,13 +1697,16 @@ public:
         const size_t rows = placed.back().row0 + placed.back().view->nq;
         if (floats_from(Q) < rows * qstride || floats_from(out) < rows * qstride)
             throw std::runtime_error("vulkan: attention rows outside their allocation");
-        // Views of 128-wide heads with 32 rows or more take the tiled kernel,
+        // Views of 128-wide heads whose prompt reaches 32 tokens take the tiled kernel,
         // the rest the per-row kernel: at most two dispatches per layer
         // whatever the batch, and a decode row never sits in a tile that
         // would stage its whole history for one live row.
+        // The choice is by the view's extent, the prompt its rows belong to, rather than its row count when the model gives one, so a prompt's rows take the same kernel however they were batched: the last few rows of a prompt whose prefix was reused take the tile, as they would in one pass over the whole prompt.
         std::vector<Placed> wide, narrow;
-        for (const Placed& pv : placed)
-            (pv.view->nq >= dev_->profile.attention_tile_rows && head_dim == 128 ? wide : narrow).push_back(pv);
+        for (const Placed& pv : placed) {
+            const size_t extent = pv.view->extent ? pv.view->extent : pv.view->nq;
+            (extent >= dev_->profile.attention_tile_rows && head_dim == 128 ? wide : narrow).push_back(pv);
+        }
         if (!wide.empty()) {
             ViewTable t = view_table(layer, wide, false);
             VulkanKVStorage& s = *t.storage;
@@ -1676,28 +1730,21 @@ public:
             // whole batch is this dispatch and a head is whole blocks.
             const bool quant = wide.empty() && head_dim % 32 == 0;
             const VkDescriptorBufferInfo xq = quant ? xq_for(rows * qstride) : bind(out);
-            // Few (row, head) pairs, as in a decode step, split the
-            // longest history into chunks of 32 tokens across workgroups,
-            // enough to fill the device, capped at 64 splits; a batch with
-            // the pairs already takes one split.
+            // A row's history is split in parts of 32 tokens across workgroups, the part doubling until at most 64 cover it, which is what keeps a decode token over a long history on enough workgroups to fill the device.
+            // The parts are the row's own, from its length alone: a row computes the same whatever else is in the dispatch, so a sequence decodes the same alone or beside others. The dispatch has as many splits as its longest row can need; a row's parts past its history are empty and add nothing.
             size_t longest = 0;
             for (const Placed& pv : narrow)
                 longest = std::max(longest, VulkanKVStorage::add(pv.view->length, pv.view->nq));
             const size_t pairs = t.rows * (size_t)n_head;
-            size_t nsplit = 1;
             const DeviceProfile& prof = dev_->profile;
-            if (pairs < prof.attention_split_below_pairs)
-                nsplit = std::min(prof.attention_split_max,
-                                  std::max<size_t>(1, (longest + prof.attention_split_chunk - 1) /
-                                                          prof.attention_split_chunk));
-            const size_t chunk = (longest + nsplit - 1) / nsplit;
-            nsplit = (longest + chunk - 1) / chunk;
+            const size_t chunk = prof.attention_split_chunk;
+            const size_t nsplit = std::min(prof.attention_split_max, std::max<size_t>(1, (longest + chunk - 1) / chunk));
             const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
             if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
                 grow(scratch_, scratch_floats * sizeof(float));
-            struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant; }
+            struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts; }
                 pc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, (uint32_t)head_dim, u32(kVkBlockTokens),
-                   scale, u32(nsplit), u32(chunk), quant ? 1u : 0u};
+                   scale, u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(prof.attention_split_max)};
             const VkDescriptorBufferInfo scratch = scratch_
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
             const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));

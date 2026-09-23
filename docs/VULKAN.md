@@ -443,6 +443,8 @@ HF gate measures the cost of it.
 
   Second, a call with fewer workgroups than `tile_split_per_cu` per compute unit (eight, measured) splits its inner dimension into parts of at least `tile_split_min_blocks` quant blocks (16). Each part writes its partial sums to a scratch buffer. `matmul_reduce.comp` then adds the parts in order, so the result does not depend on which workgroup finishes first.
 
+  The workgroups counted are those of a pass over the row's whole prompt, up to a microbatch of 512 rows, rather than those of the call, so a row sums its inner dimension in the same parts however its prompt was batched (Batch invariance, below). Taking the split from the projection's shape alone, as if every call were one column tile, did that too, but split 512-row passes as finely as 64-row ones: 8B Q8_0 at 512 rows fell from 866 to 802 tok/s.
+
   Same card, Q8_0 at 64 columns:
 
   | projection | before | block-major | block-major and split |
@@ -515,11 +517,13 @@ HF gate measures the cost of it.
   `subgroupAdd`, and the softmax is online, a running maximum and sum with
   the value accumulation rescaled as the maximum moves, so a 40k-token
   history needs no score array. The subgroups' partial states merge
-  through shared memory at the end. When a pass has few (row, head)
-  pairs, a decode token, the history is split into 32-token chunks across
-  workgroups, capped at 64 splits, each writing its unnormalized state to
-  a scratch buffer that `attention_merge` combines; that took a 250-token
-  decode from 134 to 36 us per layer on the Radeon VII. Keys are walked
+  through shared memory at the end. A row's history is split across
+  workgroups in parts of 32 tokens, the part doubling until at most 64
+  cover the row, each writing its unnormalized state to a scratch buffer
+  that `attention_merge` combines; splitting took a 250-token decode from
+  134 to 36 us per layer on the Radeon VII. The parts follow from the
+  row's own length, so a row computes the same in every dispatch (Batch
+  invariance, below). Keys are walked
   through the block table, a small buffer uploaded per call. GQA maps
   `n_head / n_head_kv` query heads to one KV head. Several views in one
   call are one dispatch through the view table below. Head widths up to
@@ -527,10 +531,24 @@ HF gate measures the cost of it.
 - **attention_tile**, for a wide pass of 128-wide heads: a workgroup
   per 32 query rows and head, the head's K and V streamed through shared
   memory in 16-token tiles so a tile is read once per 32 rows rather
-  than once per row; eight lanes share a row, a score is three xor
-  shuffles, the softmax is online per row. It took a 16384-token prompt
-  on Qwen3-0.6B from 155 to 513 tok/s, level with the reference's 514.
-  Other head widths and narrow passes take the per-row kernel.
+  than once per row. It took a 16384-token prompt on Qwen3-0.6B from
+  155 to 513 tok/s, level with the reference's 514. Other head widths
+  and narrow passes take the per-row kernel.
+
+  Eight lanes share a query row. Lane l owns dimensions 32k + 4l to 32k + 4l + 3, so a row's lanes read a staged token as one contiguous 128-byte run per k, and K and V are staged eight values per load.
+
+  A tile of 16 keys goes through the online softmax as a unit. The scores come eight tokens at a time: every lane forms its partial dots, then a butterfly over the row's lanes finishes the sums and deals them out one to a lane, which is 7 shuffles per 8 tokens. Then comes one maximum, one exponential per score, and one rescale of the accumulator per tile. The probabilities reach the row's lanes through shared memory for the weighted sum of V.
+
+  The first version finished every score in every lane with three shuffles, and took two exponentials and a rescale per token. At 512 rows it was 28 percent of Qwen3-0.6B-Q8_0's device time on an MI50.
+
+  | | pp512, 0.6B Q8_0 | pp2048, 0.6B Q8_0 | pp2048, 8B Q8_0 |
+  |---|---:|---:|---:|
+  | MI50, before | 6029 tok/s | 3267 | 668 |
+  | MI50, after | 7513 | 5566 | 809 |
+  | Radeon VII, before | 3052 | 2161 | - |
+  | Radeon VII, after | 3165 | 2416 | - |
+
+  Finishing each tile's scores all at once rather than eight at a time held 208 registers and one wave per SIMD, where the eight-token chunks hold 128 and two waves. A 32-token tile ran slower than a 16-token one: 4577 against 5576 tok/s at 2048 rows, since its shared memory leaves one workgroup per compute unit.
 - **The view table** (`views.glsl`): every cache kernel takes one
   dispatch per layer over every view of a batch. The host writes a table
   into the args arena, per view its batch row, dispatch-local row, row
@@ -585,6 +603,16 @@ touches the cache (`kv_write`, `norm_rope_kv`, `attention`,
 two sides' types, and the storage picks the variant, so a kernel carries
 no type branch. Halving the cache is what lets Qwen3-8B run a 16k
 context on the 16 GB card.
+
+## Batch invariance
+
+A row computes the same, bit for bit, whatever else shares its pass. The row kernels and the tiles round differently, so a kernel chosen by a call's width made a prompt's result depend on how its rows were batched. A server that reused a cached prefix prefilled the prompt's tail through the row kernel, while one pass over the whole prompt took the tile for the same rows, and on a near-tie the two gave different greedy text.
+
+- **Kernel by prompt, not by batch.** The model passes each call its rows as runs (`backend::RowRun`). A run's extent is the position one past the last token of the prompt its rows belong to, or 1 for a generated token. A matmul row takes the tile when its extent reaches the tile threshold and the row kernel below it, and a call that mixes the two becomes one call per kernel over its rows. Attention takes the tile for views whose extent reaches 32. Short prompts keep the row kernels they took before.
+- **Split by prompt.** The integer-dot tile's inner-dimension split is the one a pass over the row's whole prompt takes (above), and a call whose rows belong to prompts with different splits becomes one call per split.
+- **Attention history by row.** The per-row kernel splits a row's history into parts of 32 tokens, the part doubling until at most 64 cover the row, so the parts follow from the row's length alone. Every dispatch splits by that rule, and a row's empty parts merge as exact zeros.
+
+`backend-vulkan` checks this bitwise at the model's shapes, 2048 and 6144 outputs over 249 rows, where the whole prompt takes the tallest tile and its 9-row tail the shortest. It compares a prompt's last rows alone against the same rows of one pass, a generated row alone against it beside others, a call mixing both against each, attention over a prompt's tail after a reused history against one pass, and a decode row beside a longer history against it alone. At the model API, Qwen3-0.6B-Q8_0 on an MI50 gives bit-identical logits through one pass, a forked reused prefix and a prefix-then-tail pass.
 
 ## Selection and reporting
 

@@ -1,47 +1,59 @@
 #version 450
 // Causal GQA for a wide pass over every view of a batch: one workgroup
 // per (tile of 32 query rows of one view, head). The K and V of the
-// head's KV group are streamed through shared memory in tiles of 16
+// head's KV group are streamed through shared memory in tiles of TK
 // tokens, so a tile is read from memory once per 32 query rows rather
 // than once per row, which is what the per-row kernel costs over a long
-// prompt. Eight lanes share a query row, each owning 16 elements of it; a
-// token's score is the lanes' partial dots combined with three xor
-// shuffles, and the softmax is online per row as in attention.comp, so
-// no score array exists. Row b of a view attends through its hist + b;
-// tokens past that are masked in the tile that holds them and later tiles
-// are not read. The head width is fixed at 128 so the per-lane arrays
-// stay in registers; other widths take the per-row kernel. Workgroups
-// are laid out view by view, ceil(nq / 32) tiles each times the heads, so
-// a tile never straddles two views.
+// prompt. Row b of a view attends through its hist + b; tokens past that
+// are masked in the tile that holds them and later tiles are not read.
+// The head width is fixed at 128 so the per-lane arrays stay in
+// registers; other widths take the per-row kernel. Workgroups are laid
+// out view by view, ceil(nq / 32) tiles each times the heads, so a tile
+// never straddles two views.
+//
+// Eight lanes share a query row, lane l owning dimensions 32k + 4l to 32k + 4l + 3 for k = 0 to 3, so the eight lanes of a row read a staged token as one contiguous 128-byte run per k.
+// A K tile is taken in two phases. First every lane forms its partial dot with each of eight tokens at a time, and a butterfly over the row's lanes both finishes the sums and deals them out, one to a lane: 7 shuffles per 8 tokens where finishing each sum in every lane took 24.
+// Then the tile's scores go through one online softmax step: its maximum, one exponential per score, and the accumulator rescaled once per tile rather than once per token. The probabilities go through shared memory to the row's lanes for the weighted sum of V.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
-#extension GL_EXT_shader_16bit_storage : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint rows; uint n_head; uint n_head_kv; uint bt; float scale;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
+// K and V read eight values per load: as 16-bit halves in a uvec4, or as two vec4 of floats.
 #ifdef LLMX_K16
-layout(set = 0, binding = 2) readonly buffer K { uint16_t kb16[]; };
-float k_load(uint i) { return unpackHalf2x16(uint(kb16[i])).x; }
+layout(set = 0, binding = 2) readonly buffer K { uvec4 kb[]; };
+void k_load8(uint i, out vec4 a, out vec4 b) {
+    uvec4 w = kb[i / 8u];
+    a = vec4(unpackHalf2x16(w.x), unpackHalf2x16(w.y));
+    b = vec4(unpackHalf2x16(w.z), unpackHalf2x16(w.w));
+}
 #else
-layout(set = 0, binding = 2) readonly buffer K { float kb[]; };
-float k_load(uint i) { return kb[i]; }
+layout(set = 0, binding = 2) readonly buffer K { vec4 kb[]; };
+void k_load8(uint i, out vec4 a, out vec4 b) { a = kb[i / 4u]; b = kb[i / 4u + 1u]; }
 #endif
 #ifdef LLMX_V16
-layout(set = 0, binding = 3) readonly buffer V { uint16_t vb16[]; };
-float v_load(uint i) { return unpackHalf2x16(uint(vb16[i])).x; }
+layout(set = 0, binding = 3) readonly buffer V { uvec4 vb[]; };
+void v_load8(uint i, out vec4 a, out vec4 b) {
+    uvec4 w = vb[i / 8u];
+    a = vec4(unpackHalf2x16(w.x), unpackHalf2x16(w.y));
+    b = vec4(unpackHalf2x16(w.z), unpackHalf2x16(w.w));
+}
 #else
-layout(set = 0, binding = 3) readonly buffer V { float vb[]; };
-float v_load(uint i) { return vb[i]; }
+layout(set = 0, binding = 3) readonly buffer V { vec4 vb[]; };
+void v_load8(uint i, out vec4 a, out vec4 b) { a = vb[i / 4u]; b = vb[i / 4u + 1u]; }
 #endif
 layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 #include "views.glsl"
-const uint DIM = 128u, TQ = 32u, TK = 16u, LANES = 8u, PER = DIM / LANES;
-shared float ks[TK * DIM];
-shared float vs[TK * DIM];
+#ifndef TK
+#define TK 16u
+#endif
+const uint DIM = 128u, TQ = 32u, LANES = 8u, OWN = TK / LANES;
+shared vec4 ks[TK * DIM / 4u];
+shared vec4 vs[TK * DIM / 4u];
+shared float ps[TQ * TK];
 
 void main() {
     uint wg = gl_WorkGroupID.x;
@@ -63,47 +75,86 @@ void main() {
     bool live = b < nq;
     uint qstride = p.n_head * DIM;
     uint qbase = (row0 + min(b, nq - 1u)) * qstride + h * DIM;
-    uint d0 = lane * PER;
-    float qv[PER];
-    for (uint i = 0u; i < PER; ++i) qv[i] = q[qbase + d0 + i];
-    float acc[PER];
-    for (uint i = 0u; i < PER; ++i) acc[i] = 0.0;
+    vec4 qv[4], acc[4];
+    for (uint k = 0u; k < 4u; ++k) {
+        uint d = 32u * k + 4u * lane;
+        qv[k] = vec4(q[qbase + d], q[qbase + d + 1u], q[qbase + d + 2u], q[qbase + d + 3u]) * p.scale;
+        acc[k] = vec4(0.0);
+    }
     float m = -1.0 / 0.0, l = 0.0;
     // The last token any row of this tile attends, exclusive.
     uint tile_end = min(hist + tile * TQ + TQ, hist + nq);
     uint my_end = hist + b + 1u;
     uint bf = p.n_head_kv * p.bt * DIM;
     for (uint t0 = 0u; t0 < tile_end; t0 += TK) {
-        // Stage the tile: token t0 + j at row j of ks and vs, 8 floats a thread.
-        for (uint i = lid; i < TK * DIM; i += 256u) {
-            uint j = i / DIM, d = i - j * DIM;
+        // Stage the tile, eight values a load: token t0 + j at row j of ks and vs, zero past the tile's last token so a masked score meets a finite value.
+        for (uint i = lid; i < TK * DIM / 8u; i += 256u) {
+            uint j = i / (DIM / 8u), d = (i - j * (DIM / 8u)) * 8u;
             uint t = t0 + j;
+            vec4 k0 = vec4(0.0), k1 = vec4(0.0), v0 = vec4(0.0), v1 = vec4(0.0);
             if (t < tile_end) {
                 uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t - (t / p.bt) * p.bt) * DIM + d;
-                ks[i] = k_load(base);
-                vs[i] = v_load(base);
+                k_load8(base, k0, k1);
+                v_load8(base, v0, v1);
             }
+            uint s = (j * DIM + d) / 4u;
+            ks[s] = k0; ks[s + 1u] = k1;
+            vs[s] = v0; vs[s + 1u] = v1;
         }
         barrier();
-        uint cnt = min(TK, tile_end - t0);
-        for (uint j = 0u; j < cnt; ++j) {
-            float part = 0.0;
-            for (uint i = 0u; i < PER; ++i) part += qv[i] * ks[j * DIM + d0 + i];
-            part += subgroupShuffleXor(part, 1u);
-            part += subgroupShuffleXor(part, 2u);
-            part += subgroupShuffleXor(part, 4u);
-            if (t0 + j < my_end) {
-                float s = part * p.scale;
-                float mn = max(m, s);
-                float corr = exp(m - mn), w = exp(s - mn);
-                l = l * corr + w;
-                for (uint i = 0u; i < PER; ++i) acc[i] = acc[i] * corr + w * vs[j * DIM + d0 + i];
-                m = mn;
+        // Phase one, eight tokens at a time: partial dots with each, then the butterfly, which leaves token 8g + l's score in lane l. After the step over lane bit 2 a lane keeps the half of the eight its bit selects, summed with its partner's, and bits 1 and 0 halve that again.
+        float sc[OWN];
+        float mt = -1.0 / 0.0;
+        for (uint g = 0u; g < OWN; ++g) {
+            float part[8];
+            for (uint j = 0u; j < 8u; ++j) {
+                float s = 0.0;
+                for (uint k = 0u; k < 4u; ++k) s += dot(qv[k], ks[((8u * g + j) * DIM + 32u * k + 4u * lane) / 4u]);
+                part[j] = s;
             }
+            for (uint half_ = 4u; half_ >= 1u; half_ /= 2u) {
+                bool upper = (lane & half_) != 0u;
+                for (uint j = 0u; j < half_; ++j) {
+                    float lo = part[j], hi = part[j + half_];
+                    part[j] = (upper ? hi : lo) + subgroupShuffleXor(upper ? lo : hi, half_);
+                }
+            }
+            sc[g] = t0 + 8u * g + lane < my_end ? part[0] : -1.0 / 0.0;
+            mt = max(mt, sc[g]);
+        }
+        mt = max(mt, subgroupShuffleXor(mt, 1u));
+        mt = max(mt, subgroupShuffleXor(mt, 2u));
+        mt = max(mt, subgroupShuffleXor(mt, 4u));
+        float mn = max(m, mt);
+        // A row with nothing unmasked yet keeps m at minus infinity; its weights are zero rather than the NaN of infinity minus infinity.
+        float corr = mn == -1.0 / 0.0 ? 1.0 : exp(m - mn);
+        float sum = 0.0;
+        for (uint g = 0u; g < OWN; ++g) {
+            float w = sc[g] == -1.0 / 0.0 ? 0.0 : exp(sc[g] - mn);
+            ps[r * TK + 8u * g + lane] = w;
+            sum += w;
+        }
+        sum += subgroupShuffleXor(sum, 1u);
+        sum += subgroupShuffleXor(sum, 2u);
+        sum += subgroupShuffleXor(sum, 4u);
+        l = l * corr + sum;
+        m = mn;
+        for (uint k = 0u; k < 4u; ++k) acc[k] *= corr;
+        // The row's eight lanes are one subgroup, so the probabilities they wrote are visible to each other once the subgroup has passed this point.
+        subgroupMemoryBarrierShared();
+        subgroupBarrier();
+        // Phase two: the weighted sum of the tile's values.
+        for (uint j = 0u; j < TK; ++j) {
+            float w = ps[r * TK + j];
+            for (uint k = 0u; k < 4u; ++k) acc[k] += w * vs[(j * DIM + 32u * k + 4u * lane) / 4u];
         }
         barrier();
     }
     if (live) {
-        for (uint i = 0u; i < PER; ++i) o[qbase + d0 + i] = acc[i] / l;
+        for (uint k = 0u; k < 4u; ++k) {
+            uint d = 32u * k + 4u * lane;
+            vec4 a = acc[k] / l;
+            o[qbase + d] = a.x; o[qbase + d + 1u] = a.y; o[qbase + d + 2u] = a.z; o[qbase + d + 3u] = a.w;
+        }
     }
 }

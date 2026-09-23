@@ -101,10 +101,8 @@ struct DeviceProfile {
     // The same split for the other quantized types, which the integer-dot tile moved: on the MI50 a 1024-wide K-quant projection crosses near 40 rows and a 4096-wide one near 20.
     size_t tile_from_other_narrow = 64;
     size_t tile_narrow_nin = 4096;
-    // Splitting a short attention history across workgroups: below this many
-    // (row, head) pairs, cut the history into chunks of this many tokens, at
-    // most this many ways.
-    size_t attention_split_below_pairs = 256, attention_split_chunk = 32, attention_split_max = 64;
+    // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row.
+    size_t attention_split_chunk = 32, attention_split_max = 64;
     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, and the fewest quant blocks of 32 a part may sum.
     // A short prompt is one column tile, so a 4096-row projection of an 8B model is 64 workgroups for sixty compute units, and the down projection's 384 blocks per workgroup ran at 2.5 TFLOPS where the gate projection read 9.5.
     uint32_t tile_split_per_cu = 8, tile_split_min_blocks = 16;

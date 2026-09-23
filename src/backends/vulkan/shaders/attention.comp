@@ -20,7 +20,7 @@ layout(local_size_x = 256) in;
 // this dispatch alone, and the row kernel's 16-bit twin of the output is
 // written beside it (xquant.glsl): a head's lanes are consecutive.
 layout(push_constant) uniform P {
-    uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant;
+    uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
@@ -62,8 +62,11 @@ void main() {
     uint qbase = (view_row0(v) + b) * qstride + h * p.dim;
     if (lid < p.dim) qs[lid] = q[qbase + lid];
     barrier();
-    uint end = min(view_hist(v) + b + 1u, (split + 1u) * p.chunk);
-    uint start = split * p.chunk;
+    // The row's parts: chunk tokens each, the chunk doubling until at most max_parts cover the row, so they follow from the row's length alone and not from the dispatch; a split past them is empty.
+    uint len = view_hist(v) + b + 1u, chunk = p.chunk;
+    while ((len + chunk - 1u) / chunk > p.max_parts) chunk *= 2u;
+    uint start = min(split * chunk, len);
+    uint end = min(len, start + chunk);
     uint bf = p.n_head_kv * p.bt * p.dim;
     // This lane's elements: lane, lane + size, ... below dim; at most four.
     float acc0 = 0.0, acc1 = 0.0, acc2 = 0.0, acc3 = 0.0;

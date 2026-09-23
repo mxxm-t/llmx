@@ -206,6 +206,8 @@ public:
                 const size_t n = std::min(budget, r->prompt_.size() - r->prompt_done_);
                 const bool last = r->prompt_done_ + n == r->prompt_.size();
                 entries.push_back(infer::BatchEntry{&r->seq_, r->prompt_.data() + r->prompt_done_, n, last});
+                // The whole prompt's extent, reused prefix included, so its slices take the kernels one pass over it would.
+                entries.back().extent = r->prompt_.size();
                 if (last) wanting.push_back(r);
                 budget -= n;
             }

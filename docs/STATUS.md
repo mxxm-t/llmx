@@ -1290,7 +1290,32 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Qwen3-8B-Q8_0 | 677 vs 526, 129% | 819 vs 732, 112% | 866 vs 873, 99% | 50 vs 56, 90% |
 
   Both 8B files now clear the reference in prompt processing, except Q8_0 at 512 rows, which is level. What remains below it is 0.6B Q4_0 and Q8_0 prompt processing and Q8_0 decode. `bench --profile` now also prints the driver's register, shared memory and waves-per-SIMD figures for each kernel that ran.
-- **Left:** on the MI50 against one card of the reference, from the one-card gate in the forty-first paragraph: 0.6B Q4_0 and Q8_0 prompt processing at 73 to 91 percent, 8B Q8_0 level at 512 rows, and Q8_0 decode at 90 percent; loading, which reads the whole file into host memory before uploading it; folding a layer's
+
+  Forty-second, the prefill attention tile and batch invariance. At 512 rows the causal attention tile was 28 percent of Qwen3-0.6B-Q8_0's device time on an MI50, about 0.6 TFLOPS. It finished every score in every lane with three shuffles, and took two exponentials and a rescale of the accumulator per token. It now takes a tile of 16 keys as a unit. Scores come eight tokens at a time, and a butterfly over the row's lanes finishes and deals them out one to a lane, 7 shuffles per 8 tokens. Then one maximum, one exponential per score, and one rescale per tile. Lanes own interleaved dimensions, so a row reads a staged token as contiguous 128-byte runs. On one MI50, 0.6B Q8_0 goes from 6029 to 7513 tok/s at 512 rows and from 3267 to 5566 at 2048, and 8B Q8_0 from 668 to 809 at 2048; on the Radeon VII 0.6B Q8_0 gains 3.5 percent at 512 rows and 12 at 2048. Finishing a whole tile's scores at once held 208 registers and one wave per SIMD, and a 32-key tile left one workgroup per compute unit; both were slower.
+
+  Its output is within 1.3e-6 of the CPU's, as the old tile's was, yet the server test failed: a request reusing a cached prefix gave different greedy text from the CLI over the whole prompt. Two causes. The first was the test. Its server was started without the device and cache flags, since the helper that adds them looked at the executable path rather than the command, so every device suite had compared a CPU server with a device CLI. The CLI side also ran the default f16 cache where the server side asked for f32. On this prompt the first token is a near-tie, margin 0.26 on the CPU and 0.15 on the old tile, and the new tile tipped it.
+
+  The second was real: a row's result depended on its batch. The row kernels and the tiles round differently and the kernel was chosen by the call's width, so a prompt's reused-prefix tail took the row kernel where one pass took the tile; the integer-dot tile's split followed the call's workgroups; and the per-row attention split its history by the dispatch's longest row and not at all past 256 (row, head) pairs.
+  - A batch entry now carries its extent, the position one past its prompt's last token or 1 for a generated token, and the model passes calls their rows as runs (`backend::RowRun`). A row takes the tile when its extent reaches the tile threshold, and a call that mixes kernels becomes one call per kernel.
+  - The tile's split is the one a pass over the row's whole prompt takes, up to 512 rows. Taking it from the shape alone as if every call were one column tile was also invariant, but cost 8B Q8_0 at 512 rows 866 to 802 tok/s.
+  - Attention takes the tile by the view's extent, and the per-row kernel splits a row's history in parts of 32 tokens, doubling until at most 64 cover it, from the row's length alone.
+
+  `backend-vulkan` checks this bitwise at 2048 and 6144 outputs over 249 rows, where the whole prompt takes the tallest tile and its tail the shortest. At the model API, one pass, a forked reused prefix and a prefix-then-tail pass give bit-identical logits on the MI50. The server test now runs its server on the device with f32 caches on both sides, and passes on both cards.
+
+  Two things did not hold. Every prompt row through the tile, which would have kept many short prompts on one tile call, failed the HF gate on the short-prompt fixtures (a top-5 overlap of 3 against 4, and the exact F32 logits) and halved a 5-token prompt, 769 to 394 tok/s. The row kernel looping over the call's columns inside one dispatch took 24-row prompts from 1063 to 1202 tok/s but slowed the Q8_0 matvec from 167 to 209 us at 14336 x 4096 with the same registers, so it is not kept. The cost that stays is first-token time for many short prompts arriving together: 16 concurrent requests on 0.6B Q8_0 wait 134 to 138 ms at the median where they waited 49 to 102, since each prompt now takes the row kernel it takes alone rather than joining one tile call. Throughput and inter-token latency are unchanged.
+
+  The one-card gate at this change, same protocol:
+
+  | model | pp64 | pp247 | pp512 | tg32 |
+  |---|---:|---:|---:|---:|
+  | Qwen3-0.6B-Q4_0 | 4015 vs 4915, 82% | 6341 vs 7217, 88% | 6855 vs 6821, 101% | 322 vs 328, 98% |
+  | Qwen3-0.6B-Q5_K_M | 3853 vs 2976, 129% | 6342 vs 4448, 143% | 7033 vs 5750, 122% | 341 vs 314, 109% |
+  | Qwen3-0.6B-Q8_0 | 4006 vs 4651, 86% | 6865 vs 6980, 98% | 7504 vs 6690, 112% | 272 vs 297, 91% |
+  | Qwen3-8B-Q4_K_M | 632 vs 261, 242% | 801 vs 633, 126% | 872 vs 763, 114% | 87 vs 89, 97% |
+  | Qwen3-8B-Q8_0 | 690 vs 527, 131% | 848 vs 736, 115% | 914 vs 865, 106% | 50 vs 58, 86% |
+
+  Prompt processing now clears the reference on every file at 512 rows and on both 8B files everywhere. Below it: 0.6B Q4_0 and Q8_0 at 64 and 247 rows, decode on the 8-bit files at 86 and 91 percent, and many concurrent short prompts' first token.
+- **Left:** on the MI50 against one card of the reference, from the one-card gate in the forty-second paragraph: 0.6B Q4_0 and Q8_0 prompt processing at 82 to 98 percent at 64 and 247 rows, decode on the 8-bit files at 86 and 91 percent, and first-token time for many concurrent short prompts; loading, which reads the whole file into host memory before uploading it; folding a layer's
   two RMS norms into the matmul that follows, worth a fifth of the
   barrier time measured in the twenty-ninth; the
   prompt pass at 32 to 128 rows (the twenty-seventh paragraph): the

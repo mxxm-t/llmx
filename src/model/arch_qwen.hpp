@@ -19,8 +19,8 @@
 #include "model/kv_cache.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 
-// Qwen3-style transformer forward pass, from scratch.
-// The compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a backend::Backend, so the same model code runs on CPU now and other backends later.
+// Qwen3-style transformer forward pass, from scratch: dense Qwen3 and its mixture-of-experts form, qwen3moe.
+// The compute primitives (matmul, attention, RMSNorm, RoPE, expert routing) are delegated to a backend::Backend, so the same model code runs on every backend.
 // Dense matrices use supported block quants or F32; normalization weights are F32.
 // Tensor ne[0] is the input dimension, with each output row contiguous.
 // Attention projection width is n_head*head_dim and need not equal n_embd.
@@ -38,6 +38,13 @@ struct QwenConfig {
     int context_length = 4096;
     float rope_theta = 10000.0f;
     float rms_eps = 1e-6f;
+    // qwen3moe: experts per layer, experts each token takes, an expert's hidden width, and whether the chosen probabilities are renormalized to sum to one.
+    // A layer is a mixture of experts when its router tensor is present, so dense and routed layers can mix.
+    std::string arch = "qwen3";
+    int n_expert = 0;
+    int n_expert_used = 0;
+    int n_ff_exp = 0;
+    bool expert_norm = true;
 };
 
 inline QwenConfig load_config(const gguf::GGUFModel& m) {
@@ -95,22 +102,29 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
         if (v && (v->vtype != gguf::V_STRING || v->s != supported))
             throw std::runtime_error("inference: unsupported metadata " + k);
     };
-    option("general.architecture", "qwen3");
-    option("qwen3.tensor_data_layout", "reference");
-    option("qwen3.rope.scaling.type", "none");
-    if (real("qwen3.rope.scaling.factor", 1) != 1 ||
-        real("qwen3.rope.scale_linear", 1) != 1)
+    if (const auto* a = find("general.architecture")) {
+        if (a->vtype != gguf::V_STRING || (a->s != "qwen3" && a->s != "qwen3moe"))
+            throw std::runtime_error("inference: unsupported metadata general.architecture");
+        c.arch = a->s;
+    }
+    const std::string p = c.arch + ".";
+    const bool moe = c.arch == "qwen3moe";
+    option(p + "tensor_data_layout", "reference");
+    option(p + "rope.scaling.type", "none");
+    if (real(p + "rope.scaling.factor", 1) != 1 ||
+        real(p + "rope.scale_linear", 1) != 1)
         throw std::runtime_error("inference: scaled RoPE is unsupported");
 
-    c.n_layer = integer("qwen3.block_count");
-    c.n_embd = integer("qwen3.embedding_length");
-    c.n_ff = integer("qwen3.feed_forward_length");
-    c.n_head = integer("qwen3.attention.head_count");
-    c.n_head_kv = integer("qwen3.attention.head_count_kv", c.n_head);
+    c.n_layer = integer(p + "block_count");
+    c.n_embd = integer(p + "embedding_length");
+    // A mixture-of-experts file needs the dense width only for its dense layers, if it has any.
+    c.n_ff = moe && !find(p + "feed_forward_length") ? 0 : integer(p + "feed_forward_length");
+    c.n_head = integer(p + "attention.head_count");
+    c.n_head_kv = integer(p + "attention.head_count_kv", c.n_head);
     if (c.n_head % c.n_head_kv)
         throw std::runtime_error("inference: head count must be divisible by KV head count");
-    if (find("qwen3.attention.key_length")) {
-        c.head_dim = integer("qwen3.attention.key_length");
+    if (find(p + "attention.key_length")) {
+        c.head_dim = integer(p + "attention.key_length");
     } else {
         if (c.n_embd % c.n_head)
             throw std::runtime_error("inference: embedding width does not determine an integral head width");
@@ -119,12 +133,30 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
     if (c.head_dim <= 0 || c.head_dim % 2 ||
         c.n_head > std::numeric_limits<int>::max() / c.head_dim)
         throw std::runtime_error("inference: invalid attention projection dimensions");
-    if (integer("qwen3.attention.value_length", c.head_dim) != c.head_dim ||
-        integer("qwen3.rope.dimension_count", c.head_dim) != c.head_dim)
+    if (integer(p + "attention.value_length", c.head_dim) != c.head_dim ||
+        integer(p + "rope.dimension_count", c.head_dim) != c.head_dim)
         throw std::runtime_error("inference: value and rotary widths must equal key width");
-    c.context_length = integer("qwen3.context_length", c.context_length);
-    c.rope_theta = float(real("qwen3.rope.freq_base", c.rope_theta));
-    c.rms_eps = float(real("qwen3.attention.layer_norm_rms_epsilon", c.rms_eps));
+    c.context_length = integer(p + "context_length", c.context_length);
+    c.rope_theta = float(real(p + "rope.freq_base", c.rope_theta));
+    c.rms_eps = float(real(p + "attention.layer_norm_rms_epsilon", c.rms_eps));
+    if (moe) {
+        c.n_expert = integer(p + "expert_count");
+        c.n_expert_used = integer(p + "expert_used_count");
+        c.n_ff_exp = integer(p + "expert_feed_forward_length");
+        if (c.n_expert_used > c.n_expert || c.n_expert_used > 256)
+            throw std::runtime_error("inference: more experts per token than the layer has, or above 256");
+        if (const auto* v = find(p + "expert_weights_norm")) {
+            if (v->vtype != gguf::V_BOOL) throw std::runtime_error("inference: invalid boolean type " + p + "expert_weights_norm");
+            c.expert_norm = v->b;
+        }
+        // Routing is a softmax over the scores; a sigmoid gate, a shared expert or a scaled mixture is another architecture's.
+        if (const auto* g = find(p + "expert_gating_func"))
+            if (g->vtype != gguf::V_UINT32 || g->u != 1) throw std::runtime_error("inference: unsupported expert gating function");
+        if (find(p + "expert_shared_count") || find(p + "expert_shared_feed_forward_length"))
+            throw std::runtime_error("inference: shared experts are unsupported");
+        if (real(p + "expert_weights_scale", 1) != 1)
+            throw std::runtime_error("inference: scaled expert weights are unsupported");
+    }
     const uint64_t kv_width = uint64_t(c.n_head_kv) * c.head_dim;
     const auto max_floats = std::vector<float>().max_size();
     if (uint64_t(c.context_length) > max_floats / kv_width ||
@@ -152,6 +184,9 @@ struct LayerWeights {
     Weight attn_norm, attn_q_norm, attn_k_norm;
     Weight attn_q, attn_k, attn_v, attn_output;
     Weight ffn_norm, ffn_gate, ffn_up, ffn_down;
+    // A routed layer's router and its stacked experts, whose nin and nout are one expert's.
+    bool moe = false;
+    Weight ffn_gate_inp, ffn_gate_exps, ffn_up_exps, ffn_down_exps;
 };
 
 // Where each tensor role runs, as an index into the model's backends.
@@ -205,7 +240,7 @@ struct ExecContext {
     backend::Backend* backend = nullptr;
     bool pending = false;
 
-    static constexpr size_t kSlots = 9;
+    static constexpr size_t kSlots = 12;
     struct Scratch {
         backend::BufferPtr arena;
         size_t rows = 0;
@@ -646,6 +681,7 @@ private:
     int q_dim_ = 0;
     int ubatch_ = 512;   // the conventional default
     ModelOptions options_;
+    bool any_dense_ = false;   // some layer has a dense feed-forward block
     std::string out_name_;
     std::unordered_map<std::string, size_t> tindex_;
     std::vector<LayerWeights> layers_;
@@ -705,10 +741,33 @@ private:
             w.attn_v      = check(a, pre + "attn_v.weight", cfg.n_embd, kv_width);
             w.attn_output = check(a, pre + "attn_output.weight", q_dim_, cfg.n_embd);
             w.ffn_norm    = check(f, pre + "ffn_norm.weight", cfg.n_embd, 1, true);
+            w.moe = tindex_.count(pre + "ffn_gate_inp.weight") != 0;
+            if (w.moe) {
+                if (!cfg.n_expert) throw std::runtime_error("inference: expert tensors in a dense architecture " + pre);
+                w.ffn_gate_inp  = check(f, pre + "ffn_gate_inp.weight", cfg.n_embd, cfg.n_expert);
+                w.ffn_gate_exps = experts(f, pre + "ffn_gate_exps.weight", cfg.n_embd, cfg.n_ff_exp);
+                w.ffn_up_exps   = experts(f, pre + "ffn_up_exps.weight", cfg.n_embd, cfg.n_ff_exp);
+                w.ffn_down_exps = experts(f, pre + "ffn_down_exps.weight", cfg.n_ff_exp, cfg.n_embd);
+                continue;
+            }
+            if (!cfg.n_ff) throw std::runtime_error("inference: dense layer without a feed-forward width " + pre);
+            any_dense_ = true;
             w.ffn_gate    = check(f, pre + "ffn_gate.weight", cfg.n_embd, cfg.n_ff);
             w.ffn_up      = check(f, pre + "ffn_up.weight", cfg.n_embd, cfg.n_ff);
             w.ffn_down    = check(f, pre + "ffn_down.weight", cfg.n_ff, cfg.n_embd);
         }
+    }
+
+    // A stacked expert tensor: n_expert matrices of `output` rows of `input` values, the whole tensor adopted as one buffer.
+    Weight experts(size_t device, const std::string& name, uint64_t input, uint64_t output) {
+        const auto& t = tensor(name);
+        if (t.ne.size() != 3 || t.ne[0] != input || t.ne[1] != output || t.ne[2] != (uint64_t)cfg.n_expert)
+            throw std::runtime_error("inference: incompatible tensor layout " + name);
+        const size_t i = tindex_.at(t.name);
+        backend::BufferPtr buf = devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i));
+        const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
+        if (hp && hp >= m_->blob.data() && hp < m_->blob.data() + m_->blob.size()) holds_payload_ = true;
+        return Weight{t.type, std::move(buf), (size_t)input, (size_t)output};
     }
 
     // Physical batch: how many tokens go through ONE forward pass of the graph.
@@ -754,6 +813,8 @@ private:
             ExecContext::Scratch& sc = ctx.scratch[d];
             if (!devices_[d]->used || (sc.arena && sc.rows >= rows)) continue;
             const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
+            // The feed-forward slots hold a dense layer's hidden rows or a routed layer's k expert rows per token, whichever is wider.
+            const size_t ff = std::max(any_dense_ ? (size_t)cfg.n_ff : 0, (size_t)cfg.n_expert_used * cfg.n_ff_exp);
             const size_t counts[ExecContext::kSlots] = {
                 mul(rows, (size_t)cfg.n_embd),   // x
                 mul(rows, (size_t)cfg.n_embd),   // h
@@ -761,9 +822,12 @@ private:
                 mul(rows, KV),                   // k
                 mul(rows, KV),                   // v
                 mul(rows, (size_t)q_dim_),       // attn
-                mul(rows, (size_t)cfg.n_ff),     // gate
-                mul(rows, (size_t)cfg.n_ff),     // up
-                mul(rows, (size_t)cfg.n_ff),     // ffn
+                mul(rows, ff),                   // gate
+                mul(rows, ff),                   // up
+                mul(rows, ff),                   // ffn
+                mul(rows, (size_t)cfg.n_expert),       // router scores
+                mul(rows, (size_t)cfg.n_expert_used),  // expert ids
+                mul(rows, (size_t)cfg.n_expert_used),  // expert weights
             };
             size_t offsets[ExecContext::kSlots];
             backend::BufferPtr arena = alloc_arena(*devices_[d]->b, counts, offsets);
@@ -801,7 +865,7 @@ private:
         devices_[to]->b->write(*dst.buffer, dst.offset * sizeof(float), ctx.staging.data(), bytes);
     }
 
-    // Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn.
+    // Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights.
     void attention_half(ExecContext& ctx, size_t dev, int l, size_t rows, size_t n_views) {
         Device& d = *devices_[dev];
         backend::Backend& b = *d.b;
@@ -842,6 +906,19 @@ private:
         b.rms_norm_rows(h, x, w.ffn_norm.slice(), rows, E, E, cfg.rms_eps);
 
         const backend::RowRuns runs{ctx.runs.data(), ctx.runs.size()};
+        if (w.moe) {
+            const backend::Slice scores = slot(ctx, dev, 9), ids = slot(ctx, dev, 10), weights = slot(ctx, dev, 11);
+            const size_t k = (size_t)cfg.n_expert_used, n_expert = (size_t)cfg.n_expert, ff = (size_t)cfg.n_ff_exp;
+            b.matmul(w.ffn_gate_inp.type, w.ffn_gate_inp.slice(), h, scores, E, n_expert, rows, runs);
+            b.route_experts(scores, rows, n_expert, k, cfg.expert_norm, ids, weights);
+            const backend::Backend::Routing routing{ids, weights, k, n_expert};
+            b.matmul_experts({projection(w.ffn_gate_exps, gate),
+                              projection(w.ffn_up_exps, up)}, h, E, rows, routing, runs);
+            b.silu_mul(ffn, gate, up, rows * k * ff);
+            b.matmul_experts_add(w.ffn_down_exps.type, w.ffn_down_exps.slice(), ffn, x,
+                                 ff, E, rows, routing, runs);
+            return;
+        }
         b.matmul_group({projection(w.ffn_gate, gate),
                         projection(w.ffn_up, up)}, h, E, rows, runs);
         b.silu_mul(ffn, gate, up, rows * (size_t)cfg.n_ff);

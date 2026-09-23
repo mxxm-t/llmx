@@ -330,9 +330,12 @@ public:
 
     void matmul(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
                 size_t nin, size_t nout, size_t nbatch, RowRuns = {}) override {
-        const uint8_t* data = (const uint8_t*)bytes_at(weights);
-        const float* X = at(X_s);
-        float* Y = at(Y_s);
+        matmul_raw(type, (const uint8_t*)bytes_at(weights), at(X_s), at(Y_s), nin, nout, nbatch);
+    }
+
+    // The matmul on host addresses, which an expert's matrix inside a stacked tensor needs.
+    void matmul_raw(uint32_t type, const uint8_t* data, const float* X, float* Y,
+                    size_t nin, size_t nout, size_t nbatch) {
         // Q8_0 keeps its fused dequant+FMA row dot for the single-column case, which is the decode path and is bandwidth bound rather than load bound, so the extra dequant buffer would buy nothing there.
         if (nbatch == 1 && type == gguf::GGML_TYPE_Q8_0) {
             matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
@@ -1020,7 +1023,140 @@ public:
         });
     }
 
+    void route_experts(CSlice scores_s, size_t rows, size_t n_expert, size_t k, bool normalize,
+                       Slice ids_s, Slice weights_s) override {
+        if (!k || k > n_expert) throw std::runtime_error("backend: routing selects no expert or more than exist");
+        if (k > 256) throw std::runtime_error("backend: more than 256 experts per token");
+        if (!rows) return;
+        span(*scores_s.buffer, scores_s.offset * sizeof(float), size_mul(rows, n_expert) * sizeof(float));
+        span(*ids_s.buffer, ids_s.offset * sizeof(float), size_mul(rows, k) * sizeof(float));
+        span(*weights_s.buffer, weights_s.offset * sizeof(float), size_mul(rows, k) * sizeof(float));
+        const float* scores = at(scores_s);
+        float* ids = at(ids_s);
+        float* weights = at(weights_s);
+        spread(rows, [&](size_t r) {
+            const float* s = scores + r * n_expert;
+            std::vector<float> p(s, s + n_expert);
+            float top = p[0];
+            for (size_t e = 1; e < n_expert; ++e) top = std::max(top, p[e]);
+            float sum = 0.0f;
+            for (float& v : p) { v = std::exp(v - top); sum += v; }
+            for (float& v : p) v /= sum;
+            // Probabilities are never negative, so a taken expert is marked below every candidate.
+            float chosen[256], total = 0.0f;
+            for (size_t j = 0; j < k; ++j) {
+                size_t best = 0;
+                for (size_t e = 1; e < n_expert; ++e)
+                    if (p[e] > p[best]) best = e;
+                chosen[j] = p[best];
+                total += p[best];
+                const uint32_t id = (uint32_t)best;
+                std::memcpy(ids + r * k + j, &id, sizeof(id));
+                p[best] = -1.0f;
+            }
+            for (size_t j = 0; j < k; ++j) weights[r * k + j] = normalize ? chosen[j] / total : chosen[j];
+        });
+    }
+
+    void matmul_experts(std::initializer_list<Projection> projections, CSlice X_s, size_t nin,
+                        size_t nrows, const Routing& routing, RowRuns = {}) override {
+        const size_t entries = size_mul(nrows, routing.k);
+        if (!entries) return;
+        const Grouping g = group_by_expert(routing, entries);
+        span(*X_s.buffer, X_s.offset * sizeof(float), size_mul(nrows, nin) * sizeof(float));
+        for (const Projection& p : projections) {
+            if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
+            span(*p.out.buffer, p.out.offset * sizeof(float), size_mul(entries, p.rows) * sizeof(float));
+            expert_products(p.type, p.data, routing.n_expert, at(X_s), routing.k, at(p.out), nin, p.rows, g);
+        }
+    }
+
+    // The slots' products land in scratch; each row's weighted sum is then formed in slot order and added, the order the interface fixes.
+    void matmul_experts_add(uint32_t type, CSlice data, CSlice X_s, Slice Y_s, size_t nin, size_t nout,
+                            size_t nrows, const Routing& routing, RowRuns = {}) override {
+        const size_t k = routing.k, entries = size_mul(nrows, k);
+        if (!entries) return;
+        const Grouping g = group_by_expert(routing, entries);
+        span(*X_s.buffer, X_s.offset * sizeof(float), size_mul(entries, nin) * sizeof(float));
+        span(*Y_s.buffer, Y_s.offset * sizeof(float), size_mul(nrows, nout) * sizeof(float));
+        span(*routing.weights.buffer, routing.weights.offset * sizeof(float), entries * sizeof(float));
+        expert_out_.resize(size_mul(entries, nout));
+        expert_products(type, data, routing.n_expert, at(X_s), 1, expert_out_.data(), nin, nout, g);
+        const float* w = at(routing.weights);
+        float* Y = at(Y_s);
+        spread(nrows, [&](size_t r) {
+            for (size_t o = 0; o < nout; ++o) {
+                float s = 0.0f;
+                for (size_t j = 0; j < k; ++j) s += w[r * k + j] * expert_out_[(r * k + j) * nout + o];
+                Y[r * nout + o] += s;
+            }
+        });
+    }
+
 private:
+    // A routing's entries by expert: entry order within each expert, experts in id order.
+    struct Grouping {
+        std::vector<uint32_t> order;
+        std::vector<size_t> start;   // n_expert + 1 offsets into order
+    };
+    Grouping group_by_expert(const Routing& routing, size_t entries) const {
+        span(*routing.ids.buffer, routing.ids.offset * sizeof(float), entries * sizeof(float));
+        const float* raw = at(routing.ids);
+        Grouping g;
+        g.start.assign(routing.n_expert + 1, 0);
+        std::vector<uint32_t> ids(entries);
+        std::memcpy(ids.data(), raw, entries * sizeof(uint32_t));
+        for (uint32_t id : ids) {
+            if (id >= routing.n_expert) throw std::runtime_error("backend: routed expert out of range");
+            ++g.start[id + 1];
+        }
+        for (size_t e = 0; e < routing.n_expert; ++e) g.start[e + 1] += g.start[e];
+        g.order.resize(entries);
+        std::vector<size_t> next(g.start.begin(), g.start.end() - 1);
+        for (size_t i = 0; i < entries; ++i) g.order[next[ids[i]]++] = (uint32_t)i;
+        return g;
+    }
+
+    // out[e*nout ..] = expert id(e)'s matrix times X row e / per, one batched matmul per expert over the rows routed to it.
+    void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t per, float* out,
+                         size_t nin, size_t nout, const Grouping& g) {
+        const size_t stride = size_mul(nout, row_bytes_of(type, nin));
+        span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
+        const uint8_t* data = (const uint8_t*)bytes_at(data_s);
+        for (size_t e = 0; e < n_expert; ++e) {
+            const size_t first = g.start[e], count = g.start[e + 1] - first;
+            if (!count) continue;
+            const uint8_t* w = data + e * stride;
+            if (count == 1) {
+                const size_t i = g.order[first];
+                matmul_raw(type, w, X + (i / per) * nin, out + i * nout, nin, nout, 1);
+                continue;
+            }
+            expert_x_.resize(count * nin);
+            expert_y_.resize(count * nout);
+            for (size_t c = 0; c < count; ++c)
+                std::memcpy(expert_x_.data() + c * nin, X + (g.order[first + c] / per) * nin, nin * sizeof(float));
+            matmul_raw(type, w, expert_x_.data(), expert_y_.data(), nin, nout, count);
+            for (size_t c = 0; c < count; ++c)
+                std::memcpy(out + (size_t)g.order[first + c] * nout, expert_y_.data() + c * nout, nout * sizeof(float));
+        }
+    }
+
+    static size_t size_mul(size_t a, size_t b) {
+        if (a && b > std::numeric_limits<size_t>::max() / a)
+            throw std::runtime_error("backend: expert operand size overflows");
+        return a * b;
+    }
+
+    static size_t row_bytes_of(uint32_t type, size_t nin) {
+        if (type == gguf::GGML_TYPE_F32) return size_mul(nin, sizeof(float));
+        const quant::QuantType* qt = quant::Registry::instance().get(type);
+        if (!qt || !qt->block_size || nin % qt->block_size)
+            throw std::runtime_error("backend: expert matrix type or width unsupported");
+        return nin / qt->block_size * qt->type_size;
+    }
+
+    std::vector<float> expert_x_, expert_y_, expert_out_;
     // A slice resolves to a host pointer exactly once per op; the kernels below are untouched and still see plain float arrays.
     static float* at(Slice s) {
         if (!s.buffer) throw std::runtime_error("backend: operand without storage");

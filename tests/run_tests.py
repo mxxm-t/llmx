@@ -13,6 +13,7 @@ import perf
 import tokenizer
 import perplexity
 import f32
+import moe
 import shards
 import server
 import chat
@@ -52,6 +53,7 @@ def main():
                      ("tokenizer", tokenizer.run),
                      ("perplexity", perplexity.run),
                      ("f32", f32.run),
+                     ("moe", moe.run),
                      ("shards", shards.run),
                      ("server", server.run),
                      ("chat", chat.run),

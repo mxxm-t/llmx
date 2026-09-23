@@ -243,6 +243,28 @@ public:
     // Compacts the rows of a pass that want logits, which a batch mixing prefill and decode entries leaves non-contiguous, so the output head runs once over exactly those rows.
     virtual void gather_rows(Slice dst, CSlice src, size_t width,
                              const uint32_t* rows, size_t count) = 0;
+
+    // Mixture of experts (docs/EXECUTION.md). A layer's router scores pick `k` of `n_expert` experts per token row; slot j of row r is entry r*k + j.
+    // `ids` holds the chosen experts as 32-bit integers in float-sized slots, so they live in the activation arena beside everything else and never leave the device.
+    struct Routing {
+        CSlice ids, weights;
+        size_t k, n_expert;
+    };
+
+    // For each of `rows` rows of `scores` (n_expert floats each), the k experts of highest softmax probability, the most probable first and ties to the lower id, with their probabilities, divided by the k probabilities' sum when `normalize`.
+    // The softmax is over all n_expert scores.
+    virtual void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize,
+                               Slice ids, Slice weights) = 0;
+
+    // Routed projections of one X: entry e = r*k + j of projection p is out[e*rows_p + o] = dot(row o of expert ids[e], X row r), for up to three projections.
+    // A projection's data holds its n_expert matrices of `rows` rows each back to back; `runs` are matmul's, over the `nrows` token rows.
+    virtual void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin,
+                                size_t nrows, const Routing& routing, RowRuns runs = {}) = 0;
+
+    // The routed projection whose output joins the residual stream: Y row r += sum over j in order of weights[e] * dot(expert ids[e], X row e), e = r*k + j.
+    // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed.
+    virtual void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout,
+                                    size_t nrows, const Routing& routing, RowRuns runs = {}) = 0;
 };
 
 using BackendPtr = std::shared_ptr<Backend>;

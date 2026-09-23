@@ -56,14 +56,15 @@ def weight_hash(weights):
                                    for _, _, _, v in weights)).hexdigest()
 
 
-def write_model(path, weights, chat_template=None, eos_id=None, shards=1):
+def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3"):
     # A 34-byte Q8 tensor exposes unaligned F32 rows if the loader discards file padding without preserving float alignment in its in-memory blob.
     entries = [("unused.weight", [32], 8, b"\0" * 34)]
     entries += [(name, shape, 0, struct.pack("<%df" % len(v), *v))
                 for name, _, shape, v in weights]
     def write_part(filename, subset, index):
         with open(filename, "wb") as f:
-            nmeta = (len(CONFIG) + 1 + (chat_template is not None) + (eos_id is not None)) if index == 0 else 0
+            named = arch != "qwen3"
+            nmeta = (len(config) + 1 + named + (chat_template is not None) + (eos_id is not None)) if index == 0 else 0
             f.write(struct.pack("<IIQQ", 0x46554747, 3, len(subset), nmeta + (3 if shards > 1 else 0)))
             if shards > 1:
                 for key, value in (("split.no", index), ("split.count", shards)):
@@ -71,8 +72,12 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1):
                     f.write(struct.pack("<IH", 2, value))
                 w_str(f, "split.tensors.count")
                 f.write(struct.pack("<Ii", 5, len(entries)))
-            for name, value in (CONFIG.items() if index == 0 else []):
-                w_str(f, "qwen3." + name)
+            if index == 0 and named:
+                w_str(f, "general.architecture")
+                f.write(struct.pack("<I", 8))
+                w_str(f, arch)
+            for name, value in (config.items() if index == 0 else []):
+                w_str(f, arch + "." + name)
                 f.write(struct.pack("<II", 4, value))
             if index == 0 and chat_template is not None:
                 w_str(f, "tokenizer.chat_template")

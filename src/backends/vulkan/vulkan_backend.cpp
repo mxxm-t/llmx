@@ -1160,6 +1160,16 @@ public:
                  pc, sizeof(pc), groups(width * count, 256));
     }
 
+    void route_experts(CSlice, size_t, size_t, size_t, bool, Slice, Slice) override {
+        throw std::runtime_error("vulkan: mixture-of-experts layers are not supported yet");
+    }
+    void matmul_experts(std::initializer_list<Projection>, CSlice, size_t, size_t, const Routing&, RowRuns) override {
+        throw std::runtime_error("vulkan: mixture-of-experts layers are not supported yet");
+    }
+    void matmul_experts_add(uint32_t, CSlice, CSlice, Slice, size_t, size_t, size_t, const Routing&, RowRuns) override {
+        throw std::runtime_error("vulkan: mixture-of-experts layers are not supported yet");
+    }
+
     // Row kernels: one workgroup per row, or per (row, head).
     void rms_norm(Slice dst, CSlice src, CSlice w, size_t n, float eps) override {
         rms_norm_rows(dst, src, w, 1, n, n, eps);

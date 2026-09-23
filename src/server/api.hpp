@@ -135,6 +135,8 @@ private:
                   ",\"vocab\":" + std::to_string(model_.n_vocab()) + "}]}");
     }
 
+    // The cap a compatible request gets when it sends none; replaced by the room left once its prompt is encoded.
+    static constexpr int kUntilLimit = -1;
     static double number(const jmini::Value& v, const char* key, double fallback) {
         const jmini::Value* f = v.get(key);
         if (!f) return fallback;
@@ -190,7 +192,8 @@ private:
     SampleParams params_of(const jmini::Value& body, Route route) {
         const bool compat = route == Route::chat_completions || route == Route::completions;
         SampleParams params;
-        params.max_tokens = (int)number(body, "max_tokens", compat ? number(body, "max_completion_tokens", 64) : 64);
+        // The compatible routes take an absent cap as the standard does, no cap: the reply runs to the model's end of text or to what the request may hold, set once the prompt is encoded (kUntilLimit). The native route keeps its 64.
+        params.max_tokens = (int)number(body, "max_tokens", compat ? number(body, "max_completion_tokens", kUntilLimit) : 64);
         params.temp = (float)number(body, "temperature", 0.8);
         params.top_k = (int)number(body, "top_k", 40);
         params.top_p = (float)number(body, "top_p", 0.95);
@@ -241,13 +244,19 @@ private:
         const bool compat = route == Route::chat_completions || route == Route::completions;
 
         const std::string prompt = prompt_of(body, route);
-        const SampleParams params = params_of(body, route);
+        SampleParams params = params_of(body, route);
         const bool stream = flag(body, "stream");
         const jmini::Value* so = body.get("stream_options");
         const bool include_usage = so && so->isObject() && flag(*so, "include_usage");
 
         std::vector<uint32_t> ids = tok_.encode(prompt);
         if (ids.empty()) throw BadRequest(400, "the prompt encodes to no tokens");
+        // An uncapped request reserves what is left of its token limit, so at admission it holds the pool that much and concurrent uncapped requests queue behind it rather than run beside it.
+        if (params.max_tokens == kUntilLimit) {
+            if (ids.size() >= sched_.token_limit())
+                throw BadRequest(413, "the prompt fills the " + std::to_string(sched_.token_limit()) + " tokens a request may hold");
+            params.max_tokens = (int)(sched_.token_limit() - ids.size());
+        }
         if (ids.size() + (size_t)std::max(params.max_tokens, 0) > sched_.token_limit())
             throw BadRequest(413, "prompt plus max_tokens exceeds the " + std::to_string(sched_.token_limit()) +
                                       " tokens a request may hold");

@@ -166,6 +166,12 @@ def check_server(model, prompts, n, long_n, chat, prefix=None):
         # the same template as /v1/chat, its first chunk carries the role
         # and its usage counts add up; the standard refusals have the
         # standard shape.
+        # No cap: the compatible routes take an absent max_tokens as the standard does, running to the end of text or to what the request may hold. On the synthetic model's 16-token context the old default of 64 was refused outright; the real model's reply would run long, so only there.
+        if not chat:
+            status, reply = srv.post("/v1/completions", {"prompt": prompts[0], "temperature": 0})
+            limit = models["data"][0]["context_length"]
+            assert status == 200 and reply["choices"][0]["finish_reason"] in ("stop", "length"), reply
+            assert reply["usage"]["completion_tokens"] >= 1 and reply["usage"]["total_tokens"] <= limit, reply
         status, reply = srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": n, "temperature": 0})
         assert status == 200 and reply["object"] == "text_completion", reply
         assert reply["choices"][0]["text"] == cli_greedy_text(model, prompts[0], n), reply

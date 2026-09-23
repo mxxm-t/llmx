@@ -392,6 +392,8 @@ to whole KV blocks of 128 tokens, and a request whose prompt plus
 | `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}}`, plus `top_k`, `penalty` or `repetition_penalty` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "content"}, "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}` |
 | `POST /v1/completions` | `{"prompt": "...", ...}` (the same fields) | as above with `"object": "text_completion"` and `choices[0].text` |
 
+On the last two an absent `max_tokens`, or `-1`, means no cap, as the standard has it: the reply runs to the model's end of text or to what the request may hold. Such a request is admitted with that whole reach reserved, so concurrent uncapped requests queue behind it rather than run beside it; a client that wants several at once sends a cap. The native routes keep a default of 64.
+
 The last two are the shape the OpenAI clients speak, so a UI, an SDK or a
 script written for any such server connects to `llmx serve` unchanged: it
 lists `/v1/models`, sends the `id` it finds there as the model and streams

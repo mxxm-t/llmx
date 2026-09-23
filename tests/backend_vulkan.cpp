@@ -378,7 +378,7 @@ size_t check_kernels(backend::Backend& vk) {
             // reads floats.
             // A device whose integer dot is native takes wide quantized batches through the integer-dot tile, which reads 8-bit activations.
             const bool idot = profile.prefer_integer_dot;
-            const auto xr8 = nbatch < tile_from_8bit ? row_activations(x) : idot ? tile_activations8(x) : x;   // adopted, so they must outlive the calls
+            const auto xr8 = nbatch < tile_from_8bit ? twin_activations(x, idot) : idot ? tile_activations8(x) : x;   // adopted, so they must outlive the calls; Q8_0 rows read the 8-bit twin where the integer dot is native
             const auto xr4 = nbatch < tile_from_other ? row_activations(x) : idot ? tile_activations8(x) : x;   // Q4_0, Q4_1 and Q6_K read the 16-bit twin
             const auto xrk = nbatch < tile_from_other ? twin_activations(x, idot) : idot ? tile_activations8(x) : x;
             Pair::In xri8 = p.in(xr8), xri4 = p.in(xr4), xrik = p.in(xrk);
@@ -395,7 +395,7 @@ size_t check_kernels(backend::Backend& vk) {
                 p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
                 auto r = p.results(d);
                 try {
-                    const bool row16 = (q == 1 && nbatch < tile_from_8bit) || (q >= 2 && q <= 4 && nbatch < tile_from_other);
+                    const bool row16 = (q == 1 && nbatch < tile_from_8bit && !idot) || (q >= 2 && q <= 4 && nbatch < tile_from_other);
                     const double tol = q == 0 || row16 ? 1e-4 : twin_tol;
                     values += close(r.first, r.second, tol, q == 1 ? "Q8_0 matmul differs beyond 1e-4"
                                                             : q == 2 ? "Q4_0 matmul differs beyond 1e-4"
@@ -683,7 +683,7 @@ size_t check_kernels(backend::Backend& vk) {
                     } else {
                         std::vector<float> att(nq * qw);
                         b.read(*ob, 0, att.data(), att.size() * sizeof(float));
-                        const auto ar = row_activations(att);
+                        const auto ar = twin_activations(att, twin8);
                         const auto Ab = b.adopt(ar.data(), ar.size() * sizeof(float));
                         b.matmul(gguf::GGML_TYPE_Q8_0, {Wb.get(), 0}, {Ab.get(), 0}, {yb.get(), 0}, qw, nout, nq);
                     }
@@ -693,7 +693,7 @@ size_t check_kernels(backend::Backend& vk) {
                 std::vector<float> yc, yv;
                 run(p.cpu, false, yc);
                 run(p.vk, true, yv);
-                values += close(yc, yv, 1e-4, "matmul from the attention twin differs beyond 1e-4");
+                values += close(yc, yv, twin_tol, "matmul from the attention twin differs beyond its bound");
             }
         }
         // f16 cache sides: each combination of K and V types on both
@@ -775,7 +775,7 @@ size_t check_kernels(backend::Backend& vk) {
             const auto xa = uniform(nbatch * nin, 20 + (uint32_t)nbatch);
             Pair::In xi = p.in(xa);
             const backend::DeviceProfile prof = backend::vulkan_device_profile(p.vk);
-            const auto xr = nbatch < backend::tile_from_for(prof, true, nin) ? row_activations(xa)
+            const auto xr = nbatch < backend::tile_from_for(prof, true, nin) ? twin_activations(xa, twin8)
                             : prof.prefer_integer_dot                         ? tile_activations8(xa)
                                                                               : xa;
             Pair::In xri = p.in(xr);
@@ -786,8 +786,7 @@ size_t check_kernels(backend::Backend& vk) {
             p.cpu.matmul_add(gguf::GGML_TYPE_Q8_0, wqi.cs(), xri.cs(), d.cs(), nin, nout, nbatch);
             p.vk.matmul_add(gguf::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
             auto r = p.results(d);
-            values += close(r.first, r.second, nbatch < backend::tile_from_for(prof, true, nin) ? 1e-4 : twin_tol,
-                            "matmul_add differs beyond its bound");
+            values += close(r.first, r.second, twin_tol, "matmul_add differs beyond its bound");
         }
         // The twin the norm and SiLU kernels write beside their output for
         // the row kernel: each into a buffer, then a matmul from it, against
@@ -808,12 +807,12 @@ size_t check_kernels(backend::Backend& vk) {
             std::vector<float> hc(rows * nin), fc(rows * nin);
             p.cpu.read(*h.c, 0, hc.data(), hc.size() * sizeof(float));
             p.cpu.read(*f.c, 0, fc.data(), fc.size() * sizeof(float));
-            const auto hr = row_activations(hc), fr = row_activations(fc);   // Q8_0 from the norm, Q4_0 from the SiLU, both on the 16-bit twin
+            const auto hr = twin_activations(hc, twin8), fr = row_activations(fc);   // Q8_0 from the norm on the twin its kernel reads, Q4_0 from the SiLU on the 16-bit one
             Pair::In hri = p.in(hr), fri = p.in(fr);
             p.cpu.matmul(gguf::GGML_TYPE_Q8_0, wqi.cs(), hri.cs(), d1.cs(), nin, nout, rows);
             p.cpu.matmul(gguf::GGML_TYPE_Q4_0, w4i.cs(), fri.cs(), d2.cs(), nin, nout, rows);
             auto r1 = p.results(d1), r2 = p.results(d2);
-            values += close(r1.first, r1.second, 1e-4, "matmul from the norm's twin differs beyond 1e-4");
+            values += close(r1.first, r1.second, twin_tol, "matmul from the norm's twin differs beyond its bound");
             values += close(r2.first, r2.second, 1e-4, "matmul from the SiLU's twin differs beyond 1e-4");
         }
         bool rejected = false;

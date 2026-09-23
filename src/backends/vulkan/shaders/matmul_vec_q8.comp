@@ -1,0 +1,84 @@
+#version 450
+// Y[b*nout + o] = dot(row o, X column b) for Q8_0 rows through the four-wide 8-bit integer dot: the decode kernel for Q8_0 on a device whose integer dot is native, taking the row kernel's place and its bindings, push constants and projection handling (matmul_row.comp).
+// A subgroup takes ROWS rows together. Lane l covers quarter l % 4 of blocks l / 4, l / 4 + S / 4 and so on, eight values of each: the subgroup's lanes read S / 4 consecutive blocks of a row per step, one contiguous run, where the row kernel's wide Q8_0 path spread a load instruction over 16-byte pieces of every pair.
+// Each lane loads its eight 8-bit activation values per column once and uses them for every row of the subgroup, so the activations cost a quarter of the bytes the 16-bit twin did per row.
+// A block's quants start two bytes into a word in every other block, so a lane loads the three words its eight bytes touch and shifts; the scale is the half word at the block's start, which the block's four lanes read together.
+// Per quarter, two four-wide dots against the activations, then one float multiply-add with the two blocks' scales; the lanes' sums meet in one subgroup reduction per row and column at the end.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_integer_dot_product : require
+layout(local_size_x = 256) in;
+layout(constant_id = 0) const uint MAX_COLS = 8;
+layout(push_constant) uniform P {
+    uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
+    uint nout0; uint type0; uint wide0; uint start0;
+    uint nout1; uint type1; uint wide1; uint start1;
+    uint nout2; uint type2; uint wide2; uint start2;
+    uint accum;
+} p;
+layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
+layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
+// The 8-bit twin (xquant.glsl): per column nin / 4 words of bytes in position order, read two words at a time, then per block the scale and the scaled sum.
+layout(set = 0, binding = 7) readonly buffer XQ4 { uvec2 xq4[]; };
+layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
+
+#ifndef ROWS
+#define ROWS 2u
+#endif
+
+void main() {
+    uint wg = gl_WorkGroupID.x;
+    uint pi = 0u;
+    if (p.nproj > 1u && wg >= p.start1) pi = 1u;
+    if (p.nproj > 2u && wg >= p.start2) pi = 2u;
+    uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
+    uint local_wg = wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2));
+    uint lane = gl_SubgroupInvocationID, S = gl_SubgroupSize;
+    uint row0 = (local_wg * (256u / S) + gl_SubgroupID) * ROWS;
+    const uint ncols = MAX_COLS == 1u ? 1u : p.ncols;
+    uint nblk = p.nin / 32u;
+    uint q = lane & 3u;
+    uint xtab = p.nbatch * p.nin / 8u;
+    float acc[ROWS][MAX_COLS];
+    for (uint r = 0u; r < ROWS; ++r) for (uint c = 0u; c < MAX_COLS; ++c) acc[r][c] = 0.0;
+    for (uint b = lane >> 2u; b < nblk; b += S >> 2u) {
+        uvec2 xa[MAX_COLS];
+        float dx[MAX_COLS];
+        // Every loop over columns runs to MAX_COLS with the pushed count as a guard, so the arrays are indexed by constants and stay in registers.
+        for (uint c = 0u; c < MAX_COLS; ++c) {
+            uint col = p.col0 + min(c, ncols - 1u);
+            xa[c] = xq4[(col * p.nin + b * 32u + q * 8u) / 8u];
+            dx[c] = xt2[xtab + col * nblk + b].x;
+        }
+        for (uint r = 0u; r < ROWS; ++r) {
+            uint row = row0 + r;
+            if (row >= nout) continue;
+            uint ob = (row * nblk + b) * 34u;
+            uint qb = ob + 2u + q * 8u;
+            uint i = qb >> 2u;
+            bool odd = (qb & 2u) != 0u;
+            // The third word only where the eight bytes straddle; an aligned last quarter of the matrix's last block ends at the buffer's end.
+            uint t0 = w32s[pi].w32[i], t1 = w32s[pi].w32[i + 1u], t2 = odd ? w32s[pi].w32[i + 2u] : 0u;
+            uint w0 = odd ? (t0 >> 16u) | (t1 << 16u) : t0;
+            uint w1 = odd ? (t1 >> 16u) | (t2 << 16u) : t1;
+            uint sw = w32s[pi].w32[ob >> 2u];
+            float dw = unpackHalf2x16((ob & 2u) != 0u ? sw >> 16u : sw).x;
+            for (uint c = 0u; c < MAX_COLS; ++c) {
+                if (c >= ncols) break;
+                int s = dotPacked4x8EXT(int(w0), int(xa[c].x)) + dotPacked4x8EXT(int(w1), int(xa[c].y));
+                acc[r][c] += dw * dx[c] * float(s);
+            }
+        }
+    }
+    for (uint r = 0u; r < ROWS; ++r) {
+        uint row = row0 + r;
+        for (uint c = 0u; c < MAX_COLS; ++c) {
+            if (c >= ncols) break;
+            float s = subgroupAdd(acc[r][c]);
+            if (lane == 0u && row < nout) {
+                if (p.accum != 0u) ys[pi].y[(p.col0 + c) * nout + row] += s;
+                else ys[pi].y[(p.col0 + c) * nout + row] = s;
+            }
+        }
+    }
+}

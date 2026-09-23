@@ -226,6 +226,9 @@ const uint32_t kSpvMatmulTileQ6[] = {
 const uint32_t kSpvMatmulReduce[] = {
 #include "vulkan/matmul_reduce.inc"
 };
+const uint32_t kSpvMatmulVecQ8[] = {
+#include "vulkan/matmul_vec_q8.inc"
+};
 
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
@@ -238,7 +241,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_ROW_DOT, K_MATMUL_ROW_Q8W_DOT, K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
-                K_MATMUL_REDUCE, K_COUNT };
+                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is
 // measured, not asked (backends/device_profile.hpp).
@@ -262,7 +265,7 @@ inline bool is_row_kernel(KernelId id) {
     case K_MATMUL_ROW: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4:
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_DOT: case K_MATMUL_ROW_Q8W_DOT: case K_MATMUL_ROW_Q4_DOT:
-    case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT:
+    case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT: case K_MATMUL_VEC_Q8:
         return true;
     default: return false;
     }
@@ -322,7 +325,7 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_row_dot", "matmul_row_q8w_dot", "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
     "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
-    "matmul_reduce",
+    "matmul_reduce", "matmul_vec_q8",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -370,6 +373,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 4, kMatmulTileQCounts},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 4, kMatmulTileQCounts},
     {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts},
+    {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 10, kMatmulRowCounts},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1567,6 +1571,11 @@ public:
         if (dev_->profile.prefer_integer_dot) kernel = row_dot_variant(kernel);
         uint32_t cluster = lanes;
         while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
+        // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin, a subgroup on two rows (shaders/matmul_vec_q8.comp).
+        if (type == gguf::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot && dev_->subgroup_size >= 8) {
+            kernel = K_MATMUL_VEC_Q8;
+            cluster = dev_->subgroup_size / 2;
+        }
         const uint32_t rows_per_sg = dev_->subgroup_size / cluster;
         const uint32_t rows_per_group = (256 / dev_->subgroup_size) * rows_per_sg;
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
@@ -1642,8 +1651,8 @@ public:
 
     // On a device whose integer dot is native the producers write the 8-bit twin after the 16-bit one (shaders/xquant.glsl), from this byte offset: the 16-bit twin's n / 2 words of pairs and n / 8 of tables, rounded up to 256 bytes, which is a valid storage-buffer offset on any device.
     static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 8 + 63) & ~size_t(63)) * 4; }
-    // The row families that read the 8-bit twin, built with LLMX_X8: Q4_K and Q5_K. Q4_0 and Q6_K read it too and were 45 and 5 to 12 percent faster, but the HF gate's Q4_0 fixture, whose only K-quant is its tied Q6_K output head, then ranked a different fifth token on one prompt, a top-5 overlap of 3 against its frozen 4, with either of them on it. So they read the 16-bit twin with Q8_0.
-    static bool reads_x8(KernelId id) { return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT; }
+    // The row kernels that read the 8-bit twin: the Q4_K and Q5_K families built with LLMX_X8, and the Q8_0 kernel for devices whose integer dot is native (shaders/matmul_vec_q8.comp). Q4_0 and Q6_K read it too and were 45 and 5 to 12 percent faster, but the HF gate's Q4_0 fixture, whose only K-quant is its tied Q6_K output head, then ranked a different fifth token on one prompt, a top-5 overlap of 3 against its frozen 4, with either of them on it. So they read the 16-bit twin.
+    static bool reads_x8(KernelId id) { return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_VEC_Q8; }
 
     // Whether a type's wide matmul goes through the integer-dot tile on this device.
     bool integer_dot_tile(uint32_t type) const {

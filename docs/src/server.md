@@ -14,8 +14,11 @@ scheduler are the runtime's own.
   requests and drain their token channels; the scheduler thread is the
   single caller of `Model::forward`. The KV pool holds `--ctx-size` tokens
   in total; past `--max-queue` waiting requests a new one is refused with
-  503. Each iteration admits queued requests the pool can hold (prompt
-  plus `max_tokens`, reserved in blocks), assembles one pass of every
+  503. Each iteration admits queued requests the pool can hold (a capped
+  request's prompt plus `max_tokens`, an uncapped one's prompt plus a
+  step it grows by as it generates, pausing the latest admitted uncapped
+  request when the pool runs out; a paused request's history stays as a
+  donor and it resumes from it), assembles one pass of every
   decoding request's next token plus prompt slices up to `ubatch`, each
   slice carrying its whole prompt's extent so it takes the kernels one pass
   over the prompt would, samples per request with its own seeded state,
@@ -30,6 +33,7 @@ scheduler are the runtime's own.
   loop shared with the native routes, with the clients' synonyms accepted
   and errors in their shape. On the compatible routes an absent
   `max_tokens`, or -1, means no cap: the reply may run to the end of the
-  request's context, and admission reserves that whole reach; the native
-  routes keep a default of 64. Streams hold a character split across tokens
+  request's context; the native routes keep a default of 64. The
+  compatible replies carry a `timings` object beside `usage`, and every
+  finished request logs a line on stderr. Streams hold a character split across tokens
   until it completes and replace invalid UTF-8 with U+FFFD.

@@ -45,6 +45,10 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
   calls `matmul` sequentially; all outputs are ready when the call returns.
 - `matmul_add(...)`: `matmul` whose product is added to what the output
   already holds.
+- `matmul_logits(...)`: the output head, by default `matmul`. Its values
+  are the logits a caller reads directly, so a backend may keep more
+  precise activations for it; the Vulkan backend keeps the 16-bit twin for
+  a Q4_0, Q4_1 or Q6_K head.
 - `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, max_tokens)`,
   `kv_write(layer, views, n_views, k, v)`: the backend-owned half of the
   paged KV cache in `docs/KV-CACHE.md`. The backend chooses the block size and

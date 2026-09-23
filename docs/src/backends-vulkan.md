@@ -31,12 +31,14 @@ kernel notes and measurements are `docs/VULKAN.md`.
   module per family of types, reading quantized rows against an integer
   twin of the activations (`shaders/xquant.glsl`) that the producing
   kernel, the norm, the SiLU or the attention, writes beside its output
-  and tags. The twin is 16-bit, or 8-bit for the families that read it on
-  a device whose profile prefers the integer dot. Each row kernel is built
+  and tags. The twin is 16-bit, or on a device whose profile prefers the
+  integer dot 8-bit for every quantized family, except the Q4_0, Q4_1 and
+  Q6_K rows of the output head (`matmul_logits`). Each row kernel is built
   for eight columns and for one (specialization constant 0), the
   one-column build taken when a chunk is one wide, except the wide Q8_0
   kernel. The Q4, Q4_K, Q5_K and Q6_K families are built a second time with
-  `LLMX_DOT` for integer-dot devices; there Q8_0 rows take
+  `LLMX_DOT` for integer-dot devices, and the Q4 and Q6_K families a third
+  with `LLMX_X8` for the 8-bit twin, whose Q6_K rows take at most 32 lanes; there Q8_0 rows take
   `shaders/matmul_vec_q8.comp`, the four-wide dot over the 8-bit twin, and
   F32 rows the plain build.
 - Wide batches take a tile kernel. Where the profile sets

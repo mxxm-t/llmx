@@ -54,7 +54,9 @@ struct DeviceProfile {
     // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row.
     size_t attention_split_chunk = 32, attention_split_max = 64;
     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, for rows at least tile_narrow_nin wide and narrower, and the fewest quant blocks of 32 a part may sum.
-    uint32_t tile_split_per_cu = 8, tile_split_per_cu_narrow = 4, tile_split_min_blocks = 16;
+    uint32_t tile_split_per_cu = 8, tile_split_per_cu_narrow = 4, tile_split_min_blocks = 8;
+    // Workgroups per compute unit the tallest tile must yield before a call takes it, for rows at least tile_narrow_nin wide and narrower: fewer leave too few waves per SIMD to hide the loads.
+    uint32_t tile_tall_per_cu = 1, tile_tall_per_cu_narrow = 1;
     // Dispatches recorded before a submission, so the device starts on a pass while the host is still recording it.
     uint32_t dispatch_chunk = 64;
     // Whether the matmuls take their dots through the integer dot product instructions: measured per device and driver, since the same silicon gains under Mesa and loses under the AMD proprietary driver.
@@ -70,13 +72,14 @@ struct MeasuredProfile {
     bool prefer_integer_dot;         // whether the matmuls want the integer dot instructions
     // Where a routed projection's tile overtakes its row kernel, by weight family as DeviceProfile orders them.
     size_t moe_tile_from, moe_tile_from_q4, moe_tile_from_q4k, moe_tile_from_q5k;
+    uint32_t tile_tall_per_cu, tile_tall_per_cu_narrow;   // the tallest tile's fill, wide and narrow rows
 };
 
 // The measured rows: the tile crossover moves with the driver and with the tile kernel it runs, and a row measured against the integer-dot tile applies only where the device has the integer dot (docs/VULKAN.md).
 inline const MeasuredProfile* measured_profiles(size_t& count) {
     static const MeasuredProfile table[] = {
-        {"Radeon VII", "AMD proprietary", 32, 48, 64, 64, false, 32, 96, 64, 48},
-        {"MI60 / MI50", "radv", 16, 32, 24, 40, true, 32, 96, 64, 48},
+        {"Radeon VII", "AMD proprietary", 32, 48, 64, 64, false, 32, 96, 64, 48, 1, 1},
+        {"MI60 / MI50", "radv", 16, 32, 24, 40, true, 32, 96, 64, 48, 4, 8},
     };
     count = sizeof(table) / sizeof(table[0]);
     return table;
@@ -100,6 +103,8 @@ inline DeviceProfile profile_for(const DeviceCaps& caps) {
         p.moe_tile_from_q4 = table[i].moe_tile_from_q4;
         p.moe_tile_from_q4k = table[i].moe_tile_from_q4k;
         p.moe_tile_from_q5k = table[i].moe_tile_from_q5k;
+        p.tile_tall_per_cu = table[i].tile_tall_per_cu;
+        p.tile_tall_per_cu_narrow = table[i].tile_tall_per_cu_narrow;
         break;
     }
     return p;
@@ -122,12 +127,13 @@ inline size_t moe_tile_from_for(const DeviceProfile& profile, uint32_t type) {
     }
 }
 
-// Rows of a matmul tile given the call's shape: the tallest height that still yields a workgroup per compute unit, then the middle one, then the smallest.
+// Rows of a matmul tile given the call's shape: the tallest height that still yields the profile's workgroups per compute unit, then the middle one, then the smallest.
 // A wide projection drops to the smallest only below half fill, since the small tile does half the arithmetic per barrier (docs/VULKAN.md).
 inline uint32_t tile_rows_for(const DeviceCaps& caps, const DeviceProfile& profile, uint32_t rows_small, uint32_t rows_short,
                               uint32_t rows_tall, size_t out_rows, size_t column_groups, size_t nin) {
     auto groups = [&](uint32_t h) { return ((out_rows + h - 1) / h) * column_groups; };
-    if (groups(rows_tall) >= caps.compute_units) return rows_tall;
+    const size_t tall_per_cu = nin < profile.tile_narrow_nin ? profile.tile_tall_per_cu_narrow : profile.tile_tall_per_cu;
+    if (groups(rows_tall) >= tall_per_cu * caps.compute_units) return rows_tall;
     const size_t fill = nin < profile.tile_narrow_nin ? caps.compute_units : (caps.compute_units + 1) / 2;
     return groups(rows_short) >= fill ? rows_short : rows_small;
 }

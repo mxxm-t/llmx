@@ -443,7 +443,7 @@ HF gate measures the cost of it.
 
   First, `quantize_x8.comp` now orders the 8-bit blocks by block of the inner dimension, then by column. Before, it wrote them column after column, which put the tile's 64 columns of one block a row width apart. Now one step of the tile reads its activations as a single 2 KB run.
 
-  Second, a call with fewer workgroups than `tile_split_per_cu` per compute unit (eight, measured; four for rows narrower than `tile_narrow_nin`, where on the MI50 Qwen3-0.6B prefill at 512 rows went from about 7300 to 8100 tok/s on Q4_0 and Q8_0 and from 6700 to 7300 on Q5_K_M, while Qwen3-8B Q4_K_M lost 3 percent with four) splits its inner dimension into parts of at least `tile_split_min_blocks` quant blocks (16). Each part writes its partial sums to a scratch buffer. `matmul_reduce.comp` then adds the parts in order, so the result does not depend on which workgroup finishes first.
+  Second, a call with fewer workgroups than `tile_split_per_cu` per compute unit (eight, measured; four for rows narrower than `tile_narrow_nin`, where on the MI50 Qwen3-0.6B prefill at 512 rows went from about 7300 to 8100 tok/s on Q4_0 and Q8_0 and from 6700 to 7300 on Q5_K_M, while Qwen3-8B Q4_K_M lost 3 percent with four) splits its inner dimension into parts of at least `tile_split_min_blocks` quant blocks (8; 16 capped a 1024-wide projection at two parts, and 8 raised Qwen3-0.6B prefill at 64 rows by 4 percent with no change on 8B or 30B-A3B). Each part writes its partial sums to a scratch buffer. `matmul_reduce.comp` then adds the parts in order, so the result does not depend on which workgroup finishes first.
 
   The workgroups counted are those of a pass over the row's whole prompt, up to a microbatch of 512 rows, rather than those of the call, so a row sums its inner dimension in the same parts however its prompt was batched (Batch invariance, below). Taking the split from the projection's shape alone, as if every call were one column tile, did that too, but split 512-row passes as finely as 64-row ones: 8B Q8_0 at 512 rows fell from 866 to 802 tok/s.
 
@@ -473,9 +473,17 @@ HF gate measures the cost of it.
   one, whose second variant is the 32-row tile, and the backend picks
   per dispatch through `tile_rows_for` in `backends/device_profile.hpp`.
   The taller tile reads two thirds of the shared memory per product, so
-  128 rows are taken while they still give a workgroup per compute unit,
-  which the backend learns from `VK_AMD_shader_core_properties` where
-  that exists and assumes small otherwise. Below that the choice follows
+  128 rows are taken while they still give `tile_tall_per_cu` workgroups
+  per compute unit (`tile_tall_per_cu_narrow` under 4096 values to a row),
+  the unit count coming from `VK_AMD_shader_core_properties` where that
+  exists and assumed small otherwise. On the Radeon VII one workgroup per
+  unit is the measured fill. On the MI50 under RADV the integer-dot tile
+  wants four for wide rows and eight for narrow ones: with one, a
+  Qwen3-0.6B prompt of 247 rows made about two workgroups per unit, two
+  waves per SIMD, and prefilled 6923 tok/s on Q4_0 against 8277 with
+  four; 512 rows took 9108 with eight against 8406 with four, and
+  Qwen3-8B Q4_K_M 64 rows 735 with four against 678 with one, while eight
+  cost 8B 2 percent at 512 rows and sixteen gained nothing over eight. Below that the choice follows
   the projection's width: under 4096 values to a row the 64-row tile is
   taken while it fills every compute unit and the 32-row one otherwise,
   and at 4096 or more the 32-row tile only below half fill, since it does

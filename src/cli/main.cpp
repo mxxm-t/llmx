@@ -371,12 +371,40 @@ backend::BackendPtr make_backend(const std::string& spec, bool diagnostics = fal
     throw std::runtime_error("--device: unknown backend '" + name + "' (cpu, vulkan:N)");
 }
 
+// The model over the backend a --device spec names, with the experts of the first `cpu_moe` routed layers (all when -1) on the CPU beside it.
+// The CPU is device 0 there, so the thread count the model reports is the host's; attention, the dense blocks, the embedding and the head stay on the device.
+std::unique_ptr<infer::Model> make_model(const gguf::GGUFModel& m, backend::BackendPtr device, bool on_cpu, int cpu_moe,
+                                         const infer::ModelOptions& options) {
+    if (!cpu_moe || on_cpu) return std::make_unique<infer::Model>(m, std::move(device), options);
+    const infer::QwenConfig cfg = infer::load_config(m);
+    infer::Placement place;
+    place.attn_device.assign((size_t)cfg.n_layer, 1);
+    place.ffn_device.assign((size_t)cfg.n_layer, 1);
+    place.embed_device = place.output_device = 1;
+    int routed = 0;
+    for (int l = 0; l < cfg.n_layer; ++l) {
+        const std::string router = "blk." + std::to_string(l) + ".ffn_gate_inp.weight";
+        bool present = false;
+        for (const auto& t : m.tensors) present = present || t.name == router;
+        if (!present) continue;
+        if (cpu_moe < 0 || routed < cpu_moe) place.ffn_device[(size_t)l] = 0;
+        ++routed;
+    }
+    if (!routed) throw std::runtime_error("--n-cpu-moe: the model has no expert layers");
+    std::vector<backend::BackendPtr> backends{backend::make_cpu_backend(), std::move(device)};
+    return std::make_unique<infer::Model>(m, std::move(backends), place, options);
+}
+std::unique_ptr<infer::Model> make_model(const gguf::GGUFModel& m, const infer::GenParams& gp) {
+    return make_model(m, make_backend(gp.device), gp.device == "cpu", gp.cpu_moe, model_options(gp));
+}
+
 int cmd_generate(const std::string& model_path, const std::string& prompt,
                  const infer::GenParams& gp) {
     const bool progress = show_progress(gp);
     gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
-    infer::Model model(m, make_backend(gp.device), model_options(gp));
+    const auto owned = make_model(m, gp);
+    infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     const int decode_threads = model.threads_available();
@@ -422,7 +450,8 @@ int cmd_logits(const std::string& model_path, const std::string& text,
                int topn, const infer::GenParams& gp) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
-    infer::Model model(m, make_backend(gp.device), model_options(gp));
+    const auto owned = make_model(m, gp);
+    infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     model.set_ubatch(gp.ubatch);
@@ -460,7 +489,8 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const infer::GenParams& gp, int context_size, int chunks, bool per_token) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
-    infer::Model model(m, make_backend(gp.device), model_options(gp));
+    const auto owned = make_model(m, gp);
+    infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     model.set_ubatch(gp.ubatch);
@@ -484,7 +514,8 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     const bool progress = show_progress(gp);
     gguf::GGUFModel m = load_model(model_path, progress);
     bpe::Tokenizer tok(m);
-    infer::Model model(m, make_backend(gp.device), model_options(gp));
+    const auto owned = make_model(m, gp);
+    infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     const int decode_threads = model.threads_available();
@@ -692,11 +723,12 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 // The matched real-model measurement: a warm-up of each test, then R repeats of prompt processing P tokens in one batch into an empty history and of generating G tokens one at a time from an empty history, model time only, token ids fixed and sampling excluded.
 // Reported as mean and standard deviation of tokens per second, so a reference runtime's figures for the same P and G compare directly.
 int cmd_bench_model(const std::string& path, const std::string& device, int threads,
-                    int P, int G, int R, const infer::ModelOptions& options, bool profile) {
+                    int P, int G, int R, const infer::ModelOptions& options, bool profile, int cpu_moe) {
     gguf::GGUFModel m = load_model(path, false);
     backend::BackendPtr backend_for_model = make_backend(device, profile);
     backend::Backend& b = *backend_for_model;
-    infer::Model model(m, std::move(backend_for_model), options);
+    const auto owned = make_model(m, std::move(backend_for_model), device == "cpu", cpu_moe, options);
+    infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
     if (threads > 0) model.set_threads(threads);
     // Ids below 1000 exist in every vocabulary the runtime loads.
@@ -765,7 +797,8 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const infer::GenParams& gp) {
     gguf::GGUFModel m = load_model(model_path, true);
     bpe::Tokenizer tok(m);
-    infer::Model model(m, make_backend(gp.device), model_options(gp));
+    const auto owned = make_model(m, gp);
+    infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);
     if (gp.ubatch > 0) model.set_ubatch(gp.ubatch);
@@ -805,16 +838,18 @@ void print_usage() {
         << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
         << "  llmx serve      <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N]\n"
         << "                  [--ubatch N] [--threads N]\n"
-        << "                  [--device D] [--cache-type-k T] [--cache-type-v T]\n"
+        << "                  [--device D] [--n-cpu-moe N | --cpu-moe] [--cache-type-k T] [--cache-type-v T]\n"
         << "                  POST /v1/generate, POST /v1/chat, GET /v1/health, GET /v1/models,\n"
         << "                  POST /v1/completions, POST /v1/chat/completions (docs/USAGE.md)\n"
         << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]\n"
         << "  llmx bench      --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D]\n"
-        << "                  [--cache-type-k T] [--cache-type-v T] [--profile]\n"
+        << "                  [--n-cpu-moe N | --cpu-moe] [--cache-type-k T] [--cache-type-v T] [--profile]\n"
         << "                  (warm-up, then R repeats of pp N and tg N, model time only)\n"
         << "                  --profile reports device time per kernel, on a device backend\n"
         << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
         << "           --device D  backend: cpu (default) or vulkan:N in a build with it\n"
+        << "           --n-cpu-moe N  the experts of the first N routed layers on the CPU beside a device;\n"
+        << "                       --cpu-moe all of them; attention and the dense blocks stay on the device\n"
         << "           --ubatch N  prefill physical batch (default 512)\n"
         << "           --cache-type-k T  --cache-type-v T  KV cache storage per side, f16 (default) or f32;\n"
         << "                       the same on every backend, one without a type refuses it\n"
@@ -933,6 +968,8 @@ int main(int argc, char** argv) {
                 else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
+                else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
+                else if (a == "--cpu-moe") gp.cpu_moe = -1;
                 else if (a == "--system") system = (i + 1 < argc) ? argv[++i] : system;
                 else if (a == "--verbose") gp.show_prompt_tokens = true;
                 else if (a == "--think") gp.show_thinking = true;
@@ -983,6 +1020,8 @@ int main(int argc, char** argv) {
                 else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
+                else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
+                else if (a == "--cpu-moe") gp.cpu_moe = -1;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];
@@ -1001,6 +1040,8 @@ int main(int argc, char** argv) {
                 else if (a2 == "--cache-type-k" || a2 == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
                 else if (a2 == "--cache-type-v" || a2 == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else if (a2 == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
+                else if (a2 == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
+                else if (a2 == "--cpu-moe") gp.cpu_moe = -1;
                 else { std::cerr << "unknown flag: " << a2 << "\n"; return 2; }
             }
             if (topn <= 0) topn = 10;
@@ -1044,6 +1085,8 @@ int main(int argc, char** argv) {
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
+                else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
+                else if (a == "--cpu-moe") gp.cpu_moe = -1;
                 else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
                 else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
@@ -1061,6 +1104,8 @@ int main(int argc, char** argv) {
                 std::string a = argv[i];
                 if (a == "--size") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;
                 else if (a == "--device") device = (i + 1 < argc) ? argv[++i] : device;
+                else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
+                else if (a == "--cpu-moe") gp.cpu_moe = -1;
                 else if (a == "--iters") iters = (i + 1 < argc) ? std::atoi(argv[++i]) : iters;
                 else if (a == "--threads") threads = (i + 1 < argc) ? std::atoi(argv[++i]) : threads;
                 else if (a == "--p") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;
@@ -1079,7 +1124,7 @@ int main(int argc, char** argv) {
             }
             if (!model_path.empty())
                 return cmd_bench_model(model_path, device, threads, prefill, decode, repeats, model_options(gp),
-                                       profile);
+                                       profile, gp.cpu_moe);
             return cmd_bench(size, iters, threads, prefill, decode, device);
         }
         print_usage();

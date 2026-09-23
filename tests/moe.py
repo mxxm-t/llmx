@@ -75,13 +75,16 @@ def run():
     weights = tensors()
     assert weight_hash(weights) == golden["weights_sha256"], "MoE fixture weights changed"
     worst = 0.0
+    # On a device the experts also run on the CPU beside it: the first routed layer's alone, and all of them.
+    device = os.environ.get("LLMX_DEVICE", "cpu")
+    placements = [[]] + ([["--n-cpu-moe", "1"], ["--cpu-moe"]] if device != "cpu" else [])
     with tempfile.TemporaryDirectory(prefix="llmx_moe_") as directory:
         model = write_model(os.path.join(directory, "tiny-moe.gguf"), weights, config=CONFIG, arch="qwen3moe")
         for threads in (1, 4):
             for ubatch in (1, 2, 3, 5, 16):
-                for case in golden["cases"]:
+                for case, placement in ((c, pl) for c in golden["cases"] for pl in placements if threads == 4 or not pl):
                     rc, out = cli(["logits", model, case["text"], "--top", "257",
-                                   "--threads", str(threads), "--ubatch", str(ubatch)])
+                                   "--threads", str(threads), "--ubatch", str(ubatch)] + placement)
                     assert rc == 0, "MoE logits failed: " + out
                     got = {int(p[0]): float(p[1]) for line in out.splitlines()
                            if len(p := line.split()) == 2 and p[0].isdigit()}
@@ -96,7 +99,7 @@ def run():
                 fields = dict(line.split(":", 1) for line in out.splitlines())
                 error = abs(float(fields["mean NLL"]) - case["mean_nll"])
                 assert math.isfinite(error) and error < 1e-5, "MoE/HF NLL error: %.8f" % error
-    print("moe: all 257 logits vs HF over routed and dense layers, batch widths, threads and PPL; max error %.8f  [ok]" % worst)
+    print("moe: all 257 logits vs HF over routed and dense layers, batch widths, threads, expert placement and PPL; max error %.8f  [ok]" % worst)
     return True
 
 

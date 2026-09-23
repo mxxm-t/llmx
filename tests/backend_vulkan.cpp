@@ -35,7 +35,8 @@ std::vector<float> uniform(size_t n, uint32_t seed, float lo = -1.0f, float hi =
 struct Pair {
     backend::CpuBackend cpu;
     backend::Backend& vk;
-    explicit Pair(backend::Backend& v) : vk(v) { cpu.set_threads(1); }
+    // The reference keeps float activations in decode, so a device's rounding is compared against exact arithmetic.
+    explicit Pair(backend::Backend& v) : vk(v) { cpu.set_threads(1); cpu.set_decode_activations8(false); }
     struct In {
         backend::BufferPtr c, v;
         backend::CSlice cs() const { return {c.get(), 0}; }

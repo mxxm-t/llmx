@@ -13,6 +13,7 @@
 
 #include "backends/backend.hpp"
 #include "backends/cpu/prefill_placement.hpp"
+#include "backends/cpu/q8_dots.hpp"
 #include "core/fp16.hpp"
 #include "format/gguf.hpp"
 #include "quant/quant.hpp"
@@ -314,35 +315,87 @@ public:
     }
 
     // The product lands in a scratch buffer kept across calls and is added to Y, so the arithmetic is the separate matmul and add exactly.
-    // Row runs are for a device whose kernels differ by width; the CPU does not read them.
     void matmul_add(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
-                    size_t nin, size_t nout, size_t nbatch, RowRuns = {}) override {
+                    size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}) override {
         const size_t bytes = nout * nbatch * sizeof(float);
         if (!add_scratch_ || add_scratch_bytes_ < bytes) {
             add_scratch_ = alloc(bytes, Memory::device);
             add_scratch_bytes_ = bytes;
         }
-        matmul(type, weights, X_s, {add_scratch_.get(), 0}, nin, nout, nbatch);
+        matmul(type, weights, X_s, {add_scratch_.get(), 0}, nin, nout, nbatch, runs);
         add(Y_s, {add_scratch_.get(), 0}, nout * nbatch);
     }
     BufferPtr add_scratch_;
     size_t add_scratch_bytes_ = 0;
 
+    // With row runs a generated token (extent 1) takes the decode dots and a prompt's rows the batched path, so a row computes the same however it is batched, as on a device (backend.hpp RowRuns); without them a one-column call is decode.
     void matmul(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
-                size_t nin, size_t nout, size_t nbatch, RowRuns = {}) override {
-        matmul_raw(type, (const uint8_t*)bytes_at(weights), at(X_s), at(Y_s), nin, nout, nbatch);
+                size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}) override {
+        const uint8_t* data = (const uint8_t*)bytes_at(weights);
+        const float* X = at(X_s);
+        float* Y = at(Y_s);
+        each_run(nbatch, runs, [&](size_t first, size_t count, bool decode) {
+            matmul_raw(type, data, X + first * nin, Y + first * nout, nin, nout, count, decode);
+        });
     }
 
-    // The matmul on host addresses, which an expert's matrix inside a stacked tensor needs.
+    // Calls `each(first, count, decode)` over stretches of rows that take the same path.
+    template <typename Fn>
+    static void each_run(size_t nbatch, RowRuns runs, const Fn& each) {
+        if (!nbatch) return;
+        if (!runs.n) { each(0, nbatch, nbatch == 1); return; }
+        if (runs.runs[runs.n - 1].end != nbatch) throw std::runtime_error("backend: row runs do not cover the batch");
+        size_t start = 0;
+        for (size_t i = 0; i < runs.n;) {
+            const bool decode = runs.runs[i].extent <= 1;
+            size_t j = i + 1;
+            while (j < runs.n && (runs.runs[j].extent <= 1) == decode) ++j;
+            const size_t end = runs.runs[j - 1].end;
+            if (end < start) throw std::runtime_error("backend: row runs out of order");
+            if (end > start) each(start, end - start, decode);
+            start = end;
+            i = j;
+        }
+    }
+
+    // Whether decode rows meet quantized activations (q8_dots.hpp); a reference that wants the float arithmetic turns it off.
+    void set_decode_activations8(bool on) { decode8_ = on; }
+
+    // Decode columns of X against a quantized matrix through the 8-bit dots: every column quantized once, the rows of all of them split over the pool.
+    void matvec_q8x(uint32_t type, const uint8_t* data, const float* X, float* Y, size_t nin, size_t nout, size_t ncols) {
+        xq8_.reset(X, ncols, nin);
+        xq8_.prepare(type);
+        const size_t rb = row_bytes_of(type, nin), rows = ncols * nout;
+        auto work = [&](size_t r0, size_t r1) {
+            for (size_t r = r0; r < r1; ++r) {
+                const size_t c = r / nout, o = r - c * nout;
+                Y[r] = q8::dot(type, data + o * rb, xq8_, c);
+            }
+        };
+        const size_t nt = (size_t)std::max(threads_, 1);
+        if (nt <= 1 || rows < nt * 8) { work(0, rows); return; }
+        const size_t chunk = (rows + nt - 1) / nt;
+        run_parallel([&](int w) { work(std::min(rows, (size_t)w * chunk), std::min(rows, (size_t)(w + 1) * chunk)); });
+    }
+
+    // The matmul on host addresses, which an expert's matrix inside a stacked tensor needs; `decode` picks the decode dots over the batched path.
     void matmul_raw(uint32_t type, const uint8_t* data, const float* X, float* Y,
-                    size_t nin, size_t nout, size_t nbatch) {
+                    size_t nin, size_t nout, size_t nbatch, bool decode) {
+        if (decode && decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0) {
+            matvec_q8x(type, data, X, Y, nin, nout, nbatch);
+            return;
+        }
+        if (decode && nbatch > 1) {
+            for (size_t c = 0; c < nbatch; ++c) matmul_raw(type, data, X + c * nin, Y + c * nout, nin, nout, 1, true);
+            return;
+        }
         // Q8_0 keeps its fused dequant+FMA row dot for the single-column case, which is the decode path and is bandwidth bound rather than load bound, so the extra dequant buffer would buy nothing there.
-        if (nbatch == 1 && type == gguf::GGML_TYPE_Q8_0) {
+        if (decode && type == gguf::GGML_TYPE_Q8_0) {
             matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
             return;
         }
         // K-quants whose dot factorises so no dequantized value is materialised: Q4_K/Q5_K give d*sum(q*x) - m*sum(x), Q6_K has signed group scales and no min, so it is sum over groups of d_g*sum(q*x).
-        if (nbatch == 1 && (type == gguf::GGML_TYPE_Q4_K ||
+        if (decode && (type == gguf::GGML_TYPE_Q4_K ||
                             type == gguf::GGML_TYPE_Q5_K ||
                             type == gguf::GGML_TYPE_Q6_K)) {
             const size_t blk = type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_BLOCK
@@ -391,7 +444,7 @@ public:
         const size_t RB = (size_t)DOT_ROWS;
 
         auto do_rows = [&](int w, size_t o0, size_t o1) {
-            if (f32 && nbatch == 1) {
+            if (f32 && decode) {
                 // Decode streams each resident row contiguously; prefill keeps the fused kernels that reuse weights across batch columns.
                 for (size_t o = o0; o < o1; ++o)
                     Y[o] = dot_f32((const float*)(data + o * rowbytes), X, nin);
@@ -449,41 +502,37 @@ public:
     }
 
     void matmul_group(std::initializer_list<Projection> projections,
-                      CSlice X_s, size_t nin, size_t nbatch, RowRuns = {}) override {
-        bool grouped = threads_ > 1 && nbatch == 1 && projections.size() > 1;
+                      CSlice X_s, size_t nin, size_t nbatch, RowRuns runs = {}) override {
         for (const auto& p : projections)
             if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
-        const float* X = projections.size() ? at(X_s) : nullptr;
-        for (const auto& p : projections)
-            grouped = grouped && p.rows >= size_t(threads_) * 8 &&
-                (p.type == gguf::GGML_TYPE_F32 || p.type == gguf::GGML_TYPE_Q8_0 ||
-                 p.type == gguf::GGML_TYPE_Q4_K);
-        if (!grouped) { Backend::matmul_group(projections, X_s, nin, nbatch); return; }
-        run_parallel([&](int w) {
-            for (const auto& p : projections) {
-                size_t chunk = (p.rows + size_t(threads_) - 1) / size_t(threads_);
-                // Keep the same per-matrix partition as individual matmul calls.
-                if (p.type == gguf::GGML_TYPE_F32)
-                    chunk = (chunk + DOT_ROWS - 1) / DOT_ROWS * DOT_ROWS;
-                const size_t first = size_t(w) * chunk;
-                const size_t last = std::min(p.rows, first + chunk);
-                const uint8_t* rows = (const uint8_t*)bytes_at(p.data);
-                float* out = at(p.out);
-                if (p.type == gguf::GGML_TYPE_F32) {
-                    const float* data = reinterpret_cast<const float*>(rows);
-                    for (size_t o = first; o < last; ++o)
-                        out[o] = dot_f32(data + o * nin, X, nin);
-                } else if (p.type == gguf::GGML_TYPE_Q8_0) {
-                    const size_t blocks = nin / gguf::Q8_0_BLOCK;
-                    for (size_t o = first; o < last; ++o)
-                        out[o] = dot_row_impl(rows + o * blocks * gguf::Q8_0_TYPESIZE, X, blocks);
-                } else {
-                    const size_t blocks = nin / gguf::Q4_K_BLOCK;
-                    for (size_t o = first; o < last; ++o)
-                        out[o] = dot_row_q4_K(rows + o * blocks * gguf::Q4_K_TYPESIZE, X, blocks);
+        bool decode = runs.n ? true : nbatch == 1;
+        for (size_t i = 0; i < runs.n; ++i) decode = decode && runs.runs[i].extent <= 1;
+        bool q8 = decode && decode8_ && avx2_ && nin % 32 == 0 && projections.size() > 1;
+        for (const auto& p : projections) q8 = q8 && q8::has_dot(p.type);
+        if (!q8) { Backend::matmul_group(projections, X_s, nin, nbatch, runs); return; }
+        // One quantized X for every projection, and one pool dispatch over all their rows.
+        xq8_.reset(at(X_s), nbatch, nin);
+        for (const auto& p : projections) xq8_.prepare(p.type);
+        struct Part { uint32_t type; const uint8_t* data; float* out; size_t rows, row_bytes, first; };
+        std::vector<Part> parts;
+        size_t total = 0;
+        for (const auto& p : projections) {
+            parts.push_back({p.type, (const uint8_t*)bytes_at(p.data), at(p.out), p.rows, row_bytes_of(p.type, nin), total});
+            total += nbatch * p.rows;
+        }
+        auto work = [&](size_t r0, size_t r1) {
+            for (const Part& p : parts) {
+                const size_t lo = std::max(r0, p.first), hi = std::min(r1, p.first + nbatch * p.rows);
+                for (size_t r = lo; r < hi; ++r) {
+                    const size_t c = (r - p.first) / p.rows, o = (r - p.first) - c * p.rows;
+                    p.out[c * p.rows + o] = q8::dot(p.type, p.data + o * p.row_bytes, xq8_, c);
                 }
             }
-        });
+        };
+        const size_t nt = (size_t)std::max(threads_, 1);
+        if (nt <= 1 || total < nt * 8) { work(0, total); return; }
+        const size_t chunk = (total + nt - 1) / nt;
+        run_parallel([&](int w) { work(std::min(total, (size_t)w * chunk), std::min(total, (size_t)(w + 1) * chunk)); });
     }
 
     // Rows fused per activation load: the width dot_f32_x4 handles.
@@ -1059,21 +1108,22 @@ public:
     }
 
     void matmul_experts(std::initializer_list<Projection> projections, CSlice X_s, size_t nin,
-                        size_t nrows, const Routing& routing, RowRuns = {}) override {
+                        size_t nrows, const Routing& routing, RowRuns runs = {}) override {
         const size_t entries = size_mul(nrows, routing.k);
         if (!entries) return;
         const Grouping g = group_by_expert(routing, entries);
         span(*X_s.buffer, X_s.offset * sizeof(float), size_mul(nrows, nin) * sizeof(float));
+        const std::vector<char> decode = decode_rows(nrows, runs);
         for (const Projection& p : projections) {
             if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
             span(*p.out.buffer, p.out.offset * sizeof(float), size_mul(entries, p.rows) * sizeof(float));
-            expert_products(p.type, p.data, routing.n_expert, at(X_s), routing.k, at(p.out), nin, p.rows, g);
+            expert_products(p.type, p.data, routing.n_expert, at(X_s), nrows, routing.k, routing.k, at(p.out), nin, p.rows, g, decode);
         }
     }
 
     // The slots' products land in scratch; each row's weighted sum is then formed in slot order and added, the order the interface fixes.
     void matmul_experts_add(uint32_t type, CSlice data, CSlice X_s, Slice Y_s, size_t nin, size_t nout,
-                            size_t nrows, const Routing& routing, RowRuns = {}) override {
+                            size_t nrows, const Routing& routing, RowRuns runs = {}) override {
         const size_t k = routing.k, entries = size_mul(nrows, k);
         if (!entries) return;
         const Grouping g = group_by_expert(routing, entries);
@@ -1081,7 +1131,8 @@ public:
         span(*Y_s.buffer, Y_s.offset * sizeof(float), size_mul(nrows, nout) * sizeof(float));
         span(*routing.weights.buffer, routing.weights.offset * sizeof(float), entries * sizeof(float));
         expert_out_.resize(size_mul(entries, nout));
-        expert_products(type, data, routing.n_expert, at(X_s), 1, expert_out_.data(), nin, nout, g);
+        expert_products(type, data, routing.n_expert, at(X_s), entries, 1, k, expert_out_.data(), nin, nout, g,
+                        decode_rows(nrows, runs));
         const float* w = at(routing.weights);
         float* Y = at(Y_s);
         spread(nrows, [&](size_t r) {
@@ -1117,29 +1168,41 @@ private:
         return g;
     }
 
-    // out[e*nout ..] = expert id(e)'s matrix times X row e / per.
-    // An expert with few entries takes the fused row dots, every such entry's rows of the call in one pool dispatch, which is what decode routes; an expert with more takes one batched matmul over its rows.
-    static const size_t kExpertBatchFrom = 4;
-    void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t per, float* out,
-                         size_t nin, size_t nout, const Grouping& g) {
+    // Whether each token row of a call is a generated token's, from its runs as matmul reads them.
+    static std::vector<char> decode_rows(size_t nrows, RowRuns runs) {
+        std::vector<char> decode(nrows, 0);
+        each_run(nrows, runs, [&](size_t first, size_t count, bool d) {
+            for (size_t r = first; r < first + count; ++r) decode[r] = d;
+        });
+        return decode;
+    }
+
+    // out[e*nout ..] = expert id(e)'s matrix times X row e / per, X having xrows rows and entry e belonging to token row e / k.
+    // A generated token's entries take the decode dots, all of a call's in one pool dispatch; a prompt's entries take one batched matmul per expert over its rows, so an entry computes the same whatever else is routed beside it.
+    void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
+                         float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode) {
         const size_t row_bytes = row_bytes_of(type, nin), stride = size_mul(nout, row_bytes);
         span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
         const uint8_t* data = (const uint8_t*)bytes_at(data_s);
         std::vector<uint32_t> single, expert_of;
-        for (size_t e = 0; e < n_expert; ++e) {
-            const size_t first = g.start[e], count = g.start[e + 1] - first;
-            if (!count || count >= kExpertBatchFrom) continue;
-            for (size_t c = 0; c < count; ++c) {
-                single.push_back(g.order[first + c]);
-                expert_of.push_back((uint32_t)e);
-            }
-        }
+        for (size_t e = 0; e < n_expert; ++e)
+            for (size_t c = g.start[e]; c < g.start[e + 1]; ++c)
+                if (decode[g.order[c] / k]) {
+                    single.push_back(g.order[c]);
+                    expert_of.push_back((uint32_t)e);
+                }
         if (!single.empty()) {
+            const bool q8 = decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0;
+            if (q8) {
+                xq8_.reset(X, xrows, nin);
+                xq8_.prepare(type);
+            }
             const size_t rows = single.size() * nout;
             auto work = [&](size_t r0, size_t r1) {
                 for (size_t r = r0; r < r1; ++r) {
                     const size_t s = r / nout, o = r - s * nout, i = single[s];
-                    out[i * nout + o] = row_dot(type, data + expert_of[s] * stride + o * row_bytes, X + (i / per) * nin, nin);
+                    const uint8_t* w = data + expert_of[s] * stride + o * row_bytes;
+                    out[i * nout + o] = q8 ? q8::dot(type, w, xq8_, i / per) : row_dot(type, w, X + (i / per) * nin, nin);
                 }
             };
             const size_t nt = (size_t)std::max(threads_, 1);
@@ -1150,16 +1213,18 @@ private:
             }
         }
         for (size_t e = 0; e < n_expert; ++e) {
-            const size_t first = g.start[e], count = g.start[e + 1] - first;
-            if (count < kExpertBatchFrom) continue;
+            std::vector<uint32_t> batch;
+            for (size_t c = g.start[e]; c < g.start[e + 1]; ++c)
+                if (!decode[g.order[c] / k]) batch.push_back(g.order[c]);
+            if (batch.empty()) continue;
             const uint8_t* w = data + e * stride;
-            expert_x_.resize(count * nin);
-            expert_y_.resize(count * nout);
-            for (size_t c = 0; c < count; ++c)
-                std::memcpy(expert_x_.data() + c * nin, X + (g.order[first + c] / per) * nin, nin * sizeof(float));
-            matmul_raw(type, w, expert_x_.data(), expert_y_.data(), nin, nout, count);
-            for (size_t c = 0; c < count; ++c)
-                std::memcpy(out + (size_t)g.order[first + c] * nout, expert_y_.data() + c * nout, nout * sizeof(float));
+            expert_x_.resize(batch.size() * nin);
+            expert_y_.resize(batch.size() * nout);
+            for (size_t c = 0; c < batch.size(); ++c)
+                std::memcpy(expert_x_.data() + c * nin, X + (batch[c] / per) * nin, nin * sizeof(float));
+            matmul_raw(type, w, expert_x_.data(), expert_y_.data(), nin, nout, batch.size(), false);
+            for (size_t c = 0; c < batch.size(); ++c)
+                std::memcpy(out + (size_t)batch[c] * nout, expert_y_.data() + c * nout, nout * sizeof(float));
         }
     }
 
@@ -1196,6 +1261,8 @@ private:
     }
 
     std::vector<float> expert_x_, expert_y_, expert_out_;
+    q8::Activations xq8_;      // the quantized activations of the last decode call
+    bool decode8_ = true;
     // A slice resolves to a host pointer exactly once per op; the kernels below are untouched and still see plain float arrays.
     static float* at(Slice s) {
         if (!s.buffer) throw std::runtime_error("backend: operand without storage");

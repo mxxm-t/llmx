@@ -299,6 +299,8 @@ int main() {
         quant::register_builtins();
         backend::CpuBackend cpu;
         cpu.set_threads(1);
+        // These checks pin the float decode dots exactly; the 8-bit ones have tests/q8_dots.cpp.
+        cpu.set_decode_activations8(false);
         const size_t gathered = check_gather(cpu);
         const size_t positions = check_row_positions(cpu);
         const size_t scales = check_q8_scales(cpu);

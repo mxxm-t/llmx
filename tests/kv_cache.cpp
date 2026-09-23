@@ -487,12 +487,12 @@ struct FailingCpu : backend::CpuBackend {
     int syncs = 0, submits = 0, waits = 0, reads = 0;
     backend::Ticket last_wait = 0;
     void matmul(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
-                size_t nin, size_t nout, size_t nbatch, backend::RowRuns = {}) override {
+                size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs = {}) override {
         if (nout == 16) {
             ++outputs;
             if (fail_output) { fail_output = false; throw std::runtime_error("injected"); }
         }
-        backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch);
+        backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch, runs);
     }
     void sync() noexcept override { ++syncs; backend::CpuBackend::sync(); }
     backend::Ticket submit() override { ++submits; return backend::CpuBackend::submit(); }

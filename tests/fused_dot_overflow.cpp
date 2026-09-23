@@ -73,10 +73,12 @@ std::vector<uint8_t> block_q6_K(uint16_t half) {
 
 struct Case { const char* name; uint16_t half; bool huge; };
 
-int run_type(uint32_t type, const char* tname) {
+// `eight` runs the decode dots over 8-bit activations, which cannot overflow since each block is scaled first; their bound is relative to the sum of magnitudes, since a block's rounding follows its largest value and the ordinary input's products largely cancel.
+int run_type(uint32_t type, const char* tname, bool eight) {
     const size_t nin = 256;
     backend::CpuBackend cpu;
     cpu.set_threads(1);
+    cpu.set_decode_activations8(eight);
 
     const Case cases[] = {
         {"tiny scale, huge input", 0x0001, true},
@@ -99,8 +101,11 @@ int run_type(uint32_t type, const char* tname) {
 
         // Every weight decodes to the same constant, so the dot is q*d*sum(x).
         const float d = f16_to_f32(c.half);
-        long double exact = 0.0L;
-        for (size_t i = 0; i < nin; i++) exact += (long double)q * d * x[i];
+        long double exact = 0.0L, magnitude = 0.0L;
+        for (size_t i = 0; i < nin; i++) {
+            exact += (long double)q * d * x[i];
+            magnitude += std::fabs((long double)q * d * x[i]);
+        }
 
         const auto w_buf = cpu.adopt(w.data(), w.size());
         const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
@@ -110,8 +115,8 @@ int run_type(uint32_t type, const char* tname) {
         require(std::isfinite(y[0]),
                 std::string(tname) + " / " + c.name + ": produced a nonfinite result");
         const long double err = std::fabs((long double)y[0] - exact);
-        const long double tol = std::fabs(exact) * 1e-5L + 1e-30L;
-        require(err <= tol, std::string(tname) + " / " + c.name +
+        const long double tol = eight ? magnitude * 1e-2L + 1e-30L : std::fabs(exact) * 1e-5L + 1e-30L;
+        require(err <= tol, std::string(tname) + (eight ? " 8-bit" : "") + " / " + c.name +
                             ": " + std::to_string((double)y[0]) +
                             " differs from " + std::to_string((double)exact));
         checked++;
@@ -124,10 +129,13 @@ int run_type(uint32_t type, const char* tname) {
 int main() {
     try {
         quant::register_builtins();
-        int n = run_type(gguf::GGML_TYPE_Q8_0, "Q8_0");
-        n += run_type(gguf::GGML_TYPE_Q4_K, "Q4_K");
-        n += run_type(gguf::GGML_TYPE_Q5_K, "Q5_K");
-        n += run_type(gguf::GGML_TYPE_Q6_K, "Q6_K");
+        int n = 0;
+        for (bool eight : {false, true}) {
+            n += run_type(gguf::GGML_TYPE_Q8_0, "Q8_0", eight);
+            n += run_type(gguf::GGML_TYPE_Q4_K, "Q4_K", eight);
+            n += run_type(gguf::GGML_TYPE_Q5_K, "Q5_K", eight);
+            n += run_type(gguf::GGML_TYPE_Q6_K, "Q6_K", eight);
+        }
         printf("fused dot overflow: %d cases finite and exact\n", n);
         return 0;
     } catch (const std::exception& e) {

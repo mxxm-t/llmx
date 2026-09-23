@@ -185,12 +185,6 @@ const uint32_t kSpvNormRopeKvKV16[] = {
 #include "vulkan/norm_rope_kv_kv16.inc"
 };
 
-const uint32_t kSpvMatmulRowDot[] = {
-#include "vulkan/matmul_row_dot.inc"
-};
-const uint32_t kSpvMatmulRowQ8WDot[] = {
-#include "vulkan/matmul_row_q8w_dot.inc"
-};
 const uint32_t kSpvMatmulRowQ4Dot[] = {
 #include "vulkan/matmul_row_q4_dot.inc"
 };
@@ -231,16 +225,15 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_ATTENTION_TILE_K16, K_ATTENTION_TILE_V16, K_ATTENTION_TILE_KV16,
                 K_NORM_ROPE_KV_K16, K_NORM_ROPE_KV_V16, K_NORM_ROPE_KV_KV16,
                 K_QUANTIZE_X, K_MATMUL_ROW_Q8W, K_MATMUL_TILE_TALL,
-                K_MATMUL_ROW_DOT, K_MATMUL_ROW_Q8W_DOT, K_MATMUL_ROW_Q4_DOT,
+                K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
+// F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
 inline KernelId row_dot_variant(KernelId plain) {
     switch (plain) {
-    case K_MATMUL_ROW: return K_MATMUL_ROW_DOT;
-    case K_MATMUL_ROW_Q8W: return K_MATMUL_ROW_Q8W_DOT;
     case K_MATMUL_ROW_Q4: return K_MATMUL_ROW_Q4_DOT;
     case K_MATMUL_ROW_K4: return K_MATMUL_ROW_K4_DOT;
     case K_MATMUL_ROW_K5: return K_MATMUL_ROW_K5_DOT;
@@ -254,7 +247,7 @@ inline bool is_row_kernel(KernelId id) {
     switch (id) {
     case K_MATMUL_ROW: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4:
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
-    case K_MATMUL_ROW_DOT: case K_MATMUL_ROW_Q8W_DOT: case K_MATMUL_ROW_Q4_DOT:
+    case K_MATMUL_ROW_Q4_DOT:
     case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT: case K_MATMUL_VEC_Q8:
         return true;
     default: return false;
@@ -264,7 +257,7 @@ inline bool is_row_kernel(KernelId id) {
 // Whether a row kernel has a one-column build for one-column chunks, which frees the registers of seven unused accumulators.
 // Not the wide Q8_0 path: it already runs five waves per SIMD, and its one-column build measured slower on the 8B file (docs/VULKAN.md).
 inline bool row_kernel_builds_one_column(KernelId id) {
-    return is_row_kernel(id) && id != K_MATMUL_ROW_Q8W && id != K_MATMUL_ROW_Q8W_DOT;
+    return is_row_kernel(id) && id != K_MATMUL_ROW_Q8W;
 }
 
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
@@ -295,7 +288,7 @@ const char* const kKernelNames[K_COUNT] = {
     "attention_tile_k16", "attention_tile_v16", "attention_tile_kv16",
     "norm_rope_kv_k16", "norm_rope_kv_v16", "norm_rope_kv_kv16",
     "quantize_x", "matmul_row_q8w", "matmul_tile_tall",
-    "matmul_row_dot", "matmul_row_q8w_dot", "matmul_row_q4_dot",
+    "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
     "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
     "matmul_reduce", "matmul_vec_q8",
@@ -334,8 +327,6 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr},
     {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 10, kMatmulRowCounts},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 5, nullptr},
-    {kSpvMatmulRowDot, sizeof(kSpvMatmulRowDot), 10, kMatmulRowCounts},
-    {kSpvMatmulRowQ8WDot, sizeof(kSpvMatmulRowQ8WDot), 10, kMatmulRowCounts},
     {kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 10, kMatmulRowCounts},
     {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 10, kMatmulRowCounts},
     {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 10, kMatmulRowCounts},
@@ -687,10 +678,6 @@ public:
         d.caps.compute_units = d.compute_units;
         d.caps.shared_memory_bytes = d.props.limits.maxComputeSharedMemorySize;
         d.caps.matrix_units = false;   // no gfx906 has them; a device that does sets this
-        d.caps.fp16_arithmetic = d.float16;
-        d.caps.int8_arithmetic = d.int8;
-        d.caps.storage_8bit = d.storage8;
-        d.caps.storage_16bit = d.storage16;
         // The row kernel places one subgroup per row group in a 256-lane workgroup, so the subgroup size must divide it.
         if (!d.subgroup_size || 256 % d.subgroup_size ||
             !(sg.supportedOperations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT))
@@ -734,6 +721,10 @@ public:
         d.float16 = f12.shaderFloat16;
         d.storage8 = f12.storageBuffer8BitAccess;
         d.storage16 = f11.storageBuffer16BitAccess;
+        d.caps.fp16_arithmetic = d.float16;
+        d.caps.int8_arithmetic = d.int8;
+        d.caps.storage_8bit = d.storage8;
+        d.caps.storage_16bit = d.storage16;
         VkPhysicalDeviceVulkan12Features e12{};
         e12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
         e12.timelineSemaphore = VK_TRUE;

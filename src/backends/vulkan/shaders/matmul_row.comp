@@ -22,6 +22,9 @@
 #if defined(LLMX_X8) && !defined(LLMX_DOT)
 #error "the 8-bit twin is read only through the integer dot"
 #endif
+#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT))
+#error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
+#endif
 #include "q.glsl"
 layout(local_size_x = 256) in;
 // Batch columns a lane keeps in registers, specialization constant 0; the backend takes the one-column build for a one-column chunk, which frees the registers seven unused accumulators would hold.
@@ -90,11 +93,6 @@ int dot4(uint a, uint b) { return dotPacked4x8EXT(int(a), int(b)); }
 // Two pairs of 16-bit values against two activation pair words.
 int pair_dot(uint a, uint b, uvec2 xw) {
     return dotEXT(unpack16(int(a)), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)), unpack16(int(xw.y)));
-}
-// A word of four signed bytes at positions 4k..4k+3 against the pair words: bytes 0 and 2 form one pair, 1 and 3 the other.
-int byte_dot(uint w, uvec2 xw) {
-    i8vec4 v = unpack8(int(w));
-    return dotEXT(i16vec2(v.xz), unpack16(int(xw.x))) + dotEXT(i16vec2(v.yw), unpack16(int(xw.y)));
 }
 #else
 #define QDOT float

@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(llmx VERSION 0.1.0 LANGUAGES CXX)
 
-# llmx - ground-up GGUF Q8_0 CLI. Cross-platform build (Windows/Linux/macOS).
-# CPU is always built; GPU backends are opt-in via LLMX_HAS_BACKEND_* and require
-# their SDK. Split mode and node count are runtime parameters, NOT build options.
+# llmx: a dependency-free GGUF runtime, built on Windows, Linux and macOS.
+# The CPU backend is always built; GPU backends are opt-in through LLMX_HAS_BACKEND_* and need their SDK.
+# Split mode and node count are runtime parameters, not build options.
 
 option(LLMX_HAS_BACKEND_ROCM   "Build the ROCm (HIP) backend"   OFF)
 option(LLMX_HAS_BACKEND_CUDA   "Build the CUDA backend"         OFF)
@@ -18,9 +18,7 @@ add_executable(llmx
 target_include_directories(llmx PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_include_directories(llmx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# Generate src/config.hpp from src/config.hpp.in-style template. The committed
-# src/config.hpp is the fallback for plain build.bat; CMake produces a fresh one
-# with the cache options baked in. Options are ON/OFF; the header wants 0/1.
+# Generate src/config.hpp with the cache options baked in, as 0/1; the committed src/config.hpp is the fallback for plain build.bat.
 set(LLMX_CPU 1)
 foreach(gpu ROCM CUDA SYCL VULKAN)
     if(LLMX_HAS_BACKEND_${gpu})
@@ -45,31 +43,23 @@ add_custom_target(llmx-build-info
 )
 add_dependencies(llmx llmx-build-info)
 
-# The Vulkan backend (docs/VULKAN.md). The SDK supplies the headers at build
-# time; the loader is loaded at run time, so nothing links against vulkan-1.
-# One static library so the CLI and the test compile the device code once.
+# The Vulkan backend (docs/VULKAN.md): the SDK supplies the headers at build time and the loader is opened at run time, so nothing links against vulkan-1.
+# One static library, so the CLI and the tests compile the device code once.
 if(LLMX_HAS_BACKEND_VULKAN)
-    # The loader is opened at run time, so a build needs only the headers
-    # and the shader compiler; FindVulkan would insist on the library too.
+    # A build needs only the headers and the shader compiler; FindVulkan would insist on the library too.
     find_path(LLMX_VULKAN_INCLUDE_DIR vulkan/vulkan.h HINTS $ENV{VULKAN_SDK}/Include $ENV{VULKAN_SDK}/include)
     find_program(LLMX_GLSLC glslc HINTS $ENV{VULKAN_SDK}/Bin $ENV{VULKAN_SDK}/bin)
     if(NOT LLMX_VULKAN_INCLUDE_DIR OR NOT LLMX_GLSLC)
         message(FATAL_ERROR "LLMX_HAS_BACKEND_VULKAN needs vulkan/vulkan.h and glslc: install the Vulkan headers and shaderc, or set VULKAN_SDK")
     endif()
-    # Shaders are GLSL in the tree, compiled to SPIR-V at build time and
-    # embedded as uint32_t arrays, so the binary carries its kernels.
+    # Shaders are GLSL in the tree, compiled to SPIR-V at build time and embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
     set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_rows embed matmul_row
         kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
         quantize_x8 matmul_tile_q matmul_reduce matmul_vec_q8)
-    # A variant is the same source compiled with a define, "name=source=DEFINE":
-    # the row kernel is one module per family of types because the register
-    # demand of every family's branches in one module cost the Q8_0 path 40
-    # percent of its decode throughput.
+    # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
     set(LLMX_VK_VARIANTS matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
         matmul_row_k=matmul_row=LLMX_KQUANT
-        matmul_row_dot=matmul_row=LLMX_DOT
-        matmul_row_q8w_dot=matmul_row=LLMX_Q8W+LLMX_DOT
         matmul_row_q4_dot=matmul_row=LLMX_Q4+LLMX_DOT
         matmul_row_k4_dot=matmul_row=LLMX_K4+LLMX_DOT+LLMX_X8
         matmul_row_k5_dot=matmul_row=LLMX_K5+LLMX_DOT+LLMX_X8
@@ -236,8 +226,7 @@ if(BUILD_TESTING)
     set_tests_properties(http PROPERTIES TIMEOUT 30)
 
     if(LLMX_HAS_BACKEND_VULKAN)
-        # Exits 77 when there is no loader or no device, which CTest reports
-        # as skipped rather than passed.
+        # Exits 77 when there is no loader or no device, which CTest reports as skipped rather than passed.
         add_executable(llmx-backend-vulkan-test tests/backend_vulkan.cpp)
         target_link_libraries(llmx-backend-vulkan-test PRIVATE llmx-vulkan)
         list(APPEND LLMX_TARGETS llmx-backend-vulkan-test)

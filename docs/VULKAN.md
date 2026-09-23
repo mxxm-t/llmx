@@ -476,8 +476,10 @@ HF gate measures the cost of it.
   128 rows are taken while they still give `tile_tall_per_cu` workgroups
   per compute unit (`tile_tall_per_cu_narrow` under 4096 values to a row),
   the unit count coming from `VK_AMD_shader_core_properties` where that
-  exists and assumed small otherwise. On the Radeon VII one workgroup per
-  unit is the measured fill. On the MI50 under RADV the integer-dot tile
+  exists and assumed small otherwise. On the Radeon VII, whose float tile
+  this is, one workgroup per unit is the measured fill: four and eight
+  took Qwen3-0.6B Q8_0 at 512 rows from 3060 to 1855 tok/s and Qwen3-8B
+  Q8_0 at 64 rows from 217 to 187. On the MI50 under RADV the integer-dot tile
   wants four for wide rows and eight for narrow ones: with one, a
   Qwen3-0.6B prompt of 247 rows made about two workgroups per unit, two
   waves per SIMD, and prefilled 6923 tok/s on Q4_0 against 8277 with

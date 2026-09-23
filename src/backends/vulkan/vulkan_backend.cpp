@@ -2237,20 +2237,23 @@ private:
         return *staging_;
     }
 
-    // Host to device through staging, each chunk submitted and waited so staging can take the next.
+    // Host to device through the two halves of staging: the host fills one while the device copies from the other, so a long upload runs at the slower of the two rather than at their sum.
+    // It returns once the source is consumed; the copies are in stream order, ahead of whatever reads the destination.
     void upload(VulkanBuffer& dst, size_t off, const void* src, size_t bytes) {
         if (!bytes) return;
         VulkanBuffer& st = staging();
+        const size_t half = st.size() / 2;
         size_t done = 0;
-        while (done < bytes) {
-            const size_t n = std::min(bytes - done, st.size());
-            std::memcpy(st.mapped(), (const uint8_t*)src + done, n);
+        for (size_t i = 0; done < bytes; i ^= 1) {
+            const size_t n = std::min(bytes - done, half);
+            wait(staged_[i]);
+            std::memcpy((uint8_t*)st.mapped() + i * half, (const uint8_t*)src + done, n);
             VkCommandBuffer cmd = open();
             barrier(cmd);
-            VkBufferCopy region{0, off + done, n};
+            VkBufferCopy region{i * half, off + done, n};
             dev_->fn.vkCmdCopyBuffer(cmd, st.handle(), dst.handle(), 1, &region);
             barrier(cmd);
-            wait(submit());
+            staged_[i] = submit();
             done += n;
         }
     }
@@ -2264,6 +2267,7 @@ private:
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     Ticket last_ticket_ = 0;
     std::unique_ptr<VulkanBuffer> staging_;
+    Ticket staged_[2] = {};                   // the last copy out of each half of staging
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
     static const uint32_t kQueries = 8192;    // two per dispatch, reset each submission

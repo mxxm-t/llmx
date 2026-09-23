@@ -1,17 +1,11 @@
 #version 450
-// Scatter the token-major [heads, dim] rows of every view of a batch into
-// their blocks, row b of a view at position hist + b of its sequence. A
-// block holds [head][token][dim], so a head's history inside it is
-// contiguous for the attention lanes. One dispatch per layer whatever the
-// number of views.
+// Scatter the token-major [heads, dim] rows of every view of a batch into their blocks, row b of a view at position hist + b. A block holds [head][token][dim].
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "f16.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint bt; } p;
-// K and V storage of either type: f32 as floats, f16 as 16-bit words
-// written round-to-nearest and read exactly, chosen per side at build by
-// LLMX_K16 and LLMX_V16 so a variant carries no branch.
+// K and V storage of either type, f32 or f16 (round-to-nearest), chosen per side at build by LLMX_K16 and LLMX_V16.
 #ifdef LLMX_K16
 layout(set = 0, binding = 0) buffer K { uint16_t kb16[]; };
 void k_store(uint i, float v) { kb16[i] = uint16_t(f16_bits(v)); }

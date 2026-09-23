@@ -29,10 +29,9 @@
 
 namespace backend {
 
-// Host storage. `adopt` keeps the caller's pointer, which is the whole point:
-// the weights are already resident in the GGUF payload and copying an 8 GB
-// model to make it a buffer would double peak memory for nothing. `alloc`
-// owns its bytes instead.
+// Host storage.
+// `adopt` keeps the caller's pointer, which is the whole point: the weights are already resident in the GGUF payload and copying an 8 GB model to make it a buffer would double peak memory for nothing.
+// `alloc` owns its bytes instead.
 class CpuBuffer final : public Buffer {
 public:
     explicit CpuBuffer(size_t bytes) : owned_(bytes), size_(bytes) { ptr_ = owned_.data(); }
@@ -49,21 +48,11 @@ private:
     void* ptr_ = nullptr;
 };
 
-// 128 tokens per KV block: chosen by the real-model screening recorded in
-// docs/KV-CACHE.md. 64 lost prefill consistently; 256 was not separable
-// from 128 on decode and doubles the partial-tail waste.
+// 128 tokens per KV block: chosen by the real-model screening recorded in docs/KV-CACHE.md. 64 lost prefill consistently; 256 was not separable from 128 on decode and doubles the partial-tail waste.
 static const size_t KV_BLOCK_TOKENS = 128;
 
-// KV blocks, one K buffer and one V buffer per layer. Block id b starts at
-// b*block_floats() and holds [kv_head][token][head_dim], so a head's history
-// is contiguous inside the block. Blocks are backed in doubling steps as ids
-// are first written; ids come dense from the model's pool.
-//
-// The storage allocates through the backend that owns it rather than holding
-// vectors of its own, which is what lets a device backend put the cache in
-// device memory without the view contract changing. Growth is therefore alloc
-// then copy. A resolved host pointer per layer is cached alongside the handle
-// because attention asks for one per head, per query, per block.
+// KV blocks, one K and one V buffer per layer; block b starts at b*block_floats() and holds [kv_head][token][head_dim]. Blocks are backed in doubling steps as ids are first written.
+// The storage allocates through its backend, so growth is alloc then copy. A resolved host pointer per layer is cached since attention asks for one per head, query and block.
 class CpuKVStorage final : public KVStorage {
 public:
     CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim,
@@ -71,8 +60,7 @@ public:
         : owner_(&owner), heads_(heads), dim_(dim), max_(max_blocks), kt_(kt), vt_(vt),
           kb_(kv_elem_bytes(kt)), vb_(kv_elem_bytes(vt)),
           k_(layers), v_(layers), kp_(layers, nullptr), vp_(layers, nullptr) {
-        // Called for its overflow throw, not its value: block_floats()
-        // recomputes this on every access and must not wrap.
+        // Called for its overflow throw, not its value: block_floats() recomputes this on every access and must not wrap.
         mul(mul(heads, KV_BLOCK_TOKENS), dim);
     }
 
@@ -109,10 +97,7 @@ public:
     size_t v_block_bytes() const { return block_floats() * vb_; }
     bool backed(size_t id) const { return id < backed_; }
 
-    // The complete new set is allocated and already holds the history before
-    // any of it is published, so an allocation that throws leaves the storage
-    // exactly as it was and a retry starts over. alloc is zero-filled, which
-    // is what leaves a newly backed block reading as zeros.
+    // The complete new set is allocated and already holds the history before any of it is published, so an allocation that throws leaves the storage exactly as it was and a retry starts over. alloc is zero-filled, which is what leaves a newly backed block reading as zeros.
     void ensure(size_t id) {
         if (id < backed_) return;
         if (id >= max_) throw std::runtime_error("backend: KV block outside the budget");
@@ -139,8 +124,7 @@ public:
         backed_ = want;
     }
 
-    // Block `id` of a layer as bytes, and as the element type it holds; the
-    // caller checks the type and casts once per block.
+    // Block `id` of a layer as bytes, and as the element type it holds; the caller checks the type and casts once per block.
     uint8_t* kraw(size_t layer, int32_t id) { return kp_[layer] + (size_t)id * k_block_bytes(); }
     uint8_t* vraw(size_t layer, int32_t id) { return vp_[layer] + (size_t)id * v_block_bytes(); }
     const uint8_t* kraw(size_t layer, int32_t id) const { return kp_[layer] + (size_t)id * k_block_bytes(); }
@@ -155,8 +139,7 @@ public:
     const uint16_t* vh(size_t layer, int32_t id) const { return (const uint16_t*)vraw(layer, id); }
 
 private:
-    // Resolved once per growth rather than per access: attention walks the
-    // block table for every head of every query.
+    // Resolved once per growth rather than per access: attention walks the block table for every head of every query.
     static uint8_t* host_bytes(Buffer& b) {
         auto* cpu = dynamic_cast<CpuBuffer*>(&b);
         if (!cpu) throw std::runtime_error("backend: KV storage needs host blocks");
@@ -171,8 +154,8 @@ private:
     std::vector<uint8_t*> kp_, vp_;
 };
 
-// CPU implementation of the Backend interface. Uses AVX2 fused dequant+FMA for
-// quantized matmuls where the host supports it, otherwise a scalar fallback.
+// CPU implementation of the Backend interface.
+// Uses AVX2 fused dequant+FMA for quantized matmuls where the host supports it, otherwise a scalar fallback.
 class CpuBackend : public Backend {
 public:
     CpuBackend() {
@@ -230,10 +213,8 @@ public:
         }
     }
 
-    // The Q8_0 single-column path, kept as a private detail of this backend
-    // now that the interface is type-generic. A scalar return per row was one
-    // kernel launch per row for a device backend, which is why it left the
-    // interface; it is still the right shape for the host.
+    // The Q8_0 single-column path, kept as a private detail of this backend now that the interface is type-generic.
+    // A scalar return per row was one kernel launch per row for a device backend, which is why it left the interface; it is still the right shape for the host.
     void matvec_q8_0(const uint8_t* data, const float* x, float* out,
                      size_t nblocks, size_t nout) {
         const int nt = threads_;
@@ -252,10 +233,8 @@ public:
         });
     }
 
-    // Run fn(0..threads_-1) across the pool: worker 0 is the calling thread, so
-    // a single-threaded backend never touches the pool at all. Blocks until
-    // every participant has returned, which is what lets the job be referenced
-    // rather than copied.
+    // Run fn(0..threads_-1) across the pool: worker 0 is the calling thread, so a single-threaded backend never touches the pool at all.
+    // Blocks until every participant has returned, which is what lets the job be referenced rather than copied.
     template <class F>
     void run_parallel(F&& fn) {
         if (threads_ <= 1) { fn(0); return; }
@@ -273,19 +252,13 @@ public:
         for (int i = 0; i < SPIN_LIMIT && pending_.load(std::memory_order_acquire); i++)
             _mm_pause();
         std::unique_lock<std::mutex> lk(m_);
-        // Acquire, not relaxed. A worker publishes its output writes and then
-        // releases them with fetch_sub(acq_rel); only the LAST worker takes the
-        // mutex, to notify. A non-last worker therefore never synchronizes
-        // through m_, so the waiter has to acquire on pending_ itself to see
-        // that worker's results. The spin above already loads with acquire;
-        // this is the path taken when the spin budget ran out.
+        // Acquire, not relaxed: only the last worker takes the mutex to notify, so the waiter must acquire on pending_ itself to see a non-last worker's results. This is the path after the spin budget ran out.
         cv_done_.wait(lk, [&] { return pending_.load(std::memory_order_acquire) == 0; });
         job_ = nullptr;
         if (!error) error = worker_error_;
         worker_error_ = nullptr;
         lk.unlock();
-        // The borrowed callable must stay alive until all workers finish,
-        // including when the calling participant fails.
+        // The borrowed callable must stay alive until all workers finish, including when the calling participant fails.
         if (error) std::rethrow_exception(error);
     }
 
@@ -314,8 +287,7 @@ public:
         return std::make_shared<CpuBuffer>(src, bytes);
     }
 
-    // Eager: an op has completed by the time it returns, so there is never
-    // anything outstanding to wait for, and a ticket only counts.
+    // Eager: an op has completed by the time it returns, so there is never anything outstanding to wait for, and a ticket only counts.
     Ticket submit() override { return ++ticket_; }
     void wait(Ticket) noexcept override {}
     void sync() noexcept override {}
@@ -339,8 +311,7 @@ public:
                     (const uint8_t*)src.host_ptr() + src_off, bytes);
     }
 
-    // The product lands in a scratch buffer kept across calls and is added
-    // to Y, so the arithmetic is the separate matmul and add exactly.
+    // The product lands in a scratch buffer kept across calls and is added to Y, so the arithmetic is the separate matmul and add exactly.
     // Row runs are for a device whose kernels differ by width; the CPU does not read them.
     void matmul_add(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
                     size_t nin, size_t nout, size_t nbatch, RowRuns = {}) override {
@@ -360,16 +331,12 @@ public:
         const uint8_t* data = (const uint8_t*)bytes_at(weights);
         const float* X = at(X_s);
         float* Y = at(Y_s);
-        // Q8_0 keeps its fused dequant+FMA row dot for the single-column case,
-        // which is the decode path and is bandwidth bound rather than load
-        // bound, so the extra dequant buffer would buy nothing there.
+        // Q8_0 keeps its fused dequant+FMA row dot for the single-column case, which is the decode path and is bandwidth bound rather than load bound, so the extra dequant buffer would buy nothing there.
         if (nbatch == 1 && type == gguf::GGML_TYPE_Q8_0) {
             matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
             return;
         }
-        // K-quants whose dot factorises so no dequantized value is
-        // materialised: Q4_K/Q5_K give d*sum(q*x) - m*sum(x), Q6_K has signed
-        // group scales and no min, so it is sum over groups of d_g*sum(q*x).
+        // K-quants whose dot factorises so no dequantized value is materialised: Q4_K/Q5_K give d*sum(q*x) - m*sum(x), Q6_K has signed group scales and no min, so it is sum over groups of d_g*sum(q*x).
         if (nbatch == 1 && (type == gguf::GGML_TYPE_Q4_K ||
                             type == gguf::GGML_TYPE_Q5_K ||
                             type == gguf::GGML_TYPE_Q6_K)) {
@@ -381,16 +348,8 @@ public:
                                                                  : gguf::Q6_K_TYPESIZE;
             const size_t nb = nin / blk;
             const size_t rowbytes = nb * tsz;
-            // A fused dot accumulates sum(q*x) and applies the block scale
-            // afterwards. That is what makes it fast and what makes it
-            // overflow: q is bounded (31 for Q5_K, 63 for Q6_K) but x is not,
-            // so a large activation can drive the inner sum to infinity
-            // before a small or zero scale would have kept it finite. Then
-            // d*Inf is Inf, and with d zero, 0*Inf is NaN. Dequantizing first
-            // multiplies the scale into each weight and stays finite.
-            // Detection is complete rather than heuristic: once any partial
-            // overflows, the row result is Inf or NaN and never a plausible
-            // finite number, so a finite fused result needs no fallback.
+            // A fused dot applies the block scale after sum(q*x), so a large activation can overflow the inner sum where dequantizing first stays finite (then d*Inf is Inf, and 0*Inf NaN).
+            // Once any partial overflows the row result is Inf or NaN, never a plausible finite number, so a finite fused result needs no fallback.
             const auto dot = [&](const uint8_t* r) {
                 float v;
                 switch (type) {
@@ -422,20 +381,14 @@ public:
         const size_t nblocks = f32 ? 0 : nin / qt->block_size;
         const size_t rowbytes = f32 ? nin * sizeof(float) : nblocks * qt->type_size;
 
-        // Rows dequantized together before walking the batch. This is the
-        // fused kernel's row width, not a tuning constant: dot_f32_x4 shares
-        // one activation load across exactly 4 rows, and grouping more buys
-        // nothing while enlarging the dequantized working set.
-        // A cache-BYTE budget was tried instead and measured worse at every
-        // size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against
-        // 24.04 for a flat 4), because the knee follows the kernel width
-        // rather than the working-set size.
+        // Rows dequantized together before walking the batch.
+        // This is the fused kernel's row width, not a tuning constant: dot_f32_x4 shares one activation load across exactly 4 rows, and grouping more buys nothing while enlarging the dequantized working set.
+        // A cache-BYTE budget was tried instead and measured worse at every size (64/128/196/256 KB gave 22.37/22.04/23.68/21.12 tok/s against 24.04 for a flat 4), because the knee follows the kernel width rather than the working-set size.
         const size_t RB = (size_t)DOT_ROWS;
 
         auto do_rows = [&](int w, size_t o0, size_t o1) {
             if (f32 && nbatch == 1) {
-                // Decode streams each resident row contiguously; prefill keeps
-                // the fused kernels that reuse weights across batch columns.
+                // Decode streams each resident row contiguously; prefill keeps the fused kernels that reuse weights across batch columns.
                 for (size_t o = o0; o < o1; ++o)
                     Y[o] = dot_f32((const float*)(data + o * rowbytes), X, nin);
                 return;
@@ -449,8 +402,7 @@ public:
                     for (size_t k = 0; k < nr; k++)
                         qt->dequantize(data + (o + k) * rowbytes, buf.data() + k * nin, nblocks);
                 size_t b = 0;
-                // Three activation columns at a time where the row block is
-                // full, so weight loads amortise across all three.
+                // Three activation columns at a time where the row block is full, so weight loads amortise across all three.
                 for (; b + 3 <= nbatch && nr == RB; b += 3) {
                     const float* xa = X + b * nin;
                     const float* xb3 = X + (b + 1) * nin;
@@ -534,10 +486,8 @@ public:
     static const int DOT_ROWS = 4;
 
 
-    // Four rows against THREE activation columns: 7 loads per 12 FMAs, a ratio
-    // of 0.58 against 0.75 for the two-column form. This needs 12 accumulators
-    // plus 3 activation registers, which is exactly the 16 YMM budget, so it
-    // sits on the spill boundary and is only worth keeping if measured faster.
+    // Four rows against THREE activation columns: 7 loads per 12 FMAs, a ratio of 0.58 against 0.75 for the two-column form.
+    // This needs 12 accumulators plus 3 activation registers, which is exactly the 16 YMM budget, so it sits on the spill boundary and is only worth keeping if measured faster.
     static void dot_f32_x4x3(const float* r, size_t stride,
                              const float* xa, const float* xb, const float* xc,
                              size_t n, float* outa, float* outb, float* outc) {
@@ -594,12 +544,9 @@ public:
         outc[3] = finish(c3, r3, xc);
     }
 
-    // Four rows against TWO activation columns in one pass.
-    // dot_f32_x4 costs 5 loads per 4 FMAs (one activation, four weights).
-    // Holding two activation columns makes it 6 loads per 8 FMAs, so the
-    // load:FMA ratio drops from 1.25 to 0.75 and the kernel stops being load
-    // bound. Eight accumulators plus two activation registers still fit the
-    // 16 YMM registers, so nothing spills.
+    // Four rows against TWO activation columns in one pass. dot_f32_x4 costs 5 loads per 4 FMAs (one activation, four weights).
+    // Holding two activation columns makes it 6 loads per 8 FMAs, so the load:FMA ratio drops from 1.25 to 0.75 and the kernel stops being load bound.
+    // Eight accumulators plus two activation registers still fit the 16 YMM registers, so nothing spills.
     static void dot_f32_x4x2(const float* r, size_t stride,
                              const float* xa, const float* xb, size_t n,
                              float* outa, float* outb) {
@@ -637,10 +584,8 @@ public:
     }
 
     // Four dots against a SHARED activation vector, in one pass.
-    // Calling dot_f32 four times costs 2 loads per FMA (one weight, one
-    // activation), and Zen3 sustains 2 loads/cycle against 2 FMAs/cycle, so
-    // that kernel is load bound at half of FMA peak. Loading x once and reusing
-    // it across 4 rows costs 5 loads per 4 FMAs instead of 8.
+    // Calling dot_f32 four times costs 2 loads per FMA (one weight, one activation), and Zen3 sustains 2 loads/cycle against 2 FMAs/cycle, so that kernel is load bound at half of FMA peak.
+    // Loading x once and reusing it across 4 rows costs 5 loads per 4 FMAs instead of 8.
     static void dot_f32_x4(const float* r, size_t stride, const float* x,
                            size_t n, float* out) {
         __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
@@ -667,11 +612,9 @@ public:
         }
     }
 
-    // Four independent accumulators. With a single accumulator every FMA
-    // depends on the previous one, so the loop runs at FMA LATENCY (about 4
-    // cycles) instead of FMA throughput (about 0.5), which is most of an order
-    // of magnitude on this path. Splitting the chain also changes the
-    // summation order, so results differ in the last bits.
+    // Four independent accumulators.
+    // With a single accumulator every FMA depends on the previous one, so the loop runs at FMA LATENCY (about 4 cycles) instead of FMA throughput (about 0.5), which is most of an order of magnitude on this path.
+    // Splitting the chain also changes the summation order, so results differ in the last bits.
     static float dot_f32(const float* a, const float* b, size_t n) {
         __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
         __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
@@ -695,9 +638,8 @@ public:
         return out;
     }
 
-    // CPU-only: a host callback across host threads has no device analogue, so
-    // this is not on the Backend interface. The batched ops above are how the
-    // model gets parallelism; this stays public for the backend's own tests.
+    // CPU-only: a host callback across host threads has no device analogue, so this is not on the Backend interface.
+    // The batched ops above are how the model gets parallelism; this stays public for the backend's own tests.
     void parallel_for(int n, const std::function<void(int)>& fn) {
         if (n <= 0) return;
         const int nt = std::min(threads_, n);
@@ -738,8 +680,7 @@ public:
         }
     }
 
-    // A row of floats into a cache side of either type; f16 rounds to
-    // nearest, eight at a time where F16C is present.
+    // A row of floats into a cache side of either type; f16 rounds to nearest, eight at a time where F16C is present.
     void kv_store(uint8_t* dst, KVType type, const float* src, size_t n) const {
         if (type == KVType::f32) { std::copy_n(src, n, (float*)dst); return; }
         uint16_t* d = (uint16_t*)dst;
@@ -795,12 +736,8 @@ public:
         }
     }
 
-    // Blocks are walked in table order and every reduction keeps token order:
-    // one global softmax over the scores and per-lane value accumulation
-    // across block edges, so the arithmetic is that of a contiguous history.
-    // Views are taken one after another: the per-view work is what it was
-    // for one sequence, so a single view computes exactly what it did before
-    // the batch form existed.
+    // Blocks are walked in table order and every reduction keeps token order: one global softmax over the scores and per-lane value accumulation across block edges, so the arithmetic is that of a contiguous history.
+    // Views are taken one after another: the per-view work is what it was for one sequence, so a single view computes exactly what it did before the batch form existed.
     void attention(CSlice Q_s, size_t layer, const KVView* views, size_t n_views,
                    Slice out_s, int n_head, int n_head_kv, int head_dim) override {
         if (n_views && !views) throw std::runtime_error("backend: attention without views");
@@ -864,8 +801,7 @@ public:
                         sum += scores[t];
                     }
                     float* dst = out + (size_t)b * q_stride + (size_t)h * hd;
-                    // Normalize once; each lane then keeps sequence order while
-                    // its partial sum stays in a register across KV rows.
+                    // Normalize once; each lane then keeps sequence order while its partial sum stays in a register across KV rows.
                     for (size_t t = 0; t < end; ++t) scores[t] /= sum;
                     const auto vblock = [&](size_t t0) {
                         return s.v(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
@@ -1062,9 +998,7 @@ public:
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
         const float* up = at(up_s);
-        // std::exp per element, matching the scalar form this replaced: a
-        // vectorized approximation would shift logits and is a separate
-        // change with its own correctness gate.
+        // std::exp per element, matching the scalar form this replaced: a vectorized approximation would shift logits and is a separate change with its own correctness gate.
         chunk(n, [&](size_t begin, size_t end) {
             for (size_t i = begin; i < end; i++)
                 dst[i] = gate[i] / (1.0f + std::exp(-gate[i])) * up[i];
@@ -1086,8 +1020,7 @@ public:
     }
 
 private:
-    // A slice resolves to a host pointer exactly once per op; the kernels
-    // below are untouched and still see plain float arrays.
+    // A slice resolves to a host pointer exactly once per op; the kernels below are untouched and still see plain float arrays.
     static float* at(Slice s) {
         if (!s.buffer) throw std::runtime_error("backend: operand without storage");
         // An empty allocation has no address and nothing will read through it;
@@ -1095,9 +1028,8 @@ private:
         if (!s.buffer->size()) return nullptr;
         return (float*)host(*s.buffer) + s.offset;
     }
-    // Weights are not float arrays, so their slice resolves to bytes. The
-    // offset is still in floats for one reason: every activation is float and
-    // a weight slice always starts at zero.
+    // Weights are not float arrays, so their slice resolves to bytes.
+    // The offset is still in floats for one reason: every activation is float and a weight slice always starts at zero.
     static const void* bytes_at(CSlice s) {
         if (!s.buffer) throw std::runtime_error("backend: operand without storage");
         const void* p = s.buffer->host_ptr();
@@ -1129,9 +1061,8 @@ private:
         return *s;
     }
 
-    // Row-wise dispatch. Below two rows per worker the dispatch costs more
-    // than it saves -- small-batch timing regressed without this bound when
-    // the same rule lived in the model layer.
+    // Row-wise dispatch.
+    // Below two rows per worker the dispatch costs more than it saves -- small-batch timing regressed without this bound when the same rule lived in the model layer.
     template <typename Fn>
     void spread(size_t rows, const Fn& fn) {
         if (threads_ <= 1 || rows < (size_t)threads_ * 2) {
@@ -1141,8 +1072,8 @@ private:
         parallel_for((int)rows, [&](int r) { fn((size_t)r); });
     }
 
-    // Element-wise dispatch over contiguous spans. The threshold keeps decode
-    // (where n is a few thousand) on the calling thread.
+    // Element-wise dispatch over contiguous spans.
+    // The threshold keeps decode (where n is a few thousand) on the calling thread.
     template <typename Fn>
     void chunk(size_t n, const Fn& fn) {
         const size_t kMinParallel = 1u << 15;
@@ -1161,29 +1092,22 @@ private:
     bool f16c_ = false;
     bool prefill_active_ = false;
 
-    // Persistent worker pool. The previous code created and joined
-    // std::threads on every matvec call, which is once per matmul per layer per
-    // token; at 36 layers that is thousands of thread creations per token.
+    // Persistent worker pool.
+    // The previous code created and joined std::threads on every matvec call, which is once per matmul per layer per token; at 36 layers that is thousands of thread creations per token.
     std::vector<std::thread> pool_;
     // Per-worker dequantized weight-row scratch for the batched matmul path.
     std::vector<std::vector<float>> rowbuf_;
     std::vector<float> attention_scores_;
     std::mutex m_;
     std::condition_variable cv_work_, cv_done_;
-    // A decode token issues roughly 196 matvecs plus 28 attention calls, each
-    // a full dispatch. Measured at 14.1 us per empty dispatch through the
-    // condition variable alone, that is a fixed cost of several ms per token.
-    // Workers and the caller therefore spin briefly before blocking: the
-    // common case is that the other side is already running and arrives
-    // within a few hundred nanoseconds. The count is bounded so an idle pool
-    // still parks instead of burning a core.
+    // A decode token issues roughly 196 matvecs plus 28 attention calls, each a full dispatch.
+    // Measured at 14.1 us per empty dispatch through the condition variable alone, that is a fixed cost of several ms per token.
+    // Workers and the caller therefore spin briefly before blocking: the common case is that the other side is already running and arrives within a few hundred nanoseconds.
+    // The count is bounded so an idle pool still parks instead of burning a core.
     static const int SPIN_LIMIT = 2048;
-    // epoch_ and stop_ are read by the spin loops WITHOUT the mutex, so they
-    // must be atomic. Writers still modify them under it; the atomics exist
-    // for the unsynchronized readers. Leaving them plain is a data race, and
-    // not only a formal one: nothing in a spin body writes them and
-    // _mm_pause() is no barrier against another thread, so a compiler may
-    // hoist the loads out of the loop and spin forever.
+    // epoch_ and stop_ are read by the spin loops WITHOUT the mutex, so they must be atomic.
+    // Writers still modify them under it; the atomics exist for the unsynchronized readers.
+    // Leaving them plain is a data race, and not only a formal one: nothing in a spin body writes them and _mm_pause() is no barrier against another thread, so a compiler may hoist the loads out of the loop and spin forever.
     const std::function<void(int)>* job_ = nullptr;
     std::exception_ptr worker_error_;
     std::atomic<unsigned> epoch_{0};
@@ -1236,8 +1160,7 @@ private:
                 std::lock_guard<std::mutex> lk(m_);
                 if (!worker_error_) worker_error_ = error;
             }
-            // Notify under the lock so a caller that has just decided to block
-            // cannot miss the wakeup.
+            // Notify under the lock so a caller that has just decided to block cannot miss the wakeup.
             if (pending_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
                 std::lock_guard<std::mutex> lk(m_);
                 cv_done_.notify_one();
@@ -1245,8 +1168,8 @@ private:
         }
     }
 
-    // F16C (hardware half<->float). Present on every AVX2 part in practice,
-    // but detected separately because the ISA bits are independent.
+    // F16C (hardware half<->float).
+    // Present on every AVX2 part in practice, but detected separately because the ISA bits are independent.
     static bool has_f16c() {
 #if defined(_MSC_VER)
         int info[4];
@@ -1280,19 +1203,10 @@ private:
 #endif
     }
 
-    // Fused K-quant row dots. The generic path dequantizes a whole row into
-    // f32 scratch and then dots it, which is why Q4_K decoded at half the speed
-    // of Q8_0 despite a smaller file: it is compute bound on unpacking, not
-    // bandwidth bound.
-    //
-    // No dequantized value is ever materialised here. A Q4_K sub-block value is
-    // d*q - m with q a 4-bit unsigned nibble, so its contribution to the dot is
+    // Fused K-quant row dots, with no dequantized value materialised.
+    // A Q4_K sub-block value is d*q - m, so its dot is:
     //     sum_l (d*q_l - m) * x_l  =  d * sum_l(q_l * x_l)  -  m * sum_l(x_l)
-    // and the two sums are plain FMA reductions over the nibbles and over x.
-    // Q6_K has signed values and per-16 group scales but no min, so the dot is
-    // sum over groups of (d * sc_g) * sum(q*x), with no sum(x) term. Each
-    // 128-value chunk holds four sub-blocks of 32, and each sub-block splits
-    // into two 16-value groups whose scales are sc[2k] and sc[2k+1].
+    // Q6_K has signed values and per-16 group scales but no min: the sum over groups of (d * sc_g) * sum(q*x). A 128-value chunk holds four sub-blocks of 32, each two 16-value groups with scales sc[2k] and sc[2k+1].
     float dot_row_q6_K(const uint8_t* row, const float* x, size_t nblocks) {
         float acc = 0.0f;
         for (size_t b = 0; b < nblocks; b++) {
@@ -1312,9 +1226,7 @@ private:
                     for (int is = 0; is < 2; is++) {
                         float s;
                         if (avx2_) {
-                            // Shifting 16-bit lanes leaks neighbouring bits
-                            // into the high half of each byte; the mask drops
-                            // them, so the kept bits are this byte's own.
+                            // Shifting 16-bit lanes leaks neighbouring bits into the high half of each byte; the mask drops them, so the kept bits are this byte's own.
                             const __m128i cnt = _mm_cvtsi32_si128(shift);
                             const __m128i rawl = _mm_loadu_si128((const __m128i*)(qlk + is * 16));
                             const __m128i rawh = _mm_loadu_si128((const __m128i*)(qh + is * 16));
@@ -1350,10 +1262,8 @@ private:
         return acc;
     }
 
-    // Same factorisation as Q4_K: the value is d*(q + 16*hbit) - m, so the dot
-    // is d*sum((q + 16*hbit)*x) - m*sum(x) and no dequantized value is
-    // materialised. The fifth bit comes from qh, whose mask shifts left by two
-    // every 64 values while qh itself does not advance.
+    // Same factorisation as Q4_K: the value is d*(q + 16*hbit) - m, so the dot is d*sum((q + 16*hbit)*x) - m*sum(x) and no dequantized value is materialised.
+    // The fifth bit comes from qh, whose mask shifts left by two every 64 values while qh itself does not advance.
     float dot_row_q5_K(const uint8_t* row, const float* x, size_t nblocks) {
         float acc = 0.0f;
         for (size_t b = 0; b < nblocks; b++) {
@@ -1386,8 +1296,7 @@ private:
                     __m256 qx_lo = _mm256_setzero_ps(), sx_lo = _mm256_setzero_ps();
                     __m256 qx_hi = _mm256_setzero_ps(), sx_hi = _mm256_setzero_ps();
                     for (int h = 0; h < 2; h++) {
-                        // A set bit contributes exactly 16 to the value, so
-                        // compare-then-mask gives the addend without a branch.
+                        // A set bit contributes exactly 16 to the value, so compare-then-mask gives the addend without a branch.
                         const __m128i hb = rawh[h];
                         const __m128i add_lo = _mm_and_si128(
                             _mm_cmpeq_epi8(_mm_and_si128(hb, b1), b1), sixteen);
@@ -1432,12 +1341,9 @@ private:
         return acc;
     }
 
-    // Exact-ish fallback for a row whose fused dot overflowed: dequantize
-    // first so the block scale is multiplied into each weight before it meets
-    // the activation, which is what keeps intermediates finite. Accumulates
-    // in double so the fallback itself cannot overflow where the reference
-    // would not. Rare by construction, so a local buffer is cheaper than
-    // reserving per-worker scratch that is almost never touched.
+    // Exact-ish fallback for a row whose fused dot overflowed: dequantize first so the block scale is multiplied into each weight before it meets the activation, which is what keeps intermediates finite.
+    // Accumulates in double so the fallback itself cannot overflow where the reference would not.
+    // Rare by construction, so a local buffer is cheaper than reserving per-worker scratch that is almost never touched.
     float dot_row_dequant(uint32_t type, const uint8_t* row, const float* x,
                           size_t nin, size_t nb) {
         const quant::QuantType* qt = quant::Registry::instance().get(type);
@@ -1535,23 +1441,16 @@ private:
     // Uses an AVX2 fused dequant+FMA path when available, else scalar.
     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {
         if (avx2_) {
-            // Four independent accumulators. A single chained accumulator
-            // serialised the loop at FMA latency, which also capped how many
-            // loads could be in flight; decode is bandwidth bound, so fewer
-            // outstanding loads means less memory-level parallelism and less
-            // achieved bandwidth.
+            // Four independent accumulators.
+            // A single chained accumulator serialised the loop at FMA latency, which also capped how many loads could be in flight; decode is bandwidth bound, so fewer outstanding loads means less memory-level parallelism and less achieved bandwidth.
             __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
             __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
-            // Software prefetch of the weight stream was measured here and
-            // made no difference (4.10/4.14 against 4.12/4.12 tok/s): the
-            // hardware prefetcher already keeps up with these sequential
-            // streams. Not reinstated.
+            // Software prefetch of the weight stream was measured here and made no difference (4.10/4.14 against 4.12/4.12 tok/s): the hardware prefetcher already keeps up with these sequential streams.
+            // Not reinstated.
             for (size_t b = 0; b < nblocks; b++) {
                 const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
-                // Hardware f16 convert. The scalar f16_to_f32 is a branchy
-                // function (zero, subnormal, inf/nan cases) called once per
-                // 34 bytes of weights, which is a lot of unpredictable control
-                // flow in a loop whose job is to keep loads in flight.
+                // Hardware f16 convert.
+                // The scalar f16_to_f32 is a branchy function (zero, subnormal, inf/nan cases) called once per 34 bytes of weights, which is a lot of unpredictable control flow in a loop whose job is to keep loads in flight.
                 __m256 dv;
                 if (f16c_) {
                     dv = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y)));

@@ -1,8 +1,5 @@
 #version 450
-// One workgroup per (row, head): per-head RMS norm, then the rotation with
-// the table entry of the row's own position. Element i of the first half
-// pairs with i + half; one thread owns the pair, so nothing is written
-// that another thread still reads.
+// One workgroup per (row, head): per-head RMS norm, then the rotation at the row's own position. Element i of the first half pairs with i + half, one thread per pair.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint rows; uint stride; uint heads; uint half_dim; float eps; } p;
 layout(set = 0, binding = 0) buffer X { float x[]; };

@@ -1,11 +1,5 @@
-// Per-value decoders over a byte buffer the including shader reads through
-// QBYTE(i), a macro because GLSL functions cannot take an unsized array and
-// because a shader may serve the bytes from a wider view of the same memory:
-// this driver issues one load per byte and joins none of them, so the tile
-// kernel reads words. Each returns value j of the block starting at byte o,
-// in the
-// arithmetic order of the CPU decoders in quant/, so embed matches the CPU
-// exactly and the matmuls differ only in reduction order.
+// Per-value decoders over bytes the including shader reads through QBYTE(i), a macro since GLSL functions cannot take an unsized array.
+// Each returns value j of the block at byte o, in the CPU decoders' arithmetic order (quant/), so embed matches the CPU exactly.
 #ifndef LLMX_QDECODE_GLSL
 #define LLMX_QDECODE_GLSL
 
@@ -23,11 +17,7 @@ float q4_1_at(uint o, uint j, float d, float m) {
     return d * float(nib) + m;
 }
 
-// Q6_K, 256 values in 210 bytes: 128 low nibbles, 64 bytes of high bit
-// pairs, 16 signed sub-scales, a half. Two halves of 128; inside one, value
-// r is one of four groups of 32 taking its low nibble and its two high
-// bits from a fixed place, and its sub-scale from l / 16 plus the group's
-// offset. The value is d * sc * (q - 32).
+// Q6_K, 256 values in 210 bytes: 128 low nibbles, 64 bytes of high bit pairs, 16 signed sub-scales, a half; value = d * sc * (q - 32).
 float q6_k_at(uint o, uint j, float d) {
     uint n = j / 128u, r = j - n * 128u;
     uint which = r / 32u, l = r - which * 32u;
@@ -40,10 +30,7 @@ float q6_k_at(uint o, uint j, float d) {
     return d * float(s) * float(q);
 }
 
-// Q4_K and Q5_K sub-scale and sub-min j (0..7) from the twelve packed
-// bytes at s: the first four of each are whole bytes' low six bits, the
-// last four are split nibbles with their high two bits in the first
-// bytes' top bits.
+// Q4_K and Q5_K sub-scale and sub-min j (0..7) from the twelve packed bytes at s: groups 0..3 are the low six bits of whole bytes, groups 4..7 split nibbles with their top two bits in the first bytes.
 void scale_min_k4(uint s, uint j, out uint sc, out uint mn) {
     if (j < 4u) {
         sc = QBYTE(s + j) & 63u;
@@ -54,9 +41,7 @@ void scale_min_k4(uint s, uint j, out uint sc, out uint mn) {
     }
 }
 
-// Q4_K, 256 values in 144 bytes: d, dmin, the packed sub-scales, 128
-// nibble bytes. Each 64-value chunk is 32 bytes, low nibbles first; the
-// value is d * sc * q - dmin * mn with the sub-scale of group j / 32.
+// Q4_K, 256 values in 144 bytes: d, dmin, packed sub-scales, 128 nibble bytes, each 64-value chunk 32 bytes low nibbles first; value = d * sc * q - dmin * mn.
 float q4_k_at(uint o, uint j, float d, float dmin) {
     uint c = j / 64u, r = j - c * 64u;
     uint byte = QBYTE(o + 16u + c * 32u + (r & 31u));
@@ -66,9 +51,7 @@ float q4_k_at(uint o, uint j, float d, float dmin) {
     return d * float(sc) * float(q) - dmin * float(mn);
 }
 
-// Q5_K, 176 bytes: Q4_K with 32 bytes of fifth bits before the nibbles;
-// for position r of chunk c the bit is 2c (low nibble) or 2c + 1 (high)
-// of byte r & 31.
+// Q5_K, 176 bytes: Q4_K with 32 bytes of fifth bits before the nibbles; for position r of chunk c the bit is 2c (low nibble) or 2c + 1 (high) of byte r & 31.
 float q5_k_at(uint o, uint j, float d, float dmin) {
     uint c = j / 64u, r = j - c * 64u;
     uint byte = QBYTE(o + 48u + c * 32u + (r & 31u));

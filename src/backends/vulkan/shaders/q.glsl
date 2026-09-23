@@ -1,7 +1,4 @@
-// Quantized block decoding shared by the kernels. A table is bound twice,
-// once as floats for F32 rows and once as bytes for block formats, and the
-// caller says which through a push constant. Types are the GGUF ids the
-// registry is keyed by (docs/VULKAN.md).
+// Quantized block decoding shared by the kernels. A table is bound twice, as floats for F32 rows and as bytes for block formats. Types are GGUF ids.
 #ifndef LLMX_Q_GLSL
 #define LLMX_Q_GLSL
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
@@ -29,10 +26,7 @@ const uint Q6_K_BYTES = 210u;
 const uint Q8_0_BLOCK = 32u;
 const uint Q8_0_BYTES = 34u;
 
-// Q4_0: 32 values per block, a half scale then 16 bytes of nibbles, 18
-// bytes; value j < 16 is the low nibble of byte j, value j + 16 the high
-// nibble, and the value is (nibble - 8) * d, computed as nibble * d - 8 * d
-// in the CPU's order.
+// Q4_0: 32 values per block, a half scale then 16 bytes of nibbles, 18 bytes; value j < 16 is byte j's low nibble, j + 16 its high one, and value = nibble * d - 8 * d in the CPU's order.
 const uint Q4_0_BLOCK = 32u;
 const uint Q4_0_BYTES = 18u;
 
@@ -44,8 +38,7 @@ float half_at(uint lo, uint hi) {
     return unpackHalf2x16(lo | (hi << 8)).x;
 }
 
-// Bytes per block and values per block of a type, for the callers that
-// walk rows generically.
+// Bytes and values per block of a type.
 uint block_bytes(uint type) {
     return type == TYPE_Q8_0 ? Q8_0_BYTES : type == TYPE_Q4_0 ? Q4_0_BYTES
          : type == TYPE_Q4_1 ? Q4_1_BYTES : type == TYPE_Q4_K ? Q4_K_BYTES

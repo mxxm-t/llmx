@@ -1,8 +1,7 @@
 #version 450
-// The 8-bit twin of a batch of activation rows for the integer-dot prefill tile (matmul_tile_q.comp): one lane per value over the whole batch as one flat run, which is safe because a row is always whole blocks of 32.
-// Per block, 8 words of signed bytes in position order, value 4m + t in byte t of word m, scaled so the block's largest magnitude is 127; after every block's quants, per block the scale d and d times the block's integer sum, which a type with a minimum multiplies by.
-// Blocks are ordered by block of the inner dimension, then by column. Column after column put the tile's 64 columns of one block a row width apart, and on an MI50 the 8B down projection at 64 columns read 2.2 TFLOPS that way against 5.0 this way.
-// Eight bits rather than the decode kernel's sixteen because the four-wide integer dot takes bytes, and that instruction is what the tile is for.
+// The 8-bit twin of a batch of activation rows for the integer-dot prefill tile (matmul_tile_q.comp): one lane per value over the batch as one flat run, since a row is whole blocks of 32.
+// Per block, 8 words of signed bytes in position order scaled so the largest magnitude is 127, then after every block's quants the scale and scaled sum per block.
+// Blocks are ordered by block of the inner dimension, then column, so a tile step reads its 64 columns as one run.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
@@ -14,8 +13,7 @@ layout(set = 0, binding = 1) writeonly buffer Q { uint xq[]; };
 
 void main() {
     uint i = gl_GlobalInvocationID.x;
-    // Every lane calls, a lane past the end with a zero, so a partial last subgroup still reduces; n is a multiple of 32, so no block is partial.
-    // Block-major: block kb of every column, then block kb + 1, so the tile's step over one block of the inner dimension reads its 64 columns as one run rather than 64 runs a row width apart.
+    // Every lane calls, a lane past the end with a zero, so a partial last subgroup still reduces.
     uint col = i / p.nin, kb = (i - col * p.nin) / 32u;
     xquant8_block_at(i, i < p.n ? x[i] : 0.0, p.n, 0u, kb * p.nbatch + col);
 }

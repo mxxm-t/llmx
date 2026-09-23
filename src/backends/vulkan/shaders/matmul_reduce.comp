@@ -1,7 +1,6 @@
 #version 450
-// y[i] = the partial sums of a split inner dimension added in part order, plus y[i] when accumulating: the second half of a split tile call (matmul_tile_q.comp).
-// Up to three projections, as the tile call took them: projection q's n_q outputs have their parts at parts * (the outputs of the projections before q), part z at z * n_q after that.
-// Each projection has whole workgroups of its own, from workgroup start_q on, so the output buffer a workgroup indexes is uniform across it.
+// y[i] = the parts of a split tile call (matmul_tile_q.comp) added in part order, plus y[i] when accumulating.
+// Up to three projections: projection q's parts start at parts * (the outputs before q), part z at z * n_q after that; each projection has whole workgroups from start_q on, so a workgroup's output buffer is uniform.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint n0; uint n1; uint n2; uint parts; uint accum; uint start1; uint start2; } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];

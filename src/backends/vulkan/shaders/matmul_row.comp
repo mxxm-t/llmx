@@ -1,64 +1,17 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b) for up to three projections of
-// the same X in one dispatch: the q, k and v projections of a layer, or
-// gate and up. Workgroups are handed out to projections in order, so a
-// workgroup's projection is uniform and its buffers are selected once.
-// A subgroup handles `rows_per_sg` rows at once, each on a cluster of
-// `cluster` lanes: the cluster's lanes stride over the row's work units
-// and reduce with xor shuffles. Each lane keeps up to eight batch columns
-// in registers so a weight is read once per chunk of columns. This is the
-// decode kernel; the tile kernel takes wide batches (docs/VULKAN.md).
+// Y[b*nout + o] = dot(row o, X column b), the decode kernel, for up to three projections of one X in one dispatch (a layer's q, k and v, or gate and up).
+// Workgroups go to projections in order, so a workgroup's projection and buffers are uniform.
+// A subgroup takes `rows_per_sg` rows, each on a cluster of `cluster` lanes that stride over the row's work units and reduce with xor shuffles; a lane keeps up to eight batch columns in registers.
 //
-// Quantized rows meet the activations as signed 16-bit values in blocks
-// of 32 (xquant.glsl), with a scale d and d times the block's sums: a
-// weight word's values pair off with activation words through 16-bit
-// integer multiplies, the block's integer sum is scaled once, and a type's
-// offset (Q4_0's -8, Q4_1's min, the K-quant mins, Q6_K's -32) is folded
-// through the block sum. Float activations cost the 4-bit paths eight
-// extractions, conversions and multiply-adds per word and every path
-// four times the activation bytes. The activations are read 8 or 16
-// bytes at a time, since the load count and not the arithmetic is what
-// bounds these paths: the same dots over 8-byte loads throughout ran
-// Q4_0 at 150 us against 105 with 16-byte loads at the 8B shape. F32
-// rows keep float activations.
+// Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; a type's offset (Q4_0's -8, Q4_1's min, the K-quant mins, Q6_K's -32) is folded through the block sum. F32 rows keep float activations.
 //
-// Compiled six times, one module per family of paths: as is for F32
-// and the narrow Q8_0 path, with LLMX_Q8W for the wide Q8_0 path, with
-// LLMX_Q4 for Q4_0 and Q4_1, with LLMX_K4 for Q4_K, with LLMX_K5 for
-// Q5_K, with LLMX_KQUANT for Q6_K. The branches of every type in one
-// module raised the register demand of every path and cost Q8_0 decode
-// 40 percent, Q4_K and Q5_K beside Q6_K cost Q6_K 40 percent the same
-// way, and the narrow Q8_0 path beside the wide one cost the wide one a
-// third at the 8B shape, so a family is a module.
+// One module per family of types, since one module for all of them raised every path's registers: as is for F32 and narrow Q8_0, LLMX_Q8W wide Q8_0, LLMX_Q4 Q4_0 and Q4_1, LLMX_K4 Q4_K, LLMX_K5 Q5_K, LLMX_KQUANT Q6_K.
 //
-// Q8_0 rows with at least four block pairs take the wide path: a pair is
-// 68 bytes, 17 words, and four consecutive lanes share one pair, lane t
-// loading words t, t + 4, t + 8, t + 12 and, for lane 0, word 16, so a
-// load instruction touches 16 contiguous bytes per pair and every lane
-// has five loads in flight. On the Radeon VII that is the optimum of
-// one, two, four, eight and sixteen lanes per pair, measured at the 8B
-// shapes: 200, 190, 336, 295 and 185 GB/s. The two scales live in words
-// 0 and 8 and every lane of the pair reads them, which the hardware
-// serves as one broadcast and which measured faster than a shuffle. The
-// loop is unrolled by hand and the accumulators are scalars: a generic
-// loop over words with accumulator arrays indexed by column spilled to
-// scratch and ran ten times slower. The first block's quants start two
-// bytes into its words, so each lane shifts its two first-block words by
-// a half word with the word after, fetched from the next lane of the
-// pair with a shuffle, and every word then meets aligned activations;
-// handling the straddle with per-word selects instead cost a quarter of
-// the kernel. Rows with fewer or an odd number of blocks take the
-// 16-bit path, two loads per word.
-//
-// Q4_0 rows with an even block count take a word path too: a pair is 36
-// bytes, 9 words, and two lanes share it, lane 0 taking words 0..3 (the
-// first scale and nibble bytes 0..13 of block 0) and lane 1 words 4..8
-// (nibble bytes 14 and 15, the second scale and block 1). Q4_1 blocks are
-// 20 bytes, 5 words, always word aligned, one lane per block. Q6_K blocks
-// are 210 bytes, so every other block starts two bytes into a word and
-// its words are assembled from two loads; eight lanes share a block,
-// each taking eight consecutive positions of one half, which is six
-// words of quants, two of sub-scales and the block scale.
+// Wide Q8_0: four lanes share a 68-byte block pair, lane t loading words t, t + 4, t + 8, t + 12 and lane 0 word 16; block 0's quants start two bytes into its words, so each lane shifts them by a half word with the next lane's word.
+// Q4_0 with an even block count: two lanes share a 36-byte pair.
+// Q4_1: one lane per 20-byte block.
+// Q6_K: 210-byte blocks, eight lanes a block, every other block two bytes off word alignment.
+// Measurements behind these layouts are in docs/VULKAN.md.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
@@ -71,15 +24,7 @@
 #endif
 #include "q.glsl"
 layout(local_size_x = 256) in;
-// How many batch columns a lane keeps in registers, specialization constant
-// 0, so the same module builds a decode kernel that keeps one. The eight
-// accumulators are live across the whole weight loop whatever the pushed
-// column count holds, and on this chip they are eight of the Q4_K kernel's
-// 73 registers, which is the difference between three waves per SIMD and
-// four. These kernels are latency bound rather than issue bound, so that is
-// worth 15 percent of 8B Q4_K_M decode; the backend dispatches the
-// one-column build whenever a chunk of columns is one wide, which every
-// single-sequence decode is.
+// Batch columns a lane keeps in registers, specialization constant 0; the backend takes the one-column build for a one-column chunk, which frees the registers seven unused accumulators would hold.
 layout(constant_id = 0) const uint MAX_COLS = 8;
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
@@ -93,14 +38,12 @@ layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; } w16s[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
 layout(set = 0, binding = 3) readonly buffer WF { float wf[]; } wfs[3];
 layout(set = 0, binding = 4) readonly buffer X { float x[]; };
-// The weights again as 16-byte vectors for the K-quant blocks, whose
-// sizes are multiples of 16 so a lane's four quant words, or the scale
-// and the three packed sub-scale words, are one load.
+// The weights as 16-byte vectors, for the K-quant blocks whose sizes are multiples of 16.
 layout(set = 0, binding = 5) readonly buffer W128 { uvec4 w128[]; } w128s[3];
-// The quantized activations (xquant.glsl), one buffer bound four ways so a lane loads four values, eight, a table entry or a pair of entries at once.
-// The float build reads the 16-bit twin: per column nin / 2 words of pairs, then per block the scale and the scaled sum, then per block the scaled half sums.
-// A family built with LLMX_X8 reads the 8-bit twin instead: per column nin / 4 words of bytes in position order, then per block the scale and the scaled sum. It is written beside the 16-bit one on a device whose integer dot is native, and the Q4_K and Q5_K families read it through the four-wide 8-bit dot: at an 8B down projection on an MI50 Q4_K went from 125.2 to 92.5 us. The wide Q8_0 path here was slower on it, 167.0 to 176.8, so Q8_0 on such a device takes its own kernel over the 8-bit twin instead (matmul_vec_q8.comp). Q4_0, Q4_1 and Q6_K stay on the 16-bit twin, for precision rather than speed (vulkan_backend.cpp, reads_x8).
-// Four values are one element of xq2 and eight one of xq4 in both, so every index below is the same and only the element types differ; XA and XB take the first and second four values of an xq4 element.
+// The quantized activations (xquant.glsl), one buffer bound four ways: four values, eight, a table entry or a pair of entries per load.
+// The default build reads the 16-bit twin: per column nin / 2 words of pairs, then per block the scale and scaled sum, then per block the scaled half sums.
+// LLMX_X8 reads the 8-bit twin: per column nin / 4 words of bytes in position order, then per block the scale and scaled sum (vulkan_backend.cpp, reads_x8).
+// Four values are one xq2 element and eight one xq4 element in both, so indices are the same; XA and XB take an xq4 element's first and second four values.
 #ifdef LLMX_X8
 layout(set = 0, binding = 6) readonly buffer XQ2 { uint xq2[]; };
 layout(set = 0, binding = 7) readonly buffer XQ4 { uvec2 xq4[]; };
@@ -130,21 +73,17 @@ uint xa_col(uint c) { return c * p.nin / 2u; }
 #define XTAB2 (p.nbatch * p.nin / 4u)
 #endif
 vec2 xq_block(uint c, uint b) { return xt2[XTAB2 + c * (p.nin / 32u) + b]; }
-// The scale entries of blocks 2j and 2j + 1 in one load; and d times the
-// half sums of blocks 2j and 2j + 1 likewise.
+// The scale entries of blocks 2j and 2j + 1 in one load, and likewise their scaled half sums.
 vec4 xq_pair(uint c, uint j) { return xt4[XTAB2 / 2u + c * (p.nin / 64u) + j]; }
 #ifndef LLMX_X8
 vec4 xq_halves_pair(uint c, uint j) {
     return xt4[(p.nbatch * p.nin / 4u + p.nbatch * p.nin / 32u) / 2u + c * (p.nin / 64u) + j];
 }
 #endif
-// The dots, in two forms, because which one a driver turns into good code differs and neither wins everywhere.
-// With LLMX_DOT they go through the integer dot product extension, which Mesa lowers to this chip's native 16-bit dot: worth 15 percent of 8B decode and 6 of 0.6B on an MI50 under it.
-// Without, they are plain multiplies of sign-extended values, which the AMD proprietary driver prefers by 2 percent on the same silicon, since there the extension lowers to the same multiply-add pairs with the operands widened first.
-// The backend compiles both and picks per device (backends/device_profile.hpp, docs/VULKAN.md).
+// The dots in two forms, picked per device (backends/device_profile.hpp): LLMX_DOT through the integer dot product extension, otherwise plain multiplies.
 #ifdef LLMX_X8
 #define QDOT int
-// Four signed bytes against four 8-bit activations in position order, the chip's four-wide dot. Against 16-bit activations the same word took two two-wide dots and twice the activation bytes.
+// Four signed bytes against four 8-bit activations, the four-wide dot.
 int dot4(uint a, uint b) { return dotPacked4x8EXT(int(a), int(b)); }
 #elif defined(LLMX_DOT)
 #define QDOT int
@@ -152,8 +91,7 @@ int dot4(uint a, uint b) { return dotPacked4x8EXT(int(a), int(b)); }
 int pair_dot(uint a, uint b, uvec2 xw) {
     return dotEXT(unpack16(int(a)), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)), unpack16(int(xw.y)));
 }
-// A word of four signed bytes at positions 4k..4k+3 against the pair
-// words: bytes 0 and 2 form one pair, 1 and 3 the other.
+// A word of four signed bytes at positions 4k..4k+3 against the pair words: bytes 0 and 2 form one pair, 1 and 3 the other.
 int byte_dot(uint w, uvec2 xw) {
     i8vec4 v = unpack8(int(w));
     return dotEXT(i16vec2(v.xz), unpack16(int(xw.x))) + dotEXT(i16vec2(v.yw), unpack16(int(xw.y)));
@@ -164,25 +102,13 @@ int byte_dot(uint w, uvec2 xw) {
 int lo16(uint w) { return int(int16_t(w)); }
 int hi16(uint w) { return int(int16_t(w >> 16u)); }
 int byte_at(uint w, uint s) { return int(int8_t(w >> s)); }
-// The nibble and K-quant dots multiply as floats. Every caller of pair_dot
-// passes weight halves it has already masked to a non-negative quant of at
-// most six bits, against a 16-bit activation, and the largest partial sum
-// any of these accumulators reaches is 16.5 million against the 16.8
-// million a float counts exactly, so this returns the same integer the
-// integer form does. The bound per type is in docs/VULKAN.md.
-//
-// It is worth converting for, because the multiply is what this kernel
-// costs. The chip runs a 32-bit integer multiply at a quarter rate and the
-// driver spends a `v_mad_u64_u32` on every product, 32 of the 249 vector
-// instructions of the Q4_K kernel and a third of its issue slots, where a
-// float multiply-add is one full-rate instruction and the conversions fold
-// into the operand select.
+// The nibble and K-quant dots multiply as floats, because the chip's 32-bit integer multiply is quarter rate.
+// Every caller passes non-negative quants of at most six bits against 16-bit activations, so the sums stay below 2^24 and are exact (the bound per type is in docs/VULKAN.md).
 float pair_dot(uint a, uint b, uvec2 xw) {
     return float(a & 0xFFFFu) * float(lo16(xw.x)) + float(a >> 16u) * float(hi16(xw.x))
          + float(b & 0xFFFFu) * float(lo16(xw.y)) + float(b >> 16u) * float(hi16(xw.y));
 }
-// Q8_0's weights are signed and its blocks sum past what a float counts
-// exactly, so that path keeps the integer multiply.
+// Q8_0's weights are signed and its sums can exceed 2^24, so it keeps the integer multiply.
 int byte_dot(uint w, uvec2 xw) {
     return byte_at(w, 0u) * lo16(xw.x) + byte_at(w, 16u) * hi16(xw.x) + byte_at(w, 8u) * lo16(xw.y) + byte_at(w, 24u) * hi16(xw.y);
 }
@@ -194,9 +120,7 @@ uint hword_at(uint byte_off) {
 }
 
 #ifdef LLMX_Q8W
-// Word d of a Q8_0 pair, shifted so that block 0's words 0..7 hold
-// values 4d..4d+3 and block 1's words 9..16 hold values 32+4(d-9)..;
-// word 8 is zero. `a2` is the pair's first pair-word couple.
+// Word d of a Q8_0 pair shifted so block 0's words 0..7 hold values 4d..4d+3 and block 1's words 9..16 hold 32+4(d-9)..; word 8 is zero. `a2` is the pair's first pair-word couple.
 void q8_word(uint w, uint d, uint a2, inout int p0, inout int p1) {
     int r = byte_dot(w, xq2[d < 8u ? a2 + d : a2 + 8u + d - 9u]);
     if (d < 8u) p0 += r; else p1 += r;
@@ -204,11 +128,8 @@ void q8_word(uint w, uint d, uint a2, inout int p0, inout int p1) {
 #endif
 
 #if defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5)
-// The eight nibbles of a word: byte i's low nibble is position 4k + i of
-// a group and its high nibble the same position 16 (Q4_0, Q4_1) or 32
-// (Q4_K, Q5_K) further on. Low and high nibbles go to separate dots
-// since the K-quants scale them apart; `hb` carries a fifth bit per
-// nibble in bit 4 of each byte's pair word, zero for the others.
+// The eight nibbles of a word: byte i's low nibble is position 4k + i of a group, its high nibble the same position 16 (Q4_0, Q4_1) or 32 (Q4_K, Q5_K) on.
+// Low and high go to separate dots since the K-quants scale them apart; `hb` carries Q5_K's fifth bit in bit 4 of each pair word, zero otherwise.
 void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, XWT xl, XWT xh, inout QDOT pl, inout QDOT ph) {
 #ifdef LLMX_X8
     pl += dot4((w & 0x0F0F0F0Fu) | hl0 | (hl1 << 8u), xl);
@@ -223,15 +144,13 @@ uint fifth(uint hb, uint s) { return ((hb >> s) & 0x00010001u) << 4u; }
 #endif
 
 #if defined(LLMX_KQUANT) || defined(LLMX_K4) || defined(LLMX_K5)
-// A word at any even byte offset: aligned, or the high half of one word
-// and the low half of the next.
+// A word at any even byte offset: aligned, or the high half of one word and the low half of the next.
 uint word_at(uint byte_off) {
     uint i = byte_off >> 2u;
     if ((byte_off & 3u) == 0u) return w32s[pi].w32[i];
     return (w32s[pi].w32[i] >> 16u) | (w32s[pi].w32[i + 1u] << 16u);
 }
-// Two consecutive words at any even byte offset, three loads when
-// unaligned rather than the four of two word_at calls.
+// Two consecutive words at any even byte offset, three loads when unaligned.
 void words_at(uint byte_off, out uint a, out uint b) {
     uint i = byte_off >> 2u;
     if ((byte_off & 3u) == 0u) { a = w32s[pi].w32[i]; b = w32s[pi].w32[i + 1u]; return; }
@@ -243,13 +162,8 @@ float half_word_at(uint byte_off) {
     uint w = w32s[pi].w32[byte_off >> 2u];
     return (byte_off & 3u) == 0u ? unpackHalf2x16(w).x : unpackHalf2x16(w).y;
 }
-// The sub-scales and sub-mins of groups 2c and 2c + 1 from the twelve
-// packed bytes in three words (quant/k_quants.hpp): groups 0..3 are the
-// low six bits of bytes 0..3 (scales) and 4..7 (mins), groups 4..7 the
-// nibbles of bytes 8..11 with the earlier bytes' top two bits above.
-// Branch-free with selects: the eight lanes of a block hold different
-// c, and the byte-select form on divergent branches cost a tenth of
-// Q4_K and a sixth of Q5_K at the 8B shape.
+// The sub-scales and sub-mins of groups 2c and 2c + 1 from the twelve packed bytes in three words (quant/k_quants.hpp): groups 0..3 are the low six bits of bytes 0..3 (scales) and 4..7 (mins), groups 4..7 the nibbles of bytes 8..11 with the earlier bytes' top two bits above.
+// Branch-free, since the lanes of a block hold different c.
 void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float mnl, out float sch, out float mnh) {
     uint sh = 16u * (c & 1u);   // the two groups' bytes within their words
     uint a0 = s0 >> sh, a1 = s1 >> sh, a2 = s2 >> sh;
@@ -275,8 +189,7 @@ void main() {
     uint rsub = lane / p.cluster;      // which of the subgroup's rows
     uint l = lane - rsub * p.cluster;  // lane within the row's cluster
     uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
-    // Folded to one in the one-column build, so the loops below collapse
-    // and a single accumulator stays live.
+    // One in the one-column build, so the column loops collapse.
     const uint ncols = MAX_COLS == 1u ? 1u : p.ncols;
     float acc[MAX_COLS];
     for (uint c = 0u; c < MAX_COLS; ++c) acc[c] = 0.0;
@@ -297,10 +210,7 @@ void main() {
                 uint we = (t == 0u) ? w32s[pi].w32[o + 16u] : 0u;
                 float s0 = unpackHalf2x16(w32s[pi].w32[o]).x;
                 float s1 = unpackHalf2x16(w32s[pi].w32[o + 8u]).y;
-                // Block 0's words shifted by a half word with the next
-                // word, which the next lane of the pair holds: lane 3's next
-                // words are lane 0's second and third. Word 8's remaining
-                // half is the second scale, so the word drops out.
+                // Block 0's words shifted by a half word with the next word, held by the next lane of the pair; word 8's remaining half is the second scale, so it drops out.
                 uint src = (lane & ~3u) | ((t + 1u) & 3u);
                 uint sa = subgroupShuffle(wa, src), sb = subgroupShuffle(wb, src), sc = subgroupShuffle(wc, src);
                 wa = (wa >> 16u) | ((t == 3u ? sb : sa) << 16u);
@@ -348,11 +258,7 @@ void main() {
 #endif
 #ifdef LLMX_Q4
         if (type == TYPE_Q4_0 && wide != 0u) {
-            // Two lanes per 9-word pair, a block each, both loading five
-            // words: lane 0 words 0..4, whose low half is the scale and
-            // whose nibble bytes start two bytes in, so each nibble word is
-            // assembled from two; lane 1 words 4..8, the scale in the high
-            // half of word 4 and the nibble words aligned after it.
+            // Two lanes per 9-word pair, a block each: lane 0 words 0..4 (the scale, then nibble bytes starting two bytes in), lane 1 words 4..8 (the scale in word 4's high half, then aligned nibble words).
             uint nblocks = p.nin / Q4_0_BLOCK;
             uint npairs = nblocks / 2u;
             uint wbase = row * nblocks * 9u / 2u;   // words: a pair is 9
@@ -439,14 +345,8 @@ void main() {
 #endif
 #if defined(LLMX_K4) || defined(LLMX_K5)
         {
-            // Q4_K and Q5_K: eight lanes per block, lane t taking the 16
-            // nibble bytes h * 16.. of 64-value chunk c (c = t / 2, h = t
-            // mod 2), whose low nibbles are group 2c at positions c * 64 +
-            // h * 16 + i and whose high nibbles are group 2c + 1 at c * 64
-            // + 32 + h * 16 + i. Every lane reads the three packed
-            // sub-scale words; both block sizes are multiples of four.
-            // Q5_K's fifth bits are bits 2c and 2c + 1 of each byte of the
-            // matching word of the 32 high-bit bytes.
+            // Q4_K and Q5_K: eight lanes per block, lane t taking 16 nibble bytes h * 16.. of 64-value chunk c (c = t / 2, h = t mod 2): low nibbles are group 2c at c * 64 + h * 16 + i, high nibbles group 2c + 1 at c * 64 + 32 + h * 16 + i.
+            // Q5_K's fifth bits are bits 2c and 2c + 1 of each byte of the matching high-bit word.
 #ifdef LLMX_K5
             const uint q5 = 1u;
 #else
@@ -465,13 +365,12 @@ void main() {
                 vec2 dd = unpackHalf2x16(hd.x);
                 uint s0 = hd.y, s1 = hd.z, s2 = hd.w;
                 uvec4 nq = w128s[pi].w128[(o + (q5 != 0u ? 12u : 4u) + c * 8u + h * 4u) / 4u];
-                // Q5_K's fifth bits, one word per nibble word, unpacked just before each word's dots so no unpacked set stays live.
+                // Q5_K's fifth bits, unpacked just before each word's dots.
                 uvec4 hbv = uvec4(0u);
                 if (q5 != 0u) hbv = w128s[pi].w128[(o + 4u + h * 4u) / 4u];
                 float scl, mnl, sch, mnh;
                 scale_min_pair(s0, s1, s2, c, scl, mnl, sch, mnh);
-                // The block's scales folded once, so four floats stay live across the columns rather than seven.
-                // The mins multiply the whole group's sum; the group's two lanes reduce together, so one of them applies it.
+                // The block's scales folded once; the mins multiply the whole group's sum, so only one of the group's two lanes applies them.
                 float dl = dd.x * scl, dh = dd.x * sch;
                 float ml = h == 0u ? dd.y * mnl : 0.0, mh = h == 0u ? dd.y * mnh : 0.0;
                 uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
@@ -498,16 +397,9 @@ void main() {
 #endif
 #ifdef LLMX_KQUANT
         {
-            // Q6_K: eight lanes per block, lane t taking positions l0..l0+7
-            // of half n. Position l0 + i of a half has four values, one per
-            // 32-group: low nibble of ql[l0 + i] with bits 0..1 of qh[l0 + i],
-            // low nibble of ql[l0 + 32 + i] with bits 2..3, the high nibbles
-            // with bits 4..5 and 6..7; each group has its own sub-scale,
-            // and sub-scale index l0 / 16 is the same for the lane's eight.
-            // A group's eight values are packed as unsigned bytes 0..63 in
-            // two words and the -32 offset folded through the block sum.
-            // Eight positions per lane rather than four halve the loads
-            // per weight and let the activations come in as 16 bytes.
+            // Q6_K: eight lanes per block, lane t taking positions l0..l0+7 of half n.
+            // Position l0 + i has one value per 32-group: low nibble of ql[l0 + i] with qh bits 0..1, low nibble of ql[l0 + 32 + i] with bits 2..3, the high nibbles with bits 4..5 and 6..7.
+            // Each group has its own sub-scale, index l0 / 16 for all eight; values are packed as unsigned bytes 0..63 and the -32 offset folded through the block sum.
             uint nblocks = p.nin / Q6_K_BLOCK;
             uint bbase = row * nblocks * Q6_K_BYTES;   // bytes
             uint group = l / 8u, t = l - group * 8u;
@@ -543,9 +435,7 @@ void main() {
                     vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
                     acc[c] += d * (s0 * (xa.x * float(p0)) + s1 * (xa.z * float(p1)) +
                                    s2 * (xb.x * float(p2)) + s3 * (xb.z * float(p3)));
-                    // The -32 offset times each half-group's sum under that
-                    // half's sub-scale, applied by the first lane of each
-                    // half among the four that reduce together.
+                    // The -32 offset times each half-group's sum under its sub-scale, applied by the first lane of each half.
                     if (l0 == 0u || l0 == 16u) {
                         vec4 ha = xq_halves_pair(col, bg / 2u), hb = xq_halves_pair(col, bg / 2u + 1u);
                         acc[c] -= d * 32.0 * (l0 == 0u ? s0 * ha.x + s1 * ha.z + s2 * hb.x + s3 * hb.z
@@ -556,8 +446,7 @@ void main() {
         }
 #endif
     }
-    // Reduce within each cluster of lanes; every lane joins every shuffle
-    // and lanes past the last row add zero.
+    // Reduce within each cluster; every lane joins every shuffle and lanes past the last row add zero.
     for (uint c = 0u; c < ncols; ++c) {
         float s = acc[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);

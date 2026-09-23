@@ -1,5 +1,4 @@
-// Paged KV cache oracle (docs/KV-CACHE.md): the logical pool and sequence,
-// the CPU storage behind them, and attention over a shuffled block table.
+// Paged KV cache oracle (docs/KV-CACHE.md): the logical pool and sequence, the CPU storage behind them, and attention over a shuffled block table.
 // HF/model history checks remain separate; this does not replace them.
 #include <cmath>
 #include <cstdint>
@@ -16,9 +15,8 @@
 #include "model/arch_qwen.hpp"
 #include "model/kv_cache.hpp"
 
-// Fails the Nth allocation of at least `min_bytes` after arming, once. Used
-// to fail the prefill activation arena, which is one allocation large enough
-// that no other allocation on the path reaches the threshold.
+// Fails the Nth allocation of at least `min_bytes` after arming, once.
+// Used to fail the prefill activation arena, which is one allocation large enough that no other allocation on the path reaches the threshold.
 static thread_local size_t fail_large_after = 0, fail_min_bytes = 0;
 
 void* operator new(std::size_t n) {
@@ -38,9 +36,7 @@ void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
 }
 
-// Deliberately narrower than std::exception: this file injects bad_alloc of
-// its own, and catching that here would let an allocation failure stand in for
-// the budget or bounds error each case is checking for.
+// Deliberately narrower than std::exception: this file injects bad_alloc of its own, and catching that here would let an allocation failure stand in for the budget or bounds error each case is checking for.
 template <class F> void rejects(F fn, const char* what) {
     bool failed = false;
     try { fn(); }
@@ -231,10 +227,9 @@ void storage_growth_and_reset() {
     }
 }
 
-// A fork shares every full block, read-only, and copies the partial tail
-// into a private block, so the two histories agree up to the fork and then
-// diverge without touching each other. A history truncated into a shared
-// block cannot be appended to. Releases follow the refcounts.
+// A fork shares every full block, read-only, and copies the partial tail into a private block, so the two histories agree up to the fork and then diverge without touching each other.
+// A history truncated into a shared block cannot be appended to.
+// Releases follow the refcounts.
 void fork_shares_and_copies() {
     backend::CpuBackend cpu;
     cpu.set_threads(1);
@@ -280,15 +275,12 @@ void fork_shares_and_copies() {
     require(none.from == -1 && none.to == -1 && exact_fork.n_blocks() == 1 &&
             pool.refs(exact_seq.view(st.get()).blocks[0]) == 2, "boundary fork took a tail");
 
-    // Truncating into the shared block and appending would write what the
-    // other sequence reads.
+    // Truncating into the shared block and appending would write what the other sequence reads.
     seq.truncate(bt / 2);
     rejects([&] { seq.prepare(1); }, "append into a shared block accepted");
     require(seq.length() == bt / 2 && pool.refs(vs.blocks[0]) == 2, "refused append changed state");
 
-    // Releases follow the refcounts: the fork's reset frees its private
-    // tail and only drops a reference on the shared block, which stays in
-    // use until the last holder lets go.
+    // Releases follow the refcounts: the fork's reset frees its private tail and only drops a reference on the shared block, which stays in use until the last holder lets go.
     const size_t held = pool.in_use();
     fork.reset();
     require(pool.refs(vs.blocks[0]) == 1 && pool.in_use() == held - 1, "fork reset released the wrong blocks");
@@ -298,8 +290,7 @@ void fork_shares_and_copies() {
     require(pool.in_use() == 0, "blocks leaked across forks");
 }
 
-// Attention over a shuffled table must equal attention over the same history
-// in a different table bit for bit, and match a double-precision reference.
+// Attention over a shuffled table must equal attention over the same history in a different table bit for bit, and match a double-precision reference.
 void attention_over_blocks() {
     backend::CpuBackend cpu;
     cpu.set_threads(2);
@@ -317,8 +308,7 @@ void attention_over_blocks() {
             for (auto& x : V) x = uni(rng);
             for (auto& x : Q) x = uni(rng);
 
-            // Two storages: one whose blocks were taken in order, one whose
-            // pool was churned first so the table is out of order.
+            // Two storages: one whose blocks were taken in order, one whose pool was churned first so the table is out of order.
             std::vector<std::vector<float>> outs;
             for (int churn = 0; churn < 2; ++churn) {
                 auto st = cpu.kv_alloc(1, n_head_kv, head_dim, 8 * bt);
@@ -385,11 +375,8 @@ void attention_over_blocks() {
     }
 }
 
-// Two sequences in one pass: their rows concatenated in view order through
-// one kv_write and one attention call must equal the same two sequences
-// written and attended separately, bit for bit, since the per-view work is
-// the single-sequence work. Histories straddle a block edge and differ in
-// length so a row offset or a length taken from the wrong view shows.
+// Two sequences in one pass: their rows concatenated in view order through one kv_write and one attention call must equal the same two sequences written and attended separately, bit for bit, since the per-view work is the single-sequence work.
+// Histories straddle a block edge and differ in length so a row offset or a length taken from the wrong view shows.
 void batched_views() {
     backend::CpuBackend cpu;
     cpu.set_threads(2);
@@ -454,9 +441,8 @@ void batched_views() {
             "two views in one call differ from the sequences taken separately");
 }
 
-// A one-layer Qwen3-shaped F32 model, deterministic weights, for the
-// transaction check below. Mirrors the prefill-scope fixture, with a context
-// of four CPU blocks so a step can cross a block boundary.
+// A one-layer Qwen3-shaped F32 model, deterministic weights, for the transaction check below.
+// Mirrors the prefill-scope fixture, with a context of four CPU blocks so a step can cross a block boundary.
 gguf::GGUFModel fixture() {
     gguf::GGUFModel m;
     for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{
@@ -494,8 +480,7 @@ gguf::GGUFModel fixture() {
     return m;
 }
 
-// Fails the output projection (the only 16-row matmul) once, after every
-// layer's KV has been written for the step.
+// Fails the output projection (the only 16-row matmul) once, after every layer's KV has been written for the step.
 struct FailingCpu : backend::CpuBackend {
     bool fail_output = false;
     int outputs = 0;
@@ -522,13 +507,7 @@ struct FailingCpu : backend::CpuBackend {
     }
 };
 
-// Every path that hands blocks back to the pool has to retire the backend's
-// outstanding work first, or a device backend gives whichever sequence takes
-// that id next a write from the failed one (docs/KV-CACHE.md). A failed pass
-// has ops queued behind no ticket, so its paths drain with sync(); reset()
-// follows a completed pass and waits on that pass's ticket instead. The CPU
-// backend is eager, so nothing here would fail without either; counting the
-// calls is what keeps the contract from quietly lapsing.
+// Every path handing blocks back to the pool must retire the backend's work first (docs/KV-CACHE.md): failed passes drain with sync(), reset() waits on the pass's ticket. Counting the calls keeps the contract from lapsing on the eager CPU backend.
 void release_syncs() {
     const auto weights = fixture();
     auto cpu = std::make_shared<FailingCpu>();
@@ -536,8 +515,7 @@ void release_syncs() {
     infer::Model model(weights, cpu);
     model.set_ubatch(2);
 
-    // A successful pass is one submission, waited on for its logits, which
-    // leave through host-visible memory rather than a read op.
+    // A successful pass is one submission, waited on for its logits, which leave through host-visible memory rather than a read op.
     model.step(1);
     require(cpu->submits == 1 && cpu->waits == 1 && cpu->last_wait == 1,
             "a pass is one submission waited on once");
@@ -560,28 +538,23 @@ void release_syncs() {
     rejects([&] { model.prefill({4, 5, 6}); }, "injected prefill failure did not propagate");
     require(cpu->syncs > before, "a failed prefill released blocks without retiring work");
 
-    // A prompt of three tokens at ubatch 2 is two passes: two submissions,
-    // one wait, for the last pass only.
+    // A prompt of three tokens at ubatch 2 is two passes: two submissions, one wait, for the last pass only.
     const int submits = cpu->submits, waits = cpu->waits;
     model.prefill({4, 5, 6});
     require(cpu->submits == submits + 2 && cpu->waits == waits + 1 &&
             cpu->last_wait == backend::Ticket(submits + 2),
             "a prompt submits once per pass and waits once, on the last");
 
-    // A step that succeeds commits rather than releases, so it needs no sync
-    // of its own: its ticket is the one ordering point per pass.
+    // A step that succeeds commits rather than releases, so it needs no sync of its own: its ticket is the one ordering point per pass.
     before = cpu->syncs;
     model.step(7);
     require(cpu->syncs == before, "a successful step retired work it did not have to");
     require(cpu->reads == 0, "a read op was used where a wait suffices");
 }
 
-// Two sequences in one pass through the model: one decoding a token over a
-// three-token history while the other prefills two tokens. Each row must
-// see its own position and its own history, so the logits of the joint
-// pass match the two sequences run on their own, to float tolerance (the
-// three-row matmul takes a different reduction path than one- and two-row
-// ones). A sequence listed twice is refused with every history unchanged.
+// Two sequences in one pass through the model: one decoding a token over a three-token history while the other prefills two tokens.
+// Each row must see its own position and its own history, so the logits of the joint pass match the two sequences run on their own, to float tolerance (the three-row matmul takes a different reduction path than one- and two-row ones).
+// A sequence listed twice is refused with every history unchanged.
 void batched_forward() {
     const auto weights = fixture();
     auto cpu = std::make_shared<backend::CpuBackend>();
@@ -625,9 +598,7 @@ void batched_forward() {
     require(a.length() == 0 && b.length() == 2, "reset touched the other sequence");
 }
 
-// Through the model: a forked sequence continues exactly as a fresh
-// sequence fed the whole history would, and the original continues exactly
-// as if never forked.
+// Through the model: a forked sequence continues exactly as a fresh sequence fed the whole history would, and the original continues exactly as if never forked.
 void model_fork() {
     const auto weights = fixture();
     auto cpu = std::make_shared<backend::CpuBackend>();
@@ -660,9 +631,7 @@ void model_fork() {
     require(a.length() == 0 && b.length() == 0, "reset after fork");
 }
 
-// A failure after the KV writes must leave length, position and bytes as
-// they were, and the retried step must produce the logits of an undisturbed
-// model, exactly.
+// A failure after the KV writes must leave length, position and bytes as they were, and the retried step must produce the logits of an undisturbed model, exactly.
 void model_transaction() {
     const auto weights = fixture();
     auto cpu = std::make_shared<FailingCpu>();
@@ -694,9 +663,8 @@ void model_transaction() {
     require(model.step(7) == control.step(7), "step after prefill retry differs");
     require(model.n_tokens() == 4 && cpu->outputs == 7, "output projection count");
 
-    // A failure on the step that opens a new block. Policy: history and
-    // length are restored; capacity the backend grew for the attempt may be
-    // retained, bounded by the budget.
+    // A failure on the step that opens a new block.
+    // Policy: history and length are restored; capacity the backend grew for the attempt may be retained, bounded by the budget.
     const size_t bt = cpu->kv_layout().block_tokens;
     model.reset();
     control.reset();
@@ -714,8 +682,7 @@ void model_transaction() {
     require(model.step(11) == control.step(11), "step after block-crossing retry differs");
     require(model.n_tokens() == (int)bt + 2, "position after block-crossing retry");
 
-    // The prefill activation arena fails to allocate; the retry must allocate
-    // it again and match the control exactly.
+    // The prefill activation arena fails to allocate; the retry must allocate it again and match the control exactly.
     model.reset();
     control.reset();
     model.set_ubatch(3);
@@ -723,8 +690,7 @@ void model_transaction() {
     {
         infer::Model fresh(weights, plain);
         fresh.set_ubatch(3);
-        // The arena for ubatch 3 on this fixture is 1216 bytes; nothing else
-        // allocated during prefill comes close, so this selects it alone.
+        // The arena for ubatch 3 on this fixture is 1216 bytes; nothing else allocated during prefill comes close, so this selects it alone.
         fail_min_bytes = 1024;
         fail_large_after = 1;
         bool failed = false;

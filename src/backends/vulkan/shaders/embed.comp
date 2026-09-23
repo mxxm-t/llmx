@@ -27,8 +27,7 @@ void main() {
             dst[out_base + j] = half_at(QBYTE(o), QBYTE(o + 1u)) * float(int(q) - (q >= 128u ? 256 : 0));
         }
     } else {
-        // Q4_0, Q4_1 and the K-quants, one value at a time through the
-        // decoders.
+        // Q4_0, Q4_1 and the K-quants, one value at a time through the decoders.
         uint bv = block_values(p.type), bb = block_bytes(p.type);
         uint base = id * (p.nin / bv) * bb;
         for (uint j = lid; j < p.nin; j += 256u) {

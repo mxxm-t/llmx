@@ -1,13 +1,6 @@
-// Vulkan backend (docs/VULKAN.md). Sub-step 1: storage and submission over
-// a real device. Buffers round-trip through adopt, copy, write and read;
-// allocations come back zeroed; host-visible memory is readable in place
-// after a wait; tickets are monotonic and retire in order. Sub-step 2: the
-// elementwise kernels, gather, embed and the norms against the CPU backend
-// on random inputs, with the bounds below fixed before the first run: bit
-// exact where the arithmetic is the same operation in the same order (add,
-// gather, embed), and a stated relative tolerance where a transcendental or
-// a reduction order differs. Exits 77, which CTest reports as skipped, when
-// there is no loader or no device.
+// Vulkan backend test (docs/VULKAN.md): storage and submission over a real device, then every kernel against the CPU backend on random inputs.
+// Bit exact where the arithmetic is the same operation in the same order, a stated tolerance where a transcendental or a reduction order differs.
+// Exits 77, which CTest reports as skipped, when there is no loader or no device.
 #include <chrono>
 #include <fstream>
 #include <functional>
@@ -37,9 +30,8 @@ std::vector<float> uniform(size_t n, uint32_t seed, float lo = -1.0f, float hi =
     return v;
 }
 
-// The same op on both backends over the same inputs. Inputs are adopted
-// (the CPU keeps the pointer, the device uploads a copy); outputs are
-// allocated on each and the device's is read back.
+// The same op on both backends over the same inputs.
+// Inputs are adopted (the CPU keeps the pointer, the device uploads a copy); outputs are allocated on each and the device's is read back.
 struct Pair {
     backend::CpuBackend cpu;
     backend::Backend& vk;
@@ -90,12 +82,8 @@ size_t close(const std::vector<float>& a, const std::vector<float>& b, double re
     return a.size();
 }
 
-// The activations as the device's row kernel sees them: each block of 32
-// scaled so its largest magnitude is 32767, rounded half away from zero,
-// and back to floats (shaders/quantize_x.comp). The CPU reference of a
-// quantized-row matmul on the row kernel takes these, so the comparison
-// is about the dot and its reduction order and not about the
-// quantization, which is the device's choice and the HF gate's business.
+// The activations as the device's row kernel sees them: each block of 32 scaled so its largest magnitude is 32767, rounded half away from zero, and back to floats (shaders/quantize_x.comp).
+// The CPU reference of a quantized-row matmul on the row kernel takes these, so the comparison is about the dot and its reduction order and not about the quantization, which is the device's choice and the HF gate's business.
 std::vector<float> row_activations(const std::vector<float>& x) {
     std::vector<float> out(x.size());
     for (size_t b = 0; b + 32 <= x.size(); b += 32) {
@@ -184,8 +172,7 @@ size_t check_kernels(backend::Backend& vk) {
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "gather beyond the source accepted");
     }
-    // rms_norm_rows and rms_norm: the sum of squares is reduced in a
-    // different order, so a tolerance; dst aliasing src is exercised.
+    // rms_norm_rows and rms_norm: the sum of squares is reduced in a different order, so a tolerance; dst aliasing src is exercised.
     {
         const size_t rows = 7, n = 1000, stride = 1013;
         const auto src = uniform(rows * stride, 6), w = uniform(n, 7, 0.5f, 1.5f);
@@ -233,8 +220,7 @@ size_t check_kernels(backend::Backend& vk) {
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "position beyond the table accepted");
     }
-    // embed: F32 rows are copies and Q8_0 rows are a half scale times a
-    // small integer, exact in float, so both are exact.
+    // embed: F32 rows are copies and Q8_0 rows are a half scale times a small integer, exact in float, so both are exact.
     {
         const size_t nin = 96, nrows = 10;
         const auto table = uniform(nin * nrows, 10);
@@ -286,8 +272,7 @@ size_t check_kernels(backend::Backend& vk) {
             auto r6 = p.results(d6);
             values += exact(r6.first, r6.second, "embed Q6_K differs");
         }
-        // Q4_K and Q5_K rows of 256 the same way; d and dmin are the first
-        // two halves of a block.
+        // Q4_K and Q5_K rows of 256 the same way; d and dmin are the first two halves of a block.
         for (int k = 0; k < 2; ++k) {
             const uint32_t type = k == 0 ? gguf::GGML_TYPE_Q4_K : gguf::GGML_TYPE_Q5_K;
             const size_t bytes = k == 0 ? gguf::Q4_K_TYPESIZE : gguf::Q5_K_TYPESIZE;
@@ -311,12 +296,10 @@ size_t check_kernels(backend::Backend& vk) {
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "embedding row beyond the table accepted");
     }
-    // matmul: F32 and Q8_0 over odd sizes and batch widths that fall
-    // inside, on and past the eight-column chunk. The reduction order
-    // differs from the CPU's, so a tolerance.
+    // matmul: F32 and Q8_0 over odd sizes and batch widths that fall inside, on and past the eight-column chunk.
+    // The reduction order differs from the CPU's, so a tolerance.
     for (size_t nin : {size_t(1024), size_t(256), size_t(224)}) {
-        // 1024 is sixteen block pairs, the word-wide path; 256 has too few
-        // pairs for it and 224 an odd block count, both the 16-bit path.
+        // 1024 is sixteen block pairs, the word-wide path; 256 has too few pairs for it and 224 an odd block count, both the 16-bit path.
         const size_t nout = 67;
         const auto wf = uniform(nin * nout, 11);
         std::vector<uint8_t> wq(nout * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
@@ -334,11 +317,8 @@ size_t check_kernels(backend::Backend& vk) {
             quant::quantize_row_q4_1(wf.data() + row * nin,
                                      w41.data() + row * (nin / gguf::Q4_1_BLOCK) * gguf::Q4_1_TYPESIZE,
                                      nin / gguf::Q4_1_BLOCK);
-        // No Q6_K quantizer exists here, and none is needed: any bytes are
-        // a valid block, and both backends decode the same bytes. The half
-        // scale is 2^-10 so the values sit in the range of the other types;
-        // at 2^-4 the sub-scales of up to 127 gave 1024-term sums whose
-        // reduction-order rounding alone exceeded the tolerance.
+        // No Q6_K quantizer is needed: any bytes are a valid block and both backends decode the same bytes.
+        // The half scale is 2^-10 so the values sit in the range of the other types; larger scales made reduction-order rounding alone exceed the tolerance.
         std::vector<uint8_t> w6(nout * (nin / 256) * gguf::Q6_K_TYPESIZE);
         for (size_t i = 0; i < w6.size(); ++i) w6[i] = uint8_t(i * 131 + 7);
         for (size_t row = 0; row < nout * (nin / 256); ++row) {
@@ -358,12 +338,8 @@ size_t check_kernels(backend::Backend& vk) {
         Pair::In wfi = p.in(wf), wqi = p.in(wq.data(), wq.size()), w4i = p.in(w4.data(), w4.size());
         Pair::In w41i = p.in(w41.data(), w41.size()), w6i = p.in(w6.data(), w6.size());
         Pair::In w4ki = p.in(w4k.data(), w4k.size()), w5ki = p.in(w5k.data(), w5k.size());
-        // The row kernel, whose quantized rows meet 16-bit activations,
-        // takes batches below a threshold that depends on the device and on
-        // how wide a row is; the tile kernel takes the rest with float
-        // activations. The thresholds come from the backend rather than from
-        // constants here, because a device that was measured to want other
-        // numbers gets them and the reference has to follow.
+        // The row kernel, whose quantized rows meet 16-bit activations, takes batches below a threshold that depends on the device and on how wide a row is; the tile kernel takes the rest with float activations.
+        // The thresholds come from the backend rather than from constants here, because a device that was measured to want other numbers gets them and the reference has to follow.
         const backend::DeviceProfile profile = backend::vulkan_device_profile(p.vk);
         const size_t tile_from_8bit = backend::tile_from_for(profile, true, nin);
         const size_t tile_from_other = backend::tile_from_for(profile, false, nin);
@@ -371,11 +347,7 @@ size_t check_kernels(backend::Backend& vk) {
                               size_t(100), size_t(247)}) {
             const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
-            // Which kernel a batch takes is the backend's decision, and it
-            // differs by device, so ask rather than assume: below the
-            // threshold the row kernel reads quantized activations and the
-            // reference must be fed the same, at or above it the tile kernel
-            // reads floats.
+            // Which kernel a batch takes is the backend's decision, and it differs by device, so ask rather than assume: below the threshold the row kernel reads quantized activations and the reference must be fed the same, at or above it the tile kernel reads floats.
             // A device whose integer dot is native takes wide quantized batches through the integer-dot tile, which reads 8-bit activations.
             const bool idot = profile.prefer_integer_dot;
             const auto xr8 = nbatch < tile_from_8bit ? twin_activations(x, idot) : idot ? tile_activations8(x) : x;   // adopted, so they must outlive the calls; Q8_0 rows read the 8-bit twin where the integer dot is native
@@ -410,9 +382,7 @@ size_t check_kernels(backend::Backend& vk) {
                 }
             }
         }
-        // norm_rope_kv: the fused attention inputs against the CPU's three
-        // separate ops; q compared directly, k and v through attention over
-        // the view each backend wrote, after a 70-token history.
+        // norm_rope_kv: the fused attention inputs against the CPU's three separate ops; q compared directly, k and v through attention over the view each backend wrote, after a 70-token history.
         {
             const int n_head = 4, n_head_kv = 2, head_dim = 40;
             const size_t half = head_dim / 2, qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
@@ -469,13 +439,8 @@ size_t check_kernels(backend::Backend& vk) {
             values += close(qc, qv, 1e-5, "norm_rope_kv q differs beyond 1e-5");
             values += close(ac, av, 1e-4, "norm_rope_kv attention differs beyond 1e-4");
         }
-        // attention over a wide pass of 128-wide heads takes the tiled
-        // kernel: 32, 45 and 100 query rows (one full tile, then partial ones
-        // whose last rows mask part of a K/V tile) after histories of 0, 70
-        // and 600 tokens, against the CPU at 1e-4. The queries are scaled so
-        // a row's scores spread over about ten, peaked as a trained model's
-        // are rather than the near-uniform softmax of unit random values, and
-        // the cache is taken both as f32 and as f16.
+        // attention over a wide pass of 128-wide heads takes the tiled kernel: 32, 45 and 100 query rows (one full tile, then partial ones whose last rows mask part of a K/V tile) after histories of 0, 70 and 600 tokens, against the CPU at 1e-4.
+        // The queries are scaled so a row's scores spread over about ten, peaked as a trained model's are rather than the near-uniform softmax of unit random values, and the cache is taken both as f32 and as f16.
         for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16})
         for (size_t hist : {size_t(0), size_t(70), size_t(600)}) {
             for (size_t nq : {size_t(32), size_t(45), size_t(100)}) {
@@ -517,10 +482,8 @@ size_t check_kernels(backend::Backend& vk) {
                 }
             }
         }
-        // Batch invariance: a row computes the same, bit for bit, whatever else shares its call, once the caller says which prompt each row belongs to (backend::RowRun).
-        // A prompt's last rows alone against the same rows of one call over the whole prompt, a generated row alone against it beside others, and a call mixing both against each.
-        // The row kernel and the tile round differently; a server that reused a cached prefix prefilled the prompt's tail through the row kernel where one pass over the whole prompt took the tile, and the two gave different greedy text.
-        // A 249-row prompt at 2048 and 6144 outputs takes the tallest tile and its 9-row tail the shortest, so the heights are compared as well as the widths.
+        // Batch invariance: a row computes the same, bit for bit, whatever shares its call, given its prompt's RowRun.
+        // A prompt's tail alone against those rows of one pass, a generated row alone against it beside others, and a mixed call against both, at shapes that take the tallest tile whole and the shortest for the tail.
         if (nin == 1024)
         for (size_t n_out : {size_t(300), size_t(2048), size_t(6144)}) {
             const size_t n_in = 1024, rows = 249, tail = 9, prompt = 249;
@@ -642,10 +605,7 @@ size_t check_kernels(backend::Backend& vk) {
                 throw;
             }
         }
-        // The twin the per-row attention kernel, or its merge after a
-        // split history, writes beside its output for the row matmul that
-        // follows: attention then a matmul from its output on the device,
-        // against the CPU's attention, quantized, into the CPU's matmul.
+        // The twin the per-row attention kernel, or its merge after a split history, writes beside its output for the row matmul that follows: attention then a matmul from its output on the device, against the CPU's attention, quantized, into the CPU's matmul.
         for (size_t hist : {size_t(0), size_t(70)}) {
             for (size_t nq : {size_t(1), size_t(3)}) {
                 const int n_head = 4, n_head_kv = 2, head_dim = 128;
@@ -696,12 +656,8 @@ size_t check_kernels(backend::Backend& vk) {
                 values += close(yc, yv, twin_tol, "matmul from the attention twin differs beyond its bound");
             }
         }
-        // f16 cache sides: each combination of K and V types on both
-        // backends, through kv_write, the fused norm_rope_kv, kv_copy and
-        // attention on the per-row and the tiled kernel. The device is
-        // compared with the CPU at the same types at 1e-4, and every f16
-        // combination with the CPU's f32 result at a looser 2e-2, which is
-        // what rounding keys and values to half precision costs here.
+        // f16 cache sides: each combination of K and V types on both backends, through kv_write, the fused norm_rope_kv, kv_copy and attention on the per-row and the tiled kernel.
+        // The device is compared with the CPU at the same types at 1e-4, and every f16 combination with the CPU's f32 result at a looser 2e-2, which is what rounding keys and values to half precision costs here.
         for (int combo = 1; combo < 4; ++combo) {
             const backend::KVType kt = combo & 1 ? backend::KVType::f16 : backend::KVType::f32;
             const backend::KVType vt = combo & 2 ? backend::KVType::f16 : backend::KVType::f32;
@@ -734,8 +690,7 @@ size_t check_kernels(backend::Backend& vk) {
                         b.kv_write(0, &h, 1, {Kh.get(), 0}, {Vh.get(), 0});
                     }
                     seq.commit();
-                    // The history's last block copied over itself through
-                    // kv_copy, which must move the stored bytes whatever the type.
+                    // The history's last block copied over itself through kv_copy, which must move the stored bytes whatever the type.
                     {
                         const backend::KVView h = seq.view(st.get());
                         const int32_t last = h.blocks[(hist - 1) / bt];
@@ -769,8 +724,7 @@ size_t check_kernels(backend::Backend& vk) {
                 close(a32, av, 2e-2, "f16 cache attention differs from the f32 cache beyond 2e-2");
             }
         }
-        // matmul_add: the product joins what Y already holds, on the row
-        // kernel and on the tile kernel, against the CPU's scratch-and-add.
+        // matmul_add: the product joins what Y already holds, on the row kernel and on the tile kernel, against the CPU's scratch-and-add.
         for (size_t nbatch : {size_t(1), size_t(3), size_t(64)}) {
             const auto xa = uniform(nbatch * nin, 20 + (uint32_t)nbatch);
             Pair::In xi = p.in(xa);
@@ -788,9 +742,7 @@ size_t check_kernels(backend::Backend& vk) {
             auto r = p.results(d);
             values += close(r.first, r.second, twin_tol, "matmul_add differs beyond its bound");
         }
-        // The twin the norm and SiLU kernels write beside their output for
-        // the row kernel: each into a buffer, then a matmul from it, against
-        // the CPU's producer followed by the quantized reference.
+        // The twin the norm and SiLU kernels write beside their output for the row kernel: each into a buffer, then a matmul from it, against the CPU's producer followed by the quantized reference.
         {
             const size_t rows = 3;
             const auto src = uniform(rows * nin, 40 + (uint32_t)nin), wn = uniform(nin, 41, 0.5f, 1.5f);
@@ -819,9 +771,7 @@ size_t check_kernels(backend::Backend& vk) {
         try { p.vk.matmul(1u /* F16, no kernel */, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "unsupported matrix type accepted");
-        // Three projections in one dispatch equal the same three one at a
-        // time, bit for bit, since each row's work is unchanged; rows are
-        // uneven so the workgroup ranges do not line up.
+        // Three projections in one dispatch equal the same three one at a time, bit for bit, since each row's work is unchanged; rows are uneven so the workgroup ranges do not line up.
         for (size_t nbatch : {size_t(1), size_t(3)}) {
             const auto x = uniform(nbatch * nin, 30 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
@@ -868,12 +818,9 @@ size_t check_kernels(backend::Backend& vk) {
             }
         }
     }
-    // The KV cache: the same token-major rows written through each backend's
-    // own storage and block size, then attention over each backend's own
-    // view. Histories straddle the device's 64-token blocks and the CPU's
-    // 128; two views in one call; a block copied with kv_copy attends like
-    // the original. The online softmax orders the arithmetic differently
-    // from the CPU's global softmax, so a tolerance.
+    // The KV cache: the same token-major rows written through each backend's own storage and block size, then attention over each backend's own view.
+    // Histories straddle the device's 64-token blocks and the CPU's 128; two views in one call; a block copied with kv_copy attends like the original.
+    // The online softmax orders the arithmetic differently from the CPU's global softmax, so a tolerance.
     {
         const int n_head = 4, n_head_kv = 2, head_dim = 40;
         const size_t kvw = (size_t)n_head_kv * head_dim, qw = (size_t)n_head * head_dim, layers = 2;
@@ -897,8 +844,7 @@ size_t check_kernels(backend::Backend& vk) {
                     }
                     seq.commit();
                     if (split) {
-                        // A second sequence with a two-token history shares
-                        // the call: its rows come after the first view's.
+                        // A second sequence with a two-token history shares the call: its rows come after the first view's.
                         other.prepare(2);
                         for (size_t l = 0; l < layers; ++l) {
                             const backend::KVView h = other.view(st.get());
@@ -967,8 +913,7 @@ size_t check_kernels(backend::Backend& vk) {
             }
         }
     }
-    // The cost of a dispatch that does almost nothing, reported and not
-    // asserted: a decoded token on Qwen3-0.6B is about four hundred of them.
+    // The cost of a dispatch that does almost nothing, reported and not asserted: a decoded token on Qwen3-0.6B is about four hundred of them.
     {
         const size_t n = 64;
         const auto x = uniform(n, 14);
@@ -983,11 +928,8 @@ size_t check_kernels(backend::Backend& vk) {
         const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / iters;
         std::cout << "backend-vulkan: tiny dispatch with barrier " << us << " us each over " << iters << "\n";
     }
-    // The row kernel at the projection shapes of Qwen3-0.6B and 8B, one
-    // column, reported: the small shapes say whether a decoded token is
-    // bound by bandwidth or by per-kernel latency. Every quantized type
-    // the kernel decodes, at the shapes the fixtures use it for; the
-    // 151936-row Q6_K is the tied head of the Q4_0 fixture.
+    // The row kernel at the projection shapes of Qwen3-0.6B and 8B, one column, reported: the small shapes say whether a decoded token is bound by bandwidth or by per-kernel latency.
+    // Every quantized type the kernel decodes, at the shapes the fixtures use it for; the 151936-row Q6_K is the tied head of the Q4_0 fixture.
     struct Timed { uint32_t type; const char* name; size_t nin, nout; };
     for (const Timed& t : {Timed{gguf::GGML_TYPE_Q8_0, "Q8_0", 1024, 1024}, {gguf::GGML_TYPE_Q8_0, "Q8_0", 1024, 2048},
                            {gguf::GGML_TYPE_Q8_0, "Q8_0", 1024, 3072}, {gguf::GGML_TYPE_Q8_0, "Q8_0", 3072, 1024},
@@ -1050,8 +992,7 @@ size_t check_kernels(backend::Backend& vk) {
         std::cout << "backend-vulkan: " << t.name << " prefill " << nout << "x" << nin << " over " << nbatch << " rows "
                   << us << " us, " << 2.0 * nin * nout * nbatch / us / 1e6 << " TFLOPS\n";
     }
-    // Decode attention and the small kernels at the Qwen3-0.6B shape over a
-    // 250-token history, one query, reported.
+    // Decode attention and the small kernels at the Qwen3-0.6B shape over a 250-token history, one query, reported.
     {
         const int n_head = 16, n_head_kv = 8, head_dim = 128;
         const size_t hist = 250, kvw = (size_t)n_head_kv * head_dim, qw = (size_t)n_head * head_dim;
@@ -1097,8 +1038,7 @@ size_t check_kernels(backend::Backend& vk) {
         time("silu_mul 3072", [&] { vk.silu_mul({xb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, 3072); });
         time("kv_write 1 row", [&] { vk.kv_write(0, &view, 1, {Kb.get(), 0}, {Vb.get(), 0}); });
     }
-    // Decode bandwidth of the row kernel on a Qwen3-8B-sized projection,
-    // reported and not asserted: 4096 x 4096 Q8_0 is 17 MiB per column.
+    // Decode bandwidth of the row kernel on a Qwen3-8B-sized projection, reported and not asserted: 4096 x 4096 Q8_0 is 17 MiB per column.
     {
         const size_t n = 4096;
         std::vector<uint8_t> wq(n * (n / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
@@ -1184,8 +1124,7 @@ int main(int argc, char** argv) {
                 "windowed read differs");
         checks += 3;
 
-        // Write from the host into device memory, then into host-visible
-        // memory, and a copy whose result the host reads in place.
+        // Write from the host into device memory, then into host-visible memory, and a copy whose result the host reads in place.
         const std::vector<uint8_t> patch = pattern(777, 2);
         b->write(*dst, 5000, patch.data(), patch.size());
         b->read(*dst, 5000, window.data(), patch.size());

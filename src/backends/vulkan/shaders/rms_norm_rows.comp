@@ -1,12 +1,12 @@
 #version 450
-// dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i], per row, over `chunks` workgroups a row (below).
-// The sum of squares is reduced through shared memory as a tree, so the kernel does not depend on the subgroup size. A subgroup reduction took one barrier where the tree takes eight, but it adds in a different order, and on an MI50 the HF gate's Q8_0 fixture then ranked a different fifth token on one prompt, so the tree stays.
-// With `quant` set the rows are dense and a multiple of 32 wide, and the row kernel's twin of the output is written beside it (xquant.glsl), which saves the dispatch that would make it: a lane's elements are 256 apart, so a block of 32 lies in 32 consecutive lanes.
-// With one chunk dst and src may be the same buffer: every element is read before the barrier and written after it, each by its own lane.
+// dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i], per row, over `chunks` workgroups a row.
+// The sum of squares is a shared-memory tree; a subgroup reduction adds in another order and moved an HF gate result (docs/STATUS.md), so the tree stays.
+// With `quant` set the rows are dense and a multiple of 32 wide, and the output's twin is written beside it (xquant.glsl).
+// With one chunk dst and src may be the same buffer: every element is read before the barrier and written after it by its own lane.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-// `chunks` workgroups share a row: each sums the whole row's squares in the same order, so all reach the same scale bit for bit, and writes its own 256-value chunks. The twin's shuffles per value are a dependent chain, and one workgroup walking a 4096-wide row in sixteen steps on one compute unit took 15 us on an MI50. The backend takes one chunk when dst and src overlap, since a chunk's output would change what another is summing; the arithmetic is the same either way.
+// Each of a row's `chunks` workgroups sums the whole row in the same order and writes its own 256-value chunks; the backend takes one chunk when dst and src overlap.
 layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; uint quant; uint chunks; } p;
 layout(set = 0, binding = 0) buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer S { float src[]; };

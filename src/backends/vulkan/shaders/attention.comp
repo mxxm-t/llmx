@@ -1,24 +1,14 @@
 #version 450
-// Causal GQA over every view of a batch: one workgroup per (batch row,
-// head, split), a split being a range of the row's history. The
-// workgroup's subgroups take the split's tokens round robin; inside a
-// subgroup each lane owns dim / subgroup_size elements, a token's score
-// is one subgroupAdd, and the softmax is kept online, a running maximum
-// and sum with the value accumulation rescaled as the maximum moves, so a
-// long history needs no score array. The subgroups' partial states merge
-// through shared memory. With one split the result is written; with
-// several, each split's state goes to scratch for attention_merge, which
-// is what keeps a decode token over a long history on enough workgroups
-// to fill the device. Row b of a view attends through its hist + b.
+// Causal GQA over every view of a batch: one workgroup per (batch row, head, split), a split being a range of the row's history.
+// The workgroup's subgroups take the split's tokens round robin with an online softmax, and merge through shared memory; with several splits each state goes to scratch for attention_merge.
+// Row b of a view attends through its hist + b.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 layout(local_size_x = 256) in;
-// With `quant` set the head width is a multiple of 32 and the batch is
-// this dispatch alone, and the row kernel's 16-bit twin of the output is
-// written beside it (xquant.glsl): a head's lanes are consecutive.
+// With `quant` set the row kernel's 16-bit twin of the output is written beside it (xquant.glsl); the head width is then a multiple of 32 and the batch is this dispatch alone.
 layout(push_constant) uniform P {
     uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts;
 } p;
@@ -62,7 +52,7 @@ void main() {
     uint qbase = (view_row0(v) + b) * qstride + h * p.dim;
     if (lid < p.dim) qs[lid] = q[qbase + lid];
     barrier();
-    // The row's parts: chunk tokens each, the chunk doubling until at most max_parts cover the row, so they follow from the row's length alone and not from the dispatch; a split past them is empty.
+    // The row's parts: chunk tokens each, the chunk doubling until at most max_parts cover the row, so they depend only on the row's length; a split past them is empty.
     uint len = view_hist(v) + b + 1u, chunk = p.chunk;
     while ((len + chunk - 1u) / chunk > p.max_parts) chunk *= 2u;
     uint start = min(split * chunk, len);
@@ -101,8 +91,7 @@ void main() {
         float M = ms[0];
         for (uint i = 1u; i < nsg; ++i) M = max(M, ms[i]);
         float L = 0.0, A = 0.0;
-        // A subgroup that saw no token holds -inf and zeros; it adds
-        // nothing, and exp(-inf - -inf) must never be formed.
+        // A subgroup that saw no token holds -inf and zeros and adds nothing; exp(-inf - -inf) must never be formed.
         for (uint i = 0u; i < nsg; ++i) {
             if (isinf(ms[i])) continue;
             float c = exp(ms[i] - M);

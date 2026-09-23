@@ -1,11 +1,5 @@
 #version 450
-// A layer's attention inputs in one dispatch for every view of a batch:
-// one workgroup per (batch row, head) over the q heads, then the k
-// heads, then the v heads. A q head is normed and rotated in place, as
-// norm_rope_rows does; a k head is normed and rotated straight into its
-// KV block at position hist + b of its view; a v head is copied into its
-// block. Three dispatches at their latency floors become one. The
-// arithmetic per head is norm_rope_rows' exactly.
+// A layer's attention inputs in one dispatch for every view of a batch: one workgroup per (batch row, head) over the q, then k, then v heads. q is normed and rotated in place, k normed and rotated into its KV block at position hist + b, v copied into its block; the arithmetic per head is norm_rope_rows' exactly.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "f16.glsl"

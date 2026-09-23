@@ -44,9 +44,9 @@
 #include "model/arch_qwen.hpp"
 #include "server/api.hpp"
 
-// llmx CLI. This file is intentionally a thin dispatcher: format logic lives in
-// format/, quantization in quant/, inference in inference/, and the model in
-// model/. The only code that belongs here is argument parsing and glue.
+// llmx CLI.
+// This file is intentionally a thin dispatcher: format logic lives in format/, quantization in quant/, inference in inference/, and the model in model/.
+// The only code that belongs here is argument parsing and glue.
 
 namespace {
 
@@ -253,8 +253,7 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
     return 0;
 }
 
-// Type names come from the quant registry, so a new quant type shows up in
-// `info` without touching the CLI.
+// Type names come from the quant registry, so a new quant type shows up in `info` without touching the CLI.
 const char* type_name(uint32_t t) {
     if (t == gguf::GGML_TYPE_F32) return "F32";
     const quant::QuantType* qt = quant::Registry::instance().get(t);
@@ -338,8 +337,7 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer t(m);
     std::vector<uint32_t> ids = parse_token_ids(ids_arg);
-    // decode() rejects an out-of-range id, but only the caller knows which
-    // id it was and how large the vocabulary is.
+    // decode() rejects an out-of-range id, but only the caller knows which id it was and how large the vocabulary is.
     for (uint32_t id : ids)
         if (id >= t.vocab.size())
             throw std::runtime_error("detokenize: token id " + std::to_string(id) +
@@ -349,10 +347,9 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
     return 0;
 }
 
-// The backend a --device spec names. "cpu" is the default; "vulkan:N" is
-// device N as the loader lists them, in a build with that backend. Any
-// other spec, or a device the build lacks, is an error the user can act on
-// rather than a silent fallback.
+// The backend a --device spec names.
+// "cpu" is the default; "vulkan:N" is device N as the loader lists them, in a build with that backend.
+// Any other spec, or a device the build lacks, is an error the user can act on rather than a silent fallback.
 backend::BackendPtr make_backend(const std::string& spec, bool diagnostics = false) {
     if (spec == "cpu") return backend::make_cpu_backend();
     const size_t colon = spec.find(':');
@@ -390,9 +387,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     std::vector<uint32_t> ids = tok.encode(prompt);
     if (ids.empty()) throw std::runtime_error("generate: empty prompt");
 
-    // Prefill is compute bound and wants every thread; decode is memory
-    // bandwidth bound and usually peaks well below the logical core count,
-    // so the two phases get their own thread counts (-t / -tb).
+    // Prefill is compute bound and wants every thread; decode is memory bandwidth bound and usually peaks well below the logical core count, so the two phases get their own thread counts (-t / -tb).
     const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;
     model.set_threads(tb);
     if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
@@ -420,10 +415,9 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     return 0;
 }
 
-// Print the top-N next-token logits for a prompt. This exists for the
-// correctness gate: it is the only way to compare llmx against a
-// full-precision reference at the level where errors actually appear, rather
-// than through sampled text. See docs/ROADMAP.md #8.
+// Print the top-N next-token logits for a prompt.
+// This exists for the correctness gate: it is the only way to compare llmx against a full-precision reference at the level where errors actually appear, rather than through sampled text.
+// See docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text,
                int topn, const infer::GenParams& gp) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
@@ -522,8 +516,7 @@ int cmd_chat(const std::string& model_path, const std::string& system,
         std::vector<uint32_t> gen_ids = tok.encode(gen);
         if (gen_ids.empty()) throw std::runtime_error("chat: template produced an empty prompt");
         // Templates can rewrite previous turns or change token boundaries.
-        // Reuse only an exact prefix; an unchanged prompt also needs fresh
-        // logits because generate() does not retain its final distribution.
+        // Reuse only an exact prefix; an unchanged prompt also needs fresh logits because generate() does not retain its final distribution.
         if (cached_ids.size() >= gen_ids.size() ||
             !std::equal(cached_ids.begin(), cached_ids.end(), gen_ids.begin())) {
             model.reset();
@@ -541,8 +534,8 @@ int cmd_chat(const std::string& model_path, const std::string& system,
         if (progress) std::cerr << "Generating...\n";
         std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits, emit_text);
         std::cout << "\n" << std::flush;
-        // A stop match may return its final token without feeding it. EOS is
-        // excluded; the next rendered turn supplies its own closing tokens.
+        // A stop match may return its final token without feeding it.
+        // EOS is excluded; the next rendered turn supplies its own closing tokens.
         const size_t fed = (size_t)model.n_tokens() - cached_ids.size();
         cached_ids.insert(cached_ids.end(), reply.begin(), reply.begin() + fed);
 
@@ -551,8 +544,8 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     return 0;
 }
 
-// Build a small random Qwen3 model in memory for end-to-end prefill/decode TPS
-// measurement. Matrices are Q8_0, norms F32 (matching what infer::Model expects).
+// Build a small random Qwen3 model in memory for end-to-end prefill/decode TPS measurement.
+// Matrices are Q8_0, norms F32 (matching what infer::Model expects).
 gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
                                       int n_head, int n_head_kv, int head_dim,
                                       int n_vocab, uint32_t seed) {
@@ -620,17 +613,15 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
     return m;
 }
 
-// Micro-benchmark of the backend hot paths (matmul, RMSNorm, norm+RoPE) plus
-// end-to-end prefill/decode TPS on a synthetic Qwen3 model. Used by
-// tests/perf.py as the perf-regression gate for hot-path changes.
+// Micro-benchmark of the backend hot paths (matmul, RMSNorm, norm+RoPE) plus end-to-end prefill/decode TPS on a synthetic Qwen3 model.
+// Used by tests/perf.py as the perf-regression gate for hot-path changes.
 int cmd_bench(int size, int iters, int threads, int prefill, int decode,
               const std::string& device) {
     auto b = make_backend(device);
     if (threads > 0) b->set_threads(threads);
     std::cout << "bench: threads " << b->threads_available() << "\n";
 
-    // Square matmul: mat is [nin, nout] = [size, size]. x is the input
-    // (length nin), out the result (length nout). nout rows, each nin/32 blocks.
+    // Square matmul: mat is [nin, nout] = [size, size]. x is the input (length nin), out the result (length nout). nout rows, each nin/32 blocks.
     const size_t nblocks = (size_t)size / gguf::Q8_0_BLOCK;
     std::vector<float> x(size, 0.5f);
     std::vector<uint8_t> mat((size_t)size * nblocks * gguf::Q8_0_TYPESIZE);
@@ -659,8 +650,7 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
                     (size_t)size, 1e-6f);
     double rn_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 
-    // The op the model runs: one row of one head of `size` floats, at
-    // position 0 of a one-entry table.
+    // The op the model runs: one row of one head of `size` floats, at position 0 of a one-entry table.
     const auto cos_buf = b->adopt(cos.data(), cos.size() * sizeof(float));
     const auto sin_buf = b->adopt(sin.data(), sin.size() * sizeof(float));
     const uint32_t pos0 = 0;
@@ -699,12 +689,8 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     return 0;
 }
 
-// The matched real-model measurement: a warm-up of each test, then R
-// repeats of prompt processing P tokens in one batch into an empty history
-// and of generating G tokens one at a time from an empty history, model
-// time only, token ids fixed and sampling excluded. Reported as mean and
-// standard deviation of tokens per second, so a reference runtime's
-// figures for the same P and G compare directly.
+// The matched real-model measurement: a warm-up of each test, then R repeats of prompt processing P tokens in one batch into an empty history and of generating G tokens one at a time from an empty history, model time only, token ids fixed and sampling excluded.
+// Reported as mean and standard deviation of tokens per second, so a reference runtime's figures for the same P and G compare directly.
 int cmd_bench_model(const std::string& path, const std::string& device, int threads,
                     int P, int G, int R, const infer::ModelOptions& options, bool profile) {
     gguf::GGUFModel m = load_model(path, false);
@@ -753,8 +739,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
     report("tg", G, tgv);
     if (profile) {
 #if LLMX_HAS_BACKEND_VULKAN
-        // Device time per kernel over everything above, so a token can be
-        // attributed to kernels rather than inferred from kernels timed alone.
+        // Device time per kernel over everything above, so a token can be attributed to kernels rather than inferred from kernels timed alone.
         auto times = backend::vulkan_kernel_times(b);
         std::sort(times.begin(), times.end(),
                   [](const auto& x, const auto& y) { return x.second > y.second; });
@@ -841,10 +826,9 @@ void print_usage() {
 } // namespace
 
 #if defined(_WIN32)
-// On Windows argv arrives in the system ANSI codepage, which cannot represent
-// most non-ASCII text -- a Japanese or Cyrillic prompt is mangled before it
-// reaches us. Re-read the command line as UTF-16 and convert to UTF-8 so text
-// arguments survive. Storage is owned by the caller and must outlive argv.
+// On Windows argv arrives in the system ANSI codepage, which cannot represent most non-ASCII text -- a Japanese or Cyrillic prompt is mangled before it reaches us.
+// Re-read the command line as UTF-16 and convert to UTF-8 so text arguments survive.
+// Storage is owned by the caller and must outlive argv.
 static bool utf8_argv(int& argc, char**& argv,
                       std::vector<std::string>& store, std::vector<char*>& ptrs) {
     int wargc = 0;
@@ -875,9 +859,7 @@ int main(int argc, char** argv) {
     SetConsoleOutputCP(CP_UTF8);
 #endif
     try {
-        // Populate the quant registry once, here, rather than relying on a
-        // Model being constructed. info and dequantize never build one, so
-        // they used to run against an empty registry.
+        // Populate the quant registry once, here, rather than relying on a Model being constructed. info and dequantize never build one, so they used to run against an empty registry.
         quant::register_builtins();
         if (argc < 2) { print_usage(); return 1; }
         std::string cmd = argv[1];

@@ -1,8 +1,6 @@
 #version 450
 // dst[i] = silu(gate[i]) * up[i], in the form the CPU uses: g / (1 + exp(-g)).
-// With `quant` set, n is a multiple of 32 and the row kernel's 16-bit
-// twin of the output is written beside it (xquant.glsl): one lane per
-// element, so a block of 32 lies in 32 consecutive lanes.
+// With `quant` set, n is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl).
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;

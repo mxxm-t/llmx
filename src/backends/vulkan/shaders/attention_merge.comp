@@ -1,11 +1,7 @@
 #version 450
-// Merge the split states of attention for one (row, head) of a batch: the
-// softmax's maximum and sum across splits, then the accumulation rescaled
-// to it. A split with no tokens carries -inf and zero and contributes
-// nothing. The row is found through the same view table as the split
-// kernel, since a dispatch's rows need not be a prefix of the batch.
-// With `quant` set the row kernel's 16-bit twin of the output is written
-// beside it (xquant.glsl), as the split kernel does when it has no merge.
+// Merge the split attention states of one (row, head): the maximum and sum across splits, then the accumulation rescaled to them; a split with no tokens carries -inf and zero.
+// The row is found through the view table, since a dispatch's rows need not be a prefix of the batch.
+// With `quant` set the output's 16-bit twin is written beside it.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;

@@ -608,6 +608,17 @@ two sides' types, and the storage picks the variant, so a kernel carries
 no type branch. Halving the cache is what lets Qwen3-8B run a 16k
 context on the 16 GB card.
 
+## Kernel notes
+
+Measurements behind choices in the kernels, kept here rather than in the code.
+
+- **Row kernel accumulators.** The wide Q8_0 path is unrolled by hand with scalar accumulators; a generic loop over words with accumulator arrays indexed by column spilled to scratch and ran ten times slower. Handling block 0's two-byte straddle with per-word selects instead of a half-word shift cost a quarter of the kernel.
+- **One-column builds.** Eight column accumulators are eight of the Q4_K row kernel's 73 registers, the difference between three waves per SIMD and four, which was worth 15 percent of 8B Q4_K_M decode. The wide Q8_0 path already runs five waves and keeps its eight-column build: its one-column build cost 8B Q8_0 decode 9 percent.
+- **Float dots.** The nibble and K-quant row dots multiply as floats because the chip's 32-bit integer multiply is quarter rate. They stay exact: the largest partial sum any of them reaches is 16.5 million, below the 16.8 million (2^24) a float counts exactly.
+- **Dot forms.** The integer dot product extension, which Mesa lowers to the chip's native 16-bit dot, was worth 15 percent of 8B decode and 6 of 0.6B on the MI50; the AMD proprietary driver lowers it to widened multiplies and prefers the plain form by 2 percent on the same silicon.
+- **Tile crossover.** Forcing each kernel and sweeping, a 1024-wide 8-bit projection crosses from the row kernel to the float tile near 40 rows under the AMD proprietary driver and near 96 under Mesa, a 4096-wide one near 26 and 30. Against the integer-dot tile the crossings fell to 24 to 32 rows on Qwen3-0.6B-Q8_0, 8 to 16 on 8B-Q8_0, 32 to 48 on 0.6B-Q5_K_M and 16 to 24 on 8B-Q4_K_M; at 64 rows on the 0.6B file the tile read 2160 tok/s where the row kernel read 1098.
+- **Per-call arena.** An allocation per call for ids, positions and row lists was over a hundred `vkAllocateMemory` calls per decoded token, most of the token on Qwen3-0.6B; the ring slot's arena replaced them.
+
 ## Batch invariance
 
 A row computes the same, bit for bit, whatever else shares its pass. The row kernels and the tiles round differently, so a kernel chosen by a call's width made a prompt's result depend on how its rows were batched. A server that reused a cached prefix prefilled the prompt's tail through the row kernel, while one pass over the whole prompt took the tile for the same rows, and on a near-tie the two gave different greedy text.

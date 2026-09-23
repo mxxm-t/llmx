@@ -1,7 +1,4 @@
-// f32 to f16 with round-to-nearest-even, in the bits, so a value stored on
-// the device is the value the CPU stores (core/fp16.hpp, F16C). The
-// built-in packHalf2x16 leaves the rounding to the driver, and one that
-// truncates makes the two caches differ by an f16 ulp.
+// f32 to f16 with round-to-nearest-even in the bits, so the device stores what the CPU does (core/fp16.hpp); packHalf2x16 leaves the rounding to the driver.
 #ifndef LLMX_F16_GLSL
 #define LLMX_F16_GLSL
 uint f16_bits(float f) {

@@ -19,9 +19,8 @@
 #include "model/kv_cache.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 
-// Qwen3-style transformer forward pass, from scratch. The compute primitives
-// (matmul, attention, RMSNorm, RoPE) are delegated to a backend::Backend, so the
-// same model code runs on CPU now and other backends later.
+// Qwen3-style transformer forward pass, from scratch.
+// The compute primitives (matmul, attention, RMSNorm, RoPE) are delegated to a backend::Backend, so the same model code runs on CPU now and other backends later.
 // Dense matrices use supported block quants or F32; normalization weights are F32.
 // Tensor ne[0] is the input dimension, with each output row contiguous.
 // Attention projection width is n_head*head_dim and need not equal n_embd.
@@ -134,16 +133,13 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
     return c;
 }
 
-// A weight resolved once at load: type, storage and dimensions. Resolving per
-// call meant rebuilding "blk.N." and hashing a tensor name for every
-// projection of every layer of every token; the forward pass indexes layers_
-// instead. It is also what lets a device backend recognize a weight across
-// calls, which is the prerequisite for residency (docs/DEVICE-EXECUTION.md).
+// A weight resolved once at load: type, storage and dimensions.
+// Resolving per call meant rebuilding "blk.N." and hashing a tensor name for every projection of every layer of every token; the forward pass indexes layers_ instead.
+// It is also what lets a device backend recognize a weight across calls, which is the prerequisite for residency (docs/DEVICE-EXECUTION.md).
 struct Weight {
     uint32_t type = 0;
-    // A handle, not a pointer: the backend decides where the bytes live. The
-    // model never dereferences it: slice() below names a location, and only a
-    // backend turns that into an address.
+    // A handle, not a pointer: the backend decides where the bytes live.
+    // The model never dereferences it: slice() below names a location, and only a backend turns that into an address.
     backend::BufferPtr data;
     size_t nin = 0, nout = 0;
     // Normalization weights are F32 by validation, so this is the whole row.
@@ -158,33 +154,25 @@ struct LayerWeights {
     Weight ffn_norm, ffn_gate, ffn_up, ffn_down;
 };
 
-// Where each tensor role runs, as an index into the model's backends. Per
-// role rather than per layer, so a layer's attention and its feed-forward
-// block can sit on different devices; that is what expert offload needs
-// later (docs/EXECUTION.md). Empty means everything on device 0.
+// Where each tensor role runs, as an index into the model's backends.
+// Per role rather than per layer, so a layer's attention and its feed-forward block can sit on different devices; that is what expert offload needs later (docs/EXECUTION.md).
+// Empty means everything on device 0.
 struct Placement {
     std::vector<int> attn_device, ffn_device;
     int embed_device = 0, output_device = 0;
 };
 
-// Choices made once at construction, before the caches are allocated: how
-// each cache side is stored (backend.hpp KVType, the CLI's --cache-type-k
-// and --cache-type-v), the same on every backend or refused.
+// Choices made once at construction, before the caches are allocated: how each cache side is stored (backend.hpp KVType, the CLI's --cache-type-k and --cache-type-v), the same on every backend or refused.
 struct ModelOptions {
     backend::KVType kv_k = backend::KVType::f32;
     backend::KVType kv_v = backend::KVType::f32;
-    // Tokens the KV pool holds in total, shared by every sequence; zero
-    // means one model context, which is what one conversation needs and
-    // what a server divides among its requests unless told otherwise.
+    // Tokens the KV pool holds in total, shared by every sequence; zero means one model context, which is what one conversation needs and what a server divides among its requests unless told otherwise.
     size_t kv_tokens = 0;
 };
 
-// One request's history in a model's cache: a block table per storage and
-// the committed length, and per device the ticket of the last pass that
-// touched it, which is what a release waits on rather than draining the
-// device (docs/EXECUTION.md). Made by Model::make_sequence so it is bound to
-// that model's pools and block sizes. Movable, not copyable; the server
-// keeps one per request.
+// One request's history in a model's cache: a block table per storage and the committed length, and per device the ticket of the last pass that touched it, which is what a release waits on rather than draining the device (docs/EXECUTION.md).
+// Made by Model::make_sequence so it is bound to that model's pools and block sizes.
+// Movable, not copyable; the server keeps one per request.
 class Sequence {
 public:
     Sequence() = default;
@@ -196,17 +184,13 @@ private:
     const Model* owner_ = nullptr;
 };
 
-// One pass in flight: an activation arena per device, the host-visible
-// logits rows on the output device, the staging vector a crossing goes
-// through, and the tickets of its submissions. Storage is allocated by the
-// first forward that needs it and grows to the largest pass seen. Two
-// contexts are what let a scheduler keep one pass on the device while it
-// reads another's logits; the CLI has one. Plain data that Model fills.
+// One pass in flight: an activation arena per device, the host-visible logits rows on the output device, the staging vector a crossing goes through, and the tickets of its submissions.
+// Storage is allocated by the first forward that needs it and grows to the largest pass seen.
+// Two contexts are what let a scheduler keep one pass on the device while it reads another's logits; the CLI has one.
+// Plain data that Model fills.
 struct ExecContext {
-    // Row i of the logits the last forward produced, in entry order, valid
-    // until the next forward through this context. The first read waits on
-    // the pass's ticket, so forward itself never blocks: a caller with two
-    // contexts submits the next pass before it reads this one.
+    // Row i of the logits the last forward produced, in entry order, valid until the next forward through this context.
+    // The first read waits on the pass's ticket, so forward itself never blocks: a caller with two contexts submits the next pass before it reads this one.
     const float* logits(size_t i) {
         if (!logits_buf || i >= n_logits)
             throw std::out_of_range("inference: no such logits row");
@@ -237,10 +221,9 @@ struct ExecContext {
     std::vector<float> staging;
 };
 
-// What one sequence contributes to a pass: `n` tokens appended to `seq`, and
-// whether the logits after its last token are wanted. A prefill microbatch
-// is one entry with many tokens, a decode batch is many entries with one,
-// and the two mix freely. A sequence appears in a batch at most once.
+// What one sequence contributes to a pass: `n` tokens appended to `seq`, and whether the logits after its last token are wanted.
+// A prefill microbatch is one entry with many tokens, a decode batch is many entries with one, and the two mix freely.
+// A sequence appears in a batch at most once.
 struct BatchEntry {
     Sequence* seq;
     const uint32_t* ids;
@@ -248,16 +231,16 @@ struct BatchEntry {
     bool want_logits;
     // The logits after every token of the entry rather than only its last, for scoring a text through the same batched passes a prompt takes; with want_logits.
     bool every_logits = false;
-    // What a device chooses this entry's kernels by (backend::RowRun): for a prompt's rows the position one past the prompt's last token, for a generated token 1. Zero takes the entry's own row count.
+    // What a device chooses this entry's kernels by (backend::RowRun): for a prompt's rows the position one past the prompt's last token, for a generated token 1.
+    // Zero takes the entry's own row count.
     // A prompt given its extent computes the same whether it arrives in one pass or in slices, alone or beside other sequences, with or without a reused prefix.
     size_t extent = 0;
 };
 
 class Model {
 public:
-    // Construct the model over a GGUF model on one backend (defaults to the
-    // CPU backend). The model owns a reference to the model data, which must
-    // outlive the Model.
+    // Construct the model over a GGUF model on one backend (defaults to the CPU backend).
+    // The model owns a reference to the model data, which must outlive the Model.
     explicit Model(const gguf::GGUFModel& m,
                    backend::BackendPtr backend = backend::make_cpu_backend(),
                    ModelOptions options = ModelOptions{})
@@ -272,8 +255,7 @@ public:
             if (!b) throw std::runtime_error("inference: missing backend");
         quant::register_builtins(); // populate the quant registry (idempotent)
         cfg = load_config(m);
-        // The attention projection width is n_head*head_dim, which only equals
-        // n_embd by coincidence on some models (Qwen3-8B: 32*128 == 4096).
+        // The attention projection width is n_head*head_dim, which only equals n_embd by coincidence on some models (Qwen3-8B: 32*128 == 4096).
         // Qwen3-0.6B/1.7B/4B have head_dim 128 with a smaller n_embd.
         q_dim_ = cfg.n_head * cfg.head_dim;
 
@@ -320,16 +302,12 @@ public:
                 throw std::runtime_error("inference: invalid tensor storage " + t.name);
         }
 
-        // Tied embeddings: models without a separate output.weight reuse
-        // token_embd.weight as the output projection (same [n_embd, n_vocab]
-        // layout), so the head is just a matvec against the embedding matrix.
+        // Tied embeddings: models without a separate output.weight reuse token_embd.weight as the output projection (same [n_embd, n_vocab] layout), so the head is just a matvec against the embedding matrix.
         out_name_ = tindex_.count("output.weight") ? "output.weight" : "token_embd.weight";
         resolve_tensors();
 
-        // Each device that runs attention gets a storage for exactly its
-        // layers, with its own block size and pool. Budget: the option's
-        // tokens, else the whole context; storage is backed on demand, so
-        // a short chat does not allocate it.
+        // Each device that runs attention gets a storage for exactly its layers, with its own block size and pool.
+        // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
         const size_t kv_tokens = options_.kv_tokens ? options_.kv_tokens : (size_t)cfg.context_length;
         for (auto& dp : devices_) {
             Device& d = *dp;
@@ -342,11 +320,9 @@ public:
         }
         seq_ = make_sequence();
 
-        // Precompute the RoPE cos/sin table for every position up to the
-        // context length. Indexed as [pos*(head_dim/2) + i]. Every device
-        // that runs attention reads it through an adopted buffer, so the
-        // host vectors stay alive for the model's lifetime; on CPU that is
-        // the same memory.
+        // Precompute the RoPE cos/sin table for every position up to the context length.
+        // Indexed as [pos*(head_dim/2) + i].
+        // Every device that runs attention reads it through an adopted buffer, so the host vectors stay alive for the model's lifetime; on CPU that is the same memory.
         int half = cfg.head_dim / 2;
         rope_cos_.assign((size_t)cfg.context_length * half, 0.0f);
         rope_sin_.assign((size_t)cfg.context_length * half, 0.0f);
@@ -363,19 +339,16 @@ public:
         }
     }
 
-    // Sequences hold the pools' addresses; moving the model would leave them
-    // pointing at the old ones. Nothing moves a Model today.
+    // Sequences hold the pools' addresses; moving the model would leave them pointing at the old ones.
+    // Nothing moves a Model today.
     Model(const Model&) = delete;
     Model& operator=(const Model&) = delete;
 
-    // CPU worker counts, applied to every backend; a device backend ignores
-    // them. The count reported is device 0's, which is the host when a
-    // model spans a CPU and a device.
+    // CPU worker counts, applied to every backend; a device backend ignores them.
+    // The count reported is device 0's, which is the host when a model spans a CPU and a device.
     void set_threads(int n) { for (auto& d : devices_) d->b->set_threads(n); }
 
-    // What a scheduler admits against: the blocks free in the tightest
-    // storage, and the largest block among them, so a request's need is
-    // ceil(tokens / kv_block_tokens()) blocks (docs/SERVER.md).
+    // What a scheduler admits against: the blocks free in the tightest storage, and the largest block among them, so a request's need is ceil(tokens / kv_block_tokens()) blocks (docs/SERVER.md).
     size_t kv_blocks_free() const {
         size_t least = std::numeric_limits<size_t>::max();
         for (const Device* d : storages_) least = std::min(least, d->pool.free_blocks());
@@ -395,8 +368,8 @@ public:
     const QwenConfig& config() const { return cfg; }
     size_t prefill_batch() const { return (size_t)ubatch_; }
     int threads_available() const { return devices_[0]->b->threads_available(); }
-    // 0 keeps the default. Sets how a prompt is chunked; storage follows the
-    // passes actually run.
+    // 0 keeps the default.
+    // Sets how a prompt is chunked; storage follows the passes actually run.
     void set_ubatch(int n) { if (n > 0) ubatch_ = n; }
 
     int n_tokens() const { return (int)seq_.length(); }
@@ -404,11 +377,9 @@ public:
     int context_length() const { return cfg.context_length; }
     const Placement& placement() const { return place_; }
 
-    // A second history with the same committed tokens as `src`, sharing
-    // every full block and copying the partial tail on each storage. The
-    // fork inherits the tickets of the passes that wrote what it shares.
-    // Shared blocks are read-only from now on: a sequence truncated into one
-    // cannot append and has to be forked instead.
+    // A second history with the same committed tokens as `src`, sharing every full block and copying the partial tail on each storage.
+    // The fork inherits the tickets of the passes that wrote what it shares.
+    // Shared blocks are read-only from now on: a sequence truncated into one cannot append and has to be forked instead.
     Sequence fork(const Sequence& src) {
         if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
         Sequence f;
@@ -435,15 +406,8 @@ public:
         return s;
     }
 
-    // One pass over every entry: each sequence's tokens go through the graph
-    // at their own positions and attend through their own history, and the
-    // logits after the last token of every entry that wants them land in
-    // the context, in entry order. The residual stream crosses to another
-    // device wherever the placement changes, through the context's staging
-    // vector. The pass is one submission per device. It is one transaction
-    // as well: every sequence commits its tokens only once the pass is
-    // submitted, and a failure before that leaves every history as it was.
-    // The context reads the logits after waiting on the output device.
+    // One pass over every entry: each sequence's tokens at their own positions through their own history, the logits after each wanting entry's last token landing in the context in entry order.
+    // One submission per device and one transaction: sequences commit only once the pass is submitted, and a failure before that leaves every history as it was.
     void forward(ExecContext& ctx, const BatchEntry* entries, size_t n_entries) {
         if (!entries || !n_entries) throw std::runtime_error("inference: empty batch");
         size_t rows = 0, want = 0;
@@ -453,8 +417,7 @@ public:
                 throw std::runtime_error("inference: batch entry without a sequence of this model");
             if (!en.ids || !en.n)
                 throw std::runtime_error("inference: batch entry without tokens");
-            // The RoPE table is precomputed for [0, context_length); a row
-            // past it would read off the end.
+            // The RoPE table is precomputed for [0, context_length); a row past it would read off the end.
             if (en.n > (size_t)cfg.context_length ||
                 en.seq->length() > (size_t)cfg.context_length - en.n)
                 throw std::runtime_error("inference: context length exceeded (" +
@@ -471,9 +434,8 @@ public:
         ctx.views.resize(storages_.size());
         for (auto& v : ctx.views) v.resize(n_entries);
 
-        // Blocks are taken on every storage for every entry before anything
-        // runs. A sequence listed twice fails here, since its second prepare
-        // finds the first still pending.
+        // Blocks are taken on every storage for every entry before anything runs.
+        // A sequence listed twice fails here, since its second prepare finds the first still pending.
         size_t prepared = 0;
         try {
             for (; prepared < n_entries * storages_.size(); ++prepared)
@@ -526,9 +488,7 @@ public:
             const size_t o = (size_t)place_.output_device;
             if (o != cur) { cross(ctx, cur, o, rows * E); cur = o; }
             if (want) {
-                // The rows that want logits are not contiguous once entries
-                // mix, so they are compacted first and the head runs once
-                // over exactly those rows.
+                // The rows that want logits are not contiguous once entries mix, so they are compacted first and the head runs once over exactly those rows.
                 backend::Backend& b = *devices_[cur]->b;
                 b.gather_rows(slot(ctx, cur, 1), slot(ctx, cur, 0), E, ctx.pick.data(), want);
                 b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), output_norm_.slice(),
@@ -556,10 +516,9 @@ public:
         }
     }
 
-    // Start a new history. Blocks return to every pool; their storage is
-    // retained. Every pass ends in a submit or, on failure, a sync, so the
-    // sequence's last tickets cover everything that could still be touching
-    // a block: this waits for those and no more.
+    // Start a new history.
+    // Blocks return to every pool; their storage is retained.
+    // Every pass ends in a submit or, on failure, a sync, so the sequence's last tickets cover everything that could still be touching a block: this waits for those and no more.
     void reset(Sequence& s) {
         if (s.owner_ != this)
             throw std::runtime_error("inference: sequence of another model");
@@ -568,10 +527,8 @@ public:
         for (auto& kv : s.kv_) kv.reset();
     }
 
-    // Roll a history back to `length` tokens, returning the blocks beyond
-    // it. A fork truncated to a block boundary keeps only blocks it shares
-    // with its donor, and appends from there into fresh blocks, which is
-    // how the server reuses a prompt prefix (docs/SERVER.md).
+    // Roll a history back to `length` tokens, returning the blocks beyond it.
+    // A fork truncated to a block boundary keeps only blocks it shares with its donor, and appends from there into fresh blocks, which is how the server reuses a prompt prefix (docs/SERVER.md).
     void truncate(Sequence& s, size_t length) {
         if (s.owner_ != this)
             throw std::runtime_error("inference: sequence of another model");
@@ -580,11 +537,10 @@ public:
         for (auto& kv : s.kv_) kv.truncate(length);
     }
 
-    // The single-sequence entry points the CLI uses: one sequence and one
-    // context owned here, and one entry per pass.
+    // The single-sequence entry points the CLI uses: one sequence and one context owned here, and one entry per pass.
 
-    // Run one token through the model (prefill or continue). Returns logits
-    // over the full vocabulary.
+    // Run one token through the model (prefill or continue).
+    // Returns logits over the full vocabulary.
     std::vector<float> step(int token_id) {
         const uint32_t id = (uint32_t)token_id;
         const BatchEntry entry{&seq_, &id, 1, true};
@@ -592,20 +548,15 @@ public:
         return row(ctx_, 0);
     }
 
-    // Process a whole prompt with matrix-matrix matmuls instead of one token at
-    // a time. Each weight row is then reused across the batch, which is the
-    // difference between prefill being compute bound and paying the entire
-    // weight stream once per token. Only the final token's logits are needed,
-    // so only the last pass asks for them.
+    // Process a whole prompt with matrix-matrix matmuls instead of one token at a time.
+    // Each weight row is then reused across the batch, which is the difference between prefill being compute bound and paying the entire weight stream once per token.
+    // Only the final token's logits are needed, so only the last pass asks for them.
     std::vector<float> prefill(const std::vector<uint32_t>& ids) {
         if (ids.empty()) throw std::runtime_error("inference: empty prompt");
-        // The prompt is one transaction across its microbatches: a failure in
-        // any of them restores the history from before the call.
+        // The prompt is one transaction across its microbatches: a failure in any of them restores the history from before the call.
         const size_t start = seq_.length();
         auto work = [&] {
-            // Sized to the largest chunk this prompt will use, inside the
-            // scope, so a short prompt does not allocate scratch for a full
-            // ubatch (at n_ff 12288 a 512-wide gate/up/ffn is about 25 MB each).
+            // Sized to the largest chunk this prompt will use, inside the scope, so a short prompt does not allocate scratch for a full ubatch (at n_ff 12288 a 512-wide gate/up/ffn is about 25 MB each).
             ensure(ctx_, std::min((size_t)ubatch(), ids.size()), 1);
             size_t i = 0;
             while (i < ids.size()) {
@@ -673,8 +624,8 @@ public:
     bool holds_payload() const { return holds_payload_; }
 
 private:
-    // One backend and what the placement put on it. A pool is not movable,
-    // because sequences hold its address, so devices live behind pointers.
+    // One backend and what the placement put on it.
+    // A pool is not movable, because sequences hold its address, so devices live behind pointers.
     struct Device {
         backend::BackendPtr b;
         bool used = false;
@@ -709,9 +660,7 @@ private:
         return m_->tensors[it->second];
     }
 
-    // Validate every tensor this architecture needs and resolve it to a
-    // Weight in the same pass, so a resolved handle is well-formed by
-    // construction and the forward pass never looks a tensor up by name.
+    // Validate every tensor this architecture needs and resolve it to a Weight in the same pass, so a resolved handle is well-formed by construction and the forward pass never looks a tensor up by name.
     // Each weight is adopted by the backend that hosts its role.
     void resolve_tensors() {
         const auto& embedding = tensor("token_embd.weight");
@@ -730,8 +679,7 @@ private:
             }
             for (size_t d = norm ? 1 : 2; d < t.ne.size(); ++d) valid = valid && t.ne[d] == 1;
             if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + name);
-            // adopt, not copy: the payload is already resident and the
-            // GGUF model outlives this one by contract.
+            // adopt, not copy: the payload is already resident and the GGUF model outlives this one by contract.
             const size_t i = tindex_.at(t.name);
             backend::BufferPtr buf = devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i));
             const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
@@ -763,28 +711,21 @@ private:
         }
     }
 
-    // Physical batch: how many tokens go through ONE forward pass of the
-    // graph. This is the physical batch (-ub), not a logical one: it sets the GEMM
-    // width and the scratch buffer sizes. llmx has no logical batch, since
-    // there is one sequence and no queue; that distinction only starts to
-    // matter with the multi-user server in ROADMAP #7.
+    // Physical batch: how many tokens go through ONE forward pass of the graph.
+    // This is the physical batch (-ub), not a logical one: it sets the GEMM width and the scratch buffer sizes. llmx has no logical batch, since there is one sequence and no queue; that distinction only starts to matter with the multi-user server in ROADMAP #7.
     int ubatch() const { return ubatch_; }
 
-    // The CPU prefill scope is per backend, so a prompt enters one on every
-    // device it runs on, nested. A device backend's scope is the default
-    // and just runs the body.
+    // The CPU prefill scope is per backend, so a prompt enters one on every device it runs on, nested.
+    // A device backend's scope is the default and just runs the body.
     void scoped(size_t d, const std::function<void()>& work) {
         while (d < devices_.size() && !devices_[d]->used) ++d;
         if (d >= devices_.size()) { work(); return; }
         devices_[d]->b->run_prefill([&] { scoped(d + 1, work); });
     }
 
-    // One backend allocation holding the nine activations of a pass, each at
-    // a 64-byte boundary so the AVX2 kernels see the alignment they saw when
-    // every vector was its own allocation. Device allocators handle a few
-    // large blocks far better than many small ones, and resizing is one
-    // call. The caller only publishes the result once this returns, so an
-    // allocation that throws leaves the previous arena intact.
+    // One backend allocation holding the nine activations of a pass, each at a 64-byte boundary so the AVX2 kernels see the alignment they saw when every vector was its own allocation.
+    // Device allocators handle a few large blocks far better than many small ones, and resizing is one call.
+    // The caller only publishes the result once this returns, so an allocation that throws leaves the previous arena intact.
     backend::BufferPtr alloc_arena(backend::Backend& b,
                                    const size_t (&counts)[ExecContext::kSlots],
                                    size_t (&offsets)[ExecContext::kSlots]) const {
@@ -799,10 +740,8 @@ private:
         return b.alloc(total);
     }
 
-    // Storage for a pass of `rows` rows with `want` logits rows, on every
-    // device the placement uses: grown when a pass needs more than the
-    // context holds, never shrunk. Each is allocated whole before it
-    // replaces what the context had.
+    // Storage for a pass of `rows` rows with `want` logits rows, on every device the placement uses: grown when a pass needs more than the context holds, never shrunk.
+    // Each is allocated whole before it replaces what the context had.
     void ensure(ExecContext& ctx, size_t rows, size_t want) {
         auto mul = [](size_t a, size_t b) {
             if (b && a > (size_t)-1 / b)
@@ -833,9 +772,7 @@ private:
             sc.rows = rows;
         }
         if (want && (!ctx.logits_buf || ctx.logit_rows < want)) {
-            // The head writes here and the host reads it in place once the
-            // pass has retired: the one point per pass that must be host
-            // visible, and the one wait per pass.
+            // The head writes here and the host reads it in place once the pass has retired: the one point per pass that must be host visible, and the one wait per pass.
             backend::BufferPtr logits = devices_[(size_t)place_.output_device]->b->alloc(
                 mul(mul(want, output_.nout), sizeof(float)), backend::Memory::host_visible);
             ctx.logits_buf = std::move(logits);
@@ -854,11 +791,8 @@ private:
         return std::vector<float>(p, p + ctx.width);
     }
 
-    // The residual stream moves from one device's x slot to another's,
-    // through host memory: a read, which waits for the source, then a
-    // write, which is enqueued on the destination. Once per placement
-    // boundary per pass; `n_embd * rows` floats, a few kilobytes on a
-    // decode token.
+    // The residual stream moves from one device's x slot to another's, through host memory: a read, which waits for the source, then a write, which is enqueued on the destination.
+    // Once per placement boundary per pass; `n_embd * rows` floats, a few kilobytes on a decode token.
     void cross(ExecContext& ctx, size_t from, size_t to, size_t floats) {
         const size_t bytes = floats * sizeof(float);
         ctx.staging.resize(floats);
@@ -915,21 +849,13 @@ private:
                      w.ffn_down.nin, w.ffn_down.nout, rows, runs);
     }
 
-    // A block returns to the pool only once the backend has retired every
-    // submission that touched it (docs/KV-CACHE.md). The CPU backend is eager
-    // so this costs nothing; on a device, releasing a block while a write to
-    // it is still queued hands a later sequence someone else's history. The
-    // callers are the exception paths, where a failed pass has ops queued
-    // behind no ticket, so this drains every device rather than waiting;
-    // reset() has tickets and waits on them. sync() cannot throw for the
-    // same reason.
+    // A block returns to the pool only once the backend has retired every submission that touched it (docs/KV-CACHE.md).
+    // These are the exception paths, where a failed pass has ops behind no ticket, so this drains every device with sync(); reset() waits on tickets instead.
     void retire() noexcept {
         for (auto& d : devices_) if (d->used) d->b->sync();
     }
 
-    // The buffer is passed by raw pointer, not by handle: three projections
-    // per layer per token is nearly two hundred refcount pairs a token if a
-    // shared pointer is copied here instead.
+    // The buffer is passed by raw pointer, not by handle: three projections per layer per token is nearly two hundred refcount pairs a token if a shared pointer is copied here instead.
     static backend::Projection projection(const Weight& w, backend::Slice out) {
         return {w.type, {w.data.get(), 0}, out, w.nout};
     }

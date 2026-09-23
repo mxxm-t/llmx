@@ -1,8 +1,4 @@
-// Vulkan backend, sub-step 1 of docs/VULKAN.md: storage and submission.
-// Everything runs on one compute queue. Ops record into an open command
-// buffer; submit() ends it and signals a timeline semaphore with the ticket
-// value, wait() blocks on that value, and a ring of command buffers is
-// reused once their tickets have retired.
+// Vulkan backend (docs/VULKAN.md). Everything runs on one compute queue: ops record into an open command buffer, submit() ends it and signals a timeline semaphore with the ticket, wait() blocks on it, and a ring of command buffers is reused once their tickets retire.
 #include "backends/device_profile.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "format/gguf.hpp"
@@ -30,8 +26,7 @@
 namespace backend {
 namespace {
 
-// Every entry point this file uses, fetched through the loader at run time
-// so nothing links against vulkan-1.
+// Every entry point this file uses, fetched through the loader at run time so nothing links against vulkan-1.
 #define LLMX_VK_GLOBAL_FUNCTIONS(X) \
     X(vkCreateInstance) \
     X(vkEnumerateInstanceVersion)
@@ -97,8 +92,7 @@ struct Fn {
     PFN_vkCmdPushDescriptorSetKHR vkCmdPushDescriptorSetKHR = nullptr;
 };
 
-// The kernels, compiled by glslc at build time (CMakeLists.txt) into the
-// generated include directory as comma-separated words.
+// The kernels, compiled by glslc at build time into the generated include directory as comma-separated words.
 const uint32_t kSpvAdd[] = {
 #include "vulkan/add.inc"
 };
@@ -153,8 +147,7 @@ const uint32_t kSpvAttentionMerge[] = {
 const uint32_t kSpvAttentionTile[] = {
 #include "vulkan/attention_tile.inc"
 };
-// The cache-type variants of every kernel that touches K or V, in the
-// order kv_variant() indexes them: K f16, V f16, both.
+// The cache-type variants of every kernel that touches K or V, in kv_variant()'s order: K f16, V f16, both.
 const uint32_t kSpvKvWriteK16[] = {
 #include "vulkan/kv_write_k16.inc"
 };
@@ -243,8 +236,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_COUNT };
 
-// The same row kernel in its two dot forms; which one a device wants is
-// measured, not asked (backends/device_profile.hpp).
+// The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
 inline KernelId row_dot_variant(KernelId plain) {
     switch (plain) {
     case K_MATMUL_ROW: return K_MATMUL_ROW_DOT;
@@ -257,9 +249,7 @@ inline KernelId row_dot_variant(KernelId plain) {
     }
 }
 
-// Whether a kernel id is one of the row kernels: the six families in their
-// two dot forms. They share the activation twin and take the column count as
-// a specialization constant.
+// Whether a kernel id is a row kernel: they share the activation twin and take the column count as specialization constant 0.
 inline bool is_row_kernel(KernelId id) {
     switch (id) {
     case K_MATMUL_ROW: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4:
@@ -271,20 +261,8 @@ inline bool is_row_kernel(KernelId id) {
     }
 }
 
-// How many batch columns a row kernel is built for, specialization constant
-// 0 like the tile kernel's row count. A chunk one column wide, which every
-// single-sequence decode is, takes the narrow build: eight accumulators live
-// across the weight loop cost a wave per SIMD (shaders/matmul_row.comp).
-//
-// Except the wide Q8_0 path, which is the one row kernel whose eight-column
-// build is not register starved. It runs five waves per SIMD where the
-// others run three, the narrow build takes it to eight, and a kernel already
-// reading at the memory system's limit loses by it: 8B Q8_0 decode fell 9
-// percent, its Q8_0 matmul 338 to 367 ms of device time. The same kernel on
-// the 0.6B files gained 12 percent, one work unit per lane there against
-// four, so this is a property of the shape as much as the path; the loss on
-// the larger model is the one that matters, since that cell clears the
-// reference by 6 percent and the smaller by 13.
+// Whether a row kernel has a one-column build for one-column chunks, which frees the registers of seven unused accumulators.
+// Not the wide Q8_0 path: it already runs five waves per SIMD, and its one-column build measured slower on the 8B file (docs/VULKAN.md).
 inline bool row_kernel_builds_one_column(KernelId id) {
     return is_row_kernel(id) && id != K_MATMUL_ROW_Q8W && id != K_MATMUL_ROW_Q8W_DOT;
 }
@@ -292,15 +270,10 @@ inline bool row_kernel_builds_one_column(KernelId id) {
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
 const int kVariants = 2;   // a kernel's pipelines: the wide build, then the one-column
 
-// The tile kernel's row count, set as specialization constant 0 at pipeline
-// creation. Two heights are built from one module: the shorter fills a device
-// that a taller tile would leave idle, the taller reads less shared memory per
-// product (shaders/matmul_tile.comp).
+// The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
 const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
 
-// A kernel's bindings; `counts` gives the array length of each, one for a
-// plain buffer. The buffers of a dispatch are listed binding by binding,
-// array elements consecutively.
+// A kernel's bindings; `counts` gives each one's array length, one for a plain buffer. A dispatch lists its buffers binding by binding, array elements consecutively.
 struct KernelSource {
     const uint32_t* words;
     size_t bytes;
@@ -380,19 +353,13 @@ const KernelSource kKernels[K_COUNT] = {
 class VulkanKVStorage;
 inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s);
 
-// 64 tokens per KV block: half the CPU's, since the attention workgroup
-// reads a block per iteration and a smaller block wastes less tail per
-// sequence on the device that bounds concurrency. Screened on the real
-// models before it is fixed (docs/VULKAN.md).
+// 64 tokens per KV block, half the CPU's: the attention workgroup reads a block per iteration, and a smaller block wastes less tail per sequence.
 const size_t kVkBlockTokens = 64;
 
 class VulkanBackend;
 
-// KV blocks on the device, one K buffer and one V buffer per layer. Block
-// id b starts at b*block_floats() and holds [kv_head][token][head_dim].
-// Blocks are backed in doubling steps as ids are first written. Growth is
-// allocate and copy on the queue, and the buffers the copy reads from are
-// kept alive until it has retired.
+// KV blocks on the device, one K and one V buffer per layer; block b starts at b*block_floats() and holds [kv_head][token][head_dim].
+// Blocks are backed in doubling steps as ids are first written; growth allocates and copies on the queue, keeping the old buffers alive until the copy retires.
 class VulkanKVStorage final : public KVStorage {
 public:
     VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_blocks,
@@ -441,8 +408,7 @@ private:
     std::vector<BufferPtr> k_, v_;
 };
 
-// A compiled kernel: module, layout with `bindings` storage buffers pushed
-// per dispatch and 128 bytes of push constants, and the pipeline.
+// A compiled kernel: module, a layout of `bindings` pushed storage buffers and 128 bytes of push constants, and the pipeline.
 struct Kernel {
     VkShaderModule module = VK_NULL_HANDLE;
     VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
@@ -505,9 +471,7 @@ struct Loader {
     Loader& operator=(const Loader&) = delete;
 };
 
-// The device and everything a buffer needs to free itself. Buffers hold a
-// shared handle to it, so a buffer that outlives its backend still frees
-// correctly and the device is destroyed after the last buffer.
+// The device and everything a buffer needs to free itself; buffers share it, so the device outlives the last buffer.
 struct Device {
     Loader loader;
     Fn fn;
@@ -526,22 +490,18 @@ struct Device {
     bool push_descriptor = false;
     bool int8 = false, float16 = false, storage8 = false, storage16 = false;
     bool integer_dot = false;     // the integer dot product instructions, if the device has them
-    // The driver's per-kernel statistics (registers, occupancy), when it reports them; the test prints them.
+    // The driver's per-kernel statistics (registers, occupancy), when it reports them.
     bool exec_stats = false;
     PFN_vkGetPipelineExecutablePropertiesKHR get_exec_props = nullptr;
     PFN_vkGetPipelineExecutableStatisticsKHR get_exec_stats = nullptr;
-    // The driver's internal representations of a kernel, its ISA on AMD, captured only for a backend opened for diagnostics.
+    // The driver's internal representations of a kernel, its ISA on AMD, for a backend opened for diagnostics.
     bool exec_ir = false;
     PFN_vkGetPipelineExecutableInternalRepresentationsKHR get_exec_ir = nullptr;
-    // Device time per dispatch, for a backend opened for diagnostics. The
-    // queue writes a timestamp either side of every dispatch and the host
-    // reads them back after the pass, so a decode token can be attributed to
-    // kernels rather than inferred from kernels timed alone.
+    // Device time per dispatch, for a backend opened for diagnostics: a timestamp either side of every dispatch, read back after the pass.
     bool timestamps = false;
     double timestamp_ns = 0.0;   // nanoseconds per tick, as the device reports
 
-    // Guarded per handle: construction can fail between creating a handle
-    // and loading the function that destroys it.
+    // Guarded per handle: construction can fail between creating a handle and loading its destroy function.
     ~Device() {
         if (device && fn.vkDestroyDevice) {
             if (fn.vkDeviceWaitIdle) fn.vkDeviceWaitIdle(device);
@@ -550,8 +510,7 @@ struct Device {
         if (instance && fn.vkDestroyInstance) fn.vkDestroyInstance(instance, nullptr);
     }
 
-    // A memory type with every flag in `required`, preferring `preferred`
-    // on top, among those the buffer allows.
+    // A memory type with every flag in `required`, preferring `preferred` on top, among those the buffer allows.
     uint32_t memory_type(uint32_t allowed, VkMemoryPropertyFlags required,
                          VkMemoryPropertyFlags preferred, VkMemoryPropertyFlags avoid) const {
         int best = -1;
@@ -577,7 +536,7 @@ public:
         if (!bytes) return;   // an empty allocation has no address and no object
         VkBufferCreateInfo bi{};
         bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        // Whole words, so a kernel that reads a byte-sized tensor through a 32-bit view can reach its last bytes: a Q8_0 or Q6_K tensor with an odd block count ends two bytes into a word, and that word is outside a view of the exact size.
+        // Whole words, so a 32-bit view can reach a byte-sized tensor's last bytes (a Q8_0 or Q6_K tensor with an odd block count ends two bytes into a word).
         bi.size = (bytes + 3) & ~size_t(3);
         bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                    VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -588,9 +547,7 @@ public:
         VkMemoryAllocateInfo ai{};
         ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         ai.allocationSize = req.size;
-        // Device memory prefers not to be host visible, so it comes from the
-        // large device-local heap rather than the BAR window. Host-visible
-        // memory prefers to be cached, because the host reads it in bulk.
+        // Device memory prefers not to be host visible, so it comes from the device-local heap rather than the BAR window; host-visible memory prefers to be cached.
         ai.memoryTypeIndex = host_visible
             ? dev_->memory_type(req.memoryTypeBits,
                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -697,10 +654,7 @@ public:
         VkPhysicalDeviceProperties2 p2{};
         p2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
         p2.pNext = &sg;
-        // How many compute units the device has, which decides when a taller
-        // tile stops paying (matmul_group_impl). Core Vulkan does not report
-        // it; where the vendor does, ask, and otherwise assume a small device
-        // so the shorter tile is preferred and no call is starved of groups.
+        // Compute units, which decide the tile height and the split (matmul_group_impl). Core Vulkan does not report them; where the vendor does, ask, else assume a small device.
         uint32_t core_ext_count = 0;
         fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &core_ext_count, nullptr);
         std::vector<VkExtensionProperties> core_exts(core_ext_count);
@@ -737,8 +691,7 @@ public:
         d.caps.int8_arithmetic = d.int8;
         d.caps.storage_8bit = d.storage8;
         d.caps.storage_16bit = d.storage16;
-        // The row kernel places one subgroup per row inside a workgroup of
-        // 256, which needs the subgroup size to divide it.
+        // The row kernel places one subgroup per row group in a 256-lane workgroup, so the subgroup size must divide it.
         if (!d.subgroup_size || 256 % d.subgroup_size ||
             !(sg.supportedOperations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT))
             throw VulkanUnavailable("vulkan: " + std::string(d.props.deviceName) +
@@ -746,13 +699,11 @@ public:
         d.name = d.props.deviceName;
         if (d.props.apiVersion < VK_API_VERSION_1_2)
             throw VulkanUnavailable("vulkan: " + d.name + " is older than Vulkan 1.2");
-        // A block of 32 activations is quantized across 32 consecutive
-        // lanes (shaders/xquant.glsl).
+        // A block of 32 activations is quantized across 32 consecutive lanes (shaders/xquant.glsl).
         if (d.subgroup_size < 32)
             throw VulkanUnavailable("vulkan: " + d.name + " has subgroups narrower than 32 lanes");
 
-        // A compute family without graphics keeps the queue clear of the
-        // desktop; any compute family will do.
+        // A compute family without graphics keeps the queue clear of the desktop; any compute family will do.
         uint32_t families = 0;
         fn.vkGetPhysicalDeviceQueueFamilyProperties(d.physical, &families, nullptr);
         std::vector<VkQueueFamilyProperties> qf(families);
@@ -767,10 +718,7 @@ public:
         if (chosen < 0) throw VulkanUnavailable("vulkan: " + d.name + " has no compute queue");
         d.queue_family = (uint32_t)chosen;
 
-        // Timeline semaphores are what submit and wait are built on. The
-        // 8- and 16-bit storage and arithmetic features are what the kernels
-        // will read quantized blocks and half scales with; they are enabled
-        // now where present so device creation does not change per sub-step.
+        // Timeline semaphores are what submit and wait are built on; the 8- and 16-bit storage and arithmetic features are what the kernels read quantized blocks and half scales with.
         VkPhysicalDeviceVulkan12Features f12{};
         f12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
         VkPhysicalDeviceVulkan11Features f11{};
@@ -799,8 +747,7 @@ public:
         VkPhysicalDeviceFeatures2 e2{};
         e2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         e2.pNext = &e11;
-        // The row kernel selects one of three projections' buffers per
-        // workgroup, which is dynamic indexing of a storage buffer array.
+        // The row kernels select a projection's buffers per workgroup, dynamic indexing of a storage buffer array.
         if (!f2.features.shaderStorageBufferArrayDynamicIndexing)
             throw VulkanUnavailable("vulkan: " + d.name + " cannot index storage buffer arrays dynamically");
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
@@ -826,9 +773,7 @@ public:
                 enabled.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
                 d.push_descriptor = true;
             } else if (std::strcmp(e.extensionName, VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME) == 0) {
-                // Core in 1.3; an extension on the 1.2 devices this targets.
-                // Enabled where present so the dot-form row kernels can run;
-                // whether they are faster than the plain ones is measured.
+                // Core in 1.3, an extension on the 1.2 devices this targets; enabled where present so the dot-form kernels can run.
                 enabled.push_back(VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME);
                 d.integer_dot = true;
             } else if (std::strcmp(e.extensionName, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME) == 0) {
@@ -843,12 +788,10 @@ public:
             e2.pNext = &estat;
         }
 
-        // The profile is chosen here rather than with the other properties
-        // because it depends on what the extension scan above found.
+        // The profile is chosen here because it depends on the extension scan above.
         d.caps.integer_dot = d.integer_dot;
         d.profile = profile_for(d.caps);
-        // A queue that timestamps lets a diagnostics backend say where a pass
-        // spent its time, rather than inferring it from kernels timed alone.
+        // A queue that timestamps lets a diagnostics backend attribute a pass's time to kernels.
         d.timestamps = diagnostics && d.props.limits.timestampComputeAndGraphics;
         d.timestamp_ns = d.props.limits.timestampPeriod;
 
@@ -984,7 +927,7 @@ public:
         return out;
     }
 
-    // The driver's internal representations of every kernel compiled so far, each kernel's text under its name, for a backend opened for diagnostics.
+    // The driver's internal representations of every kernel compiled so far, under each kernel's name, for a backend opened for diagnostics.
     std::vector<std::pair<std::string, std::string>> kernel_representations() const {
         std::vector<std::pair<std::string, std::string>> out;
         const Device& d = *dev_;
@@ -1051,8 +994,7 @@ public:
         return b;
     }
 
-    // A copy, in chunks through staging, each submitted and waited. Weights
-    // arrive here once at load; nothing can run before they are there.
+    // A copy in chunks through staging, each submitted and waited; weights arrive here once at load.
     BufferPtr adopt(const void* src, size_t bytes) override {
         if (!src && bytes) throw std::runtime_error("vulkan: adopting null storage");
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, false);
@@ -1087,8 +1029,7 @@ public:
         return ticket;
     }
 
-    // noexcept by contract: a device that cannot report that its work has
-    // finished has been lost, and nothing at this layer can act on that.
+    // noexcept by contract: a device that cannot report its work finished has been lost, and nothing here can act on that.
     void wait(Ticket t) noexcept override {
         if (t == 0 || t > last_ticket_) return;
         VkSemaphoreWaitInfo wi{};
@@ -1104,12 +1045,8 @@ public:
         }
     }
 
-    // Device time per kernel since the last call, in milliseconds, for a
-    // diagnostics backend whose queue timestamps. Reading them waits for the
-    // queue, so this is a diagnostic and not something a pass does.
-    // Dispatches whose time was sampled. The pool bounds it, so a long run
-    // is a sample of its first dispatches rather than all of them; decode is
-    // homogeneous so the shares hold, and the totals are of the sample.
+    // Device time per kernel since the last call, in milliseconds, for a diagnostics backend whose queue timestamps; reading them waits for the queue.
+    // Dispatches whose time was sampled: the query pool bounds it, so a long run samples its first dispatches.
     size_t timed_dispatches() const {
         size_t n = 0;
         for (size_t i = 0; i < K_COUNT * kVariants; ++i) n += kernel_calls_[i];
@@ -1267,8 +1204,7 @@ public:
                  &pc, sizeof(pc), u32(rows * heads));
     }
 
-    // One kernel for q and k norm-rope and the KV write of one view; a
-    // batch over several views takes the three-dispatch default.
+    // One kernel for q and k norm-rope and the KV write of one view; a batch over several views takes the three-dispatch default.
     void norm_rope_kv(Slice q, size_t q_stride, size_t n_head, CSlice q_w,
                       Slice k, CSlice v, size_t kv_stride, size_t n_head_kv, CSlice k_w,
                       const RopeArgs& rope, size_t rows, size_t layer,
@@ -1313,8 +1249,7 @@ public:
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
         const uint32_t pc[3] = {u32(nin), u32(count), type};
-        // The table is bound twice: as floats for F32 rows, as bytes for
-        // block formats. The shader reads the one the type selects.
+        // The table is bound twice, as floats for F32 rows and as bytes for block formats.
         dispatch(K_EMBED, {bind(dst), bind(table), bind(table), args(ids, count * sizeof(uint32_t))},
                  pc, sizeof(pc), u32(count));
     }
@@ -1335,10 +1270,9 @@ public:
         matmul_runs(projections, X, nin, nbatch, false, runs);
     }
 
-    // With row runs, each row takes the kernel its prompt's extent selects rather than the one the call's width does: the row kernel below the tile threshold, the tile from it.
-    // The row kernel and the tile round differently, so choosing by width made a prompt's result depend on how its rows were batched; a server reusing a cached prefix prefilled a short tail through the row kernel where one pass over the whole prompt took the tile, and its greedy text could differ from the CLI's.
-    // Adjacent runs that take the same kernel are one call; a call of mixed runs becomes one call per kernel, each over its rows at their offsets.
-    // A tile row's inner-dimension split (shaders/matmul_tile_q.comp) is the one a pass over its whole prompt would take, from the prompt's column tiles up to a full microbatch of 512 rows, so a split row's sums are grouped the same way however it was batched; runs whose splits differ are separate calls.
+    // With row runs, a row's kernel follows its prompt's extent rather than the call's width, so a prompt computes the same however its rows are batched (docs/VULKAN.md, batch invariance).
+    // Adjacent runs taking the same kernel are one call, and a call of mixed runs becomes one call per kernel over its rows.
+    // A tile row's inner-dimension split is the one a pass over its whole prompt would take, up to a microbatch of 512 rows; runs whose splits differ are separate calls.
     static size_t split_tiles_of(size_t extent) { return (std::min<size_t>(extent, 512) + 63) / 64; }
     void matmul_runs(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nbatch,
                      bool accumulate, RowRuns runs) {
@@ -1381,12 +1315,8 @@ public:
         }
     }
 
-    // Up to three projections of one X in one dispatch when the batch is
-    // narrow, which is what a decode layer's q, k and v, and gate and up,
-    // are: the row kernel hands workgroups to projections in order. Wide
-    // batches go to the tile kernel, one dispatch per projection, which
-    // reads a weight once per pass.
-    // `kernel_choice` forces the row kernel (0) or the tile (1); below zero the call's width chooses. `split_tiles` is the column tiles the tile's inner-dimension split is taken for, zero for the call's own.
+    // Up to three projections of one X in one dispatch: the row kernel for narrow batches hands workgroups to projections in order; wide batches take the tile.
+    // `kernel_choice` forces the row kernel (0) or the tile (1), below zero the call's width chooses; `split_tiles` is the column tiles the tile's split is taken for, zero for the call's own.
     void matmul_group_impl(std::initializer_list<Projection> projections, CSlice X,
                            size_t nin, size_t nbatch, bool accumulate, int kernel_choice = -1, size_t split_tiles = 0) {
         if (projections.size() > 3) {
@@ -1417,13 +1347,7 @@ public:
         }
         if (floats_from(X) < nbatch * nin) throw std::runtime_error("vulkan: matmul operand outside its allocation");
         if (live.empty()) return;
-        // The tile kernel costs a 64-row tile whatever its fill and the row
-        // kernel a weight pass per eight columns, so the crossover is where
-        // ceil(n / 64) tiles cost less than ceil(n / 8) passes. Measured on
-        // the Radeon VII as prompt processing at 8 to 256 rows: the tile
-        // wins from about 24 rows on Qwen3-8B-Q8_0, 64 on 8B-Q4_K_M and 64
-        // on 0.6B-Q8_0, and loses at 16 rows on every file, so 8-bit rows
-        // take it from 32 and the others from 64 (docs/VULKAN.md).
+        // The row kernel costs a weight pass per eight columns and the tile a whole tile however little is filled, so the crossover depends on the row width and the type; measured per device (backends/device_profile.hpp).
         bool eight_bit_or_float = true;
         for (const Projection* pr : live)
             if (pr->type != gguf::GGML_TYPE_Q8_0 && pr->type != gguf::GGML_TYPE_F32)
@@ -1433,16 +1357,13 @@ public:
             const size_t gy = (nbatch + 63) / 64;
             if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
                 throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
-            // Where the device's integer dot is native, the types the integer-dot tile takes go through it (shaders/matmul_tile_q.comp), X quantized to 8 bits once for every projection of the call that needs it. The float tile multiplies dequantized floats one product per instruction; on the MI50 under Mesa it reads 4.87 TFLOPS at an 8B feed-forward shape where an integer-dot tile reads 13.3 (docs/VULKAN.md).
+            // On a device whose integer dot is native, quantized types take the integer-dot tile (shaders/matmul_tile_q.comp), X quantized to 8 bits once for every projection that needs it.
             VkDescriptorBufferInfo x8{};
             const size_t nblk = nin / 32;
             // The float tile, one projection a dispatch.
             for (const Projection* pr : live) {
                 if (integer_dot_tile(pr->type)) continue;
-                // The taller tile reads two thirds of the shared memory per
-                // product and is worth about half again on a wide call, but it
-                // halves the workgroups; below one per compute unit the device
-                // runs out of work first, so the call takes the shorter tile.
+                // A taller tile reads less shared memory per product but halves the workgroups; below one per compute unit the call takes a shorter one.
                 const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
                                                       pr->rows, gy, nin);
                 const bool tall = height == kTileRowsTall;
@@ -1451,7 +1372,7 @@ public:
                          {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data)},
                          pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, height == kTileRowsSmall ? 1 : 0);
             }
-            // The integer-dot tile, the projections of one type in one dispatch: a 0.6B layer's q, k and v at 64 columns took 232 us as three dispatches on an MI50 and 89 us as one, each alone being too small to fill the device.
+            // The integer-dot tile takes the projections of one type in one dispatch, since each alone can be too small to fill the device.
             std::vector<const Projection*> pending;
             for (const Projection* pr : live)
                 if (integer_dot_tile(pr->type)) pending.push_back(pr);
@@ -1480,7 +1401,7 @@ public:
                     nout[i] = u32(group[i]->rows);
                     gx += groups(group[i]->rows, height);
                 }
-                // The split is the one the rows' whole prompt would take (matmul_runs), so a prompt sums its inner dimension in the same parts however its rows were batched.
+                // The split is the one the rows' whole prompt would take (matmul_runs).
                 const size_t st = split_tiles ? split_tiles : gy;
                 const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, rows, st, nin);
                 size_t gxs = 0;
@@ -1514,11 +1435,8 @@ public:
             }
             return;
         }
-        // One cluster size and one module serve a dispatch, so every
-        // projection in it has the same type. A mixed group, such as the
-        // Q5_K q and k beside the Q6_K v of a Q5_K_M file, is partitioned
-        // by type and each partition is one dispatch: two for that group
-        // rather than three.
+        // One cluster size and one module serve a dispatch, so every projection in it has the same type.
+        // A mixed group, such as the Q5_K q and k beside the Q6_K v of a Q5_K_M file, is partitioned by type and each partition is one dispatch: two for that group rather than three.
         for (size_t i = 1; i < live.size(); ++i)
             if (live[i]->type != live[0]->type) {
                 std::vector<Projection> same, rest;
@@ -1533,11 +1451,7 @@ public:
                 run(rest);
                 return;
             }
-        // The row kernel's work units and the lanes that share one, per
-        // type (matmul_row.comp): Q8_0 pairs over four lanes and Q4_0
-        // pairs over two when the block count is even, Q4_1 blocks over
-        // one, the K-quant blocks over eight, else one unit per block or
-        // value.
+        // The row kernel's work units and the lanes that share one, per type (matmul_row.comp): Q8_0 pairs over four lanes and Q4_0 pairs over two when the block count is even, Q4_1 blocks over one, the K-quant blocks over eight, else one unit per block or value.
         const uint32_t type = live[0]->type;
         const size_t nblocks = nin / block_values_of(type);
         uint32_t wide = 0, lanes = 1;
@@ -1576,7 +1490,7 @@ public:
         if (dev_->profile.prefer_integer_dot) kernel = row_dot_variant(kernel);
         uint32_t cluster = lanes;
         while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
-        // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin, a subgroup on two rows (shaders/matmul_vec_q8.comp).
+        // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin (shaders/matmul_vec_q8.comp).
         if (type == gguf::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot && dev_->subgroup_size >= 8) {
             kernel = K_MATMUL_VEC_Q8;
             cluster = dev_->subgroup_size / 2;
@@ -1592,20 +1506,15 @@ public:
         }
         if (total > dev_->props.limits.maxComputeWorkGroupCount[0])
             throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
-        // Quantized rows read the activations as 16-bit integers in blocks
-        // of 32 (shaders/xquant.glsl): the values, then a scale and three
-        // scaled sums per block. The
-        // norm, SiLU and attention kernels write that twin beside their
-        // output and tag it; an input without one gets a dispatch here.
-        // F32 rows read the floats and bind them in those slots too. The
-        // scratch is reused stream-ordered, like the attention split
-        // states.
+        // Quantized rows read the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag; an input without one gets a quantize dispatch here.
+        // F32 rows read the floats through the same slots.
+        // The scratch is reused stream-ordered.
         VkDescriptorBufferInfo xqi = bind(X);
         if (type != gguf::GGML_TYPE_F32) {
             const VkDescriptorBufferInfo xf = bind(X);
             xqi = xq_for(nbatch * nin);
             const bool x8 = reads_x8(kernel);
-            // The first matmul that reads the 8-bit twin finds producers that were not writing it, and has it made here; every producer after it writes both.
+            // The first matmul reading the 8-bit twin has it made here; producers after it write both.
             if (x8) want_x8_ = true;
             if (!(xq_tag_.n == nbatch * nin && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset &&
                   (!x8 || xq_tag_.has8))) {
@@ -1615,8 +1524,7 @@ public:
             }
             if (reads_x8(kernel)) xqi.offset = x8_base_bytes(nbatch * nin);
         }
-        // Unused projection slots bind the first one's buffers; no
-        // workgroup reaches them.
+        // Unused projection slots bind the first one's buffers; no workgroup reaches them.
         const Projection& a = *live[0];
         const Projection& b = live.size() > 1 ? *live[1] : a;
         const Projection& c = live.size() > 2 ? *live[2] : a;
@@ -1643,8 +1551,7 @@ public:
             if (bind(pr->out).buffer == xq_tag_.x.buffer) xq_tag_ = XqTag{};
     }
 
-    // The scratch the twin of an n-value input lives in: n / 2 words of
-    // pairs, then 8 bytes per block of 32 twice.
+    // The scratch the twin of an n-value input lives in.
     VkDescriptorBufferInfo xq_for(size_t n) {
         const size_t bytes = dev_->profile.prefer_integer_dot ? x8_base_bytes(n) + n + (n / 32) * 8 : n * 2 + (n / 32) * 16;
         if (!xq_ || xq_->size() < bytes) {
@@ -1654,9 +1561,9 @@ public:
         return VkDescriptorBufferInfo{xq_->handle(), 0, VK_WHOLE_SIZE};
     }
 
-    // On a device whose integer dot is native the producers write the 8-bit twin after the 16-bit one (shaders/xquant.glsl), from this byte offset: the 16-bit twin's n / 2 words of pairs and n / 8 of tables, rounded up to 256 bytes, which is a valid storage-buffer offset on any device.
+    // Where the 8-bit twin starts after the 16-bit one, in bytes, rounded up to 256 so it is a valid binding offset (shaders/xquant.glsl).
     static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 8 + 63) & ~size_t(63)) * 4; }
-    // The row kernels that read the 8-bit twin: the Q4_K and Q5_K families built with LLMX_X8, and the Q8_0 kernel for devices whose integer dot is native (shaders/matmul_vec_q8.comp). Q4_0 and Q6_K read it too and were 45 and 5 to 12 percent faster, but the HF gate's Q4_0 fixture, whose only K-quant is its tied Q6_K output head, then ranked a different fifth token on one prompt, a top-5 overlap of 3 against its frozen 4, with either of them on it. So they read the 16-bit twin.
+    // The row kernels that read the 8-bit twin: the Q4_K and Q5_K families built with LLMX_X8, and the Q8_0 kernel. Q4_0 and Q6_K stay on the 16-bit twin, since on the 8-bit one the HF gate's Q4_0 fixture failed its top-5 bound (docs/STATUS.md).
     static bool reads_x8(KernelId id) { return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_VEC_Q8; }
 
     // Whether a type's wide matmul goes through the integer-dot tile on this device.
@@ -1665,8 +1572,8 @@ public:
                type != gguf::GGML_TYPE_F32;
     }
 
-    // The scratch the 8-bit twin of an n-value batch lives in (shaders/quantize_x8.comp): n bytes of quants, then 8 bytes per block of 32. Reused stream-ordered like the decode twin's.
-    // The quant blocks each part of a split integer-dot tile call sums (shaders/matmul_tile_q.comp), the whole inner dimension when the call is not split. A call of fewer workgroups than the device runs well splits its inner dimension until it has that many, keeping at least a floor of blocks per part so the partial sums stay a small share of the work.
+    // The scratch the 8-bit twin of an n-value batch lives in (shaders/quantize_x8.comp), reused stream-ordered.
+    // The quant blocks each part of a split integer-dot tile call sums, the whole inner dimension when unsplit: a call of fewer workgroups than tile_split_per_cu per compute unit splits, keeping at least tile_split_min_blocks per part.
     size_t split_blocks(size_t workgroups, size_t nblk) const {
         const size_t target = (size_t)dev_->profile.tile_split_per_cu * dev_->caps.compute_units;
         const size_t floor_blocks = std::max<size_t>(dev_->profile.tile_split_min_blocks, 2);
@@ -1684,9 +1591,7 @@ public:
         return VkDescriptorBufferInfo{x8_->handle(), 0, VK_WHOLE_SIZE};
     }
 
-    // A stream-ordered scratch outgrown mid-pass: the commands already
-    // recorded still name the old buffer, so it retires with the ring slot
-    // rather than here.
+    // A stream-ordered scratch outgrown mid-pass: recorded commands still name the old buffer, so it retires with the ring slot.
     void grow(std::shared_ptr<VulkanBuffer>& buffer, size_t bytes) {
         open();
         if (buffer) pending_[ring_index_].push_back(std::move(buffer));
@@ -1747,11 +1652,8 @@ public:
         const size_t rows = placed.back().row0 + placed.back().view->nq;
         if (floats_from(Q) < rows * qstride || floats_from(out) < rows * qstride)
             throw std::runtime_error("vulkan: attention rows outside their allocation");
-        // Views of 128-wide heads whose prompt reaches 32 tokens take the tiled kernel,
-        // the rest the per-row kernel: at most two dispatches per layer
-        // whatever the batch, and a decode row never sits in a tile that
-        // would stage its whole history for one live row.
-        // The choice is by the view's extent, the prompt its rows belong to, rather than its row count when the model gives one, so a prompt's rows take the same kernel however they were batched: the last few rows of a prompt whose prefix was reused take the tile, as they would in one pass over the whole prompt.
+        // Views of 128-wide heads whose prompt reaches 32 tokens take the tiled kernel, the rest the per-row kernel: at most two dispatches per layer.
+        // The choice is by the view's extent rather than its row count, so a prompt's rows take the same kernel however they were batched.
         std::vector<Placed> wide, narrow;
         for (const Placed& pv : placed) {
             const size_t extent = pv.view->extent ? pv.view->extent : pv.view->nq;
@@ -1775,13 +1677,11 @@ public:
             ViewTable t = view_table(layer, narrow, false);
             VulkanKVStorage& s = *t.storage;
             check_storage(s, layer, n_head_kv, head_dim);
-            // The output's 16-bit twin for the row matmul that follows,
-            // written by whichever kernel writes the output, when the
-            // whole batch is this dispatch and a head is whole blocks.
+            // The output's 16-bit twin, written by whichever kernel writes the output, when the whole batch is this dispatch and a head is whole blocks.
             const bool quant = wide.empty() && head_dim % 32 == 0;
             const VkDescriptorBufferInfo xq = quant ? xq_for(rows * qstride) : bind(out);
-            // A row's history is split in parts of 32 tokens across workgroups, the part doubling until at most 64 cover it, which is what keeps a decode token over a long history on enough workgroups to fill the device.
-            // The parts are the row's own, from its length alone: a row computes the same whatever else is in the dispatch, so a sequence decodes the same alone or beside others. The dispatch has as many splits as its longest row can need; a row's parts past its history are empty and add nothing.
+            // A row's history is split in parts of 32 tokens across workgroups, the part doubling until at most 64 cover it; the parts depend only on the row's length, so a row computes the same whatever else is in the dispatch.
+            // The dispatch has as many splits as its longest row can need; a row's extra splits are empty.
             size_t longest = 0;
             for (const Placed& pv : narrow)
                 longest = std::max(longest, VulkanKVStorage::add(pv.view->length, pv.view->nq));
@@ -1826,11 +1726,7 @@ public:
         }
         return placed;
     }
-    // The table the batched cache kernels read (shaders/views.glsl), for a
-    // subset of a batch's views: six words per view, then every view's
-    // block ids. Every view is checked against the storage; a writing op
-    // backs the blocks its rows land in, a reading op requires them
-    // written. One storage per call, which is how the model calls.
+    // The table the batched cache kernels read (shaders/views.glsl) for a subset of a batch's views. Every view is checked against the storage; a writing op backs the blocks its rows land in, a reading op requires them written.
     struct ViewTable {
         std::vector<uint32_t> words;
         size_t rows = 0;
@@ -1877,8 +1773,7 @@ public:
             throw std::runtime_error("vulkan: attention outside the KV view");
     }
 
-    // Storage growth hands the buffers a copy reads from here, so they live
-    // until the command buffer that recorded the copy has retired.
+    // Buffers a storage growth copy reads from, kept until the command buffer that recorded the copy retires.
     void keep_until_retired(BufferPtr b) {
         open();
         pending_[ring_index_].push_back(std::dynamic_pointer_cast<VulkanBuffer>(b));
@@ -1902,8 +1797,7 @@ private:
         return *s;
     }
 
-    // Bytes per row of a matrix type the kernels decode, zero for a type
-    // they do not; the values per block of it.
+    // Bytes per row of a matrix type the kernels decode, zero for one they do not; and the values per block.
     static size_t block_values_of(uint32_t type) {
         return type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K || type == gguf::GGML_TYPE_Q6_K
                    ? gguf::Q6_K_BLOCK : type == gguf::GGML_TYPE_F32 ? 1 : 32;
@@ -1947,10 +1841,7 @@ private:
         return (bytes - s.offset * sizeof(float)) / sizeof(float);
     }
 
-    // A slice as a storage buffer binding: the buffer at a byte offset of
-    // four times the float offset, which the device's 4-byte alignment
-    // allows, through to the end of the allocation. An empty allocation
-    // binds nothing and nothing reads it.
+    // A slice as a storage buffer binding: the buffer at a byte offset of four times the float offset, through to the end of the allocation.
     VkDescriptorBufferInfo bind(CSlice s) {
         if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
         const VulkanBuffer& b = as_vulkan(*s.buffer);
@@ -1961,12 +1852,7 @@ private:
     }
     VkDescriptorBufferInfo bind(Slice s) { return bind(CSlice(s)); }
 
-    // Small per-call inputs the host holds, ids and positions and row lists,
-    // go to the device through a host-visible arena per ring slot, bumped
-    // per call and reset when the slot's command buffer has retired. An
-    // allocation per call was over a hundred vkAllocateMemory calls per
-    // decoded token, which was most of the token on Qwen3-0.6B. A call
-    // larger than the arena gets its own buffer, kept the same way.
+    // Small per-call host inputs (ids, positions, row lists) go through a host-visible arena per ring slot, bumped per call and reset when the slot retires; a call larger than the arena gets its own buffer, kept the same way.
     VkDescriptorBufferInfo args(const void* data, size_t bytes) {
         open();
         Arena& a = arena_[ring_index_];
@@ -1979,9 +1865,7 @@ private:
         }
         if (!a.buffer) a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
         if (a.used + need > kArenaBytes) {
-            // The slot's arena is full before its command buffer retired;
-            // the overflow gets a second arena kept alongside, and the
-            // slot starts a fresh one.
+            // The slot's arena is full before its command buffer retired: the overflow gets a second arena kept alongside.
             pending_[ring_index_].push_back(std::shared_ptr<VulkanBuffer>(std::move(a.buffer)));
             a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
             a.used = 0;
@@ -2032,14 +1916,13 @@ private:
         ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
         ci.stage.module = k.module;
         ci.stage.pName = "main";
-        // The tile kernels take their row count as specialization constant
-        // 0 and the row kernels their column count.
+        // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
         const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
                           id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL;
         const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
         const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant ? kTileRowsSmall : kTileRowsShort)
                                          : (variant ? kRowColsOne : kRowColsWide);
-        // Constant 7 is whether a producer also writes the 8-bit twin (shaders/xquant.glsl), its second build. Every pipeline gets both entries; a module that declares neither ignores them, and only producers declare 7.
+        // Constant 7 selects a producer's build that also writes the 8-bit twin; every pipeline gets both entries, and a module that declares neither ignores them.
         const uint32_t spec_data[2] = {spec_value, variant ? 1u : 0u};
         const VkSpecializationMapEntry entries[2] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)}};
         VkSpecializationInfo spec{};
@@ -2057,8 +1940,7 @@ private:
         return k;
     }
 
-    // One dispatch: bind the pipeline, push the buffers and the constants,
-    // launch `groups` workgroups, and fence it off from the next command.
+    // One dispatch: bind the pipeline, push the buffers and constants, launch the workgroups, and fence it off from the next command.
     void dispatch(KernelId id, std::initializer_list<VkDescriptorBufferInfo> buffers,
                   const void* push, size_t push_bytes, uint32_t groups_x, uint32_t groups_y = 1,
                   int variant = 0) {
@@ -2106,12 +1988,7 @@ private:
             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
         }
         barrier(cmd);
-        // A pass of several hundred dispatches is submitted in chunks so
-        // the device starts on the first while the host records the rest;
-        // the timeline is ordered, so the ticket of the last chunk covers
-        // them all. Recording a decode token of Qwen3-0.6B takes the host
-        // about 0.5 ms against 6 ms on the device; chunks of 64 measured
-        // best of 16, 32, 64, 128 and 256 (150, 156, 158, 152, 149 tok/s).
+        // A pass is submitted in chunks so the device starts on the first while the host records the rest; the ordered timeline makes the last chunk's ticket cover them all.
         if (++chunk_ >= dev_->profile.dispatch_chunk) submit();
     }
 
@@ -2121,8 +1998,7 @@ private:
                                  std::to_string(substep) + ")");
     }
 
-    // The open command buffer, beginning the next ring slot once its last
-    // submission has retired.
+    // The open command buffer, beginning the next ring slot once its last submission has retired.
     VkCommandBuffer open() {
         if (open_) return ring_[ring_index_];
         wait(ring_ticket_[ring_index_]);
@@ -2138,12 +2014,7 @@ private:
         return cmd;
     }
 
-    // A pass is a chain, so every op reads what the one before wrote: one
-    // full barrier between consecutive commands is correct, and tracking
-    // which buffers an op touches is an optimization for later.
-    // Only the compute and transfer stages ever touch a buffer here, so the
-    // barrier names those rather than every stage: on this driver a barrier
-    // over all commands is a full flush and idle between every two kernels.
+    // A pass is a chain, so one barrier between consecutive commands is correct. It names only the compute and transfer stages, since on this driver a barrier over all commands is a full flush.
     void barrier(VkCommandBuffer cmd) {
         VkMemoryBarrier mb{};
         mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
@@ -2159,8 +2030,7 @@ private:
         return *staging_;
     }
 
-    // Host to device through staging, each chunk submitted and waited so the
-    // staging buffer can take the next one.
+    // Host to device through staging, each chunk submitted and waited so staging can take the next.
     void upload(VulkanBuffer& dst, size_t off, const void* src, size_t bytes) {
         if (!bytes) return;
         VulkanBuffer& st = staging();
@@ -2197,12 +2067,9 @@ private:
     std::shared_ptr<VulkanBuffer> x8_;        // the integer-dot tile's 8-bit activations
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
-    // What the twin in xq_ describes: the float input it was made from
-    // and its length. Cleared by anything that writes a buffer other than
-    // the twin's makers, since the input may be what was written.
-    // What the twin buffer holds: the input it was made from, and whether the 8-bit twin was written beside the 16-bit one.
+    // What the twin buffer holds: the float input it was made from, its length, and whether the 8-bit twin was written; cleared by anything else that writes a buffer, since the input may be what was written.
     struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; };
-    // Set once a matmul that reads the 8-bit twin has run, so producers take their build that writes it from then on (shaders/xquant.glsl).
+    // Set once a matmul that reads the 8-bit twin has run, so producers take their build that writes it from then on.
     bool want_x8_ = false;
     int twin_variant() const { return want_x8_ ? 1 : 0; }
     XqTag xq_tag_;

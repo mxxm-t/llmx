@@ -1,13 +1,6 @@
 #pragma once
-// The routes of docs/SERVER.md over the HTTP layer and the scheduler.
-// Native: /v1/generate and /v1/chat, streamed as server-sent events or
-// returned whole, /v1/health. Compatible: /v1/chat/completions and
-// /v1/completions in the shape the OpenAI clients speak, so existing
-// tools connect without a client of their own, and /v1/models as the
-// list they read the model name from. Both families are one parse, one
-// scheduler request and one drain loop; only the JSON around the tokens
-// differs. One thread per connection parses, tokenizes, submits and
-// drains; the scheduler thread runs the model.
+// The routes of docs/SERVER.md: native /v1/generate, /v1/chat and /v1/health, and the OpenAI-compatible /v1/chat/completions, /v1/completions and /v1/models.
+// Both families share one parse, one scheduler request and one drain loop; one thread per connection parses, tokenizes, submits and drains.
 #include <atomic>
 #include <cmath>
 #include <ctime>
@@ -31,8 +24,7 @@ struct Config {
     std::string model_name;
 };
 
-// The longest prefix of `bytes` that ends on a complete UTF-8 character,
-// so a token whose text ends mid-character is held until the rest comes.
+// The longest prefix of `bytes` that ends on a complete UTF-8 character, so a token whose text ends mid-character is held until the rest comes.
 inline size_t utf8_complete(const std::string& bytes) {
     size_t i = bytes.size();
     size_t back = 0;
@@ -48,9 +40,7 @@ inline size_t utf8_complete(const std::string& bytes) {
     return bytes.size();
 }
 
-// The text with every byte sequence that is not valid UTF-8 replaced by
-// U+FFFD, since a byte-level vocabulary can sample bytes that form no
-// character and JSON carries only characters.
+// The text with every byte sequence that is not valid UTF-8 replaced by U+FFFD, since a byte-level vocabulary can sample bytes that form no character and JSON carries only characters.
 inline std::string utf8_sanitize(const std::string& s) {
     std::string out;
     out.reserve(s.size());
@@ -125,8 +115,7 @@ private:
                   ",\"donors\":" + std::to_string(s.donors) + ",\"prefix_hits\":" + std::to_string(s.prefix_hits) +
                   ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + "}");
     }
-    // The list clients read the model id from, with the file's context
-    // length and vocabulary beside the standard fields.
+    // The list clients read the model id from, with the file's context length and vocabulary beside the standard fields.
     void models(http::Connection& c) {
         c.respond(200, "application/json",
                   "{\"object\":\"list\",\"data\":[{\"id\":" + jmini::quote(cfg_.model_name) +
@@ -148,8 +137,7 @@ private:
         return f && f->t == jmini::Value::T::Bool && f->b;
     }
 
-    // A message's content: a string, or the array of text parts the
-    // compatible chat route accepts.
+    // A message's content: a string, or the array of text parts the compatible chat route accepts.
     static std::string content_of(const jmini::Value& m) {
         const jmini::Value* content = m.get("content");
         if (!content) throw BadRequest(400, "every message needs a content");
@@ -187,8 +175,7 @@ private:
         return p->asString();
     }
 
-    // The sampling fields, native names first and the compatible routes'
-    // synonyms accepted beside them.
+    // The sampling fields, native names first and the compatible routes' synonyms accepted beside them.
     SampleParams params_of(const jmini::Value& body, Route route) {
         const bool compat = route == Route::chat_completions || route == Route::completions;
         SampleParams params;
@@ -221,8 +208,7 @@ private:
         return "{\"id\":" + jmini::quote(id) + ",\"object\":\"" + object + "\",\"created\":" + std::to_string(started_) +
                ",\"model\":" + jmini::quote(cfg_.model_name);
     }
-    // One streamed chunk of a compatible route: a chat delta or a text
-    // piece, with the finish reason on the last.
+    // One streamed chunk of a compatible route: a chat delta or a text piece, with the finish reason on the last.
     std::string chunk(Route route, const std::string& id, const std::string& piece, bool first,
                       const std::string* finish) const {
         const std::string fr = finish ? jmini::quote(finish_reason(*finish)) : "null";
@@ -266,8 +252,8 @@ private:
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
         const std::string id = (route == Route::chat_completions ? "chatcmpl-" : "cmpl-") + std::to_string(next_id_.fetch_add(1));
 
-        // Drain the channel. A write that fails means the client went
-        // away: cancel the request and stop.
+        // Drain the channel.
+        // A write that fails means the client went away: cancel the request and stop.
         std::vector<uint32_t> gen;
         std::string text, pending;
         bool first = true;
@@ -342,8 +328,7 @@ private:
     std::string template_, bos_, eos_;
 };
 
-// Serve until the listener is closed: the scheduler on its own thread,
-// the accept loop here, one detached thread per connection.
+// Serve until the listener is closed: the scheduler on its own thread, the accept loop here, one detached thread per connection.
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const gguf::GGUFModel& file,
                   const Config& cfg, http::Listener& listener) {
     Scheduler sched(model, tok, cfg.max_seqs, cfg.ubatch, cfg.max_queue);

@@ -1,11 +1,5 @@
-// The view table a batched cache kernel reads (vulkan_backend.cpp,
-// view_table): tab[0] is the view count, then six words per view, the
-// batch row its rows start at, the dispatch-local row they start at (a
-// dispatch may cover a subset of the batch's views), its row count, its
-// history length, the offset of its block table and that table's length;
-// after the entries, every view's block ids in order. A dispatch covers
-// several views, so a workgroup or thread finds its view by walking the
-// entries, which are few.
+// The view table a batched cache kernel reads (vulkan_backend.cpp, view_table): tab[0] is the view count, then six words per view (batch row, dispatch-local row, row count, history length, block-table offset and length), then every view's block ids.
+// A workgroup finds its view by walking the entries, which are few.
 #ifndef LLMX_VIEWS_GLSL
 #define LLMX_VIEWS_GLSL
 #define VIEW_WORDS 6u
@@ -15,8 +9,7 @@ uint view_local0(uint v) { return tab[2u + VIEW_WORDS * v]; }
 uint view_nq(uint v) { return tab[3u + VIEW_WORDS * v]; }
 uint view_hist(uint v) { return tab[4u + VIEW_WORDS * v]; }
 uint view_block(uint v, uint i) { return tab[1u + VIEW_WORDS * view_count() + tab[5u + VIEW_WORDS * v] + i]; }
-// The view holding dispatch-local row g, and g's row within it; the
-// batch row is then view_row0(v) + b.
+// The view holding dispatch-local row g, and g's row within it; the batch row is view_row0(v) + b.
 void view_of_row(uint g, out uint v, out uint b) {
     uint n = view_count();
     v = 0u;

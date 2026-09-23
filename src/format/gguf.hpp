@@ -134,9 +134,8 @@ struct TensorInfo {
 struct GGUFModel {
     std::vector<std::pair<std::string, MetaValue>> kv;
     std::vector<TensorInfo> tensors;
-    // All tensor data in ONE contiguous allocation. This used to be a separate
-    // heap block per tensor (399 of them on Qwen3-8B), which fragments the very
-    // weight stream that decode is bandwidth bound on.
+    // All tensor data in ONE contiguous allocation.
+    // This used to be a separate heap block per tensor (399 of them on Qwen3-8B), which fragments the very weight stream that decode is bandwidth bound on.
     std::vector<uint8_t> blob;
     std::vector<size_t> offsets;
 
@@ -147,8 +146,8 @@ struct GGUFModel {
     uint8_t* tensor_data(size_t i) { return blob.data() + offsets[i]; }
     size_t tensor_bytes(size_t i) const { return (size_t)tensors[i].data_size(); }
 
-    // Append one tensor's bytes. Callers that know the total should reserve
-    // blob first; read_gguf sizes it exactly and reads in place instead.
+    // Append one tensor's bytes.
+    // Callers that know the total should reserve blob first; read_gguf sizes it exactly and reads in place instead.
     void add_tensor_data(const std::vector<uint8_t>& bytes) {
         blob.resize((blob.size() + alignof(float) - 1) / alignof(float) * alignof(float));
         offsets.push_back(blob.size());
@@ -209,10 +208,8 @@ inline void pad_to(std::ostream& os, size_t align) {
 }
 
 // Reads a bare value (no type tag) given its GGUF value type.
-// In GGUF, array elements are stored WITHOUT their own type tag: the array
-// header carries a single element type, then each element is written as just
-// its value. So we must read/write elements as bare typed values, not as full
-// (tagged) metadata values.
+// In GGUF, array elements are stored WITHOUT their own type tag: the array header carries a single element type, then each element is written as just its value.
+// So we must read/write elements as bare typed values, not as full (tagged) metadata values.
 inline uint64_t minimum_value_size(uint32_t type) {
     switch (type) {
         case V_UINT8: case V_INT8: case V_BOOL: return 1;
@@ -505,8 +502,7 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
         }), m.kv.end());
     }
 
-    // Size the blob exactly, then read each tensor straight into place: no
-    // per-tensor temporary and no reallocation of an 8 GB buffer.
+    // Size the blob exactly, then read each tensor straight into place: no per-tensor temporary and no reallocation of an 8 GB buffer.
     size_t total = 0;
     size_t payload = 0;
     m.offsets.reserve(m.tensors.size());
@@ -542,8 +538,7 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
 }
 
 // GGUF is the reference implementation of the format::ModelFormat interface.
-// It wraps a GGUFModel (already read into memory) and exposes its tensors and
-// metadata through the format-agnostic view.
+// It wraps a GGUFModel (already read into memory) and exposes its tensors and metadata through the format-agnostic view.
 class GGUFFormat final : public format::ModelFormat {
 public:
     explicit GGUFFormat(gguf::GGUFModel m) : m_(std::move(m)) {}
@@ -585,8 +580,8 @@ private:
 
 } // namespace gguf
 
-// Auto-detect the format from the file header and open it. Currently only GGUF
-// is implemented; the magic check is the extension point for future formats.
+// Auto-detect the format from the file header and open it.
+// Currently only GGUF is implemented; the magic check is the extension point for future formats.
 inline format::ModelFormatPtr format::open(const std::string& path, const LoadProgress& progress) {
     std::ifstream is(std::filesystem::u8path(path), std::ios::binary);
     if (!is) throw std::runtime_error("cannot open file: " + path);

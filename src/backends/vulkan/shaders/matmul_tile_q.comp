@@ -1,27 +1,25 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b) for wide batches through the four-wide 8-bit integer dot, for devices where that instruction is native.
-// The float tile (matmul_tile.comp) multiplies one product per instruction on dequantized floats; this one multiplies four per instruction on the quants themselves, against activations quantized to 8 bits per block of 32 (quantize_x8.comp), and holds a quarter of the shared memory per value.
-// A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time, over the whole of it or over one part when the call is split.
-// A short prompt is one column tile, so a call can have fewer workgroups than the device has compute units; splitting the inner dimension gives it more, each summing a range of blocks, and matmul_reduce.comp adds the parts in order, so the result does not depend on which part finishes first.
-// Each step stages, for every row, the block's quants as 8 words of signed bytes with the block's scale and minimum, and for every column the activation block's 8 words with its scale and scaled sum.
-// A thread then forms (TILE_ROWS / 16) x 4 integer dots of 32 products each, as two of 16 because Q6_K scales the halves apart, and folds them into its float accumulator with a multiply-add per half and one more for the types with a minimum.
-// Types: Q8_0, Q4_0, Q4_1, Q4_K and Q5_K as is, Q6_K when compiled with LLMX_Q6. The Q6_K build sums each half of a block apart, which the others do not need and which cost them 4 percent when one module served all four, so it is its own module as the row kernel families are. Rows past nout and columns past nbatch read as zero and are not stored.
+// Y[b*nout + o] = dot(row o, X column b) for wide batches through the four-wide 8-bit integer dot, on devices where it is native, against activations quantized to 8 bits per block of 32 (quantize_x8.comp).
+// A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time, over all of it or over one part when the call is split; matmul_reduce.comp adds the parts in order.
+// Each step stages, per row, the block's quants as 8 words of signed bytes with its scale and minimum, and per column the activation block's 8 words with its scale and scaled sum.
+// A thread forms (TILE_ROWS / 16) x 4 dots of 32 products, as two of 16 since Q6_K scales the halves apart.
+// Types: Q8_0, Q4_0, Q4_1, Q4_K and Q5_K, and Q6_K in its own build (LLMX_Q6).
+// Rows past nout and columns past nbatch read as zero and are not stored.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_integer_dot_product : require
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
-// Up to three projections of one X and one type in one dispatch, as the row kernel takes a layer's q, k and v or gate and up: workgroups start0, start1 and start2 on begin each projection's row tiles.
-// Separately, a 0.6B layer's q, k and v at 64 columns took 232 us on an MI50 against 89 us as one 4096-row call, since each was too small to fill the device alone.
-// kper is the quant blocks of the inner dimension a workgroup sums, a multiple of STEP. Below the block count the call is split: projection q's part z goes to y at parts * nbatch * (the rows of the projections before q) + z * nbatch * nout_q, every projection's y being the one scratch buffer then, and matmul_reduce.comp adds the parts.
+// Up to three projections of one X and one type per dispatch; workgroups start0, start1 and start2 on begin each projection's row tiles. kper is the quant blocks a workgroup sums, a multiple of STEP.
+// When the call is split, projection q's part z goes to y at parts * nbatch * (rows of the projections before q) + z * nbatch * nout_q, all projections sharing one scratch buffer.
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint type; uint accum; uint kper; uint nproj;
     uint nout0; uint start0; uint nout1; uint start1; uint nout2; uint start2;
 } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 1) readonly buffer W32 { uint w32[]; } ws[3];
-// The 8-bit activations bound twice, as words for the quants and as pairs for the per-block scale table after them.
+// The 8-bit activations bound twice: as words for the quants and as pairs for the per-block scale table after them.
 layout(set = 0, binding = 2) readonly buffer XQ { uint xq[]; };
 layout(set = 0, binding = 3) readonly buffer XS { vec2 xs[]; };
 uint pi = 0u;   // this workgroup's projection, uniform across it
@@ -32,13 +30,13 @@ uint pi = 0u;   // this workgroup's projection, uniform across it
 #define WPR (256u / TILE_ROWS)   // threads that stage one row's 8 words
 #define WW (8u / WPR)            // and how many words each
 
-// Quant blocks staged per barrier. One block per step put two barriers on every 32 values and left each block's loads to be waited for alone; staging several lets their loads be in flight together and pays the barriers once for all of them.
+// Quant blocks staged per barrier, so their loads are in flight together.
 #ifndef STEP
 #define STEP 2u
 #endif
-// k-major: word w of every row, then of every column, so a thread's rows and columns for one word are adjacent; block s of a step at words 8s to 8s + 7.
+// k-major: word w of every row, then of every column; block s of a step at words 8s to 8s + 7.
 shared uint wq[8u * STEP][TILE_ROWS];
-// Per row and block: the scale of each half of the block, and the minimum it subtracts. Only Q6_K scales its halves apart; the others give both halves one scale.
+// Per row and block: the scale of each half and the minimum it subtracts; only Q6_K scales its halves apart.
 shared vec4 wsc[STEP * TILE_ROWS];
 shared uint xw[8u * STEP][64];
 shared vec2 xsc[STEP * 64u];     // per column and block: the activation scale and scale times integer sum
@@ -70,7 +68,7 @@ void main() {
         uint row = row_base + wrow;
         if (row < nout && kb < kend) {
             if (p.type == TYPE_Q8_0) {
-                // A 34-byte block: the half scale, then the 32 quants. A block's quants start either on a word boundary or two bytes past one, so a thread loads its words plus one and funnels them when they straddle: one load per quant word rather than the two halves each took, which is what held Q8_0 below Q4_K here.
+                // A 34-byte block: the half scale, then 32 quants starting on a word boundary or two bytes past one, so a thread loads its words plus one and funnels them when they straddle.
                 uint ob = (row * nblk + kb) * 34u, q0 = ob + 2u;
                 uint base = (q0 >> 2u) + wseg * WW;
                 if ((q0 & 3u) == 0u) {
@@ -90,7 +88,7 @@ void main() {
                 }
 #ifdef LLMX_Q6
             } else if (p.type == TYPE_Q6_K) {
-                // Q6_K, 210-byte blocks: group g of 32 takes its low four bits from 32 consecutive bytes of ql and its top two from 32 of qh, and has a sub-scale per 16 values. The -32 offset goes into each byte, so the stored quants are signed and need no minimum. Blocks alternate word alignment, so both runs are funnelled when they straddle, as Q8_0's are.
+                // Q6_K, 210-byte blocks: group g takes its low four bits from 32 bytes of ql and its top two from 32 of qh, with a sub-scale per 16 values; the -32 offset goes into each byte, and both runs are funnelled when they straddle.
                 uint o = (row * (p.nin / 256u) + kb / 8u) * Q6_K_BYTES;
                 uint g = kb & 7u, n = g / 4u, which = g & 3u;
                 uint lo = o + n * 64u + (which & 1u) * 32u + wseg * WW * 4u;
@@ -104,7 +102,7 @@ void main() {
                     uint qh = odd ? (hp >> 16u) | (hn << 16u) : hp;
                     lp = ln; hp = hn;
                     uint b = ((ql >> nsh) & 0x0F0F0F0Fu) | (((qh >> hsh) & 0x03030303u) << 4u);
-                    // b - 32 per byte: flipping bit 5 gives b - 32 for b >= 32 and b + 32 otherwise, and a set bit 5 then means negative, so it is copied into bits 6 and 7.
+                    // b - 32 per byte: flipping bit 5 gives b - 32 or b + 32, and a set bit 5 then means negative, so it is copied into bits 6 and 7.
                     uint t = b ^ 0x20202020u, neg = t & 0x20202020u;
                     wq[s * 8u + wseg * WW + m][wrow] = t | (neg << 1u) | (neg << 2u);
                 }
@@ -116,10 +114,10 @@ void main() {
                 }
 #endif
             } else if (p.type == TYPE_Q4_0) {
-                // Q4_0, 18-byte blocks: a half scale, then 16 bytes whose low nibbles are values 0 to 15 and high nibbles 16 to 31. The offset of 8 goes into each staged byte as Q6_K's 32 does, so the quants are signed and need no minimum. Blocks alternate word alignment, so the nibble words are funnelled when they straddle.
+                // Q4_0, 18-byte blocks: a half scale, then 16 bytes whose low nibbles are values 0 to 15 and high nibbles 16 to 31; the offset of 8 goes into each byte, and the words are funnelled when they straddle.
                 uint ob = (row * nblk + kb) * Q4_0_BYTES, q0 = ob + 2u;
                 bool odd = (q0 & 3u) != 0u;
-                // Staged words w and w + 4 are the low and high nibbles of the same source word, so where a thread stages two or more words it takes source words whole and stages both halves of each: one load and one funnel shift per source word, not two.
+                // Staged words w and w + 4 are the low and high nibbles of one source word, so a thread staging two or more takes source words whole and stages both halves.
                 const uint SPT = WW >= 2u ? WW / 2u : 1u;   // source words a thread takes
                 for (uint m = 0u; m < SPT; ++m) {
                     uint sw = WW >= 2u ? wseg * SPT + m : (wseg & 3u), i = (q0 >> 2u) + sw;
@@ -127,7 +125,7 @@ void main() {
                     for (uint h = 0u; h < 2u; ++h) {
                         if (WW < 2u && h != (wseg >> 2u)) continue;
                         uint b = (nw >> (4u * h)) & 0x0F0F0F0Fu;
-                        // b - 8 per byte: flipping bit 3 gives b - 8 for b >= 8 and b + 8 otherwise, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
+                        // b - 8 per byte: flipping bit 3 gives b - 8 or b + 8, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
                         uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
                         wq[s * 8u + sw + 4u * h][wrow] = t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
                     }
@@ -138,9 +136,9 @@ void main() {
                     wsc[s * TILE_ROWS + wrow] = vec4(d, d, 0.0, 0.0);
                 }
             } else if (p.type == TYPE_Q4_1) {
-                // Q4_1, 20-byte blocks, always word aligned: a half scale and a half minimum, then Q4_0's nibble layout without the offset. The minimum is added rather than subtracted, so it is stored negated.
+                // Q4_1, 20-byte blocks, always word aligned: a half scale and a half minimum, then Q4_0's nibbles without the offset; the minimum is stored negated since it is added.
                 uint ob = (row * nblk + kb) * Q4_1_BYTES;
-                // Both nibble halves of a source word per load where a thread stages two or more words, as for Q4_0.
+                // Both nibble halves of a source word per load, as for Q4_0.
                 const uint SPT = WW >= 2u ? WW / 2u : 1u;
                 for (uint m = 0u; m < SPT; ++m) {
                     uint sw = WW >= 2u ? wseg * SPT + m : (wseg & 3u);

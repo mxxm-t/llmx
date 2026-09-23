@@ -1,9 +1,7 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup computes a TILE_ROWS x 64 tile of outputs, walking the inner dimension 32 at a time.
-// Each step stages the W tile, dequantized, and the X tile in shared memory, then every thread accumulates a (TILE_ROWS/16) x 4 micro-tile in registers, so a weight is read from memory once per pass rather than once per chunk of columns.
-// TILE_ROWS is a specialization constant because the two things it trades off are properties of the device and of the call, not of the algorithm.
-// A taller tile reads less shared memory per multiply-add, which is what bounds this kernel: eight rows and four columns is twelve reads per thirty-two products where four and four is eight per sixteen.
-// A taller tile also produces fewer workgroups for the same output, so a small call stops filling the device. The backend picks the height per dispatch (docs/VULKAN.md).
+// Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup computes a TILE_ROWS x 64 output tile, walking the inner dimension 32 at a time.
+// Each step stages the dequantized W tile and the X tile in shared memory, and every thread accumulates a (TILE_ROWS/16) x 4 micro-tile in registers.
+// TILE_ROWS is a specialization constant: a taller tile reads less shared memory per product but yields fewer workgroups, so the backend picks it per call.
 // Rows past nout and columns past nbatch read as zero and are not stored.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
@@ -15,30 +13,17 @@ layout(set = 0, binding = 0) buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
 layout(set = 0, binding = 3) readonly buffer X { float x[]; };
-// The weights as words. This driver issues one load per byte and joins none
-// of them, 71 of them in this kernel before, so every byte here is taken
-// from a word: the K-quant runs whose bytes are word aligned read one word
-// per four values, and the scattered reads, the scales and the odd-aligned
-// Q6_K block, extract from the word that holds them. A Q4_K block is 144
-// bytes and a Q5_K block 176, both multiples of 16, and a run starts at a
-// multiple of 8 within one, so its 8 or 16 bytes are 2 or 4 aligned words.
+// The weights as words, since this driver issues one load per byte: a K-quant run is 2 or 4 aligned words, and scattered bytes are extracted from the word holding them.
 layout(set = 0, binding = 4) readonly buffer W32 { uint w32[]; };
 #define QBYTE(i) ((w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #include "qdecode.glsl"
 
-// Rows a thread accumulates, threads that share one row of the W tile, and
-// the k values each of those loads. The 256 threads cover TILE_ROWS rows of
-// 32 values either way; only the split between them changes.
+// Rows a thread accumulates, threads sharing one W-tile row, and the values each loads; 256 threads cover TILE_ROWS rows of 32 values either way.
 #define MROWS (TILE_ROWS / 16u)
 #define WPR (256u / TILE_ROWS)
 #define WVALS (32u / WPR)
 
-// The tiles are k-major: [k][row] and [k][column], so the four rows and four
-// columns a thread multiplies for one k are four adjacent floats and load as
-// one wide read each. Held the other way round, with a row per shared-memory
-// row, those were eight separate reads at a stride of 33 and the driver spent
-// six instructions of every thirty-two recomputing their addresses, issuing
-// only half the inner loop as arithmetic (docs/VULKAN.md).
+// k-major tiles, [k][row] and [k][column], so a thread's four rows and four columns for one k are adjacent and load as one wide read each.
 shared float ws[32][TILE_ROWS];
 shared float xs[32][64];
 
@@ -82,17 +67,7 @@ void main() {
                     ws[k][wrow] = q4_1_at(o, k, d, m);
                 }
             } else if (is_kquant(p.type)) {
-                // 256-value blocks: this 32-wide step is a slice of one, and
-                // a thread's run of WVALS values lies inside one group of 32
-                // whichever tile height is built, since WVALS is 8 or 16 and
-                // the run starts at a multiple of itself. So everything the
-                // per-value decoders in qdecode.glsl recompute per value is
-                // invariant here and is read once: the sub-scale and sub-min,
-                // which nibble half the run takes, and the byte the run
-                // starts at. Those decoders cost three to five byte loads and
-                // the sub-scale unpacking on every value, which is what made
-                // a Q4_K_M file prefill slower than the Q8_0 file of the same
-                // model despite reading half the bytes (docs/VULKAN.md).
+                // 256-value blocks: this 32-wide step is a slice of one and a thread's run lies inside one group of 32, so the sub-scale, sub-min, nibble half and start byte are read once per run rather than per value.
                 uint o = (row * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * block_bytes(p.type);
                 uint k_in = k0 - (k0 / Q6_K_BLOCK) * Q6_K_BLOCK;
                 uint j0 = k_in + wseg * WVALS;   // the run's first value in the block
@@ -157,16 +132,7 @@ void main() {
             xs[xseg * 8u + i][xcol] = (col < p.nbatch && k < p.nin) ? x[col * p.nin + k] : 0.0;
         }
         barrier();
-        // Unrolled by four so the four inner steps differ by a constant, which
-        // lets the shared-memory reads carry an immediate offset instead of an
-        // address computed per step. Rolled, the driver spent six of every
-        // thirty-two instructions on those addresses and issued only half the
-        // loop as arithmetic (docs/VULKAN.md).
-        // Unrolled by eight on top of the k-major layout: the eight steps then
-        // differ by a constant, so their reads carry an immediate offset
-        // rather than an address recomputed per step. Four was worth 5 percent
-        // of pp512 here and eight another 3; sixteen and thirty-two measured
-        // the same as eight, so eight is where it stops (docs/VULKAN.md).
+        // Unrolled by eight so the steps' shared-memory reads carry immediate offsets rather than recomputed addresses.
         for (uint kb = 0u; kb < 32u; kb += 8u) {
             for (uint u = 0u; u < 8u; ++u) {
                 uint k = kb + u;

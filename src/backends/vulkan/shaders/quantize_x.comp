@@ -1,6 +1,5 @@
 #version 450
-// The 16-bit twin of an activation row (xquant.glsl) for a row kernel
-// input no producer kernel wrote it for: one lane per value.
+// The 16-bit twin of an activation row (xquant.glsl) for a row kernel input no producer wrote it for.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;

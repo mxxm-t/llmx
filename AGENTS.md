@@ -440,15 +440,15 @@ reports the embedded value, with `unknown` for builds without Git metadata.
 - Use ASCII characters in code, comments, documentation and commit messages.
   Preserve Unicode test coverage using escaped literals and fixture data.
 
-- Do not break a sentence across lines in code comments or commit messages.
-  A line ends where a sentence ends; a long sentence stays on one line rather
-  than wrapping at a column. Reflow a comment only when you are editing it.
+- Code comments are short and carry only what helps read the code: what a thing is, an invariant it keeps, or a non-obvious reason, in a sentence or two.
+- No walls of text in code. Measurements, timings, rejected alternatives and history belong in the docs (`docs/STATUS.md`, `docs/VULKAN.md` and the like); a comment may point there.
+- Do not break a sentence across lines in code comments or commit messages. A line ends where a sentence ends; a long sentence stays on one line rather than wrapping at a column.
+- A file's comments follow these rules once the file is touched, and a branch's files are swept before it merges.
 
 - Header-only for now (everything is `#pragma once` + `inline`), compiled via
   `src/cli/main.cpp`. If we add `.cpp` files later, keep one TU per logical unit.
 - Include paths are relative to `src/` root: `#include "format/gguf.hpp"`.
-- No comments in code unless they explain a non-obvious decision or algorithm
-  (e.g. the fp16 rounding, the GGUF padding rules, the AVX2 dequant+FMA path).
+- No comments in code unless they explain a non-obvious decision or algorithm (e.g. the fp16 rounding, the GGUF padding rules, the AVX2 dequant+FMA path).
 - Cross-platform (Windows / Linux / macOS): guard MSVC-vs-GCC intrinsics with
   `#if defined(_MSC_VER)`; use `<intrin.h>`/`<cpuid.h>` appropriately.
 - Don't overengineer. Add a seam (interface) only when a second implementation

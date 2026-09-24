@@ -26,7 +26,7 @@ The Windows workstation has one Radeon VII (16 GB). There the only second device
 
 ## Three splits, one placement
 
-- **Layer split.** Consecutive layers on different devices. Only the residual crosses a boundary, `rows x n_embd` floats per pass: 20 KB for a decode token of a 5120-wide model, 10 MB for a 512-row chunk (0.7 ms at link rate). Arithmetic is unchanged, so results are bit-identical.
+- **Layer split.** Consecutive layers on different devices. Only the residual crosses a boundary, `rows x n_embd` floats per pass: 20 KB for a decode token of a 5120-wide model, 10 MB for a 512-row chunk (0.7 ms at link rate). Arithmetic is unchanged, so a split over identical devices, and pipelined against serialized execution of the same placement, is bit-identical; across different devices (CPU and a card) the HF bounds apply.
 - **Tensor group.** Every layer on several devices at once: q, k, v, gate and up split by output rows, the attention output and down by input columns, attention by heads, each member keeping the KV of its heads, and two sums over the group per layer. Each member reads a share of the weights, so one request decodes faster. The sums cost two synchronizations per layer.
 - **Staged tensor.** Stages of a layer split, each stage a tensor group.
 
@@ -80,7 +80,7 @@ Through phase 3 a prompt, like every sequence, has one pass in flight. Phase 4 l
 
 ### More requests than stages
 
-This is the normal case. Passes grow wider rather than more numerous: P stays at the stage count plus one and each pass carries more sequences, up to the KV budget. Past the point where a pass turns compute-bound, around 35 rows on an MI50, wider passes stop being free, and the scheduler caps pass width by the same predicted time.
+This is the normal case. Passes grow wider rather than more numerous: P stays at its measured depth and each pass carries more sequences, up to the KV budget. Past the point where a pass turns compute-bound, around 35 rows on an MI50, wider passes stop being free, and the scheduler caps pass width by the same predicted time.
 
 ### KV, admission and the arenas
 
@@ -181,7 +181,7 @@ For a model that fits one card or one group, several independent copies behind o
 
 - **llama.cpp.** Its layer split overlaps only prompt ubatches (copies of the graph inputs, `GGML_SCHED_MAX_COPIES`); decode across cards is sequential. The overlap breaks whenever another context decodes between ubatches, which halves multi-card prefill with a draft model (issue 27428). The head sits on the last device. A deep ring that does not fit falls back to one copy with only a log line. Its row split scatters activations from one main device and gathers them back per matmul. Here: passes in flight for decode, the head as its own role, a loud fit, and no row split.
 - **vLLM.** Pipeline parallelism on one node is reported far worse than tensor parallelism for inter-token latency (13 against 52 tokens/s of output in one published comparison). Its fast all-reduce needs peer access and falls back to NCCL on PCIe cards without it; hangs at startup on PCIe peer tests are a recurring issue. Here: tensor groups only where the sum is measured to pay, and passes in flight so a layer split is judged against a filled pipeline.
-- **Megatron and pipeline schedules.** The bubble is (S-1)/(M+S-1) for S stages and M microbatches in flight, so M must exceed S. The embedding and output stages unbalance the pipeline, and tensor parallelism belongs where the interconnect is fast. Here: P = S+1, the head and the embedding as costed roles, and group width at most 4 over PCIe.
+- **Megatron and pipeline schedules.** The bubble is (S-1)/(M+S-1) for S stages and M microbatches in flight, so M must exceed S. The embedding and output stages unbalance the pipeline, and tensor parallelism belongs where the interconnect is fast. Here: P starts at S+1 and is measured (S, S+1, S+2 and 2S in phase 0), the head and the embedding are costed roles, and group width is at most 4 over PCIe.
 - **SGLang.** Chunked pipeline prefill with shrinking chunks keeps stages balanced as context grows. Taken as described above.
 - **Earlier work on this hardware.** Batch dependence came from server checkpoint rules changing ubatch shapes, not from grouping: prompt boundaries here follow the prompt alone. Hand-built stage subgraphs lost fusion (16 percent) until their bookkeeping was complete: stages here are the model's own layer code, not partitioned graphs. Cross-device reads of cache views staged 251 MB per pipeline copy: each device reads only its own KV.
 
@@ -211,7 +211,7 @@ Each phase is its own branch from main, merged on its own gates, with a STATUS b
 5. **Mid-pipeline failure.** Histories commit only after every stage's submission succeeded, so a failure before commit aborts cleanly once untracked work is drained. Device loss exits the process; recovery is not designed.
 6. **Cancel and pause** only between passes. A request cancelled while in flight completes its pass first.
 7. **Threads.** Stage threads, the CPU backend's pool and the HTTP threads share 16 hardware threads, and a CPU stage competes with all of them.
-8. **Tensor legality.** Head counts and widths must divide by the group width in whole quant blocks. MoE expert widths may not; per model.
+8. **Tensor legality.** Two separate checks per projection axis: the head and KV-head counts must divide by the group width, and every row-parallel input width must split into whole quant blocks per member (output-row splits need only whole rows). MoE down projections may fail the second; per model.
 9. **Determinism across splits.** A tensor group computes different sums than one device. Its CPU-vs-device check compares within a bound, as the device checks do now.
 10. **The vLLM baseline.** The gfx906 fork is archived and reported slow and partly working on Qwen3-30B-A3B GPTQ-Int4. It is brought up and checked for correctness in phase 0; if it does not run, the gate says so rather than dropping the comparison.
 11. **Shared machine.** Multi-card timing needs cards with no neighbour for the whole run, and link speed checked at the start.

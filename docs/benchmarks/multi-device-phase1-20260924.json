@@ -408,6 +408,1532 @@
         "  baseline   PASS",
         "exit 0"
       ]
+    },
+    {
+      "name": "raw-float with the mixed pass, one card against a 1:1 split",
+      "hardware": "two AMD Instinct MI50 32 GB (gfx906), PCIe Gen4 x8 each, Linux, RADV Mesa 25.0.7, rocm-smi GPU[2] and GPU[3]",
+      "commit": "83f9a8e",
+      "command": "llmx-split-check <model> <text> 0 0 1 <steps>: the prompt path, the prefill and greedy steps, then three passes of a decoding sequence beside a fresh prompt (up to 64 tokens), every row's logits",
+      "result": "bit-identical in all three paths: tiny F32 tied, untied, MoE; Qwen3-0.6B Q8_0, Qwen3-8B Q8_0, Qwen3-8B Q4_K_M, Qwen3-30B-A3B Q4_K_M",
+      "log": [
+        "83f9a8e tools: llmx-split-check compares a mixed pass; docs state what loading progress and mapped files promise",
+        "0",
+        "3f2ba9255a37c3225dfa45addcd51285f86b1a8836d8d2fabd602d7895a033fb  llmx-split-check",
+        "86f691aaf829e4bfd0b3e047b17362a883378f0056c8d854ce7df600df7cf18d  llmx",
+        "tiny-f32-tied.gguf: 13 tokens; single vulkan:0, split layers 0-0 on vulkan:0 and 1-1 on vulkan:1",
+        "prompt path: 13 positions x 257 logits, 0 positions differ",
+        "decode path: prefill and 2 greedy steps, 0 differ",
+        "mixed path: 3 passes, 18 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "tiny-f32-untied.gguf: 13 tokens; single vulkan:0, split layers 0-0 on vulkan:0 and 1-1 on vulkan:1",
+        "prompt path: 13 positions x 257 logits, 0 positions differ",
+        "decode path: prefill and 2 greedy steps, 0 differ",
+        "mixed path: 3 passes, 18 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "tiny-moe.gguf: 13 tokens; single vulkan:0, split layers 0-1 on vulkan:0 and 2-2 on vulkan:1",
+        "prompt path: 13 positions x 257 logits, 0 positions differ",
+        "decode path: prefill and 2 greedy steps, 0 differ",
+        "mixed path: 3 passes, 18 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "Qwen3-0.6B-Q8_0.gguf: 248 tokens; single vulkan:0, split layers 0-13 on vulkan:0 and 14-27 on vulkan:1",
+        "prompt path: 248 positions x 151936 logits, 0 positions differ",
+        "decode path: prefill and 32 greedy steps, 0 differ",
+        "mixed path: 3 passes, 69 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "Qwen3-8B-Q8_0.gguf: 248 tokens; single vulkan:0, split layers 0-17 on vulkan:0 and 18-35 on vulkan:1",
+        "prompt path: 248 positions x 151936 logits, 0 positions differ",
+        "decode path: prefill and 32 greedy steps, 0 differ",
+        "mixed path: 3 passes, 69 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "Qwen3-8B-Q4_K_M.gguf: 248 tokens; single vulkan:0, split layers 0-17 on vulkan:0 and 18-35 on vulkan:1",
+        "prompt path: 248 positions x 151936 logits, 0 positions differ",
+        "decode path: prefill and 32 greedy steps, 0 differ",
+        "mixed path: 3 passes, 69 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "Qwen3-30B-A3B-Q4_K_M.gguf: 248 tokens; single vulkan:0, split layers 0-23 on vulkan:0 and 24-47 on vulkan:1",
+        "prompt path: 248 positions x 151936 logits, 0 positions differ",
+        "decode path: prefill and 32 greedy steps, 0 differ",
+        "mixed path: 3 passes, 69 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "MIXDONE"
+      ]
+    },
+    {
+      "name": "raw-float with the mixed pass, CPU against CPU+CPU",
+      "hardware": "the Windows host's CPU",
+      "commit": "83f9a8e",
+      "command": "llmx-split-check <model> <text> cpu cpu cpu <steps>",
+      "result": "bit-identical in all three paths: tiny F32 tied, untied, MoE; Qwen3-0.6B Q8_0, Qwen3-8B Q8_0",
+      "log": [
+        "83f9a8e tools: llmx-split-check compares a mixed pass; docs state what loading progress and mapped files promise",
+        "a6ea038b77918c29e2f35995273bfaa4382c7c7952145ada56609aad59c6899f llmx-split-check.exe",
+        "tiny-f32-tied.gguf: 13 tokens; single cpu, split layers 0-0 on cpu and 1-1 on cpu",
+        "prompt path: 13 positions x 257 logits, 0 positions differ",
+        "decode path: prefill and 2 greedy steps, 0 differ",
+        "mixed path: 3 passes, 18 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "tiny-f32-untied.gguf: 13 tokens; single cpu, split layers 0-0 on cpu and 1-1 on cpu",
+        "prompt path: 13 positions x 257 logits, 0 positions differ",
+        "decode path: prefill and 2 greedy steps, 0 differ",
+        "mixed path: 3 passes, 18 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "tiny-moe.gguf: 13 tokens; single cpu, split layers 0-1 on cpu and 2-2 on cpu",
+        "prompt path: 13 positions x 257 logits, 0 positions differ",
+        "decode path: prefill and 2 greedy steps, 0 differ",
+        "mixed path: 3 passes, 18 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "Qwen3-0.6B-Q8_0.gguf: 248 tokens; single cpu, split layers 0-13 on cpu and 14-27 on cpu",
+        "prompt path: 248 positions x 151936 logits, 0 positions differ",
+        "decode path: prefill and 32 greedy steps, 0 differ",
+        "mixed path: 3 passes, 69 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0",
+        "Qwen3-8B-Q8_0.gguf: 248 tokens; single cpu, split layers 0-17 on cpu and 18-35 on cpu",
+        "prompt path: 248 positions x 151936 logits, 0 positions differ",
+        "decode path: prefill and 32 greedy steps, 0 differ",
+        "mixed path: 3 passes, 69 logits rows, 0 differ",
+        "bit-identical",
+        "exit 0"
+      ]
+    },
+    {
+      "name": "pinned Qwen3-8B Q8_0 HF float32 gate on the splits and on one MI50",
+      "command": "tests/baseline_8b.py --exe <llmx> --model Qwen3-8B-Q8_0.gguf --output-dir <new> --device <devices> [--layer-shares 1,1]: 20 tokenizer cases, six top-10 rankings (top-1 equal, top-5 overlap 5), four NLL cases (0.01 continuous, 0.02 windowed)",
+      "result": "Radeon VII + CPU split: 37 of 37 pass. Two-MI50 split: 36 of 37, logits-05 fails top-1 at a near-tie (HF 17689 24.364 over 9856 24.290; the device 9856 24.662 over 17689 24.624). One MI50 with this branch's binary and with main b86236a's fails the same check with the same logits, so the split adds nothing; the single-card MI50 path's deviation is its own follow-up.",
+      "runs": {
+        "radeon-vii-cpu-split (335dee0 binary)": [
+          {
+            "label": "tokenizer-00",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-01",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "tokenizer-02",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-03",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-04",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-05",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-06",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-07",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "tokenizer-08",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "tokenizer-09",
+            "status": "pass",
+            "tokens": 13
+          },
+          {
+            "label": "tokenizer-10",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "tokenizer-11",
+            "status": "pass",
+            "tokens": 9
+          },
+          {
+            "label": "tokenizer-12",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-13",
+            "status": "pass",
+            "tokens": 19
+          },
+          {
+            "label": "tokenizer-14",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-15",
+            "status": "pass",
+            "tokens": 9
+          },
+          {
+            "label": "tokenizer-16",
+            "status": "pass",
+            "tokens": 1
+          },
+          {
+            "label": "tokenizer-17",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-18",
+            "status": "pass",
+            "tokens": 1
+          },
+          {
+            "label": "tokenizer-19",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "logits-00-ids",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "logits-00",
+            "status": "pass",
+            "top1": 12095,
+            "top5_overlap": 5,
+            "top_ids": [
+              12095,
+              264,
+              304,
+              7407,
+              1304,
+              32671,
+              220,
+              279,
+              1112,
+              537
+            ],
+            "top_logits": [
+              21.99987,
+              20.484379,
+              19.401756,
+              19.126183,
+              18.748787,
+              18.641933,
+              18.438841,
+              18.432583,
+              18.175987,
+              17.930672
+            ]
+          },
+          {
+            "label": "logits-01-ids",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "logits-01",
+            "status": "pass",
+            "top1": 264,
+            "top5_overlap": 5,
+            "top_ids": [
+              264,
+              279,
+              458,
+              13791,
+              1483,
+              1660,
+              10018,
+              45790,
+              10454,
+              14756
+            ],
+            "top_logits": [
+              25.278227,
+              23.424541,
+              22.562551,
+              22.141771,
+              21.670692,
+              21.618477,
+              21.528505,
+              21.403709,
+              21.394135,
+              21.331354
+            ]
+          },
+          {
+            "label": "logits-02-ids",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "logits-02",
+            "status": "pass",
+            "top1": 198,
+            "top5_overlap": 5,
+            "top_ids": [
+              198,
+              671,
+              220,
+              715,
+              470,
+              2303,
+              201,
+              256,
+              2,
+              262
+            ],
+            "top_logits": [
+              33.094337,
+              28.99049,
+              28.157913,
+              28.102669,
+              26.974079,
+              26.480385,
+              26.468132,
+              26.104294,
+              25.911448,
+              25.161301
+            ]
+          },
+          {
+            "label": "logits-03-ids",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "logits-03",
+            "status": "pass",
+            "top1": 13753,
+            "top5_overlap": 5,
+            "top_ids": [
+              13753,
+              6303,
+              6176,
+              320,
+              1304,
+              1154,
+              323,
+              481,
+              220,
+              32671
+            ],
+            "top_logits": [
+              27.58861,
+              26.888954,
+              25.444078,
+              21.232498,
+              21.02264,
+              20.760015,
+              19.358578,
+              19.279718,
+              19.051022,
+              18.903414
+            ]
+          },
+          {
+            "label": "logits-04-ids",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "logits-04",
+            "status": "pass",
+            "top1": 17330,
+            "top5_overlap": 5,
+            "top_ids": [
+              17330,
+              17788,
+              7329,
+              56711,
+              9237,
+              17171,
+              1304,
+              80160,
+              32671,
+              76019
+            ],
+            "top_logits": [
+              26.508514,
+              25.965569,
+              23.855345,
+              21.189083,
+              18.850605,
+              17.47842,
+              17.057096,
+              17.000553,
+              16.705723,
+              16.317066
+            ]
+          },
+          {
+            "label": "logits-05-ids",
+            "status": "pass",
+            "tokens": 17
+          },
+          {
+            "label": "logits-05",
+            "status": "pass",
+            "top1": 17689,
+            "top5_overlap": 5,
+            "top_ids": [
+              17689,
+              9856,
+              279,
+              32961,
+              9448,
+              15948,
+              33311,
+              6323,
+              5616,
+              24427
+            ],
+            "top_logits": [
+              24.512465,
+              24.490999,
+              21.031109,
+              20.643318,
+              20.627502,
+              20.251404,
+              20.213917,
+              20.03693,
+              20.003998,
+              19.785889
+            ]
+          },
+          {
+            "label": "ppl-ids",
+            "status": "pass",
+            "tokens": 247
+          },
+          {
+            "label": "ppl-00",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 247,
+            "scored tokens": 246,
+            "chunks": 1,
+            "context size": 40960,
+            "mean_nll": 2.40009,
+            "perplexity": 11.0242,
+            "hf_mean_nll": 2.4016544126818724,
+            "absolute_nll_delta": 0.0015644126818723514,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-01",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 247,
+            "scored tokens": 243,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.09016,
+            "perplexity": 21.9807,
+            "hf_mean_nll": 3.0904173533589634,
+            "absolute_nll_delta": 0.00025735335896337475,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 2.82944,
+            "perplexity": 16.936,
+            "hf_mean_nll": 2.829422961792663,
+            "absolute_nll_delta": 1.7038207337005673e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 246,
+            "scored tokens": 244,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 2.6679,
+            "perplexity": 14.4096,
+            "hf_mean_nll": 2.6701153554742474,
+            "absolute_nll_delta": 0.002215355474247449,
+            "bound": 0.02
+          }
+        ],
+        "two-mi50-split (83f9a8e binary)": [
+          {
+            "label": "tokenizer-00",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-01",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "tokenizer-02",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-03",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-04",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-05",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-06",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-07",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "tokenizer-08",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "tokenizer-09",
+            "status": "pass",
+            "tokens": 13
+          },
+          {
+            "label": "tokenizer-10",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "tokenizer-11",
+            "status": "pass",
+            "tokens": 9
+          },
+          {
+            "label": "tokenizer-12",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-13",
+            "status": "pass",
+            "tokens": 19
+          },
+          {
+            "label": "tokenizer-14",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-15",
+            "status": "pass",
+            "tokens": 9
+          },
+          {
+            "label": "tokenizer-16",
+            "status": "pass",
+            "tokens": 1
+          },
+          {
+            "label": "tokenizer-17",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-18",
+            "status": "pass",
+            "tokens": 1
+          },
+          {
+            "label": "tokenizer-19",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "logits-00-ids",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "logits-00",
+            "status": "pass",
+            "top1": 12095,
+            "top5_overlap": 5,
+            "top_ids": [
+              12095,
+              264,
+              304,
+              7407,
+              1304,
+              32671,
+              279,
+              220,
+              1112,
+              3881
+            ],
+            "top_logits": [
+              21.908764,
+              20.378117,
+              19.410023,
+              19.081102,
+              18.586723,
+              18.459562,
+              18.34341,
+              18.326012,
+              18.113823,
+              17.910736
+            ]
+          },
+          {
+            "label": "logits-01-ids",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "logits-01",
+            "status": "pass",
+            "top1": 264,
+            "top5_overlap": 5,
+            "top_ids": [
+              264,
+              279,
+              458,
+              13791,
+              1483,
+              1660,
+              10018,
+              10454,
+              45790,
+              14756
+            ],
+            "top_logits": [
+              25.195066,
+              23.365259,
+              22.524921,
+              22.122295,
+              21.654846,
+              21.563683,
+              21.484747,
+              21.366909,
+              21.356117,
+              21.247696
+            ]
+          },
+          {
+            "label": "logits-02-ids",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "logits-02",
+            "status": "pass",
+            "top1": 198,
+            "top5_overlap": 5,
+            "top_ids": [
+              198,
+              671,
+              220,
+              715,
+              470,
+              2303,
+              201,
+              256,
+              2,
+              262
+            ],
+            "top_logits": [
+              33.111969,
+              28.95188,
+              28.213978,
+              28.100023,
+              27.0028,
+              26.551903,
+              26.388855,
+              26.097725,
+              25.886101,
+              25.14502
+            ]
+          },
+          {
+            "label": "logits-03-ids",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "logits-03",
+            "status": "pass",
+            "top1": 13753,
+            "top5_overlap": 5,
+            "top_ids": [
+              13753,
+              6303,
+              6176,
+              320,
+              1304,
+              1154,
+              481,
+              323,
+              220,
+              32671
+            ],
+            "top_logits": [
+              27.610435,
+              26.894222,
+              25.444958,
+              21.269615,
+              21.085518,
+              20.693848,
+              19.291079,
+              19.276966,
+              19.084473,
+              18.837902
+            ]
+          },
+          {
+            "label": "logits-04-ids",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "logits-04",
+            "status": "pass",
+            "top1": 17330,
+            "top5_overlap": 5,
+            "top_ids": [
+              17330,
+              17788,
+              7329,
+              56711,
+              9237,
+              17171,
+              1304,
+              80160,
+              32671,
+              76019
+            ],
+            "top_logits": [
+              26.566591,
+              26.031427,
+              23.87159,
+              21.298443,
+              18.825909,
+              17.39496,
+              17.029745,
+              17.012365,
+              16.739632,
+              16.34823
+            ]
+          },
+          {
+            "label": "logits-05-ids",
+            "status": "pass",
+            "tokens": 17
+          },
+          {
+            "label": "logits-05",
+            "status": "fail",
+            "error": "top-1 differs from HF"
+          },
+          {
+            "label": "ppl-ids",
+            "status": "pass",
+            "tokens": 247
+          },
+          {
+            "label": "ppl-00",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 247,
+            "scored tokens": 246,
+            "chunks": 1,
+            "context size": 40960,
+            "mean_nll": 2.39819,
+            "perplexity": 11.0032,
+            "hf_mean_nll": 2.4016544126818724,
+            "absolute_nll_delta": 0.003464412681872364,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-01",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 247,
+            "scored tokens": 243,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.09029,
+            "perplexity": 21.9834,
+            "hf_mean_nll": 3.0904173533589634,
+            "absolute_nll_delta": 0.00012735335896341127,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 2.82488,
+            "perplexity": 16.8588,
+            "hf_mean_nll": 2.829422961792663,
+            "absolute_nll_delta": 0.004542961792663114,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 246,
+            "scored tokens": 244,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 2.66844,
+            "perplexity": 14.4175,
+            "hf_mean_nll": 2.6701153554742474,
+            "absolute_nll_delta": 0.0016753554742474641,
+            "bound": 0.02
+          }
+        ],
+        "one-mi50-branch": [
+          {
+            "label": "tokenizer-00",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-01",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "tokenizer-02",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-03",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-04",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-05",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-06",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-07",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "tokenizer-08",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "tokenizer-09",
+            "status": "pass",
+            "tokens": 13
+          },
+          {
+            "label": "tokenizer-10",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "tokenizer-11",
+            "status": "pass",
+            "tokens": 9
+          },
+          {
+            "label": "tokenizer-12",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-13",
+            "status": "pass",
+            "tokens": 19
+          },
+          {
+            "label": "tokenizer-14",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-15",
+            "status": "pass",
+            "tokens": 9
+          },
+          {
+            "label": "tokenizer-16",
+            "status": "pass",
+            "tokens": 1
+          },
+          {
+            "label": "tokenizer-17",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-18",
+            "status": "pass",
+            "tokens": 1
+          },
+          {
+            "label": "tokenizer-19",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "logits-00-ids",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "logits-00",
+            "status": "pass",
+            "top1": 12095,
+            "top5_overlap": 5,
+            "top_ids": [
+              12095,
+              264,
+              304,
+              7407,
+              1304,
+              32671,
+              279,
+              220,
+              1112,
+              3881
+            ],
+            "top_logits": [
+              21.908764,
+              20.378117,
+              19.410023,
+              19.081102,
+              18.586723,
+              18.459562,
+              18.34341,
+              18.326012,
+              18.113823,
+              17.910736
+            ]
+          },
+          {
+            "label": "logits-01-ids",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "logits-01",
+            "status": "pass",
+            "top1": 264,
+            "top5_overlap": 5,
+            "top_ids": [
+              264,
+              279,
+              458,
+              13791,
+              1483,
+              1660,
+              10018,
+              10454,
+              45790,
+              14756
+            ],
+            "top_logits": [
+              25.195066,
+              23.365259,
+              22.524921,
+              22.122295,
+              21.654846,
+              21.563683,
+              21.484747,
+              21.366909,
+              21.356117,
+              21.247696
+            ]
+          },
+          {
+            "label": "logits-02-ids",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "logits-02",
+            "status": "pass",
+            "top1": 198,
+            "top5_overlap": 5,
+            "top_ids": [
+              198,
+              671,
+              220,
+              715,
+              470,
+              2303,
+              201,
+              256,
+              2,
+              262
+            ],
+            "top_logits": [
+              33.111969,
+              28.95188,
+              28.213978,
+              28.100023,
+              27.0028,
+              26.551903,
+              26.388855,
+              26.097725,
+              25.886101,
+              25.14502
+            ]
+          },
+          {
+            "label": "logits-03-ids",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "logits-03",
+            "status": "pass",
+            "top1": 13753,
+            "top5_overlap": 5,
+            "top_ids": [
+              13753,
+              6303,
+              6176,
+              320,
+              1304,
+              1154,
+              481,
+              323,
+              220,
+              32671
+            ],
+            "top_logits": [
+              27.610435,
+              26.894222,
+              25.444958,
+              21.269615,
+              21.085518,
+              20.693848,
+              19.291079,
+              19.276966,
+              19.084473,
+              18.837902
+            ]
+          },
+          {
+            "label": "logits-04-ids",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "logits-04",
+            "status": "pass",
+            "top1": 17330,
+            "top5_overlap": 5,
+            "top_ids": [
+              17330,
+              17788,
+              7329,
+              56711,
+              9237,
+              17171,
+              1304,
+              80160,
+              32671,
+              76019
+            ],
+            "top_logits": [
+              26.566591,
+              26.031427,
+              23.87159,
+              21.298443,
+              18.825909,
+              17.39496,
+              17.029745,
+              17.012365,
+              16.739632,
+              16.34823
+            ]
+          },
+          {
+            "label": "logits-05-ids",
+            "status": "pass",
+            "tokens": 17
+          },
+          {
+            "label": "logits-05",
+            "status": "fail",
+            "error": "top-1 differs from HF"
+          },
+          {
+            "label": "ppl-ids",
+            "status": "pass",
+            "tokens": 247
+          },
+          {
+            "label": "ppl-00",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 247,
+            "scored tokens": 246,
+            "chunks": 1,
+            "context size": 40960,
+            "mean_nll": 2.39819,
+            "perplexity": 11.0032,
+            "hf_mean_nll": 2.4016544126818724,
+            "absolute_nll_delta": 0.003464412681872364,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-01",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 247,
+            "scored tokens": 243,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.09029,
+            "perplexity": 21.9834,
+            "hf_mean_nll": 3.0904173533589634,
+            "absolute_nll_delta": 0.00012735335896341127,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 2.82488,
+            "perplexity": 16.8588,
+            "hf_mean_nll": 2.829422961792663,
+            "absolute_nll_delta": 0.004542961792663114,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 246,
+            "scored tokens": 244,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 2.66844,
+            "perplexity": 14.4175,
+            "hf_mean_nll": 2.6701153554742474,
+            "absolute_nll_delta": 0.0016753554742474641,
+            "bound": 0.02
+          }
+        ],
+        "one-mi50-main-b86236a": [
+          {
+            "label": "tokenizer-00",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-01",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "tokenizer-02",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-03",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-04",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "tokenizer-05",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-06",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-07",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "tokenizer-08",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "tokenizer-09",
+            "status": "pass",
+            "tokens": 13
+          },
+          {
+            "label": "tokenizer-10",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "tokenizer-11",
+            "status": "pass",
+            "tokens": 9
+          },
+          {
+            "label": "tokenizer-12",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-13",
+            "status": "pass",
+            "tokens": 19
+          },
+          {
+            "label": "tokenizer-14",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "tokenizer-15",
+            "status": "pass",
+            "tokens": 9
+          },
+          {
+            "label": "tokenizer-16",
+            "status": "pass",
+            "tokens": 1
+          },
+          {
+            "label": "tokenizer-17",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "tokenizer-18",
+            "status": "pass",
+            "tokens": 1
+          },
+          {
+            "label": "tokenizer-19",
+            "status": "pass",
+            "tokens": 2
+          },
+          {
+            "label": "logits-00-ids",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "logits-00",
+            "status": "pass",
+            "top1": 12095,
+            "top5_overlap": 5,
+            "top_ids": [
+              12095,
+              264,
+              304,
+              7407,
+              1304,
+              32671,
+              279,
+              220,
+              1112,
+              3881
+            ],
+            "top_logits": [
+              21.908764,
+              20.378117,
+              19.410023,
+              19.081102,
+              18.586723,
+              18.459562,
+              18.34341,
+              18.326012,
+              18.113823,
+              17.910736
+            ]
+          },
+          {
+            "label": "logits-01-ids",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "logits-01",
+            "status": "pass",
+            "top1": 264,
+            "top5_overlap": 5,
+            "top_ids": [
+              264,
+              279,
+              458,
+              13791,
+              1483,
+              1660,
+              10018,
+              10454,
+              45790,
+              14756
+            ],
+            "top_logits": [
+              25.195066,
+              23.365259,
+              22.524921,
+              22.122295,
+              21.654846,
+              21.563683,
+              21.484747,
+              21.366909,
+              21.356117,
+              21.247696
+            ]
+          },
+          {
+            "label": "logits-02-ids",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "logits-02",
+            "status": "pass",
+            "top1": 198,
+            "top5_overlap": 5,
+            "top_ids": [
+              198,
+              671,
+              220,
+              715,
+              470,
+              2303,
+              201,
+              256,
+              2,
+              262
+            ],
+            "top_logits": [
+              33.111969,
+              28.95188,
+              28.213978,
+              28.100023,
+              27.0028,
+              26.551903,
+              26.388855,
+              26.097725,
+              25.886101,
+              25.14502
+            ]
+          },
+          {
+            "label": "logits-03-ids",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "logits-03",
+            "status": "pass",
+            "top1": 13753,
+            "top5_overlap": 5,
+            "top_ids": [
+              13753,
+              6303,
+              6176,
+              320,
+              1304,
+              1154,
+              481,
+              323,
+              220,
+              32671
+            ],
+            "top_logits": [
+              27.610435,
+              26.894222,
+              25.444958,
+              21.269615,
+              21.085518,
+              20.693848,
+              19.291079,
+              19.276966,
+              19.084473,
+              18.837902
+            ]
+          },
+          {
+            "label": "logits-04-ids",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "logits-04",
+            "status": "pass",
+            "top1": 17330,
+            "top5_overlap": 5,
+            "top_ids": [
+              17330,
+              17788,
+              7329,
+              56711,
+              9237,
+              17171,
+              1304,
+              80160,
+              32671,
+              76019
+            ],
+            "top_logits": [
+              26.566591,
+              26.031427,
+              23.87159,
+              21.298443,
+              18.825909,
+              17.39496,
+              17.029745,
+              17.012365,
+              16.739632,
+              16.34823
+            ]
+          },
+          {
+            "label": "logits-05-ids",
+            "status": "pass",
+            "tokens": 17
+          },
+          {
+            "label": "logits-05",
+            "status": "fail",
+            "error": "top-1 differs from HF"
+          },
+          {
+            "label": "ppl-ids",
+            "status": "pass",
+            "tokens": 247
+          },
+          {
+            "label": "ppl-00",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 247,
+            "scored tokens": 246,
+            "chunks": 1,
+            "context size": 40960,
+            "mean_nll": 2.39819,
+            "perplexity": 11.0032,
+            "hf_mean_nll": 2.4016544126818724,
+            "absolute_nll_delta": 0.003464412681872364,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-01",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 247,
+            "scored tokens": 243,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.09029,
+            "perplexity": 21.9834,
+            "hf_mean_nll": 3.0904173533589634,
+            "absolute_nll_delta": 0.00012735335896341127,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 2.82488,
+            "perplexity": 16.8588,
+            "hf_mean_nll": 2.829422961792663,
+            "absolute_nll_delta": 0.004542961792663114,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03",
+            "status": "pass",
+            "tokens": 247,
+            "used tokens": 246,
+            "scored tokens": 244,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 2.66844,
+            "perplexity": 14.4175,
+            "hf_mean_nll": 2.6701153554742474,
+            "absolute_nll_delta": 0.0016753554742474641,
+            "bound": 0.02
+          }
+        ]
+      },
+      "binaries": {
+        "two-MI50 and one-MI50 branch llmx": "86f691aaf829e4bfd0b3e047b17362a883378f0056c8d854ce7df600df7cf18d",
+        "main b86236a llmx": "04bfa29c65a41963b44fec831bb6b0debfaad211988f415df7eba8eb4d79e25c",
+        "Radeon VII llmx.exe": "01be8447bc1414a14b9c15511882033bc8ca5f8db8cdaa9714735064f0acccb7"
+      }
     }
   ]
 }

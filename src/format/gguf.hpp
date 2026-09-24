@@ -158,6 +158,10 @@ struct GGUFModel {
     }
 
     const uint8_t* tensor_data(size_t i) const { return payload() + offsets[i]; }
+    // A mapped model's tensor whose only reader copied it: its pages leave the host's working set first (MappedFile::drop). Nothing for an in-memory model.
+    void drop_pages(size_t i) const {
+        if (mapped) mapped->drop(tensor_data(i), tensor_bytes(i));
+    }
     // The same bytes; a mapped model's are read-only memory, so only an in-memory model may be written through this.
     uint8_t* tensor_data(size_t i) { return const_cast<uint8_t*>(payload()) + offsets[i]; }
     size_t tensor_bytes(size_t i) const { return (size_t)tensors[i].data_size(); }

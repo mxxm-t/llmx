@@ -347,6 +347,10 @@ public:
         // Tied embeddings: models without a separate output.weight reuse token_embd.weight as the output projection (same [n_embd, n_vocab] layout), so the head is just a matvec against the embedding matrix.
         out_name_ = tindex_.count("output.weight") ? "output.weight" : "token_embd.weight";
         resolve_tensors();
+        // With experts on the host, the file stays mapped for them; the tensors the devices copied need not stay resident beside them.
+        if (holds_payload_)
+            for (size_t i = 0; i < copied_.size(); ++i)
+                if (copied_[i] && !host_reads_[i]) m_->drop_pages(i);
 
         // Each device that runs attention gets a storage for exactly its layers, with its own block size and pool.
         // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
@@ -688,6 +692,7 @@ private:
 
     const gguf::GGUFModel* m_;
     bool holds_payload_ = false;   // some weight reads the GGUF model's bytes in place
+    std::vector<char> host_reads_, copied_;   // per tensor: a host reads it in place, a device copied it
     Placement place_;
     std::vector<std::unique_ptr<Device>> devices_;
     std::vector<Device*> storages_;              // the devices that run attention
@@ -735,8 +740,7 @@ private:
             // adopt, not copy: the payload is already resident and the GGUF model outlives this one by contract.
             const size_t i = tindex_.at(t.name);
             backend::BufferPtr buf = devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i));
-            const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
-            if (hp && m_->holds(hp)) holds_payload_ = true;
+            note_reader(i, buf);
             return Weight{t.type, std::move(buf), (size_t)input, (size_t)output};
         };
         const size_t ed = (size_t)place_.embed_device, od = (size_t)place_.output_device;
@@ -805,9 +809,23 @@ private:
             throw std::runtime_error("inference: incompatible tensor layout " + name);
         const size_t i = tindex_.at(t.name);
         backend::BufferPtr buf = devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i));
-        const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
-        if (hp && m_->holds(hp)) holds_payload_ = true;
+        note_reader(i, buf);
         return Weight{t.type, std::move(buf), (size_t)input, (size_t)output};
+    }
+
+    // Whether each tensor is read in place by a host and whether a device copied it, so the pages of a tensor only devices hold can leave the host's working set once every weight is resolved.
+    void note_reader(size_t i, const backend::BufferPtr& buf) {
+        if (host_reads_.size() != m_->tensors.size()) {
+            host_reads_.assign(m_->tensors.size(), 0);
+            copied_.assign(m_->tensors.size(), 0);
+        }
+        const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
+        if (hp && m_->holds(hp)) {
+            holds_payload_ = true;
+            host_reads_[i] = 1;
+        } else {
+            copied_[i] = 1;
+        }
     }
 
     // Physical batch: how many tokens go through ONE forward pass of the graph.

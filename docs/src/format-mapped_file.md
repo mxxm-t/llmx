@@ -13,3 +13,10 @@ model larger than what the host can hold beside it still loads, and the
 pages of weights a device has copied are not touched again. Qwen3-30B-A3B
 Q8_0 (32.5 GB) with thirty layers' experts on a 32 GB host paged through
 every pass when it was one heap allocation.
+
+`drop(p, bytes)` tells the OS that the whole pages inside a range will not be
+read again soon, so they leave the process's working set first
+(`VirtualUnlock` on unlocked pages on Windows, `madvise(MADV_DONTNEED)`
+elsewhere); a later read brings them back from the file. `GGUFModel::drop_pages`
+applies it to one tensor, and the model calls it for every tensor that only
+devices copied once its weights are resolved.

@@ -3,7 +3,8 @@
 Device-agnostic compute abstraction in namespace `backend`. The inference graph
 runs its primitive ops through a `Backend` so the same model code targets the CPU
 and the Vulkan backend. Operands are a `Buffer` and a float offset (`Slice` / `CSlice`), so the
-backend owns its storage and the model never dereferences it. Every op
+backend owns device storage and its arithmetic layout. Host-visible results
+and staging may be addressed by the model after the required wait. Every op
 enqueues on the backend's single implicit stream. The model submits work and
 waits on tickets for results and resource lifetimes; `sync()` also drains work
 queued behind no ticket on failure paths. This is the device execution model
@@ -17,16 +18,17 @@ placement contracts in `docs/EXECUTION.md`.
   copy op. `adopt` makes host data reachable without copying on a host
   backend; the source must outlive the handle.
 - `write(dst, off, src, bytes)`: host to storage, enqueued, the source
-  consumed before it returns. Its caller is the residual stream crossing
-  to another device at a placement boundary; nothing else needs one.
+  consumed before it returns. Callers include residual transfers at placement
+  boundaries and uploads of streamed expert weights.
 - `submit()` returns a monotonic `Ticket` for everything enqueued so far;
   `wait(t)` blocks until that submission has retired. The model submits
   once per forward pass, waits on that ticket for the logits, and waits on
   the last one again when a conversation is reset.
 - `sync()`: `noexcept`, like `wait`, and blocks until everything has
   retired, including ops queued behind no ticket. The model calls it on the
-  failure paths before returning KV blocks to the pool, which is why it
-  cannot throw.
+  failure paths before returning KV blocks to the pool, during failed loading
+  before constructor members unwind, and at model teardown before releasing
+  owned buffers, which is why it cannot throw.
 
 - `set_threads(n)`, `threads_available()`: worker-thread control.
 - `memory_available()`: the bytes the backend can still allocate now, as its device or operating system reports them, or nothing when it cannot tell; `resident_bytes(type, nin, rows, bytes, product)`: what adopting such a matrix keeps resident, its bytes by default; `product` is a matrix a product reads as its weights. `host_resident()`: host memory the backend holds for itself whatever it loads, such as upload staging, none by default. A split over several devices is fitted against all three (`model/layer_split.hpp`).
@@ -73,8 +75,8 @@ placement contracts in `docs/EXECUTION.md`.
   Several views in one call is what a batch of sequences needs; the model
   passes one per entry. The backend owns temporary score storage.
 - `Slice` / `CSlice`: where an operand lives, a buffer and a float offset.
-  Every op takes these rather than pointers, so nothing outside a backend
-  holds a host address. An empty allocation resolves to no address and is
+  Device arithmetic uses these handles; host-visible results and transfer
+  staging may expose host addresses. An empty allocation resolves to no address and is
   read by nothing, which is how a zero-length batch passes through.
 - `embed(dst, type, table, nin, nrows, ids, count)`: gather `count` embedding
   rows into `dst`, row-major. An op rather than a model-side read because the

@@ -1,0 +1,120 @@
+{
+  "base": "7e195ff9fa7c7ccc025e7d4612a87d5217bcc1e7",
+  "reviewed_feature": "83cca18",
+  "native_passed": 22,
+  "model_checks": 380,
+  "cpu_required_hf_components": 14,
+  "vulkan_required_hf_components": 14,
+  "real_model_ppl_cells": 48,
+  "device": "AMD Radeon VII, Windows Vulkan",
+  "full_suite_binary": {
+    "version": "llmx 0.1.0+g7e195ff9fa7c.dirty",
+    "sha256": "538fa24c947851a91df63fb6c70ebe36d9b00244d454490088dd7d097815a921"
+  },
+  "final_rebuild": {
+    "exit": 0,
+    "commands": [
+      {
+        "stage": "build-final",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-load-lifetime-main-20260925\\build",
+          "--config",
+          "Release",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "native-final",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-load-lifetime-main-20260925\\build",
+          "-C",
+          "Release",
+          "-R",
+          "^model-validation$",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      }
+    ],
+    "version_test_exit": 0,
+    "identity": {
+      "version": "llmx 0.1.0+g7e195ff9fa7c.dirty",
+      "sha256": "1e787008003d72b0f863d8d132e5c15a297b8cb763a93d1c9ef30f37c59c06c4"
+    }
+  },
+  "artifact_directory": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-load-lifetime-main-evidence-20260925",
+  "saved_logs": {
+    "native.log": {
+      "saved": "native.txt",
+      "encoding": "raw UTF-8",
+      "original_sha256": "b4f49da462cd6a07c1b0192a7ef29997b65e89d590ec31fd66c6b7c9e69cf716"
+    },
+    "native-details.log": {
+      "saved": "native-details.txt",
+      "encoding": "raw UTF-8",
+      "original_sha256": "fcd16631798c39c5aab025dae4393f255d25c50067752476d765d16703520270"
+    },
+    "cpu-hf.log": {
+      "saved": "cpu-hf.txt",
+      "encoding": "raw UTF-8",
+      "original_sha256": "9214377fb391b91612f7b18e4fb279c0985c6b2302ebf9a2df4710c5875800f2"
+    },
+    "vulkan-0-hf.log": {
+      "saved": "vulkan-0-hf.txt",
+      "encoding": "raw UTF-8",
+      "original_sha256": "86cab50373e06d4b01a76bf523c2a97bf1e94845a914d4020e3c4e8e2857a2c0"
+    },
+    "native-final.log": {
+      "saved": "native-final.txt",
+      "encoding": "raw UTF-8",
+      "original_sha256": "abfdc4d42d07b206edaf5586ce31bcbb49234c15cc97991547b0a47538e58034"
+    },
+    "version-final.log": {
+      "saved": "version-final.txt",
+      "encoding": "raw UTF-8",
+      "original_sha256": "e73a8d34e77f5d1864797061c250cf390442c03e4e8c0d61b7a10cdaae50a9a7"
+    }
+  },
+  "source_hashes": {
+    "src/model/arch_qwen.hpp": "08a27d36156aea875f44591bb23d8f72d2bdacd0aef005db47c946326b3e01f3",
+    "src/backends/vulkan/vulkan_backend.cpp": "ba368e39423cec55d4ccadb5bcdf010d3b354fb4d810dc5aa7b57bef3cf5d3bd",
+    "tests/model_validation.cpp": "942fddbd072559dde3e887658e13a92259683f773bf3e70efc7fca20bd67d301",
+    "src/cli/main.cpp": "0735b9b4bb9f49e12290f61b6eaed123686ca865cafdb68dd61d5385309eaf93",
+    "tests/threads.py": "f6395bada0551e73f356665be8ebe4739c8c0066946a3450252b9face8f9344b"
+  },
+  "raw_artifact_sha256": {
+    "binary.json": "4a28ca887995a7df55b842c19b4fc5d9b2e064f68b0ba5d9ece02341d6dee09b",
+    "build-final.log": "74480512a3218315356ce7ee6655b469935a0d9e191f30806cf454e3ff2a9e14",
+    "build.log": "691463b1295baeb9bc8f9fdc4680facb96beb805f51f3aed7f9feb82df97cd0b",
+    "commands.json": "6a75f1232d56c1fd0a3415b0f07c925f78ceeeb3612a1262e85a59b1f3080db6",
+    "comment-only-followup.json": "0bb7e995dfadf6db31fbeb1554281d59c784c38adb7ba7bca478eeadd253b581",
+    "complete.json": "88af1fed5590bc4661080d307b43bdbb38018ab924416ea420e683aff713bdb0",
+    "configure.log": "bde3b4ee7bfee1fca048bfed8f9aa04222260e5fbe02a0810dbdda8ad1be8ca6",
+    "cpu-hf.log": "9214377fb391b91612f7b18e4fb279c0985c6b2302ebf9a2df4710c5875800f2",
+    "docs-review.json": "134f92d69221d7a8a2086039862f10bffba5edf656b5d9353b88125eecb97152",
+    "final-rebuild.json": "87ada873fdb8c28fac93625ebf2fad17fd3569ce969355d6a3c9a75174008214",
+    "hf-summary.json": "8abf1cf1fe6b9d1c6b8e75b96ce5b1f0ff94db73f0c5e2f600876393d2269a3e",
+    "native-checkpoint.json": "ee04230c5e94e1a9b4858c17f79f6f647055c5e9484930a5fef7f6512a54764f",
+    "native-details.log": "fcd16631798c39c5aab025dae4393f255d25c50067752476d765d16703520270",
+    "native-final.log": "abfdc4d42d07b206edaf5586ce31bcbb49234c15cc97991547b0a47538e58034",
+    "native.log": "b4f49da462cd6a07c1b0192a7ef29997b65e89d590ec31fd66c6b7c9e69cf716",
+    "plan.json": "0392e15da672ab67b2e8df276dc5b2b054d9aa71bd7a0a9a287bd078c32073c5",
+    "run.py": "0ffaee080f92ca7b54c1f5b71064a78872195a6fca6f78b18db87b15821fc389",
+    "source-review.json": "9f0060d721c983a784fc848779224a0af72dd631ebc08fb5605535cf0ba7302d",
+    "version-final.log": "e73a8d34e77f5d1864797061c250cf390442c03e4e8c0d61b7a10cdaae50a9a7",
+    "vulkan-0-hf.log": "86cab50373e06d4b01a76bf523c2a97bf1e94845a914d4020e3c4e8e2857a2c0"
+  },
+  "limits": [
+    "No new kernel arithmetic or inference scheduling change; no matched performance claim. Suite timings are diagnostic under concurrent correctness work.",
+    "Full CPU/Vulkan suites used reviewed83cca18 model implementation. Final source changes only two comments and was rebuilt, with the model lifetime regression and version test repeated.",
+    "Native failure injection establishes ownership ordering. This does not claim a reproduced driver crash, Linux Vulkan failure injection or validation of the separate allocation-lifetime fix.",
+    "Linux CPU descendant1f778af validated the same model ownership implementation, but exact new-main integration is only locally tested on Windows at this checkpoint. Hosted CI is observed separately after publication."
+  ],
+  "archive_line_endings": "Directory attributes disable text normalization for saved .txt logs so Git preserves the exact original bytes; staged hashes verified before publication."
+}

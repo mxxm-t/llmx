@@ -1,0 +1,1 @@
+version: release/build identifier and usage banner agree  [ok]

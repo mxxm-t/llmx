@@ -182,6 +182,12 @@ does not establish that a failed model/session can resume. Partial pool startup
 joins threads already created; a failed thread-count change leaves the backend
 in serial mode, from which it can be configured again.
 
+Model loading failures drain each used backend before constructor members
+unwind; model destruction drains them before owned buffers are released.
+A failed Vulkan adoption also drains while its partially uploaded destination
+is still alive. Successful adoption remains asynchronous, with later work
+ordered after the uploads on the same backend.
+
 GGUF metadata reads and seeks throw on stream failure. Payload extents are
 checked before use, so a file truncated before loading is refused. Mapped files
 must remain unchanged for their lifetime; accessing pages removed by a later
@@ -215,7 +221,8 @@ names a vendor - and, since the device execution migration
 (`DEVICE-EXECUTION.md`, complete), in substance too: weights, activations and
 KV blocks are `Buffer` handles, every op takes a buffer and an offset, ops
 enqueue on one implicit stream with ticket submission per backend. Results and
-resource lifetimes determine when to wait; the model layer holds no host address.
+resource lifetimes determine when to wait. Backends own device arithmetic and
+storage layout; model contexts retain host-visible logits and transfer staging.
 
 A model is split across several Backends by a `Placement` at the model
 layer: a device per tensor role, so per-layer and per-tensor splits are the

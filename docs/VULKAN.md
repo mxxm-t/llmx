@@ -95,8 +95,10 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   count can end two bytes into a word its 32-bit view reads.
 - **Adopt copies.** The contract lets it: `src` outlives the handle, and a
   backend that copies never relies on that. Weights are uploaded through
-  the staging buffer in chunks at load, synchronously, because nothing can
-  run before they are there. This answers the alignment question left open
+  two halves of staging at load. The source is consumed before return, while
+  device copies may remain queued ahead of later work on the same backend.
+  If an upload fails, adoption drains before releasing its local destination.
+  This answers the alignment question left open
   in [DEVICE-EXECUTION](DEVICE-EXECUTION.md): the device accepts 4-byte
   storage offsets, and an upload lays the bytes out however it likes, so
   `adopt` never has to re-align anything on any backend.

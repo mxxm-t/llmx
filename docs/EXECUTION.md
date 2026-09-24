@@ -319,7 +319,7 @@ The assumptions to avoid are marked.
   becomes a mixing op. Do not assume the arena holds one residual row of
   `n_embd` per token.
 - **Low-precision cache rows.** The storage contract already leaves dtype
-  to the backend; the CPU cache implements F32 only, and FP8 or FP4 rows
+  to the backend; the CPU cache implements F16 and F32, and FP8 or FP4 rows
   with per-group scales are a kernel addition with its own HF gate.
 
 The correctness gate for any of these is the HF reference, and the models

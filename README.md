@@ -10,8 +10,9 @@ multiple model architectures, and execution across devices and machines.
 Hugging Face integration is part of that direction: downloading pinned models,
 reading native Hub formats, and validating inference against HF references.
 The CPU and Vulkan backends, the batched execution model and the server are
-in the tree; splitting a model across devices and machines, further vendor
-backends and further architectures are planned.
+in the tree, including contiguous layer splits across local devices. Tensor
+groups, execution across machines, further vendor backends and further
+architectures are planned.
 
 ## Works today
 
@@ -30,7 +31,8 @@ backends and further architectures are planned.
 - Batched prompt processing, a paged KV cache, sampling and windowed
   perplexity. A model runs a batch of sequences per pass, each at its own
   positions over its own history, and can be placed across several
-  backends; the CLI drives one sequence on the CPU or on a Vulkan device.
+  backends; the CLI drives one sequence on the CPU, a Vulkan device or a
+  layer split selected with `--device` and optional `--layer-shares`.
 - A **Vulkan backend** (`-DLLMX_HAS_BACKEND_VULKAN=ON`, `--device vulkan:N`)
   with kernels for every type the CPU reads, f16 or f32 KV caches, integer
   activations in decode and, where the device's 8-bit integer dot is
@@ -44,8 +46,10 @@ backends and further architectures are planned.
   connect unchanged (`docs/SERVER.md`).
 
 See [usage](docs/USAGE.md#llmx-pull-ownerrepoquant) for the download/cache
-interface. ARM, execution across several devices or machines, other vendor
-backends and additional model architectures are not implemented yet; see
+interface. Local layer splitting is implemented; its recorded coverage and
+open MI50 8B HF check are in [multi-device status](docs/STATUS.md). ARM,
+tensor groups, execution across machines, other vendor backends and additional
+model architectures are not implemented yet; see
 [development status](docs/STATUS.md) for the current state.
 
 ## Direction
@@ -57,7 +61,7 @@ backends and additional model architectures are not implemented yet; see
 | Execution model | Done: tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
 | Server | Done: `llmx serve` with continuous batching, streaming HTTP without dependencies, prefix reuse and the OpenAI-compatible routes (`docs/SERVER.md`, `docs/USAGE.md`) |
 | GPU backends | Vulkan done, running on a Radeon VII under Windows and on MI50s under Linux. Against the reference's own Vulkan build on the same card, decode is 102 to 115 percent and prefill 109 to 455 percent on every file on the Radeon VII, and decode 102 to 115 percent and prefill 102 to 267 percent on one MI50; ROCm first-class on Linux, CUDA and SYCL planned |
-| Multiple devices/nodes | Placement across backends exists; per-layer and per-tensor splits over devices and cluster nodes planned |
+| Multiple devices/nodes | Local layer splits with memory fitting and manual layer shares implemented; pipelining, tensor groups and cluster nodes planned |
 | Hub kernels | Optional later work: port suitable kernel source or distribute llmx kernels through the Hub |
 
 The device execution model is complete and the Vulkan backend is written

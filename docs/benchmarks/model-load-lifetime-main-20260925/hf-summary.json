@@ -1,0 +1,442 @@
+{
+  "cpu": {
+    "components": [
+      "version",
+      "reference-generator",
+      "reference-consumer",
+      "roundtrip",
+      "perf",
+      "tokenizer",
+      "perplexity",
+      "f32",
+      "moe",
+      "shards",
+      "server",
+      "chat",
+      "threads",
+      "baseline"
+    ],
+    "top1_matches_per_model": 6,
+    "ranked_models": [
+      "Qwen3-0.6B-Q8_0.gguf",
+      "Qwen3-0.6B-Q4_0.gguf",
+      "Qwen3-0.6B-Q5_K_M.gguf"
+    ],
+    "ppl_cells": [
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "batched",
+        "absolute_nll_error": 0.001184,
+        "hf_bound": 0.01
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "per-token",
+        "absolute_nll_error": 0.007366,
+        "hf_bound": 0.01
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "batched",
+        "absolute_nll_error": 0.00676,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "per-token",
+        "absolute_nll_error": 0.00349,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.002443,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.001717,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.012356,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.002406,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "batched",
+        "absolute_nll_error": 0.131554,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "per-token",
+        "absolute_nll_error": 0.131464,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "batched",
+        "absolute_nll_error": 0.1676,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "per-token",
+        "absolute_nll_error": 0.16754,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.068883,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.068833,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.120396,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.120276,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "batched",
+        "absolute_nll_error": 0.026144,
+        "hf_bound": 0.05
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "per-token",
+        "absolute_nll_error": 0.027534,
+        "hf_bound": 0.05
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "batched",
+        "absolute_nll_error": 0.12944,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "per-token",
+        "absolute_nll_error": 0.11678,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.067543,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.071283,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.024116,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.019736,
+        "hf_bound": 0.16
+      }
+    ],
+    "synthetic_f32_max": 6.9e-07,
+    "synthetic_moe_max": 6.5e-07
+  },
+  "vulkan-0": {
+    "components": [
+      "version",
+      "reference-generator",
+      "reference-consumer",
+      "roundtrip",
+      "perf",
+      "tokenizer",
+      "perplexity",
+      "f32",
+      "moe",
+      "shards",
+      "server",
+      "chat",
+      "threads",
+      "baseline"
+    ],
+    "top1_matches_per_model": 6,
+    "ranked_models": [
+      "Qwen3-0.6B-Q8_0.gguf",
+      "Qwen3-0.6B-Q4_0.gguf",
+      "Qwen3-0.6B-Q5_K_M.gguf"
+    ],
+    "ppl_cells": [
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "batched",
+        "absolute_nll_error": 0.001224,
+        "hf_bound": 0.01
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "per-token",
+        "absolute_nll_error": 0.001114,
+        "hf_bound": 0.01
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "batched",
+        "absolute_nll_error": 0.00674,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "per-token",
+        "absolute_nll_error": 0.00669,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.002463,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.002283,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.012346,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.012296,
+        "hf_bound": 0.02
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "batched",
+        "absolute_nll_error": 0.131524,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "per-token",
+        "absolute_nll_error": 0.131494,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "batched",
+        "absolute_nll_error": 0.1676,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "per-token",
+        "absolute_nll_error": 0.16754,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.068913,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.068793,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.120346,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.120246,
+        "hf_bound": 0.2
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "batched",
+        "absolute_nll_error": 0.026174,
+        "hf_bound": 0.05
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 0,
+        "chunks": 1,
+        "path": "per-token",
+        "absolute_nll_error": 0.026294,
+        "hf_bound": 0.05
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "batched",
+        "absolute_nll_error": 0.12942,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 64,
+        "chunks": 4,
+        "path": "per-token",
+        "absolute_nll_error": 0.12952,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.067593,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 64,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.067763,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "batched",
+        "absolute_nll_error": 0.024146,
+        "hf_bound": 0.16
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "context": 123,
+        "chunks": 2,
+        "path": "per-token",
+        "absolute_nll_error": 0.024216,
+        "hf_bound": 0.16
+      }
+    ],
+    "synthetic_f32_max": 6.6e-07,
+    "synthetic_moe_max": 7.2e-07
+  }
+}

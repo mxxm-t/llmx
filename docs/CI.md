@@ -77,7 +77,7 @@ absent; the separate HF job supplies that coverage.
 The Python suite also checks reference-generator argument safeguards and that
 the requested commit, float32 dtype and eager attention reach the HF loader.
 These use standard-library test doubles; CI does not generate new HF goldens
-or download larger models. The ordinary suite now has 13 components, including
+or download larger models. The ordinary suite now has 14 components, including
 `reference-consumer` rejection tests for 8B fixture tampering, malformed or
 out-of-bound numerical output, wrong model identity and failed launches. These
 tests use small committed JSON fixtures and doubles, without 8B inference.
@@ -204,7 +204,7 @@ runs `prefill-placement`: active real topology when available, real fallback
 otherwise, and synthetic topology/failure cases even on small hosted runners.
 These checks do not require a real model or establish performance.
 
-Native counts are 20 on Windows and 19 on Linux/macOS; the Windows-only
+Native counts are 21 on Windows and 20 on Linux/macOS; the Windows-only
 `prefill-placement` target accounts for the difference, and a build with
 `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`.
 Windows 12/12 and Linux 11/11 pass locally. Placement release `3c5d4b9` also

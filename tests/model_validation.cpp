@@ -119,6 +119,138 @@ void construct(const gguf::GGUFModel& m, bool step = false) {
     }
 }
 
+
+struct LoadingState {
+    int adoptions = 0, allocations = 0, drains = 0, releases = 0, premature = 0;
+    bool pending = false;
+};
+
+// Model loading sees a device-like buffer whose outstanding upload ends only at wait or sync.
+struct LoadingBuffer : backend::Buffer {
+    backend::BufferPtr storage;
+    std::shared_ptr<LoadingState> state;
+    LoadingBuffer(backend::BufferPtr b, std::shared_ptr<LoadingState> s)
+        : storage(std::move(b)), state(std::move(s)) {}
+    ~LoadingBuffer() override {
+        ++state->releases;
+        if (state->pending) ++state->premature;
+    }
+    size_t size() const override { return storage->size(); }
+    const void* host_ptr() const override { return nullptr; }
+};
+
+struct LoadingBackend : backend::CpuBackend {
+    std::shared_ptr<LoadingState> state = std::make_shared<LoadingState>();
+    int fail_adopt = 0, fail_alloc = 0;
+    bool fail_cache = false;
+    backend::BufferPtr adopt(const void* src, size_t bytes) override {
+        if (++state->adoptions == fail_adopt) throw std::runtime_error("injected adoption failure");
+        auto buffer = std::make_shared<LoadingBuffer>(backend::CpuBackend::adopt(src, bytes), state);
+        state->pending = true;
+        return buffer;
+    }
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        if (++state->allocations == fail_alloc) throw std::runtime_error("injected window allocation failure");
+        auto buffer = std::make_shared<LoadingBuffer>(backend::CpuBackend::alloc(bytes, where), state);
+        state->pending = true;
+        return buffer;
+    }
+    void sync() noexcept override { ++state->drains; state->pending = false; }
+    void wait(backend::Ticket) noexcept override { sync(); }
+    std::unique_ptr<backend::KVStorage> kv_alloc(size_t layers, size_t heads, size_t dim, size_t tokens,
+                                               backend::KVType k, backend::KVType v) override {
+        if (fail_cache) throw std::runtime_error("injected cache allocation failure");
+        return backend::CpuBackend::kv_alloc(layers, heads, dim, tokens, k, v);
+    }
+};
+
+void loading_lifetime_checks() {
+    for (int failure = 0; failure < 4; ++failure) {
+        auto m = fixture();
+        auto b = std::make_shared<LoadingBackend>();
+        b->set_threads(1);
+        std::string expected;
+        if (failure == 0) {
+            auto it = std::find_if(m.tensors.begin(), m.tensors.end(), [](const auto& t) {
+                return t.name == "blk.0.ffn_down.weight";
+            });
+            const auto i = it - m.tensors.begin();
+            m.tensors.erase(it); m.offsets.erase(m.offsets.begin() + i);
+            expected = "inference: missing tensor blk.0.ffn_down.weight";
+        } else if (failure == 1 || failure == 3) {
+            b->fail_adopt = failure == 1 ? 4 : 16;
+            expected = "injected adoption failure";
+        } else {
+            b->fail_cache = true;
+            expected = "injected cache allocation failure";
+        }
+        std::string caught;
+        try { infer::Model model(m, b); }
+        catch (const std::runtime_error& e) { caught = e.what(); }
+        require(caught == expected, "loading exception was lost or replaced");
+        require(b->state->releases > 0 && b->state->premature == 0 && b->state->drains > 0,
+                "loading failure freed a buffer before its upload retired");
+        ++checks;
+    }
+    const auto m = fixture();
+    auto a = std::make_shared<LoadingBackend>(), b = std::make_shared<LoadingBackend>();
+    auto unused = std::make_shared<LoadingBackend>();
+    for (auto& device : {a, b, unused}) device->set_threads(1);
+    infer::Placement placement;
+    placement.attn_device = {0}; placement.ffn_device = {1};
+    placement.embed_device = 0; placement.output_device = 1;
+    b->fail_adopt = 4;
+    rejects("split loading failure", [&] { infer::Model model(m, {a, b, unused}, placement); });
+    for (const auto& device : {a, b})
+        require(device->state->releases > 0 && device->state->premature == 0 && device->state->drains > 0,
+                "split loading failure did not drain each used backend before release");
+    require(unused->state->drains == 0, "loading failure drained an unused backend");
+    b->fail_adopt = 0;
+    const int drained = a->state->drains + b->state->drains;
+    {
+        infer::Model model(m, {a, b, unused}, placement);
+        require(a->state->pending && b->state->pending, "successful loading unexpectedly became synchronous");
+        require(a->state->drains + b->state->drains == drained, "successful loading added a drain");
+    }
+    for (const auto& device : {a, b})
+        require(!device->state->pending && device->state->premature == 0,
+                "model teardown freed buffers before pending loading completed");
+    require(unused->state->drains == 0, "model teardown drained an unused backend");
+    ++checks;
+}
+
+
+void loading_window_checks() {
+    auto m = fixture();
+    for (auto& kv : m.kv) kv.first.replace(0, 5, "qwen3moe");
+    set(m, "general.architecture", text("qwen3moe"));
+    set(m, "qwen3moe.expert_count", integer(2));
+    set(m, "qwen3moe.expert_used_count", integer(1));
+    set(m, "qwen3moe.expert_feed_forward_length", integer(12));
+    add(m, "blk.0.ffn_gate_inp.weight", {8, 2}, 0);
+    add(m, "blk.0.ffn_gate_exps.weight", {8, 12, 2}, 0);
+    add(m, "blk.0.ffn_up_exps.weight", {8, 12, 2}, 0);
+    add(m, "blk.0.ffn_down_exps.weight", {12, 8, 2}, 0);
+    infer::Placement placement;
+    placement.attn_device = {0}; placement.ffn_device = {1};
+    placement.stream_from = 1;
+    for (int failure = 1; failure <= 3; ++failure) {
+        auto device = std::make_shared<LoadingBackend>();
+        auto host = backend::make_cpu_backend();
+        device->set_threads(1); host->set_threads(1);
+        device->fail_alloc = failure;
+        std::string caught;
+        try { infer::Model model(m, {device, host}, placement); }
+        catch (const std::runtime_error& e) { caught = e.what(); }
+        require(caught == "injected window allocation failure", "streamed window failure was not reached");
+        require(device->state->allocations == failure && device->state->releases > 0,
+                "streamed window fixture did not create pending storage");
+        require(device->state->premature == 0 && device->state->drains > 0,
+                "window allocation failure freed pending storage before the constructor catch");
+        ++checks;
+    }
+}
+
 void metadata_checks() {
     const auto base = fixture();
     const std::vector<std::string> required = {"block_count", "embedding_length",
@@ -305,6 +437,8 @@ int main() {
     try {
         metadata_checks();
         tensor_checks();
+        loading_lifetime_checks();
+        loading_window_checks();
         std::cout << "model-validation: " << checks << " checks passed\n";
         return 0;
     } catch (const std::exception& e) {

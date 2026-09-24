@@ -12,7 +12,9 @@ Single place for compile-time build knobs.
 - **Model architectures** are *not* here: the model reads
   `general.architecture` at run time; dense Qwen3 and `qwen3moe` are
   implemented.
-- **Split mode / node count** are *not* here: they are planned runtime parameters.
+- **Split mode / node count** are *not* here: layer splitting is selected at
+  runtime through `--device` and `--layer-shares`; tensor groups and node
+  execution remain planned.
 
 Defines:
 

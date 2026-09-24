@@ -1,0 +1,93 @@
+{
+  "version": "llmx 0.1.0+g32914a961579.dirty",
+  "sha256": "cebdd2cb38e0d6ace2c4635cb31d4d3677b6fb58ac6328e1d78b2f73a4e4ef14",
+  "results": [
+    {
+      "name": "native-final",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-load-lifetime-fix-20260924\\build",
+        "-C",
+        "Release",
+        "--output-on-failure"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "vulkan-final",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-u",
+        "-X",
+        "utf8",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-load-lifetime-fix-20260924\\tests\\run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-load-lifetime-fix-20260924\\build\\Release\\llmx.exe",
+        "--no-perf-floor",
+        "--require-baseline",
+        "--device",
+        "vulkan:0"
+      ],
+      "exit": 0
+    }
+  ],
+  "base": "32914a9615797aa77c6d85bf0cd1fb738538a74f",
+  "scope": "Windows model loading/teardown lifetime. No Linux or matched performance claim. Real Vulkan upload failure not injected.",
+  "native_checks": 22,
+  "model_validation_checks": 380,
+  "python_vulkan_components": 14,
+  "vulkan_hf": {
+    "Q8_0 continuous NLL": {
+      "observed_max_abs_error": 0.001224,
+      "bound": 0.01
+    },
+    "Q8_0 windowed NLL": {
+      "observed_max_abs_error": 0.012346,
+      "bound": 0.02
+    },
+    "Q4_0 continuous NLL": {
+      "observed_max_abs_error": 0.131524,
+      "bound": 0.16
+    },
+    "Q4_0 windowed NLL": {
+      "observed_max_abs_error": 0.1676,
+      "bound": 0.2
+    },
+    "Q5_K_M continuous NLL": {
+      "observed_max_abs_error": 0.026294,
+      "bound": 0.05
+    },
+    "Q5_K_M windowed NLL": {
+      "observed_max_abs_error": 0.12952,
+      "bound": 0.16
+    }
+  },
+  "source_sha256": {
+    "src/model/arch_qwen.hpp": "9bbc647ae8f7df1ee238a582edefa56fca3034939140d50e8446b4a3346182ea",
+    "src/backends/vulkan/vulkan_backend.cpp": "69f4f91912bdc626f3560b9b128a2615bdfe11534a719fd34cb7ab37c2060b7a",
+    "tests/model_validation.cpp": "980553f6f149934b7cc87492f7fd7fcf1c90f0b39de6b446e40f70d8f916eb3f"
+  },
+  "raw_logs": {
+    "native-final.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-loader-lifetime-review-20260924\\native-final.log",
+      "sha256": "a7a1ba958329c105548c700948ffb55b78aca91f8c24ede79cf546360037f94e"
+    },
+    "vulkan-final.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-loader-lifetime-review-20260924\\vulkan-final.log",
+      "sha256": "5ef7c27418ffb56954befa6bc3222c7b4e54df54be808584598cdfc7594102ee"
+    }
+  },
+  "negative_controls": [
+    "Original main and phase1 release 13 pending buffers after late missing tensor, and 3 after fourth adoption failure, without a drain.",
+    "New tests reject original phase1 with loading failure freed a buffer before its upload retired.",
+    "New streamed-window test rejects intermediate fix before member-by-member window assignment."
+  ],
+  "docs_review": {
+    "markdown_files": 39,
+    "relative_file_links": 124,
+    "non_ascii": 0,
+    "broken_relative_files": 0,
+    "scope": "Current affected claims and full-file ASCII/link/ownership scans; no anchor/remote URL or historical numeric revalidation."
+  }
+}

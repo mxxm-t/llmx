@@ -1050,11 +1050,17 @@ public:
         return b;
     }
 
-    // A copy in chunks through staging, each submitted and waited; weights arrive here once at load.
+    // A copy in chunks through staging; weights arrive here once at load.
     BufferPtr adopt(const void* src, size_t bytes) override {
         if (!src && bytes) throw std::runtime_error("vulkan: adopting null storage");
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, false);
-        upload(*b, 0, src, bytes);
+        try {
+            upload(*b, 0, src, bytes);
+        } catch (...) {
+            // Earlier chunks may still target this local buffer when a later submission fails.
+            sync();
+            throw;
+        }
         b->adopted = true;
         return b;
     }

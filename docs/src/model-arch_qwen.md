@@ -146,6 +146,12 @@ to a `backend::Backend`.
     Trailing singleton dimensions up to rank four are accepted. Valid payload
     aliases and unused scalar/empty F32 tensors remain supported. The backend
     can already have allocated its worker pool before these checks.
+  - Loading may enqueue uploads before a later tensor or allocation fails. The
+    constructor catches failures inside its body and drains each used backend
+    while its members are still alive. Normal model destruction also drains
+    those backends before releasing weights, caches and RoPE storage. Successful
+    loading keeps uploads asynchronous; reader tracking is allocated before
+    the first adoption so bookkeeping cannot fail while holding a local weight.
 
 Supports dense and mixture-of-experts Qwen3 with Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K weights
 and F32 embeddings/matrices/norms. F32 embedding rows are copied directly;

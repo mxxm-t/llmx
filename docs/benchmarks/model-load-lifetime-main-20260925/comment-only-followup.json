@@ -1,0 +1,6 @@
+{
+  "path": "src/model/arch_qwen.hpp",
+  "built_sha256": "892ccc0bfbd47ddf445178ec83f87b237d2b4f3f3e9fa2f17a96e9bde0aaae29",
+  "final_sha256": "08a27d36156aea875f44591bb23d8f72d2bdacd0aef005db47c946326b3e01f3",
+  "change": "Two stale comments corrected after compilation completed. Native/HF suite binary retains the exact reviewed83cca18 implementation. Final source will be rebuilt before commit; no executable tokens changed."
+}

@@ -39,9 +39,11 @@ the compiled binary portable to older CPUs.
 - `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
   budget was measured instead and was worse at every size (see
   `docs/STATUS.md`).
-- `matmul_group`: one pool dispatch for multiple native F32/Q8_0/Q4_K decode
-  projections, preserving each matrix's row partition and dot kernel. Other
-  formats, batches, single projections and small jobs use sequential matmul.
+- `matmul_group`: shares quantized activations across multiple Q8_0, Q4_0,
+  Q4_1, Q4_K, Q5_K or Q6_K decode projections in one pool dispatch. `RowRuns`
+  also admits batches of generated rows. F32, prompt rows, single projections
+  and unsupported integer-dot configurations fall back to separate matmul
+  calls; small grouped jobs run on the caller.
 - `dot_row_impl`: AVX2 fused dequant + FMA accumulation over int8 blocks.
   The stored half scale is broadcast directly from memory before F16C
   conversion; signed byte groups load directly into the widening operations.

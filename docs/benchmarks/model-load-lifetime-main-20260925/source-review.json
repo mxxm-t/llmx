@@ -1,0 +1,24 @@
+{
+  "reviewed_feature": "83cca18",
+  "model_changes_are_comments_only": [
+    {
+      "removed": [
+        "    // Physical batch: how many tokens go through ONE forward pass of the graph.",
+        "    // This is the physical batch (-ub), not a logical one: it sets the GEMM width and the scratch buffer sizes. llmx has no logical batch, since there is one sequence and no queue; that distinction only starts to matter with the multi-user server in ROADMAP #7."
+      ],
+      "added": [
+        "    // Physical prompt microbatch size, used to bound matrix width and scratch storage."
+      ]
+    },
+    {
+      "removed": [
+        "    // One backend allocation holding the nine activations of a pass, each at a 64-byte boundary so the AVX2 kernels see the alignment they saw when every vector was its own allocation."
+      ],
+      "added": [
+        "    // One backend allocation holds the activation slots of a pass, each aligned to 64 bytes."
+      ]
+    }
+  ],
+  "vulkan_and_model_regression_match_reviewed_feature": true,
+  "no_attention_shader_or_cpu_kernel_changes": true
+}

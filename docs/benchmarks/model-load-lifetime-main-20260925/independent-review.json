@@ -1,0 +1,19 @@
+{
+  "verdict": "No blocker found",
+  "independent_checks": {
+    "native_passed": 22,
+    "model_checks": 380,
+    "cpu_hf_components": 14,
+    "vulkan_hf_components": 14,
+    "ppl_rows": 48,
+    "source_hashes": 5,
+    "raw_artifact_hashes": 20,
+    "saved_log_hashes": 6,
+    "markdown_files": 39,
+    "relative_links": 125,
+    "non_ascii": 0,
+    "missing_links": 0
+  },
+  "scope": "Implementation matches83cca18 except two model comments. Final rebuild/regression/version results kept separate from full-suite binary. No new platform or performance claims.",
+  "post_review_archive_check": "Git stage normalized four CRLF log files. Added directory *.txt -text attributes, restaged originals and verified all six staged blobs against original SHA256."
+}

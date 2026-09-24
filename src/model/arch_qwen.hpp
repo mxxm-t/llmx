@@ -420,51 +420,61 @@ public:
 
         // Tied embeddings: models without a separate output.weight reuse token_embd.weight as the output projection (same [n_embd, n_vocab] layout), so the head is just a matvec against the embedding matrix.
         out_name_ = tindex_.count("output.weight") ? "output.weight" : "token_embd.weight";
-        resolve_tensors();
-        // With experts on the host, the file stays mapped for them; the tensors the devices copied need not stay resident beside them.
-        if (holds_payload_)
-            for (size_t i = 0; i < copied_.size(); ++i)
-                if (copied_[i] && !host_reads_[i]) m_->drop_pages(i);
+        host_reads_.assign(m_->tensors.size(), 0);
+        copied_.assign(m_->tensors.size(), 0);
+        try {
+            resolve_tensors();
+            // With experts on the host, the file stays mapped for them; the tensors the devices copied need not stay resident beside them.
+            if (holds_payload_)
+                for (size_t i = 0; i < copied_.size(); ++i)
+                    if (copied_[i] && !host_reads_[i]) m_->drop_pages(i);
 
-        // Each device that runs attention gets a storage for exactly its layers, with its own block size and pool.
-        // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
-        const size_t kv_tokens = options_.kv_tokens ? options_.kv_tokens : (size_t)cfg.context_length;
-        for (auto& dp : devices_) {
-            Device& d = *dp;
-            if (!d.attn_layers) continue;
-            // A shared prefix ends on a whole block of the largest size (kv_block_tokens), which is whole in every storage only when the sizes nest.
-            for (const Device* other : storages_) {
-                const size_t a = d.b->kv_layout().block_tokens, b = other->b->kv_layout().block_tokens;
-                if (std::max(a, b) % std::min(a, b))
-                    throw std::runtime_error("inference: cache blocks of " + std::to_string(a) + " and " + std::to_string(b) +
-                                             " tokens in one model; a split needs one size to divide the other");
+            // Each device that runs attention gets a storage for exactly its layers, with its own block size and pool.
+            // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
+            const size_t kv_tokens = options_.kv_tokens ? options_.kv_tokens : (size_t)cfg.context_length;
+            for (auto& dp : devices_) {
+                Device& d = *dp;
+                if (!d.attn_layers) continue;
+                // A shared prefix ends on a whole block of the largest size (kv_block_tokens), which is whole in every storage only when the sizes nest.
+                for (const Device* other : storages_) {
+                    const size_t a = d.b->kv_layout().block_tokens, b = other->b->kv_layout().block_tokens;
+                    if (std::max(a, b) % std::min(a, b))
+                        throw std::runtime_error("inference: cache blocks of " + std::to_string(a) + " and " + std::to_string(b) +
+                                                 " tokens in one model; a split needs one size to divide the other");
+                }
+                d.storage = d.b->kv_alloc((size_t)d.attn_layers, cfg.n_head_kv, cfg.head_dim,
+                                          kv_tokens, options_.kv_k, options_.kv_v);
+                d.pool.configure(d.storage->max_blocks());
+                d.storage_index = (int)storages_.size();
+                storages_.push_back(&d);
             }
-            d.storage = d.b->kv_alloc((size_t)d.attn_layers, cfg.n_head_kv, cfg.head_dim,
-                                      kv_tokens, options_.kv_k, options_.kv_v);
-            d.pool.configure(d.storage->max_blocks());
-            d.storage_index = (int)storages_.size();
-            storages_.push_back(&d);
-        }
-        seq_ = make_sequence();
+            seq_ = make_sequence();
 
-        // Precompute the RoPE cos/sin table for every position up to the context length.
-        // Indexed as [pos*(head_dim/2) + i].
-        // Every device that runs attention reads it through an adopted buffer, so the host vectors stay alive for the model's lifetime; on CPU that is the same memory.
-        int half = cfg.head_dim / 2;
-        rope_cos_.assign((size_t)cfg.context_length * half, 0.0f);
-        rope_sin_.assign((size_t)cfg.context_length * half, 0.0f);
-        for (int pos = 0; pos < cfg.context_length; pos++) {
-            for (int i = 0; i < half; i++) {
-                float fre = std::pow(cfg.rope_theta, -2.0f * (float)i / (float)cfg.head_dim);
-                rope_cos_[(size_t)pos * half + i] = std::cos((float)pos * fre);
-                rope_sin_[(size_t)pos * half + i] = std::sin((float)pos * fre);
+            // Precompute the RoPE cos/sin table for every position up to the context length.
+            // Indexed as [pos*(head_dim/2) + i].
+            // Every device that runs attention reads it through an adopted buffer, so the host vectors stay alive for the model's lifetime; on CPU that is the same memory.
+            int half = cfg.head_dim / 2;
+            rope_cos_.assign((size_t)cfg.context_length * half, 0.0f);
+            rope_sin_.assign((size_t)cfg.context_length * half, 0.0f);
+            for (int pos = 0; pos < cfg.context_length; pos++) {
+                for (int i = 0; i < half; i++) {
+                    float fre = std::pow(cfg.rope_theta, -2.0f * (float)i / (float)cfg.head_dim);
+                    rope_cos_[(size_t)pos * half + i] = std::cos((float)pos * fre);
+                    rope_sin_[(size_t)pos * half + i] = std::sin((float)pos * fre);
+                }
             }
-        }
-        for (Device* d : storages_) {
-            d->rope_cos = d->b->adopt(rope_cos_.data(), rope_cos_.size() * sizeof(float));
-            d->rope_sin = d->b->adopt(rope_sin_.data(), rope_sin_.size() * sizeof(float));
+            for (Device* d : storages_) {
+                d->rope_cos = d->b->adopt(rope_cos_.data(), rope_cos_.size() * sizeof(float));
+                d->rope_sin = d->b->adopt(rope_sin_.data(), rope_sin_.size() * sizeof(float));
+            }
+        } catch (...) {
+            // Constructor members still exist here, so pending uploads retire before unwinding releases them.
+            retire();
+            throw;
         }
     }
+
+    ~Model() { retire(); }
 
     // Sequences hold the pools' addresses; moving the model would leave them pointing at the old ones.
     // Nothing moves a Model today.
@@ -888,7 +898,9 @@ private:
             const size_t* s = &sizes[d * 3];
             if (!s[0]) continue;
             backend::Backend& b = *devices_[d]->b;
-            windows_[d] = Window{b.alloc(s[0]), b.alloc(s[1]), b.alloc(s[2])};
+            windows_[d].gate = b.alloc(s[0]);
+            windows_[d].up = b.alloc(s[1]);
+            windows_[d].down = b.alloc(s[2]);
         }
     }
 
@@ -905,10 +917,6 @@ private:
 
     // Whether each tensor is read in place by a host and whether a device copied it, so the pages of a tensor only devices hold can leave the host's working set once every weight is resolved.
     void note_reader(size_t i, const backend::BufferPtr& buf) {
-        if (host_reads_.size() != m_->tensors.size()) {
-            host_reads_.assign(m_->tensors.size(), 0);
-            copied_.assign(m_->tensors.size(), 0);
-        }
         const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
         if (hp && m_->holds(hp)) {
             holds_payload_ = true;
@@ -918,8 +926,7 @@ private:
         }
     }
 
-    // Physical batch: how many tokens go through ONE forward pass of the graph.
-    // This is the physical batch (-ub), not a logical one: it sets the GEMM width and the scratch buffer sizes. llmx has no logical batch, since there is one sequence and no queue; that distinction only starts to matter with the multi-user server in ROADMAP #7.
+    // Physical prompt microbatch size, used to bound matrix width and scratch storage.
     int ubatch() const { return ubatch_; }
 
     // The CPU prefill scope is per backend, so a prompt enters one on every device it runs on, nested.
@@ -930,7 +937,7 @@ private:
         devices_[d]->b->run_prefill([&] { scoped(d + 1, work); });
     }
 
-    // One backend allocation holding the nine activations of a pass, each at a 64-byte boundary so the AVX2 kernels see the alignment they saw when every vector was its own allocation.
+    // One backend allocation holds the activation slots of a pass, each aligned to 64 bytes.
     // Device allocators handle a few large blocks far better than many small ones, and resizing is one call.
     // The caller only publishes the result once this returns, so an allocation that throws leaves the previous arena intact.
     backend::BufferPtr alloc_arena(backend::Backend& b,
@@ -1103,7 +1110,7 @@ private:
     }
 
     // A block returns to the pool only once the backend has retired every submission that touched it (docs/KV-CACHE.md).
-    // These are the exception paths, where a failed pass has ops behind no ticket, so this drains every device with sync(); reset() waits on tickets instead.
+    // Construction failures, failed passes and model teardown drain every used device with sync(), including work behind no ticket; reset() waits on tickets instead.
     void retire() noexcept {
         for (auto& d : devices_) if (d->used) d->b->sync();
     }

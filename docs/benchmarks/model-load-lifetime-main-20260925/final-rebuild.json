@@ -1,0 +1,37 @@
+{
+  "exit": 0,
+  "commands": [
+    {
+      "stage": "build-final",
+      "command": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-load-lifetime-main-20260925\\build",
+        "--config",
+        "Release",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "stage": "native-final",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-load-lifetime-main-20260925\\build",
+        "-C",
+        "Release",
+        "-R",
+        "^model-validation$",
+        "--output-on-failure"
+      ],
+      "exit": 0
+    }
+  ],
+  "version_test_exit": 0,
+  "identity": {
+    "version": "llmx 0.1.0+g7e195ff9fa7c.dirty",
+    "sha256": "1e787008003d72b0f863d8d132e5c15a297b8cb763a93d1c9ef30f37c59c06c4"
+  }
+}

@@ -4,6 +4,68 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Model loading lifetime checkpoint (2026-09-25)
+
+Failed construction and model teardown drain used backends before model-owned
+buffers are released. A Vulkan adoption failure keeps its partial destination
+alive until queued work retires; streamed-expert windows retain each successful
+allocation before requesting another. Successful adoption remains asynchronous.
+This integrates reviewed feature `83cca18` on main `7e195ff`, preserving the
+perplexity thread fix and changing no attention shader or CPU arithmetic.
+
+| Integration check | Observed | Requirement |
+|---|---:|---:|
+| Windows native suite, including Vulkan | 22/22 | All tests |
+| Model validation, including failed loading | 380 checks | All checks |
+| Required-HF CPU components | 14/14 | All components |
+| Required-HF Vulkan components, Radeon VII | 14/14 | All components |
+| Real-model NLL cases, batched and per-token | 48/48 | Frozen HF bounds |
+| HF top-1 per model, both backends | 6/6 | 6/6 |
+
+| Loading error witness | Original | Fixed |
+|---|---:|---:|
+| Missing final projection: buffers released while pending | 13 | 0 |
+| Fourth adoption failure: buffers released while pending | 3 | 0 |
+| Later streamed-window allocation failure | Original/intermediate regression fails | Pass |
+
+The original and intermediate implementations fail independent asynchronous
+ownership witnesses. Full CPU/Vulkan suites use the reviewed implementation;
+a final rebuild after two comment-only corrections passes the model regression
+and version check again. Those comments now describe physical microbatching and
+activation slots without the stale one-sequence/nine-slot claims.
+
+| HF correctness | CPU maximum absolute error | Vulkan maximum absolute error | Bound |
+|---|---:|---:|---:|
+| Synthetic F32 logits | 0.00000069 | 0.00000066 | 0.00002 |
+| Synthetic MoE logits | 0.00000065 | 0.00000072 | 0.00002 |
+| Q8_0 continuous NLL | 0.007366 | 0.001224 | 0.01 |
+| Q8_0 windowed NLL | 0.012356 | 0.012346 | 0.02 |
+| Q4_0 continuous NLL | 0.131554 | 0.131524 | 0.16 |
+| Q4_0 windowed NLL | 0.167600 | 0.167600 | 0.2 |
+| Q5_K_M continuous NLL | 0.027534 | 0.026294 | 0.05 |
+| Q5_K_M windowed NLL | 0.129440 | 0.129520 | 0.16 |
+
+[Current-main evidence](benchmarks/model-load-lifetime-main-20260925/report.json)
+records commands, binary/source hashes and raw outputs. The earlier failure
+controls remain in `benchmarks/model-load-lifetime-20260924.json`. This is a
+lifetime/error-path change, with no matched performance claim; suite timings
+are diagnostic while other correctness work runs. Linux CPU checks on descendant
+`1f778af` cover this ownership implementation, not Linux Vulkan. Hosted CI for
+the new main commit is observed after publication.
+
+All 39 Markdown files were reviewed for affected claims, ASCII and relative
+file targets, with independent source/ownership review. Corrected grouped
+integer-dot coverage, streamed uploads, host-visible model buffers, F16 CPU KV,
+compiled Vulkan source and runtime layer-split configuration. Historical
+measurements, remote URLs and anchors were not independently revalidated.
+
+Separate Gitea-only work remains outside this integration: CPU interface
+contracts `5c8e89c`, tiny-activation correction and evidence `e1060e7`, Vulkan
+allocation-lifetime fixes `01010e1`, and native HF format integration `4c890c8`.
+The separate Vulkan fix reproduces eight construction and seven queued-ownership
+failures and passes 24 native tests and 14 required-HF Vulkan components; its
+implementation is not included here. Their integration requirements still apply.
+
 ## Multi-device phase 1: layer split across devices (ROADMAP #5) (2026-09-24, branch feat/multi-device-phase1)
 
 - **Goal:** phase 1 of `docs/MULTI-DEVICE.md`: a model split by layers over the devices `--device` lists, each device's share chosen by a fit against its free memory (`Backend::memory_available`), admission that counts every KV pool in its own block size, sharded GGUF mapped shard by shard so a model past host memory loads, and weights uploaded to the devices in parallel. Today's crossing (a read and a write) stays; pipelining is phase 2.
@@ -2930,10 +2992,11 @@ their own measurements; K-quant optimization remains separate work below.
 | Automatic build identification          | Done (main `9511a4a`) |
 | Focused CLI help and complete current option coverage | Done (2026-09-24 checkpoint) |
 | Live generation and loading progress     | Done |
+| Model loading and teardown buffer lifetime | Done (2026-09-25 checkpoint) |
 | GitHub CPU CI                          | Done     |
 | HF fixture download retries and CI cache | Done |
 | Hosted numeric/path portability repair | Done (five jobs green at `851d375`) |
-| HF model download and sharded GGUF (ROADMAP #9a) | Done (local gates pass; hosted CI pending publication) |
+| HF model download and sharded GGUF (ROADMAP #9a) | Done (included in main; five hosted jobs passed at `7e195ff`) |
 | HF native formats (ROADMAP #9b)          | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 
@@ -4608,5 +4671,5 @@ feature ships, delete its block and mark the row `Done` above.
   - The roadmap's 2.16 -> ~2.6 tok/s is Q4_K's result on its own model, not a
     target for these types.
 
-Nothing else is in flight. When you start a feature, open a block above
-before writing code - see `AGENTS.md` -> "Starting a feature".
+When you start a feature, open a block above before writing code - see
+`AGENTS.md` -> "Starting a feature".

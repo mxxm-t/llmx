@@ -1,0 +1,7 @@
+Test project C:/Users/Marko/AppData/Local/Temp/llmx-load-lifetime-main-20260925/build
+    Start 5: model-validation
+1/1 Test #5: model-validation .................   Passed    0.20 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.21 sec

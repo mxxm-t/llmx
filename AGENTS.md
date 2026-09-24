@@ -182,8 +182,10 @@ logits and NLL against the independent HF fixture.
 
 `model-validation` checks Qwen configuration ranges/defaults, required tensor
 layouts and in-memory storage before model execution buffers are allocated.
-It covers tied/untied output, supported matrix types and singleton axes; it
-does not validate numeric weights, arbitrary token IDs or failed-session recovery.
+It covers tied/untied output, supported matrix types and singleton axes. An
+asynchronous test backend also checks loading failure and model teardown drain
+pending work before releasing buffers, including split placements and backend
+reuse. It does not validate numeric weights, arbitrary token IDs or failed-session recovery.
 
 `backend-group` checks mixed types, uneven rows, batches, thread counts,
 output boundaries and fallback behavior against separate calls and double dots.
@@ -486,8 +488,9 @@ reports the embedded value, with `unknown` for builds without Git metadata.
 - Do not break a sentence across lines in code comments or commit messages. A line ends where a sentence ends; a long sentence stays on one line rather than wrapping at a column.
 - A file's comments follow these rules once the file is touched, and a branch's files are swept before it merges.
 
-- Header-only for now (everything is `#pragma once` + `inline`), compiled via
-  `src/cli/main.cpp`. If we add `.cpp` files later, keep one TU per logical unit.
+- CPU and shared runtime code use headers (`#pragma once` + `inline`),
+  compiled via `src/cli/main.cpp`. The optional Vulkan backend has its own
+  compiled translation unit. Keep one TU per logical unit when adding `.cpp` files.
 - Include paths are relative to `src/` root: `#include "format/gguf.hpp"`.
 - No comments in code unless they explain a non-obvious decision or algorithm (e.g. the fp16 rounding, the GGUF padding rules, the AVX2 dequant+FMA path).
 - Cross-platform (Windows / Linux / macOS): guard MSVC-vs-GCC intrinsics with

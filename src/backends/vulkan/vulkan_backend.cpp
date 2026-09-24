@@ -1676,8 +1676,8 @@ public:
         if (!per) per = k;
         const size_t entries = nrows * k;
         const uint32_t type = live[0]->type;
-        if (!tile && nrows == 1) {
-            // A lone generated token: each entry its own workgroup row, through the one-column build.
+        if (!tile && entries < 2 * n_expert) {
+            // Generated tokens whose entries average fewer than two an expert: each entry its own workgroup row, through the one-column build, since grouping them would save few reads and costs a dispatch.
             const RowPlan plan = row_plan(type, nin);
             const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, xcols * nin);
             row_dispatch(plan, live, X, xqi, nin, xcols, 0, 1, false, u32(per), entries, bind(ids));
@@ -1704,16 +1704,11 @@ public:
             throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
         const uint32_t order0 = u32(4 * max_tiles);
         if (!tile) {
-            // Generated tokens beside each other: each run of one expert's entries a workgroup row, runs of two or more through the row kernel's wide build with a column per entry and lone entries through the one-column build.
+            // Enough generated tokens that experts repeat: each run of one expert's entries a workgroup row of the row kernel's wide build, a column per entry, so the expert's rows are read once per run.
             // A column computes the same in either build and as it would alone, so an entry does not depend on what else is routed beside it.
             const RowPlan plan = row_plan(type, nin);
             const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, xcols * nin);
-            if (row_kernel_builds_one_column(plan.kernel)) {
-                row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries, 1);
-                row_dispatch(plan, live, X, xqi, nin, xcols, 0, 1, false, u32(per), max_tiles, bind(ids), order0, tab, entries, 2);
-            } else {
-                row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries, 3);
-            }
+            row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries, 3);
             return;
         }
         if (integer_dot_tile(type)) {

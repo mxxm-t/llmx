@@ -4,6 +4,13 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Multi-device phase 0: measurements (ROADMAP #5) (2026-09-24, branch feat/multi-device-phase0)
+
+- **Goal:** the numbers phase 0 of `docs/MULTI-DEVICE.md` asks for, before any split is written: the Vulkan handoff between two MI50s, P over S, S+1, S+2 and 2S, whether a host-relayed group sum and an expert exchange pay under Vulkan, and the baselines (llama.cpp Vulkan and ROCm on pinned cards, the vLLM gfx906 fork brought up and checked). No runtime change lands from this branch; its tools and records do.
+- **Done:** nothing yet.
+- **Left:** downloads of Qwen3-32B Q8_0 (35 GB) and Qwen3-235B-A22B Q4_K_M (142 GB, five shards) on the Linux machine; the device queries (external semaphore and memory handle types, host-pointer import alignment, device groups); the handoff, concurrency, group-sum and exchange measurements; the P sweep; the baselines.
+- **Gotchas:** multi-card runs need cards with no neighbour and link speed checked first; a llama.cpp reference run is pinned to its cards or it spreads over all ten.
+
 ## MoE decode's small kernels and the float tile's F32 rows (2026-09-24, branch feat/moe-decode-small-ops)
 
 - **Goal:** the loose ends of MoE decode after the grouped decode merged: a token's time beyond its weight rows.

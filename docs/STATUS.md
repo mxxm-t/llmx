@@ -4,6 +4,13 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Multi-device phase 1: layer split across devices (ROADMAP #5) (2026-09-24, branch feat/multi-device-phase1)
+
+- **Goal:** phase 1 of `docs/MULTI-DEVICE.md`: a model split by layers over the devices `--device` lists, each device's share chosen by a fit against its free memory (`Backend::memory_available`), admission that counts every KV pool in its own block size, sharded GGUF mapped shard by shard so a model past host memory loads, and weights uploaded to the devices in parallel. Today's crossing (a read and a write) stays; pipelining is phase 2.
+- **Done:** nothing yet.
+- **Left:** everything above; then the gates: exact against one device on CPU+CPU and on two identical MI50s (tiny HF model, 0.6B, 8B, 30B-A3B), HF bounds on CPU+Vulkan, Qwen3-30B-A3B Q8_0 and Qwen3-32B Q8_0 on two MI50s, Qwen3-235B-A22B on six, the Radeon VII with CPU stages, no regression on one device.
+- **Gotchas:** a tied embedding and head on different devices are uploaded to both; `--n-cpu-moe` with several devices is refused until expert tiers (phase 5b).
+
 ## Multi-device phase 0: measurements (ROADMAP #5) (2026-09-24, branch feat/multi-device-phase0)
 
 - **Goal:** the numbers phase 0 of `docs/MULTI-DEVICE.md` asks for, before any split is written: the Vulkan handoff between two MI50s, P over S, S+1, S+2 and 2S, whether a host-relayed group sum and an expert exchange pay under Vulkan, and the baselines (llama.cpp Vulkan and ROCm on pinned cards, the vLLM gfx906 fork brought up and checked). No runtime change lands from this branch; its tools and records do.

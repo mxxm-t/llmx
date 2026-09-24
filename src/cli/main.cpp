@@ -745,8 +745,10 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 
 // The matched real-model measurement: a warm-up of each test, then R repeats of prompt processing P tokens in one batch into an empty history and of generating G tokens one at a time from an empty history, model time only, token ids fixed and sampling excluded.
 // Reported as mean and standard deviation of tokens per second, so a reference runtime's figures for the same P and G compare directly.
+// With seqs above one the decode measured is a server's: that many sequences each prefilled with the prompt, then every pass one token of each.
 int cmd_bench_model(const std::string& path, const std::string& device, int threads,
-                    int P, int G, int R, const infer::ModelOptions& options, bool profile, int cpu_moe, int stream_from) {
+                    int P, int G, int R, const infer::ModelOptions& options, bool profile, int cpu_moe, int stream_from,
+                    int seqs = 1) {
     gguf::GGUFModel m = load_model(path, false);
     backend::BackendPtr backend_for_model = make_backend(device, profile);
     backend::Backend& b = *backend_for_model;
@@ -771,11 +773,32 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
         model.prefill(prompt);
         return (double)P / (ms_since(t0) / 1e3);
     };
+    infer::ExecContext ctx;
     auto tg = [&] {
-        model.reset();
+        if (seqs <= 1) {
+            model.reset();
+            const auto t0 = clock::now();
+            for (uint32_t t : gen) model.step((int)t);
+            return (double)G / (ms_since(t0) / 1e3);
+        }
+        std::vector<infer::Sequence> s;
+        for (int i = 0; i < seqs; ++i) s.push_back(model.make_sequence());
+        for (auto& q : s) {
+            infer::BatchEntry e{&q, prompt.data(), prompt.size(), true};
+            model.forward(ctx, &e, 1);
+        }
+        ctx.logits(0);
+        std::vector<infer::BatchEntry> batch;
         const auto t0 = clock::now();
-        for (uint32_t t : gen) model.step((int)t);
-        return (double)G / (ms_since(t0) / 1e3);
+        for (int g = 0; g < G; ++g) {
+            batch.clear();
+            for (auto& q : s) batch.push_back(infer::BatchEntry{&q, &gen[(size_t)g], 1, true});
+            model.forward(ctx, batch.data(), batch.size());
+            ctx.logits(0);   // a server reads each pass's logits before it samples the next tokens
+        }
+        const double rate = (double)G * seqs / (ms_since(t0) / 1e3);
+        for (auto& q : s) model.reset(q);
+        return rate;
     };
     auto report = [&](const char* what, int n, const std::vector<double>& v) {
         double mean = 0, var = 0;
@@ -791,7 +814,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
     for (int r = 0; r < R; r++) ppv.push_back(pp());
     for (int r = 0; r < R; r++) tgv.push_back(tg());
     report("pp", P, ppv);
-    report("tg", G, tgv);
+    report(seqs > 1 ? ("x" + std::to_string(seqs) + " tg").c_str() : "tg", G, tgv);
     if (profile) {
 #if LLMX_HAS_BACKEND_VULKAN
         // Device time per kernel over everything above, so a token can be attributed to kernels rather than inferred from kernels timed alone.
@@ -971,6 +994,7 @@ bool print_usage(const std::string& command = {}) {
             << "  --iters N               Synthetic kernel repetitions (default: 5)\n"
             << "  --model PATH            Benchmark this model instead of synthetic weights\n"
             << "  --r N                   Real-model repetitions (default: 3)\n"
+            << "  --seqs N                Sequences decoding together, a pass one token of each (default: 1)\n"
             << "  --profile               Real-model device kernel timing and statistics\n";
         model_options(false, false);
         std::cout << "\nCache options apply only with --model.\n"
@@ -1261,7 +1285,7 @@ int main(int argc, char** argv) {
             return cmd_serve(argv[2], cfg, gp);
         }
         if (cmd == "bench") {
-            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3;
+            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3, seqs = 1;
             bool profile = false;
             std::string device = "cpu", model_path;
             infer::GenParams gp;
@@ -1277,6 +1301,7 @@ int main(int argc, char** argv) {
                 else if (a == "--p") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;
                 else if (a == "--n") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;
                 else if (a == "--r") repeats = (i + 1 < argc) ? std::atoi(argv[++i]) : repeats;
+                else if (a == "--seqs") seqs = (i + 1 < argc) ? std::atoi(argv[++i]) : seqs;
                 else if (a == "--model") model_path = (i + 1 < argc) ? argv[++i] : model_path;
                 else if (a == "--profile") profile = true;
                 else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
@@ -1285,12 +1310,12 @@ int main(int argc, char** argv) {
             }
             if (size <= 0 || size % 32 != 0) { std::cerr << "bench: --size must be positive and a multiple of 32\n"; return 2; }
             // Each of these divides a measured duration or token count.
-            if (iters <= 0 || prefill <= 0 || decode <= 0 || repeats <= 0) {
-                std::cerr << "bench: --iters, --p, --n and --r must be positive\n"; return 2;
+            if (iters <= 0 || prefill <= 0 || decode <= 0 || repeats <= 0 || seqs <= 0) {
+                std::cerr << "bench: --iters, --p, --n, --r and --seqs must be positive\n"; return 2;
             }
             if (!model_path.empty())
                 return cmd_bench_model(model_path, device, threads, prefill, decode, repeats, model_options(gp),
-                                       profile, gp.cpu_moe, gp.moe_stream_from);
+                                       profile, gp.cpu_moe, gp.moe_stream_from, seqs);
             return cmd_bench(size, iters, threads, prefill, decode, device);
         }
         print_usage();

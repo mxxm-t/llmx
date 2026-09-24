@@ -672,8 +672,10 @@ int time_handoff(int ia, int ib, int iters) {
     const bool dma_buf = A.dma_buf && B.dma_buf;
     std::printf("host-pointer import: %s; sync-fd semaphores: %s; dma-buf: %s\n", imported ? "yes" : "no", sync_fd ? "yes" : "no", dma_buf ? "yes" : "no");
     VkSemaphore tla = make_semaphore(A, true), tlb = make_semaphore(B, true), relay = make_semaphore(B, true);
+#if !defined(_WIN32)
     VkSemaphore bina = sync_fd ? make_semaphore(A, false, true) : VK_NULL_HANDLE;
     VkSemaphore binb = sync_fd ? make_semaphore(B, false) : VK_NULL_HANDLE;
+#endif
     uint64_t va = 0, vb = 0, vr = 0;
     const size_t align = (size_t)std::max<VkDeviceSize>({A.host_alignment, B.host_alignment, 4096});
 

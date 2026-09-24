@@ -4,7 +4,7 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Vulkan cache cleanup (validation checkpoint, 2026-09-25)
+## Vulkan cache cleanup checkpoint (2026-09-25)
 
 - **Goal:** close the three reproduced Vulkan ownership failures without
   changing successful kernel arithmetic or adding queue waits.
@@ -18,10 +18,13 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   unchanged main fails seven. The existing seven queued-lifetime cases pass
   both arms. Local WSL GCC 13.3 builds the test and passes eight constructor
   cases; device checks skip on llvmpipe's subgroup width, not pass.
-- **Left:** commit and rebuild with working Git metadata, verify the clean
-  executable, then publish only after final integration review. The test
-  binaries currently identify as `unknown` because sandbox Git access failed;
-  their exact source/binary hashes are retained, not presented as clean builds.
+- **Done:** clean committed rebuild `c0d02cc0b28e`, with working Git metadata,
+  passed all 24 native checks and focused version/F32/thread HF checks on Vulkan.
+  The executable reports `llmx 0.1.0+gc0d02cc0b28e`; SHA-256 is recorded in
+  `clean-commit.json` with commands and raw logs. Earlier pre-commit `unknown`
+  binaries retain their original identity and evidence. Independent source,
+  test and evidence review passed; the implementation is ready for main.
+  Hosted CI is recorded after publication rather than claimed in advance.
 - **Gotchas:** CPU malformed RowRuns is a separate follow-up. No numerical
   shader, arithmetic, dispatch selection or successful queue-wait change.
   No performance claim is made while long-context correctness runs; suite

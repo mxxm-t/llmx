@@ -1,0 +1,189 @@
+MSBuild version 18.4.0+6e61e96ac for .NET Framework
+
+MSBuild version 18.4.0+6e61e96ac for .NET Framework
+
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\ZERO_CHECK.vcxproj]
+  1>Checking Build System
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-build-info.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-backend-errors-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-backend-group-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-vulkan-shaders.vcxproj]
+  backend_group.cpp
+  glslc add
+  backend_errors.cpp
+  glslc attention
+  glslc attention_k16
+  glslc attention_kv16
+  glslc attention_merge
+  glslc attention_tile
+  glslc attention_tile_k16
+  glslc attention_tile_kv16
+  glslc attention_tile_v16
+  glslc attention_v16
+  glslc embed
+  glslc gather_rows
+  glslc kv_write
+  glslc kv_write_k16
+  llmx-backend-errors-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-backend-errors-test.exe
+  glslc kv_write_kv16
+  llmx-backend-group-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-backend-group-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-chat-template-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  glslc kv_write_v16
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-cli-output-test.vcxproj]
+  chat_template.cpp
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  cli_output.cpp
+  glslc matmul_reduce
+  glslc matmul_row
+  glslc matmul_row_k
+  glslc matmul_row_k4
+  glslc matmul_row_k4_dot
+  glslc matmul_row_k5
+  glslc matmul_row_k5_dot
+  glslc matmul_row_k_dot
+  glslc matmul_row_k_dot8
+  glslc matmul_row_q4
+  glslc matmul_row_q4_dot
+  glslc matmul_row_q4_dot8
+  llmx-chat-template-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-chat-template-test.exe
+  glslc matmul_row_q8w
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-fp16-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  fp16.cpp
+  glslc matmul_tile
+  glslc matmul_tile_q
+  llmx-fp16-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-fp16-test.exe
+  glslc matmul_tile_q6
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-fused-dot-overflow-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  fused_dot_overflow.cpp
+  glslc matmul_vec_q8
+  glslc moe_combine
+  glslc moe_group
+  glslc moe_route
+  glslc norm_rope_kv
+  glslc norm_rope_kv_k16
+  glslc norm_rope_kv_kv16
+  glslc norm_rope_kv_v16
+  glslc norm_rope_rows
+  glslc quantize_x
+  llmx-fused-dot-overflow-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-fused-dot-overflow-test.exe
+  glslc quantize_x8
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-generation-stream-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  generation_stream.cpp
+  glslc rms_norm_rows
+  glslc silu_mul
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-vulkan.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  vulkan_backend.cpp
+  llmx-cli-output-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-cli-output-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-gguf-shards-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-gguf-validation-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  gguf_validation.cpp
+  gguf_shards.cpp
+  llmx-vulkan.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-vulkan.lib
+  llmx-generation-stream-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-generation-stream-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-backend-vulkan-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  backend_vulkan.cpp
+C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\backend_vulkan.cpp(641,98): warning C4456: declaration of 'nout' hides previous local declaration [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-backend-vulkan-test.vcxproj]
+      C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\backend_vulkan.cpp(322,22):
+      see declaration of 'nout'
+  
+C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\backend_vulkan.cpp(644,28): warning C4456: declaration of 'wf' hides previous local declaration [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-backend-vulkan-test.vcxproj]
+      C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\backend_vulkan.cpp(323,20):
+      see declaration of 'wf'
+  
+C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\backend_vulkan.cpp(645,38): warning C4456: declaration of 'wq' hides previous local declaration [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-backend-vulkan-test.vcxproj]
+      C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\backend_vulkan.cpp(324,30):
+      see declaration of 'wq'
+  
+  llmx-gguf-validation-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-gguf-validation-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  main.cpp
+  llmx-gguf-shards-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-gguf-shards-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-http-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  http.cpp
+  llmx-http-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-http-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-hub-manifest-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  hub_manifest.cpp
+  llmx-hub-manifest-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-hub-manifest-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-hub-pull-test.vcxproj]
+  llmx-backend-vulkan-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-backend-vulkan-test.exe
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-hub-transport-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  hub_pull.cpp
+  hub_transport.cpp
+C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\hub_transport.cpp(39,34): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-hub-transport-test.vcxproj]
+C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\hub_transport.cpp(46,14): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-hub-transport-test.vcxproj]
+C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\hub_transport.cpp(47,14): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-hub-transport-test.vcxproj]
+C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\tests\hub_transport.cpp(49,36): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-hub-transport-test.vcxproj]
+  llmx-hub-pull-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-hub-pull-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-json-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  json.cpp
+  llmx-hub-transport-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-hub-transport-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-kv-cache-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  kv_cache.cpp
+  llmx-json-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-json-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-load-progress-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  load_progress.cpp
+  llmx.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-model-validation-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  model_validation.cpp
+  llmx-load-progress-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-load-progress-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-moe-kernel-bench.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  moe_kernel_bench.cpp
+  llmx-kv-cache-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-kv-cache-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-multi-device-bench.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  multi_device_bench.cpp
+  llmx-moe-kernel-bench.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-moe-kernel-bench.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-placement-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  placement.cpp
+  llmx-multi-device-bench.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-multi-device-bench.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-prefill-placement-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  prefill_placement.cpp
+  llmx-model-validation-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-model-validation-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-prefill-scope-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  prefill_scope.cpp
+  llmx-prefill-placement-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-prefill-placement-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-q8-dots-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  q8_dots.cpp
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-split-check.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  llmx-placement-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-placement-test.exe
+  split_check.cpp
+  llmx-prefill-scope-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-prefill-scope-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-vk-handoff.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  vulkan_handoff.cpp
+  llmx-vk-handoff.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-vk-handoff.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\llmx-vulkan-lifetime-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt
+  vulkan_buffer.cpp
+  llmx-q8-dots-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-q8-dots-test.exe
+  llmx-split-check.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-split-check.exe
+  llmx-vulkan-lifetime-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\Release\llmx-vulkan-lifetime-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-vulkan-cache-cleanup-20260925\build-final\ALL_BUILD.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/CMakeLists.txt

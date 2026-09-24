@@ -1,0 +1,47 @@
+{
+  "commands": [
+    {
+      "stage": "clean-commit-build",
+      "command": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-cache-cleanup-20260925\\build-final",
+        "--config",
+        "Release",
+        "--clean-first",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "stage": "clean-commit-native",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-cache-cleanup-20260925\\build-final",
+        "-C",
+        "Release",
+        "--output-on-failure"
+      ],
+      "exit": 0
+    },
+    {
+      "stage": "clean-commit-focused",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-c",
+        "import os,sys;os.environ['LLMX_DEVICE']='vulkan:0';sys.path.insert(0,'tests');import common,version,f32,threads;common.EXE=sys.argv[1];assert all(f() for f in (version.run,f32.run,threads.run))",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-cache-cleanup-20260925\\build-final\\Release\\llmx.exe"
+      ],
+      "exit": 0
+    }
+  ],
+  "identity": {
+    "commit": "c0d02cc0b28e7e285ff44888b871b882a519516c",
+    "version": "llmx 0.1.0+gc0d02cc0b28e",
+    "sha256": "980ff716eb8436a1558a49926c594fbb158cb6a7f313962157d42d7917533190"
+  }
+}

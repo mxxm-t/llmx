@@ -225,5 +225,19 @@
     "https://docs.vulkan.org/refpages/latest/refpages/source/VkResult.html",
     "https://docs.vulkan.org/spec/latest/chapters/pipelines.html#pipelines-multiple"
   ],
-  "scope": "No Linux GPU/HF, MI50, deep-context or new matched mx performance claim. CPU malformed RowRuns remains separate."
+  "scope": "No Linux GPU/HF, MI50, deep-context or new matched mx performance claim. CPU malformed RowRuns remains separate.",
+  "clean_committed_build": {
+    "commit": "c0d02cc0b28e7e285ff44888b871b882a519516c",
+    "version": "llmx 0.1.0+gc0d02cc0b28e",
+    "sha256": "980ff716eb8436a1558a49926c594fbb158cb6a7f313962157d42d7917533190"
+  },
+  "clean_committed_checks": {
+    "native": 24,
+    "focused": [
+      "version",
+      "F32 HF Vulkan",
+      "threads HF Vulkan (56 cases)"
+    ]
+  },
+  "independent_evidence_review": "Verified 24 original artifact hashes and all 34 source hashes, matching control tests/runtime, native/HF rows and scoped GCC results; complete source/doc review found no blocker."
 }

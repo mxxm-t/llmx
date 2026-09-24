@@ -421,7 +421,7 @@ comparison below for that path.
 | `--threads N`   | CPU worker count (0 = auto)                  | 0       |
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
-| `--profile`     | with `--model` on a device backend, the device time each kernel spent over the run | off |
+| `--profile`     | with `--model` on a device backend, after the timed runs: one more prompt run and one more decode run, each reported on its own as the device time each kernel spent (`profile pp`, then `profile tg` or `profile batched tg`, which starts after its sequences' prompts); the first 4096 dispatches of each are timed | off |
 
 ## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T]`
 

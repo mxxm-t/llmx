@@ -2316,7 +2316,7 @@ private:
     Ticket staged_[2] = {};                   // the last copy out of each half of staging
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
-    static const uint32_t kQueries = 8192;    // two per dispatch, reset each submission
+    static const uint32_t kQueries = 8192;    // two per dispatch; a reading empties the pool, which the next dispatch resets
     uint32_t query_next_ = 0;
     bool queries_stale_ = false;   // the pool holds a read interval's stamps, reset by the next dispatch
     size_t last_timed_ = 0;        // dispatches the last reading covered

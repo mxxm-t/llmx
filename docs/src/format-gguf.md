@@ -16,20 +16,20 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
 - `TensorInfo`: name, dims (`ne[0]` fastest), type, offset; `n_elements()` and
   `data_size()` use checked arithmetic. Quantized rows must contain a whole
   number of blocks, even when the total element count would be divisible.
-- `GGUFModel`: metadata KVs, tensor infos, and ONE contiguous range holding
-  all tensor data with per-tensor `offsets`: a single file's data section
-  mapped read-only (`mapped`, `mapped_start`, see [mapped_file](format-mapped_file.md)),
-  or for sharded and in-memory models the `blob`. `payload()`,
-  `payload_size()` and `holds(p)` name the range whichever holds it, and
-  `tensor_data(i)` / `tensor_bytes(i)` address it; a mapped model's bytes
-  are read-only. For a single file `read_gguf` maps it and touches every
-  page once in the steps the progress reports; for shards it sizes the
-  blob exactly and reads each tensor straight into place.
-  `release_payload()` drops the mapping or frees the blob once a model on
-  device backends alone has copied every weight into device memory
-  (`Model::holds_payload`), so the host does not hold the weights twice.
-  A mapped model keeps its file open, which Windows will not let another
-  writer rewrite while it is loaded.
+- `GGUFModel`: metadata KVs, tensor infos, and all tensor data addressed by
+  per-tensor `offsets`: an in-memory model's in one `blob`, a file's data
+  section mapped read-only, one `Segment` per shard placed after the one
+  before in offset order (see [mapped_file](format-mapped_file.md)), so a
+  sharded model larger than host memory loads without a copy.
+  `payload_size()` is the extent the offsets address and `holds(p)` whether
+  a pointer lies in the tensor bytes; `tensor_data(i)` / `tensor_bytes(i)`
+  address a tensor in whichever holds it, and a mapped model's bytes are
+  read-only. `read_gguf` maps every file and touches every page once in the
+  steps the progress reports. `release_payload()` drops the mappings or
+  frees the blob once a model on device backends alone has copied every
+  weight into device memory (`Model::holds_payload`), so the host does not
+  hold the weights twice. A mapped model keeps its files open, which Windows
+  will not let another writer rewrite or remove while it is loaded.
 - Both `read_gguf` and `add_tensor_data` preserve `alignof(float)` between
   in-memory tensors. A 34-byte quantized tensor must not misalign a following
   F32 tensor when the loader removes on-disk padding.
@@ -50,7 +50,7 @@ are supported up to `MAX_ARRAY_DEPTH` (256 containers); an empty array still
 needs a valid element type. Rank-zero F32 and zero-sized tensors are accepted
 as file objects; model execution imposes separate shape requirements.
 
-Before allocating the payload blob or reporting progress, the reader checks
+Before mapping payloads or reporting progress, the reader checks
 all tensor byte counts, aligned in-memory totals and on-disk ranges, including
 zero-sized tensor offsets. Unordered or overlapping ranges are accepted if
 each lies within the data section. Reads cannot use wrapped offsets or an
@@ -73,8 +73,10 @@ must match exactly by type and value, except each file owns its own alignment.
 Duplicate keys/tensors and mismatched indices/counts/totals fail before progress
 or payload allocation. Extremely large shard sets may exceed OS open-file limits.
 
-All shards share one final blob and one aggregate progress total. No shard-size
-temporary blob or concatenation copy is used. The assembled model removes split
+All shards share one offset space and one aggregate progress total; each is
+mapped in place, with no copy, and a shard holding metadata alone maps
+nothing. Each file's extent is fixed when it is mapped, so a shard truncated
+before loading is refused before any progress. The assembled model removes split
 bookkeeping so writing it as one GGUF remains valid. Native fixtures exercise
 structure, payload bytes and error paths; `tests/shards.py` compares sharded
 synthetic model logits and NLL against the committed HF references.

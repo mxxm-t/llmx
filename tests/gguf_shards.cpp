@@ -1,4 +1,6 @@
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <iostream>
 #include <limits>
 #include "format/gguf.hpp"
@@ -154,10 +156,13 @@ int main(int argc, char** argv) {
         auto model = accepted(first, {quant, scalar, empty});
         require(model.kv.size() == 3, "split bookkeeping survived assembly");
         gguf::write_gguf(model, plain.string());
+        // A loaded model maps its shards, and Windows keeps a mapped file from being rewritten or removed.
+        model.release_payload();
         require(accepted(plain, {quant, scalar, empty}).kv.size() == 3, "single-file roundtrip changed metadata");
         auto adapter = format::open(first.string());
         require(adapter && adapter->tensors().size() == 3 && adapter->metadata_string("general.architecture") == "qwen3",
                 "format adapter lost assembled tensors or metadata");
+        adapter.reset();
         ++cases;
 
         const auto unicode_directory = directory / std::filesystem::u8path(u8"cache-\u00e9-\u4e2d-\U0001f680");
@@ -177,6 +182,7 @@ int main(int argc, char** argv) {
                     "Unicode format adapter lost model");
             ++cases;
         }
+        unicode_model.release_payload();
         for (const auto& path : {unicode_first, unicode_second, unicode_single}) std::filesystem::remove(path);
         std::filesystem::remove(unicode_directory);
 
@@ -345,15 +351,20 @@ int main(int argc, char** argv) {
             require(failed, "callback exception lost");
             ++cases;
         }
+        // Every shard is mapped with its extent fixed at open, as a single file is, so a shard truncated before loading is refused before any progress and one truncated during it is not a case the reader can see.
+        save(second, encode(split(1, 2, 3), {big, empty}));
+        {
+            std::ifstream in(second, std::ios::binary);
+            Bytes whole((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            whole.resize(whole.size() - 64);
+            save(second, whole);
+        }
         seen.clear();
         bool failed = false;
         try {
-            gguf::read_gguf(first.string(), [&](size_t done, size_t total) {
-                progress(done, total);
-                if (!done) std::filesystem::resize_file(second, 0);
-            });
+            gguf::read_gguf(first.string(), [&](size_t done, size_t) { seen.push_back(done); });
         } catch (const std::ios_base::failure&) { failed = true; }
-        require(failed && !seen.empty() && seen.back() < 34 + big_size, "truncation reported success");
+        require(failed && seen.empty(), "a truncated shard was loaded or reported progress");
         ++cases;
         std::filesystem::remove_all(directory);
         std::cout << "GGUF shards: " << cases << " cases pass\n";

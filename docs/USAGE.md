@@ -85,8 +85,8 @@ its `.pull-*` directory for manual removal. Simultaneous pulls use separate
 temporary directories. Completed shards remain reusable if a later shard fails.
 
 All GGUF commands accept the first `-00001-of-0000N.gguf` shard and discover
-the siblings beside it. Loading validates all shard metadata and tensor extents
-before one aggregate payload allocation. The first shard may contain metadata
+the siblings beside it. Loading validates all shard metadata and tensor extents,
+then maps every shard in place, so a sharded model larger than host memory loads. The first shard may contain metadata
 only. Successful download does not establish that llmx implements the model's
 architecture, tokenizer or tensor types; current runtime coverage still applies.
 

@@ -103,7 +103,7 @@ Flag names are chosen for what fits llmx best; an established name is kept where
 
 ## Loading
 
-Only a single-file GGUF is mapped today. A sharded GGUF and a native safetensors model assemble their payload in host memory, which a model past host RAM cannot do, and Qwen3-235B-A22B ships as sharded GGUF. So bounded shard loading, each shard mapped and its pages dropped once the devices hold them, is a prerequisite of phase 1 for any model larger than host memory. The native HF path stays dense-only and its half-precision weights CPU-only until that path gains devices. A payload stays owned for as long as any loader, replica, upload or buffer borrowing it is alive, and is released only after the last of them.
+Every GGUF file is mapped, a sharded one shard by shard with the shards placed one after another in the model's tensor offsets (phase 1), so Qwen3-235B-A22B, which ships as sharded GGUF, loads without its payload in host memory, and a tensor's pages leave the host once the devices hold it. A native safetensors model still assembles its payload in host memory. The native HF path stays dense-only and its half-precision weights CPU-only until that path gains devices. A payload stays owned for as long as any loader, replica, upload or buffer borrowing it is alive, and is released only after the last of them.
 
 ## Placement and balance
 

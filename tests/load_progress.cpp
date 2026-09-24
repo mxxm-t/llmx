@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
         try { gguf::read_gguf(path, progress); }
         catch (const std::runtime_error&) { threw = true; }
         require(threw && seen.empty(), "truncated payload emitted progress before structural rejection");
-        // A single file is mapped with its extent fixed at open, so truncation during the read is the shard test's case, where files are streamed.
+        // Every file is mapped with its extent fixed at open, so a truncation during the read is not visible; one before it is refused above.
         gguf::write_gguf(source, path);
         std::filesystem::resize_file(path, 8);
         seen.clear();

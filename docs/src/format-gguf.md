@@ -25,7 +25,10 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   a pointer lies in the tensor bytes; `tensor_data(i)` / `tensor_bytes(i)`
   address a tensor in whichever holds it, and a mapped model's bytes are
   read-only. `read_gguf` maps every file and touches every page once in the
-  steps the progress reports. `release_payload()` drops the mappings or
+  steps the progress reports, unless the payload is larger than the host's
+  available memory: those pages would be evicted before a device copied
+  them and read from disk twice, so they are left for the copy to read once
+  and progress goes straight to complete. `release_payload()` drops the mappings or
   frees the blob once a model on device backends alone has copied every
   weight into device memory (`Model::holds_payload`), so the host does not
   hold the weights twice. A mapped model keeps its files open, which Windows

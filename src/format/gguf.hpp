@@ -16,6 +16,7 @@
 
 #include "format/format.hpp"
 #include "format/mapped_file.hpp"
+#include "core/host_memory.hpp"
 
 // GGUF file format reader/writer, implemented from scratch.
 // Implements GGUF v3 and the tensor types listed below.
@@ -567,6 +568,12 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
         base = size_t(aligned_size(checked_add(base, size), alignof(float)));
     }
     if (progress && payload) progress(0, payload);
+    // Pages touched here stay resident only while the host can hold them: a payload larger than the memory available is evicted before a device copies it and read from disk twice, so it is left to be read once by whoever reads it.
+    const auto available = core::host_memory_available();
+    if (available && payload > *available) {
+        if (progress) progress(payload, payload);
+        return m;
+    }
     size_t completed = 0;
     volatile uint8_t sink = 0;
     for (size_t i = 0; i < m.tensors.size(); ++i) {

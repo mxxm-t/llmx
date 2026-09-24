@@ -150,7 +150,7 @@ Split a single model across several devices on one machine, designed in `docs/MU
 - **Staged tensor**: stages of tensor groups.
 - **Replicas**: several copies of a model that fits one card or group, behind one scheduler.
 - The embedding table and the output head are placed as roles with their own cost.
-- Flags are llmx's own and mean the same on every backend.
+- Flags are named for what fits best and mean the same on every backend.
 
 ## 6. Multi-node / cluster **[design]**
 - `node_id` on each Backend, message layer for cross-node tensor exchange

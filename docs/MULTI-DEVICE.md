@@ -96,7 +96,7 @@ Layers as in ARCHITECTURE: the model knows stages, the inference layer runs them
 - **Scheduler** (`server/scheduler.hpp`). P execution contexts, batch assembly by predicted time, admission over several pools, and cancellation and pausing only for sequences not in flight.
 - **Backend** (`backends/`). One addition in phase 1: `memory_available()`, the device's free memory (Vulkan through `VK_EXT_memory_budget`, CPU from the OS), which the fit needs. The group sum for tensor groups is added in its phase and not before.
 
-Flags are llmx's own. Following an AGENTS.md rule that predates this decision, EXECUTION.md names them after llama.cpp; both are updated when the flags land. A sketch: `--devices vulkan:0,vulkan:1` lists the devices; the layer split is the default for more than one; `--group-width N` forms tensor groups of N consecutive devices; `--layer-shares 3,2` overrides the automatic balance. The flags mean the same on every backend or are refused, as the KV cache types are.
+Flag names are chosen for what fits llmx best; an established name is kept where it is the best fit, and no name is taken only because another runtime uses it. A sketch, to be settled when the flags land: `--devices vulkan:0,vulkan:1` lists the devices; the layer split is the default for more than one; `--group-width N` forms tensor groups of N consecutive devices; `--layer-shares 3,2` overrides the automatic balance. The flags mean the same on every backend or are refused, as the KV cache types are.
 
 ## Placement and balance
 

@@ -104,7 +104,7 @@ the compiled binary portable to older CPUs.
   blocks no longer stay in the first-level cache, so a row computes the same alone
   or beside others; without runs a one-column call is decode. The decode dots (`q8_dots.hpp`) quantize a call's activations once
   per block of 32, 8-bit for Q8_0, Q4_K and Q5_K and 16-bit for Q4_0, Q4_1
-  and Q6_K, the same split as the device's row kernels, and meet the packed
+  and Q6_K, and meet the packed
   weights in integers (`maddubs` and `madd`), one scale per block; the float
   dots they replaced converted every weight and were bound by arithmetic.
   `set_decode_activations8(false)` keeps the float dots, which the device

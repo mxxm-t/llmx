@@ -1,0 +1,4 @@
+pipeline_retry threw=1 unreleased_modules=1 unreleased_sets=1 unreleased_layouts=1 unreleased_pipelines=0
+diagnostic_query destructor_calls=0
+drop_padded threw=1 retained_entries=2 null_cached_copies=1
+review_findings_reproduced=3/3

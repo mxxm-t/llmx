@@ -1,0 +1,14 @@
+{
+  "files": 40,
+  "relative_targets": 132,
+  "nonascii": [],
+  "missing": [],
+  "scope": "Independent complete-file scan and affected-claim review of 39 original Markdown files; root reviewed the new report and final changes. Historical measurements, remote links and anchors not revalidated.",
+  "corrections": [
+    "Label old buffer signatures historical",
+    "Correct implemented placement flags",
+    "Distinguish removed interface method from concrete CPU helper",
+    "Remove stale CPU/Vulkan precision equivalence",
+    "Disclose newly reproduced failure-path gaps without retracting narrower prior passes"
+  ]
+}

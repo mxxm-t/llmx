@@ -4,6 +4,37 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Backend architecture audit follow-up (2026-09-25)
+
+- **Goal:** verify backend boundaries, ownership, error behavior and development
+  rules without mixing changes into the active attention or activation work.
+- **Done:** source review at published `e475c3f`, independent CPU/Vulkan review,
+  and isolated failure probes. All 33 backend files pass the mechanical
+  upward-include, ASCII and runtime-environment scans. The existing buffer,
+  ticket, physical-KV and single-submitter boundaries fit the architecture.
+- **Done:** three Vulkan findings reproduce: pipeline retry orphans one module,
+  descriptor layout and pipeline layout; diagnostic query-pool teardown is
+  absent; partial padded-cache invalidation leaves a null entry after allocation
+  failure. CPU malformed RowRuns can execute beyond the declared batch before
+  rejecting; model-generated malformed runs were not observed.
+- **Left:** small separate fixes and permanent failure/retry tests, then relevant
+  platform/HF checks and documentation review. No runtime fix is included here.
+  The activation-range candidate's depth and performance gates remain separate.
+- **Gotchas:** this is a source/failure-path audit, not a claim that every backend
+  operation or shader is numerically validated. Earlier passing lifetime checks
+  covered different paths. The three Vulkan probes use intercepted resource
+  calls; CPU probes count callbacks without performing invalid memory accesses.
+
+[Review and reproduction](benchmarks/backend-audit-20260925/README.md) records
+findings, code locations, raw outputs and the exact reviewed revision. No
+architecture rewrite or speculative abstraction is indicated.
+All 40 Markdown files received affected-claim, ASCII and relative-link
+review (132 file targets, none missing). Corrected historical buffer
+signatures, implemented placement flags, the concrete CPU helper description
+and the CPU/Vulkan precision comparison. No executable source changed, so
+this documentation checkpoint relies on the unchanged main build and its
+recorded 24 native checks; the new probes supplement those scoped results.
+
 ## Vulkan allocation lifetime checkpoint (2026-09-25)
 
 Vulkan buffer construction releases acquired handles on failure. Failed KV

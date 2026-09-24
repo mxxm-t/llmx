@@ -64,7 +64,10 @@ a micro-benchmark. They should be removed rather than ported.
 
 ### Buffers
 
-An opaque handle owned by the backend that allocated it.
+An opaque handle owned by the backend that allocated it. The signatures below
+are the original migration design. The current interface returns
+`const void* host_ptr() const` and supports host-visible device allocations;
+see [EXECUTION](EXECUTION.md) and `src/backends/backend.hpp`.
 
 ```cpp
 class Buffer {

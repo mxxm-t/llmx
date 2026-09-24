@@ -30,6 +30,9 @@ kernel notes and measurements are `docs/VULKAN.md`.
   on failed memory selection, allocation, binding or mapping. Arena overflow
   retains the old buffer before replacing it and leaves its offset reset if
   the replacement allocation fails.
+  The [backend audit](../benchmarks/backend-audit-20260925/README.md) records
+  separate open cleanup gaps in kernel retry, diagnostic query teardown and
+  padded-cache invalidation; these are not covered by the preceding guarantees.
 - `adopt` copies weights through two staging halves and returns after consuming
   the source, with device copies still ordered on the queue. If a later upload
   chunk fails, it drains the queue before releasing the local destination.

@@ -1,0 +1,13 @@
+{
+  "utc": "2026-09-24T23:25:49.607868+00:00",
+  "reviewed_revision": "e475c3f58c31944f397d96abd7b079fc90f5f082",
+  "exit": 0,
+  "scope": "Failure-path ownership probes only; fake kernel handles and query handle, injected C++ allocation failure; no numerical or performance claim",
+  "artifacts": {
+    "probe.cpp": "7d0a6101467dd7c82fce172bb60651ef2eb425d705ea57d21aa60a9ebf9f8848",
+    "probe.exe": "8a919247b1a987ec9ff561f86898cbf963ef8cb55727bc38dbd42e6019d94632",
+    "build.cmd": "ee6812bc9b62f31d9052aa64d52dd8a140d23e3395de34f6baf406982032d947",
+    "build.log": "cad907bd417ec1f7349dd86d4a60fdb42248bbc671b520238179f7ee617e13f7",
+    "probe.log": "8eb6dd71937578ada51fae965247b09c098ca5b43584c32113f8c7c47b133c18"
+  }
+}

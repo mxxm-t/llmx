@@ -131,7 +131,7 @@ the call before body entry. Its default implementation invokes the body directly
 Backends may use this boundary to scope execution policy across all prompt
 microbatches without putting platform details in the model layer.
 
-`dot_q8_0` and `matvec_q8_0` are gone. They were Q8_0-specific single-row
-leftovers that `matmul` replaced everywhere, and a scalar return per row is
-one kernel launch per row on a device. The Q8_0 single-column path survives
-as a private detail of the CPU backend, reached through `matmul`.
+`dot_q8_0` and `matvec_q8_0` are absent from the device-neutral `Backend`
+interface, which uses `matmul`. The concrete `CpuBackend` retains a public
+`matvec_q8_0` implementation helper. It is not a primitive another vendor
+backend must implement.

@@ -110,9 +110,10 @@ configuration, because they are invisible in a command line, do not appear in
 `--help`, and silently change results between runs - which is exactly what you
 do not want while measuring.
 
-- **A knob a user would set** is a flag: `--threads`, `--ubatch`. Name it after
-  the equivalent in llama.cpp where one exists, so the vocabulary carries over
-  (`--ubatch` is `n_ubatch` / `-ub`; llmx has no `n_batch`, see below).
+- **A knob a user would set** is a flag: `--threads`, `--ubatch`. Choose the
+  name that fits it best. An established name is a good candidate where it
+  fits, but no name is taken only because another runtime uses it, and no
+  behaviour is copied with it (llmx has no `n_batch`, see below).
 - **A value the code can determine** is not a knob at all. Row blocking in the
   CPU matmul was briefly `LLMX_ROW_BLOCK`; it is now `DOT_ROWS`, the width the
   fused kernel handles, because measurement showed the knee follows the kernel

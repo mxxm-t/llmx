@@ -242,7 +242,7 @@ on the first device before waiting for microbatch `i` on the second. The
 tickets express it and the CLI's prefill loop can use it once two devices
 exist.
 
-Flags follow llama.cpp's names so the vocabulary carries over. `--device`
+Flags are named for what fits best (AGENTS.md, Configuration). `--device`
 already selects `cpu` or `vulkan:N`; ROCm selection waits for that backend.
 `--n-cpu-moe N` and `--cpu-moe` put the experts of the first `N` routed
 layers, or all, on the CPU beside a device (`docs/USAGE.md`). The planned

@@ -1,5 +1,5 @@
-// A model on one Vulkan device against the same model split by layers over two, compared as raw float logits: every position of a scored text through the prompt path, then greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phase 1).
-// Usage: llmx-split-check <model.gguf> <text file> [single device] [first split device] [second split device] [decode steps]
+// A model on one device against the same model split by layers over two, compared as raw float logits: every position of a scored text through the prompt path, then greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phase 1).
+// Usage: llmx-split-check <model.gguf> <text file> [single device] [first split device] [second split device] [decode steps]; a device is `cpu` or a Vulkan index.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -7,11 +7,18 @@
 #include <iterator>
 #include <string>
 #include <vector>
+#include "backends/cpu/cpu_backend.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "format/gguf.hpp"
 #include "model/arch_qwen.hpp"
 #include "model/layer_split.hpp"
 #include "tokenizer/tokenizer.hpp"
+
+static backend::BackendPtr device(const std::string& spec) {
+    return spec == "cpu" ? backend::make_cpu_backend() : backend::make_vulkan_backend(std::atoi(spec.c_str()));
+}
+
+static std::string name(const std::string& spec) { return spec == "cpu" ? spec : "vulkan:" + spec; }
 
 int main(int argc, char** argv) {
     if (argc < 3) {
@@ -19,7 +26,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     try {
-        const int single = argc > 3 ? std::atoi(argv[3]) : 0, first = argc > 4 ? std::atoi(argv[4]) : 0, second = argc > 5 ? std::atoi(argv[5]) : 1;
+        const std::string single = argc > 3 ? argv[3] : "0", first = argc > 4 ? argv[4] : "0", second = argc > 5 ? argv[5] : "1";
         const int steps = argc > 6 ? std::atoi(argv[6]) : 32;
         gguf::GGUFModel m = gguf::read_gguf(argv[1]);
         bpe::Tokenizer tok(m);
@@ -30,14 +37,15 @@ int main(int argc, char** argv) {
 
         infer::ModelOptions options;
         options.kv_tokens = 4096;
-        infer::Model one(m, backend::make_vulkan_backend(single), options);
-        std::vector<backend::BackendPtr> pair{backend::make_vulkan_backend(first), backend::make_vulkan_backend(second)};
+        infer::Model one(m, device(single), options);
+        std::vector<backend::BackendPtr> pair{device(first), device(second)};
         std::vector<infer::DeviceBudget> budgets;
-        for (size_t d = 0; d < pair.size(); ++d) budgets.push_back(infer::DeviceBudget{"vulkan:" + std::to_string(d ? second : first), std::nullopt, false, {}, 0});
+        for (const std::string& spec : {first, second}) budgets.push_back(infer::DeviceBudget{name(spec), std::nullopt, spec == "cpu", {}, 0});
         const infer::LayerSplit split = infer::split_layers(infer::footprint(m, options), budgets, 512, {1, 1});
         infer::Model two(m, std::move(pair), infer::placement_for(split), options);
-        std::printf("%s: %zu tokens; single vulkan:%d, split layers 0-%d on vulkan:%d and %d-%d on vulkan:%d\n", argv[1], ids.size(), single,
-                    split.stages[0].count - 1, first, split.stages[0].count, split.stages[0].count + split.stages[1].count - 1, second);
+        std::printf("%s: %zu tokens; single %s, split layers 0-%d on %s and %d-%d on %s\n", argv[1], ids.size(), name(single).c_str(),
+                    split.stages[0].count - 1, name(first).c_str(), split.stages[0].count, split.stages[0].count + split.stages[1].count - 1,
+                    name(second).c_str());
 
         const size_t vocab = one.n_vocab();
         std::vector<float> scored(ids.size() * vocab);

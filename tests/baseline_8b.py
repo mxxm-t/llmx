@@ -3,8 +3,11 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import os
 import subprocess
 import sys
+
+from common import device_args
 
 
 DATA = Path(__file__).resolve().parent / "data" / "qwen3-8b"
@@ -99,13 +102,21 @@ def main(argv=None):
     parser.add_argument("--exe", required=True, type=Path)
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path, help="new directory for raw output and report")
+    parser.add_argument("--device", help="run the commands that take --device on this device or comma-separated list, e.g. vulkan:0,vulkan:1")
+    parser.add_argument("--layer-shares", help="with several devices in --device, their proportions of the layers, e.g. 1,1")
     args = parser.parse_args(argv)
+    # The suite's own configuration, reaching the binary only as flags through device_args.
+    if args.device:
+        os.environ["LLMX_DEVICE"] = args.device
+    if args.layer_shares:
+        os.environ["LLMX_LAYER_SHARES"] = args.layer_shares
     exe, model, out = args.exe.resolve(), args.model.resolve(), args.output_dir.resolve()
     if out.exists():
         parser.error("output directory already exists; use a new path")
     out.mkdir(parents=True)
     report = {"status": "running", "bounds": dict(BOUNDS), "threads": 6, "ubatch": 128,
-              "model": str(model), "executable": str(exe), "fixture_sha256_lf": FIXTURE_SHA256,
+              "model": str(model), "executable": str(exe), "device": args.device or "cpu", "layer_shares": args.layer_shares,
+              "fixture_sha256_lf": FIXTURE_SHA256,
               "scope": "20 tokenizer cases, six short prefill rankings and four serial-step NLL cases; not full-corpus or deep-context coverage",
               "provenance_limit": "Official GGUF base model and file digest match; exact original conversion revision is undocumented.",
               "commands": [], "checks": []}
@@ -114,7 +125,7 @@ def main(argv=None):
         (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=True) + "\n", encoding="ascii")
 
     def run(label, arguments):
-        command = [str(exe)] + arguments
+        command = [str(exe)] + device_args(arguments)
         record = {"label": label, "command": command, "status": "running"}
         report["commands"].append(record)
         save()

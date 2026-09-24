@@ -1,0 +1,229 @@
+{
+  "base": "e075ff47e824",
+  "runtime_base": "e475c3f58c31944f397d96abd7b079fc90f5f082",
+  "native": {
+    "passed": 24,
+    "total": 24
+  },
+  "new_cases": {
+    "control_passed": 1,
+    "candidate_passed": 8,
+    "total": 8
+  },
+  "previous_queue_cases": {
+    "control_passed": 7,
+    "candidate_passed": 7
+  },
+  "constructor_cases": 8,
+  "hf_components": 14,
+  "hf_nll": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.001224,
+      "bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.001114,
+      "bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.00674,
+      "bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.00669,
+      "bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.002463,
+      "bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.002283,
+      "bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.012346,
+      "bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.012296,
+      "bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.131524,
+      "bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.131494,
+      "bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.1676,
+      "bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.16754,
+      "bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.068913,
+      "bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.068793,
+      "bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.120346,
+      "bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.120246,
+      "bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.026174,
+      "bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.026294,
+      "bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.12942,
+      "bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.12952,
+      "bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.067593,
+      "bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.067763,
+      "bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.024146,
+      "bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.024216,
+      "bound": 0.16
+    }
+  ],
+  "linux": {
+    "compiler": "GCC 13.3.0 (WSL Ubuntu)",
+    "build_exit": 0,
+    "constructor_passed": 8,
+    "queue_exit": 77,
+    "queue_reason": "llvmpipe subgroups narrower than 32 lanes",
+    "warnings": "31 mismatched-new-delete warnings from the deliberate global new/free fault-injection test pattern; compiler exited successfully"
+  },
+  "initial_build_identity": "unknown: sandbox Git access failed; pre-commit evidence identifies exact source and binary hashes, not a clean deliverable",
+  "performance": "Not measured; no shader, arithmetic, dispatch-selection or successful queue-wait change. Timings overlap correctness work and are diagnostic only.",
+  "independent_review": "Initial review required temporary outputs before successful ownership publication. Corrected source/test review found no blocker.",
+  "spec_sources": [
+    "https://docs.vulkan.org/refpages/latest/refpages/source/VkResult.html",
+    "https://docs.vulkan.org/spec/latest/chapters/pipelines.html#pipelines-multiple"
+  ],
+  "scope": "No Linux GPU/HF, MI50, deep-context or new matched mx performance claim. CPU malformed RowRuns remains separate."
+}

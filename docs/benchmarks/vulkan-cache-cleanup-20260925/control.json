@@ -1,0 +1,6 @@
+{
+  "base": "e475c3f58c31944f397d96abd7b079fc90f5f082",
+  "exit": 1,
+  "test_sha256": "42769aa4d04bad03aa0599bbe26b3ba8efd345e62c88152bb997c0cac48f0c87",
+  "scope": "New regressions compiled against unchanged published Vulkan source, same generated shaders. Failures retained as negative controls."
+}

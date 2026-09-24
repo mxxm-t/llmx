@@ -1,0 +1,8 @@
+case=0 threw=0 live_buffers=0 live_memory=0 maps=0 PASS
+case=1 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=2 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=3 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=4 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=5 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=6 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+vulkan-buffer: 8 cases, 0 failures (fake API; no device)

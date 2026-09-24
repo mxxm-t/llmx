@@ -4,6 +4,60 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Vulkan cache cleanup (validation checkpoint, 2026-09-25)
+
+- **Goal:** close the three reproduced Vulkan ownership failures without
+  changing successful kernel arithmetic or adding queue waits.
+- **Done:** failed kernel creation cleans local handles before retry and
+  publishes only successful outputs; diagnostic query pools are destroyed
+  after device idle; padded-cache invalidation reserves retention capacity
+  before moving entries. Shader/layout/query failure outputs are deliberately
+  poisoned in tests. Independent corrected source/test review found no blocker.
+- **Done:** fresh Windows native 24/24 and required-HF Vulkan 14/14 passed,
+  including 24 real-model NLL cells. All eight new regression cases pass;
+  unchanged main fails seven. The existing seven queued-lifetime cases pass
+  both arms. Local WSL GCC 13.3 builds the test and passes eight constructor
+  cases; device checks skip on llvmpipe's subgroup width, not pass.
+- **Left:** commit and rebuild with working Git metadata, verify the clean
+  executable, then publish only after final integration review. The test
+  binaries currently identify as `unknown` because sandbox Git access failed;
+  their exact source/binary hashes are retained, not presented as clean builds.
+- **Gotchas:** CPU malformed RowRuns is a separate follow-up. No numerical
+  shader, arithmetic, dispatch selection or successful queue-wait change.
+  No performance claim is made while long-context correctness runs; suite
+  timings are diagnostic. The first draft also passed native/HF checks before
+  review required safe ownership of undefined failed-create outputs, so green
+  happy-path tests alone did not establish that property.
+
+| Check | Unchanged main | Candidate | Requirement |
+|---|---:|---:|---:|
+| New cleanup / failure / retry cases | 1/8 | 8/8 | 8/8 |
+| Existing queued storage cases | 7/7 | 7/7 | 7/7 |
+| Windows native suite | Prior 24/24 | 24/24 | All |
+| Required-HF Vulkan components | Prior 14/14 | 14/14 | All |
+| Real-model NLL cells | Prior 24/24 | 24/24 | Frozen HF bounds |
+
+| Vulkan HF check | Maximum absolute error | HF bound |
+|---|---:|---:|
+| Synthetic F32 logits | 0.00000066 | 0.00002 |
+| Synthetic MoE logits | 0.00000072 | 0.00002 |
+| Q8_0 continuous NLL | 0.001224 | 0.01 |
+| Q8_0 windowed NLL | 0.012346 | 0.02 |
+| Q4_0 continuous NLL | 0.131524 | 0.16 |
+| Q4_0 windowed NLL | 0.167600 | 0.2 |
+| Q5_K_M continuous NLL | 0.026294 | 0.05 |
+| Q5_K_M windowed NLL | 0.129520 | 0.16 |
+
+[Evidence](benchmarks/vulkan-cache-cleanup-20260925/report.json) retains exact
+sources, build commands, raw logs, controls and scope. Original audit artifacts
+remain unchanged. Query tests use real diagnostic dispatches; transfer/kernel
+failure tests intercept calls, including unsafe handles in negative controls.
+The GCC warnings come from the test's deliberate global new/free injection;
+no warning was suppressed. No Linux GPU or MI50 numerical claim is made.
+All 40 Markdown files received affected-claim, ASCII and link review
+(133 relative file targets, none missing), including updated test coverage
+and the distinction between the historical audit and this fix.
+
 ## Backend architecture audit follow-up (2026-09-25)
 
 - **Goal:** verify backend boundaries, ownership, error behavior and development
@@ -17,9 +71,10 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   absent; partial padded-cache invalidation leaves a null entry after allocation
   failure. CPU malformed RowRuns can execute beyond the declared batch before
   rejecting; model-generated malformed runs were not observed.
-- **Left:** small separate fixes and permanent failure/retry tests, then relevant
-  platform/HF checks and documentation review. No runtime fix is included here.
-  The activation-range candidate's depth and performance gates remain separate.
+- **Follow-up:** the separate Vulkan cache cleanup block above implements the
+  three Vulkan fixes and permanent regression checks. CPU malformed RowRuns
+  remains open. The activation-range candidate's depth and performance gates
+  remain separate; the dated audit itself made no runtime change.
 - **Gotchas:** this is a source/failure-path audit, not a claim that every backend
   operation or shader is numerically validated. Earlier passing lifetime checks
   covered different paths. The three Vulkan probes use intercepted resource

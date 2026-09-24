@@ -1,0 +1,40 @@
+[
+  {
+    "stage": "linux-build",
+    "command": [
+      "g++",
+      "-std=c++17",
+      "-O3",
+      "-DNDEBUG",
+      "-mavx2",
+      "-mfma",
+      "-mf16c",
+      "-Wall",
+      "-Wextra",
+      "-I/mnt/c/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/src",
+      "-I/mnt/c/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/build-final/generated",
+      "-I/mnt/c/VulkanSDK/1.4.357.0/Include",
+      "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-20260925/tests/vulkan_buffer.cpp",
+      "-o",
+      "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-final-evidence-20260925/linux-vulkan-lifetime",
+      "-pthread",
+      "-ldl"
+    ],
+    "exit": 0
+  },
+  {
+    "stage": "linux-buffer",
+    "command": [
+      "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-final-evidence-20260925/linux-vulkan-lifetime"
+    ],
+    "exit": 0
+  },
+  {
+    "stage": "linux-queue",
+    "command": [
+      "/mnt/c/Users/Marko/AppData/Local/Temp/llmx-vulkan-cache-cleanup-final-evidence-20260925/linux-vulkan-lifetime",
+      "--queue"
+    ],
+    "exit": 77
+  }
+]

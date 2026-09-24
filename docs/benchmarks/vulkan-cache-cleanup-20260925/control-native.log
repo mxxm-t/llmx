@@ -1,0 +1,16 @@
+queue_case=0 threw=1 premature=0 PASS
+queue_case=1 threw=1 premature=0 PASS
+queue_case=2 threw=0 premature=0 PASS
+queue_case=3 threw=1 premature=0 PASS
+queue_case=4 threw=1 premature=0 PASS
+queue_case=5 threw=0 premature=0 PASS
+queue_case=6 threw=1 premature=0 PASS
+vulkan queue ownership: 7 cases, 0 failures (transfers intercepted)
+kernel_case=1 cleaned=1 cached=1 empty_after_teardown=1 PASS
+kernel_case=2 cleaned=0 cached=1 empty_after_teardown=0 FAIL
+kernel_case=3 cleaned=0 cached=1 empty_after_teardown=0 FAIL
+kernel_case=4 cleaned=0 cached=1 empty_after_teardown=0 FAIL
+kernel_case=5 cleaned=0 cached=1 empty_after_teardown=0 FAIL
+query_case=0 clean_failure=1 created=1 destroyed=0 after_idle=0 FAIL
+query_case=1 clean_failure=0 created=1 destroyed=0 after_idle=0 FAIL
+padded_drop threw=1 intact=0 retained=0 premature=0 FAIL

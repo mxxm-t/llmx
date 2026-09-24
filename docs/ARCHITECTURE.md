@@ -191,11 +191,14 @@ failed copies before releasing new storage, leaving its prior capacity and peak
 accounting intact for retry. Buffer construction releases each acquired handle
 on failure. Cached padded weights and argument arenas retain ownership before
 recording or replacing queued storage, without adding a wait to successful operations.
-These checks do not establish complete exception safety: the
-[backend audit](benchmarks/backend-audit-20260925/README.md) found open Vulkan
-kernel-retry, diagnostic-query teardown and padded-cache invalidation failures.
-It also found that malformed direct CPU row-run metadata can be rejected after
-a callback has already run; model-generated malformed runs were not observed.
+Kernel creation also cleans partial resources before retry and publishes
+ownership only after success; diagnostic query pools are released after device
+idle. Padded-cache invalidation reserves retirement capacity before moving any
+entry, so allocation failure leaves the cache intact. The dated
+[backend audit](benchmarks/backend-audit-20260925/README.md) retains the original
+failure controls. Its separate CPU row-run finding remains open: malformed
+direct metadata can be rejected after a callback has already run, though
+model-generated malformed runs were not observed.
 
 GGUF metadata reads and seeks throw on stream failure. Payload extents are
 checked before use, so a file truncated before loading is refused. Mapped files

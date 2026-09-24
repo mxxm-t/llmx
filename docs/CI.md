@@ -209,9 +209,11 @@ Native counts are 21 on Windows and 20 on Linux/macOS; the Windows-only
 `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and
 `vulkan-lifetime`: 24 native tests on Windows and 23 on Linux/macOS.
 The buffer test substitutes Vulkan allocation calls and needs only a loader;
-the lifetime test opens a device but intercepts transfers to check ownership
-without submitting references that the old failure paths could release.
-Neither replaces the real kernel or HF comparisons.
+the lifetime test opens a device and intercepts transfers for ownership checks,
+including failed padded-cache invalidation. It also substitutes five kernel
+creation failures to check cleanup/retry, and runs two real diagnostic-query
+cases for failed creation and idle-before-destruction. Query cases skip on a
+device without diagnostic timestamps. None replaces the kernel or HF gate.
 At placement release `3c5d4b9`, Windows 12/12 and Linux 11/11 passed locally.
 That release also passed all five hosted jobs in
 [run 35516912422](https://github.com/mxxm-t/llmx/actions/runs/35516912422), including

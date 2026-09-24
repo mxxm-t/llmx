@@ -895,12 +895,8 @@ public:
         for (auto& p : pending_) p.clear();
         for (auto& a : arena_) a.buffer.reset();
         for (auto& variants : kernels_)
-            for (Kernel& k : variants) {
-                if (k.pipeline) d.fn.vkDestroyPipeline(d.device, k.pipeline, nullptr);
-                if (k.layout) d.fn.vkDestroyPipelineLayout(d.device, k.layout, nullptr);
-                if (k.set_layout) d.fn.vkDestroyDescriptorSetLayout(d.device, k.set_layout, nullptr);
-                if (k.module) d.fn.vkDestroyShaderModule(d.device, k.module, nullptr);
-            }
+            for (Kernel& k : variants) destroy_kernel(k);
+        if (queries_) d.fn.vkDestroyQueryPool(d.device, queries_, nullptr);
         staging_.reset();
         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
         if (pool_) d.fn.vkDestroyCommandPool(d.device, pool_, nullptr);
@@ -1906,7 +1902,10 @@ public:
     void drop_padded(VulkanBuffer& b) {
         if (b.padded.empty()) return;
         open();
-        for (auto& e : b.padded) pending_[ring_index_].push_back(std::move(e.second.copy));
+        auto& pending = pending_[ring_index_];
+        // Reserve before moving any cache entry so allocation failure leaves the cache intact.
+        pending.reserve(pending.size() + b.padded.size());
+        for (auto& e : b.padded) pending.push_back(std::move(e.second.copy));
         b.padded.clear();
     }
 
@@ -2216,69 +2215,91 @@ private:
         return info;
     }
 
-    Kernel& kernel(KernelId id, int variant = 0) {
-        Kernel& k = kernels_[id][variant];
-        if (k.pipeline) return k;
+    void destroy_kernel(Kernel& k) noexcept {
         Device& d = *dev_;
-        const KernelSource& src = kKernels[id];
-        VkShaderModuleCreateInfo mi{};
-        mi.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        mi.codeSize = src.bytes;
-        mi.pCode = src.words;
-        check(d.fn.vkCreateShaderModule(d.device, &mi, nullptr, &k.module), "vkCreateShaderModule");
-        std::vector<VkDescriptorSetLayoutBinding> bindings(src.bindings);
-        k.buffers = 0;
-        for (uint32_t i = 0; i < src.bindings; ++i) {
-            bindings[i].binding = i;
-            bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            bindings[i].descriptorCount = src.counts ? src.counts[i] : 1;
-            bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-            k.buffers += bindings[i].descriptorCount;
+        if (k.pipeline) d.fn.vkDestroyPipeline(d.device, k.pipeline, nullptr);
+        if (k.layout) d.fn.vkDestroyPipelineLayout(d.device, k.layout, nullptr);
+        if (k.set_layout) d.fn.vkDestroyDescriptorSetLayout(d.device, k.set_layout, nullptr);
+        if (k.module) d.fn.vkDestroyShaderModule(d.device, k.module, nullptr);
+        k = Kernel{};
+    }
+
+    Kernel& kernel(KernelId id, int variant = 0) {
+        Kernel& cached = kernels_[id][variant];
+        if (cached.pipeline) return cached;
+        Kernel k;
+        try {
+            Device& d = *dev_;
+            const KernelSource& src = kKernels[id];
+            VkShaderModuleCreateInfo mi{};
+            mi.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+            mi.codeSize = src.bytes;
+            mi.pCode = src.words;
+            VkShaderModule module = VK_NULL_HANDLE;
+            check(d.fn.vkCreateShaderModule(d.device, &mi, nullptr, &module), "vkCreateShaderModule");
+            k.module = module;
+            std::vector<VkDescriptorSetLayoutBinding> bindings(src.bindings);
+            k.buffers = 0;
+            for (uint32_t i = 0; i < src.bindings; ++i) {
+                bindings[i].binding = i;
+                bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                bindings[i].descriptorCount = src.counts ? src.counts[i] : 1;
+                bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+                k.buffers += bindings[i].descriptorCount;
+            }
+            VkDescriptorSetLayoutCreateInfo li{};
+            li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            li.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+            li.bindingCount = src.bindings;
+            li.pBindings = bindings.data();
+            VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
+            check(d.fn.vkCreateDescriptorSetLayout(d.device, &li, nullptr, &set_layout),
+                  "vkCreateDescriptorSetLayout");
+            k.set_layout = set_layout;
+            VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, kPushBytes};
+            VkPipelineLayoutCreateInfo pi{};
+            pi.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            pi.setLayoutCount = 1;
+            pi.pSetLayouts = &k.set_layout;
+            pi.pushConstantRangeCount = 1;
+            pi.pPushConstantRanges = &range;
+            VkPipelineLayout layout = VK_NULL_HANDLE;
+            check(d.fn.vkCreatePipelineLayout(d.device, &pi, nullptr, &layout), "vkCreatePipelineLayout");
+            k.layout = layout;
+            VkComputePipelineCreateInfo ci{};
+            ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+            ci.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+            ci.stage.module = k.module;
+            ci.stage.pName = "main";
+            // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
+            const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
+                              id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL;
+            const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
+            const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
+                                             : (variant == 1 ? kRowColsOne : kRowColsWide);
+            // Constant 7 selects a producer's build that also writes the 8-bit twin, and constant 8 a row kernel's grouped build; every pipeline gets all three entries, and a module that declares none ignores them.
+            const uint32_t spec_data[3] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u};
+            const VkSpecializationMapEntry entries[3] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)},
+                                                         {8, 2 * sizeof(uint32_t), sizeof(uint32_t)}};
+            VkSpecializationInfo spec{};
+            spec.mapEntryCount = 3;
+            spec.pMapEntries = entries;
+            spec.dataSize = sizeof(spec_data);
+            spec.pData = spec_data;
+            ci.stage.pSpecializationInfo = &spec;
+            ci.layout = k.layout;
+            if (d.exec_stats) ci.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+            if (d.exec_ir) ci.flags |= VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR;
+            check(d.fn.vkCreateComputePipelines(d.device, VK_NULL_HANDLE, 1, &ci, nullptr, &k.pipeline),
+                  "vkCreateComputePipelines");
+            k.bindings = src.bindings;
+            cached = k;
+            return cached;
+        } catch (...) {
+            destroy_kernel(k);
+            throw;
         }
-        VkDescriptorSetLayoutCreateInfo li{};
-        li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        li.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
-        li.bindingCount = src.bindings;
-        li.pBindings = bindings.data();
-        check(d.fn.vkCreateDescriptorSetLayout(d.device, &li, nullptr, &k.set_layout),
-              "vkCreateDescriptorSetLayout");
-        VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, kPushBytes};
-        VkPipelineLayoutCreateInfo pi{};
-        pi.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pi.setLayoutCount = 1;
-        pi.pSetLayouts = &k.set_layout;
-        pi.pushConstantRangeCount = 1;
-        pi.pPushConstantRanges = &range;
-        check(d.fn.vkCreatePipelineLayout(d.device, &pi, nullptr, &k.layout), "vkCreatePipelineLayout");
-        VkComputePipelineCreateInfo ci{};
-        ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-        ci.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-        ci.stage.module = k.module;
-        ci.stage.pName = "main";
-        // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
-        const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
-                          id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL;
-        const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
-        const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
-                                         : (variant == 1 ? kRowColsOne : kRowColsWide);
-        // Constant 7 selects a producer's build that also writes the 8-bit twin, and constant 8 a row kernel's grouped build; every pipeline gets all three entries, and a module that declares none ignores them.
-        const uint32_t spec_data[3] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u};
-        const VkSpecializationMapEntry entries[3] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)},
-                                                     {8, 2 * sizeof(uint32_t), sizeof(uint32_t)}};
-        VkSpecializationInfo spec{};
-        spec.mapEntryCount = 3;
-        spec.pMapEntries = entries;
-        spec.dataSize = sizeof(spec_data);
-        spec.pData = spec_data;
-        ci.stage.pSpecializationInfo = &spec;
-        ci.layout = k.layout;
-        if (d.exec_stats) ci.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
-        if (d.exec_ir) ci.flags |= VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR;
-        check(d.fn.vkCreateComputePipelines(d.device, VK_NULL_HANDLE, 1, &ci, nullptr, &k.pipeline),
-              "vkCreateComputePipelines");
-        k.bindings = src.bindings;
-        return k;
     }
 
     // One dispatch: bind the pipeline, push the buffers and constants, launch the workgroups, and fence it off from the next command.
@@ -2319,7 +2340,9 @@ private:
                 qp.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
                 qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
                 qp.queryCount = kQueries;
-                check(dev_->fn.vkCreateQueryPool(dev_->device, &qp, nullptr, &queries_), "vkCreateQueryPool");
+                VkQueryPool queries = VK_NULL_HANDLE;
+                check(dev_->fn.vkCreateQueryPool(dev_->device, &qp, nullptr, &queries), "vkCreateQueryPool");
+                queries_ = queries;
                 queries_stale_ = true;
             }
             if (queries_stale_) {

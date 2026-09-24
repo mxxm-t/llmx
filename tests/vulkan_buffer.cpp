@@ -28,6 +28,17 @@ struct VulkanLifetimeTest {
     static VkDescriptorBufferInfo args(VulkanBackend& b, const void* data, size_t bytes) {
         return b.args(data, bytes);
     }
+    static VkPipeline kernel(VulkanBackend& b) { return b.kernel(K_ADD).pipeline; }
+    static bool query_empty(VulkanBackend& b) { return b.queries_ == VK_NULL_HANDLE; }
+    static void clear_query(VulkanBackend& b) { b.queries_ = VK_NULL_HANDLE; }
+    static void prepare_drop(VulkanBackend& b) {
+        b.open();
+        std::vector<std::shared_ptr<VulkanBuffer>> pending;
+        pending.reserve(1);
+        b.pending_[b.ring_index_].swap(pending);
+    }
+    static size_t retained(VulkanBackend& b) { return b.pending_[b.ring_index_].size(); }
+    static void drop(VulkanBackend& b, VulkanBuffer& buffer) { b.drop_padded(buffer); }
 };
 }
 }
@@ -96,6 +107,185 @@ struct QueueCalls {
         return result;
     }
 };
+
+struct KernelCalls;
+KernelCalls* kernel_calls = nullptr;
+struct KernelCalls {
+    backend::Fn original;
+    std::shared_ptr<backend::Device> device;
+    int failure, creates = 0, modules = 0, sets = 0, layouts = 0, pipelines = 0;
+    uintptr_t next = 1024;
+    explicit KernelCalls(backend::VulkanBackend& b, int fail)
+        : device(backend::VulkanLifetimeTest::device(b)), failure(fail) {
+        original = device->fn;
+        kernel_calls = this;
+        auto& fn = device->fn;
+        fn.vkCreateShaderModule = shader; fn.vkDestroyShaderModule = destroy_shader;
+        fn.vkCreateDescriptorSetLayout = set; fn.vkDestroyDescriptorSetLayout = destroy_set;
+        fn.vkCreatePipelineLayout = layout; fn.vkDestroyPipelineLayout = destroy_layout;
+        fn.vkCreateComputePipelines = pipeline; fn.vkDestroyPipeline = destroy_pipeline;
+    }
+    ~KernelCalls() { allocation_countdown = -1; device->fn = original; kernel_calls = nullptr; }
+    bool empty() const { return !modules && !sets && !layouts && !pipelines; }
+    template <typename T> static VkResult create(T* out, int stage, int& live) {
+        auto& q = *kernel_calls;
+        ++q.creates;
+        if (q.failure == stage) {
+            *out = stage == 4 ? VK_NULL_HANDLE : (T)(uintptr_t)0xdead;
+            return VK_ERROR_OUT_OF_HOST_MEMORY;
+        }
+        *out = (T)++q.next;
+        ++live;
+        if (stage == 1 && q.failure == 5) allocation_countdown = 1;
+        return VK_SUCCESS;
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL shader(VkDevice, const VkShaderModuleCreateInfo*, const VkAllocationCallbacks*, VkShaderModule* out) {
+        return create(out, 1, kernel_calls->modules);
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL set(VkDevice, const VkDescriptorSetLayoutCreateInfo*, const VkAllocationCallbacks*, VkDescriptorSetLayout* out) {
+        return create(out, 2, kernel_calls->sets);
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL layout(VkDevice, const VkPipelineLayoutCreateInfo*, const VkAllocationCallbacks*, VkPipelineLayout* out) {
+        return create(out, 3, kernel_calls->layouts);
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL pipeline(VkDevice, VkPipelineCache, uint32_t, const VkComputePipelineCreateInfo*, const VkAllocationCallbacks*, VkPipeline* out) {
+        return create(out, 4, kernel_calls->pipelines);
+    }
+    static VKAPI_ATTR void VKAPI_CALL destroy_shader(VkDevice, VkShaderModule, const VkAllocationCallbacks*) { --kernel_calls->modules; }
+    static VKAPI_ATTR void VKAPI_CALL destroy_set(VkDevice, VkDescriptorSetLayout, const VkAllocationCallbacks*) { --kernel_calls->sets; }
+    static VKAPI_ATTR void VKAPI_CALL destroy_layout(VkDevice, VkPipelineLayout, const VkAllocationCallbacks*) { --kernel_calls->layouts; }
+    static VKAPI_ATTR void VKAPI_CALL destroy_pipeline(VkDevice, VkPipeline, const VkAllocationCallbacks*) { --kernel_calls->pipelines; }
+};
+
+int kernel_checks() {
+    int failures = 0;
+    for (int kind = 1; kind <= 5; ++kind) {
+        auto base = backend::make_vulkan_backend(0);
+        auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+        KernelCalls q(b, kind);
+        bool threw = false;
+        try { backend::VulkanLifetimeTest::kernel(b); }
+        catch (const std::exception&) { threw = true; }
+        allocation_countdown = -1;
+        const bool cleaned = q.empty();
+        q.failure = 0;
+        const VkPipeline first = backend::VulkanLifetimeTest::kernel(b);
+        const int creates = q.creates;
+        const VkPipeline reused = backend::VulkanLifetimeTest::kernel(b);
+        const bool cached = first && first == reused && creates == q.creates;
+        base.reset();
+        const bool ok = threw && cleaned && cached && q.empty();
+        std::cout << "kernel_case=" << kind << " cleaned=" << cleaned << " cached=" << cached
+                  << " empty_after_teardown=" << q.empty() << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    return failures;
+}
+
+struct QueryCalls;
+QueryCalls* query_calls = nullptr;
+struct QueryCalls {
+    backend::Fn original;
+    std::shared_ptr<backend::Device> device;
+    VkQueryPool pool = VK_NULL_HANDLE;
+    int creates = 0, destroys = 0;
+    bool idle = false, ordered = false, fail = false, bad_destroy = false;
+    explicit QueryCalls(backend::VulkanBackend& b) : device(backend::VulkanLifetimeTest::device(b)) {
+        original = device->fn;
+        query_calls = this;
+        device->fn.vkCreateQueryPool = create;
+        device->fn.vkDestroyQueryPool = destroy;
+        device->fn.vkDeviceWaitIdle = wait_idle;
+    }
+    ~QueryCalls() {
+        original.vkDeviceWaitIdle(device->device);
+        if (pool && !destroys) original.vkDestroyQueryPool(device->device, pool, nullptr);
+        device->fn = original;
+        query_calls = nullptr;
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL create(VkDevice d, const VkQueryPoolCreateInfo* info, const VkAllocationCallbacks* alloc, VkQueryPool* out) {
+        auto& q = *query_calls;
+        if (q.fail) { *out = (VkQueryPool)(uintptr_t)0xdead; return VK_ERROR_OUT_OF_HOST_MEMORY; }
+        const VkResult r = q.original.vkCreateQueryPool(d, info, alloc, out);
+        if (r == VK_SUCCESS) { ++q.creates; q.pool = *out; }
+        return r;
+    }
+    static VKAPI_ATTR void VKAPI_CALL destroy(VkDevice d, VkQueryPool pool, const VkAllocationCallbacks* alloc) {
+        auto& q = *query_calls;
+        if (pool != q.pool) { q.bad_destroy = true; return; }
+        ++q.destroys; q.ordered = q.idle;
+        q.original.vkDestroyQueryPool(d, pool, alloc);
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL wait_idle(VkDevice d) {
+        auto& q = *query_calls;
+        const VkResult r = q.original.vkDeviceWaitIdle(d);
+        q.idle = r == VK_SUCCESS;
+        return r;
+    }
+};
+
+int query_checks(bool fail) {
+    auto base = backend::make_vulkan_backend(0, true);
+    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+    QueryCalls q(b);
+    if (!q.device->timestamps) {
+        std::cout << "query teardown: SKIP (device has no diagnostic timestamps)\n";
+        base.reset();
+        return 0;
+    }
+    auto dst = b.alloc(sizeof(float), backend::Memory::host_visible);
+    bool threw = false, clean_failure = true;
+    if (fail) {
+        q.fail = true;
+        try { b.add({dst.get(), 0}, {dst.get(), 0}, 1); }
+        catch (const std::runtime_error&) { threw = true; }
+        clean_failure = threw && backend::VulkanLifetimeTest::query_empty(b);
+        // An old implementation may have kept the poisoned output; do not let the control submit it.
+        if (!clean_failure) backend::VulkanLifetimeTest::clear_query(b);
+        q.fail = false;
+    }
+    b.add({dst.get(), 0}, {dst.get(), 0}, 1);
+    b.sync();
+    q.idle = false;
+    base.reset();
+    const bool ok = clean_failure && !q.bad_destroy && q.creates == 1 && q.destroys == 1 && q.ordered;
+    std::cout << "query_case=" << fail << " clean_failure=" << clean_failure
+              << " created=" << q.creates << " destroyed=" << q.destroys
+              << " after_idle=" << q.ordered << (ok ? " PASS\n" : " FAIL\n");
+    return ok ? 0 : 1;
+}
+
+int padded_drop_checks() {
+    auto base = backend::make_vulkan_backend(0);
+    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+    QueueCalls q(b);
+    auto weights = b.alloc(512 * sizeof(float), backend::Memory::host_visible);
+    auto& w = backend::as_vulkan(*weights);
+    w.adopted = true;
+    const auto first = backend::VulkanLifetimeTest::padded(b, {weights.get(), 0}, 1);
+    const auto second = backend::VulkanLifetimeTest::padded(b, {weights.get(), 256}, 1);
+    b.sync();
+    backend::VulkanLifetimeTest::prepare_drop(b);
+    q.mark(first.buffer); q.mark(second.buffer);
+    allocation_countdown = 1;
+    bool threw = false;
+    try { backend::VulkanLifetimeTest::drop(b, w); }
+    catch (const std::bad_alloc&) { threw = true; }
+    allocation_countdown = -1;
+    bool intact = w.padded.size() == 2;
+    for (const auto& entry : w.padded) intact = intact && bool(entry.second.copy);
+    if (intact) {
+        intact = backend::VulkanLifetimeTest::padded(b, {weights.get(), 0}, 1).buffer == first.buffer &&
+                 backend::VulkanLifetimeTest::padded(b, {weights.get(), 256}, 1).buffer == second.buffer;
+    }
+    backend::VulkanLifetimeTest::drop(b, w);
+    const bool retained = backend::VulkanLifetimeTest::retained(b) == 2 && w.padded.empty();
+    b.sync();
+    const bool ok = threw && intact && retained && q.premature == 0;
+    std::cout << "padded_drop threw=" << threw << " intact=" << intact << " retained=" << retained
+              << " premature=" << q.premature << (ok ? " PASS\n" : " FAIL\n");
+    return ok ? 0 : 1;
+}
 
 int queue_checks() {
     int failures = 0;
@@ -223,7 +413,10 @@ std::shared_ptr<backend::Device> fake_device(Failure failure) {
 
 int main(int argc, char** argv) {
     try {
-        if (argc == 2 && std::string(argv[1]) == "--queue") return queue_checks();
+        if (argc == 2 && std::string(argv[1]) == "--queue") {
+            const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks();
+            return failures ? 1 : 0;
+        }
         if (argc != 1) return 2;
         int failures = 0, cases = 0;
         for (const Failure failure : {Failure::none, Failure::create, Failure::memory_type,

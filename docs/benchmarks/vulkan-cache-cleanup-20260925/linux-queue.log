@@ -1,0 +1,1 @@
+vulkan: llvmpipe (LLVM 20.1.2, 256 bits) has subgroups narrower than 32 lanes

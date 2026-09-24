@@ -4,7 +4,61 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Vulkan allocation lifetime checkpoint (2026-09-25)
+
+Vulkan buffer construction releases acquired handles on failure. Failed KV
+growth drains queued work before releasing new buffers and preserves the prior
+backing and peak accounting for retry. Padded weight copies retain ownership
+before recording; argument arena overflow retains queued storage before the
+replacement allocation can fail. No successful-path wait is added.
+
+This integrates reviewed `01010e1` onto main `da2b47a`. The Vulkan implementation,
+regression source and CMake configuration match that reviewed feature; shaders,
+attention kernels and CPU arithmetic are unchanged. The backend keeps ownership
+and queue details below the model layer, with no new runtime knobs or dependencies.
+
+| Check | Observed | Requirement |
+|---|---:|---:|
+| Constructor cases, including success/empty allocation | 8 pass | No leaked handles |
+| Queued storage ownership cases | 7 pass | No premature release |
+| Windows native suite, Radeon VII included | 24/24 | All tests |
+| Required-HF Vulkan components | 14/14 | All components |
+| Real-model NLL, batched and per-token | 24/24 | Frozen bounds |
+| HF top-1 per model | 6/6 | 6/6 |
+
+| Vulkan HF correctness | Maximum absolute error | Bound |
+|---|---:|---:|
+| Synthetic F32 logits | 0.00000066 | 0.00002 |
+| Synthetic MoE logits | 0.00000072 | 0.00002 |
+| Q8_0 continuous NLL | 0.001224 | 0.01 |
+| Q8_0 windowed NLL | 0.012346 | 0.02 |
+| Q4_0 continuous NLL | 0.131524 | 0.16 |
+| Q4_0 windowed NLL | 0.167600 | 0.2 |
+| Q5_K_M continuous NLL | 0.026294 | 0.05 |
+| Q5_K_M windowed NLL | 0.129520 | 0.16 |
+
+[Integration evidence](benchmarks/vulkan-allocation-lifetime-main-20260925/report.json)
+records the fresh MSVC Release build, source/binary hashes and raw outputs.
+The original failure controls remain in
+[the feature evidence](benchmarks/vulkan-allocation-lifetime-20260924.json):
+three of eight constructor cases and all seven queued-storage cases failed
+before the fix. Those controls were not rerun here; their base Vulkan source
+is identical on this integration's base. Intercepted transfer tests establish
+ownership ordering; the actual-device kernel and HF checks supply numerical
+coverage. This checkpoint makes no Linux/MI50 numerical, long-context or matched
+performance claim; suite timings are diagnostic.
+
+All 39 project Markdown files received affected-claim, ASCII and relative-link
+review, with an independent source/architecture review. Documentation now names
+the allocation-failure coverage and correctly says the change adds no successful
+wait; existing ring reuse can still wait. Historical measurements, remote URLs
+and anchors were not revalidated.
+
 ## CPU interface contract checkpoint (2026-09-25)
+
+Published as `da2b47a` to both main remotes. Its clean committed EXE passed
+backend-errors and focused version/F32/thread checks; GitHub run `36067923135`
+passed all six jobs, including Linux Vulkan build and the required-HF CPU job.
 
 Valid zero-byte CPU reads, writes and copies return after bounds/source
 validation. `set_threads(0)` preserves the current worker pool, including
@@ -110,12 +164,14 @@ integer-dot coverage, streamed uploads, host-visible model buffers, F16 CPU KV,
 compiled Vulkan source and runtime layer-split configuration. Historical
 measurements, remote URLs and anchors were not independently revalidated.
 
-Separate Gitea-only work remains outside this integration: tiny-activation
-correction and evidence `e1060e7`, Vulkan
-allocation-lifetime fixes `01010e1`, and native HF format integration `4c890c8`.
-The separate Vulkan fix reproduces eight construction and seven queued-ownership
-failures and passes 24 native tests and 14 required-HF Vulkan components; its
-implementation is not included here. Their integration requirements still apply.
+Separate Gitea-only work remains outside main: tiny-activation correction and
+its evidence `e1060e7`, and native HF format integration `4c890c8`. Vulkan
+allocation lifetime `01010e1` is integrated in the checkpoint above.
+The separate activation long-context gate stopped on the Q8_0 base: a 19,812
+token prompt plus 12,956 generated tokens filled the 32,768 context, returning
+`length` rather than the required EOS after 6,093.875 seconds. No candidate
+long comparison was reached. The raw response is retained; this establishes
+an incomplete gate, not a candidate numerical result.
 
 ## Multi-device phase 1: layer split across devices (ROADMAP #5) (2026-09-24, branch feat/multi-device-phase1)
 
@@ -3004,6 +3060,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Test suite (roundtrip / perf / tokenizer)| Done     |
 | Perf `bench` command                     | Done     |
 | CPU backend optimization                 | Done     |
+| Vulkan allocation failure ownership | Done |
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
 | More model architectures (Llama, ...)    | Planned  |
 | More formats (safetensors, ...)          | Planned  |

@@ -1,0 +1,17 @@
+{
+  "reviewer": "independent source/docs reviewer",
+  "result": "No blocker",
+  "native": 24,
+  "required_hf_components": 14,
+  "constructor_cases": 8,
+  "queue_cases": 7,
+  "matched_nll_rows": 24,
+  "verified_source_hashes": 3,
+  "verified_raw_artifact_hashes": 13,
+  "verified_saved_log_hashes": 3,
+  "markdown_files": 39,
+  "relative_file_links": 128,
+  "non_ascii": 0,
+  "broken_links": 0,
+  "scope": "Source ownership/error paths and layering, final evidence hashes/results and affected documentation. No reviewer edits/builds/tests. Historical numerical claims, external URLs and anchors not revalidated."
+}

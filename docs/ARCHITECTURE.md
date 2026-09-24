@@ -186,7 +186,11 @@ Model loading failures drain each used backend before constructor members
 unwind; model destruction drains them before owned buffers are released.
 A failed Vulkan adoption also drains while its partially uploaded destination
 is still alive. Successful adoption remains asynchronous, with later work
-ordered after the uploads on the same backend.
+ordered after the uploads on the same backend. Vulkan KV growth also drains
+failed copies before releasing new storage, leaving its prior capacity and peak
+accounting intact for retry. Buffer construction releases each acquired handle
+on failure. Cached padded weights and argument arenas retain ownership before
+recording or replacing queued storage, without adding a wait to successful operations.
 
 GGUF metadata reads and seeks throw on stream failure. Payload extents are
 checked before use, so a file truncated before loading is refused. Mapped files

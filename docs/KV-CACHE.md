@@ -1,10 +1,11 @@
 # Paged KV cache
 
 Design for the KV cache that the multi-user server (ROADMAP #7) and the device
-execution model (ROADMAP #4a) both need. Status: direction agreed by both
-developers on 2026-09-20; the contract conditions the reviewing developer set are recorded in
-their sections below. Step 1 is implemented on the design branch and the
-block-size screening below fixed the CPU block at 128 tokens.
+execution model (ROADMAP #4a) both use. The design agreed on 2026-09-20 is
+implemented, including backend-owned CPU/Vulkan storage, sequence forks and
+server prefix reuse. The historical block-size screening below selected 128
+tokens for the CPU; Vulkan uses 64. The contract conditions remain recorded
+in their sections below.
 
 ## Why change
 
@@ -140,12 +141,10 @@ pools). The budget crosses the seam in tokens: only the backend knows what
 a block costs in bytes, so a byte budget, when the server needs one,
 converts inside the backend. Storage reports retained bytes and, separately,
 the peak held across successful growth copies; a failed growth attempt is
-not counted. Storage is host memory now and
-becomes a `Buffer` at step 5 of
-[DEVICE-EXECUTION](DEVICE-EXECUTION.md) without changing this contract. The
-public raw-pointer `attention` overload is deleted once every model, test and
-benchmark caller uses the view form; a contiguous implementation may survive
-as a private detail behind the view.
+not counted. The completed [DEVICE-EXECUTION](DEVICE-EXECUTION.md) migration
+uses backend-owned buffers on CPU and Vulkan under this contract. Public
+attention calls use storage views; host pointers and physical offsets remain
+backend implementation details.
 
 ### CPU physical layout
 

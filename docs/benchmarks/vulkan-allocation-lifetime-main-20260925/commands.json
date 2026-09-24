@@ -1,0 +1,62 @@
+[
+  {
+    "stage": "configure",
+    "command": [
+      "cmake",
+      "-S",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-20260925",
+      "-B",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-20260925\\build",
+      "-G",
+      "Visual Studio 18 2026",
+      "-A",
+      "x64",
+      "-DLLMX_HAS_BACKEND_VULKAN=ON",
+      "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+      "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe"
+    ],
+    "exit": 0
+  },
+  {
+    "stage": "build",
+    "command": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-20260925\\build",
+      "--config",
+      "Release",
+      "--parallel",
+      "2"
+    ],
+    "exit": 0
+  },
+  {
+    "stage": "native",
+    "command": [
+      "ctest",
+      "--test-dir",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-20260925\\build",
+      "-C",
+      "Release",
+      "--output-on-failure"
+    ],
+    "exit": 0
+  },
+  {
+    "stage": "vulkan-0-hf",
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "-u",
+      "-X",
+      "utf8",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-20260925\\tests\\run_tests.py",
+      "--exe",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-20260925\\build\\Release\\llmx.exe",
+      "--no-perf-floor",
+      "--require-baseline",
+      "--device",
+      "vulkan:0"
+    ],
+    "exit": 0
+  }
+]

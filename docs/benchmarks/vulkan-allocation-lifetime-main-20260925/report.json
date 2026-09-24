@@ -1,0 +1,292 @@
+{
+  "base": "da2b47a0195875951e675961a68d1c6d64da94c6",
+  "reviewed_feature": "01010e141388de2068ae234c7507040976bdc8c9",
+  "native_passed": 24,
+  "required_hf_vulkan_components": [
+    "version",
+    "reference-generator",
+    "reference-consumer",
+    "roundtrip",
+    "perf",
+    "tokenizer",
+    "perplexity",
+    "f32",
+    "moe",
+    "shards",
+    "server",
+    "chat",
+    "threads",
+    "baseline"
+  ],
+  "hf_top1_models": [
+    "Qwen3-0.6B-Q8_0.gguf",
+    "Qwen3-0.6B-Q4_0.gguf",
+    "Qwen3-0.6B-Q5_K_M.gguf"
+  ],
+  "hf_top1_matches_per_model": 6,
+  "hf_nll_cells": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.001224,
+      "hf_bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.001114,
+      "hf_bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.00674,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.00669,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.002463,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.002283,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.012346,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.012296,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.131524,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.131494,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.1676,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.16754,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.068913,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.068793,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.120346,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.120246,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.026174,
+      "hf_bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.026294,
+      "hf_bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.12942,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.12952,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.067593,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.067763,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.024146,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.024216,
+      "hf_bound": 0.16
+    }
+  ],
+  "binary": {
+    "version": "llmx 0.1.0+gda2b47a01958.dirty",
+    "sha256": "47e94f6acf2ab1fb769adca36685d5cafcf356a25893d22acc2ff7fa4e544aa6"
+  },
+  "source_sha256": {
+    "src/backends/vulkan/vulkan_backend.cpp": "7489ff45407641c53d2c92b0b7dddcc39c8d92d3ae4054ba1420499f9662cc54",
+    "tests/vulkan_buffer.cpp": "20704119edf5a72efc530a29a4e5197e11531cc3c78a47afbc314c72b7771068",
+    "CMakeLists.txt": "0c3179a58dfda9742bd52077bbf4a7b84eeb7f0e54cc18d63dc3e2090cf9500b"
+  },
+  "source_equivalence": "Vulkan implementation, regression source and CMake match reviewed01010e1 byte-for-byte after checkout newline normalization. No shaders/attention/CPU arithmetic changes.",
+  "negative_control": "Original83cca18 failed3of8constructor and7of7queued-ownership cases. Those archived controls were not rerun; git diff83cca18..da2b47a is empty for the Vulkan implementation.",
+  "scope": "Local Windows MSVC Release with RadeonVII. Intercepted lifetime transfers prove ownership, independent HF fixtures prove numerical bounds. No Linux/MI50 numerical, long-context or matched performance claim. Smoke timings diagnostic only.",
+  "artifacts": {
+    "binary.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\binary.json",
+      "sha256": "d3bf8253a0aee8979ad50d7819d1d1703645706f3240519c597463023f5dbba7"
+    },
+    "build.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\build.log",
+      "sha256": "fe814374589cc7c235f4c683fa4ece1f1f8528ce2569075a2bec9f853a32a5c5"
+    },
+    "collect.py": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\collect.py",
+      "sha256": "e39e98140522aeee2558e30dc8d060432680e6b8461aa31e1ac5944e06b10605"
+    },
+    "commands.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\commands.json",
+      "sha256": "d18ae7bc207ce8e435736f29fcff7d893df307959289f0f5a33da7cb1cc5bd9b"
+    },
+    "complete.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\complete.json",
+      "sha256": "a66f033167571587e26256c1996356dbfc79963fbfe360e8edaaf76663357726"
+    },
+    "configure.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\configure.log",
+      "sha256": "117566878d9565dc8e82b51f1902779944a27070eab199bb2be2edb313ddd878"
+    },
+    "initial-sdk-unconfigured-commands.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\initial-sdk-unconfigured-commands.json",
+      "sha256": "c2f19e2dd76e51fdb06343470dbf69a1c9288782ac3615c4a5f2331d536eda57"
+    },
+    "initial-sdk-unconfigured-configure.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\initial-sdk-unconfigured-configure.log",
+      "sha256": "af0ac9e1abd5f9aa18203ea61ee74653a384377064d8d3b69698658adce6c8c5"
+    },
+    "initial-sdk-unconfigured-failure.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\initial-sdk-unconfigured-failure.json",
+      "sha256": "213c6b23a81302abc2a5c9b35eec27733019242a6ad16fcdcb8d3868f7cdeccf"
+    },
+    "native-details.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\native-details.log",
+      "sha256": "3c6ccfb22c0a69889a5fca4befd8ee79116881b9cbb3555e326b1b7cb5ede918"
+    },
+    "native.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\native.log",
+      "sha256": "2d95697c9ef2bcb3507c89fa8405c5a21a0b75c43e19c6adb49edcce325a3cf6"
+    },
+    "run.py": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\run.py",
+      "sha256": "d72310b8366b6e2d581c9c701a9d49e14039cc546b30f89f0b55a8720fde82a6"
+    },
+    "vulkan-0-hf.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-lifetime-main-evidence-20260925\\vulkan-0-hf.log",
+      "sha256": "c72eb7284261e8aaac32d4b29843c49c34eb53a1d61d462a3e35077e2990c5c7"
+    }
+  },
+  "saved_raw_sha256": {
+    "native-details.txt": "3c6ccfb22c0a69889a5fca4befd8ee79116881b9cbb3555e326b1b7cb5ede918",
+    "native.txt": "2d95697c9ef2bcb3507c89fa8405c5a21a0b75c43e19c6adb49edcce325a3cf6",
+    "vulkan-hf.txt": "c72eb7284261e8aaac32d4b29843c49c34eb53a1d61d462a3e35077e2990c5c7"
+  }
+}

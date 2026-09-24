@@ -1,0 +1,53 @@
+Test project C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-lifetime-main-20260925/build
+      Start  1: hub-manifest
+ 1/24 Test  #1: hub-manifest .....................   Passed    0.06 sec
+      Start  2: hub-pull
+ 2/24 Test  #2: hub-pull .........................   Passed    2.45 sec
+      Start  3: hub-transport
+ 3/24 Test  #3: hub-transport ....................   Passed    1.01 sec
+      Start  4: gguf-shards
+ 4/24 Test  #4: gguf-shards ......................   Passed    0.19 sec
+      Start  5: model-validation
+ 5/24 Test  #5: model-validation .................   Passed    0.13 sec
+      Start  6: gguf-validation
+ 6/24 Test  #6: gguf-validation ..................   Passed    0.18 sec
+      Start  7: json
+ 7/24 Test  #7: json .............................   Passed    0.03 sec
+      Start  8: cli-output
+ 8/24 Test  #8: cli-output .......................   Passed    0.03 sec
+      Start  9: load-progress
+ 9/24 Test  #9: load-progress ....................   Passed    0.06 sec
+      Start 10: generation-stream
+10/24 Test #10: generation-stream ................   Passed    0.03 sec
+      Start 11: backend-group
+11/24 Test #11: backend-group ....................   Passed    0.12 sec
+      Start 12: fused-dot-overflow
+12/24 Test #12: fused-dot-overflow ...............   Passed    0.03 sec
+      Start 13: q8-dots
+13/24 Test #13: q8-dots ..........................   Passed    0.06 sec
+      Start 14: backend-errors
+14/24 Test #14: backend-errors ...................   Passed    1.02 sec
+      Start 15: prefill-scope
+15/24 Test #15: prefill-scope ....................   Passed    0.03 sec
+      Start 16: prefill-placement
+16/24 Test #16: prefill-placement ................   Passed    0.03 sec
+      Start 17: chat-template
+17/24 Test #17: chat-template ....................   Passed    0.03 sec
+      Start 18: fp16
+18/24 Test #18: fp16 .............................   Passed    0.05 sec
+      Start 19: kv-cache
+19/24 Test #19: kv-cache .........................   Passed    0.04 sec
+      Start 20: placement
+20/24 Test #20: placement ........................   Passed    0.03 sec
+      Start 21: http
+21/24 Test #21: http .............................   Passed    0.02 sec
+      Start 22: backend-vulkan
+22/24 Test #22: backend-vulkan ...................   Passed    7.27 sec
+      Start 23: vulkan-buffer
+23/24 Test #23: vulkan-buffer ....................   Passed    0.03 sec
+      Start 24: vulkan-lifetime
+24/24 Test #24: vulkan-lifetime ..................   Passed    1.06 sec
+
+100% tests passed, 0 tests failed out of 24
+
+Total Test time (real) =  14.37 sec

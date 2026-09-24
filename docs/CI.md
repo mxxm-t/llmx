@@ -9,7 +9,7 @@ dispatch. It contains six independent checks:
 | CPU (windows-2022) | MSVC, CMake Release, synthetic tests and benchmark smoke |
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | CPU (Linux UBSan) | GCC undefined-behavior checks, including mixed-tensor float alignment |
-| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` skipping, since hosted runners have a loader but no driver |
+| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` and `vulkan-lifetime` skipping without a driver, while `vulkan-buffer` exercises fake API cleanup with only the loader |
 | HF reference (CPU) | Linux build plus all three pinned real models: tokenizer, logits, continuous/chunked PPL |
 
 Every CTest in `CMakeLists.txt` runs in every job's "Backend tests" step,
@@ -206,9 +206,14 @@ These checks do not require a real model or establish performance.
 
 Native counts are 21 on Windows and 20 on Linux/macOS; the Windows-only
 `prefill-placement` target accounts for the difference, and a build with
-`LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`.
-Windows 12/12 and Linux 11/11 pass locally. Placement release `3c5d4b9` also
-passes all five hosted jobs in
+`LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and
+`vulkan-lifetime`: 24 native tests on Windows and 23 on Linux/macOS.
+The buffer test substitutes Vulkan allocation calls and needs only a loader;
+the lifetime test opens a device but intercepts transfers to check ownership
+without submitting references that the old failure paths could release.
+Neither replaces the real kernel or HF comparisons.
+At placement release `3c5d4b9`, Windows 12/12 and Linux 11/11 passed locally.
+That release also passed all five hosted jobs in
 [run 35516912422](https://github.com/mxxm-t/llmx/actions/runs/35516912422), including
 the new native targets on Windows, macOS Intel, Linux and Linux UBSan, plus the
 required HF job. The earlier `851d375` pass predates these added tests.

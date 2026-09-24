@@ -272,7 +272,7 @@ inline bool is_row_kernel(KernelId id) {
 }
 
 // Whether a row kernel has a one-column build for one-column chunks, which frees the registers of seven unused accumulators.
-// Not the wide Q8_0 path: it already runs five waves per SIMD, and its one-column build measured slower on the 8B file (docs/VULKAN.md).
+// Q8_0 keeps the wide build; its variant selection is documented in docs/VULKAN.md.
 inline bool row_kernel_builds_one_column(KernelId id) {
     return is_row_kernel(id) && id != K_MATMUL_ROW_Q8W;
 }
@@ -557,37 +557,40 @@ public:
                    VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         check(dev_->fn.vkCreateBuffer(dev_->device, &bi, nullptr, &buffer_), "vkCreateBuffer");
-        VkMemoryRequirements req{};
-        dev_->fn.vkGetBufferMemoryRequirements(dev_->device, buffer_, &req);
-        VkMemoryAllocateInfo ai{};
-        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        ai.allocationSize = req.size;
-        // Device memory prefers not to be host visible, so it comes from the device-local heap rather than the BAR window; host-visible memory prefers to be cached.
-        ai.memoryTypeIndex = host_visible
-            ? dev_->memory_type(req.memoryTypeBits,
-                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                VK_MEMORY_PROPERTY_HOST_CACHED_BIT, 0)
-            : dev_->memory_type(req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0,
-                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-        const VkResult r = dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory_);
-        if (r != VK_SUCCESS) {
-            dev_->fn.vkDestroyBuffer(dev_->device, buffer_, nullptr);
-            buffer_ = VK_NULL_HANDLE;
-            if (r == VK_ERROR_OUT_OF_DEVICE_MEMORY || r == VK_ERROR_OUT_OF_HOST_MEMORY)
-                throw std::bad_alloc();
-            check(r, "vkAllocateMemory");
-        }
-        check(dev_->fn.vkBindBufferMemory(dev_->device, buffer_, memory_, 0), "vkBindBufferMemory");
-        if (host_visible) {
-            check(dev_->fn.vkMapMemory(dev_->device, memory_, 0, VK_WHOLE_SIZE, 0, &mapped_), "vkMapMemory");
-            std::memset(mapped_, 0, bytes);
+        try {
+            VkMemoryRequirements req{};
+            dev_->fn.vkGetBufferMemoryRequirements(dev_->device, buffer_, &req);
+            VkMemoryAllocateInfo ai{};
+            ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            ai.allocationSize = req.size;
+            // Device memory prefers not to be host visible, so it comes from the device-local heap rather than the BAR window; host-visible memory prefers to be cached.
+            ai.memoryTypeIndex = host_visible
+                ? dev_->memory_type(req.memoryTypeBits,
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                    VK_MEMORY_PROPERTY_HOST_CACHED_BIT, 0)
+                : dev_->memory_type(req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0,
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+            VkDeviceMemory memory = VK_NULL_HANDLE;
+            const VkResult r = dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory);
+            if (r != VK_SUCCESS) {
+                if (r == VK_ERROR_OUT_OF_DEVICE_MEMORY || r == VK_ERROR_OUT_OF_HOST_MEMORY)
+                    throw std::bad_alloc();
+                check(r, "vkAllocateMemory");
+            }
+            memory_ = memory;
+            check(dev_->fn.vkBindBufferMemory(dev_->device, buffer_, memory_, 0), "vkBindBufferMemory");
+            if (host_visible) {
+                void* mapped = nullptr;
+                check(dev_->fn.vkMapMemory(dev_->device, memory_, 0, VK_WHOLE_SIZE, 0, &mapped), "vkMapMemory");
+                mapped_ = mapped;
+                std::memset(mapped_, 0, bytes);
+            }
+        } catch (...) {
+            release();
+            throw;
         }
     }
-    ~VulkanBuffer() override {
-        if (mapped_) dev_->fn.vkUnmapMemory(dev_->device, memory_);
-        if (buffer_) dev_->fn.vkDestroyBuffer(dev_->device, buffer_, nullptr);
-        if (memory_) dev_->fn.vkFreeMemory(dev_->device, memory_, nullptr);
-    }
+    ~VulkanBuffer() override { release(); }
     VulkanBuffer(const VulkanBuffer&) = delete;
     VulkanBuffer& operator=(const VulkanBuffer&) = delete;
 
@@ -605,6 +608,12 @@ public:
     bool host_visible() const { return mapped_ != nullptr; }
 
 private:
+    void release() noexcept {
+        if (mapped_) dev_->fn.vkUnmapMemory(dev_->device, memory_);
+        if (buffer_) dev_->fn.vkDestroyBuffer(dev_->device, buffer_, nullptr);
+        if (memory_) dev_->fn.vkFreeMemory(dev_->device, memory_, nullptr);
+    }
+
     std::shared_ptr<Device> dev_;
     size_t size_ = 0;
     VkBuffer buffer_ = VK_NULL_HANDLE;
@@ -629,6 +638,7 @@ void span(const Buffer& b, size_t off, size_t bytes) {
 }
 
 class VulkanBackend final : public Backend {
+    friend struct VulkanLifetimeTest;
 public:
     explicit VulkanBackend(int index, bool diagnostics = false) : dev_(std::make_shared<Device>()) {
         Device& d = *dev_;
@@ -1443,7 +1453,7 @@ public:
                 const size_t st = split_tiles ? split_tiles : gy;
                 const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, pr->rows, st, nin);
                 const size_t steps = (nin + 31) / 32;   // an F32 row's last step may be partial
-                // Only a starved call splits, below a quarter of a workgroup per compute unit: above that the reduce dispatch cost more than it saved (Qwen3-0.6B Q4_0 at 64 prompt tokens on a Radeon VII).
+                // Split only below a quarter of a workgroup per compute unit to limit reduction overhead (docs/VULKAN.md).
                 const size_t fwg = groups(pr->rows, hs) * st;
                 const bool starved = fwg * 4 < dev_->caps.compute_units;
                 const size_t kper = starved ? split_blocks(groups(pr->rows, kTileRowsSmall) * st, steps, dev_->profile.float_tile_split_per_cu) : steps;
@@ -1599,7 +1609,7 @@ public:
         default: break;
         }
         if (dev_->profile.prefer_integer_dot) kernel = row_dot_variant(kernel);
-        // Q6_K, Q4_0 and Q4_1 rows on the 8-bit twin where the integer dot is native, except in the output head, where on 8 bits the HF gate's Q4_0 file fails its top-5 bound.
+        // Q6_K, Q4_0 and Q4_1 output heads retain the 16-bit twin for ranking precision (docs/VULKAN.md).
         if (kernel == K_MATMUL_ROW_K_DOT && !logits_) kernel = K_MATMUL_ROW_K_DOT8;
         if (kernel == K_MATMUL_ROW_Q4_DOT && !logits_) kernel = K_MATMUL_ROW_Q4_DOT8;
         uint32_t cluster = lanes;
@@ -1859,7 +1869,7 @@ public:
 
     // Where the 8-bit twin starts after the 16-bit one, in bytes, rounded up to 256 so it is a valid binding offset (shaders/xquant.glsl).
     static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 8 + 63) & ~size_t(63)) * 4; }
-    // The row kernels that read the 8-bit twin: the Q4_0/Q4_1, Q4_K, Q5_K and Q6_K families built with LLMX_X8, and the Q8_0 kernel. An output head of those first three stays on the 16-bit twin, since on the 8-bit one the HF gate's Q4_0 fixture failed its top-5 bound (docs/STATUS.md).
+    // Kernels reading the 8-bit twin; Q4_0, Q4_1 and Q6_K output heads select 16-bit variants for ranking precision (docs/VULKAN.md).
     static bool reads_x8(KernelId id) {
         return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K_DOT8 || id == K_MATMUL_ROW_Q4_DOT8 ||
                id == K_MATMUL_VEC_Q8;
@@ -1871,9 +1881,7 @@ public:
                type != gguf::GGML_TYPE_F32;
     }
 
-    // The quant blocks each part of a split integer-dot tile call sums, the whole inner dimension when unsplit: a call of fewer workgroups than tile_split_per_cu (tile_split_per_cu_narrow for narrow rows) per compute unit splits, keeping at least tile_split_min_blocks per part.
-    // An adopted F32 matrix whose rows are a multiple of 256 floats wide, as a copy with kF32Pad floats after each row, made on first use and kept with the buffer.
-    // Such rows sit a multiple of the memory's channel interleave apart, so every row of a float tile step read the same channel: a 4096 x 2048 F32 tile took 7 to 10 times as long as a 4096 x 2080 one. Other matrices are bound as they are.
+    // Cache adopted F32 matrices with kF32Pad floats after each row whose width is a multiple of 256, reducing channel conflicts (docs/VULKAN.md).
     VkDescriptorBufferInfo padded_f32(CSlice data, size_t rows, size_t nin) {
         VulkanBuffer& src = const_cast<VulkanBuffer&>(as_vulkan(*data.buffer));
         if (!src.adopted || nin % 256 != 0 || !rows) return bind(data);
@@ -1884,12 +1892,13 @@ public:
             std::vector<VkBufferCopy> regions(rows);
             for (size_t r = 0; r < rows; ++r)
                 regions[r] = VkBufferCopy{off + r * nin * sizeof(float), r * (nin + kF32Pad) * sizeof(float), nin * sizeof(float)};
+            const uint32_t count = u32(regions.size());
             VkCommandBuffer cmd = open();
+            if (it != src.padded.end()) pending_[ring_index_].push_back(it->second.copy);
+            it = src.padded.insert_or_assign(off, VulkanBuffer::Padded{rows, nin, copy}).first;
             barrier(cmd);
-            dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), copy->handle(), u32(regions.size()), regions.data());
+            dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), copy->handle(), count, regions.data());
             barrier(cmd);
-            if (it != src.padded.end()) pending_[ring_index_].push_back(std::move(it->second.copy));
-            it = src.padded.insert_or_assign(off, VulkanBuffer::Padded{rows, nin, std::move(copy)}).first;
         }
         return VkDescriptorBufferInfo{it->second.copy->handle(), 0, VK_WHOLE_SIZE};
     }
@@ -1901,7 +1910,7 @@ public:
         b.padded.clear();
     }
 
-    // `per_cu` overrides both targets, as the float tile's own does.
+    // Split below the profile's workgroup target, retaining at least tile_split_min_blocks per part; per_cu overrides the target.
     size_t split_blocks(size_t workgroups, size_t nblk, uint32_t per_cu = 0) const {
         const bool narrow = nblk * 32 < dev_->profile.tile_narrow_nin;
         const size_t target = (size_t)(per_cu ? per_cu : narrow ? dev_->profile.tile_split_per_cu_narrow : dev_->profile.tile_split_per_cu) *
@@ -2197,9 +2206,9 @@ private:
         if (!a.buffer) a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
         if (a.used + need > kArenaBytes) {
             // The slot's arena is full before its command buffer retired: the overflow gets a second arena kept alongside.
-            pending_[ring_index_].push_back(std::shared_ptr<VulkanBuffer>(std::move(a.buffer)));
-            a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
+            pending_[ring_index_].emplace_back(std::move(a.buffer));
             a.used = 0;
+            a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
         }
         std::memcpy((uint8_t*)a.buffer->mapped() + a.used, data, bytes);
         const VkDescriptorBufferInfo info{a.buffer->handle(), a.used, bytes};
@@ -2352,7 +2361,7 @@ private:
         return cmd;
     }
 
-    // A pass is a chain, so one barrier between consecutive commands is correct. It names only the compute and transfer stages, since on this driver a barrier over all commands is a full flush.
+    // Order compute and transfer writes before subsequent compute and transfer accesses.
     void barrier(VkCommandBuffer cmd) {
         VkMemoryBarrier mb{};
         mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
@@ -2440,21 +2449,28 @@ void VulkanKVStorage::ensure(size_t id) {
     const size_t kbytes = mul(want, k_block_bytes()), vbytes = mul(want, v_block_bytes());
     const size_t held = mul(add(kbytes, vbytes), k_.size());
     std::vector<BufferPtr> nk(k_.size()), nv(v_.size());
-    for (size_t l = 0; l < k_.size(); ++l) {
-        nk[l] = owner_->alloc(kbytes, Memory::device);
-        nv[l] = owner_->alloc(vbytes, Memory::device);
-        if (k_[l]) {
-            owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
-            owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
+    const size_t peak = std::max(peak_, add(allocated_bytes(), held));
+    try {
+        for (size_t l = 0; l < k_.size(); ++l) {
+            nk[l] = owner_->alloc(kbytes, Memory::device);
+            nv[l] = owner_->alloc(vbytes, Memory::device);
+            if (k_[l]) {
+                owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
+                owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
+            }
         }
-    }
-    peak_ = std::max(peak_, add(allocated_bytes(), held));
-    for (size_t l = 0; l < k_.size(); ++l) {
-        if (k_[l]) { owner_->keep_until_retired(k_[l]); owner_->keep_until_retired(v_[l]); }
+        for (size_t l = 0; l < k_.size(); ++l) {
+            if (k_[l]) { owner_->keep_until_retired(k_[l]); owner_->keep_until_retired(v_[l]); }
+        }
+    } catch (...) {
+        // New buffers can already be queued destinations; keep them alive until the stream drains.
+        owner_->sync();
+        throw;
     }
     k_.swap(nk);
     v_.swap(nv);
     backed_ = want;
+    peak_ = peak;
 }
 
 } // namespace

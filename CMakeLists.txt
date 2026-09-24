@@ -240,6 +240,16 @@ if(BUILD_TESTING)
         list(APPEND LLMX_TARGETS llmx-backend-vulkan-test)
         add_test(NAME backend-vulkan COMMAND llmx-backend-vulkan-test)
         set_tests_properties(backend-vulkan PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+        # Includes the private implementation to inject resource failures without runtime hooks.
+        add_executable(llmx-vulkan-lifetime-test tests/vulkan_buffer.cpp)
+        add_dependencies(llmx-vulkan-lifetime-test llmx-vulkan-shaders)
+        target_include_directories(llmx-vulkan-lifetime-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_BINARY_DIR}/generated ${LLMX_VULKAN_INCLUDE_DIR})
+        target_link_libraries(llmx-vulkan-lifetime-test PRIVATE ${CMAKE_DL_LIBS})
+        list(APPEND LLMX_TARGETS llmx-vulkan-lifetime-test)
+        add_test(NAME vulkan-buffer COMMAND llmx-vulkan-lifetime-test)
+        add_test(NAME vulkan-lifetime COMMAND llmx-vulkan-lifetime-test --queue)
+        set_tests_properties(vulkan-buffer vulkan-lifetime PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
         # Not a test: times the routed expert projections against dense matmuls of the same bytes.
         add_executable(llmx-moe-kernel-bench tools/moe_kernel_bench.cpp)
         target_link_libraries(llmx-moe-kernel-bench PRIVATE llmx-vulkan)

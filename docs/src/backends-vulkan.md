@@ -26,11 +26,16 @@ kernel notes and measurements are `docs/VULKAN.md`.
   dispatches, so the device starts a pass while the host records the rest.
   Small per-call inputs go through a host-visible arena per ring slot; a
   scratch outgrown mid-pass retires with the slot rather than being freed
-  while recorded commands still name it.
+  while recorded commands still name it. Buffer construction cleans up handles
+  on failed memory selection, allocation, binding or mapping. Arena overflow
+  retains the old buffer before replacing it and leaves its offset reset if
+  the replacement allocation fails.
 - `adopt` copies weights through two staging halves and returns after consuming
   the source, with device copies still ordered on the queue. If a later upload
   chunk fails, it drains the queue before releasing the local destination.
   Successfully adopted weights retain their eligibility for padded F32 copies.
+  Padded copies enter their owning cache before their copy command is recorded;
+  a replaced copy is retained by the command-buffer slot first.
 - `matmul` and `matmul_group`: narrow batches take the row kernel, one
   module per family of types, reading quantized rows against an integer
   twin of the activations (`shaders/xquant.glsl`) that the producing

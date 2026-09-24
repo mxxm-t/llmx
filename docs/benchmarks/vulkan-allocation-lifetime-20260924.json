@@ -1,0 +1,116 @@
+{
+  "base": "83cca189c5a8c7e8ede0b473f97c03e30de05200",
+  "scope": "Windows Vulkan allocation-failure ownership. No Linux/macOS, MI50, long-context or matched performance claim. Successful kernel arithmetic unchanged. Intercepted queue transfers prove ownership ordering, not GPU arithmetic.",
+  "version": "llmx 0.1.0+g83cca189c5a8.dirty",
+  "binary_sha256": "381e0bbb677de1eefefdcc108717a44774ef715bd175dbd891d0cddf6fb44646",
+  "native": {
+    "count": 24,
+    "exit": 0,
+    "command": "ctest --test-dir build -C Release --output-on-failure"
+  },
+  "hf": {
+    "components": 14,
+    "exit": 0,
+    "command": "python -u -X utf8 tests/run_tests.py --exe build/Release/llmx.exe --no-perf-floor --require-baseline --device vulkan:0",
+    "bounds": {
+      "Qwen3-0.6B-Q8_0.gguf continuous NLL": {
+        "observed_max_abs_error": 0.001224,
+        "bound": 0.01
+      },
+      "Qwen3-0.6B-Q8_0.gguf windowed NLL": {
+        "observed_max_abs_error": 0.012346,
+        "bound": 0.02
+      },
+      "Qwen3-0.6B-Q4_0.gguf continuous NLL": {
+        "observed_max_abs_error": 0.131524,
+        "bound": 0.16
+      },
+      "Qwen3-0.6B-Q4_0.gguf windowed NLL": {
+        "observed_max_abs_error": 0.1676,
+        "bound": 0.2
+      },
+      "Qwen3-0.6B-Q5_K_M.gguf continuous NLL": {
+        "observed_max_abs_error": 0.026294,
+        "bound": 0.05
+      },
+      "Qwen3-0.6B-Q5_K_M.gguf windowed NLL": {
+        "observed_max_abs_error": 0.12952,
+        "bound": 0.16
+      }
+    },
+    "real_top1": "6/6 for each of Q8_0, Q4_0, Q5_K_M"
+  },
+  "negative_control": {
+    "source": "83cca18 Vulkan implementation, only friend access declaration added, final test source included against it",
+    "constructor_failures": 3,
+    "constructor_cases": 8,
+    "queue_failures": 7,
+    "queue_cases": 7,
+    "exit_each": 1,
+    "toolchain": "MSVC 19.50.35728.0, C++17 /O2 /arch:AVX2",
+    "limitation": "Allocation ordinal control is specific to this tested STL; final test also directly injects Vulkan memory failure."
+  },
+  "candidate_failure_cases": {
+    "constructor": 8,
+    "queue": 7,
+    "failures": 0
+  },
+  "docs_review": {
+    "files": 39,
+    "relative_file_links": 124,
+    "ascii_failures": 0,
+    "missing_files": 0,
+    "scope": "Affected current claims and full Markdown scan; no remote URL/anchor or historical numerical revalidation."
+  },
+  "source_sha256": {
+    "src/backends/vulkan/vulkan_backend.cpp": "7489ff45407641c53d2c92b0b7dddcc39c8d92d3ae4054ba1420499f9662cc54",
+    "tests/vulkan_buffer.cpp": "20704119edf5a72efc530a29a4e5197e11531cc3c78a47afbc314c72b7771068",
+    "CMakeLists.txt": "3de5e895007aac72f53fbbf0a67fa077b9207c1247b2ea4cac39962d5943f10a"
+  },
+  "artifacts": {
+    "native-final.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\native-final.log",
+      "sha256": "d4de093f0cddb6cfad3dd41ca4647fc8fcdda92b93c82d73e225e0d5ad9bcd15"
+    },
+    "native-details.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\native-details.log",
+      "sha256": "277c8da22d7099c4ac20ed2909143378d725ba7278d0708a4f208f9ba2d4bf22"
+    },
+    "vulkan-final.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\vulkan-final.log",
+      "sha256": "4f34b2fca0fb08ec8788828fc89931c42b31e738688dc06ee7d8009ae10d5455"
+    },
+    "vulkan-rebuilt.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\vulkan-rebuilt.log",
+      "sha256": "44ec07bbc711551434966f75a4caf7fad0cebab9385e77b57b4a528b3f50fe02"
+    },
+    "buffer-original-final.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\buffer-original-final.log",
+      "sha256": "b99edac8295648d90a91700006dcf6ae7403a9973695910d181ea9764650f28e"
+    },
+    "queue-original-final.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\queue-original-final.log",
+      "sha256": "0120ce5427a31325d189bf33677a2ff140201ebb5a30a55bf3f35efe06700ec1"
+    },
+    "baseline_vulkan.cpp": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\baseline_vulkan.cpp",
+      "sha256": "d6c136856075dfb061d9fe257b342efb0a6af9e58ae85610c81e0a5bf1c75d04"
+    },
+    "baseline_test.cpp": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\baseline_test.cpp",
+      "sha256": "2d3a21fbf67dd61ea084147ff7c78e05498ca80797ba4066af984cfc62fb9775"
+    },
+    "build-negative.cmd": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\build-negative.cmd",
+      "sha256": "97e07f8ac485790d42c34084229e24c278539498be7648257105a1c894b79f06"
+    },
+    "build-negative.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\build-negative.log",
+      "sha256": "e6067d992820ccf1c379a0af591337687eb7667b82960eab5d8044b74f596ea6"
+    },
+    "build-final.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-backend-audit-20260924\\build-final.log",
+      "sha256": "69e1d1db1d8a3400913a6973ca4bcecfbfce365f94dcf13c4ccda2db09e115b1"
+    }
+  }
+}

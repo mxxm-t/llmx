@@ -29,7 +29,7 @@ The facts the design depends on:
 | `minStorageBufferOffsetAlignment` | 4 bytes | A float offset into a buffer is a legal binding offset |
 | `maxComputeSharedMemorySize` | 32 KiB | Prefill tiles stage dequantized weights through shared memory |
 | Cooperative matrix | absent | Matmul is subgroup dot products, not matrix cores |
-| `maxMemoryAllocationCount` | 4096 | One allocation per buffer is enough for a model; counted, not sub-allocated yet |
+| `maxMemoryAllocationCount` | 4096 | Separate allocation per buffer; allocation failures are reported by Vulkan |
 | `VK_EXT_memory_budget` | yes | The free-memory query the placement flags will want |
 
 Memory heaps and the types this backend uses:
@@ -87,9 +87,9 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   above enabled, one compute queue, one command pool.
 - **Buffers.** `VulkanBuffer` is one `VkBuffer` bound to its own
   `VkDeviceMemory`. `host_ptr()` is the mapped pointer for host-visible
-  memory and null for device memory. Allocation count is checked against
-  `maxMemoryAllocationCount`; sub-allocation waits for a model that needs
-  it. Zero-fill on `alloc` is a `vkCmdFillBuffer` in the current command
+  memory and null for device memory. Each buffer uses a separate device
+  allocation; failures are reported by Vulkan. Construction releases acquired
+  handles if memory selection, allocation, binding or mapping fails. Zero-fill on `alloc` is a `vkCmdFillBuffer` in the current command
   buffer, so it is ordered like every other op. A buffer's size is
   rounded up to whole 32-bit words, since a tensor with an odd block
   count can end two bytes into a word its 32-bit view reads.
@@ -104,9 +104,10 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   `adopt` never has to re-align anything on any backend.
 - **Command recording.** Every op appends a dispatch, or a copy, to the
   open command buffer. `submit()` ends it, submits it with a timeline
-  semaphore signal of the next ticket value, opens the next one, and
+  semaphore signal of the next ticket value, advances to the next ring slot, and
   returns the ticket. `wait(t)` is `vkWaitSemaphores` on that value;
-  `sync()` waits on the latest and, per contract, aborts on device loss.
+  `sync()` submits any open commands and waits on the latest ticket;
+  retirement failure aborts because callers rely on it before freeing storage.
   Command buffers are a ring; one is reused once its ticket has retired.
   A pass of several hundred dispatches is submitted in chunks of 64 as
   it is recorded, so the device starts on the first chunk while the host
@@ -116,8 +117,8 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   best of 16, 32, 64, 128 and 256.
   `read` records a copy into staging, submits, waits, and copies out.
 - **Barriers.** A pass is a chain, so every op reads what the previous op
-  wrote. One memory barrier, compute write to compute read, between
-  consecutive dispatches is correct and is what the first version does.
+  wrote. The memory barrier orders compute and transfer writes before
+  subsequent compute and transfer reads or writes.
   Tracking which buffers an op touches, to let independent dispatches
   overlap, is an optimization with its own measurement.
 - **Descriptors.** Every kernel takes a handful of storage buffer
@@ -599,7 +600,9 @@ HF gate measures the cost of it.
 The backend chooses its block size and the layout inside a block, per
 [KV-CACHE](KV-CACHE.md). Blocks are per-layer device buffers holding K and
 V, grown by allocate-and-copy exactly as the CPU storage does, the copy
-enqueued on the queue. The layout inside a block is
+enqueued on the queue. Failed growth drains those copies while the new buffers
+are still alive, preserves the prior backing and peak accounting, and permits
+a retry. Successful growth stays asynchronous. The layout inside a block is
 `[kv_head][token][head_dim]` so a head's keys within a block are contiguous
 for the attention lanes. The block size starts at 64 tokens, half the
 CPU's, because the attention workgroup reads a block per iteration and

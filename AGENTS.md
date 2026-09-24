@@ -251,6 +251,14 @@ to that directory.
 It exits 77, which CTest reports as skipped, when there is no loader, no
 device or a driverless loader.
 
+`vulkan-buffer` checks constructor cleanup with substituted Vulkan calls and
+needs only the loader. `vulkan-lifetime` opens a device, intercepts transfers
+and injects allocation failures to check queued storage ownership during KV
+growth, padded-copy creation/replacement and argument-arena overflow. It
+checks retry and unchanged KV accounting after failed growth. Transfers are
+intercepted so an old lifetime bug cannot submit references to freed memory;
+normal device arithmetic remains covered by `backend-vulkan` and the HF gate.
+
 `http` starts the server's HTTP layer (`src/server/http.hpp`) on a
 system-chosen port from a thread and drives it with the layer's own client:
 a whole response, a body echoed back, a chunked stream whose chunks arrive

@@ -125,7 +125,7 @@ The placement already puts a layer's feed-forward block on its own group, separa
 
 ### Data-parallel attention with expert parallelism
 
-Each card of an expert group (a **rank**) holds the attention, router, norms, embedding and head, and runs attention for **its own requests** with its own KV. Each card holds a share of every MoE layer's experts. So KV is never duplicated and never split by heads (Qwen3 MoE models have only 4 KV heads, which caps a tensor split's width), and the expert bytes read per pass are divided by the cards. For Qwen3-235B-A22B on eight MI50s this is about 4 GB of replicated attention in Q4_K and 17 GB of experts per card, which fits beside KV and arenas.
+Each card of an expert group (a **rank**) holds the attention, router, norms, embedding and head, and runs attention for **its own requests** with its own KV. Each card holds a share of every MoE layer's experts. So KV is never duplicated and never split by heads (Qwen3 MoE models have only 4 KV heads, which caps a tensor split's width), and the expert bytes read per pass are divided by the cards. For Qwen3-235B-A22B on eight MI50s this is about 4 GB of replicated attention in Q4_K and 17 GB of experts per card; whether KV, arenas and the exchange buffers fit beside them is the fit's calculation (Capacity, below), not assumed here.
 
 Every MoE layer, on every rank at once:
 
@@ -162,7 +162,7 @@ Each expert's matrices split across a tensor group, with the group's sums. Legal
 
 Shared experts (Qwen2-MoE, DeepSeek) go with the routed ones and are never copied to every member: a copied shared expert was 89 percent of each card's feed-forward bytes in an earlier tensor split.
 
-A token's routed entries computed on the same kind of device in the same slot order give the same result wherever the experts sit, so an expert split across two identical cards is bit-identical to one card. Across a card and the CPU the dot kernels differ, so the gate there is the HF bound, determinism and batch invariance, as for the CPU experts today.
+An expert split across two identical cards is claimed bit-identical to one card only for the path combinations tested bit for bit, under the same conditions as expert parallelism above (each entry's kernel path and extent preserved, exact transfers, slot-order combine). Across a card and the CPU the dot kernels differ, so the gate there is the HF bound, determinism and batch invariance, as for the CPU experts today.
 
 ## Tensor groups
 

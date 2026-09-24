@@ -923,7 +923,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const in
     http::Listener listener(c.host, c.port);
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
               << " (device " << gp.device << ", up to " << c.max_seqs << " sequences over "
-              << model.kv_blocks_total() * model.kv_block_tokens() << " KV tokens, queue of " << c.max_queue << ")\n";
+              << model.kv_tokens_total() << " KV tokens, queue of " << c.max_queue << ")\n";
     server::serve(model, tok, m, c, listener);
     return 0;
 }

@@ -110,7 +110,7 @@ private:
     // Scheduler state.
     infer::Sequence seq_;
     std::string finish_pending_;   // set by a sampled end, acted on after the pass
-    size_t need_ = 0;              // blocks reserved for it
+    std::vector<size_t> need_;     // blocks reserved for it, per cache pool
     size_t prompt_done_ = 0;
     size_t fresh_ = 0;             // the prompt tokens this admission prefills, past any reused prefix
     uint32_t last_id_ = 0;
@@ -132,11 +132,11 @@ class Scheduler {
 public:
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t ubatch, size_t max_queue)
         : model_(model), tok_(tok), max_seqs_(max_seqs ? max_seqs : 1), ubatch_(ubatch ? ubatch : 512),
-          max_queue_(max_queue ? max_queue : 1) {}
+          max_queue_(max_queue ? max_queue : 1), reserved_(model.kv_pools(), 0) {}
 
     // Tokens one request may hold, prompt and reply together: the model context or the KV pool, whichever is smaller.
     size_t token_limit() const {
-        return std::min((size_t)model_.config().context_length, model_.kv_blocks_total() * model_.kv_block_tokens());
+        return std::min((size_t)model_.config().context_length, model_.kv_tokens_total());
     }
 
     // Queue a request; the handle's channel delivers its tokens.
@@ -183,12 +183,11 @@ public:
                     const auto& r = queue_.front();
                     if (r->cancel_.load()) { r->end("cancel"); queue_.pop_front(); continue; }
                     const size_t tokens = r->prompt_.size() + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
-                    const size_t bt = model_.kv_block_tokens();
-                    const size_t need = std::min((tokens + bt - 1) / bt, model_.kv_blocks_total());
-                    while (reserved_ + need > model_.kv_blocks_total() && !donors_.empty()) drop_donor();
-                    if (reserved_ + need > model_.kv_blocks_total()) break;
-                    reserved_ += need;
-                    r->need_ = need;
+                    std::vector<size_t> need = blocks_for(tokens);
+                    while (!room_for(need) && !donors_.empty()) drop_donor();
+                    if (!room_for(need)) break;
+                    add(reserved_, need);
+                    r->need_ = std::move(need);
                     r->admission_ = ++admissions_;
                     admit(*r);
                     active.push_back(r);
@@ -270,18 +269,17 @@ private:
     // Before a pass, every uncapped decoding request whose next token would pass its reservation takes another step.
     // When the pool is short, donors go first, then the latest admitted uncapped request is paused: its history becomes a donor and it is queued again at the front, so it resumes from its own blocks unless another request needs them.
     void grow(std::vector<std::shared_ptr<Request>>& active) {
-        const size_t bt = model_.kv_block_tokens();
         for (size_t i = 0; i < active.size();) {
             Request& r = *active[i];
-            const size_t want = (r.seq_.length() + 1 + bt - 1) / bt;
-            if (!r.params_.until_limit || r.prompt_done_ < r.prompt_.size() || want <= r.need_) { ++i; continue; }
-            const size_t step = std::min((r.seq_.length() + 1 + kGrowTokens + bt - 1) / bt, model_.kv_blocks_total()) - r.need_;
+            if (!r.params_.until_limit || r.prompt_done_ < r.prompt_.size() || !beyond(blocks_for(r.seq_.length() + 1), r.need_)) { ++i; continue; }
+            std::vector<size_t> step = blocks_for(r.seq_.length() + 1 + kGrowTokens);
+            for (size_t s = 0; s < step.size(); ++s) step[s] = step[s] > r.need_[s] ? step[s] - r.need_[s] : 0;
             {
                 std::lock_guard<std::mutex> lk(m_);
-                while (reserved_ + step > model_.kv_blocks_total() && !donors_.empty()) drop_donor();
-                if (reserved_ + step <= model_.kv_blocks_total()) {
-                    reserved_ += step;
-                    r.need_ += step;
+                while (!room_for(step) && !donors_.empty()) drop_donor();
+                if (room_for(step)) {
+                    add(reserved_, step);
+                    add(r.need_, step);
                     ++i;
                     continue;
                 }
@@ -315,7 +313,7 @@ private:
     struct Donor {
         std::vector<uint32_t> tokens;
         infer::Sequence seq;
-        size_t blocks = 0;
+        std::vector<size_t> blocks;   // per cache pool
     };
 
     // The donor sharing the longest run of full blocks with the prompt, and the token count of that run; zero when no donor shares a block.
@@ -365,7 +363,7 @@ private:
     void drop_donor() {
         Donor& d = donors_.front();
         try { model_.reset(d.seq); } catch (const std::exception&) {}
-        reserved_ -= d.blocks;
+        sub(reserved_, d.blocks);
         donors_.pop_front();
     }
 
@@ -429,9 +427,10 @@ private:
             Donor d;
             d.tokens.assign(history.begin(), history.begin() + (std::ptrdiff_t)std::min(history.size(), held));
             d.seq = std::move(r->seq_);
-            d.blocks = (held + bt - 1) / bt;
-            reserved_ -= r->need_ - d.blocks;
-            r->need_ = 0;
+            d.blocks = blocks_for(held);
+            sub(reserved_, r->need_);
+            add(reserved_, d.blocks);
+            r->need_.clear();
             donors_.push_back(std::move(d));
         } else {
             release(*r);
@@ -442,8 +441,37 @@ private:
     // reset waits for the last pass that touched the sequence, so its blocks return to the pool only once the device is done with them.
     void release(Request& r) {
         try { model_.reset(r.seq_); } catch (const std::exception&) {}
-        reserved_ -= r.need_;
-        r.need_ = 0;
+        sub(reserved_, r.need_);
+        r.need_.clear();
+    }
+
+    // What `tokens` positions take in each cache pool, in that pool's own blocks, never more than the pool holds.
+    std::vector<size_t> blocks_for(size_t tokens) const {
+        std::vector<size_t> b(model_.kv_pools());
+        for (size_t s = 0; s < b.size(); ++s) {
+            const size_t bt = model_.kv_pool_block_tokens(s);
+            b[s] = std::min((tokens + bt - 1) / bt, model_.kv_pool_blocks(s));
+        }
+        return b;
+    }
+    // Whether every pool can take `more` beside what is reserved.
+    bool room_for(const std::vector<size_t>& more) const {
+        for (size_t s = 0; s < more.size(); ++s)
+            if (reserved_[s] + more[s] > model_.kv_pool_blocks(s)) return false;
+        return true;
+    }
+    // Whether `want` needs more than `held` in any pool; an empty `held` holds nothing.
+    static bool beyond(const std::vector<size_t>& want, const std::vector<size_t>& held) {
+        for (size_t s = 0; s < want.size(); ++s)
+            if (want[s] > (s < held.size() ? held[s] : 0)) return true;
+        return false;
+    }
+    static void add(std::vector<size_t>& to, const std::vector<size_t>& b) {
+        if (to.size() < b.size()) to.resize(b.size(), 0);
+        for (size_t s = 0; s < b.size(); ++s) to[s] += b[s];
+    }
+    static void sub(std::vector<size_t>& from, const std::vector<size_t>& b) {
+        for (size_t s = 0; s < b.size(); ++s) from[s] -= b[s];
     }
 
     infer::Model& model_;
@@ -458,7 +486,7 @@ private:
     size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
     uint64_t admissions_ = 0;   // the scheduler thread's
     uint64_t pauses_ = 0;       // under the lock
-    size_t reserved_ = 0;   // blocks promised to admitted requests and held by donors
+    std::vector<size_t> reserved_;   // per cache pool, blocks promised to admitted requests and held by donors
     bool stopping_ = false;
 };
 

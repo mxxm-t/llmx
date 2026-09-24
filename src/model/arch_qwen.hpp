@@ -414,6 +414,13 @@ public:
         for (auto& dp : devices_) {
             Device& d = *dp;
             if (!d.attn_layers) continue;
+            // A shared prefix ends on a whole block of the largest size (kv_block_tokens), which is whole in every storage only when the sizes nest.
+            for (const Device* other : storages_) {
+                const size_t a = d.b->kv_layout().block_tokens, b = other->b->kv_layout().block_tokens;
+                if (std::max(a, b) % std::min(a, b))
+                    throw std::runtime_error("inference: cache blocks of " + std::to_string(a) + " and " + std::to_string(b) +
+                                             " tokens in one model; a split needs one size to divide the other");
+            }
             d.storage = d.b->kv_alloc((size_t)d.attn_layers, cfg.n_head_kv, cfg.head_dim,
                                       kv_tokens, options_.kv_k, options_.kv_v);
             d.pool.configure(d.storage->max_blocks());
@@ -449,17 +456,17 @@ public:
     // CPU worker counts, applied to every backend; a device backend ignores them.
     void set_threads(int n) { for (auto& d : devices_) d->b->set_threads(n); }
 
-    // What a scheduler admits against: the blocks free in the tightest storage, and the largest block among them, so a request's need is ceil(tokens / kv_block_tokens()) blocks (docs/SERVER.md).
-    size_t kv_blocks_free() const {
+    // The cache pools a scheduler admits against, one per device that runs attention, each counted in its own blocks (docs/SERVER.md, docs/MULTI-DEVICE.md).
+    size_t kv_pools() const { return storages_.size(); }
+    size_t kv_pool_block_tokens(size_t s) const { return storages_.at(s)->b->kv_layout().block_tokens; }
+    size_t kv_pool_blocks(size_t s) const { return storages_.at(s)->pool.capacity(); }
+    // Tokens every pool can hold.
+    size_t kv_tokens_total() const {
         size_t least = std::numeric_limits<size_t>::max();
-        for (const Device* d : storages_) least = std::min(least, d->pool.free_blocks());
+        for (size_t s = 0; s < storages_.size(); ++s) least = std::min(least, kv_pool_blocks(s) * kv_pool_block_tokens(s));
         return storages_.empty() ? 0 : least;
     }
-    size_t kv_blocks_total() const {
-        size_t least = std::numeric_limits<size_t>::max();
-        for (const Device* d : storages_) least = std::min(least, d->pool.capacity());
-        return storages_.empty() ? 0 : least;
-    }
+    // The largest block of any pool: a reusable prefix ends on a whole one, which is whole in every pool because the sizes nest.
     size_t kv_block_tokens() const {
         size_t largest = 1;
         for (const Device* d : storages_) largest = std::max(largest, d->b->kv_layout().block_tokens);

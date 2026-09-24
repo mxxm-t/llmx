@@ -83,6 +83,16 @@ size_t check_type(uint32_t type, size_t nin, std::mt19937& rng) {
             require(grouped[c * rows + o] == together[c * rows + o] && grouped[rows * cols + c * rows + o] == together[c * rows + o],
                     "grouped projections differ from separate ones");
 
+    // The same columns as a prompt's rows, through the prompt dots for the K-quants and the float path for the rest: alone, and beside a generated token, where the prompt's rows compute as alone and the token as a decode row.
+    std::vector<float> prompt(rows * cols), mixed(rows * cols);
+    const backend::RowRun as_prompt[1] = {{cols, 512}}, beside[2] = {{1, 1}, {cols, 512}};
+    const auto yp = cpu.adopt(prompt.data(), prompt.size() * sizeof(float)), ym = cpu.adopt(mixed.data(), mixed.size() * sizeof(float));
+    cpu.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {yp.get(), 0}, nin, rows, cols, {as_prompt, 1});
+    cpu.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {ym.get(), 0}, nin, rows, cols, {beside, 2});
+    require(std::memcmp(mixed.data(), alone.data(), rows * sizeof(float)) == 0, "a decode row differs beside a prompt");
+    require(std::memcmp(mixed.data() + rows, prompt.data() + rows, (cols - 1) * rows * sizeof(float)) == 0,
+            "a prompt's rows differ beside a generated token");
+
     std::vector<double> q, d;
     for (size_t c = 0; c < cols; ++c) {
         rounded(x.data() + c * nin, nin, backend::q8::reads16(type) ? 32767.0f : 127.0f, q, d);
@@ -93,10 +103,11 @@ size_t check_type(uint32_t type, size_t nin, std::mt19937& rng) {
                 ref += t;
                 mag += std::fabs(t);
             }
-            const double got = alone[c * rows + o];
-            require(std::isfinite(got) && std::fabs(got - ref) <= 1e-5 * mag + 1e-30,
-                    "type " + std::to_string(type) + " nin " + std::to_string(nin) + ": " + std::to_string(got) +
-                    " against " + std::to_string(ref));
+            const bool kquant = type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K || type == gguf::GGML_TYPE_Q6_K;
+            for (const float got : kquant ? std::vector<float>{alone[c * rows + o], prompt[c * rows + o]} : std::vector<float>{alone[c * rows + o]})
+                require(std::isfinite(got) && std::fabs(got - ref) <= 1e-5 * mag + 1e-30,
+                        "type " + std::to_string(type) + " nin " + std::to_string(nin) + ": " + std::to_string(got) +
+                        " against " + std::to_string(ref));
         }
     }
     return rows * cols;

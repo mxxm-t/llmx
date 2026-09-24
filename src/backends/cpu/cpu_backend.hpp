@@ -378,11 +378,38 @@ public:
         run_parallel([&](int w) { work(std::min(rows, (size_t)w * chunk), std::min(rows, (size_t)(w + 1) * chunk)); });
     }
 
-    // The matmul on host addresses, which an expert's matrix inside a stacked tensor needs; `decode` picks the decode dots over the batched path.
+    // A prompt's columns of X against a quantized matrix through the prompt dots (q8_dots.hpp dot_block): every column quantized once, stretches of 16 rows handed to workers as they free up, each against every column, so a row's weights are unpacked once for all of them.
+    void matmul_q8_prompt(uint32_t type, const uint8_t* data, const float* X, float* Y, size_t nin, size_t nout, size_t ncols) {
+        xq8_.reset(X, ncols, nin);
+        prepare_x(type);
+        const size_t rb = row_bytes_of(type, nin), R = 16, tasks = (nout + R - 1) / R;
+        prompt_rows_.resize(ncols);
+        prompt_outs_.resize(ncols);
+        for (size_t c = 0; c < ncols; ++c) {
+            prompt_rows_[c] = c;
+            prompt_outs_[c] = Y + c * nout;
+        }
+        std::atomic<size_t> next{0};
+        auto work = [&](int) {
+            for (size_t t = next.fetch_add(1); t < tasks; t = next.fetch_add(1)) {
+                const size_t o0 = t * R, o1 = std::min(nout, o0 + R);
+                q8::dot_block(type, data + o0 * rb, rb, o1 - o0, xq8_, prompt_rows_.data(), ncols, prompt_outs_.data(), o0);
+            }
+        };
+        if (threads_ <= 1 || tasks < 2) work(0);
+        else run_parallel(work);
+    }
+
+    // The matmul on host addresses, which an expert's matrix inside a stacked tensor needs; `decode` picks the decode dots, and otherwise a type with quantized dots takes the prompt dots and the rest the batched float path.
     void matmul_raw(uint32_t type, const uint8_t* data, const float* X, float* Y,
                     size_t nin, size_t nout, size_t nbatch, bool decode) {
-        if (decode && decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0) {
+        if (decode && quantized_dots(type, nin)) {
             matvec_q8x(type, data, X, Y, nin, nout, nbatch);
+            return;
+        }
+        // The K-quants' float path dequantizes every row block before its dots and loses to the prompt dots; Q8_0, Q4_0 and Q4_1 dequantize cheaply, and their float path's 4-row by 3-column register blocking stays ahead (docs/src/backends-cpu.md).
+        if (!decode && quantized_dots(type, nin) && is_kquant(type)) {
+            matmul_q8_prompt(type, data, X, Y, nin, nout, nbatch);
             return;
         }
         if (decode && nbatch > 1) {
@@ -1171,8 +1198,12 @@ private:
         return g;
     }
 
-    // Whether a routed call's entries take the quantized dots (expert_products).
-    bool quantized_experts(uint32_t type, size_t nin) const { return decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0; }
+    static bool is_kquant(uint32_t type) {
+        return type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K || type == gguf::GGML_TYPE_Q6_K;
+    }
+
+    // Whether a type's rows meet quantized activations: the decode dots for a generated token's rows, the prompt dots for a prompt's.
+    bool quantized_dots(uint32_t type, size_t nin) const { return decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0; }
 
     // The quantized activations for a type, the rows split across the pool when there are enough of them.
     void prepare_x(uint32_t type) {
@@ -1205,7 +1236,7 @@ private:
         const size_t row_bytes = row_bytes_of(type, nin), stride = size_mul(nout, row_bytes);
         span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
         const uint8_t* data = (const uint8_t*)bytes_at(data_s);
-        const bool q8 = quantized_experts(type, nin);
+        const bool q8 = quantized_dots(type, nin);
         if (q8) {
             if (xq8_.src != X || xq8_.rows != xrows || xq8_.nin != nin) xq8_.reset(X, xrows, nin);
             prepare_x(type);
@@ -1315,6 +1346,8 @@ private:
     std::vector<float> expert_x_, expert_y_, expert_out_;
     std::vector<size_t> expert_rows_;   // each grouped entry's activation row
     std::vector<float*> expert_outs_;   // and where its products go
+    std::vector<size_t> prompt_rows_;   // a prompt matmul's columns
+    std::vector<float*> prompt_outs_;   // and where each column's products go
     q8::Activations xq8_;      // the quantized activations of the last decode call
     bool decode8_ = true;
     // A slice resolves to a host pointer exactly once per op; the kernels below are untouched and still see plain float arrays.

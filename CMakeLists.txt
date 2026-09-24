@@ -240,6 +240,10 @@ if(BUILD_TESTING)
         list(APPEND LLMX_TARGETS llmx-backend-vulkan-test)
         add_test(NAME backend-vulkan COMMAND llmx-backend-vulkan-test)
         set_tests_properties(backend-vulkan PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+        # Not a test: times the routed expert projections against dense matmuls of the same bytes.
+        add_executable(llmx-moe-kernel-bench tools/moe_kernel_bench.cpp)
+        target_link_libraries(llmx-moe-kernel-bench PRIVATE llmx-vulkan)
+        list(APPEND LLMX_TARGETS llmx-moe-kernel-bench)
     endif()
 endif()
 

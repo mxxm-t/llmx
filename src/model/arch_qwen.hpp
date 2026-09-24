@@ -316,6 +316,7 @@ inline Footprint footprint(const gguf::GGUFModel& m, const ModelOptions& options
     fp.cache_per_layer = tokens * (size_t)cfg.n_head_kv * (size_t)cfg.head_dim *
                          (backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v));
     fp.tables = (size_t)cfg.context_length * (size_t)cfg.head_dim * sizeof(float);
+    fp.handoff_per_row = (size_t)cfg.n_embd * sizeof(float);
     for (size_t w : slot_widths(cfg, dense)) fp.activations_per_row += w * sizeof(float);
     return fp;
 }

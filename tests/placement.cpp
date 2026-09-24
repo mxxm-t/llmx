@@ -245,6 +245,33 @@ void layer_split_fits() {
     auto carried = infer::split_layers(logits, {budget("cpu", 2 * GiB, true), budget("a", GiB)}, 4, {1, 2}, 128 * MiB);
     require(refused && carried.host == 4 * 64 * MiB && carried.stages[0].other >= carried.host, "the host's logits not fitted to the host");
     checked += 2;
+    // The host keeps the position tables and the handoff between devices, and each used backend's staging, never an unused one's.
+    // Two devices staging 68 MiB each beside 64 MiB of tables need 200 MiB of the host: with 140 MiB free one device runs every layer, and with 100 MiB none can.
+    infer::Footprint staged = three;
+    staged.tables = 64 * MiB;
+    staged.handoff_per_row = MiB;
+    auto device = [&](const char* name) {
+        infer::DeviceBudget d = budget(name, GiB);
+        d.host_side = 68 * MiB;
+        return d;
+    };
+    auto alone = infer::split_layers(staged, {device("a"), device("b")}, 1, {}, 140 * MiB);
+    require(alone.stages[0].count + alone.stages[1].count == 3 && (alone.stages[0].count == 0 || alone.stages[1].count == 0) &&
+                alone.host == 64 * MiB + 68 * MiB,
+            "a device was used whose staging the host cannot hold");
+    bool short_host = false;
+    try { infer::split_layers(staged, {device("a"), device("b")}, 1, {}, 100 * MiB); } catch (const std::runtime_error&) { short_host = true; }
+    auto both = infer::split_layers(staged, {device("a"), device("b")}, 1, {}, GiB);
+    require(short_host && both.stages[0].count && both.stages[1].count && both.host == 64 * MiB + 2 * 68 * MiB + MiB,
+            "the host's tables, handoff and staging not counted");
+    // Shares that leave a device out do not charge its staging.
+    auto first_only = infer::split_layers(staged, {device("a"), device("b")}, 1, {1, 0}, 140 * MiB);
+    require(first_only.stages[0].count == 3 && first_only.host == 64 * MiB + 68 * MiB, "an unused device's staging charged to the host");
+    // A CPU that runs layers reads the host's tables in place: counted once, in the host's needs it carries, not again as its own.
+    auto on_cpu = infer::split_layers(staged, {budget("cpu", 2 * GiB, true), device("a")}, 1, {1, 2});
+    require(on_cpu.host == 64 * MiB + 68 * MiB + MiB && on_cpu.stages[0].other == staged.activations_per_row + on_cpu.host,
+            "the CPU's alias of the host's tables counted twice");
+    checked += 4;
 
     // A projection with a trailing singleton axis is the same product weight: the footprint follows the tensor's role, not its rank.
     auto singleton = weights;

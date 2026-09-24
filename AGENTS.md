@@ -332,13 +332,14 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   required of one backend against itself. It needs a real model and is run
   by hand, not by `run_tests.py`.
 - **Layer split** (`tools/split_check.cpp`, target `llmx-split-check`): a
-  model on one device against the same model split 1:1 over two (a device
-  is `cpu` or a Vulkan index), as
-  raw float logits compared with `memcmp`: every position of a scored text
-  through the prompt path, then the prefill and greedy decode steps. The
-  split must be bit-identical, since each layer runs the same kernels on
-  the same rows wherever it sits. It needs a real model and two devices and
-  is run by hand.
+  model on one device against the same model split 1:1 over two of the
+  same kind (a device is `cpu` or a Vulkan index), as raw float logits
+  compared with `memcmp`: every position of a scored text through the
+  prompt path, then the prefill and greedy decode steps. The split must be
+  bit-identical, since each layer runs the same kernels on the same rows
+  wherever it sits; a split over different backends is held to the HF
+  bounds instead. It takes the tiny fixtures `tests/f32.py` and
+  `tests/moe.py` write as well as real models, and is run by hand.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model.

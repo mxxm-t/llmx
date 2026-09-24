@@ -47,7 +47,7 @@ Commands and their entry points:
   per kernel and the driver's statistics of each kernel (registers,
   occupancy) where it reports them.
 - `canonical_device`, `device_specs`, `layer_shares`, `comma_list`: a `--device` value is one device or several separated by commas, each in one spelling (`vulkan` and `vulkan:00` are `vulkan:0`) and listed once; `--layer-shares` is one whole-number proportion per device.
-- `make_split_model`: the model split by layers over every listed device, each device's budget its `memory_available()`, `resident_bytes` and `host_resident()` and the CPU marked as reading weights in place, the host's available memory passed for the host's own needs when no CPU runs layers, the placement from `infer::split_layers` over the model's `footprint` for the most rows a pass carries (a prompt's ubatch, plus `serve`'s `--max-seqs`), printed with `--verbose`. Experts on the CPU are refused with a list.
+- `make_split_model`: the model split by layers over every listed device, each device's budget its `memory_available()`, `resident_bytes` and `host_resident()` and the CPU marked as reading weights in place, the host's available memory passed for the host's own needs when no CPU is listed, the placement from `infer::split_layers` over the model's `footprint` for the most rows a pass carries (a prompt's ubatch, plus `serve`'s `--max-seqs`), printed with `--verbose`. Experts on the CPU are refused with a list.
 - `make_model`: with a device list or `--layer-shares`, `make_split_model`; otherwise the model over the `--device` backend, or with
   `--n-cpu-moe N` / `--cpu-moe` over the CPU as device 0 and the device as
   device 1, the first `N` routed layers' feed-forward blocks placed on the

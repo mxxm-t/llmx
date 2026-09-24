@@ -242,13 +242,14 @@ on the first device before waiting for microbatch `i` on the second. The
 tickets express it and the CLI's prefill loop can use it once two devices
 exist.
 
-Flags follow llama.cpp's names so the vocabulary carries over: `--device`
-selects the backend (`cpu`, `vulkan:0`, `rocm:0`), `--n-gpu-layers N` puts
-the last `N` layers on it and the rest on CPU, and the embedding table
-stays on CPU unless every layer is on the device. `--tensor-split` waits
-for a second device to exist. `--n-cpu-moe N` and `--cpu-moe` exist: the
-experts of the first `N` routed layers, or all, on the CPU beside a device
-(`docs/USAGE.md`); `--n-gpu-layers` and `--tensor-split` do not yet. Choosing a fit automatically needs each backend to
+Flags follow llama.cpp's names so the vocabulary carries over. `--device`
+already selects `cpu` or `vulkan:N`; ROCm selection waits for that backend.
+`--n-cpu-moe N` and `--cpu-moe` put the experts of the first `N` routed
+layers, or all, on the CPU beside a device (`docs/USAGE.md`). The planned
+`--n-gpu-layers N` puts the last `N` layers on the device and the rest on
+CPU, with the embedding table on CPU unless every layer is on the device;
+`--tensor-split` remains planned too. Placement exists in the model API; the
+planned flags will land in `docs/USAGE.md` and `print_usage` together. Choosing a fit automatically needs each backend to
 report its free memory; that query is added with the first device backend
 that can answer it.
 

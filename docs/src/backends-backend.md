@@ -4,10 +4,11 @@ Device-agnostic compute abstraction in namespace `backend`. The inference graph
 runs its primitive ops through a `Backend` so the same model code targets the CPU
 and the Vulkan backend. Operands are a `Buffer` and a float offset (`Slice` / `CSlice`), so the
 backend owns its storage and the model never dereferences it. Every op
-enqueues on the backend's single implicit stream; `sync()` drains it and
-`read` syncs first, so the model syncs once per forward pass. This is the
-complete device execution model of `docs/DEVICE-EXECUTION.md`; the
-extensions for batching and placement are designed in `docs/EXECUTION.md`.
+enqueues on the backend's single implicit stream. The model submits work and
+waits on tickets for results and resource lifetimes; `sync()` also drains work
+queued behind no ticket on failure paths. This is the device execution model
+of `docs/DEVICE-EXECUTION.md`, extended by the implemented batching and
+placement contracts in `docs/EXECUTION.md`.
 
 - `alloc(bytes, where)`, `adopt(src, bytes)`, `read(src, off, dst, bytes)`,
   `copy(dst, dst_off, src, src_off, bytes)`: backend-owned storage. `where`
@@ -30,8 +31,9 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
 - `set_threads(n)`, `threads_available()`: worker-thread control.
 - `matmul(ggml_type, data, X, Y, nin, nout, nbatch, runs)`: the type-generic
   matmul. The quant type is resolved through `quant::Registry`, so every block
-  format gets the batched path and a new type needs no backend change. A decode
-  token is the one-column case of the same call.
+  format gets the generic CPU batched fallback. Vendor backends require kernels
+  and validation for each supported type. A decode token is the one-column
+  case of the same call.
 - `RowRun` / `RowRuns`: the rows of a call grouped by the prompt they belong
   to, each run's `end` and its `extent`, the position one past the prompt's
   last token for prompt rows and 1 for a generated token. A device picks a
@@ -42,7 +44,8 @@ extensions for batching and placement are designed in `docs/EXECUTION.md`.
 - `matmul_group(projections, X, nin, nbatch, runs)`: independent projections sharing
   activations. Each descriptor gives type, weights, output and row count.
   Outputs must be disjoint from one another, inputs and weights. The default
-  calls `matmul` sequentially; all outputs are ready when the call returns.
+  calls `matmul` sequentially on the same stream; host observation of outputs
+  follows the usual `wait`, `sync` or `read` completion contract.
 - `matmul_add(...)`: `matmul` whose product is added to what the output
   already holds.
 - `matmul_logits(...)`: the output head, by default `matmul`. Its values

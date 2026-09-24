@@ -206,8 +206,8 @@ The `backend::Backend` interface is device-agnostic in *shape* - nothing in it
 names a vendor - and, since the device execution migration
 (`DEVICE-EXECUTION.md`, complete), in substance too: weights, activations and
 KV blocks are `Buffer` handles, every op takes a buffer and an offset, ops
-enqueue on one implicit stream with one `sync()` per forward pass, and the
-model layer holds no host address.
+enqueue on one implicit stream with ticket submission per backend. Results and
+resource lifetimes determine when to wait; the model layer holds no host address.
 
 A model is split across several Backends by a `Placement` at the model
 layer: a device per tensor role, so per-layer and per-tensor splits are the

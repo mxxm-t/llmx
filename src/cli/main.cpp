@@ -416,7 +416,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     std::vector<uint32_t> ids = tok.encode(prompt);
     if (ids.empty()) throw std::runtime_error("generate: empty prompt");
 
-    // Prefill is compute bound and wants every thread; decode is memory bandwidth bound and usually peaks well below the logical core count, so the two phases get their own thread counts (-t / -tb).
+    // Prefill and decode can use different worker counts (--threads-batch / --threads).
     const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;
     model.set_threads(tb);
     if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
@@ -426,7 +426,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     model.set_threads(decode_threads);
     double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (gp.show_prompt_tokens) std::cout << "prompt tokens: " << ids.size() << "\n";
-    // Two decimals: at a few tok/s an integer print rounds a 20% change away.
+    // Preserve fractional throughput for slow models.
     printf("pp: %zu tok, %.0f ms, %.2f tok/s\n", ids.size(), pp_ms,
            (double)ids.size() / (pp_ms / 1e3));
 
@@ -836,51 +836,171 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const in
     return 0;
 }
 
-void print_usage() {
-    std::cout
-        << "llmx " << LLMX_VERSION_STRING << " - ground-up GGUF runtime (no external libs)\n"
-        << "\n"
-        << "Usage:\n"
-        << "  llmx --version  print release version and build revision\n"
-        << "  llmx pull       <owner/repo>:<quant> [--revision <ref>] [--file <name>]\n"
-        << "                  [--cache-dir <path>] [--parallel N] (default: 4, range: 1..16)\n"
-        << "    pull uses curl 8.4+ for HTTPS; HF_TOKEN supplies gated-repo credentials\n"
-        << "  llmx quantize   <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n"
-        << "  llmx dequantize <in.gguf> <out.json> <out.bin>\n"
-        << "  llmx info       <in.gguf>\n"
-        << "  llmx logits     <in.gguf> \"<text>\" [--top N]\n"
-        << "  llmx tokenize   <in.gguf> \"<text>\"\n"
-        << "  llmx detokenize <in.gguf> <id1,id2,...>\n"
-        << "  llmx perplexity <in.gguf> \"<text>\" [flags...]\n"
-        << "  llmx perplexity <in.gguf> -f/--file <path> [flags...]\n"
-        << "    perplexity flags: -c/--ctx-size N  window tokens (default: model context)\n"
-        << "                      --chunks N  maximum windows (default: all)\n"
-        << "                      --per-token  score one token at a time, the decode path, rather than\n"
-        << "                                   in batched passes, the prompt path (default)\n"
-        << "  llmx generate   <in.gguf> \"<prompt>\" [flags...]\n"
-        << "  llmx chat       <in.gguf> [--system \"<text>\"] [flags...]\n"
-        << "  llmx serve      <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N]\n"
-        << "                  [--ubatch N] [--threads N]\n"
-        << "                  [--device D] [--n-cpu-moe N | --cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T]\n"
-        << "                  POST /v1/generate, POST /v1/chat, GET /v1/health, GET /v1/models,\n"
-        << "                  POST /v1/completions, POST /v1/chat/completions (docs/USAGE.md)\n"
-        << "  llmx bench      [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]\n"
-        << "  llmx bench      --model <in.gguf> [--p N] [--n N] [--r N] [--threads N] [--device D]\n"
-        << "                  [--n-cpu-moe N | --cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--profile]\n"
-        << "                  (warm-up, then R repeats of pp N and tg N, model time only)\n"
-        << "                  --profile reports device time per kernel, on a device backend\n"
-        << "    flags: -n/--max-tokens N  --temp F  --topk N  --topp F  --penalty F  --threads N\n"
-        << "           --device D  backend: cpu (default) or vulkan:N in a build with it\n"
-        << "           --n-cpu-moe N  the experts of the first N routed layers on the CPU beside a device;\n"
-        << "                       --cpu-moe all of them; attention and the dense blocks stay on the device\n"
-        << "           --moe-stream-from N  a prompt this long runs those layers on the device, their experts\n"
-        << "                       copied there per pass (default 0, never)\n"
-        << "           --ubatch N  prefill physical batch (default 512)\n"
-        << "           --cache-type-k T  --cache-type-v T  KV cache storage per side, f16 (default) or f32;\n"
-        << "                       the same on every backend, one without a type refuses it\n"
-        << "           -tb/--threads-batch N  threads for prefill (default: --threads)\n"
-        << "           --seed N  --stop \"<text>\"  --think (show reasoning)  --verbose\n"
-        << "           --verbose reports prompt tokens, thread counts, KV bytes and loading/processing status\n";
+bool print_usage(const std::string& command = {}) {
+    if (!command.empty() && command != "chat" && command != "generate" &&
+        command != "serve" && command != "pull" && command != "info" &&
+        command != "quantize" && command != "dequantize" && command != "tokenize" &&
+        command != "detokenize" && command != "logits" && command != "perplexity" &&
+        command != "bench") return false;
+    std::cout << "llmx " << LLMX_VERSION_STRING << " - ground-up LLM runtime\n\n";
+    if (command.empty()) {
+        std::cout
+            << "Usage: llmx <command> [arguments] [options]\n\n"
+            << "Run a model:\n"
+            << "  chat        <model>                  Interactive chat with follow-up turns\n"
+            << "  generate    <model> \"<prompt>\"       Generate from a raw text prompt\n"
+            << "  serve       <model>                  Start the HTTP inference server\n\n"
+            << "Manage models:\n"
+            << "  pull        <owner/repo>:<quant>     Download a GGUF from Hugging Face\n"
+            << "  info        <model>                  Show metadata and tensor layouts\n"
+            << "  quantize    <json> <bin> <out.gguf>   Convert F32 tensors to Q8_0/Q4_0\n"
+            << "  dequantize  <gguf> <json> <bin>       Export tensors as F32\n\n"
+            << "Inspect and measure:\n"
+            << "  tokenize    <model> \"<text>\"         Encode text to token IDs\n"
+            << "  detokenize  <model> <ids>            Decode comma/space-separated IDs\n"
+            << "  logits      <model> \"<text>\"         Inspect next-token scores\n"
+            << "  perplexity  <model> \"<text>\"         Score text or a file\n"
+            << "  bench                               Measure kernels or a real model\n\n"
+            << "A model is a GGUF file, or the first shard of a GGUF set.\n"
+            << "Downloads require curl 8.4+; no Python runtime is needed.\n\n"
+            << "Help:     llmx <command> --help  (or -h)\n"
+            << "Version:  llmx --version\n"
+            << "Example:  llmx chat model.gguf --threads 6 --temp 0 -n 256\n";
+        return true;
+    }
+    const infer::GenParams defaults;
+    const auto model_options = [&](bool batch_threads, bool ubatch = true) {
+        std::cout << "\nExecution options:\n"
+            << "  --device D              cpu (default), or vulkan:N when built with Vulkan\n"
+            << "  --threads N             CPU workers; 0 selects automatically (default)\n";
+        if (batch_threads) std::cout
+            << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
+        if (ubatch) std::cout
+            << "  --ubatch N              Prompt tokens per pass (default: 512)\n";
+        std::cout
+            << "  --cache-type-k T, -ctk  Key cache: f16 (default) or f32\n"
+            << "  --cache-type-v T, -ctv  Value cache: f16 (default) or f32\n"
+            << "  --n-cpu-moe N           First N routed layers' experts on CPU (default: 0)\n"
+            << "  --cpu-moe               All routed layers' experts on CPU\n"
+            << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
+            << "                          at least N new tokens; 0 disables this (default).\n"
+            << "                          Generated tokens stay on CPU.\n";
+    };
+    if (command == "chat" || command == "generate") {
+        const bool chat = command == "chat";
+        std::cout << (chat ? "Interactive chat with retained conversation history.\n\n"
+                          : "Generate from raw text without applying a chat template.\n\n")
+            << "Usage: llmx " << command << " <model.gguf>"
+            << (chat ? " [options]\n" : " \"<prompt>\" [options]\n")
+            << "\nGeneration options:\n"
+            << "  -n N, --max-tokens N    Maximum generated tokens per turn (default: " << defaults.max_tokens << ")\n"
+            << "  --temp F                Temperature; 0 is greedy (default: " << defaults.temp << ")\n"
+            << "  --topk N                Top-k sampling (default: " << defaults.top_k << ")\n"
+            << "  --topp F                Nucleus sampling (default: " << defaults.top_p << ")\n"
+            << "  --penalty F             Repetition penalty (default: " << defaults.penalty << ")\n"
+            << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
+            << "  --stop TEXT             Stop when generated text contains TEXT\n"
+            << "  --think                 Show legacy reasoning tokens normally filtered\n"
+            << "  --verbose               Show prompt IDs, progress and execution details\n";
+        if (chat) std::cout
+            << "  --system TEXT           System message (default: You are a helpful assistant.)\n";
+        else std::cout
+            << "  --system TEXT           Accepted but unused for raw generation\n";
+        model_options(true);
+        if (chat) std::cout << "\nEnter one message per line; Ctrl+C or end of input exits.\n";
+        std::cout << "\nExample: llmx " << command << " model.gguf"
+            << (chat ? "" : " \"The capital of France is\"") << " --temp 0 -n 256\n";
+    } else if (command == "serve") {
+        const server::Config cfg;
+        std::cout << "Serve concurrent requests with streaming and prefix reuse.\n\n"
+            << "Usage: llmx serve <model.gguf> [options]\n\n"
+            << "Server options:\n"
+            << "  --host H                Listen address (default: " << cfg.host << ")\n"
+            << "  --port N                Listen port (default: " << cfg.port << ")\n"
+            << "  --max-seqs N            Active request limit (default: " << cfg.max_seqs << ")\n"
+            << "  --max-queue N           Waiting request limit (default: " << cfg.max_queue << ")\n"
+            << "  --ctx-size N, -c        Total KV token budget (default: model context)\n";
+        model_options(false);
+        std::cout << "\nRoutes:\n"
+            << "  POST /v1/generate             POST /v1/chat\n"
+            << "  POST /v1/completions          POST /v1/chat/completions\n"
+            << "  GET  /v1/health               GET  /v1/models\n\n"
+            << "Sampling settings belong in each request's JSON body.\n"
+            << "Example: llmx serve model.gguf --device vulkan:0 --port 8080\n";
+    } else if (command == "pull") {
+        std::cout << "Download and verify a GGUF model or complete shard set.\n\n"
+            << "Usage: llmx pull <owner/repo>:<quant> [options]\n\n"
+            << "Options:\n"
+            << "  --revision REF          Branch, tag or commit SHA (default: main)\n"
+            << "  --file NAME             Choose a file when several match the quant\n"
+            << "  --cache-dir PATH        Cache root (default: <home>/.cache/llmx)\n"
+            << "  --parallel N            Streams per file, 1..16 (default: 4)\n\n"
+            << "Requires curl 8.4+. HF_TOKEN supplies gated-repo credentials.\n"
+            << "The verified local path goes to stdout; progress goes to stderr.\n\n"
+            << "Example: llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0 --parallel 4\n";
+    } else if (command == "logits" || command == "perplexity") {
+        const bool ppl = command == "perplexity";
+        std::cout << (ppl ? "Score next-token likelihoods over text or bounded windows.\n\n"
+                         : "Print the highest next-token logits after a prompt.\n\n")
+            << "Usage: llmx " << command << " <model.gguf> \"<text>\" [options]\n";
+        if (!ppl) std::cout
+            << "       llmx logits <model.gguf> <path> --file [options]\n";
+        if (ppl) std::cout
+            << "       llmx perplexity <model.gguf> --file <path> [options]\n"
+            << "\nScoring options:\n"
+            << "  --file PATH, -f         UTF-8 input file, immediately after the model\n"
+            << "  --ctx-size N, -c        Window tokens (default: model context)\n"
+            << "  --chunks N              Maximum windows (default: all)\n"
+            << "  --per-token             Score through decode; default uses batched passes\n";
+        else std::cout << "\nOptions:\n  --top N                 Number of logits to print (default: 10)\n"
+            << "  --file                  Read the text from the file named in its place\n"
+            << "  --then-ids PATH         Append these whitespace-separated token IDs\n"
+            << "  --last N                Print each of the last N positions, one per line\n";
+        model_options(ppl);
+        std::cout << "\nExample: llmx " << command << " model.gguf "
+            << (ppl ? "--file corpus.txt --ctx-size 512 --chunks 4\n"
+                    : "\"The capital of France is\" --top 10\n");
+    } else if (command == "bench") {
+        std::cout << "Measure synthetic kernels or a real model after warm-up.\n\n"
+            << "Usage: llmx bench [options]\n"
+            << "       llmx bench --model <model.gguf> [options]\n\n"
+            << "Benchmark options:\n"
+            << "  --p N                   Prompt tokens (default: 64)\n"
+            << "  --n N                   Decode tokens (default: 64)\n"
+            << "  --size N                Synthetic matrix width, multiple of 32 (default: 1024)\n"
+            << "  --iters N               Synthetic kernel repetitions (default: 5)\n"
+            << "  --model PATH            Benchmark this model instead of synthetic weights\n"
+            << "  --r N                   Real-model repetitions (default: 3)\n"
+            << "  --profile               Real-model device kernel timing and statistics\n";
+        model_options(false, false);
+        std::cout << "\nCache options apply only with --model.\n"
+            << "Example: llmx bench --model model.gguf --p 512 --n 128 --r 3\n";
+    } else if (command == "quantize") {
+        std::cout << "Convert raw F32 tensors into a quantized GGUF file.\n\n"
+            << "Usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n\n"
+            << "Default quant: q8_0. Input row widths must be divisible by 32.\n"
+            << "The JSON describes tensor names/shapes; the binary contains F32 values.\n"
+            << "Example: llmx quantize model.json model.bin model.gguf q8_0\n";
+    } else if (command == "dequantize") {
+        std::cout << "Export supported GGUF tensors as JSON metadata and F32 values.\n\n"
+            << "Usage: llmx dequantize <in.gguf> <out.json> <out.bin>\n\n"
+            << "Example: llmx dequantize model.gguf model.json model.bin\n";
+    } else if (command == "info") {
+        std::cout << "Show GGUF metadata, tensor types and dimensions.\n\n"
+            << "Usage: llmx info <model.gguf>\n\n"
+            << "For a sharded model, pass its first shard.\n"
+            << "Example: llmx info model.gguf\n";
+    } else if (command == "tokenize") {
+        std::cout << "Encode text with the model's tokenizer.\n\n"
+            << "Usage: llmx tokenize <model.gguf> \"<text>\"\n\n"
+            << "Example: llmx tokenize model.gguf \"hello world\"\n";
+    } else {
+        std::cout << "Decode comma- or space-separated token IDs.\n\n"
+            << "Usage: llmx detokenize <model.gguf> <ids>\n\n"
+            << "Example: llmx detokenize model.gguf \"1,2,3\"\n";
+    }
+    std::cout << "\n-h, --help shows this page. Full reference: docs/USAGE.md\n";
+    return true;
 }
 
 } // namespace
@@ -923,6 +1043,15 @@ int main(int argc, char** argv) {
         quant::register_builtins();
         if (argc < 2) { print_usage(); return 1; }
         std::string cmd = argv[1];
+        if (argc == 2 && (cmd == "--help" || cmd == "-h")) {
+            print_usage();
+            return 0;
+        }
+        if (argc == 3 && (std::string(argv[2]) == "--help" || std::string(argv[2]) == "-h")) {
+            if (print_usage(cmd)) return 0;
+            std::cerr << "unknown command: " << cmd << '\n';
+            return 2;
+        }
         if (cmd == "--version") {
             std::cout << "llmx " << LLMX_VERSION_STRING << "\n";
             return 0;

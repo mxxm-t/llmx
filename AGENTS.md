@@ -190,8 +190,9 @@ reduction against ordered scalar FMA across dimension tails and unaligned
 inputs. The independent HF fixtures below remain the external correctness gate.
 
 `fused-dot-overflow` pins the two kernel families apart. `dot_row_impl` folds
-the scale into each weight before the activation, so Q8_0 has no overflow
-window; the fused K-quant dots accumulate first and apply the scale after,
+the scale into each weight before the activation, avoiding the demonstrated
+scale-after-sum overflow; accumulation can still overflow under cancellation.
+The fused K-quant dots accumulate first and apply the scale after,
 which is what makes them fast and what lets a large activation reach infinity
 before a small scale could bound it. Those rows fall back to dequantizing.
 Sixteen cases across Q8_0/Q4_K/Q5_K/Q6_K cover tiny and zero scales against
@@ -411,6 +412,11 @@ A fresh agent (or human) can jump straight into a feature by reading, in order:
 4. `docs/STATUS.md` - what is already in flight and where each feature stands.
 
 When you start (or pick up) a feature:
+- Keep each independent feature on its own branch based on current main.
+  Do not base unrelated work on another unmerged feature. If a dependency is
+  necessary, name it in STATUS and keep the dependent change separate.
+  Unrelated documentation corrections belong in a separate commit; a feature's
+  own documentation ships with that feature.
 - Open a new per-feature block in `docs/STATUS.md` (or update the existing one)
   **before** writing code: **Goal / Done / Left / Gotchas**. That block is what
   lets the next agent pick the feature back up with a "continue feature X"

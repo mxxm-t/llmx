@@ -89,8 +89,64 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Tried and reverted, 2026-09-23:** the integer-dot tile reading the 8-bit twin a producer wrote, in position order, instead of quantizing its own block-major copy. The values are the same, but at 4096 wide a column's blocks are 4 KB apart and the loads stop coalescing: Qwen3-8B Q4_K_M prefill on the MI50 fell from 693 to 368 tok/s at 64 rows and from 845 to 775 at 512, with no gain on the 0.6B files.
 - **Tried and reverted, 2026-09-23:** a decode token's down projection summing its eight slots into the residual inside the row kernel, one token per workgroup row, instead of writing the slots and adding them with `moe_combine`. Same arithmetic, but a workgroup per token running its slots in turn left 256 workgroups where there had been 2048, and MI50 decode fell from 92.8 to 90.7 tok/s on Q6_K and from 118.7 to 118.0 on Q4_K_M (the reference 93.2 and 107.6 in the same interleaved runs). Q6_K decode stays at 99.5 percent of the reference; the F32 router rows already take a whole subgroup each.
 - **Tried and reverted:** a prompt's routed entries through the decode dots as well, a dot per weight row and entry. Each dot unpacks the row's nibbles and scales again, where the batched float path unpacks a row once for all its expert's entries, and prefill with every expert on the CPU went from 52 to 35 tok/s on the rig (during a download). A prompt's entries want a multi-column kernel that unpacks a row once.
-- **Left:** the prompt dots for the CPU's dense prompt rows, which still take the float path; the copy overlapping compute;  and the dense CPU cells before and after the decode dots are to be measured; a real file of every supported type (Q5_K_M, Q6_K, Q8_0, Q4_0, Q4_1 downloading on both machines) through the gate cells; CPU expert decode (the fused dots against float activations) and prefill with experts on the CPU, where the reference likely runs large batches on the device from host-held weights; a server check of routed layers; the 16k greedy check, whose CPU and device replies part at a near-tie (below).
-- **16k check, 2026-09-23:** on Qwen3-0.6B-Q8_0 the CPU and the MI50 agree for 68 characters of the uncapped reply and then part. At that position the CPU's top two logits are 18.498 and 18.379 and the device's 18.383 and 18.346, the two tokens swapped; the device's logits sit up to 0.23 from the CPU's after the 16k prompt, the size the 8-bit activations shift. A hash across two backends with different activation precision parts at the first near-tie, so the check needs redefining (open with the user).
+- **Left:** the prompt dots for the CPU's dense prompt rows, which still take the float path; the copy overlapping compute;  and the dense CPU cells before and after the decode dots are to be measured; a real file of every supported type (Q5_K_M, Q6_K, Q8_0, Q4_0, Q4_1 downloading on both machines) through the gate cells; CPU expert decode (the fused dots against float activations) and prefill with experts on the CPU, where the reference likely runs large batches on the device from host-held weights; a server check of routed layers on a real model.
+- **16k check, redefined 2026-09-24:** a hash across the CPU and the device parted at the first near-tie: on Qwen3-0.6B-Q8_0 they agreed for 68 characters, where the CPU's top two logits were 18.498 and 18.379 and the device's 18.383 and 18.346, the two tokens swapped, the device's logits sitting up to 0.23 from the CPU's after the 16k prompt as the 8-bit activations shift them. With the user's agreement `tools/long_context_check.py` now requires the device to give the same 512 greedy tokens after a 16384-token prompt on two runs from fresh servers, and the CPU, reading the prompt and those tokens (`llmx logits --last`), to rank each within 0.5 logits of its top choice. Passed on every run: Qwen3-0.6B-Q8_0 on the MI50 (the CPU's top choice at 509 of 512 tokens, the largest gap 0.135) and on the Radeon VII (512 of 512, 0.000), Qwen3-8B Q4_K_M on the MI50 (510 of 512, 0.014).
+
+## Main documentation checkpoint (2026-09-24)
+
+Corrected fixture counts, ticket/completion descriptions, vendor quant support,
+device selection, Q8 overflow scope and historical GPU status against main.
+Recorded the user's independent-feature branch rule in AGENTS. All 35 Markdown
+files are ASCII, 118 local links/anchors resolve and `git diff --check` passes.
+No source, tests, build configuration or historical measurement tables changed.
+Main remains dense Qwen3 with capped server requests; unmerged feature claims
+were excluded. This documentation change is separate from the help fix below.
+
+The parent help commit `5afc1c7` passed all six hosted jobs in
+[CI run 35964866124](https://github.com/mxxm-t/llmx/actions/runs/35964866124):
+Windows, Ubuntu, macOS, Linux UBSan, Vulkan build and required real-model HF.
+
+## Command help checkpoint (2026-09-24)
+
+`llmx --help` prints a grouped overview; each of the 12 commands accepts
+`--help` or `-h` for its own options, defaults and example. Execution options
+share one renderer. Help returns before model, backend or Hub access. Existing
+command parsing and positional text behavior are unchanged. The help and
+reference now describe seed zero as retaining the fixed default RNG state.
+
+This change is based directly on `cdf1cdb`, independently of in-flight features.
+The main-based Windows Release build passes:
+
+| Check | Observed | Required |
+|---|---:|---:|
+| Help routes | 26 passed | 26 |
+| Missing or unsupported advertised parser flags/aliases | 0 | 0 |
+| Exit/positional-text checks | 5 passed | 5 |
+| Native tests | 20 passed | 20 |
+| Python components with all required real-model fixtures | 13 passed | 13 |
+| Real-model HF top-1, each of Q8_0/Q4_0/Q5_K_M | 6/6 | 6/6 |
+
+| HF NLL comparison, maximum over batched and per-token paths | Observed absolute error | Existing bound |
+|---|---:|---:|
+| Q8_0 continuous | 0.001284 | 0.01 |
+| Q8_0 windowed | 0.012376 | 0.02 |
+| Q4_0 continuous | 0.131554 | 0.16 |
+| Q4_0 windowed | 0.167600 | 0.20 |
+| Q5_K_M continuous | 0.026144 | 0.05 |
+| Q5_K_M windowed | 0.129480 | 0.16 |
+
+Reproduction: CMake Release build, `ctest --test-dir build -C Release
+--output-on-failure`, then `python -u -X utf8 tests/run_tests.py --exe
+build/Release/llmx.exe --no-perf-floor --require-baseline`. The standalone help
+check also compares each command's emitted options to its parser, rejecting
+both missing and unsupported flags. Raw logs and help output remain under
+`%TEMP%/llmx-help-main-20260924/build/`. Performance timings are diagnostic only;
+this change makes no new performance claim.
+
+All 35 tracked Markdown files were reviewed against main: ASCII and 116 local
+links/anchors checked. Help-related claims were corrected here. Independent
+findings were subsequently addressed by the separate documentation checkpoint
+above; they were not included in the help implementation commit.
 
 ## Multi-user server (ROADMAP #7, EXECUTION step 7) (2026-09-22)
 
@@ -2753,7 +2809,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Done: steps 1 to 7, step 7 being the server, see the server row; the placement flags are not added yet |
 | KV cache fork (KV-CACHE step 2)          | Done     |
 | Multi-device split (per-layer, per-tensor) | Placement done in the model layer, tested over CPU backends; no flag selects it yet |
-| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, an 8-bit integer-dot prefill tile for every quantized type where the profile prefers the integer dot (the MI50 under Mesa) and the float tile elsewhere, tile heights of 32, 64 and 128 picked per dispatch. On the Radeon VII decode at or above the reference on every measured file, 103 to 112 percent (the thirtieth paragraph), prefill ahead of the reference's Vulkan from 128 rows and behind it below that. On one MI50 against one card of the reference (the one-card gate at `2b770f6` and the thirty-seventh paragraph), where the same kernels run through `docker/Dockerfile`: decode 86 to 90 percent on the 8-bit files and 91 to 107 on the 4- and 5-bit ones, prefill 69 to 117 percent at 247 rows and 78 to 99 at 512, 54 percent at 64 rows on 0.6B Q8_0. ROCm planned |
+| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan implemented and the recorded dense-model device gate passed on both platforms (forty-seventh checkpoint above): Radeon VII decode 102-115% and prefill 109-455% of the same-card reference Vulkan build; one MI50 decode 102-115% and prefill 102-267%. These are dated gate results, not new measurements from this documentation review. ROCm planned |
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 6): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured to have nothing to hide, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
@@ -2778,6 +2834,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Backend-owned prefill placement | Done (main `3c5d4b9`, five hosted jobs green) |
 | CLI thread settings                    | Done |
 | Automatic build identification          | Done (main `9511a4a`) |
+| Focused CLI help and complete current option coverage | Done (2026-09-24 checkpoint) |
 | Live generation and loading progress     | Done |
 | GitHub CPU CI                          | Done     |
 | HF fixture download retries and CI cache | Done |

@@ -9,9 +9,9 @@ Ordered roughly by dependency and value. Items marked **[design]** are
 specified in `docs/ARCHITECTURE.md` but not yet implemented.
 
 ## 1. More quantization formats
-`quant::Registry` is the only integration point: a new type is a pair of block
-kernels plus one registry entry, and nothing outside `quant/` and the GGUF type
-constants has to change. Block kernels and the registry live in
+`quant::Registry` supplies the generic CPU path through block kernels and a
+registry entry; the GGUF reader also needs type sizing. Vendor backends need
+their own kernels and validation for each new type. Block kernels and the registry live in
 `quant/quant.hpp`; shared K-quant kernels live in `quant/k_quants.hpp`.
 - Done: `Q8_0`, `Q4_0`, `Q4_1`, plus `Q4_K` and `Q6_K` read-only. Real files
   are MIXED: Qwen3-0.6B-Q4_0 is 193 Q4_0 / 113 F32 / 3 Q4_1 / 1 Q6_K, and

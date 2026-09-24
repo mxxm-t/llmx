@@ -39,10 +39,10 @@ struct GenParams {
     int cpu_moe = 0;        // routed layers whose experts run on the CPU beside a device: the first N, -1 all
     int moe_stream_from = 0;    // a prompt extent from which those layers run on the device, their experts copied there per pass; 0 never
     float penalty = 1.0f;   // repetition penalty (>= 1)
-    uint64_t seed = 0;      // 0 = non-deterministic
+    uint64_t seed = 0;      // 0 retains the fixed default RNG state.
     std::string stop;       // stop generating when decoded output contains this
     bool show_prompt_tokens = false;
-    bool show_thinking = false; // show Qwen3 <thinking> block
+    bool show_thinking = false; // Show legacy reasoning tokens normally filtered by generation.
 };
 
 // Temperature + top-k + top-p nucleus sampling with repetition penalty.
@@ -64,7 +64,7 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
     };
 
     // Greedy needs the largest score, not an ordering of the rest.
-    // Sorting the vocabulary first costs a few percent of decode for a result that reads one element; ties take the lowest token id.
+    // Ties take the lowest token id.
     if (temp <= 0.0f) {
         size_t best = 0;
         float best_score = score(0);
@@ -85,7 +85,7 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
     };
 
     // top-k truncation.
-    // Nothing below reads past `keep`, so the tail is left unordered: with a 40-token window out of 151936 that is the difference between one pass and a full sort.
+    // Nothing below reads past `keep`, so the tail is left unordered.
     const size_t keep = (top_k > 0 && (size_t)top_k < n) ? (size_t)top_k : n;
     if (keep < n)
         std::partial_sort(ranked.begin(), ranked.begin() + (ptrdiff_t)keep,

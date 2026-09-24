@@ -117,6 +117,9 @@ llmx perplexity model.gguf --file corpus.txt --ctx-size 512
 
 Use `llmx.exe` on Windows. See [USAGE](docs/USAGE.md) for all commands and flags.
 
+Run `llmx --help` for the command overview or `llmx chat --help` for focused
+options and examples. See the [command reference](docs/USAGE.md) for details.
+
 ## Test
 
 ```sh

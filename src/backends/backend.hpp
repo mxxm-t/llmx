@@ -112,6 +112,10 @@ public:
     // Reported by the CLI; a device backend returns whatever is meaningful for it, or 0.
     virtual int threads_available() const = 0;
 
+    // Bytes this backend can still allocate for weights, caches and activations, as the device or the operating system reports them now; 0 when it cannot tell.
+    // A placement across several devices is fitted against it (docs/MULTI-DEVICE.md).
+    virtual size_t memory_available() const { return 0; }
+
     // Invoke once on the caller and complete all cleanup before returning.
     virtual void run_prefill(const std::function<void()>& work) { work(); }
 

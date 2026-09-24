@@ -292,7 +292,8 @@ def run():
         print("server: synthetic F32 model, %d prompts greedy-equal to the CLI alone and four at a time, a stream, "
               "a seeded repeat, refusals, a cancelled stream, the compatible completions  [ok]" % n)
         # On a device, the synthetic mixture of experts with its routed layers on the host and prompts from extent 3 streamed: four at a time, a pass holds streamed prompt rows beside host decode rows.
-        if os.environ.get("LLMX_DEVICE", "cpu") != "cpu":
+        # Experts on the host are a placement of one device, so a list of several skips this.
+        if os.environ.get("LLMX_DEVICE", "cpu") != "cpu" and "," not in os.environ.get("LLMX_DEVICE", ""):
             routed = os.path.join(directory, "tiny-moe.gguf")
             f32.write_model(routed, moe.tensors(), config=moe.CONFIG, arch="qwen3moe")
             n = check_mixed(routed, ["a", "ab", "abc", "abcdefg", "abcd", "b"], 6, ("--cpu-moe", "--moe-stream-from", "3"))

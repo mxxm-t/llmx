@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <vector>
 #include "model/arch_qwen.hpp"
+#include "model/layer_split.hpp"
 
 namespace {
 void require(bool ok, const char* message) {
@@ -134,6 +135,74 @@ void split_matches_single() {
     checked += 1;
 }
 
+// The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host device given only what the others cannot hold, shares honored and refused when wrong, and the fitted placement exact against one device.
+void layer_split_fits() {
+    const auto weights = fixture();
+    const infer::ModelOptions options;
+    const size_t GiB = size_t(1) << 30;
+    const infer::Footprint fp = infer::footprint(weights, options);
+    // The fixture's two layers of equal shape, and no output.weight, so the head reads the embedding.
+    require(fp.layer_weights.size() == 2 && fp.layer_weights[0] == fp.layer_weights[1] && fp.layer_weights[0] > 0 && fp.tied &&
+                fp.head > fp.embedding && fp.cache_per_layer > 0,
+            "footprint does not describe the model");
+    ++checked;
+    auto split = [&](std::vector<infer::DeviceBudget> d, std::vector<int> shares = {}) {
+        return infer::split_layers(fp, d, 2, shares);
+    };
+    auto fails = [&](std::vector<infer::DeviceBudget> d, std::vector<int> shares, const char* what) {
+        bool caught = false;
+        try { split(d, shares); } catch (const std::runtime_error&) { caught = true; }
+        require(caught, what);
+        ++checked;
+    };
+
+    auto even = split({{"a", GiB, false}, {"b", GiB, false}});
+    require(even.stages[0].count == 1 && even.stages[1].count == 1, "two devices with room do not share the layers");
+    require(even.embed_device == 0 && even.output_device == 1, "embedding and head not on the first and last stages");
+    const infer::Placement placed = infer::placement_for(even);
+    require(placed.attn_device == std::vector<int>({0, 1}) && placed.ffn_device == std::vector<int>({0, 1}) &&
+                placed.embed_device == 0 && placed.output_device == 1,
+            "a layer's attention and feed-forward block on different devices");
+    ++checked;
+
+    // 100 MiB is below a device's reserve, so it takes nothing and the other carries the embedding and head too.
+    auto one = split({{"small", GiB / 10, false}, {"b", GiB, false}});
+    require(one.stages[0].count == 0 && one.stages[1].count == 2 && one.embed_device == 1 && one.output_device == 1,
+            "a device without room was given layers");
+    ++checked;
+
+    auto host = split({{"cpu", GiB, true}, {"gpu", GiB, false}});
+    require(host.stages[0].count == 0 && host.stages[1].count == 2, "a host device took layers another device could hold");
+    // Zero bytes is a device that cannot tell, and it is not checked.
+    auto unknown = split({{"a", 0, false}, {"b", 0, false}});
+    require(unknown.stages[0].count == 1 && unknown.stages[1].count == 1, "devices of unknown room not shared evenly");
+    checked += 2;
+
+    auto shared = split({{"a", GiB, false}, {"b", GiB, false}}, {2, 0});
+    require(shared.stages[0].count == 2 && shared.output_device == 0, "layer shares not honored");
+    ++checked;
+    fails({{"a", GiB, false}, {"b", GiB, false}}, {1}, "a share per device not required");
+    fails({{"a", GiB, false}, {"b", GiB, false}}, {0, 0}, "shares that are all zero accepted");
+    // Shares are proportions: 5:3 of two layers rounds to one each, 1:0 gives both to the first.
+    auto ratio = split({{"a", GiB, false}, {"b", GiB, false}}, {5, 3});
+    auto whole = split({{"a", GiB, false}, {"b", GiB, false}}, {1, 0});
+    require(ratio.stages[0].count == 1 && ratio.stages[1].count == 1 && whole.stages[0].count == 2 && whole.stages[1].count == 0,
+            "layer shares not taken as proportions");
+    ++checked;
+    fails({{"a", GiB / 10, false}, {"b", GiB / 10, false}}, {}, "a model with no room accepted");
+    fails({{"a", GiB / 10, false}, {"b", GiB, false}}, {1, 1}, "shares past a device's room accepted");
+
+    auto one_cpu = std::make_shared<backend::CpuBackend>();
+    auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();
+    for (auto& c : {one_cpu, a, b}) c->set_threads(1);
+    infer::Model single(weights, one_cpu);
+    infer::Model fitted(weights, {a, b}, placed);
+    const std::vector<uint32_t> prompt{2, 7, 1, 8, 2, 8};
+    exact(single.prefill(prompt), fitted.prefill(prompt), "fitted split prefill differs from one device");
+    for (int t : {3, 14, 1}) exact(single.step(t), fitted.step(t), "fitted split step differs from one device");
+    ++checked;
+}
+
 void bad_placements_refused() {
     const auto weights = fixture();
     auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();
@@ -179,6 +248,7 @@ int main() {
     try {
         quant::register_builtins();
         split_matches_single();
+        layer_split_fits();
         bad_placements_refused();
         std::cout << "placement: " << checked << " checks across two CPU backends\n";
         return 0;

@@ -42,6 +42,7 @@
 #include "inference/perplexity.hpp"
 #include "inference/chat.hpp"
 #include "model/arch_qwen.hpp"
+#include "model/layer_split.hpp"
 #include "server/api.hpp"
 
 // llmx CLI.
@@ -395,7 +396,61 @@ std::unique_ptr<infer::Model> make_model(const gguf::GGUFModel& m, backend::Back
     std::vector<backend::BackendPtr> backends{backend::make_cpu_backend(), std::move(device)};
     return std::make_unique<infer::Model>(m, std::move(backends), place, options);
 }
+
+// The entries of a comma-separated flag value, in order, empty ones included so the caller can refuse them.
+std::vector<std::string> comma_list(const std::string& value) {
+    std::vector<std::string> items;
+    size_t start = 0;
+    for (size_t comma; (comma = value.find(',', start)) != std::string::npos; start = comma + 1)
+        items.push_back(value.substr(start, comma - start));
+    items.push_back(value.substr(start));
+    return items;
+}
+
+// A --device value names one device, or several separated by commas for a model split by layers over them in that order.
+// A device listed twice would have two stages driving one backend, so it is refused.
+std::vector<std::string> device_specs(const std::string& value) {
+    std::vector<std::string> specs;
+    for (const auto& spec : comma_list(value)) {
+        if (spec.empty()) throw std::runtime_error("--device: an empty entry in '" + value + "'");
+        if (std::find(specs.begin(), specs.end(), spec) != specs.end())
+            throw std::runtime_error("--device: " + spec + " is listed twice");
+        specs.push_back(spec);
+    }
+    return specs;
+}
+
+std::vector<int> layer_shares(const std::string& value) {
+    std::vector<int> shares;
+    if (value.empty()) return shares;
+    for (const auto& item : comma_list(value)) {
+        if (item.empty() || item.find_first_not_of("0123456789") != std::string::npos || item.size() > 6)
+            throw std::runtime_error("--layer-shares: '" + item + "' is not a whole-number share");
+        shares.push_back(std::atoi(item.c_str()));
+    }
+    return shares;
+}
+
+// The model split by layers over every device listed, each device's layers fitted to the memory it reports free unless --layer-shares gives their proportions (docs/MULTI-DEVICE.md).
+std::unique_ptr<infer::Model> make_split_model(const gguf::GGUFModel& m, const std::vector<std::string>& specs, const std::string& shares,
+                                               int cpu_moe, const infer::ModelOptions& options, int ubatch, bool verbose) {
+    if (cpu_moe) throw std::runtime_error("--n-cpu-moe and --cpu-moe: not with several devices; list the CPU as a device to give it layers");
+    std::vector<backend::BackendPtr> backends;
+    std::vector<infer::DeviceBudget> budgets;
+    for (const auto& spec : specs) {
+        backends.push_back(make_backend(spec));
+        budgets.push_back(infer::DeviceBudget{spec, backends.back()->memory_available(), spec == "cpu"});
+    }
+    const infer::LayerSplit split = infer::split_layers(infer::footprint(m, options), budgets, ubatch > 0 ? (size_t)ubatch : 512,
+                                                        layer_shares(shares));
+    if (verbose) std::cerr << split.describe(budgets);
+    return std::make_unique<infer::Model>(m, std::move(backends), infer::placement_for(split), options);
+}
+
 std::unique_ptr<infer::Model> make_model(const gguf::GGUFModel& m, const infer::GenParams& gp) {
+    const auto specs = device_specs(gp.device);
+    if (specs.size() > 1 || !gp.layer_shares.empty())
+        return make_split_model(m, specs, gp.layer_shares, gp.cpu_moe, model_options(gp), gp.ubatch, gp.show_prompt_tokens);
     return make_model(m, make_backend(gp.device), gp.device == "cpu", gp.cpu_moe, gp.moe_stream_from, model_options(gp));
 }
 
@@ -671,7 +726,8 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
 // Used by tests/perf.py as the perf-regression gate for hot-path changes.
 int cmd_bench(int size, int iters, int threads, int prefill, int decode,
               const std::string& device) {
-    auto b = make_backend(device);
+    // The hot paths are one backend's; with several devices listed, the first one's.
+    auto b = make_backend(device_specs(device).front());
     if (threads > 0) b->set_threads(threads);
     std::cout << "bench: threads " << b->threads_available() << "\n";
 
@@ -748,11 +804,15 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 // With seqs above one the decode measured is a server's: that many sequences each prefilled with the prompt, then every pass one token of each.
 int cmd_bench_model(const std::string& path, const std::string& device, int threads,
                     int P, int G, int R, const infer::ModelOptions& options, bool profile, int cpu_moe, int stream_from,
-                    int seqs = 1) {
+                    int seqs = 1, const std::string& shares = "") {
     gguf::GGUFModel m = load_model(path, false);
-    backend::BackendPtr backend_for_model = make_backend(device, profile);
-    backend::Backend& b = *backend_for_model;
-    const auto owned = make_model(m, std::move(backend_for_model), device == "cpu", cpu_moe, stream_from, options);
+    const auto specs = device_specs(device);
+    const bool split = specs.size() > 1 || !shares.empty();
+    if (split && profile) throw std::runtime_error("bench: --profile times one device; not with several");
+    backend::BackendPtr backend_for_model = split ? nullptr : make_backend(device, profile);
+    backend::Backend* b = backend_for_model.get();
+    const auto owned = split ? make_split_model(m, specs, shares, cpu_moe, options, 0, true)
+                             : make_model(m, std::move(backend_for_model), device == "cpu", cpu_moe, stream_from, options);
     infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
     if (threads > 0) model.set_threads(threads);
@@ -823,14 +883,14 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
         // Device time per kernel over one more prompt and one more decode run, each read on its own, so a pass is attributed to its kernels rather than inferred from kernels timed alone.
         // A run calls its argument where its interval starts: a batched decode's after its sequences' prompts.
         auto section = [&](const char* what, const std::function<double(const std::function<void()>&)>& run) {
-            run([&] { backend::vulkan_kernel_times(b); });
-            auto times = backend::vulkan_kernel_times(b);
+            run([&] { backend::vulkan_kernel_times(*b); });
+            auto times = backend::vulkan_kernel_times(*b);
             std::sort(times.begin(), times.end(),
                       [](const auto& x, const auto& y) { return x.second > y.second; });
             double total = 0.0;
             for (const auto& t : times) total += t.second;
             std::cout << "profile " << what << ": " << total << " ms of device time over "
-                      << backend::vulkan_timed_dispatches(b) << " dispatches sampled\n";
+                      << backend::vulkan_timed_dispatches(*b) << " dispatches sampled\n";
             for (const auto& t : times)
                 std::cout << "profile:   " << t.first << " " << t.second << " ms ("
                           << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
@@ -838,7 +898,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
         section("pp", [&](const std::function<void()>& start) { start(); return pp(); });
         section(seqs > 1 ? "batched tg" : "tg", tg);
         // And what the driver made of each kernel that ran: registers, shared memory and waves per SIMD, where it reports them.
-        std::istringstream stats(backend::vulkan_kernel_statistics(b));
+        std::istringstream stats(backend::vulkan_kernel_statistics(*b));
         for (std::string line; std::getline(stats, line);) std::cout << "profile: kernel " << line << "\n";
 #else
         (void)b;
@@ -903,7 +963,10 @@ bool print_usage(const std::string& command = {}) {
     const infer::GenParams defaults;
     const auto model_options = [&](bool batch_threads, bool ubatch = true) {
         std::cout << "\nExecution options:\n"
-            << "  --device D              cpu (default), or vulkan:N when built with Vulkan\n"
+            << "  --device D              cpu (default), or vulkan:N when built with Vulkan;\n"
+            << "                          several, comma separated, split the model by layers\n"
+            << "                          over them in that order, fitted to their free memory\n"
+            << "  --layer-shares A,B      With several devices, their proportions of the layers\n"
             << "  --threads N             CPU workers; 0 selects automatically (default)\n";
         if (batch_threads) std::cout
             << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
@@ -1155,6 +1218,7 @@ int main(int argc, char** argv) {
                 else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
+                else if (a == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
                 else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
                 else if (a == "--cpu-moe") gp.cpu_moe = -1;
                 else if (a == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
@@ -1208,6 +1272,7 @@ int main(int argc, char** argv) {
                 else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
                 else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
+                else if (a == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
                 else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
                 else if (a == "--cpu-moe") gp.cpu_moe = -1;
                 else if (a == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
@@ -1235,6 +1300,7 @@ int main(int argc, char** argv) {
                 else if (a2 == "--cache-type-k" || a2 == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
                 else if (a2 == "--cache-type-v" || a2 == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
                 else if (a2 == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
+                else if (a2 == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
                 else if (a2 == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
                 else if (a2 == "--cpu-moe") gp.cpu_moe = -1;
                 else if (a2 == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
@@ -1282,6 +1348,7 @@ int main(int argc, char** argv) {
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
+                else if (a == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
                 else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
                 else if (a == "--cpu-moe") gp.cpu_moe = -1;
                 else if (a == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
@@ -1302,6 +1369,7 @@ int main(int argc, char** argv) {
                 std::string a = argv[i];
                 if (a == "--size") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;
                 else if (a == "--device") device = (i + 1 < argc) ? argv[++i] : device;
+                else if (a == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
                 else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
                 else if (a == "--cpu-moe") gp.cpu_moe = -1;
                 else if (a == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
@@ -1324,7 +1392,7 @@ int main(int argc, char** argv) {
             }
             if (!model_path.empty())
                 return cmd_bench_model(model_path, device, threads, prefill, decode, repeats, model_options(gp),
-                                       profile, gp.cpu_moe, gp.moe_stream_from, seqs);
+                                       profile, gp.cpu_moe, gp.moe_stream_from, seqs, gp.layer_shares);
             return cmd_bench(size, iters, threads, prefill, decode, device);
         }
         print_usage();

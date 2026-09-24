@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <functional>
 #include <cstdint>
@@ -17,6 +18,7 @@
 #include "quant/quant.hpp"
 #include "backends/backend.hpp"
 #include "model/kv_cache.hpp"
+#include "model/layer_split.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 
 // Qwen3-style transformer forward pass, from scratch: dense Qwen3 and its mixture-of-experts form, qwen3moe.
@@ -264,6 +266,56 @@ struct ExecContext {
     std::vector<float> staging;
 };
 
+// The floats one row of a pass takes in each slot of an activation arena (ExecContext::Scratch), for the arena itself and for a split's fit.
+// Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights.
+// The feed-forward slots hold a dense layer's hidden rows or a routed layer's k expert rows per token, whichever is wider.
+inline std::array<size_t, ExecContext::kSlots> slot_widths(const QwenConfig& cfg, bool dense) {
+    const size_t q = (size_t)cfg.n_head * cfg.head_dim, kv = (size_t)cfg.n_head_kv * cfg.head_dim;
+    const size_t ff = std::max(dense ? (size_t)cfg.n_ff : 0, (size_t)cfg.n_expert_used * (size_t)cfg.n_ff_exp);
+    const size_t e = (size_t)cfg.n_embd, k = (size_t)cfg.n_expert_used;
+    return {e, e, q, kv, kv, q, ff, ff, ff, (size_t)cfg.n_expert, k, k};
+}
+
+// What this architecture asks of the memory of the devices it runs on, for a split fitted to them (model/layer_split.hpp).
+// The cache is counted for every position the options budget; activations are the slots of ExecContext's arena.
+inline Footprint footprint(const gguf::GGUFModel& m, const ModelOptions& options) {
+    const QwenConfig cfg = load_config(m);
+    Footprint fp;
+    fp.layer_weights.assign((size_t)cfg.n_layer, 0);
+    size_t output = 0, output_norm = 0;
+    bool dense = false;
+    for (const auto& t : m.tensors) {
+        if (t.name == "token_embd.weight") fp.embedding = (size_t)t.data_size();
+        else if (t.name == "output.weight") output = (size_t)t.data_size();
+        else if (t.name == "output_norm.weight") output_norm = (size_t)t.data_size();
+        if (t.name.compare(0, 4, "blk.") != 0) continue;
+        const size_t l = (size_t)std::strtoull(t.name.c_str() + 4, nullptr, 10);
+        if (l < fp.layer_weights.size()) fp.layer_weights[l] += (size_t)t.data_size();
+        dense = dense || t.name.find(".ffn_gate.weight") != std::string::npos;
+    }
+    fp.tied = output == 0;
+    fp.head = (fp.tied ? fp.embedding : output) + output_norm;
+    const size_t tokens = options.kv_tokens ? options.kv_tokens : (size_t)cfg.context_length;
+    fp.cache_per_layer = tokens * (size_t)cfg.n_head_kv * (size_t)cfg.head_dim *
+                         (backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v));
+    fp.tables = (size_t)cfg.context_length * (size_t)cfg.head_dim * sizeof(float);
+    for (size_t w : slot_widths(cfg, dense)) fp.activations_per_row += w * sizeof(float);
+    return fp;
+}
+
+// The placement a layer split describes: each layer's attention and feed-forward block on the device that runs it, the embedding and the head where the split put them.
+inline Placement placement_for(const LayerSplit& split) {
+    Placement p;
+    for (size_t d = 0; d < split.stages.size(); ++d)
+        for (int i = 0; i < split.stages[d].count; ++i) {
+            p.attn_device.push_back((int)d);
+            p.ffn_device.push_back((int)d);
+        }
+    p.embed_device = split.embed_device;
+    p.output_device = split.output_device;
+    return p;
+}
+
 // What one sequence contributes to a pass: `n` tokens appended to `seq`, and whether the logits after its last token are wanted.
 // A prefill microbatch is one entry with many tokens, a decode batch is many entries with one, and the two mix freely.
 // A sequence appears in a batch at most once.
@@ -395,7 +447,6 @@ public:
     Model& operator=(const Model&) = delete;
 
     // CPU worker counts, applied to every backend; a device backend ignores them.
-    // The count reported is device 0's, which is the host when a model spans a CPU and a device.
     void set_threads(int n) { for (auto& d : devices_) d->b->set_threads(n); }
 
     // What a scheduler admits against: the blocks free in the tightest storage, and the largest block among them, so a request's need is ceil(tokens / kv_block_tokens()) blocks (docs/SERVER.md).
@@ -417,7 +468,12 @@ public:
     size_t n_vocab() const { return output_.nout; }
     const QwenConfig& config() const { return cfg; }
     size_t prefill_batch() const { return (size_t)ubatch_; }
-    int threads_available() const { return devices_[0]->b->threads_available(); }
+    // The host's count wherever it sits among the devices; a device backend reports 0.
+    int threads_available() const {
+        int n = 0;
+        for (const auto& d : devices_) n = std::max(n, d->b->threads_available());
+        return n;
+    }
     // 0 keeps the default.
     // Sets how a prompt is chunked; storage follows the passes actually run.
     void set_ubatch(int n) { if (n > 0) ubatch_ = n; }
@@ -878,23 +934,9 @@ private:
         for (size_t d = 0; d < devices_.size(); ++d) {
             ExecContext::Scratch& sc = ctx.scratch[d];
             if (!devices_[d]->used || (sc.arena && sc.rows >= rows)) continue;
-            const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
-            // The feed-forward slots hold a dense layer's hidden rows or a routed layer's k expert rows per token, whichever is wider.
-            const size_t ff = std::max(any_dense_ ? (size_t)cfg.n_ff : 0, (size_t)cfg.n_expert_used * cfg.n_ff_exp);
-            const size_t counts[ExecContext::kSlots] = {
-                mul(rows, (size_t)cfg.n_embd),   // x
-                mul(rows, (size_t)cfg.n_embd),   // h
-                mul(rows, (size_t)q_dim_),       // q
-                mul(rows, KV),                   // k
-                mul(rows, KV),                   // v
-                mul(rows, (size_t)q_dim_),       // attn
-                mul(rows, ff),                   // gate
-                mul(rows, ff),                   // up
-                mul(rows, ff),                   // ffn
-                mul(rows, (size_t)cfg.n_expert),       // router scores
-                mul(rows, (size_t)cfg.n_expert_used),  // expert ids
-                mul(rows, (size_t)cfg.n_expert_used),  // expert weights
-            };
+            const auto widths = slot_widths(cfg, any_dense_);
+            size_t counts[ExecContext::kSlots];
+            for (size_t i = 0; i < ExecContext::kSlots; ++i) counts[i] = mul(rows, widths[i]);
             size_t offsets[ExecContext::kSlots];
             backend::BufferPtr arena = alloc_arena(*devices_[d]->b, counts, offsets);
             sc.arena = std::move(arena);
@@ -970,7 +1012,7 @@ private:
         }
     }
 
-    // Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights.
+    // The slots are those of slot_widths.
     void attention_half(ExecContext& ctx, size_t dev, int l, size_t rows, size_t n_views) {
         Device& d = *devices_[dev];
         backend::Backend& b = *d.b;

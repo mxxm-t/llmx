@@ -257,6 +257,35 @@ so rather than falling back. `generate`, `chat`, `logits`, `perplexity`,
 nothing and `--verbose` reports 0 threads, unless experts run on the CPU
 beside it (below); `--ubatch` keeps its meaning.
 
+## Several devices (`--device A,B,...`, `--layer-shares`)
+
+A comma-separated `--device` list splits the model by layers over the
+devices in the order listed: the first runs the embedding and the first
+layers, the last runs the final layers and the head, and the residual
+stream crosses once at each boundary per pass. Each device's layers are
+fitted to the memory it reports free, counting its layers' weights, their
+cache for the whole `--ctx-size` budget (the model context by default),
+the embedding and head where they sit, one pass of activations and a
+reserve for kernel scratch. Devices that hold weights in their own memory
+share the layers as evenly as that allows; the CPU, whose weights read the
+mapped file in place, takes only the layers the others cannot hold. A
+model that does not fit is refused with the layer count that has no room.
+`--verbose` prints what each device was given.
+
+```powershell
+.\llmx.exe generate Qwen3-32B-Q8_0.gguf "The capital of France is" --device vulkan:0,vulkan:1 --verbose
+.\llmx.exe chat Qwen3-30B-A3B-Q4_K_M.gguf --device vulkan:0,cpu
+```
+
+`--layer-shares A,B,...` overrides the fit with each device's proportion of
+the layers, one whole number per listed device: `1,1` halves the layers,
+`3,1` gives the first device three quarters; the fit is still checked. A
+device may be listed once. Experts on the CPU (`--n-cpu-moe`, `--cpu-moe`)
+are a placement of one device and are refused with a list; list the CPU
+as a device to give it layers. `bench` without `--model` measures the
+first device listed, and `--profile` takes one device. Every command that
+takes `--device` takes a list.
+
 ## Experts on the CPU (`--n-cpu-moe N`, `--cpu-moe`)
 
 A mixture-of-experts model (`qwen3moe`, such as Qwen3-30B-A3B) larger than

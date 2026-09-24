@@ -130,7 +130,9 @@ do not want while measuring.
   it so the suite runs on a device backend; `LLMX_CACHE_TYPE`, set by
   `run_tests.py --cache-type`, appends `--cache-type-k` and
   `--cache-type-v` the same way so the HF gate runs with a chosen cache
-  type. The runtime stores f16 by default, so the components that check
+  type; `LLMX_LAYER_SHARES`, set by `run_tests.py --layer-shares`,
+  appends `--layer-shares` so a device list is tested at a split the fit
+  would not choose. The runtime stores f16 by default, so the components that check
   exact f32 arithmetic against independent fixtures (`f32`, `shards`,
   `server`) ask for f32 sides themselves unless `--cache-type` overrides
   them. That
@@ -398,7 +400,7 @@ matters: **each layer depends only on the layers below it** -
 | `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
 | `format/`    | ModelFormat interface + GGUF v3 impl           |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3 pretokenizer       |
-| `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache |
+| `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
 | `inference/` | sampler, generate, perplexity, chat template renderer      |
 | `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler with prefix reuse, routes |
@@ -452,7 +454,8 @@ reports the embedded value, with `unknown` for builds without Git metadata.
   Vulkan is implemented; the ROCm, CUDA and SYCL options exist without code.
 - **Model architectures** are planned to be compiled in and selected from
   metadata; today Qwen3, dense and mixture of experts (`qwen3moe`), is implemented.
-- **Split mode / node count** are planned runtime params, not implemented flags. See
+- **Split mode** is a runtime flag: a `--device` list splits by layers
+  (`docs/MULTI-DEVICE.md`); tensor groups and node count are planned. See
   `docs/ROADMAP.md`.
 
 ## Conventions

@@ -43,6 +43,8 @@ to a `backend::Backend`.
   name for every projection of every layer of every token, and a device
   backend recognizes the same weight across calls. See
   `docs/DEVICE-EXECUTION.md` step 1.
+- `footprint(model, options)`: what this architecture asks of memory, for a split fitted to devices (`model/layer_split.hpp`): each layer's weight bytes from its `blk.N.` tensors, the embedding, the head with its norm and whether it is tied, one layer's cache for the budgeted positions at the options' cache types, the RoPE tables and a row of the arena. `placement_for(split)` turns a `LayerSplit` into a `Placement`.
+- `slot_widths(config, dense)`: the floats one row takes in each of the arena's twelve slots, which `ensure` allocates and `footprint` counts.
 - `Placement`: a device index per tensor role: each layer's attention and
   feed-forward block, the embedding table and the output head. Empty means
   everything on device 0. Per role rather than per layer so expert offload
@@ -101,7 +103,8 @@ to a `backend::Backend`.
     sharing every full block on every storage and copying the partial tail
     through the backend's `kv_copy`. A forked sequence continues exactly as
     a fresh one fed the same tokens would.
-  - `set_threads(n)`, `threads_available()`, `n_tokens()`, `head_dim()`,
+  - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.
+  - `n_tokens()`, `head_dim()`,
     `context_length()`. The thread getter reports the resolved backend count,
     allowing the CLI to restore automatic decode settings after prefill.
   - `step(token_id) -> logits`: one entry of one token through `forward` on

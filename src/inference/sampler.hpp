@@ -35,7 +35,8 @@ struct GenParams {
     std::string cache_type_k = "f16";   // KV cache storage per side: f16 or f32
     std::string cache_type_v = "f16";
     int kv_tokens = 0;      // the KV pool's total token budget (0 = the model context)
-    std::string device = "cpu"; // backend: cpu, or vulkan:N when built with it
+    std::string device = "cpu"; // backend: cpu, or vulkan:N when built with it; several, comma separated, split the model by layers over them
+    std::string layer_shares;   // with several devices, their proportions of the layers, comma separated; empty fits them to the devices' free memory
     int cpu_moe = 0;        // routed layers whose experts run on the CPU beside a device: the first N, -1 all
     int moe_stream_from = 0;    // a prompt extent from which those layers run on the device, their experts copied there per pass; 0 never
     float penalty = 1.0f;   // repetition penalty (>= 1)

@@ -27,6 +27,10 @@ def device_args(args, cache=None):
     device = os.environ.get("LLMX_DEVICE")
     if device and "--device" not in args:
         args += ["--device", device]
+    # LLMX_LAYER_SHARES, set by run_tests.py --layer-shares, fixes each listed device's proportion of the layers, so a split the fit would not choose on this machine is tested anyway.
+    shares = os.environ.get("LLMX_LAYER_SHARES")
+    if shares and "--layer-shares" not in args:
+        args += ["--layer-shares", shares]
     # LLMX_CACHE_TYPE, set by run_tests.py --cache-type, runs the same commands with both cache sides stored as that type; test configuration like LLMX_DEVICE, reaching the binary only as flags.
     # `cache` is a component asking for a type because its fixtures need it, which an explicit LLMX_CACHE_TYPE overrides.
     want = os.environ.get("LLMX_CACHE_TYPE") or cache

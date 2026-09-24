@@ -20,7 +20,8 @@ inference/     sampler (RNG + top-k/top-p/temp/penalty), generate loop,
    |
    v
 model/         Qwen3 Model + logical KV cache (block pool, sequence);
-               architecture registry planned, forward graph (arch_qwen)
+               architecture registry planned, forward graph (arch_qwen),
+               layer split over devices (layer_split)
    |
    v
 backends/      Backend interface (type-generic matmul / attention / RMSNorm /
@@ -53,12 +54,12 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 
 | Directory       | Contents                                                              |
 |-----------------|-----------------------------------------------------------------------|
-| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `sha.hpp` (Hub file hashes) |
+| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory) |
 | `hub/`          | Hub metadata/quant selection, curl HTTPS transport, verified download cache |
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants)                       |
 | `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3), `mapped_file.hpp` (read-only mapping) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3 pretokenizer)             |
-| `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass), `kv_cache.hpp` (logical KV: block pool, sequence) |
+| `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass + its memory footprint), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
 | `backends/`     | `backend.hpp` (interface), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |
 | `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, sampling, prefix reuse), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |
@@ -83,9 +84,10 @@ belongs to `format/`, so locally supplied and downloaded shards load identically
   always on (no external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan
   backend; the ROCm, CUDA and SYCL options define macros only.
 - **Model architectures** will be compiled in and selected from metadata.
-  Today the model layer implements dense Qwen3 only.
-- **Split mode and node count** are planned runtime parameters, not implemented
-  build options or CLI flags. See `ROADMAP.md`.
+  Today the model layer implements Qwen3, dense and `qwen3moe`.
+- **Split mode** is a runtime parameter: `--device` with several devices
+  splits the model by layers over them (`MULTI-DEVICE.md`); tensor groups
+  and node count are planned. See `ROADMAP.md`.
 
 `--threads` and `--threads-batch` select CPU workers for decode and prefill.
 GPU backends keep that meaning for applicable CPU work; GPU launch
@@ -215,6 +217,10 @@ same mechanism and the CPU is one of the devices. The residual stream
 crosses at a boundary through `read` and `write`. Per-row split is not
 planned. This, the tickets, the batched views and the `Model` /
 `Sequence` / `ExecContext` split are designed in `EXECUTION.md` and
-implemented, as are the Vulkan backend (#4b) and the multi-user server (#7);
-a second vendor backend and the placement flags are what `ROADMAP.md` #4b
-and #5 still carry.
+implemented, as are the Vulkan backend (#4b) and the multi-user server (#7).
+A layer split over the devices `--device` lists is fitted by
+`model/layer_split.hpp` from the architecture's `footprint` and each
+backend's `memory_available()`; the split knows no architecture and the
+architecture knows no device. Pipelined stages, tensor groups and a second
+vendor backend are what `MULTI-DEVICE.md` and `ROADMAP.md` #4b and #5 still
+carry.

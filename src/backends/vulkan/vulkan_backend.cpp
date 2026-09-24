@@ -38,6 +38,7 @@ namespace {
     X(vkGetPhysicalDeviceProperties2) \
     X(vkGetPhysicalDeviceQueueFamilyProperties) \
     X(vkGetPhysicalDeviceMemoryProperties) \
+    X(vkGetPhysicalDeviceMemoryProperties2) \
     X(vkGetPhysicalDeviceFeatures2) \
     X(vkEnumerateDeviceExtensionProperties) \
     X(vkCreateDevice) \
@@ -503,6 +504,7 @@ struct Device {
     bool push_descriptor = false;
     bool int8 = false, float16 = false, storage8 = false, storage16 = false;
     bool integer_dot = false;     // the integer dot product instructions, if the device has them
+    bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)
     // The driver's per-kernel statistics (registers, occupancy), when it reports them.
     bool exec_stats = false;
     PFN_vkGetPipelineExecutablePropertiesKHR get_exec_props = nullptr;
@@ -799,6 +801,9 @@ public:
             } else if (std::strcmp(e.extensionName, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
                 d.exec_stats = true;
+            } else if (std::strcmp(e.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0) {
+                enabled.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+                d.memory_budget = true;
             }
         VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR estat{};
         estat.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
@@ -1003,6 +1008,27 @@ public:
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
     int threads_available() const override { return 0; }
+
+    // What the device-local heap can still take: the driver's budget less what is in use, or without the budget extension the heap's size, which overstates.
+    size_t memory_available() const override {
+        const Fn& fn = dev_->fn;
+        VkPhysicalDeviceMemoryBudgetPropertiesEXT budget{};
+        budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+        VkPhysicalDeviceMemoryProperties2 mp{};
+        mp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+        if (dev_->memory_budget) mp.pNext = &budget;
+        fn.vkGetPhysicalDeviceMemoryProperties2(dev_->physical, &mp);
+        size_t free = 0;
+        for (uint32_t h = 0; h < mp.memoryProperties.memoryHeapCount; ++h) {
+            const VkMemoryHeap& heap = mp.memoryProperties.memoryHeaps[h];
+            // The small device-local window the host can map (256 MiB on these cards) is not where weights go.
+            if (!(heap.flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) || heap.size < (VkDeviceSize(1) << 30)) continue;
+            const VkDeviceSize total = dev_->memory_budget ? budget.heapBudget[h] : heap.size;
+            const VkDeviceSize used = dev_->memory_budget ? budget.heapUsage[h] : 0;
+            free = std::max(free, (size_t)(total > used ? total - used : 0));
+        }
+        return free;
+    }
 
     BufferPtr alloc(size_t bytes, Memory where) override {
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, where == Memory::host_visible);

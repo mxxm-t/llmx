@@ -3,12 +3,13 @@
 // Each step stages the dequantized W tile and the X tile in shared memory, and every thread accumulates a (TILE_ROWS/16) x 4 micro-tile in registers.
 // TILE_ROWS is a specialization constant: a taller tile reads less shared memory per product but yields fewer workgroups, so the backend picks it per call.
 // Rows past nout and columns past nbatch read as zero and are not stored.
+// A call of few workgroups splits the inner dimension: workgroup row y is part y / ctiles of column tile y % ctiles, summing `kper` values from the part's start into its own slice of Y, which matmul_reduce.comp then adds in part order.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
-layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; } p;
+layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; uint kper; uint ctiles; } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
@@ -36,7 +37,10 @@ int hi8(uint w) { return (int(w << 16u)) >> 24; }
 void main() {
     uint tid = gl_LocalInvocationID.x;
     uint row_base = gl_WorkGroupID.x * TILE_ROWS;
-    uint col_base = gl_WorkGroupID.y * 64u;
+    uint part = gl_WorkGroupID.y / p.ctiles;
+    uint col_base = (gl_WorkGroupID.y - part * p.ctiles) * 64u;
+    uint kbeg = part * p.kper, kend = min(p.nin, kbeg + p.kper);
+    uint yoff = part * p.nbatch * p.nout;   // an unsplit call's one part writes Y itself
     uint expert = 0u, first = 0u, ncols = 64u;
     if (p.per != 0u) {
         uint y = gl_WorkGroupID.y;
@@ -59,7 +63,12 @@ void main() {
     float acc[MROWS][4];
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
     uint nblocks = p.nin / 32u;   // Q8_0 and Q4_0 both have 32-value blocks
-    for (uint k0 = 0u; k0 < p.nin; k0 += 32u) {
+    // F32 rows a power of two wide sit a multiple of the memory's channel interleave apart, so every row of a step reads the same channel; each block of rows starts its part at its own step and wraps, which spreads the tiles in flight across channels.
+    // The rotation follows the 128-row block holding the tile, which every tile height the batch may pick lies within, so a row sums in the same order in any batch.
+    uint nsteps = (kend - kbeg + 31u) / 32u;
+    uint rot = p.type == TYPE_F32 && nsteps > 0u ? (row_base / 128u) % nsteps : 0u;
+    uint kwrap = kbeg + nsteps * 32u, k0 = kbeg + rot * 32u;
+    for (uint s = 0u; s < nsteps; ++s, k0 = k0 + 32u == kwrap ? kbeg : k0 + 32u) {
         // W tile: TILE_ROWS rows x 32 values.
         uint row = row_base + wrow, wr = expert * p.nout + row;
         if (row < p.nout) {
@@ -178,8 +187,8 @@ void main() {
                 col = cv ? tab[p.order0 + first + tc * 4u + j] : 0u;
             }
             if (cv) {
-                if (p.accum != 0u) y[col * p.nout + row] += acc[i][j];
-                else y[col * p.nout + row] = acc[i][j];
+                if (p.accum != 0u) y[yoff + col * p.nout + row] += acc[i][j];
+                else y[yoff + col * p.nout + row] = acc[i][j];
             }
         }
     }

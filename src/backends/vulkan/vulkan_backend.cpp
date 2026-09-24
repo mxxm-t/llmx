@@ -1390,10 +1390,31 @@ public:
                 const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
                                                       pr->rows, gy, nin);
                 const bool tall = height == kTileRowsTall;
-                const uint32_t pc[7] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate ? 1u : 0u, 0, 0};
-                dispatch(tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE,
-                         {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data), bind(X)},
-                         pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, height == kTileRowsSmall ? 1 : 0);
+                // Split as the integer-dot tile is, by the rows' whole prompt (matmul_runs), so a projection of few rows, such as a router's, still fills the device.
+                const size_t st = split_tiles ? split_tiles : gy;
+                const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, pr->rows, st, nin);
+                const size_t steps = (nin + 31) / 32;   // an F32 row's last step may be partial
+                // Only a starved call splits, below a quarter of a workgroup per compute unit: above that the reduce dispatch cost more than it saved (Qwen3-0.6B Q4_0 at 64 prompt tokens on a Radeon VII).
+                const size_t fwg = groups(pr->rows, hs) * st;
+                const size_t kper = fwg * 4 < dev_->caps.compute_units ? split_blocks(fwg, steps, dev_->profile.float_tile_split_per_cu) : steps;
+                const size_t parts = (steps + kper - 1) / kper;
+                const uint32_t pc[9] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate && parts == 1 ? 1u : 0u, 0, 0,
+                                        u32(kper * 32), u32(gy)};
+                const KernelId kernel = tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE;
+                const int small = height == kTileRowsSmall ? 1 : 0;
+                if (parts > 1) {
+                    const size_t n = nbatch * pr->rows;
+                    if (!parts_ || parts_->size() < parts * n * sizeof(float)) grow(parts_, parts * n * sizeof(float));
+                    const VkDescriptorBufferInfo pb{parts_->handle(), 0, VK_WHOLE_SIZE};
+                    dispatch(kernel, {pb, bind(pr->data), bind(pr->data), bind(X), bind(pr->data), bind(X)},
+                             pc, sizeof(pc), groups(pr->rows, height), u32(gy * parts), small);
+                    const uint32_t start = u32(groups(n, 256));
+                    const uint32_t rc[7] = {u32(n), 0, 0, u32(parts), accumulate ? 1u : 0u, start, start + 1};
+                    dispatch(K_MATMUL_REDUCE, {bind(pr->out), bind(pr->out), bind(pr->out), pb}, rc, sizeof(rc), start);
+                } else {
+                    dispatch(kernel, {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data), bind(X)},
+                             pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, small);
+                }
             }
             // The integer-dot tile takes the projections of one type in one dispatch, since each alone can be too small to fill the device.
             std::vector<const Projection*> pending;
@@ -1745,7 +1766,7 @@ public:
             for (const Projection* pr : live) {
                 const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
                                                       pr->rows, max_tiles, nin);
-                const uint32_t pc[7] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0};
+                const uint32_t pc[9] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0, u32(nin), u32(max_tiles)};
                 dispatch(height == kTileRowsTall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE,
                          {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data), tab},
                          pc, sizeof(pc), groups(pr->rows, height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0);
@@ -1795,9 +1816,11 @@ public:
     }
 
     // The quant blocks each part of a split integer-dot tile call sums, the whole inner dimension when unsplit: a call of fewer workgroups than tile_split_per_cu (tile_split_per_cu_narrow for narrow rows) per compute unit splits, keeping at least tile_split_min_blocks per part.
-    size_t split_blocks(size_t workgroups, size_t nblk) const {
+    // `per_cu` overrides both targets, as the float tile's own does.
+    size_t split_blocks(size_t workgroups, size_t nblk, uint32_t per_cu = 0) const {
         const bool narrow = nblk * 32 < dev_->profile.tile_narrow_nin;
-        const size_t target = (size_t)(narrow ? dev_->profile.tile_split_per_cu_narrow : dev_->profile.tile_split_per_cu) * dev_->caps.compute_units;
+        const size_t target = (size_t)(per_cu ? per_cu : narrow ? dev_->profile.tile_split_per_cu_narrow : dev_->profile.tile_split_per_cu) *
+                              dev_->caps.compute_units;
         const size_t floor_blocks = std::max<size_t>(dev_->profile.tile_split_min_blocks, 2);
         if (workgroups >= target) return nblk;
         size_t parts = std::min((target + workgroups - 1) / workgroups, std::max<size_t>(1, nblk / floor_blocks));

@@ -8,7 +8,8 @@
 // dma-buf: A copies into its own memory exported as a dma-buf and B copies out of its import of it, with the host waiting on each.
 // peer-read: only B's copy out of A's exported memory, which is the handoff when A's output buffer is itself the exported one.
 // dma+sync-fd: as dma-buf, with B waiting on A's sync file rather than the host waiting between them.
-// Usage: llmx-vk-handoff probe | llmx-vk-handoff time A B [iterations]
+// `pingpong A B` bounces bytes between the two devices through dma-buf, with the host waiting on every hop and with the chain queued ahead through sync files.
+// Usage: llmx-vk-handoff probe | llmx-vk-handoff time A B [iterations] | llmx-vk-handoff pingpong A B [hops]
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -909,6 +910,113 @@ int time_handoff(int ia, int ib, int iters) {
     return 0;
 }
 
+#if !defined(_WIN32)
+// Bytes bounced between two devices `hops` times, each hop reading the other device's memory through dma-buf and writing its own for the next hop, as a tensor group's sums would chain.
+// With the host waiting on every hop, and with the whole chain queued ahead through sync files so no hop waits for the host: the difference is what a device-side wait saves per sum.
+int pingpong(int ia, int ib, int hops) {
+    VkInstance inst = make_instance();
+    const auto pds = physical_devices(inst);
+    if (ia < 0 || ib < 0 || ia >= (int)pds.size() || ib >= (int)pds.size() || ia == ib) throw std::runtime_error("need two distinct device indices");
+    Device dev[2] = {open_device(pds[ia]), open_device(pds[ib])};
+    if (!dev[0].dma_buf || !dev[1].dma_buf || !dev[0].sync_fd || !dev[1].sync_fd) throw std::runtime_error("needs dma-buf memory and sync-file semaphores on both devices");
+    std::printf("devices %d (pci %s) and %d (pci %s), %d hops\n", ia, identity(pds[ia], extensions(pds[ia])).pci.c_str(), ib, identity(pds[ib], extensions(pds[ib])).pci.c_str(), hops);
+    for (size_t bytes : {(size_t)20480, (size_t)163840, (size_t)1310720}) {
+        Buffer local[2], exported[2], peer[2];
+        for (int d = 0; d < 2; ++d) {
+            local[d] = make_buffer(dev[d], bytes, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            int fd = -1;
+            exported[d] = export_dma_buf(dev[d], bytes, fd);
+            peer[1 - d] = import_dma_buf(dev[1 - d], fd, bytes);
+        }
+        // A hop on device d: the peer's bytes into local memory, then into its own exported memory for the next hop.
+        auto record_hop = [&](int d) {
+            VkCommandBufferAllocateInfo ai{};
+            ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            ai.commandPool = dev[d].pool;
+            ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            ai.commandBufferCount = 1;
+            VkCommandBuffer cb;
+            check(dev[d].vkAllocateCommandBuffers(dev[d].dev, &ai, &cb), "vkAllocateCommandBuffers");
+            VkCommandBufferBeginInfo bi{};
+            bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            check(dev[d].vkBeginCommandBuffer(cb, &bi), "vkBeginCommandBuffer");
+            VkBufferCopy region{0, 0, bytes};
+            VkMemoryBarrier mb{};
+            mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+            mb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            mb.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_MEMORY_READ_BIT;
+            dev[d].vkCmdCopyBuffer(cb, peer[d].buf, local[d].buf, 1, &region);
+            dev[d].vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+            dev[d].vkCmdCopyBuffer(cb, local[d].buf, exported[d].buf, 1, &region);
+            dev[d].vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+            check(dev[d].vkEndCommandBuffer(cb), "vkEndCommandBuffer");
+            return cb;
+        };
+        std::vector<VkCommandBuffer> cbs(hops);
+        std::vector<VkSemaphore> sig(hops), wait(hops);
+        for (int i = 0; i < hops; ++i) {
+            cbs[i] = record_hop(i % 2);
+            sig[i] = make_semaphore(dev[i % 2], false, true);
+            wait[i] = make_semaphore(dev[1 - i % 2], false);
+        }
+        VkSemaphore tl[2] = {make_semaphore(dev[0], true), make_semaphore(dev[1], true)};
+        uint64_t v[2] = {0, 0};
+        // Every hop on one device, back to back with no waits: what a submission costs the device itself.
+        auto one_device = [&]() {
+            const double t0 = now_us();
+            for (int i = 0; i < hops; i += 2) submit(dev[0], cbs[i], tl[0], ++v[0]);
+            wait_value(dev[0], tl[0], v[0]);
+            return (now_us() - t0) / (hops / 2);
+        };
+        auto host_relay = [&]() {
+            const double t0 = now_us();
+            for (int i = 0; i < hops; ++i) {
+                const int d = i % 2;
+                submit(dev[d], cbs[i], tl[d], ++v[d]);
+                wait_value(dev[d], tl[d], v[d]);
+            }
+            return (now_us() - t0) / hops;
+        };
+        auto chained = [&]() {
+            const double t0 = now_us();
+            for (int i = 0; i < hops; ++i) {
+                const int d = i % 2;
+                submit(dev[d], cbs[i], tl[d], ++v[d], i ? wait[i - 1] : VK_NULL_HANDLE, 0, sig[i]);
+                VkSemaphoreGetFdInfoKHR gi{};
+                gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+                gi.semaphore = sig[i];
+                gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+                int fd = -1;
+                check(dev[d].vkGetSemaphoreFdKHR(dev[d].dev, &gi, &fd), "vkGetSemaphoreFdKHR");
+                VkImportSemaphoreFdInfoKHR ii{};
+                ii.sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR;
+                ii.semaphore = wait[i];
+                ii.flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT;
+                ii.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+                ii.fd = fd;
+                check(dev[1 - d].vkImportSemaphoreFdKHR(dev[1 - d].dev, &ii), "vkImportSemaphoreFdKHR");
+            }
+            const int last = (hops - 1) % 2;
+            wait_value(dev[last], tl[last], v[last]);
+            // The last hop's semaphore was imported but never waited on; a wait-only submission consumes it before the next round reuses it.
+            submit(dev[1 - last], VK_NULL_HANDLE, tl[1 - last], ++v[1 - last], wait[hops - 1], 0);
+            wait_value(dev[1 - last], tl[1 - last], v[1 - last]);
+            return (now_us() - t0) / hops;
+        };
+        std::vector<double> a, b, c;
+        for (int r = 0; r < 5; ++r) {
+            a.push_back(one_device());
+            b.push_back(host_relay());
+            c.push_back(chained());
+        }
+        std::printf("%8zu bytes: us a hop, median of 5 chains: one device back to back %.1f, host waits every hop %.1f, sync files queued ahead %.1f\n", bytes,
+                    stats(a).median, stats(b).median, stats(c).median);
+        for (int d = 0; d < 2; ++d) dev[d].vkDeviceWaitIdle(dev[d].dev);
+    }
+    return 0;
+}
+#endif
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -917,7 +1025,10 @@ int main(int argc, char** argv) {
         const std::string mode = argc > 1 ? argv[1] : "";
         if (mode == "probe") return probe();
         if (mode == "time" && argc >= 4) return time_handoff(std::atoi(argv[2]), std::atoi(argv[3]), argc > 4 ? std::atoi(argv[4]) : 200);
-        std::fprintf(stderr, "usage: llmx-vk-handoff probe | llmx-vk-handoff time A B [iterations]\n");
+#if !defined(_WIN32)
+        if (mode == "pingpong" && argc >= 4) return pingpong(std::atoi(argv[2]), std::atoi(argv[3]), argc > 4 ? std::atoi(argv[4]) : 200);
+#endif
+        std::fprintf(stderr, "usage: llmx-vk-handoff probe | llmx-vk-handoff time A B [iterations] | llmx-vk-handoff pingpong A B [hops]\n");
         return 2;
     } catch (const std::exception& e) {
         std::fprintf(stderr, "llmx-vk-handoff: %s\n", e.what());

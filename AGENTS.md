@@ -170,7 +170,7 @@ escaped Unicode tensor names through the actual CLI.
 `gguf-validation` checks independent binary fixtures for field lengths/counts,
 array depth, tensor arithmetic, file extents, quantized row widths and custom
 alignment. These are format checks; they do not establish model-schema safety.
-`load-progress` also checks early rejection and a file truncated after validation.
+`load-progress` also checks early rejection and a file truncated before loading, refused before any progress.
 
 `gguf-shards` covers complete shard sets, metadata-only first shards, exact
 payloads, inconsistent metadata, truncation, aggregate progress and Unicode
@@ -291,7 +291,7 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   restoration after prefill, follow-up chat and HF-golden replies.
 - **Loading and streaming** (CTest `load-progress`, `generation-stream`,
   `cli-output`):
-  completed-byte reporting, truncated reads, callback failures, early text
+  mapped-byte reporting, files truncated before loading, callback failures, early text
   delivery, split UTF-8 bytes, legacy filtering and stop/EOS accounting;
   `cli-output` also reads `--device` lists as the commands do (canonical
   spellings, a device once, malformed entries refused).
@@ -335,7 +335,8 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   model on one device against the same model split 1:1 over two of the
   same kind (a device is `cpu` or a Vulkan index), as raw float logits
   compared with `memcmp`: every position of a scored text through the
-  prompt path, then the prefill and greedy decode steps. The split must be
+  prompt path, the prefill and greedy decode steps, then three passes of a
+  decoding sequence beside a fresh prompt, every row's logits. The split must be
   bit-identical, since each layer runs the same kernels on the same rows
   wherever it sits; a split over different backends is held to the HF
   bounds instead. It takes the tiny fixtures `tests/f32.py` and

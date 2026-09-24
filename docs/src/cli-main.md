@@ -63,8 +63,9 @@ resolved decode count, including automatic selection. Existing `--verbose`
 reports the actual counts on stderr. `bench` retains the backend's automatic
 count for zero/omitted threads and prints that resolved count on stdout.
 
-Generate/chat use `load_model` to render completed tensor-byte progress on
-stderr when attached to a terminal or when verbose. They show processing before
+Generate/chat use `load_model` to render the format's loading progress on
+stderr when attached to a terminal or when verbose; it ends when the file is
+read and mapped, before the weights are uploaded and the model is ready. They show processing before
 prefill and generating before sampling. `emit_text` writes and flushes inference
 text chunks to stdout; the caller appends a newline per reply.
 

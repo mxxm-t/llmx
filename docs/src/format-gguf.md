@@ -31,8 +31,9 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   and progress goes straight to complete. `release_payload()` drops the mappings or
   frees the blob once a model on device backends alone has copied every
   weight into device memory (`Model::holds_payload`), so the host does not
-  hold the weights twice. A mapped model keeps its files open, which Windows
-  will not let another writer rewrite or remove while it is loaded.
+  hold the weights twice. On Windows a mapped model keeps its file handles open,
+  preventing another writer from rewriting or removing the files while loaded.
+  POSIX closes each descriptor after mapping; the files must still remain unchanged.
 - Both `read_gguf` and `add_tensor_data` preserve `alignof(float)` between
   in-memory tensors. A 34-byte quantized tensor must not misalign a following
   F32 tensor when the loader removes on-disk padding.
@@ -43,8 +44,8 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   a multiple of eight; non-power-of-two values such as 24 are supported.
   Tensor infos have no individual padding.
 
-This is the format the CLI and the `infer::Model` layer consume. Reads/seeks
-throw on stream failure. Read/write paths are UTF-8 and converted through
+This is the format the CLI and the `infer::Model` layer consume. Metadata reads
+and seeks throw on stream failure; mapped payloads follow the lifetime contract below. Read/write paths are UTF-8 and converted through
 `std::filesystem::u8path` so Unicode cache paths also work on Windows.
 The internal `Reader` obtains the extent from the
 opened stream and bounds strings, arrays and field reads before allocation.
@@ -61,11 +62,14 @@ allocation total smaller than the validated payload. Overlap can amplify memory
 use, and this is not a resource quota or complete metadata/model-schema validator.
 String encoding, tensor-name semantics and general writer hardening remain separate.
 
-The optional `format::LoadProgress` callback starts at `(0, total)` before
-payload allocation and after structural validation, advances after successful reads of up to 8 MiB directly
-into tensor storage, and ends at `(total, total)`. Empty models report `(0, 0)`
-once. Failed reads throw before reporting those bytes as complete. Percentages
-and console output belong to the caller; no extra tensor copy is introduced.
+The optional `format::LoadProgress` callback starts at `(0, total)` after
+structural validation and mapping. Ordinarily it advances after touching
+mapped pages in intervals of up to 8 MiB and ends at `(total, total)`. If the
+payload exceeds available host memory, it reports completion without touching
+those pages. Empty payloads report `(0, 0)` once. Completion therefore describes
+format loading, not GPU upload or model readiness; it does not guarantee that
+every page remains resident. Callback exceptions propagate. Percentages and
+console output belong to the caller; no extra tensor copy is introduced.
 
 Sharded files require the complete typed `split.no` (uint16), `split.count`
 (uint16) and `split.tensors.count` (int32) metadata trio. Open the canonical first

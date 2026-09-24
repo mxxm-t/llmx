@@ -8,7 +8,8 @@ private read-only mapping, the descriptor closed once mapped. An empty file
 maps to no pages.
 
 The pages are the operating system's to evict and read back, which is why
-the GGUF reader maps a single file instead of copying it into the heap: a
+the GGUF reader maps each file, including each shard, instead of copying its
+payload into the heap: a
 model larger than what the host can hold beside it still loads, and the
 pages of weights a device has copied are not touched again. Qwen3-30B-A3B
 Q8_0 (32.5 GB) with thirty layers' experts on a 32 GB host paged through

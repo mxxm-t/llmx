@@ -156,8 +156,11 @@ become requirements imposed on future device backends.
 
 ## Progress and text delivery
 
-The format layer reports completed tensor payload bytes through an optional
-`LoadProgress` callback. Inference reports decoded byte chunks through an
+The format layer reports progress through an optional `LoadProgress` callback.
+For mapped GGUF files it normally counts payload ranges whose pages were touched;
+a payload larger than available host memory completes without that page touching.
+This reports format loading, not completed device uploads or model readiness.
+Inference reports decoded byte chunks through an
 optional generation callback. Both run synchronously on their caller, hold no
 global subscriber state, and leave terminal formatting to the CLI. Callback
 exceptions propagate; consumers must not reenter the same model. Future serving
@@ -179,10 +182,13 @@ does not establish that a failed model/session can resume. Partial pool startup
 joins threads already created; a failed thread-count change leaves the backend
 in serial mode, from which it can be configured again.
 
-GGUF reads and seeks throw on stream failure, including truncated payloads.
+GGUF metadata reads and seeks throw on stream failure. Payload extents are
+checked before use, so a file truncated before loading is refused. Mapped files
+must remain unchanged for their lifetime; accessing pages removed by a later
+truncation can terminate the process on POSIX instead of throwing an exception.
 The reader bounds metadata lengths/counts by the opened file extent, limits
 array nesting, checks tensor-size arithmetic and validates every payload range
-before payload allocation or loading progress. It honors declared file alignment.
+before mapping payloads or reporting loading progress. It honors declared file alignment.
 These are structural format checks. Qwen model construction separately validates
 consumed configuration values, attention geometry, required tensor names/shapes,
 normalization types and in-memory payload ranges before model activation/KV/RoPE

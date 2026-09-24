@@ -20,6 +20,43 @@ static backend::BackendPtr device(const std::string& spec) {
 
 static std::string name(const std::string& spec) { return spec == "cpu" ? spec : "vulkan:" + spec; }
 
+// A decoding sequence with an established history beside a fresh prompt, then both decoding, in the same row order on one device and the split.
+static size_t mixed(infer::Model& one, infer::Model& two, const std::vector<uint32_t>& ids) {
+    one.reset();
+    two.reset();
+    infer::Sequence a = one.make_sequence(), b = one.make_sequence();
+    infer::Sequence c = two.make_sequence(), d = two.make_sequence();
+    infer::ExecContext x, y;
+    const size_t warm = std::min(size_t(4), ids.size()), prompt = std::min(size_t(64), ids.size());
+    const infer::BatchEntry warm_one{&a, ids.data(), warm, false};
+    const infer::BatchEntry warm_two{&c, ids.data(), warm, false};
+    one.forward(x, &warm_one, 1);
+    two.forward(y, &warm_two, 1);
+    size_t differ = 0, checked = 0;
+    for (size_t pass = 0; pass < 3; ++pass) {
+        const uint32_t next_a = ids[pass % ids.size()], next_b = ids[(pass + 1) % ids.size()];
+        const size_t fresh = pass == 0 ? prompt : 1;
+        const uint32_t* input = pass == 0 ? ids.data() : &next_b;
+        const infer::BatchEntry first[] = {{&a, &next_a, 1, true}, {&b, input, fresh, true, true}};
+        const infer::BatchEntry second[] = {{&c, &next_a, 1, true}, {&d, input, fresh, true, true}};
+        one.forward(x, first, 2);
+        two.forward(y, second, 2);
+        for (size_t row = 0; row < 1 + fresh; ++row) {
+            differ += std::memcmp(x.logits(row), y.logits(row), one.n_vocab() * sizeof(float)) != 0;
+            ++checked;
+        }
+        if (a.length() != warm + pass + 1 || c.length() != a.length() ||
+            b.length() != prompt + pass || d.length() != b.length())
+            throw std::runtime_error("mixed pass did not preserve both histories");
+    }
+    std::printf("mixed path: 3 passes, %zu logits rows, %zu differ\n", checked, differ);
+    one.reset(a);
+    one.reset(b);
+    two.reset(c);
+    two.reset(d);
+    return differ;
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) {
         std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [first] [second] [steps]\n");
@@ -68,7 +105,8 @@ int main(int argc, char** argv) {
             steps_differ += std::memcmp(a.data(), b.data(), vocab * sizeof(float)) != 0;
         }
         std::printf("decode path: prefill and %d greedy steps, %zu differ\n", steps, steps_differ);
-        const bool same = !differ && !steps_differ;
+        const size_t mixed_differ = mixed(one, two, ids);
+        const bool same = !differ && !steps_differ && !mixed_differ;
         std::printf("%s\n", same ? "bit-identical" : "DIFFERENT");
         return same ? 0 : 1;
     } catch (const std::exception& e) {

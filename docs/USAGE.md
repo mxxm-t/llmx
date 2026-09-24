@@ -1,8 +1,21 @@
 # llmx - Usage
 
 Command-line reference for the `llmx` binary. All commands take the form
-`llmx <command> [args...] [flags...]`. Run `llmx` with no arguments to print a
-short usage summary.
+`llmx <command> [args...] [flags...]`. Run `llmx --help` for the grouped command
+overview, or `llmx <command> --help` for that command's options, defaults and
+example. `-h` is equivalent. Help needs no model, device or network connection.
+
+```powershell
+.\llmx.exe --help
+.\llmx.exe chat --help
+.\llmx.exe serve --help
+```
+
+Explicit help exits successfully and prints to stdout. Running without arguments
+prints the overview and exits with status 1. Help is recognized immediately
+after the command, without other arguments. Positional text remains text in
+commands such as `tokenize`, `logits` and `perplexity`; `generate` still rejects
+unrecognized arguments beginning with a dash.
 
 ## `llmx --version`
 
@@ -310,7 +323,8 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `-ctv`, `--cache-type-v T` | KV cache storage for values: `f16` or `f32`    | `f16`   |
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
 | `--device D`            | backend: `cpu`, or `vulkan:N` in a build with it     | `cpu`   |
-| `--seed N`              | RNG seed (0 = non-deterministic)                     | 0       |
+| `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
+| `--system TEXT`         | accepted but unused by raw generation; use `chat` for a system message | (unused) |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--think`               | disable legacy reasoning-token filtering             | off     |
 | `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status | off   |

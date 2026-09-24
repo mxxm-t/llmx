@@ -6,6 +6,10 @@ the model in `model/`.
 
 Commands and their entry points:
 
+- `--help` / `-h`: grouped command overview. Every command also accepts either
+  spelling as its sole argument, for a focused page with options, defaults and
+  an example. Help returns before opening a model or creating a backend;
+  positional text in `tokenize`, `logits` and `perplexity` remains text.
 - `--version`: release version plus the build revision, without loading a model.
 - `pull`: parse repository/quant, revision, explicit file, cache and stream count;
   pass HF credentials to `hub::pull`, render status on stderr and print the

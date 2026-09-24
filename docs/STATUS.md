@@ -4,6 +4,50 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Command help checkpoint (2026-09-24)
+
+`llmx --help` prints a grouped overview; each of the 12 commands accepts
+`--help` or `-h` for its own options, defaults and example. Execution options
+share one renderer. Help returns before model, backend or Hub access. Existing
+command parsing and positional text behavior are unchanged. The help and
+reference now describe seed zero as retaining the fixed default RNG state.
+
+This change is based directly on `cdf1cdb`, independently of in-flight features.
+The main-based Windows Release build passes:
+
+| Check | Observed | Required |
+|---|---:|---:|
+| Help routes | 26 passed | 26 |
+| Missing or unsupported advertised parser flags/aliases | 0 | 0 |
+| Exit/positional-text checks | 5 passed | 5 |
+| Native tests | 20 passed | 20 |
+| Python components with all required real-model fixtures | 13 passed | 13 |
+| Real-model HF top-1, each of Q8_0/Q4_0/Q5_K_M | 6/6 | 6/6 |
+
+| HF NLL comparison, maximum over batched and per-token paths | Observed absolute error | Existing bound |
+|---|---:|---:|
+| Q8_0 continuous | 0.001284 | 0.01 |
+| Q8_0 windowed | 0.012376 | 0.02 |
+| Q4_0 continuous | 0.131554 | 0.16 |
+| Q4_0 windowed | 0.167600 | 0.20 |
+| Q5_K_M continuous | 0.026144 | 0.05 |
+| Q5_K_M windowed | 0.129480 | 0.16 |
+
+Reproduction: CMake Release build, `ctest --test-dir build -C Release
+--output-on-failure`, then `python -u -X utf8 tests/run_tests.py --exe
+build/Release/llmx.exe --no-perf-floor --require-baseline`. The standalone help
+check also compares each command's emitted options to its parser, rejecting
+both missing and unsupported flags. Raw logs and help output remain under
+`%TEMP%/llmx-help-main-20260924/build/`. Performance timings are diagnostic only;
+this change makes no new performance claim.
+
+All 35 tracked Markdown files were reviewed against main: ASCII and 116 local
+links/anchors checked. Help-related claims were corrected here. Independent
+documentation findings are tracked for a separate correction: CI's three-model
+fixture count, backend ticket/completion wording, vendor quantization support,
+implemented device flags, the scope of Q8 overflow protection and historical
+Vulkan status summaries.
+
 ## Multi-user server (ROADMAP #7, EXECUTION step 7) (2026-09-22)
 
 - **Goal:** the HTTP front-end over the model layer the execution plan
@@ -2690,6 +2734,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Backend-owned prefill placement | Done (main `3c5d4b9`, five hosted jobs green) |
 | CLI thread settings                    | Done |
 | Automatic build identification          | Done (main `9511a4a`) |
+| Focused CLI help and complete current option coverage | Done (2026-09-24 checkpoint) |
 | Live generation and loading progress     | Done |
 | GitHub CPU CI                          | Done     |
 | HF fixture download retries and CI cache | Done |

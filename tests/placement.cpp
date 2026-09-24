@@ -135,17 +135,21 @@ void split_matches_single() {
     checked += 1;
 }
 
-// The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host device given only what the others cannot hold, shares honored and refused when wrong, and the fitted placement exact against one device.
+// The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host device given only what the others cannot hold and taken back when endpoint weights leave no room, tied weights counted once and the output norm always, resident copies counted, unknown and zero budgets kept apart, shares honored and refused when wrong, and the fitted placement exact against one device.
 void layer_split_fits() {
     const auto weights = fixture();
     const infer::ModelOptions options;
-    const size_t GiB = size_t(1) << 30;
+    const size_t GiB = size_t(1) << 30, MiB = size_t(1) << 20;
     const infer::Footprint fp = infer::footprint(weights, options);
     // The fixture's two layers of equal shape, and no output.weight, so the head reads the embedding.
-    require(fp.layer_weights.size() == 2 && fp.layer_weights[0] == fp.layer_weights[1] && fp.layer_weights[0] > 0 && fp.tied &&
-                fp.head > fp.embedding && fp.cache_per_layer > 0,
+    size_t layer0 = 0, layer1 = 0;
+    for (const auto& m : fp.layers.at(0)) layer0 += m.bytes;
+    for (const auto& m : fp.layers.at(1)) layer1 += m.bytes;
+    require(fp.layers.size() == 2 && layer0 == layer1 && layer0 > 0 && fp.tied && fp.output.bytes == fp.embedding.bytes &&
+                fp.output_norm.bytes == 8 * sizeof(float) && fp.cache_per_layer > 0,
             "footprint does not describe the model");
     ++checked;
+    auto budget = [](const char* name, std::optional<size_t> bytes, bool host = false) { return infer::DeviceBudget{name, bytes, host, {}}; };
     auto split = [&](std::vector<infer::DeviceBudget> d, std::vector<int> shares = {}) {
         return infer::split_layers(fp, d, 2, shares);
     };
@@ -156,7 +160,7 @@ void layer_split_fits() {
         ++checked;
     };
 
-    auto even = split({{"a", GiB, false}, {"b", GiB, false}});
+    auto even = split({budget("a", GiB), budget("b", GiB)});
     require(even.stages[0].count == 1 && even.stages[1].count == 1, "two devices with room do not share the layers");
     require(even.embed_device == 0 && even.output_device == 1, "embedding and head not on the first and last stages");
     const infer::Placement placed = infer::placement_for(even);
@@ -166,31 +170,59 @@ void layer_split_fits() {
     ++checked;
 
     // 100 MiB is below a device's reserve, so it takes nothing and the other carries the embedding and head too.
-    auto one = split({{"small", GiB / 10, false}, {"b", GiB, false}});
+    auto one = split({budget("small", GiB / 10), budget("b", GiB)});
     require(one.stages[0].count == 0 && one.stages[1].count == 2 && one.embed_device == 1 && one.output_device == 1,
             "a device without room was given layers");
     ++checked;
 
-    auto host = split({{"cpu", GiB, true}, {"gpu", GiB, false}});
+    auto host = split({budget("cpu", GiB, true), budget("gpu", GiB)});
     require(host.stages[0].count == 0 && host.stages[1].count == 2, "a host device took layers another device could hold");
-    // Zero bytes is a device that cannot tell, and it is not checked.
-    auto unknown = split({{"a", 0, false}, {"b", 0, false}});
+    // No reading is a device that cannot tell, which is not checked; a reading of zero is a full device.
+    auto unknown = split({budget("a", std::nullopt), budget("b", std::nullopt)});
     require(unknown.stages[0].count == 1 && unknown.stages[1].count == 1, "devices of unknown room not shared evenly");
     checked += 2;
+    fails({budget("a", 0), budget("b", 0)}, {}, "devices reporting no free memory were given layers");
 
-    auto shared = split({{"a", GiB, false}, {"b", GiB, false}}, {2, 0});
+    // Two 100 MiB layers, an untied 300 MiB embedding and head, 1 MiB of cache a layer, a CPU and a device of 1 GiB each.
+    // With every layer on the device, the embedding joins the head there and one layer no longer fits; the CPU takes it back as its first stage.
+    infer::Footprint heavy;
+    heavy.layers.assign(2, {infer::Matrix{8, 4096, 1, 100 * MiB}});
+    heavy.embedding = infer::Matrix{8, 4096, 1, 300 * MiB};
+    heavy.output = infer::Matrix{8, 4096, 1, 300 * MiB};
+    heavy.output_norm = infer::Matrix{0, 4096, 1, 16384};
+    heavy.cache_per_layer = MiB;
+    auto back = infer::split_layers(heavy, {budget("cpu", GiB, true), budget("gpu", GiB)}, 1);
+    require(back.stages[0].count == 1 && back.stages[1].count == 1 && back.embed_device == 0 && back.output_device == 1,
+            "a host device dropped from the fit did not take the layer the device could not hold");
+    // A tied head on the embedding's device is kept once, and its norm is still counted.
+    heavy.tied = true;
+    heavy.output = heavy.embedding;
+    auto tied = infer::split_layers(heavy, {budget("gpu", 4 * GiB)}, 1);
+    require(tied.stages[0].weights == 2 * 100 * MiB + 300 * MiB + 16384, "tied embedding and head not counted as one buffer and a norm");
+    // What a backend keeps beside a matrix counts: with a copy of every weight, 600 MiB holds one layer where it held both.
+    infer::DeviceBudget copying = budget("gpu", 600 * MiB);
+    copying.resident = [](const infer::Matrix& m) { return 2 * m.bytes; };
+    heavy.tied = false;
+    heavy.embedding.bytes = heavy.output.bytes = MiB;
+    auto plain = infer::split_layers(heavy, {budget("gpu", 600 * MiB), budget("cpu", GiB, true)}, 1);
+    auto doubled = infer::split_layers(heavy, {copying, budget("cpu", GiB, true)}, 1);
+    require(plain.stages[0].count == 2 && doubled.stages[0].count < 2 && doubled.stages[1].count > 0,
+            "a backend's resident copies were not counted");
+    checked += 3;
+
+    auto shared = split({budget("a", GiB), budget("b", GiB)}, {2, 0});
     require(shared.stages[0].count == 2 && shared.output_device == 0, "layer shares not honored");
     ++checked;
-    fails({{"a", GiB, false}, {"b", GiB, false}}, {1}, "a share per device not required");
-    fails({{"a", GiB, false}, {"b", GiB, false}}, {0, 0}, "shares that are all zero accepted");
+    fails({budget("a", GiB), budget("b", GiB)}, {1}, "a share per device not required");
+    fails({budget("a", GiB), budget("b", GiB)}, {0, 0}, "shares that are all zero accepted");
     // Shares are proportions: 5:3 of two layers rounds to one each, 1:0 gives both to the first.
-    auto ratio = split({{"a", GiB, false}, {"b", GiB, false}}, {5, 3});
-    auto whole = split({{"a", GiB, false}, {"b", GiB, false}}, {1, 0});
+    auto ratio = split({budget("a", GiB), budget("b", GiB)}, {5, 3});
+    auto whole = split({budget("a", GiB), budget("b", GiB)}, {1, 0});
     require(ratio.stages[0].count == 1 && ratio.stages[1].count == 1 && whole.stages[0].count == 2 && whole.stages[1].count == 0,
             "layer shares not taken as proportions");
     ++checked;
-    fails({{"a", GiB / 10, false}, {"b", GiB / 10, false}}, {}, "a model with no room accepted");
-    fails({{"a", GiB / 10, false}, {"b", GiB, false}}, {1, 1}, "shares past a device's room accepted");
+    fails({budget("a", GiB / 10), budget("b", GiB / 10)}, {}, "a model with no room accepted");
+    fails({budget("a", GiB / 10), budget("b", GiB)}, {1, 1}, "shares past a device's room accepted");
 
     auto one_cpu = std::make_shared<backend::CpuBackend>();
     auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();

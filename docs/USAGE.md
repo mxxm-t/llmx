@@ -86,7 +86,9 @@ temporary directories. Completed shards remain reusable if a later shard fails.
 
 All GGUF commands accept the first `-00001-of-0000N.gguf` shard and discover
 the siblings beside it. Loading validates all shard metadata and tensor extents,
-then maps every shard in place, so a sharded model larger than host memory loads. The first shard may contain metadata
+then maps every shard in place, so a sharded model larger than host memory loads.
+A loaded model's files must not change while it runs: a file truncated or
+rewritten under the mapping is not detected and can end the process. The first shard may contain metadata
 only. Successful download does not establish that llmx implements the model's
 architecture, tokenizer or tensor types; current runtime coverage still applies.
 

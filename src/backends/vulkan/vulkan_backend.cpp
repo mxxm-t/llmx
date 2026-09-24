@@ -1010,7 +1010,7 @@ public:
     int threads_available() const override { return 0; }
 
     // What the device-local heap can still take: the driver's budget less what is in use, or without the budget extension the heap's size, which overstates.
-    size_t memory_available() const override {
+    std::optional<size_t> memory_available() const override {
         const Fn& fn = dev_->fn;
         VkPhysicalDeviceMemoryBudgetPropertiesEXT budget{};
         budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
@@ -1028,6 +1028,12 @@ public:
             free = std::max(free, (size_t)(total > used ? total - used : 0));
         }
         return free;
+    }
+
+    // An adopted F32 matrix whose rows are a multiple of 256 floats wide keeps a padded copy beside it once a float tile has read it (padded_f32).
+    size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes) const override {
+        const bool padded = type == gguf::GGML_TYPE_F32 && nin && nin % 256 == 0;
+        return bytes + (padded ? rows * (nin + kF32Pad) * sizeof(float) : 0);
     }
 
     BufferPtr alloc(size_t bytes, Memory where) override {

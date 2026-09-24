@@ -292,7 +292,9 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
 - **Loading and streaming** (CTest `load-progress`, `generation-stream`,
   `cli-output`):
   completed-byte reporting, truncated reads, callback failures, early text
-  delivery, split UTF-8 bytes, legacy filtering and stop/EOS accounting.
+  delivery, split UTF-8 bytes, legacy filtering and stop/EOS accounting;
+  `cli-output` also reads `--device` lists as the commands do (canonical
+  spellings, a device once, malformed entries refused).
 - **KV cache** (`tests/kv_cache.cpp`, CTest `kv-cache`): block pool reuse and
   exhaustion, sequence prepare/commit/abort/reset, on-demand storage growth
   and retained reset across block boundaries, paged attention over two

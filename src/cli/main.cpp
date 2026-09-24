@@ -351,25 +351,31 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
 // The backend a --device spec names.
 // "cpu" is the default; "vulkan:N" is device N as the loader lists them, in a build with that backend.
 // Any other spec, or a device the build lacks, is an error the user can act on rather than a silent fallback.
-backend::BackendPtr make_backend(const std::string& spec, bool diagnostics = false) {
-    if (spec == "cpu") return backend::make_cpu_backend();
+// A --device entry in one spelling: cpu, or a backend and its index, so vulkan and vulkan:00 are both vulkan:0 and one device cannot be listed twice under two names.
+std::string canonical_device(const std::string& spec) {
+    if (spec == "cpu") return spec;
     const size_t colon = spec.find(':');
     const std::string name = spec.substr(0, colon);
-    int index = 0;
+    if (name != "vulkan") throw std::runtime_error("--device: unknown backend '" + name + "' (cpu, vulkan:N)");
+    unsigned long index = 0;
     if (colon != std::string::npos) {
         const std::string rest = spec.substr(colon + 1);
-        if (rest.empty() || rest.find_first_not_of("0123456789") != std::string::npos)
+        if (rest.empty() || rest.size() > 6 || rest.find_first_not_of("0123456789") != std::string::npos)
             throw std::runtime_error("--device: invalid device index in '" + spec + "'");
-        index = std::atoi(rest.c_str());
+        index = std::stoul(rest);
     }
-    if (name == "vulkan") {
+    return name + ":" + std::to_string(index);
+}
+
+backend::BackendPtr make_backend(const std::string& spec, bool diagnostics = false) {
+    const std::string device = canonical_device(spec);
+    if (device == "cpu") return backend::make_cpu_backend();
 #if LLMX_HAS_BACKEND_VULKAN
-        return backend::make_vulkan_backend(index, diagnostics);
+    return backend::make_vulkan_backend(std::atoi(device.c_str() + device.find(':') + 1), diagnostics);
 #else
-        throw std::runtime_error("--device vulkan: this build has no Vulkan backend (LLMX_HAS_BACKEND_VULKAN)");
+    (void)diagnostics;
+    throw std::runtime_error("--device vulkan: this build has no Vulkan backend (LLMX_HAS_BACKEND_VULKAN)");
 #endif
-    }
-    throw std::runtime_error("--device: unknown backend '" + name + "' (cpu, vulkan:N)");
 }
 
 // The model over the backend a --device spec names, with the experts of the first `cpu_moe` routed layers (all when -1) on the CPU beside it.
@@ -407,12 +413,13 @@ std::vector<std::string> comma_list(const std::string& value) {
     return items;
 }
 
-// A --device value names one device, or several separated by commas for a model split by layers over them in that order.
-// A device listed twice would have two stages driving one backend, so it is refused.
+// A --device value names one device, or several separated by commas for a model split by layers over them in that order, each in its canonical spelling.
+// A device listed twice would have two stages driving one backend and its free memory counted twice, so it is refused.
 std::vector<std::string> device_specs(const std::string& value) {
     std::vector<std::string> specs;
-    for (const auto& spec : comma_list(value)) {
-        if (spec.empty()) throw std::runtime_error("--device: an empty entry in '" + value + "'");
+    for (const auto& entry : comma_list(value)) {
+        if (entry.empty()) throw std::runtime_error("--device: an empty entry in '" + value + "'");
+        const std::string spec = canonical_device(entry);
         if (std::find(specs.begin(), specs.end(), spec) != specs.end())
             throw std::runtime_error("--device: " + spec + " is listed twice");
         specs.push_back(spec);
@@ -432,25 +439,29 @@ std::vector<int> layer_shares(const std::string& value) {
 }
 
 // The model split by layers over every device listed, each device's layers fitted to the memory it reports free unless --layer-shares gives their proportions (docs/MULTI-DEVICE.md).
+// `rows` is the most rows one pass carries: a prompt's ubatch, and on a server every decoding request's token beside it.
 std::unique_ptr<infer::Model> make_split_model(const gguf::GGUFModel& m, const std::vector<std::string>& specs, const std::string& shares,
-                                               int cpu_moe, const infer::ModelOptions& options, int ubatch, bool verbose) {
+                                               int cpu_moe, const infer::ModelOptions& options, size_t rows, bool verbose) {
     if (cpu_moe) throw std::runtime_error("--n-cpu-moe and --cpu-moe: not with several devices; list the CPU as a device to give it layers");
     std::vector<backend::BackendPtr> backends;
     std::vector<infer::DeviceBudget> budgets;
     for (const auto& spec : specs) {
         backends.push_back(make_backend(spec));
-        budgets.push_back(infer::DeviceBudget{spec, backends.back()->memory_available(), spec == "cpu"});
+        const backend::Backend* b = backends.back().get();
+        budgets.push_back(infer::DeviceBudget{spec, b->memory_available(), spec == "cpu",
+                                              [b](const infer::Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes); }});
     }
-    const infer::LayerSplit split = infer::split_layers(infer::footprint(m, options), budgets, ubatch > 0 ? (size_t)ubatch : 512,
-                                                        layer_shares(shares));
+    const infer::LayerSplit split = infer::split_layers(infer::footprint(m, options), budgets, rows, layer_shares(shares));
     if (verbose) std::cerr << split.describe(budgets);
     return std::make_unique<infer::Model>(m, std::move(backends), infer::placement_for(split), options);
 }
 
-std::unique_ptr<infer::Model> make_model(const gguf::GGUFModel& m, const infer::GenParams& gp) {
+// `decode_rows` is how many generated tokens a pass may carry beside a prompt's ubatch: a server's sequences.
+std::unique_ptr<infer::Model> make_model(const gguf::GGUFModel& m, const infer::GenParams& gp, size_t decode_rows = 0) {
     const auto specs = device_specs(gp.device);
     if (specs.size() > 1 || !gp.layer_shares.empty())
-        return make_split_model(m, specs, gp.layer_shares, gp.cpu_moe, model_options(gp), gp.ubatch, gp.show_prompt_tokens);
+        return make_split_model(m, specs, gp.layer_shares, gp.cpu_moe, model_options(gp),
+                                (gp.ubatch > 0 ? (size_t)gp.ubatch : 512) + decode_rows, gp.show_prompt_tokens);
     return make_model(m, make_backend(gp.device), gp.device == "cpu", gp.cpu_moe, gp.moe_stream_from, model_options(gp));
 }
 
@@ -811,7 +822,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
     if (split && profile) throw std::runtime_error("bench: --profile times one device; not with several");
     backend::BackendPtr backend_for_model = split ? nullptr : make_backend(device, profile);
     backend::Backend* b = backend_for_model.get();
-    const auto owned = split ? make_split_model(m, specs, shares, cpu_moe, options, 0, true)
+    const auto owned = split ? make_split_model(m, specs, shares, cpu_moe, options, 512 + (size_t)seqs, true)
                              : make_model(m, std::move(backend_for_model), device == "cpu", cpu_moe, stream_from, options);
     infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
@@ -912,7 +923,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const infer::GenParams& gp) {
     gguf::GGUFModel m = load_model(model_path, true);
     bpe::Tokenizer tok(m);
-    const auto owned = make_model(m, gp);
+    const auto owned = make_model(m, gp, cfg.max_seqs);
     infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
     if (gp.threads > 0) model.set_threads(gp.threads);

@@ -66,8 +66,8 @@ and console output belong to the caller; no extra tensor copy is introduced.
 
 Sharded files require the complete typed `split.no` (uint16), `split.count`
 (uint16) and `split.tensors.count` (int32) metadata trio. Open the canonical first
-`-00001-of-0000N.gguf` file; the reader discovers sibling names and keeps the
-validated streams open. Model/tokenizer metadata is authoritative in the first
+`-00001-of-0000N.gguf` file; the reader discovers sibling names, reads each
+header through a validated stream and then maps the file. Model/tokenizer metadata is authoritative in the first
 shard, which may contain no tensors. Later shards may omit it; repeated keys
 must match exactly by type and value, except each file owns its own alignment.
 Duplicate keys/tensors and mismatched indices/counts/totals fail before progress
@@ -75,8 +75,11 @@ or payload allocation. Extremely large shard sets may exceed OS open-file limits
 
 All shards share one offset space and one aggregate progress total; each is
 mapped in place, with no copy, and a shard holding metadata alone maps
-nothing. Each file's extent is fixed when it is mapped, so a shard truncated
-before loading is refused before any progress. The assembled model removes split
+nothing. Each file's extent is checked when it is mapped, so a shard
+truncated before loading is refused before any progress. A mapped model
+requires its files to stay unchanged while it is loaded: a file truncated
+or rewritten under a live mapping is not detected, and reading the lost
+pages can end the process (SIGBUS on Linux); Windows refuses such writes. The assembled model removes split
 bookkeeping so writing it as one GGUF remains valid. Native fixtures exercise
 structure, payload bytes and error paths; `tests/shards.py` compares sharded
 synthetic model logits and NLL against the committed HF references.

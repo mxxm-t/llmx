@@ -281,20 +281,21 @@ inline std::array<size_t, ExecContext::kSlots> slot_widths(const QwenConfig& cfg
 inline Footprint footprint(const gguf::GGUFModel& m, const ModelOptions& options) {
     const QwenConfig cfg = load_config(m);
     Footprint fp;
-    fp.layer_weights.assign((size_t)cfg.n_layer, 0);
-    size_t output = 0, output_norm = 0;
-    bool dense = false;
+    fp.layers.resize((size_t)cfg.n_layer);
+    bool dense = false, output = false;
     for (const auto& t : m.tensors) {
-        if (t.name == "token_embd.weight") fp.embedding = (size_t)t.data_size();
-        else if (t.name == "output.weight") output = (size_t)t.data_size();
-        else if (t.name == "output_norm.weight") output_norm = (size_t)t.data_size();
+        Matrix w{t.type, t.ne.empty() ? 0 : (size_t)t.ne[0], 1, (size_t)t.data_size()};
+        for (size_t d = 1; d < t.ne.size(); ++d) w.rows *= (size_t)t.ne[d];
+        if (t.name == "token_embd.weight") fp.embedding = w;
+        else if (t.name == "output.weight") { fp.output = w; output = true; }
+        else if (t.name == "output_norm.weight") fp.output_norm = w;
         if (t.name.compare(0, 4, "blk.") != 0) continue;
         const size_t l = (size_t)std::strtoull(t.name.c_str() + 4, nullptr, 10);
-        if (l < fp.layer_weights.size()) fp.layer_weights[l] += (size_t)t.data_size();
+        if (l < fp.layers.size()) fp.layers[l].push_back(w);
         dense = dense || t.name.find(".ffn_gate.weight") != std::string::npos;
     }
-    fp.tied = output == 0;
-    fp.head = (fp.tied ? fp.embedding : output) + output_norm;
+    fp.tied = !output;
+    if (fp.tied) fp.output = fp.embedding;
     const size_t tokens = options.kv_tokens ? options.kv_tokens : (size_t)cfg.context_length;
     fp.cache_per_layer = tokens * (size_t)cfg.n_head_kv * (size_t)cfg.head_dim *
                          (backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v));
@@ -816,7 +817,8 @@ private:
         };
         const size_t ed = (size_t)place_.embed_device, od = (size_t)place_.output_device;
         token_embd_ = check(ed, "token_embd.weight", cfg.n_embd, vocab);
-        output_ = check(od, out_name_, cfg.n_embd, vocab);
+        // A tied head on the embedding's own device reads the buffer adopted for the embedding rather than a second copy.
+        output_ = out_name_ == "token_embd.weight" && ed == od ? token_embd_ : check(od, out_name_, cfg.n_embd, vocab);
         output_norm_ = check(od, "output_norm.weight", cfg.n_embd, 1, true);
         const uint64_t kv_width = uint64_t(cfg.n_head_kv) * cfg.head_dim;
         layers_.resize(cfg.n_layer);

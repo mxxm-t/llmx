@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <optional>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -19,12 +20,13 @@
 
 namespace core {
 
-// Bytes of physical memory available without swapping: what Windows reports as available, what Linux reports as MemAvailable (free memory plus reclaimable page cache); 0 when neither can be read.
-inline size_t host_memory_available() {
+// Bytes of physical memory available without swapping: what Windows reports as available, what Linux reports as MemAvailable (free memory plus reclaimable page cache); nothing when neither can be read.
+inline std::optional<size_t> host_memory_available() {
 #if defined(_WIN32)
     MEMORYSTATUSEX s{};
     s.dwLength = sizeof(s);
-    return GlobalMemoryStatusEx(&s) ? (size_t)s.ullAvailPhys : 0;
+    if (GlobalMemoryStatusEx(&s)) return (size_t)s.ullAvailPhys;
+    return std::nullopt;
 #else
     std::FILE* f = std::fopen("/proc/meminfo", "r");
     if (f) {
@@ -40,7 +42,7 @@ inline size_t host_memory_available() {
     const long pages = sysconf(_SC_AVPHYS_PAGES), page = sysconf(_SC_PAGESIZE);
     if (pages > 0 && page > 0) return (size_t)pages * (size_t)page;
 #endif
-    return 0;
+    return std::nullopt;
 #endif
 }
 

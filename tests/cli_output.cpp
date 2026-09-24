@@ -1,4 +1,4 @@
-// Include the real CLI emitter so removing its flush is observable without process-timing assumptions.
+// Include the real CLI so its glue is tested as it runs: removing the emitter's flush is observable without process-timing assumptions, and --device lists are read as the commands read them.
 #define main llmx_cli_main
 #include "../src/cli/main.cpp"
 #undef main
@@ -12,6 +12,17 @@ public:
     }
 };
 
+// A --device list is canonical and each device appears once, however it is spelled; malformed entries are refused.
+bool device_lists() {
+    auto refused = [](const std::string& value) {
+        try { device_specs(value); } catch (const std::runtime_error&) { return true; }
+        return false;
+    };
+    return device_specs("vulkan,cpu,vulkan:01") == std::vector<std::string>{"vulkan:0", "cpu", "vulkan:1"} &&
+           refused("vulkan,vulkan:0") && refused("vulkan:00,vulkan:0") && refused("cpu,cpu") && refused("vulkan:0,") &&
+           refused("vulkan:x") && refused("gpu:0") && layer_shares("3,1") == std::vector<int>{3, 1} && refused("");
+}
+
 int main() {
     OutputBuffer output;
     auto* saved = std::cout.rdbuf(&output);
@@ -24,6 +35,10 @@ int main() {
         std::cerr << "CLI did not flush each byte chunk\n";
         return 1;
     }
-    std::cout << "CLI output: each byte chunk flushed immediately\n";
+    if (!device_lists()) {
+        std::cerr << "CLI device lists not read canonically\n";
+        return 1;
+    }
+    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical\n";
     return 0;
 }

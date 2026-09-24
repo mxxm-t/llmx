@@ -5,6 +5,7 @@
 #include <memory>
 #include <functional>
 #include <initializer_list>
+#include <optional>
 
 // Compute backend abstraction: the model runs its primitive ops (matmul, attention, RMSNorm, RoPE) through a Backend, so the same model code targets every device.
 // Operands are a Buffer and an offset, not host pointers, so a backend owns its storage and a device backend keeps weights and activations resident (docs/DEVICE-EXECUTION.md).
@@ -112,9 +113,15 @@ public:
     // Reported by the CLI; a device backend returns whatever is meaningful for it, or 0.
     virtual int threads_available() const = 0;
 
-    // Bytes this backend can still allocate for weights, caches and activations, as the device or the operating system reports them now; 0 when it cannot tell.
+    // Bytes this backend can still allocate for weights, caches and activations, as the device or the operating system reports them now; nothing when it cannot tell.
     // A placement across several devices is fitted against it (docs/MULTI-DEVICE.md).
-    virtual size_t memory_available() const { return 0; }
+    virtual std::optional<size_t> memory_available() const { return std::nullopt; }
+
+    // What adopting a matrix of this quant type and shape keeps resident on this backend: its bytes, and any copy the backend makes of it, so a fit counts it.
+    virtual size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes) const {
+        (void)type; (void)nin; (void)rows;
+        return bytes;
+    }
 
     // Invoke once on the caller and complete all cleanup before returning.
     virtual void run_prefill(const std::function<void()>& work) { work(); }

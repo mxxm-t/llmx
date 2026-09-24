@@ -1059,11 +1059,7 @@ public:
 
     // Device time per kernel since the last call, in milliseconds, for a diagnostics backend whose queue timestamps; reading them waits for the queue.
     // Dispatches whose time was sampled: the query pool bounds it, so a long run samples its first dispatches.
-    size_t timed_dispatches() const {
-        size_t n = 0;
-        for (size_t i = 0; i < K_COUNT * kVariants; ++i) n += kernel_calls_[i];
-        return n;
-    }
+    size_t timed_dispatches() const { return last_timed_; }
 
     std::vector<std::pair<std::string, double>> kernel_times() {
         std::vector<std::pair<std::string, double>> out;
@@ -1084,6 +1080,13 @@ public:
         for (int i = 0; i < K_COUNT * kVariants; ++i)
             if (kernel_calls_[i])
                 out.emplace_back(kernel_variant_name(i / kVariants, i % kVariants), kernel_ns_[i] / 1e6);
+        // Since the last call: the next reading starts from an empty pool, which the next dispatch resets.
+        last_timed_ = query_kernel_.size();
+        std::fill(std::begin(kernel_ns_), std::end(kernel_ns_), 0.0);
+        std::fill(std::begin(kernel_calls_), std::end(kernel_calls_), size_t(0));
+        query_kernel_.clear();
+        query_next_ = 0;
+        queries_stale_ = true;
         return out;
     }
 
@@ -2198,7 +2201,11 @@ private:
                 qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
                 qp.queryCount = kQueries;
                 check(dev_->fn.vkCreateQueryPool(dev_->device, &qp, nullptr, &queries_), "vkCreateQueryPool");
+                queries_stale_ = true;
+            }
+            if (queries_stale_) {
                 dev_->fn.vkCmdResetQueryPool(cmd, queries_, 0, kQueries);
+                queries_stale_ = false;
             }
             dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_, query_next_);
             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
@@ -2286,6 +2293,8 @@ private:
     VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
     static const uint32_t kQueries = 8192;    // two per dispatch, reset each submission
     uint32_t query_next_ = 0;
+    bool queries_stale_ = false;   // the pool holds a read interval's stamps, reset by the next dispatch
+    size_t last_timed_ = 0;        // dispatches the last reading covered
     std::vector<int> query_kernel_;   // id * kVariants + variant
     double kernel_ns_[K_COUNT * kVariants] = {0};
     size_t kernel_calls_[K_COUNT * kVariants] = {0};

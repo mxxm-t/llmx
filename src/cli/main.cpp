@@ -817,17 +817,23 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
     report(seqs > 1 ? ("x" + std::to_string(seqs) + " tg").c_str() : "tg", G, tgv);
     if (profile) {
 #if LLMX_HAS_BACKEND_VULKAN
-        // Device time per kernel over everything above, so a token can be attributed to kernels rather than inferred from kernels timed alone.
-        auto times = backend::vulkan_kernel_times(b);
-        std::sort(times.begin(), times.end(),
-                  [](const auto& x, const auto& y) { return x.second > y.second; });
-        double total = 0.0;
-        for (const auto& t : times) total += t.second;
-        std::cout << "profile: " << total << " ms of device time over "
-                  << backend::vulkan_timed_dispatches(b) << " dispatches sampled\n";
-        for (const auto& t : times)
-            std::cout << "profile:   " << t.first << " " << t.second << " ms ("
-                      << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
+        // Device time per kernel over one more prompt and one more decode run, each read on its own, so a pass is attributed to its kernels rather than inferred from kernels timed alone.
+        auto section = [&](const char* what, const std::function<double()>& run) {
+            backend::vulkan_kernel_times(b);   // starts the interval
+            run();
+            auto times = backend::vulkan_kernel_times(b);
+            std::sort(times.begin(), times.end(),
+                      [](const auto& x, const auto& y) { return x.second > y.second; });
+            double total = 0.0;
+            for (const auto& t : times) total += t.second;
+            std::cout << "profile " << what << ": " << total << " ms of device time over "
+                      << backend::vulkan_timed_dispatches(b) << " dispatches sampled\n";
+            for (const auto& t : times)
+                std::cout << "profile:   " << t.first << " " << t.second << " ms ("
+                          << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
+        };
+        section("pp", pp);
+        section(seqs > 1 ? "batched tg" : "tg", tg);
         // And what the driver made of each kernel that ran: registers, shared memory and waves per SIMD, where it reports them.
         std::istringstream stats(backend::vulkan_kernel_statistics(b));
         for (std::string line; std::getline(stats, line);) std::cout << "profile: kernel " << line << "\n";

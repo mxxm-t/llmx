@@ -9,8 +9,9 @@ Single place for compile-time build knobs.
   backends pull in heavyweight SDKs (ROCm/CUDA/SYCL/Vulkan). CPU is always on (no
   external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan backend; the
   ROCm, CUDA and SYCL names reserve future gates and build no code.
-- **Model architectures** are *not* here: runtime metadata selection is planned;
-  only dense Qwen3 is implemented today.
+- **Model architectures** are *not* here: the model reads
+  `general.architecture` at run time; dense Qwen3 and `qwen3moe` are
+  implemented.
 - **Split mode / node count** are *not* here: they are planned runtime parameters.
 
 Defines:

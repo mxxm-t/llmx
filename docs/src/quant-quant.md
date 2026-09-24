@@ -25,7 +25,7 @@ Block quantization kernels, in namespace `quant`.
 K-quant layouts and shared sub-scale decoding live in `k_quants.hpp`. Adding
 a quant also requires GGUF type/size entries in `format/gguf.hpp`.
 
-> Q4_0 has block kernels only - no fused backend matmul. `CpuBackend::matmul` uses a
-> generic dequant-row-to-f32 + dot path for it (correct but slower than Q8_0).
-> A fused AVX2 dequant+FMA Q4_0 matvec is a follow-up.
+Decode rows of every quantized type, Q4_0 included, take the CPU backend's
+integer dots in `backends/cpu/q8_dots.hpp`; batched prompt rows of Q8_0,
+Q4_0 and Q4_1 dequantize through these block routines (`docs/src/backends-cpu.md`).
 

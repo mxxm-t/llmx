@@ -112,9 +112,6 @@ Convert a raw float32 model into a quantized GGUF file.
   is supported with an empty binary input.
 - The output is a GGUF v3 file with all tensors quantized to the chosen type.
 
-> Note: Q4_0 inference is currently correct-but-slow (a generic dequant-to-f32
-> matmul path, not a fused kernel) - see `docs/src/quant-quant.md`.
-
 `model.json` schema:
 
 ```json
@@ -436,7 +433,7 @@ refused with 503. `--ctx-size` (`-c`) is the KV pool's total token budget shared
 by every request, the model context by default: with 16 sequences over a
 40k-token model that is 2.5k tokens each on average, so a deployment that
 serves long conversations sets it to what its memory holds, rounded up
-to whole KV blocks of 128 tokens, and a request whose prompt plus
+to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request whose prompt plus
 `max_tokens` exceeds the budget is refused with 413.
 
 | Route | Body | Reply |

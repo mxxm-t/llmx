@@ -247,11 +247,9 @@ exist.
 Flags are named for what fits best (AGENTS.md, Configuration). `--device`
 already selects `cpu` or `vulkan:N`; ROCm selection waits for that backend.
 `--n-cpu-moe N` and `--cpu-moe` put the experts of the first `N` routed
-layers, or all, on the CPU beside a device (`docs/USAGE.md`). The planned
-`--n-gpu-layers N` puts the last `N` layers on the device and the rest on
-CPU, with the embedding table on CPU unless every layer is on the device;
-`--tensor-split` remains planned too. Placement exists in the model API; the
-planned flags will land in `docs/USAGE.md` and `print_usage` together. Choosing a fit automatically needs each backend to
+layers, or all, on the CPU beside a device (`docs/USAGE.md`). The flags for
+layer splits and tensor groups are sketched in [MULTI-DEVICE](MULTI-DEVICE.md)
+and land in `docs/USAGE.md` and `print_usage` with their phase. Choosing a fit automatically needs each backend to
 report its free memory; that query is added with the first device backend
 that can answer it.
 

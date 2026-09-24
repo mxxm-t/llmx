@@ -4,6 +4,13 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## MoE decode with many requests (2026-09-24, branch feat/moe-batched-decode)
+
+- **Goal:** a server's MoE throughput growing with concurrent requests, well ahead of the reference's server at every level (the server gate).
+- **Done:** a pass whose generated tokens carry at least two entries an expert groups them by expert and reads each expert's rows once per run of up to eight entries (`docs/VULKAN.md`, "Generated tokens beside each other"); `llmx bench --seqs N` measures decode passes of N sequences, which is what showed the plateau outside the server. Checked bit for bit against each token alone, the HF MoE gate and the suites on both machines. Server on one MI50, Qwen3-30B-A3B Q4_K_M, 64 tokens a request, main / this branch (tok/s): 115 / 114 at 1, 194 / 189-192 at 4, 216-218 / 217-218 at 8, 226-227 / 227-228 at 16, 225-230 / 256 at 32; the reference's server gave 94, 149, 164, 110 and 203 on the same card earlier the same day.
+- **Tried and reverted:** grouping every batch of generated tokens, lone entries in the wide build (152 against 192 tok/s at four concurrent) and then split off to the one-column build (154): the loss was the grouping dispatch and its extra launches, not the build.
+- **Left:** each routed entry costs about 3.4 ms a token over the 48 layers, its expert's rows read at about 300 GB/s in dispatches this small, so throughput grows slowly with concurrency (1.3 times the reference's at 32); larger dispatches per expert, or fewer passes over the routed rows, are the next lever.
+
 ## Mixture of experts: qwen3moe on both backends (ROADMAP #2) (2026-09-23, branch feat/moe)
 
 - **Goal:** Qwen3's mixture-of-experts form (`general.architecture = qwen3moe`, Qwen3-30B-A3B and Qwen3-Coder-30B-A3B) on the CPU and Vulkan backends, gated against HF, at or above llama.cpp's own Vulkan backend on the MI50 and the Radeon VII, and with experts on the CPU where the device is too small.

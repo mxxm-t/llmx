@@ -226,6 +226,40 @@ void layer_split_fits() {
             "three equal devices did not share three equal layers");
     checked += 2;
 
+    // A tied head on the embedding's device is charged as the head keeps it: a backend's copy of a product matrix counts once, beside the shared buffer.
+    infer::Footprint tied_f32;
+    tied_f32.layers.assign(2, {infer::Matrix{0, 4096, 1, 10 * MiB, true}});
+    tied_f32.embedding = infer::Matrix{0, 4096, 1000, 16 * MiB, false};
+    tied_f32.output = tied_f32.embedding;
+    tied_f32.output.product = true;
+    tied_f32.tied = true;
+    infer::DeviceBudget padding = budget("gpu", 4 * GiB);
+    padding.resident = [](const infer::Matrix& m) { return m.product ? 2 * m.bytes : m.bytes; };
+    auto tied_padded = infer::split_layers(tied_f32, {padding}, 1);
+    require(tied_padded.stages[0].weights == 2 * 2 * 10 * MiB + 2 * 16 * MiB, "a tied head's copy on the embedding's device not counted");
+    // The host's logits and staging fit the host: refused beside GPUs alone when the host has too little, carried by a CPU that runs layers.
+    infer::Footprint logits = three;
+    logits.logits_per_row = 64 * MiB;
+    bool refused = false;
+    try { infer::split_layers(logits, {budget("a", GiB), budget("b", GiB)}, 4, {}, 128 * MiB); } catch (const std::runtime_error&) { refused = true; }
+    auto carried = infer::split_layers(logits, {budget("cpu", 2 * GiB, true), budget("a", GiB)}, 4, {1, 2}, 128 * MiB);
+    require(refused && carried.host == 4 * 64 * MiB && carried.stages[0].other >= carried.host, "the host's logits not fitted to the host");
+    checked += 2;
+
+    // A projection with a trailing singleton axis is the same product weight: the footprint follows the tensor's role, not its rank.
+    auto singleton = weights;
+    for (auto& t : singleton.tensors)
+        if (t.name.compare(0, 4, "blk.") == 0 && t.ne.size() == 2) t.ne.push_back(1);
+    const infer::Footprint fs = infer::footprint(singleton, options);
+    size_t products = 0, singleton_products = 0;
+    for (size_t l = 0; l < fp.layers.size(); ++l)
+        for (size_t i = 0; i < fp.layers[l].size(); ++i) {
+            products += fp.layers[l][i].product;
+            singleton_products += fs.layers[l][i].product && fs.layers[l][i].rows == fp.layers[l][i].rows;
+        }
+    require(products == 2 * 7 && singleton_products == products, "projection roles not recognized with a singleton axis");
+    ++checked;
+
     auto shared = split({budget("a", GiB), budget("b", GiB)}, {2, 0});
     require(shared.stages[0].count == 2 && shared.output_device == 0, "layer shares not honored");
     ++checked;

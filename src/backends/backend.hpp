@@ -124,6 +124,9 @@ public:
         return bytes;
     }
 
+    // Host memory the backend holds for its own use, such as staging for uploads, which counts against the host rather than against memory_available().
+    virtual size_t host_resident() const { return 0; }
+
     // Invoke once on the caller and complete all cleanup before returning.
     virtual void run_prefill(const std::function<void()>& work) { work(); }
 

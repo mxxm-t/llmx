@@ -283,11 +283,21 @@ inline Footprint footprint(const gguf::GGUFModel& m, const ModelOptions& options
     Footprint fp;
     fp.layers.resize((size_t)cfg.n_layer);
     bool dense = false, output = false;
+    // The roles a matrix product reads as its weights: a layer's projections and router, and the head; the embedding is gathered, norms are vectors and stacked experts are routed.
+    // By role, not by rank, since a projection may carry trailing singleton axes.
+    auto product = [](const std::string& name) {
+        if (name == "output.weight") return true;
+        const size_t dot = name.find('.', 4);
+        if (name.compare(0, 4, "blk.") != 0 || dot == std::string::npos) return false;
+        const std::string role = name.substr(dot + 1);
+        for (const char* r : {"attn_q.weight", "attn_k.weight", "attn_v.weight", "attn_output.weight", "ffn_gate.weight",
+                              "ffn_up.weight", "ffn_down.weight", "ffn_gate_inp.weight"})
+            if (role == r) return true;
+        return false;
+    };
     for (const auto& t : m.tensors) {
-        Matrix w{t.type, t.ne.empty() ? 0 : (size_t)t.ne[0], 1, (size_t)t.data_size(), false};
+        Matrix w{t.type, t.ne.empty() ? 0 : (size_t)t.ne[0], 1, (size_t)t.data_size(), product(t.name)};
         for (size_t d = 1; d < t.ne.size(); ++d) w.rows *= (size_t)t.ne[d];
-        // Projections and the head are a matrix product's weights; the embedding is gathered, norms are vectors and stacked experts are routed.
-        w.product = t.ne.size() == 2 && t.name != "token_embd.weight";
         if (t.name == "token_embd.weight") fp.embedding = w;
         else if (t.name == "output.weight") { fp.output = w; output = true; }
         else if (t.name == "output_norm.weight") fp.output_norm = w;

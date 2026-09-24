@@ -36,11 +36,13 @@ struct Footprint {
 };
 
 // What a device offers a split: the bytes it reports free, or nothing when it cannot tell and is not checked; whether weights placed on it read the mapped file in place, as the CPU's do, rather than being copied into its memory; and what adopting a matrix keeps resident there, its bytes when empty.
+// `host_side` is host memory the device's backend holds for itself, such as upload staging, which counts against the host.
 struct DeviceBudget {
     std::string name;
     std::optional<size_t> bytes;
     bool host = false;
     std::function<size_t(const Matrix&)> resident;
+    size_t host_side = 0;
 };
 
 // Per device, in the order given, the consecutive layers it runs and what it was fitted to hold; the embedding goes with the first device that runs layers and the head with the last.
@@ -51,6 +53,7 @@ struct LayerSplit {
     };
     std::vector<Stage> stages;
     int embed_device = 0, output_device = 0;
+    size_t host = 0;   // what the host holds besides mapped weights: logits rows and the backends' own host memory
 
     std::string describe(const std::vector<DeviceBudget>& devices) const {
         std::string s;
@@ -67,7 +70,8 @@ struct LayerSplit {
                               devices[d].name.c_str(), st.first, st.first + st.count - 1, st.weights / gib, st.cache / gib, st.other / gib, free);
             s += line;
         }
-        return s;
+        std::snprintf(line, sizeof line, "host: logits and backend staging %.2f GiB\n", host / gib);
+        return s + line;
     }
 };
 
@@ -75,8 +79,10 @@ struct LayerSplit {
 // For every choice of the first and last device to run layers, those two carrying the embedding and the head and at least one layer each, the layers are assigned by a small dynamic program over their actual sizes: the fewest layers on devices that read the mapped file in place, then the lightest busiest device, every device within its budget.
 // The plan kept is the best of those choices by the same order.
 // `shares`, when given, is each device's proportion of the layers and overrides the balance; the fit is still checked.
-// What a device must hold: its layers' weights as it keeps them resident and their caches; on the first and last devices the embedding and the head, once when a device holds both and they are tied, and on the last the logits rows; the tables; `rows` rows of activations; and on a device that copies weights a reserve for kernel scratch.
-inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {}) {
+// What a device must hold: its layers' weights as it keeps them resident and their caches; on the first and last devices the embedding and the head, once when a device holds both and they are tied; the tables; `rows` rows of activations; and on a device that copies weights a reserve for kernel scratch.
+// What the host must hold: the logits rows and each backend's own host memory, on the first host device listed when it runs layers, else within `host_free`.
+inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
+                               std::optional<size_t> host_free = std::nullopt) {
     if (devices.empty()) throw std::runtime_error("split: no devices");
     const size_t L = fp.layers.size(), N = devices.size();
     if (!L) throw std::runtime_error("split: a model without layers");
@@ -93,20 +99,24 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             for (const Matrix& m : fp.layers[l]) b += resident(d, m);
             prefix[d][l + 1] = prefix[d][l] + b;
         }
-    // The embedding, head and logits a device keeps, given whether it runs the first and the last layers.
+    // The embedding and head weights a device keeps, given whether it runs the first and the last layers.
+    // A tied pair on one device is one buffer, kept as the head keeps it, since the head reads it through a product.
     auto end_weights = [&](size_t d, bool first, bool last) -> size_t {
-        size_t w = first ? resident(d, fp.embedding) : 0;
-        if (last) w += resident(d, fp.output_norm) + (first && fp.tied ? 0 : resident(d, fp.output));
-        return w;
+        if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm);
+        return (first ? resident(d, fp.embedding) : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) : 0);
     };
-    // Besides weights and caches: the tables, a pass's activations, the logits rows where the head runs and, where weights are copied, a reserve for tile split partials and attention merge state.
-    auto overhead = [&](size_t d, bool last) {
+    // What the host holds whatever the placement: the logits rows, which are host-visible memory the host reads in place, and each backend's own host memory.
+    size_t host_need = rows * fp.logits_per_row;
+    for (const auto& d : devices) host_need += d.host_side;
+    const size_t host_device = (size_t)(std::find_if(devices.begin(), devices.end(), [](const DeviceBudget& d) { return d.host; }) - devices.begin());
+    // Besides weights and caches: the tables, a pass's activations and, where weights are copied, a reserve for tile split partials and attention merge state; the first host device listed also carries the host's own needs, since its budget is the host's memory.
+    auto overhead = [&](size_t d) {
         const size_t reserve = devices[d].host ? 0 : ((size_t)256 << 20) + devices[d].bytes.value_or(0) / 20;
-        return fp.tables + rows * fp.activations_per_row + (last ? rows * fp.logits_per_row : 0) + reserve;
+        return fp.tables + rows * fp.activations_per_row + reserve + (d == host_device ? host_need : 0);
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last) {
-        return prefix[d][i + k] - prefix[d][i] + k * fp.cache_per_layer + end_weights(d, first, last) + overhead(d, last);
+        return prefix[d][i + k] - prefix[d][i] + k * fp.cache_per_layer + end_weights(d, first, last) + overhead(d);
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 
@@ -201,7 +211,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         if (!st.count) continue;
         st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, (int)d == first_used, (int)d == last_used);
         st.cache = (size_t)st.count * fp.cache_per_layer;
-        st.other = overhead(d, (int)d == last_used);
+        st.other = overhead(d);
         const size_t held = st.weights + st.cache + st.other;
         if (!fits(d, held)) {
             char msg[256];
@@ -210,6 +220,17 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             throw std::runtime_error(msg);
         }
     }
+    // The host's own needs rode on a host device's budget if one runs layers; otherwise they must fit what the host has free.
+    if (host_device >= N || !count[host_device]) {
+        const std::optional<size_t> free = host_device < N ? devices[host_device].bytes : host_free;
+        if (free && host_need > *free) {
+            char msg[160];
+            std::snprintf(msg, sizeof msg, "split: the host needs %.2f GiB for logits and staging and has %.2f GiB free",
+                          host_need / 1073741824.0, *free / 1073741824.0);
+            throw std::runtime_error(msg);
+        }
+    }
+    out.host = host_need;
     return out;
 }
 

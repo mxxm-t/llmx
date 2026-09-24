@@ -30,6 +30,7 @@
 #include "backends/vulkan/vulkan_backend.hpp"
 #endif
 #include "core/fp16.hpp"
+#include "core/host_memory.hpp"
 #include "core/json.hpp"
 #include "hub/pull.hpp"
 #include "format/gguf.hpp"
@@ -449,9 +450,11 @@ std::unique_ptr<infer::Model> make_split_model(const gguf::GGUFModel& m, const s
         backends.push_back(make_backend(spec));
         const backend::Backend* b = backends.back().get();
         budgets.push_back(infer::DeviceBudget{spec, b->memory_available(), spec == "cpu",
-                                              [b](const infer::Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes, w.product); }});
+                                              [b](const infer::Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes, w.product); },
+                                              b->host_resident()});
     }
-    const infer::LayerSplit split = infer::split_layers(infer::footprint(m, options), budgets, rows, layer_shares(shares));
+    const infer::LayerSplit split = infer::split_layers(infer::footprint(m, options), budgets, rows, layer_shares(shares),
+                                                        core::host_memory_available());
     if (verbose) std::cerr << split.describe(budgets);
     return std::make_unique<infer::Model>(m, std::move(backends), infer::placement_for(split), options);
 }

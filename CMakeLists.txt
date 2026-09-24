@@ -253,6 +253,10 @@ if(BUILD_TESTING)
         add_executable(llmx-multi-device-bench tools/multi_device_bench.cpp)
         target_link_libraries(llmx-multi-device-bench PRIVATE llmx-vulkan)
         list(APPEND LLMX_TARGETS llmx-multi-device-bench)
+        # Not a test: a model on one device against it split over two, raw logits compared bit for bit; needs two devices and a model.
+        add_executable(llmx-split-check tools/split_check.cpp)
+        target_link_libraries(llmx-split-check PRIVATE llmx-vulkan)
+        list(APPEND LLMX_TARGETS llmx-split-check)
     endif()
 endif()
 

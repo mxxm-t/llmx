@@ -1030,6 +1030,9 @@ public:
         return free;
     }
 
+    // The upload staging and each ring slot's argument arena, host-visible memory held for the backend's life.
+    size_t host_resident() const override { return kStagingBytes + kRing * kArenaBytes; }
+
     // An adopted F32 matrix a product reads, whose rows are a multiple of 256 floats wide, keeps a padded copy beside it once a float tile has read it (padded_f32); routed stacks bind their data as it is.
     size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const override {
         const bool padded = product && type == gguf::GGML_TYPE_F32 && nin && nin % 256 == 0;

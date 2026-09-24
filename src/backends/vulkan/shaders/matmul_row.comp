@@ -72,6 +72,13 @@ layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 // The wide build takes runs of two or more entries and the one-column build the lone ones, since a lone entry in the wide build pays for columns it does not use.
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 
+// Column c's X column and output row: consecutive from col0 in a plain call, the workgroup row's entry in a routed one, and in a grouped one the chunk's entries, columns past the last repeating it.
+// Computed where used, so a plain call pays for nothing it does not use.
+uint g_first = 0u, g_cnt = 1u, g_entry = 0u;
+uint entry_of(uint c) { return p.group != 0u ? tab[p.order0 + g_first + min(c, g_cnt - 1u)] : g_entry; }
+uint xcol(uint c) { return p.per != 0u ? entry_of(c) / p.per : p.col0 + c; }
+uint ocol(uint c) { return p.per != 0u ? entry_of(c) : p.col0 + c; }
+
 uint pi = 0u;
 
 // Offset in pair words into the quantized activations of column c.
@@ -205,26 +212,17 @@ void main() {
     uint wrow = row;
     // One in the one-column build, so the column loops collapse.
     uint ncols = MAX_COLS == 1u ? 1u : p.ncols;
-    // Each column's X column and output row: consecutive from col0 in a plain call, the workgroup row's entry in a routed one, the chunk's entries in a grouped one.
-    // Columns past the last repeat it, so every index a loop reaches is valid.
-    uint xc[MAX_COLS], oc[MAX_COLS];
     if (p.per != 0u && p.group != 0u) {
-        uint y = gl_WorkGroupID.y, first = tab[4u * y + 1u], cnt = tab[4u * y + 2u];
+        uint y = gl_WorkGroupID.y;
+        g_first = tab[4u * y + 1u];
+        g_cnt = tab[4u * y + 2u];
         // group 1 takes runs of two or more entries, group 2 lone entries, group 3 every run.
-        if (cnt == 0u || (p.group == 1u && cnt < 2u) || (p.group == 2u && cnt != 1u)) return;
+        if (g_cnt == 0u || (p.group == 1u && g_cnt < 2u) || (p.group == 2u && g_cnt != 1u)) return;
         wrow = tab[4u * y] * nout + row;
-        ncols = MAX_COLS == 1u ? 1u : cnt;
-        for (uint c = 0u; c < MAX_COLS; ++c) {
-            uint ent = tab[p.order0 + first + min(c, cnt - 1u)];
-            xc[c] = ent / p.per;
-            oc[c] = ent;
-        }
+        ncols = MAX_COLS == 1u ? 1u : g_cnt;
     } else if (p.per != 0u) {
-        uint e = gl_WorkGroupID.y;
-        wrow = ids[e] * nout + row;
-        for (uint c = 0u; c < MAX_COLS; ++c) { xc[c] = e / p.per; oc[c] = e; }
-    } else {
-        for (uint c = 0u; c < MAX_COLS; ++c) { xc[c] = p.col0 + c; oc[c] = p.col0 + c; }
+        g_entry = gl_WorkGroupID.y;
+        wrow = ids[g_entry] * nout + row;
     }
     float acc[MAX_COLS];
     for (uint c = 0u; c < MAX_COLS; ++c) acc[c] = 0.0;
@@ -252,7 +250,7 @@ void main() {
                 wb = (wb >> 16u) | ((t == 3u ? sc : sb) << 16u);
                 if (t == 0u) wc = 0u;
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = xc[c];
+                    uint col = xcol(c);
                     uint a2 = xa_col(col) / 2u + j * 16u;
                     int p0 = 0, p1 = 0;
                     q8_word(wa, t, a2, p0, p1);
@@ -276,7 +274,7 @@ void main() {
                 uint q0 = hword_at(o + 2u), q1 = hword_at(o + 6u), q2 = hword_at(o + 10u), q3 = hword_at(o + 14u);
                 uint q4 = hword_at(o + 18u), q5 = hword_at(o + 22u), q6 = hword_at(o + 26u), q7 = hword_at(o + 30u);
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = xc[c];
+                    uint col = xcol(c);
                     uint a2 = xa_col(col) / 2u + b * 8u;
                     int s = byte_dot(q0, xq2[a2]) + byte_dot(q1, xq2[a2 + 1u]) + byte_dot(q2, xq2[a2 + 2u]) + byte_dot(q3, xq2[a2 + 3u]) +
                             byte_dot(q4, xq2[a2 + 4u]) + byte_dot(q5, xq2[a2 + 5u]) + byte_dot(q6, xq2[a2 + 6u]) + byte_dot(q7, xq2[a2 + 7u]);
@@ -288,13 +286,13 @@ void main() {
             uint n4 = p.nin / 4u, wbase4 = wrow * n4;
             for (uint i = l; i < n4; i += p.cluster) {
                 vec4 w = uintBitsToFloat(w128s[pi].w128[wbase4 + i]);
-                for (uint c = 0u; c < ncols; ++c) acc[c] += dot(w, xt4[xc[c] * n4 + i]);
+                for (uint c = 0u; c < ncols; ++c) acc[c] += dot(w, xt4[xcol(c) * n4 + i]);
             }
         } else {
             uint wbase = wrow * p.nin;
             for (uint i = l; i < p.nin; i += p.cluster) {
                 float w = wfs[pi].wf[wbase + i];
-                for (uint c = 0u; c < ncols; ++c) acc[c] += w * x[xc[c] * p.nin + i];
+                for (uint c = 0u; c < ncols; ++c) acc[c] += w * x[xcol(c) * p.nin + i];
             }
         }
 #endif
@@ -324,7 +322,7 @@ void main() {
                 }
                 uint b = 2u * j + t;
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = xc[c];
+                    uint col = xcol(c);
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
@@ -346,7 +344,7 @@ void main() {
                 float d = unpackHalf2x16(uint(w16s[pi].w16[o >> 1u])).x;
                 uint n0 = hword_at(o + 2u), n1 = hword_at(o + 6u), n2 = hword_at(o + 10u), n3 = hword_at(o + 14u);
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = xc[c];
+                    uint col = xcol(c);
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
@@ -370,7 +368,7 @@ void main() {
                 uint w3 = w32s[pi].w32[o + 3u], w4 = w32s[pi].w32[o + 4u];
                 vec2 dm = unpackHalf2x16(w0);
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = xc[c];
+                    uint col = xcol(c);
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
@@ -417,7 +415,7 @@ void main() {
                 float ml = h == 0u ? dd.y * mnl : 0.0, mh = h == 0u ? dd.y * mnh : 0.0;
                 uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
                 for (uint cc = 0u; cc < ncols; ++cc) {
-                    uint col = xc[cc];
+                    uint col = xcol(cc);
                     uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
@@ -471,7 +469,7 @@ void main() {
                 q0a = signed6(q0a); q0b = signed6(q0b); q1a = signed6(q1a); q1b = signed6(q1b);
                 q2a = signed6(q2a); q2b = signed6(q2b); q3a = signed6(q3a); q3b = signed6(q3b);
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = xc[c];
+                    uint col = xcol(c);
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
                     XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
                     int p0 = dot4(q0a, x0v.x) + dot4(q0b, x0v.y), p1 = dot4(q1a, x1v.x) + dot4(q1b, x1v.y);
@@ -482,7 +480,7 @@ void main() {
                 }
 #else
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = xc[c];
+                    uint col = xcol(c);
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
                     XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
                     QDOT p0 = pair_dot(q0a & 0x00FF00FFu, (q0a >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0b & 0x00FF00FFu, (q0b >> 8u) & 0x00FF00FFu, x0v.zw);
@@ -509,8 +507,8 @@ void main() {
         float s = acc[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
         if (l == 0u && row < nout && c < ncols) {
-            if (p.accum != 0u) ys[pi].y[oc[c] * nout + row] += s;
-            else ys[pi].y[oc[c] * nout + row] = s;
+            if (p.accum != 0u) ys[pi].y[ocol(c) * nout + row] += s;
+            else ys[pi].y[ocol(c) * nout + row] = s;
         }
     }
 }

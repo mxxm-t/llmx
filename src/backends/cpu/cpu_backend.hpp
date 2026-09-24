@@ -378,6 +378,8 @@ public:
         run_parallel([&](int w) { work(std::min(rows, (size_t)w * chunk), std::min(rows, (size_t)(w + 1) * chunk)); });
     }
 
+    static constexpr size_t kPromptDotsFrom = 4096;   // the narrowest K-quant row a prompt meets through the prompt dots (matmul_raw)
+
     // A prompt's columns of X against a quantized matrix through the prompt dots (q8_dots.hpp dot_block): every column quantized once, stretches of 16 rows handed to workers as they free up, each against every column, so a row's weights are unpacked once for all of them.
     void matmul_q8_prompt(uint32_t type, const uint8_t* data, const float* X, float* Y, size_t nin, size_t nout, size_t ncols) {
         xq8_.reset(X, ncols, nin);
@@ -407,8 +409,9 @@ public:
             matvec_q8x(type, data, X, Y, nin, nout, nbatch);
             return;
         }
-        // The K-quants' float path dequantizes every row block before its dots and loses to the prompt dots; Q8_0, Q4_0 and Q4_1 dequantize cheaply, and their float path's 4-row by 3-column register blocking stays ahead (docs/src/backends-cpu.md).
-        if (!decode && quantized_dots(type, nin) && is_kquant(type)) {
+        // The K-quants' float path dequantizes every row block before its dots, and on rows at least kPromptDotsFrom wide it loses to the prompt dots; narrower rows' dequantized blocks stay in the first-level cache, where the float path's 4-row by 3-column register blocking kept Qwen3-0.6B ahead. Q8_0, Q4_0 and Q4_1 dequantize cheaply and keep the float path (docs/src/backends-cpu.md).
+        // The choice follows the matrix alone, so a prompt's row computes the same however it is batched.
+        if (!decode && quantized_dots(type, nin) && is_kquant(type) && nin >= kPromptDotsFrom) {
             matmul_q8_prompt(type, data, X, Y, nin, nout, nbatch);
             return;
         }

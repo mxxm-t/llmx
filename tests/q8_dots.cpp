@@ -103,8 +103,10 @@ size_t check_type(uint32_t type, size_t nin, std::mt19937& rng) {
                 ref += t;
                 mag += std::fabs(t);
             }
+            // A prompt's K-quant rows at least kPromptDotsFrom wide meet these activations through the prompt dots; narrower ones, and the other types, take the float path on the unrounded ones.
             const bool kquant = type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K || type == gguf::GGML_TYPE_Q6_K;
-            for (const float got : kquant ? std::vector<float>{alone[c * rows + o], prompt[c * rows + o]} : std::vector<float>{alone[c * rows + o]})
+            const bool dots = kquant && nin >= backend::CpuBackend::kPromptDotsFrom;
+            for (const float got : dots ? std::vector<float>{alone[c * rows + o], prompt[c * rows + o]} : std::vector<float>{alone[c * rows + o]})
                 require(std::isfinite(got) && std::fabs(got - ref) <= 1e-5 * mag + 1e-30,
                         "type " + std::to_string(type) + " nin " + std::to_string(nin) + ": " + std::to_string(got) +
                         " against " + std::to_string(ref));
@@ -182,7 +184,7 @@ int main() {
         size_t n = 0;
         for (uint32_t type : {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
                               gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K})
-            for (size_t nin : {size_t(256), size_t(2048)}) n += check_type(type, nin, rng);
+            for (size_t nin : {size_t(256), size_t(2048), size_t(4096)}) n += check_type(type, nin, rng);
         size_t routed = 0;
         for (uint32_t type : {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
                               gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K})

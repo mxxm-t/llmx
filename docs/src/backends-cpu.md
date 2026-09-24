@@ -89,9 +89,9 @@ the compiled binary portable to older CPUs.
   scalar tails. This avoids repeatedly loading/storing output rows while
   retaining each value lane's sequence order.
 - Decode rows and prompt rows: with row runs a generated token (extent 1)
-  takes the decode dots and a prompt's rows the batched float path, so a row
-  computes the same alone or beside others; without runs a one-column call is
-  decode. The decode dots (`q8_dots.hpp`) quantize a call's activations once
+  takes the decode dots and a prompt's rows the batched float path (the
+  prompt dots for routed experts, below), so a row computes the same alone
+  or beside others; without runs a one-column call is decode. The decode dots (`q8_dots.hpp`) quantize a call's activations once
   per block of 32, 8-bit for Q8_0, Q4_K and Q5_K and 16-bit for Q4_0, Q4_1
   and Q6_K, the same split as the device's row kernels, and meet the packed
   weights in integers (`maddubs` and `madd`), one scale per block; the float
@@ -100,10 +100,19 @@ the compiled binary portable to older CPUs.
   comparison test's reference and the float-kernel checks use.
 - `route_experts`, `matmul_experts`, `matmul_experts_add`: routing in
   float, then the entries grouped by expert. A generated token's entries take
-  the decode dots, every such entry's rows of a call in one pool dispatch; a
-  prompt's entries take one batched matmul per expert over its gathered rows
-  (`matmul_raw`, the matmul on host addresses, reaches an expert's matrix
-  inside the stacked tensor).
+  the decode dots, every such entry's rows of a call in one pool dispatch. A
+  prompt's entries take the prompt dots (`q8_dots.hpp` `dot_block`): stretches
+  of 16 of an expert's rows handed to workers as they free up, each against
+  all of that expert's entries. The block walks the inner dimension 256
+  values at a time, unpacks each weight row's 256 once into a buffer every
+  entry then reads, keeps each group of 32's products exact in integers and
+  meets eight groups' scales in one vector multiply-add, so a (row, entry)
+  pair accumulates in the same order whatever else is in the block. The
+  activations are quantized once per call, split across the pool, and gate
+  and up share them. Where a type has no quantized dots, or with
+  `set_decode_activations8(false)`, a prompt's entries take one batched float
+  matmul per expert over its gathered rows (`matmul_raw`, the matmul on host
+  addresses, reaches an expert's matrix inside the stacked tensor).
 - `make_cpu_backend()` factory.
 
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a

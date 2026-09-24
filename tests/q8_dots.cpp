@@ -104,7 +104,7 @@ size_t check_type(uint32_t type, size_t nin, std::mt19937& rng) {
 // A generated token's routed entries through the same dots: every entry equals a one-column matmul of its expert's matrix and its token's row, bit for bit, and the down projection their weighted sum.
 size_t check_experts(uint32_t type, std::mt19937& rng) {
     const quant::QuantType* qt = quant::Registry::instance().get(type);
-    const size_t n_expert = 5, k = 2, rows = 6, entries = rows * k, nin = 256, nout = 8;
+    const size_t n_expert = 3, k = 2, rows = 6, entries = rows * k, nin = 256, nout = 8;
     const size_t stride = nout * (nin / qt->block_size) * qt->type_size;
     const auto w = packed(type, n_expert * nout, nin, rng);
     std::uniform_real_distribution<float> u(-1.0f, 1.0f);
@@ -138,6 +138,22 @@ size_t check_experts(uint32_t type, std::mt19937& rng) {
         cpu.matmul(type, {wb.get(), id * stride / sizeof(float)}, {xd.get(), 0}, {yb.get(), 0}, nin, nout, 1);
         for (size_t o = 0; o < nout; ++o) down[(e / k) * nout + o] += 0.5f * yd[o];
     }
+    // The same rows as a prompt, whose entries go through their expert's rows several at a time: each prompt row computes the same beside generated tokens as in a call of its own, and each generated token as alone.
+    const backend::RowRun prompt[1] = {{rows, 512}}, mixed[3] = {{2, 1}, {5, 512}, {6, 1}};
+    std::vector<float> ups(entries * nout), upm(entries * nout);
+    const auto usb = cpu.adopt(ups.data(), ups.size() * sizeof(float)), umb = cpu.adopt(upm.data(), upm.size() * sizeof(float));
+    cpu.matmul_experts({{type, {wb.get(), 0}, {usb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {prompt, 1});
+    cpu.matmul_experts({{type, {wb.get(), 0}, {umb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {mixed, 3});
+    for (size_t e = 0; e < entries; ++e) {
+        const size_t token = e / k;
+        const std::vector<float>& want = token >= 2 && token < 5 ? ups : up;
+        require(std::memcmp(want.data() + e * nout, upm.data() + e * nout, nout * sizeof(float)) == 0,
+                "type " + std::to_string(type) + ": a routed entry differs beside other kinds of row");
+    }
+    // A prompt's products on the prompt dots stay within the quantized reference's bound of the decode dots'.
+    for (size_t i = 0; i < entries * nout; ++i)
+        require(std::fabs(ups[i] - up[i]) <= 1e-5f * (1.0f + std::fabs(up[i])) * 64.0f,
+                "type " + std::to_string(type) + ": a prompt's routed entry strays from a generated token's");
     std::vector<float> y(rows * nout, 0.0f);
     const auto yb = cpu.adopt(y.data(), y.size() * sizeof(float));
     cpu.matmul_experts_add(type, {wb.get(), 0}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);

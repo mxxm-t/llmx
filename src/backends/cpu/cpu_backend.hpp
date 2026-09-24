@@ -364,7 +364,7 @@ public:
     // Decode columns of X against a quantized matrix through the 8-bit dots: every column quantized once, the rows of all of them split over the pool.
     void matvec_q8x(uint32_t type, const uint8_t* data, const float* X, float* Y, size_t nin, size_t nout, size_t ncols) {
         xq8_.reset(X, ncols, nin);
-        xq8_.prepare(type);
+        prepare_x(type);
         const size_t rb = row_bytes_of(type, nin), rows = ncols * nout;
         auto work = [&](size_t r0, size_t r1) {
             for (size_t r = r0; r < r1; ++r) {
@@ -512,7 +512,7 @@ public:
         if (!q8) { Backend::matmul_group(projections, X_s, nin, nbatch, runs); return; }
         // One quantized X for every projection, and one pool dispatch over all their rows.
         xq8_.reset(at(X_s), nbatch, nin);
-        for (const auto& p : projections) xq8_.prepare(p.type);
+        for (const auto& p : projections) prepare_x(p.type);
         struct Part { uint32_t type; const uint8_t* data; float* out; size_t rows, row_bytes, first; };
         std::vector<Part> parts;
         size_t total = 0;
@@ -1114,6 +1114,8 @@ public:
         const Grouping g = group_by_expert(routing, entries);
         span(*X_s.buffer, X_s.offset * sizeof(float), size_mul(nrows, nin) * sizeof(float));
         const std::vector<char> decode = decode_rows(nrows, runs);
+        // Every projection of the call reads the same rows, quantized once for all of them.
+        xq8_.reset(at(X_s), nrows, nin);
         for (const Projection& p : projections) {
             if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
             span(*p.out.buffer, p.out.offset * sizeof(float), size_mul(entries, p.rows) * sizeof(float));
@@ -1131,6 +1133,7 @@ public:
         span(*Y_s.buffer, Y_s.offset * sizeof(float), size_mul(nrows, nout) * sizeof(float));
         span(*routing.weights.buffer, routing.weights.offset * sizeof(float), entries * sizeof(float));
         expert_out_.resize(size_mul(entries, nout));
+        xq8_.reset(at(X_s), entries, nin);
         expert_products(type, data, routing.n_expert, at(X_s), entries, 1, k, expert_out_.data(), nin, nout, g,
                         decode_rows(nrows, runs));
         const float* w = at(routing.weights);
@@ -1168,6 +1171,22 @@ private:
         return g;
     }
 
+    // Whether a routed call's entries take the quantized dots (expert_products).
+    bool quantized_experts(uint32_t type, size_t nin) const { return decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0; }
+
+    // The quantized activations for a type, the rows split across the pool when there are enough of them.
+    void prepare_x(uint32_t type) {
+        xq8_.prepare(type, [this](size_t rows, const auto& fn) {
+            const size_t nt = (size_t)std::max(threads_, 1);
+            if (nt <= 1 || rows * xq8_.nin < nt * 16384) { fn(size_t(0), rows); return; }
+            const size_t chunk = (rows + nt - 1) / nt;
+            run_parallel([&](int w) {
+                const size_t r0 = std::min(rows, (size_t)w * chunk), r1 = std::min(rows, r0 + chunk);
+                if (r0 < r1) fn(r0, r1);
+            });
+        });
+    }
+
     // Whether each token row of a call is a generated token's, from its runs as matmul reads them.
     static std::vector<char> decode_rows(size_t nrows, RowRuns runs) {
         std::vector<char> decode(nrows, 0);
@@ -1178,25 +1197,38 @@ private:
     }
 
     // out[e*nout ..] = expert id(e)'s matrix times X row e / per, X having xrows rows and entry e belonging to token row e / k.
-    // A generated token's entries take the decode dots, all of a call's in one pool dispatch; a prompt's entries take one batched matmul per expert over its rows, so an entry computes the same whatever else is routed beside it.
+    // A generated token's entries take the decode dots, all of a call's in one pool dispatch.
+    // A prompt's entries meet their expert's rows through the prompt dots where the type has them (q8_dots.hpp), an expert's entries as the columns of one block so its weights are unpacked once for all of them, and otherwise through one batched float matmul per expert.
+    // Either way an entry computes the same whatever else is routed beside it.
     void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
                          float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode) {
         const size_t row_bytes = row_bytes_of(type, nin), stride = size_mul(nout, row_bytes);
         span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
         const uint8_t* data = (const uint8_t*)bytes_at(data_s);
+        const bool q8 = quantized_experts(type, nin);
+        if (q8) {
+            if (xq8_.src != X || xq8_.rows != xrows || xq8_.nin != nin) xq8_.reset(X, xrows, nin);
+            prepare_x(type);
+        }
         std::vector<uint32_t> single, expert_of;
-        for (size_t e = 0; e < n_expert; ++e)
-            for (size_t c = g.start[e]; c < g.start[e + 1]; ++c)
-                if (decode[g.order[c] / k]) {
-                    single.push_back(g.order[c]);
+        std::vector<size_t> first(n_expert + 1, 0);
+        expert_rows_.clear();
+        expert_outs_.clear();
+        for (size_t e = 0; e < n_expert; ++e) {
+            first[e] = expert_rows_.size();
+            for (size_t c = g.start[e]; c < g.start[e + 1]; ++c) {
+                const uint32_t i = g.order[c];
+                if (decode[i / k]) {
+                    single.push_back(i);
                     expert_of.push_back((uint32_t)e);
+                } else if (q8) {
+                    expert_rows_.push_back(i / per);
+                    expert_outs_.push_back(out + (size_t)i * nout);
                 }
-        if (!single.empty()) {
-            const bool q8 = decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0;
-            if (q8) {
-                xq8_.reset(X, xrows, nin);
-                xq8_.prepare(type);
             }
+        }
+        first[n_expert] = expert_rows_.size();
+        if (!single.empty()) {
             const size_t rows = single.size() * nout;
             auto work = [&](size_t r0, size_t r1) {
                 for (size_t r = r0; r < r1; ++r) {
@@ -1211,6 +1243,26 @@ private:
                 const size_t chunk = (rows + nt - 1) / nt;
                 run_parallel([&](int w) { work(std::min(rows, (size_t)w * chunk), std::min(rows, (size_t)(w + 1) * chunk)); });
             }
+        }
+        if (q8) {
+            // Stretches of an expert's rows, handed out as workers free up, since experts carry different numbers of entries.
+            const size_t R = 16, per_expert = (nout + R - 1) / R;
+            std::vector<uint32_t> busy;
+            for (size_t e = 0; e < n_expert; ++e)
+                if (first[e + 1] > first[e]) busy.push_back((uint32_t)e);
+            const size_t tasks = busy.size() * per_expert;
+            if (!tasks) return;
+            std::atomic<size_t> next{0};
+            auto work = [&](int) {
+                for (size_t t = next.fetch_add(1); t < tasks; t = next.fetch_add(1)) {
+                    const size_t e = busy[t / per_expert], o0 = (t % per_expert) * R, o1 = std::min(nout, o0 + R);
+                    q8::dot_block(type, data + e * stride + o0 * row_bytes, row_bytes, o1 - o0, xq8_, expert_rows_.data() + first[e],
+                                  first[e + 1] - first[e], expert_outs_.data() + first[e], o0);
+                }
+            };
+            if (threads_ <= 1 || (first[n_expert] * nout) < (size_t)threads_ * 64) work(0);
+            else run_parallel(work);
+            return;
         }
         for (size_t e = 0; e < n_expert; ++e) {
             std::vector<uint32_t> batch;
@@ -1261,6 +1313,8 @@ private:
     }
 
     std::vector<float> expert_x_, expert_y_, expert_out_;
+    std::vector<size_t> expert_rows_;   // each grouped entry's activation row
+    std::vector<float*> expert_outs_;   // and where its products go
     q8::Activations xq8_;      // the quantized activations of the last decode call
     bool decode8_ = true;
     // A slice resolves to a host pointer exactly once per op; the kernels below are untouched and still see plain float arrays.

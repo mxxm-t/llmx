@@ -34,6 +34,8 @@ guessed:
    be undone for them. The section "Beyond dense Qwen" lists which
    assumptions those are; the steps below are written to avoid them.
 
+**Superseded by [MULTI-DEVICE](MULTI-DEVICE.md):** tensor-parallel work returns there as the tensor group, built after the layer split on the same stages, with its sums placed where it measures to pay. The paragraph below is the reasoning at the time.
+
 **Per-row (tensor-parallel) split is dropped from the roadmap.** It moves
 data between devices at every projection of every layer, so it only pays
 with peer-to-peer copies and cross-device events, and it was the one item

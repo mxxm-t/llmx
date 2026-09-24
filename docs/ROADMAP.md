@@ -144,20 +144,13 @@ backend. Branch on what a device reports, never on who made it.
   on the hardware here.
 
 ## 5. Multi-device split **[design]**
-Split a single model across several backends on one machine. Designed in
-`docs/EXECUTION.md` (placement, transfers, order of work).
-- **per-layer**: consecutive layers to different devices (pipeline). The
-  residual stream crosses once per pass through `read` and `write`; the
-  overlap that makes two devices worth it is a scheduler loop over tickets.
-- **per-tensor**: the embedding table and the output head placed
-  independently of the layers, so a large table can stay in host memory.
-- **per-row** (row-parallel matmul) is **dropped**. It needs peer copies and
-  cross-device events at every projection, was the only item forcing that
-  machinery into the interface, and the one- and two-device workloads here
-  are served by a layer split under continuous batching.
-- `Model` holds one Backend per device and a `Placement`; runtime flags
-  (`--device`, `--n-gpu-layers`), not build options. `--tensor-split` waits
-  for a second device to exist.
+Split a single model across several devices on one machine, designed in `docs/MULTI-DEVICE.md` for many users first: layer split with passes in flight, then tensor groups, staged tensor groups and replicas, on one placement of stages and groups.
+- **Layer split**: consecutive layers on different devices, bit-identical to one device; the server keeps a pass in flight per stage.
+- **Tensor group**: every layer on 2 to 4 devices at once, for per-request decode speed; built after the layer split.
+- **Staged tensor**: stages of tensor groups.
+- **Replicas**: several copies of a model that fits one card or group, behind one scheduler.
+- The embedding table and the output head are placed as roles with their own cost.
+- Flags are llmx's own and mean the same on every backend.
 
 ## 6. Multi-node / cluster **[design]**
 - `node_id` on each Backend, message layer for cross-node tensor exchange

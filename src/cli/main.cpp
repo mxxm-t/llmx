@@ -447,8 +447,10 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
 // Print the top-N next-token logits for a prompt.
 // This exists for the correctness gate: it is the only way to compare llmx against a full-precision reference at the level where errors actually appear, rather than through sampled text.
 // See docs/ROADMAP.md #8.
+// With `then_ids` the text's tokens are followed by those token ids, so a generated reply is scored as the tokens it was, not as its text re-tokenized.
+// With `last` above zero every one of the last `last` positions is printed as one line, its position and then its top-N ids and logits, through the batched passes a prompt takes.
 int cmd_logits(const std::string& model_path, const std::string& text,
-               int topn, const infer::GenParams& gp) {
+               int topn, const infer::GenParams& gp, const std::string& then_ids = "", size_t last = 0) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer tok(m);
     const auto owned = make_model(m, gp);
@@ -458,20 +460,40 @@ int cmd_logits(const std::string& model_path, const std::string& text,
     model.set_ubatch(gp.ubatch);
 
     std::vector<uint32_t> ids = tok.encode(text);
+    if (!then_ids.empty()) {
+        std::ifstream in(std::filesystem::u8path(then_ids));
+        if (!in) throw std::runtime_error("logits: cannot open token ids: " + then_ids);
+        for (unsigned long long id; in >> id;) {
+            if (id >= model.n_vocab()) throw std::runtime_error("logits: token id out of range");
+            ids.push_back((uint32_t)id);
+        }
+        if (!in.eof()) throw std::runtime_error("logits: token ids must be whitespace-separated integers");
+    }
     if (ids.empty()) throw std::runtime_error("logits: empty prompt");
-    std::vector<float> logits = infer::prefill(model, ids);
 
-    std::vector<std::pair<float, uint32_t>> ranked;
-    ranked.reserve(logits.size());
-    for (size_t i = 0; i < logits.size(); i++)
-        ranked.push_back({ logits[i], (uint32_t)i });
-    if (topn > (int)ranked.size()) topn = (int)ranked.size();
-    std::partial_sort(ranked.begin(), ranked.begin() + topn, ranked.end(),
-                      [](const auto& a, const auto& b) { return a.first > b.first; });
-
+    auto top = [&](const float* logits) {
+        std::vector<std::pair<float, uint32_t>> ranked;
+        ranked.reserve(model.n_vocab());
+        for (size_t i = 0; i < model.n_vocab(); i++) ranked.push_back({ logits[i], (uint32_t)i });
+        const size_t n = std::min((size_t)topn, ranked.size());
+        std::partial_sort(ranked.begin(), ranked.begin() + (std::ptrdiff_t)n, ranked.end(),
+                          [](const auto& a, const auto& b) { return a.first > b.first; });
+        ranked.resize(n);
+        return ranked;
+    };
     printf("tokens: %zu\n", ids.size());
-    for (int i = 0; i < topn; i++)
-        printf("%u %.6f\n", ranked[(size_t)i].second, ranked[(size_t)i].first);
+    if (last) {
+        const size_t from = ids.size() - std::min(last, ids.size());
+        model.score(ids, [&](size_t pos, const float* logits) {
+            if (pos < from) return;
+            printf("%zu", pos);
+            for (const auto& r : top(logits)) printf(" %u %.6f", r.second, r.first);
+            printf("\n");
+        });
+        return 0;
+    }
+    std::vector<float> logits = infer::prefill(model, ids);
+    for (const auto& r : top(logits.data())) printf("%u %.6f\n", r.second, r.first);
     return 0;
 }
 
@@ -1034,12 +1056,18 @@ int main(int argc, char** argv) {
         }
 
         if (cmd == "logits") {
-            if (argc < 4) { std::cerr << "usage: llmx logits <model.gguf> \"<text>\" [--top N] [--threads N] [--device D]\n"; return 2; }
+            if (argc < 4) { std::cerr << "usage: llmx logits <model.gguf> \"<text>\" | <file> --file [--then-ids FILE] [--last N] [--top N] [--threads N] [--device D]\n"; return 2; }
             infer::GenParams gp;
             int topn = 10;
+            bool from_file = false;
+            std::string then_ids;
+            size_t last = 0;
             for (int i = 4; i < argc; i++) {
                 std::string a2 = argv[i];
                 if (a2 == "--top") topn = (i + 1 < argc) ? std::atoi(argv[++i]) : topn;
+                else if (a2 == "--file") from_file = true;
+                else if (a2 == "--then-ids") then_ids = (i + 1 < argc) ? argv[++i] : then_ids;
+                else if (a2 == "--last") last = (i + 1 < argc) ? (size_t)std::max(0, std::atoi(argv[++i])) : last;
                 else if (a2 == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a2 == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a2 == "--cache-type-k" || a2 == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
@@ -1051,7 +1079,8 @@ int main(int argc, char** argv) {
                 else { std::cerr << "unknown flag: " << a2 << "\n"; return 2; }
             }
             if (topn <= 0) topn = 10;
-            return cmd_logits(argv[2], argv[3], topn, gp);
+            const std::string text = from_file ? read_perplexity_file(argv[3]) : argv[3];
+            return cmd_logits(argv[2], text, topn, gp, then_ids, last);
         }
 
         if (cmd == "tokenize") {

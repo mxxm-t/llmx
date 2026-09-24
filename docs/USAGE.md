@@ -146,10 +146,17 @@ comma-separated list on one line.
 
 Decode a comma- or space-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> "<text>" [--top N] [--threads N] [--ubatch N] [--device D] [--cache-type-k T] [--cache-type-v T]`
+## `llmx logits <in.gguf> "<text>" [--file] [--then-ids F] [--last N] [--top N] [--threads N] [--ubatch N] [--device D] [--cache-type-k T] [--cache-type-v T]`
 
 Print the top-N next-token logits for `text`, one `id value` pair per line
-after a `tokens:` header. `--top` defaults to 10.
+after a `tokens:` header. `--top` defaults to 10. `--file` reads the text
+from the file named in its place, for a text longer than a command line
+holds. `--then-ids F` appends the whitespace-separated token ids in `F`
+after the text's tokens, so a generated reply is read as the tokens it
+was. `--last N` prints each of the last `N` positions instead, one line
+of its position followed by its top-N `id value` pairs, from the batched
+passes a prompt takes; `tools/long_context_check.py` reads a device's
+reply this way.
 
 This exists for the correctness gate. Comparing llmx against a reference
 through sampled text hides everything except argmax flips, so

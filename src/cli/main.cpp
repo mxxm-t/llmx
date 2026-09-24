@@ -852,7 +852,7 @@ void print_usage() {
         << "           --n-cpu-moe N  the experts of the first N routed layers on the CPU beside a device;\n"
         << "                       --cpu-moe all of them; attention and the dense blocks stay on the device\n"
         << "           --moe-stream-from N  a prompt this long runs those layers on the device, their experts\n"
-        << "                       copied there per pass (default 512; 0 keeps them on the CPU)\n"
+        << "                       copied there per pass (default 0, never)\n"
         << "           --ubatch N  prefill physical batch (default 512)\n"
         << "           --cache-type-k T  --cache-type-v T  KV cache storage per side, f16 (default) or f32;\n"
         << "                       the same on every backend, one without a type refuses it\n"

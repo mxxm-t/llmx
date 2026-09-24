@@ -259,9 +259,12 @@ fits a 16 GB card with twelve layers' experts on the CPU:
 ```
 
 A long prompt makes those layers the bottleneck: its tokens between them
-use nearly every expert, and the work grows with the prompt. From
-`--moe-stream-from N` tokens (default 512) such a layer runs on the device
-instead, its experts copied there once per pass. The copy is a fixed cost
+use nearly every expert, and the work grows with the prompt. The CPU meets
+a prompt's rows with each expert's weights unpacked once for all of them,
+which is usually fast enough. On a machine whose CPU is slow beside its
+device link, `--moe-stream-from N` (default 0, never) runs such a layer on
+the device from `N` tokens instead, its experts copied there once per
+pass. The copy is a fixed cost
 per pass, about 0.9 s for twelve Q8_0 layers over the MI50's link and 3 s
 for thirty over the Radeon VII's, so it pays only past some length: on
 those two cards about 128 and 450 tokens. The length is the prompt's

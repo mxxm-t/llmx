@@ -47,7 +47,7 @@ to a `backend::Backend`.
   feed-forward block, the embedding table and the output head. Empty means
   everything on device 0. Per role rather than per layer so expert offload
   puts a layer's experts on the CPU while its attention stays on the device
-  (`docs/EXECUTION.md`). `stream_from` is the prompt extent from which such
+  (`docs/EXECUTION.md`). `stream_from` is the count of new prompt tokens (`BatchEntry::fresh`) from which such
   a layer runs on its attention device instead: the norm and router get a
   copy there at load, the experts are written into a per-device window
   (one buffer per projection, sized to the largest such layer) once per

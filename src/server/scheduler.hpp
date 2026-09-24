@@ -112,6 +112,7 @@ private:
     std::string finish_pending_;   // set by a sampled end, acted on after the pass
     size_t need_ = 0;              // blocks reserved for it
     size_t prompt_done_ = 0;
+    size_t fresh_ = 0;             // the prompt tokens this admission prefills, past any reused prefix
     uint32_t last_id_ = 0;
     std::vector<uint32_t> gen_;
     std::string decoded_;
@@ -218,8 +219,9 @@ public:
                 const size_t n = std::min(budget, r->prompt_.size() - r->prompt_done_);
                 const bool last = r->prompt_done_ + n == r->prompt_.size();
                 entries.push_back(infer::BatchEntry{&r->seq_, r->prompt_.data() + r->prompt_done_, n, last});
-                // The whole prompt's extent, reused prefix included, so its slices take the kernels one pass over it would.
+                // The whole prompt's extent, reused prefix included, so its slices take the kernels one pass over it would; and its new tokens, which a streamed layer follows.
                 entries.back().extent = r->prompt_.size();
+                entries.back().fresh = r->fresh_;
                 if (last) wanting.push_back(r);
                 budget -= n;
             }
@@ -355,6 +357,7 @@ private:
         } else {
             r.seq_ = model_.make_sequence();
         }
+        r.fresh_ = r.prompt_.size() - r.prompt_done_;
         if (!r.resumed_) r.rng_.seed(r.params_.seed);
     }
 

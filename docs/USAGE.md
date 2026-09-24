@@ -261,19 +261,20 @@ fits a 16 GB card with twelve layers' experts on the CPU:
 A long prompt makes those layers the bottleneck: its tokens between them
 use nearly every expert, and the work grows with the prompt. The CPU meets
 a prompt's rows with each expert's weights unpacked once for all of them,
-which is usually fast enough. On a machine whose CPU is slow beside its
-device link, `--moe-stream-from N` (default 0, never) runs such a layer on
-the device from `N` tokens instead, its experts copied there once per
-pass. The copy is a fixed cost
-per pass, about 0.9 s for twelve Q8_0 layers over the MI50's link and 3 s
-for thirty over the Radeon VII's, so it pays only past some length: on
-those two cards about 128 and 450 tokens. The length is the prompt's
-extent, its last position counting any earlier history, the same quantity
-every kernel choice follows, so a prompt computes the same whether it
-arrives alone or beside other requests; a short follow-up in a chat whose
-history already passed `N` pays the copy too. Generated tokens stay on the
-CPU whatever `N` is, since one token cannot pay for the copy. `0` never
-copies. The device holds one layer's experts for this
+which is usually fast enough. `--moe-stream-from N` (default 0, never) runs such a layer on the device
+instead for a prompt of at least `N` new tokens, its experts copied there
+once per pass of up to 512 tokens. The copy is a fixed cost per pass,
+about 0.9 s for twelve Q8_0 layers over the MI50's link and 3 s for thirty
+over the Radeon VII's, so it pays only for long prompts: on the MI50 with
+twelve Q8_0 layers on the CPU, 512 tokens prefill at 411 tok/s streamed
+against 311 on the CPU, while at 247 the CPU is ahead (268 against 223);
+on the Radeon VII the two meet at about 512. `512` suits a machine that
+mostly reads long documents. The count is the request's new tokens, a
+reused conversation prefix excluded, so a short reply in a long chat stays
+on the CPU; all slices of one prompt take the same path, alone or beside
+other requests. A server reply that reuses a cached prefix can therefore
+take the CPU for tokens a single pass over the whole conversation would
+stream, and differ from it by rounding. Generated tokens never stream. The device holds one layer's experts for this
 (about 640 MB for Qwen3-30B-A3B Q8_0).
 
 ## KV cache types (`--cache-type-k`, `--cache-type-v`)

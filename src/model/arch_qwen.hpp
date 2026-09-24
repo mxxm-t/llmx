@@ -198,8 +198,8 @@ struct LayerWeights {
 struct Placement {
     std::vector<int> attn_device, ffn_device;
     int embed_device = 0, output_device = 0;
-    // A routed layer with its feed-forward block on a host and its attention on a device runs each prompt whose extent reaches this on the device, its experts copied there for the pass: past some length a prompt's expert products on the host cost more than moving the experts.
-    // By extent, like every kernel choice, so a prompt takes the same path however it is batched. Zero keeps every run on the host, and a generated token (extent 1) never streams: one row cannot pay for moving a layer's experts.
+    // A routed layer with its feed-forward block on a host and its attention on a device runs a prompt of at least this many new tokens on the device, its experts copied there for each pass: past some length a prompt's expert products on the host cost more than moving the experts.
+    // By the tokens the request prefills (BatchEntry::fresh), so a short reply in a long conversation stays on the host, and every slice of one prompt takes the same path however it is batched. Zero keeps every run on the host, and a generated token never streams: one row cannot pay for moving a layer's experts.
     size_t stream_from = 0;
 };
 
@@ -259,6 +259,7 @@ struct ExecContext {
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
     std::vector<backend::RowRun> runs, head_runs;      // the pass's rows and the head's, by entry
     std::vector<backend::RowRun> part_runs;            // a streamed layer's group of entries, rebased
+    std::vector<size_t> fresh;                         // per entry, the tokens its request prefills
     std::vector<backend::Ticket> tickets;      // per device
     std::vector<float> staging;
 };
@@ -277,6 +278,9 @@ struct BatchEntry {
     // Zero takes the entry's own row count.
     // A prompt given its extent computes the same whether it arrives in one pass or in slices, alone or beside other sequences, with or without a reused prefix.
     size_t extent = 0;
+    // The tokens the request prefills, its reused prefix excluded, the same for every slice of it: what a streamed layer follows (Placement::stream_from).
+    // Zero takes the entry's own row count. A prompt computes the same in one pass or in slices, alone or beside other sequences; with a reused prefix its new tokens may take the host where one pass over the whole would take the device.
+    size_t fresh = 0;
 };
 
 class Model {
@@ -476,6 +480,7 @@ public:
         ctx.pos.resize(rows);
         ctx.pick.resize(want);
         ctx.runs.resize(n_entries);
+        ctx.fresh.resize(n_entries);
         ctx.head_runs.clear();
         ctx.views.resize(storages_.size());
         for (auto& v : ctx.views) v.resize(n_entries);
@@ -506,6 +511,7 @@ public:
                 ctx.views[s][e].extent = extent;
             }
             ctx.runs[e] = backend::RowRun{r + en.n, extent};
+            ctx.fresh[e] = en.fresh ? en.fresh : en.n;
             // The head reads one row per entry as a generated token's, or every row of a scored text as its prompt's.
             if (en.want_logits && en.every_logits) {
                 for (size_t b = 0; b < en.n; ++b) ctx.pick[w++] = (uint32_t)(r + b);
@@ -524,7 +530,7 @@ public:
             devices_[cur]->b->embed(slot(ctx, cur, 0), token_embd_.type, token_embd_.slice(),
                                     token_embd_.nin, token_embd_.nout, ctx.ids.data(), rows);
             bool long_runs = false;
-            for (const backend::RowRun& run : ctx.runs) long_runs = long_runs || streams(run);
+            for (size_t e = 0; e < n_entries; ++e) long_runs = long_runs || streams(ctx, e);
             const backend::RowRuns all{ctx.runs.data(), ctx.runs.size()};
             for (int l = 0; l < cfg.n_layer; l++) {
                 const size_t a = (size_t)place_.attn_device[(size_t)l];
@@ -616,6 +622,7 @@ public:
                 const size_t B = std::min((size_t)ubatch(), ids.size() - i);
                 BatchEntry entry{&seq_, ids.data() + i, B, i + B == ids.size()};
                 entry.extent = start + ids.size();
+                entry.fresh = ids.size();
                 forward(ctx_, &entry, 1);
                 i += B;
             }
@@ -641,6 +648,7 @@ public:
                 BatchEntry entry{&seq_, ids.data() + i, B, true};
                 entry.every_logits = true;
                 entry.extent = ids.size();
+                entry.fresh = ids.size();
                 forward(ctx_, &entry, 1);
                 for (size_t j = 0; j < B; ++j) each(i + j, ctx_.logits(j));
                 i += B;
@@ -923,9 +931,9 @@ private:
         devices_[to]->b->write(*dst.buffer, (dst.offset + base * E) * sizeof(float), ctx.staging.data(), bytes);
     }
 
-    // Whether a run takes a streamed layer on the device (Placement::stream_from).
-    bool streams(const backend::RowRun& run) const {
-        return place_.stream_from && run.extent >= std::max<size_t>(place_.stream_from, 2);
+    // Whether entry e of a pass takes a streamed layer on the device (Placement::stream_from): a prompt of enough new tokens, never a generated token.
+    bool streams(const ExecContext& ctx, size_t e) const {
+        return place_.stream_from && ctx.runs[e].extent > 1 && ctx.fresh[e] >= std::max<size_t>(place_.stream_from, 2);
     }
 
     // A streamed layer in a pass with long runs: consecutive entries alike form a group, the long ones run where the residual is, with the experts copied into the window once, and the rest on the host through a crossing each way.
@@ -935,10 +943,10 @@ private:
         const size_t host = (size_t)place_.ffn_device[(size_t)l];
         bool copied = false;
         for (size_t e = 0, base = 0; e < ctx.runs.size();) {
-            const bool on_device = streams(ctx.runs[e]);
+            const bool on_device = streams(ctx, e);
             ctx.part_runs.clear();
             size_t end = base;
-            for (; e < ctx.runs.size() && streams(ctx.runs[e]) == on_device; ++e) {
+            for (; e < ctx.runs.size() && streams(ctx, e) == on_device; ++e) {
                 end = ctx.runs[e].end;
                 ctx.part_runs.push_back(backend::RowRun{end - base, ctx.runs[e].extent});
             }

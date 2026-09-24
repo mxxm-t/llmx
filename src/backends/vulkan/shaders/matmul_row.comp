@@ -281,7 +281,22 @@ void main() {
         } else if (p.nin % 4u == 0u) {
             // F32 rows four values a load: the weights through the 16-byte view, X through the twin's vec4 view, which F32 rows have bound to X itself.
             uint n4 = p.nin / 4u, wbase4 = wrow * n4;
-            for (uint i = l; i < n4; i += p.cluster) {
+            uint i = l, cl = p.cluster;
+            // Four steps' weights loaded before any is used, so a small call's few waves wait on one latency rather than four; the sums keep their order.
+            for (; i + 3u * cl < n4; i += 4u * cl) {
+                vec4 w0 = uintBitsToFloat(w128s[pi].w128[wbase4 + i]);
+                vec4 w1 = uintBitsToFloat(w128s[pi].w128[wbase4 + i + cl]);
+                vec4 w2 = uintBitsToFloat(w128s[pi].w128[wbase4 + i + 2u * cl]);
+                vec4 w3 = uintBitsToFloat(w128s[pi].w128[wbase4 + i + 3u * cl]);
+                for (uint c = 0u; c < ncols; ++c) {
+                    uint xb = XCOL(c) * n4 + i;
+                    acc[c] += dot(w0, xt4[xb]);
+                    acc[c] += dot(w1, xt4[xb + cl]);
+                    acc[c] += dot(w2, xt4[xb + 2u * cl]);
+                    acc[c] += dot(w3, xt4[xb + 3u * cl]);
+                }
+            }
+            for (; i < n4; i += cl) {
                 vec4 w = uintBitsToFloat(w128s[pi].w128[wbase4 + i]);
                 for (uint c = 0u; c < ncols; ++c) acc[c] += dot(w, xt4[XCOL(c) * n4 + i]);
             }

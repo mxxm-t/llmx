@@ -10,6 +10,7 @@ layout(set = 0, binding = 1) buffer I { uint ids[]; };
 layout(set = 0, binding = 2) buffer W { float weights[]; };
 
 const uint MAX_EXPERTS = 1024u;
+const uint kHeld = 4u;   // scores an invocation holds in registers: every expert up to 256
 shared float prob[MAX_EXPERTS];
 shared float part_v[2];
 shared uint part_i[2];
@@ -46,11 +47,24 @@ uint group_min(uint v) {
 void main() {
     uint r = gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
     uint base = r * p.n_expert;
+    // An invocation's first scores are loaded together, rather than each loop waiting on each load in turn.
+    float sc[kHeld];
+    for (uint q = 0u; q < kHeld; ++q) sc[q] = t + 64u * q < p.n_expert ? scores[base + t + 64u * q] : 0.0;
     float top = -1.0 / 0.0;
-    for (uint e = t; e < p.n_expert; e += 64u) top = max(top, scores[base + e]);
+    for (uint q = 0u; q < kHeld; ++q)
+        if (t + 64u * q < p.n_expert) top = max(top, sc[q]);
+    for (uint e = t + 64u * kHeld; e < p.n_expert; e += 64u) top = max(top, scores[base + e]);
     top = group_max(top);
     float part = 0.0;
-    for (uint e = t; e < p.n_expert; e += 64u) {
+    for (uint q = 0u; q < kHeld; ++q) {
+        uint e = t + 64u * q;
+        if (e < p.n_expert) {
+            float v = exp(sc[q] - top);
+            prob[e] = v;
+            part += v;
+        }
+    }
+    for (uint e = t + 64u * kHeld; e < p.n_expert; e += 64u) {
         float v = exp(scores[base + e] - top);
         prob[e] = v;
         part += v;

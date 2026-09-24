@@ -1,6 +1,6 @@
 #version 450
 // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i], per row, over `chunks` workgroups a row.
-// The sum of squares is a shared-memory tree; a subgroup reduction adds in another order and moved an HF gate result (docs/STATUS.md), so the tree stays.
+// The sum of squares is a tree, through shared memory down to one subgroup's width and then through that subgroup's shuffles in the same order; a subgroup reduction adds in another order and moved an HF gate result (docs/STATUS.md), so the tree stays.
 // With `quant` set the rows are dense and a multiple of 32 wide, and the output's twin is written beside it (xquant.glsl).
 // With one chunk dst and src may be the same buffer: every element is read before the barrier and written after it by its own lane.
 #extension GL_KHR_shader_subgroup_basic : require
@@ -14,18 +14,34 @@ layout(set = 0, binding = 2) readonly buffer W { float w[]; };
 layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
 #include "xquant.glsl"
 shared float red[256];
+const uint kPre = 16u;   // values a lane loads up front: whole rows up to 4096 wide
 void main() {
     uint row = gl_WorkGroupID.x / p.chunks, chunk = gl_WorkGroupID.x - row * p.chunks;
     uint lid = gl_LocalInvocationID.x;
     uint base = row * p.stride;
+    // A lane's first values are all loaded before any is summed, so their latencies overlap where a loop would wait on each in turn; the sum keeps its order.
+    float pre[kPre];
+    for (uint k = 0u; k < kPre; ++k) {
+        uint i = lid + 256u * k;
+        pre[k] = i < p.n ? src[base + i] : 0.0;
+    }
     float s = 0.0;
-    for (uint i = lid; i < p.n; i += 256u) { float v = src[base + i]; s += v * v; }
+    for (uint k = 0u; k < kPre; ++k)
+        if (lid + 256u * k < p.n) s += pre[k] * pre[k];
+    for (uint i = lid + 256u * kPre; i < p.n; i += 256u) { float v = src[base + i]; s += v * v; }
     red[lid] = s;
     barrier();
-    for (uint k = 128u; k > 0u; k >>= 1u) {
+    for (uint k = 128u; k >= gl_SubgroupSize; k >>= 1u) {
         if (lid < k) red[lid] += red[lid + k];
         barrier();
     }
+    // Within the first subgroup the tree's remaining steps are the same additions through shuffles: a lane below k adds lane lane + k's partial, which only lanes below the previous k updated.
+    if (gl_SubgroupID == 0u) {
+        float t = red[lid];
+        for (uint k = gl_SubgroupSize / 2u; k > 0u; k >>= 1u) t += subgroupShuffle(t, min(lid + k, gl_SubgroupSize - 1u));
+        if (lid == 0u) red[0] = t;
+    }
+    barrier();
     float r = 1.0 / sqrt(red[0] / float(p.n) + p.eps);
     for (uint i = chunk * 256u + lid; i < p.n; i += 256u * p.chunks) {
         float v = src[base + i] * r * w[i];

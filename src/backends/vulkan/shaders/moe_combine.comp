@@ -5,11 +5,20 @@ layout(push_constant) uniform P { uint rows; uint n; uint k; } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer S { float part[]; };
 layout(set = 0, binding = 2) readonly buffer W { float weights[]; };
+const uint kHeld = 8u;   // slots loaded up front: a token's experts in every model so far
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i >= p.rows * p.n) return;
     uint r = i / p.n, o = i - r * p.n;
+    // The first slots' weights and parts are loaded together, rather than each step waiting on its loads in turn; the sum keeps its order.
+    float wv[kHeld], pv[kHeld];
+    for (uint j = 0u; j < kHeld; ++j) {
+        wv[j] = j < p.k ? weights[r * p.k + j] : 0.0;
+        pv[j] = j < p.k ? part[(r * p.k + j) * p.n + o] : 0.0;
+    }
     float s = 0.0;
-    for (uint j = 0u; j < p.k; ++j) s += weights[r * p.k + j] * part[(r * p.k + j) * p.n + o];
+    for (uint j = 0u; j < kHeld; ++j)
+        if (j < p.k) s += wv[j] * pv[j];
+    for (uint j = kHeld; j < p.k; ++j) s += weights[r * p.k + j] * part[(r * p.k + j) * p.n + o];
     y[i] += s;
 }

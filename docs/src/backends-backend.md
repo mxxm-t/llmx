@@ -30,7 +30,8 @@ placement contracts in `docs/EXECUTION.md`.
   before constructor members unwind, and at model teardown before releasing
   owned buffers, which is why it cannot throw.
 
-- `set_threads(n)`, `threads_available()`: worker-thread control.
+- `set_threads(n)`, `threads_available()`: worker-thread control; zero leaves
+  the backend's current worker count unchanged.
 - `memory_available()`: the bytes the backend can still allocate now, as its device or operating system reports them, or nothing when it cannot tell; `resident_bytes(type, nin, rows, bytes, product)`: what adopting such a matrix keeps resident, its bytes by default; `product` is a matrix a product reads as its weights. `host_resident()`: host memory the backend holds for itself whatever it loads, such as upload staging, none by default. A split over several devices is fitted against all three (`model/layer_split.hpp`).
 - `matmul(ggml_type, data, X, Y, nin, nout, nbatch, runs)`: the type-generic
   matmul. The quant type is resolved through `quant::Registry`, so every block

@@ -19,9 +19,7 @@
 #include "format/gguf.hpp"
 #include "quant/quant.hpp"
 
-// Platform-agnostic intrinsics headers. MSVC uses <intrin.h> for __cpuid;
-// GCC/Clang use <cpuid.h> (for __get_cpuid) and <immintrin.h> for AVX2.
-// <immintrin.h> exists on all three; only the cpuid call differs.
+// MSVC declares __cpuid in <intrin.h>; GCC/Clang declare __get_cpuid in <cpuid.h>.
 #if defined(_MSC_VER)
 #include <intrin.h>
 #else
@@ -31,9 +29,7 @@
 
 namespace backend {
 
-// Host storage.
-// `adopt` keeps the caller's pointer, which is the whole point: the weights are already resident in the GGUF payload and copying an 8 GB model to make it a buffer would double peak memory for nothing.
-// `alloc` owns its bytes instead.
+// Host storage: adopt borrows the caller's pointer to avoid duplicating weights; alloc owns its bytes.
 class CpuBuffer final : public Buffer {
 public:
     explicit CpuBuffer(size_t bytes) : owned_(bytes), size_(bytes) { ptr_ = owned_.data(); }
@@ -50,13 +46,11 @@ private:
     void* ptr_ = nullptr;
 };
 
-// 128 tokens per KV block: chosen by the real-model screening recorded in docs/KV-CACHE.md. 64 lost prefill consistently; 256 was not separable from 128 on decode and doubles the partial-tail waste.
+// KV block size selected by the screening in docs/KV-CACHE.md.
 static const size_t KV_BLOCK_TOKENS = 128;
 
 // KV blocks, one K and one V buffer per layer; block b starts at b*block_floats() and holds [kv_head][token][head_dim].
-// Blocks are backed in doubling steps as ids are first written.
-// The storage allocates through its backend, so growth is alloc then copy.
-// A resolved host pointer per layer is cached since attention asks for one per head, query and block.
+// Blocks grow by allocating and copying through the backend; cached layer pointers avoid repeated resolution in attention.
 class CpuKVStorage final : public KVStorage {
 public:
     CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim,
@@ -174,6 +168,7 @@ public:
     ~CpuBackend() override { stop_pool(); }
 
     void set_threads(int n) override {
+        if (n == 0) return;
         int t = (n > 0) ? n : 1;
         if (t == threads_) return;
         if (prefill_active_) throw std::runtime_error("CPU threads cannot change during prefill");
@@ -220,8 +215,7 @@ public:
         }
     }
 
-    // The Q8_0 single-column path, kept as a private detail of this backend now that the interface is type-generic.
-    // A scalar return per row was one kernel launch per row for a device backend, which is why it left the interface; it is still the right shape for the host.
+    // CPU-only Q8_0 single-column path; the backend interface batches complete matrices.
     void matvec_q8_0(const uint8_t* data, const float* x, float* out,
                      size_t nblocks, size_t nout) {
         const int nt = threads_;
@@ -301,12 +295,14 @@ public:
 
     void read(const Buffer& src, size_t off, void* dst, size_t bytes) override {
         span(src, off, bytes);
+        if (!bytes) return;
         std::memcpy(dst, (const uint8_t*)src.host_ptr() + off, bytes);
     }
 
     void write(Buffer& dst, size_t off, const void* src, size_t bytes) override {
         if (!src && bytes) throw std::runtime_error("backend: writing from null storage");
         span(dst, off, bytes);
+        if (!bytes) return;
         std::memcpy((uint8_t*)host(dst) + off, src, bytes);
     }
 
@@ -314,6 +310,7 @@ public:
               size_t bytes) override {
         span(dst, dst_off, bytes);
         span(src, src_off, bytes);
+        if (!bytes) return;
         std::memcpy((uint8_t*)host(dst) + dst_off,
                     (const uint8_t*)src.host_ptr() + src_off, bytes);
     }
@@ -413,7 +410,7 @@ public:
             matvec_q8x(type, data, X, Y, nin, nout, nbatch);
             return;
         }
-        // The K-quants' float path dequantizes every row block before its dots, and on rows at least kPromptDotsFrom wide it loses to the prompt dots; narrower rows' dequantized blocks stay in the first-level cache, where the float path's 4-row by 3-column register blocking kept Qwen3-0.6B ahead. Q8_0, Q4_0 and Q4_1 dequantize cheaply and keep the float path (docs/src/backends-cpu.md).
+        // Wide K-quant rows use prompt dots to avoid the dequantized working set (docs/src/backends-cpu.md).
         // The choice follows the matrix alone, so a prompt's row computes the same however it is batched.
         if (!decode && quantized_dots(type, nin) && is_kquant(type) && nin >= kPromptDotsFrom) {
             matmul_q8_prompt(type, data, X, Y, nin, nout, nbatch);
@@ -423,7 +420,7 @@ public:
             for (size_t c = 0; c < nbatch; ++c) matmul_raw(type, data, X + c * nin, Y + c * nout, nin, nout, 1, true);
             return;
         }
-        // Q8_0 keeps its fused dequant+FMA row dot for the single-column case, which is the decode path and is bandwidth bound rather than load bound, so the extra dequant buffer would buy nothing there.
+        // Single-column Q8_0 fuses dequantization into the row dot, avoiding a scratch copy.
         if (decode && type == gguf::GGML_TYPE_Q8_0) {
             matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
             return;
@@ -474,7 +471,6 @@ public:
         const size_t rowbytes = f32 ? nin * sizeof(float) : nblocks * qt->type_size;
 
         // Rows dequantized together before walking the batch: the fused kernel's row width, since dot_f32_x4 shares one activation load across exactly 4 rows.
-        // A cache-byte budget measured worse at every size, because the knee follows the kernel width, not the working set.
         const size_t RB = (size_t)DOT_ROWS;
 
         auto do_rows = [&](int w, size_t o0, size_t o1) {
@@ -573,8 +569,7 @@ public:
     static const int DOT_ROWS = 4;
 
 
-    // Four rows against THREE activation columns: 7 loads per 12 FMAs, a ratio of 0.58 against 0.75 for the two-column form.
-    // This needs 12 accumulators plus 3 activation registers, which is exactly the 16 YMM budget, so it sits on the spill boundary and is only worth keeping if measured faster.
+    // Four rows against three columns reuse seven loads across twelve FMAs, with twelve accumulators and three activation registers.
     static void dot_f32_x4x3(const float* r, size_t stride,
                              const float* xa, const float* xb, const float* xc,
                              size_t n, float* outa, float* outb, float* outc) {
@@ -631,9 +626,7 @@ public:
         outc[3] = finish(c3, r3, xc);
     }
 
-    // Four rows against TWO activation columns in one pass. dot_f32_x4 costs 5 loads per 4 FMAs (one activation, four weights).
-    // Holding two activation columns makes it 6 loads per 8 FMAs, so the load:FMA ratio drops from 1.25 to 0.75 and the kernel stops being load bound.
-    // Eight accumulators plus two activation registers still fit the 16 YMM registers, so nothing spills.
+    // Four rows against two columns reuse six loads across eight FMAs, with eight accumulators and two activation registers.
     static void dot_f32_x4x2(const float* r, size_t stride,
                              const float* xa, const float* xb, size_t n,
                              float* outa, float* outb) {
@@ -670,9 +663,7 @@ public:
         }
     }
 
-    // Four dots against a SHARED activation vector, in one pass.
-    // Calling dot_f32 four times costs 2 loads per FMA (one weight, one activation), and Zen3 sustains 2 loads/cycle against 2 FMAs/cycle, so that kernel is load bound at half of FMA peak.
-    // Loading x once and reusing it across 4 rows costs 5 loads per 4 FMAs instead of 8.
+    // Reuse one activation load across four weight rows, reducing loads per four FMAs from eight to five.
     static void dot_f32_x4(const float* r, size_t stride, const float* x,
                            size_t n, float* out) {
         __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
@@ -699,9 +690,7 @@ public:
         }
     }
 
-    // Four independent accumulators.
-    // With a single accumulator every FMA depends on the previous one, so the loop runs at FMA LATENCY (about 4 cycles) instead of FMA throughput (about 0.5), which is most of an order of magnitude on this path.
-    // Splitting the chain also changes the summation order, so results differ in the last bits.
+    // Four independent accumulators hide FMA latency; changing the reduction order changes rounding.
     static float dot_f32(const float* a, const float* b, size_t n) {
         __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
         __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
@@ -747,8 +736,7 @@ public:
         if (layers == 0 || n_head_kv == 0 || head_dim == 0)
             throw std::runtime_error("backend: invalid KV storage shape");
         const size_t blocks = CpuKVStorage::blocks_for(max_tokens);
-        // The whole budget must be addressable, even if it is never backed;
-        // every factor goes through the checked multiply.
+        // Every factor uses checked multiplication so the whole budget is addressable even before it is backed.
         using S = CpuKVStorage;
         S::mul(S::mul(S::mul(S::mul(blocks, layers), 2), n_head_kv),
                S::mul(S::mul(KV_BLOCK_TOKENS, head_dim), sizeof(float)));
@@ -824,7 +812,7 @@ public:
     }
 
     // Blocks are walked in table order and every reduction keeps token order: one global softmax over the scores and per-lane value accumulation across block edges, so the arithmetic is that of a contiguous history.
-    // Views are taken one after another: the per-view work is what it was for one sequence, so a single view computes exactly what it did before the batch form existed.
+    // Views are independent, so batching preserves each sequence's arithmetic.
     void attention(CSlice Q_s, size_t layer, const KVView* views, size_t n_views,
                    Slice out_s, int n_head, int n_head_kv, int head_dim) override {
         if (n_views && !views) throw std::runtime_error("backend: attention without views");
@@ -1235,9 +1223,8 @@ private:
     }
 
     // out[e*nout ..] = expert id(e)'s matrix times X row e / per, X having xrows rows and entry e belonging to token row e / k.
-    // A generated token's entries take the decode dots, all of a call's in one pool dispatch.
-    // A prompt's entries meet their expert's rows through the prompt dots where the type has them (q8_dots.hpp), an expert's entries as the columns of one block so its weights are unpacked once for all of them, and otherwise through one batched float matmul per expert.
-    // Either way an entry computes the same whatever else is routed beside it.
+    // Decode entries share one pool dispatch; prompt entries share unpacked expert rows, with one float matmul per expert when prompt dots are unavailable.
+    // Each entry keeps its arithmetic regardless of the entries routed beside it.
     void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
                          float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode) {
         const size_t row_bytes = row_bytes_of(type, nin), stride = size_mul(nout, row_bytes);
@@ -1357,11 +1344,10 @@ private:
     std::vector<float*> prompt_outs_;   // and where each column's products go
     q8::Activations xq8_;      // the quantized activations of the last decode call
     bool decode8_ = true;
-    // A slice resolves to a host pointer exactly once per op; the kernels below are untouched and still see plain float arrays.
+    // Resolve a slice once per op so the kernels receive plain float arrays.
     static float* at(Slice s) {
         if (!s.buffer) throw std::runtime_error("backend: operand without storage");
-        // An empty allocation has no address and nothing will read through it;
-        // a zero-length batch reaches here.
+        // A zero-length batch can resolve an empty allocation but never dereferences it.
         if (!s.buffer->size()) return nullptr;
         return (float*)host(*s.buffer) + s.offset;
     }
@@ -1430,21 +1416,15 @@ private:
     bool prefill_active_ = false;
 
     // Persistent worker pool.
-    // The previous code created and joined std::threads on every matvec call, which is once per matmul per layer per token; at 36 layers that is thousands of thread creations per token.
     std::vector<std::thread> pool_;
     // Per-worker dequantized weight-row scratch for the batched matmul path.
     std::vector<std::vector<float>> rowbuf_;
     std::vector<float> attention_scores_;
     std::mutex m_;
     std::condition_variable cv_work_, cv_done_;
-    // A decode token issues roughly 196 matvecs plus 28 attention calls, each a full dispatch.
-    // Measured at 14.1 us per empty dispatch through the condition variable alone, that is a fixed cost of several ms per token.
-    // Workers and the caller therefore spin briefly before blocking: the common case is that the other side is already running and arrives within a few hundred nanoseconds.
-    // The count is bounded so an idle pool still parks instead of burning a core.
+    // Bounded spinning avoids a condition-variable wait when the other participant is already running, while idle workers still park.
     static const int SPIN_LIMIT = 2048;
-    // epoch_ and stop_ are read by the spin loops WITHOUT the mutex, so they must be atomic.
-    // Writers still modify them under it; the atomics exist for the unsynchronized readers.
-    // Leaving them plain is a data race, and not only a formal one: nothing in a spin body writes them and _mm_pause() is no barrier against another thread, so a compiler may hoist the loads out of the loop and spin forever.
+    // Spin loops read epoch_ and stop_ without the mutex, so both are atomic even though writers hold the mutex.
     const std::function<void(int)>* job_ = nullptr;
     std::exception_ptr worker_error_;
     std::atomic<unsigned> epoch_{0};
@@ -1540,10 +1520,8 @@ private:
 #endif
     }
 
-    // Fused K-quant row dots, with no dequantized value materialised.
-    // A Q4_K sub-block value is d*q - m, so its dot is:
-    //     sum_l (d*q_l - m) * x_l  =  d * sum_l(q_l * x_l)  -  m * sum_l(x_l)
-    // Q6_K has signed values and per-16 group scales but no min: the sum over groups of (d * sc_g) * sum(q*x). A 128-value chunk holds four sub-blocks of 32, each two 16-value groups with scales sc[2k] and sc[2k+1].
+    // Fused Q4_K dots factor sum((d*q - m)*x) into d*sum(q*x) - m*sum(x); Q6_K sums (d*sc_g)*sum(q*x) per signed group.
+    // Each Q6_K 32-value sub-block has two 16-value groups with scales sc[2k] and sc[2k+1].
     float dot_row_q6_K(const uint8_t* row, const float* x, size_t nblocks) {
         float acc = 0.0f;
         for (size_t b = 0; b < nblocks; b++) {
@@ -1678,9 +1656,8 @@ private:
         return acc;
     }
 
-    // Exact-ish fallback for a row whose fused dot overflowed: dequantize first so the block scale is multiplied into each weight before it meets the activation, which is what keeps intermediates finite.
-    // Accumulates in double so the fallback itself cannot overflow where the reference would not.
-    // Rare by construction, so a local buffer is cheaper than reserving per-worker scratch that is almost never touched.
+    // On fused overflow, apply each scale before multiplying by the activation and accumulate in double.
+    // Local scratch avoids reserving a buffer per worker for this exceptional path.
     float dot_row_dequant(uint32_t type, const uint8_t* row, const float* x,
                           size_t nin, size_t nb) {
         const quant::QuantType* qt = quant::Registry::instance().get(type);
@@ -1778,8 +1755,7 @@ private:
     // Uses an AVX2 fused dequant+FMA path when available, else scalar.
     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {
         if (avx2_) {
-            // Four independent accumulators.
-            // A single chained accumulator serialised the loop at FMA latency, which also capped how many loads could be in flight; decode is bandwidth bound, so fewer outstanding loads means less memory-level parallelism and less achieved bandwidth.
+            // Four independent accumulators let multiple loads and FMAs proceed without one serial dependency chain.
             __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
             __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
             // No software prefetch: the hardware prefetcher already keeps up with these sequential streams.

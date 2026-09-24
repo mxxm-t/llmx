@@ -7,37 +7,32 @@
 #include <initializer_list>
 #include <optional>
 
-// Compute backend abstraction: the model runs its primitive ops (matmul, attention, RMSNorm, RoPE) through a Backend, so the same model code targets every device.
-// Operands are a Buffer and an offset, not host pointers, so a backend owns its storage and a device backend keeps weights and activations resident (docs/DEVICE-EXECUTION.md).
-// Host parallelism is not on this interface; backends parallelize inside their own ops.
-// Multi-device split strategies live at the model layer (docs/ROADMAP.md).
+// Backends own storage and parallelize primitive ops; models use buffer handles and own multi-device placement.
+// The execution and ownership contracts are in docs/DEVICE-EXECUTION.md.
 
 namespace backend {
 
 // Storage owned by the backend that allocated it.
-// The model layer holds handles and never dereferences them, so a device backend can keep weights resident instead of receiving a host pointer on every call.
+// Models pass buffer handles to compute ops; host-visible results can be read after retirement.
 class Buffer {
 public:
     virtual ~Buffer() = default;
     virtual size_t size() const = 0;
-    // Non-null where the host can address the allocation directly: always for Memory::host_visible, and for everything on a host backend.
+    // Non-null for nonempty host-addressable allocations: Memory::host_visible and all host-backend storage.
     // What it points at is current only after wait() or sync().
     virtual const void* host_ptr() const = 0;
 };
 using BufferPtr = std::shared_ptr<Buffer>;
 
-// Where an allocation lives.
-// `device` is the default and may be unreachable from the host; `host_visible` is memory an op can write and the host can read through host_ptr() after a wait, which is how the logits leave the backend without a copy op.
-// On a host backend the two are the same memory.
+// device memory may be unreachable from the host; host_visible permits host_ptr() access after retirement.
+// Both use the same storage on a host backend.
 enum class Memory { device, host_visible };
 
 // A submission.
 // `submit()` hands everything enqueued so far to the device and returns one; `wait()` blocks until that submission has retired.
 using Ticket = uint64_t;
 
-// Where an operand lives: a buffer and a float offset into it.
-// Ops take these rather than pointers so a device backend never receives a host address.
-// Offsets are in floats, because every activation is float and a byte offset at each call site would be noise.
+// An operand identifies backend storage with a buffer and a float offset.
 struct Slice {
     Buffer* buffer = nullptr;
     size_t offset = 0;
@@ -69,9 +64,8 @@ struct RowRuns {
     size_t n = 0;
 };
 
-// KV cache storage belongs to the backend; the model layer keeps only the logical view (docs/KV-CACHE.md).
-// Block ids index one KVStorage and the same id addresses every layer of it.
-// Block size and the layout inside a block are the backend's choice, which is why nothing here exposes an offset.
+// The backend owns KV storage and its block layout; models keep logical views (docs/KV-CACHE.md).
+// A block id indexes the same block in every layer of one KVStorage.
 struct KVLayout {
     size_t block_tokens;
 };
@@ -106,7 +100,7 @@ class Backend {
 public:
     virtual ~Backend() = default;
 
-    // Set the worker thread count hint (0 = auto / leave as-is).
+    // Set the worker thread count hint; 0 leaves the current count unchanged.
     virtual void set_threads(int n) = 0;
 
     // Number of worker threads this backend will actually use (after the last set_threads, or auto-detected).
@@ -133,31 +127,25 @@ public:
     // Zero-filled backend storage.
     virtual BufferPtr alloc(size_t bytes, Memory where = Memory::device) = 0;
 
-    // Make `src` reachable by this backend, by whatever means it needs.
-    // The name is not "upload": a host backend must not copy, or adopting an 8 GB model would double peak memory for nothing.
-    // The contract that allows that is the caller's: **src must outlive the returned buffer**.
-    // Model already requires the GGUF model to outlive it, so this is free on CPU, and a backend that copies simply never relies on the guarantee.
+    // Make src reachable without copying on a host backend; src must outlive the returned buffer.
     virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
 
-    // Every op below enqueues on this backend's single implicit stream. submit() flushes and returns a monotonic ticket; wait(t) blocks until that submission and everything before it retired.
-    // Results are observable only after wait(), sync() or read(). sync() waits for everything, including work behind no ticket, which an error path needs. wait() and sync() are noexcept: a caller frees storage on the strength of them, so a backend that cannot establish completion must fail hard.
-    // The CPU backend runs each op to completion as it is called.
+    // Ops enqueue on one stream; submit() flushes and returns a monotonic ticket, and wait(t) retires that submission and everything before it.
+    // Results require wait(), sync() or read(); CPU ops complete eagerly (docs/DEVICE-EXECUTION.md).
     virtual Ticket submit() = 0;
+    // Retirement cannot throw: callers release storage afterward, so failure to establish completion must terminate.
     virtual void wait(Ticket t) noexcept = 0;
+    // Also retires work behind no ticket, including on failure paths.
     virtual void sync() noexcept = 0;
 
-    // Copy out to host memory.
-    // Syncs first: what it returns has to include every op enqueued before it.
-    // This is the transfer and test path; the logits leave through a host_visible buffer and a wait instead.
+    // Copy to host memory after retiring earlier ops; logits can instead use host_visible storage after a wait.
     virtual void read(const Buffer& src, size_t off, void* dst, size_t bytes) = 0;
 
     // Storage to storage, within this backend. The KV cache grows with it.
     virtual void copy(Buffer& dst, size_t dst_off,
                       const Buffer& src, size_t src_off, size_t bytes) = 0;
 
-    // Host to storage.
-    // Enqueued like every op; the caller's bytes are consumed before this returns, so a staging buffer can be reused at once.
-    // Its caller is the residual stream crossing to another device at a placement boundary (docs/EXECUTION.md): weights arrive through adopt and every other value is produced by an op, so nothing else needs one.
+    // Enqueue a host-to-storage copy, consuming the source before returning so callers can reuse staging immediately.
     virtual void write(Buffer& dst, size_t off, const void* src, size_t bytes) = 0;
 
     // Y[b*nout + o] = dot(row_o, X + b*nin) for all b in [0,nbatch) and o in [0,nout); X and Y are row-major with nbatch rows.
@@ -183,7 +171,7 @@ public:
                        size_t count) = 0;
 
     // Independent projections of the same X; outputs must not overlap each other, X, or any weights.
-    // All outputs are complete on return.
+    // Outputs are observable after wait(), sync() or read(), as for matmul.
     virtual void matmul_group(std::initializer_list<Projection> projections,
                               CSlice X, size_t nin, size_t nbatch, RowRuns runs = {}) {
         for (const auto& p : projections) {
@@ -207,7 +195,7 @@ public:
     virtual void kv_copy(KVStorage& storage, int32_t src, int32_t dst) = 0;
 
     // Store token-major [rows, n_head_kv, head_dim] rows, laid out in view order: view v owns the next views[v].nq rows and they go to positions length .. length + nq of its sequence.
-    // Several views in one call is what a batch carrying rows from several sequences needs, and one view is the case the model passes today.
+    // Several views carry rows from several sequences in one call.
     virtual void kv_write(size_t layer, const KVView* views, size_t n_views,
                           CSlice k, CSlice v) = 0;
 
@@ -236,9 +224,8 @@ public:
                                 CSlice cos, CSlice sin, size_t half,
                                 const uint32_t* pos) = 0;
 
-    // A layer's attention inputs together: q normed and rotated in place, k normed and rotated and written with v into the views' KV blocks, rows laid out as norm_rope_rows and kv_write take them.
-    // The model always does these three things back to back, so it asks for them as one op; this default is the three, and a device backend makes one kernel of them.
-    // After it k holds its normed and rotated rows too.
+    // Normalize and rotate q and k in place, then write k and v into the views' KV blocks using the primitive ops' row layouts.
+    // A device may fuse these consecutive ops; k must still hold its normalized, rotated rows afterward.
     struct RopeArgs {
         CSlice cos, sin;
         size_t half;

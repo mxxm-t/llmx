@@ -1,0 +1,37 @@
+{
+  "feature": "5c8e89c",
+  "base": "2b67f62",
+  "candidate_diff_from_reviewed_feature": {
+    "src/backends/backend.hpp": [
+      {
+        "removed": [
+          "// The model layer holds handles and never dereferences them, so a device backend can keep weights resident instead of receiving a host pointer on every call."
+        ],
+        "added": [
+          "// Models pass buffer handles to compute ops; host-visible results can be read after retirement."
+        ]
+      },
+      {
+        "removed": [
+          "// An operand is a buffer and a float offset, keeping host addresses inside the backend."
+        ],
+        "added": [
+          "// An operand identifies backend storage with a buffer and a float offset."
+        ]
+      }
+    ],
+    "src/backends/cpu/cpu_backend.hpp": [
+      {
+        "removed": [
+          "        // Views are independent, so batching preserves each sequence's arithmetic."
+        ],
+        "added": [
+          "    // Views are independent, so batching preserves each sequence's arithmetic."
+        ]
+      }
+    ]
+  },
+  "regression_source_matches_reviewed_feature": true,
+  "prior_negative_control_source_equivalence": "Backend/core/quant headers and tests/backend_errors.cpp on original83cca18 and current-main2b67f62 are identical. The archived negative control was not rerun at this checkpoint.",
+  "runtime_scope": "The four reviewed early returns only; no kernel arithmetic change."
+}

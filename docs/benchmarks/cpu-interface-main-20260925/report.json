@@ -1,0 +1,324 @@
+{
+  "base": "2b67f62fcf105681715ad252cb284da5aaf44989",
+  "reviewed_feature": "5c8e89c",
+  "native_passed_initial": 21,
+  "native_passed_forced_final": 21,
+  "cpu_required_hf_components": [
+    "version",
+    "reference-generator",
+    "reference-consumer",
+    "roundtrip",
+    "perf",
+    "tokenizer",
+    "perplexity",
+    "f32",
+    "moe",
+    "shards",
+    "server",
+    "chat",
+    "threads",
+    "baseline"
+  ],
+  "hf_ranked_models": [
+    "Qwen3-0.6B-Q8_0.gguf",
+    "Qwen3-0.6B-Q4_0.gguf",
+    "Qwen3-0.6B-Q5_K_M.gguf"
+  ],
+  "hf_top1_matches_per_model": 6,
+  "hf_nll_cells": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.001184,
+      "hf_bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.007366,
+      "hf_bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.00676,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.00349,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.002443,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.001717,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.012356,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.002406,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.131554,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.131464,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.1676,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.16754,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.068883,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.068833,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.120396,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.120276,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.026144,
+      "hf_bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.027534,
+      "hf_bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.12944,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.11678,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.067543,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.071283,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.024116,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.019736,
+      "hf_bound": 0.16
+    }
+  ],
+  "cpu_contract_checks": {
+    "valid_empty_transfers": 15,
+    "rejected_ranges_sources": 13,
+    "thread_hints": 3
+  },
+  "full_suite_binary": {
+    "version": "llmx 0.1.0+g2b67f62fcf10.dirty",
+    "sha256": "dcaf10f77713a270b52b0514fc83637d256489301cbbfe52982e45dd0e469fa6"
+  },
+  "final_rebuild": {
+    "exit": 0,
+    "commands": [
+      {
+        "stage": "build-forced",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-interface-main-20260925\\build",
+          "--config",
+          "Release",
+          "--clean-first",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "native-forced",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-interface-main-20260925\\build",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      }
+    ],
+    "version_f32_threads_exit": 0,
+    "identity": {
+      "version": "llmx 0.1.0+g2b67f62fcf10.dirty",
+      "sha256": "3a432612959216b06768957f1fe70eefb2d28712118841e196e054578df47aef"
+    },
+    "source_hashes": {
+      "src/backends/backend.hpp": "485f8e8ec92ee783e9abe0da068f711cf87366594f1d0e28959a2f5d8b5da070",
+      "src/backends/cpu/cpu_backend.hpp": "ff2494ae99d84deaae1eea729d98806832ef6e3709d55943d993204ea70d3d07",
+      "tests/backend_errors.cpp": "15600096b5900f5696031b27cc214b8ea961eb041b80c1a6906039dba6712be9"
+    },
+    "reason": "Previous incremental invocation skipped newer headers under TEMP. This forced clean rebuild compiles the final source; full native and focused HF/version checks repeat."
+  },
+  "artifacts": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-interface-main-evidence-20260925",
+  "saved_logs": {
+    "native.log": {
+      "saved": "native.txt",
+      "sha256": "9d135b11c382e75544698b1263c5122eedfbd530ab1bdd26a6cc94228aabf8c3"
+    },
+    "native-forced.log": {
+      "saved": "native-forced.txt",
+      "sha256": "e0d51228a702708ecd4cba87ebffcfbfd7f78f3c1a9b9888c408950b16505f27"
+    },
+    "cpu-hf.log": {
+      "saved": "cpu-hf.txt",
+      "sha256": "85f0bb958aac5cb708e1396def929cf14593705f7284e39b9090164b551ac373"
+    },
+    "forced-focused.log": {
+      "saved": "forced-focused.txt",
+      "sha256": "7f817fcbc80a4d16c8f44336548f24183a19c2d0b65cedb0949d743d3ee8d8c7"
+    }
+  },
+  "raw_artifact_sha256": {
+    "binary.json": "99322d126df3b52e9878f26493d82581b2d03b4f8624151a6bcba8faeb60f6cd",
+    "build-final.log": "f823a731c8ac115d57b47bb2600d8f7dbd780e1c986f1f72351c5605952d9969",
+    "build-forced.log": "ed323403e7aa3b41cd984ec975d694758cfcbc91324b300b7acef84baf08bc5d",
+    "build.log": "62eb078df47cdb804ac813c306e60fe3378abe542856041ea2a1b4e5d95970df",
+    "commands.json": "30202436e7b02929abf55ae56ac633a30e4103884c9626a4fd3f1f22b7bf3030",
+    "comment-only-followup.json": "37b9c946b00c7e3048d111ebc3d578f538c0e1fc52ff30350bd35058f1588c9d",
+    "complete.json": "780a6ab204836fd283d99e21b9c705d4789f9afc03b109129ad85541d7f4a736",
+    "configure.log": "435f98b99935af56da4f006f374d13bd30b50645e63305eb3a56b8596caece5b",
+    "cpu-hf.log": "85f0bb958aac5cb708e1396def929cf14593705f7284e39b9090164b551ac373",
+    "docs-review.json": "6052606481dfabae3a0af427ddc863d6b0c0f05b4439224093fdc87fc1528203",
+    "final-rebuild.json": "a0a54af765365ffe0d6f8528fcbfb8881c7a4a51f1bb9042e5935f1099f21b74",
+    "forced-focused.log": "7f817fcbc80a4d16c8f44336548f24183a19c2d0b65cedb0949d743d3ee8d8c7",
+    "incremental-no-recompile.json": "a49de04426831202ab67455c03ec7c254bb532eb5c9eceeb49ad2fa50805a70e",
+    "loader-ci.json": "0239a86d7a87e6858183ac5e8eb6f11aca77605ff321046a7919792d2c8ee46d",
+    "native-details.log": "9c1ac9d0d2ca4842299746ee10af099c842e3c483d68bd9d20f6c6776e425fb3",
+    "native-final.log": "5b51a39408f4b3564afe81d20d1072267cb1c57fb389c988ceaa09c1b7dc8fff",
+    "native-forced-details.log": "43fd4d4b544f33a7195c836edad045320bbe432f2aa5c16b3e6a5f0432b998c8",
+    "native-forced.log": "e0d51228a702708ecd4cba87ebffcfbfd7f78f3c1a9b9888c408950b16505f27",
+    "native.log": "9d135b11c382e75544698b1263c5122eedfbd530ab1bdd26a6cc94228aabf8c3",
+    "plan.json": "22b73a7fe9a243bc38900cde1b1201435aced6f2f463442e2776d7186b5b7b94",
+    "run.py": "9faa72b391616e9a18b9a2859bb33e1b4d620e949e55b74d5a3e1d31dfa93a01",
+    "source-review.json": "dee18222ef14b872b88913a7184149fb0650f29b23826c4cb80418f6cdf495f5",
+    "version-final.log": "e73a8d34e77f5d1864797061c250cf390442c03e4e8c0d61b7a10cdaae50a9a7"
+  },
+  "limits": [
+    "Four executable early returns; no kernel arithmetic or new matched performance claim. Timings diagnostic under other correctness work.",
+    "Full14-component required-HF suite ran before two comment-only follow-ups. A forced clean rebuild compiled final source and repeated all21 native tests plus version/F32/thread HF checks.",
+    "Incremental MSVC command skipped newer temporary-worktree headers; it is retained as an invalid fresh-build witness, not counted as recompilation.",
+    "No new local Linux, macOS or Vulkan numerical result for this integration. Hosted CI observed separately after publication.",
+    "The old negative-control executable is not rerun here; its relevant source is identical to the current-main base."
+  ]
+}

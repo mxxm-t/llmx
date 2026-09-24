@@ -14,6 +14,12 @@ the compiled binary portable to older CPUs.
   leaves outputs potentially partial but the pool reusable. Partial startup
   joins created threads; failed reconfiguration falls back to serial execution.
   Concurrent or recursive submissions remain unsupported.
+- `set_threads(0)` leaves the current pool unchanged, including inside a prefill
+  scope. The constructor selects the initial automatic count; the CLI resolves
+  its automatic thread flags before requesting a change.
+- `read`, `write` and `copy` accept valid zero-byte ranges, including empty
+  buffers and an offset exactly at the end. Range checks still reject offsets
+  past the end, and a nonempty write still requires a non-null source.
 - `matvec_q8_0`: fused dequant+FMA AVX2 row dot, kept for the single-column
   (decode) case. It streams weight blocks; native sampled instruction locations
   alone do not establish DRAM bandwidth saturation or memory-stall causes.
@@ -124,6 +130,13 @@ the compiled binary portable to older CPUs.
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a
 runtime-dispatched AVX512F/VNNI kernel can be added later without touching the
 `Backend` seam.
+
+Historical comments at `83cca18` recorded 14.1 us for an empty condition-variable
+dispatch and estimated 196 matvec plus 28 attention dispatches per decode token.
+They also used approximate FMA latency/throughput of 4/0.5 cycles to motivate
+independent accumulators. These are preserved design notes, not measurements
+repeated by the CPU interface checkpoint; the original benchmark setup and raw
+samples are not identified by those comments.
 
 `run_prefill` scopes automatic Windows six-worker placement across the complete
 prefill body. See [placement](backends-cpu-placement.md) for topology, fallback

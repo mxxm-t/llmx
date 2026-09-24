@@ -4,6 +4,56 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## CPU interface contract checkpoint (2026-09-25)
+
+Valid zero-byte CPU reads, writes and copies return after bounds/source
+validation. `set_threads(0)` preserves the current worker pool, including
+inside a prefill scope. Previously empty writes/copies could fail and a zero
+thread hint reduced the pool to one worker. Grouped matmul now documents the
+same asynchronous completion contract as the other backend operations.
+
+This integrates reviewed `5c8e89c` onto main `2b67f62`. The executable diff is
+four early returns; kernel arithmetic, CLI automatic thread selection and
+negative thread-hint behavior are unchanged. The original test fails on the
+old implementation; its dependency source is identical on this integration's
+base. That archived negative executable was not rerun here.
+
+| Check | Observed | Requirement |
+|---|---:|---:|
+| Valid empty/end transfers | 15 pass | No writes |
+| Invalid ranges/sources | 13 refused | Reject |
+| Zero thread hints | 3 pass | Preserve pool |
+| Windows native suite, initial and forced final build | 21/21 each | All tests |
+| Required-HF CPU components | 14/14 | All components |
+| Real-model NLL, batched and per-token | 24/24 | Frozen bounds |
+| HF top-1, each of three models | 6/6 | 6/6 |
+
+| CPU HF correctness | Maximum absolute error | Bound |
+|---|---:|---:|
+| Synthetic F32 logits | 0.00000069 | 0.00002 |
+| Synthetic MoE logits | 0.00000065 | 0.00002 |
+| Q8_0 continuous NLL | 0.007366 | 0.01 |
+| Q8_0 windowed NLL | 0.012356 | 0.02 |
+| Q4_0 continuous NLL | 0.131554 | 0.16 |
+| Q4_0 windowed NLL | 0.167600 | 0.2 |
+| Q5_K_M continuous NLL | 0.027534 | 0.05 |
+| Q5_K_M windowed NLL | 0.129440 | 0.16 |
+
+The initial full suite and the forced final build are identified separately
+in [the integration evidence](benchmarks/cpu-interface-main-20260925/report.json).
+Two comment-only follow-ups corrected host-visible access wording and comment
+indentation. MSBuild skipped those newer headers on an incremental invocation
+under TEMP; that invocation is not counted as a fresh rebuild. A forced clean
+build compiled final source, then all native tests and focused version/F32/thread
+HF checks passed. AGENTS records the fresh-build rule for temporary MSVC trees.
+
+All 39 Markdown files received affected-claim, ASCII and relative-link review,
+with an independent interface/source review. Historical measurements, remote
+URLs and anchors were not revalidated. The original focused gate remains in
+`benchmarks/cpu-interface-contracts-20260924.json`. No new local Linux, macOS,
+Vulkan numerical or matched performance claim belongs to this CPU integration;
+standard suite timings are diagnostic during other correctness work.
+
 ## Model loading lifetime checkpoint (2026-09-25)
 
 Failed construction and model teardown drain used backends before model-owned
@@ -50,8 +100,9 @@ records commands, binary/source hashes and raw outputs. The earlier failure
 controls remain in `benchmarks/model-load-lifetime-20260924.json`. This is a
 lifetime/error-path change, with no matched performance claim; suite timings
 are diagnostic while other correctness work runs. Linux CPU checks on descendant
-`1f778af` cover this ownership implementation, not Linux Vulkan. Hosted CI for
-the new main commit is observed after publication.
+`1f778af` cover this ownership implementation, not Linux Vulkan. Hosted CI on loader commit `2b67f62` passed all six jobs, including the Linux
+Vulkan build, in run `36065492877`. That build job adds compile coverage; it
+does not establish Linux Vulkan numerical or allocation-failure behavior.
 
 All 39 Markdown files were reviewed for affected claims, ASCII and relative
 file targets, with independent source/ownership review. Corrected grouped
@@ -59,8 +110,8 @@ integer-dot coverage, streamed uploads, host-visible model buffers, F16 CPU KV,
 compiled Vulkan source and runtime layer-split configuration. Historical
 measurements, remote URLs and anchors were not independently revalidated.
 
-Separate Gitea-only work remains outside this integration: CPU interface
-contracts `5c8e89c`, tiny-activation correction and evidence `e1060e7`, Vulkan
+Separate Gitea-only work remains outside this integration: tiny-activation
+correction and evidence `e1060e7`, Vulkan
 allocation-lifetime fixes `01010e1`, and native HF format integration `4c890c8`.
 The separate Vulkan fix reproduces eight construction and seven queued-ownership
 failures and passes 24 native tests and 14 required-HF Vulkan components; its
@@ -2993,6 +3044,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Focused CLI help and complete current option coverage | Done (2026-09-24 checkpoint) |
 | Live generation and loading progress     | Done |
 | Model loading and teardown buffer lifetime | Done (2026-09-25 checkpoint) |
+| CPU zero-byte transfer and zero-thread hint contracts | Done (2026-09-25 checkpoint) |
 | GitHub CPU CI                          | Done     |
 | HF fixture download retries and CI cache | Done |
 | Hosted numeric/path portability repair | Done (five jobs green at `851d375`) |

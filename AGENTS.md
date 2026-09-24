@@ -23,6 +23,12 @@ Cross-platform (Windows / Linux / macOS), CMake:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
+For MSVC builds in temporary worktrees, use a fresh build directory or
+`cmake --build build --config Release --clean-first` after header changes.
+An incremental invocation here emitted MSB8029 and left the executable older
+than edited headers, despite exiting successfully. Preserve the compile log
+and verify that the changed source was actually rebuilt before claiming a gate.
+
 The build dir's `generated/config.hpp` is produced from
 `cmake/llmx-config.hpp.in`; the checked-in `src/config.hpp` is the fallback used
 by the plain `build.bat` path. Keep the two in sync when you add build knobs.
@@ -222,6 +228,8 @@ must be at least as close as either neighbouring half, ties to even.
 
 `backend-errors` injects task and startup-allocation failures, checks completion
 before error propagation, and exercises pool reuse and thread reconfiguration.
+It also checks valid empty CPU transfers, rejected offsets/null sources,
+unchanged storage and a zero thread hint preserving the current pool.
 It does not establish recovery of partially executed model sessions.
 
 `backend-vulkan` exists only in a build with `LLMX_HAS_BACKEND_VULKAN=ON`. It

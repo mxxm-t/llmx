@@ -1,4 +1,5 @@
 #include <atomic>
+#include <array>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -33,6 +34,62 @@ struct Failure { int worker; };
 
 static void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
+}
+
+static void check_interface(backend::CpuBackend& cpu) {
+    cpu.set_threads(2);
+    backend::Backend& api = cpu;
+    api.set_threads(0);
+    require(api.threads_available() == 2, "zero thread hint changed the worker count");
+    cpu.run_prefill([&] {
+        api.set_threads(0);
+        require(api.threads_available() == 2, "zero thread hint changed an active prefill");
+    });
+    std::atomic<int> workers{0};
+    cpu.run_parallel([&](int) { ++workers; });
+    require(workers == 2, "zero thread hint changed the pool participants");
+    cpu.set_threads(1);
+
+    const std::array<unsigned char, 4> expected{0x31, 0x61, 0x90, 0xee};
+    auto bytes = expected;
+    unsigned char sentinel = 0x5a;
+    const auto live = api.adopt(bytes.data(), bytes.size());
+    const auto copy = api.alloc(bytes.size());
+    api.write(*copy, 0, expected.data(), expected.size());
+    api.copy(*live, 0, *copy, 0, bytes.size());
+    std::array<unsigned char, 4> read{};
+    api.read(*copy, 0, read.data(), read.size());
+    require(read == expected && bytes == expected, "nonempty transfers changed their bytes");
+
+    size_t valid = 0, invalid = 0;
+    auto rejects = [&](auto&& work, const char* label) {
+        bool rejected = false;
+        try { work(); } catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, label);
+        ++invalid;
+    };
+    for (const auto& empty : {api.alloc(0), api.adopt(nullptr, 0)}) {
+        api.read(*empty, 0, &sentinel, 0); ++valid;
+        api.write(*empty, 0, &sentinel, 0); ++valid;
+        api.write(*empty, 0, nullptr, 0); ++valid;
+        api.copy(*empty, 0, *empty, 0, 0); ++valid;
+        api.copy(*live, bytes.size(), *empty, 0, 0); ++valid;
+        api.copy(*empty, 0, *live, bytes.size(), 0); ++valid;
+        rejects([&] { api.read(*empty, 1, &sentinel, 0); }, "empty read accepted an invalid offset");
+        rejects([&] { api.write(*empty, 1, nullptr, 0); }, "empty write accepted an invalid offset");
+        rejects([&] { api.copy(*empty, 1, *live, 0, 0); }, "empty copy accepted an invalid destination offset");
+        rejects([&] { api.copy(*live, 0, *empty, 1, 0); }, "empty copy accepted an invalid source offset");
+    }
+    api.read(*live, bytes.size(), &sentinel, 0); ++valid;
+    api.write(*live, bytes.size(), nullptr, 0); ++valid;
+    api.copy(*live, bytes.size(), *live, bytes.size(), 0); ++valid;
+    rejects([&] { api.read(*live, bytes.size() + 1, &sentinel, 0); }, "read accepted an offset beyond the end");
+    rejects([&] { api.write(*live, bytes.size() + 1, nullptr, 0); }, "write accepted an offset beyond the end");
+    rejects([&] { api.copy(*live, bytes.size() + 1, *copy, 0, 0); }, "copy accepted an offset beyond the destination");
+    rejects([&] { api.copy(*live, 0, *copy, bytes.size() + 1, 0); }, "copy accepted an offset beyond the source");
+    rejects([&] { api.write(*live, 0, nullptr, 1); }, "nonempty write accepted a null source");
+    require(bytes == expected && sentinel == 0x5a, "empty or rejected transfer changed storage");
+    std::printf("CPU interface: %zu empty transfers, %zu rejected ranges/sources, 3 thread-hint checks passed\n", valid, invalid);
 }
 
 static void check_dispatch(backend::CpuBackend& cpu, int threads, int failing) {
@@ -96,6 +153,7 @@ int main() {
     try {
         check_startup();
         backend::CpuBackend cpu;
+        check_interface(cpu);
         for (int threads : {1, 2, 4}) {
             cpu.set_threads(threads);
             for (int repeat = 0; repeat < 10; ++repeat)

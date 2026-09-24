@@ -1,0 +1,57 @@
+{
+  "base": "83cca18",
+  "branch": "fix/cpu-interface-contracts-20260924",
+  "platform": "Windows x64",
+  "compiler": "MSVC 19.50.35728.0",
+  "configuration": "CMake Ninja Release, Vulkan OFF",
+  "results": {
+    "focused_ctest": {
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build",
+        "-C",
+        "Release",
+        "--output-on-failure",
+        "-V",
+        "-R",
+        "^(backend-errors|prefill-scope|prefill-placement|backend-group|kv-cache)$"
+      ],
+      "exit": 0,
+      "passed": 5,
+      "failed": 0
+    },
+    "baseline_control": {
+      "script": "baseline-control.cmd",
+      "exit": 1,
+      "diagnostic": "zero thread hint changed the worker count"
+    },
+    "new_regressions": {
+      "valid_empty_transfers": 15,
+      "rejected_ranges_or_sources": 13,
+      "thread_hint_checks": 3,
+      "storage_sentinel": "unchanged"
+    }
+  },
+  "scope": "Focused native regression validation only; no new HF, performance, GPU, Linux or macOS validation. Final header edits after the passing tests are comments only, checked against base plus the four intended executable early returns.",
+  "source": {
+    "src/backends/backend.hpp": "bf2db21d3ecfc43249cccd8419ccbca1e84f09be8956f2f763aabb194bed2789",
+    "src/backends/cpu/cpu_backend.hpp": "995bfc45eefe6a0adf3707b0eac06b3bfa1590415bc35c6d19a4d0d32e5b9073",
+    "tests/backend_errors.cpp": "e3de447101eacfa36de7c215566e07fbe1d4be811b656ec2bc0c5e073814c84d"
+  },
+  "binaries": {
+    "llmx-backend-errors-test.exe": "a877570d0f3585de7a7f057bc91044cd87fd1e7a1be84112568e6be47141e248",
+    "llmx-backend-group-test.exe": "166f5f972526190f72e6c37d741d04414de939631913be4710f2513c62a5c032",
+    "llmx-prefill-scope-test.exe": "13a4ba7b0738e3d59064c1889677e3c057f13e3cd0756e5bcc764ef25f4930cb",
+    "llmx-prefill-placement-test.exe": "081e91398114febc596c2d7caa260ad054f5e29ab418161f0c6583197a19dc3e",
+    "llmx-kv-cache-test.exe": "c64c56c1b47bafdbea10987f14c2a3cd43e112c56daec9437eda6415acc0bd51"
+  },
+  "logs": {
+    "build-focused.cmd": "296990a2575f09565bf93aeed1d6478de50786558b42e58362d5273a3fc571f2",
+    "build-focused.txt": "c6bf7c23b7dcb512e60f14ff1e38c9ca833b612f3a1e9c9cc78ab3635d329bc5",
+    "focused-tests.txt": "5eec27ca238ae008c60e46da7d2663e3cf404f6726709cbf328cb004880b1ffc",
+    "baseline-control.cmd": "d2ec5d6c91ca0910d996d4f1b544e7e4bbea0a36e13e50a468f9a497cf404a13",
+    "baseline-control.txt": "8b6c23a9f6e174b028c4bf6658c17f252a2a9977c1bbce0630da896be6678cfe",
+    "review.py": "e97cff3f92a9f0725fdbce56abc80376026e3987ee03bdd3cdbfa060007451ba"
+  }
+}

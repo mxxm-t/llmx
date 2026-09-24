@@ -1,0 +1,39 @@
+{
+  "id": 36065492877,
+  "head_sha": "2b67f62fcf105681715ad252cb284da5aaf44989",
+  "status": "completed",
+  "conclusion": "success",
+  "html_url": "https://github.com/mxxm-t/llmx/actions/runs/36065492877",
+  "jobs": [
+    {
+      "name": "Vulkan backend (build, Linux)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (macos-15-intel)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (Linux UBSan)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "HF reference (CPU)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (windows-2022)",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ]
+}

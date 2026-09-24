@@ -1,0 +1,17 @@
+{
+  "verdict": "No blocker found",
+  "checks": {
+    "initial_native": 21,
+    "forced_native": 21,
+    "required_hf_components": 14,
+    "hf_ppl_cells": 24,
+    "source_hashes": 3,
+    "raw_artifact_hashes": 23,
+    "saved_log_hashes": 4,
+    "markdown_files": 39,
+    "relative_links": 126,
+    "non_ascii": 0,
+    "broken_links": 0
+  },
+  "scope": "Four executable early returns only. Forced clean build compiled final source; binary/report hashes and focused version/F32/thread checks pass. Skipped incremental run is not recompilation evidence. No edits/builds/tests performed by reviewer."
+}

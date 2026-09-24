@@ -1,0 +1,40 @@
+{
+  "exit": 0,
+  "commands": [
+    {
+      "stage": "build-final",
+      "command": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-interface-main-20260925\\build",
+        "--config",
+        "Release",
+        "--target",
+        "llmx",
+        "llmx-backend-errors-test",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "stage": "native-final",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-interface-main-20260925\\build",
+        "-C",
+        "Release",
+        "-R",
+        "^backend-errors$",
+        "--output-on-failure"
+      ],
+      "exit": 0
+    }
+  ],
+  "version_test_exit": 0,
+  "identity": {
+    "version": "llmx 0.1.0+g2b67f62fcf10.dirty",
+    "sha256": "dcaf10f77713a270b52b0514fc83637d256489301cbbfe52982e45dd0e469fa6"
+  }
+}

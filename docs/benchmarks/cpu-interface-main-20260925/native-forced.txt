@@ -1,0 +1,47 @@
+Test project C:/Users/Marko/AppData/Local/Temp/llmx-cpu-interface-main-20260925/build
+      Start  1: hub-manifest
+ 1/21 Test  #1: hub-manifest .....................   Passed    0.08 sec
+      Start  2: hub-pull
+ 2/21 Test  #2: hub-pull .........................   Passed    2.91 sec
+      Start  3: hub-transport
+ 3/21 Test  #3: hub-transport ....................   Passed    2.00 sec
+      Start  4: gguf-shards
+ 4/21 Test  #4: gguf-shards ......................   Passed    0.38 sec
+      Start  5: model-validation
+ 5/21 Test  #5: model-validation .................   Passed    0.25 sec
+      Start  6: gguf-validation
+ 6/21 Test  #6: gguf-validation ..................   Passed    0.34 sec
+      Start  7: json
+ 7/21 Test  #7: json .............................   Passed    0.06 sec
+      Start  8: cli-output
+ 8/21 Test  #8: cli-output .......................   Passed    0.04 sec
+      Start  9: load-progress
+ 9/21 Test  #9: load-progress ....................   Passed    0.11 sec
+      Start 10: generation-stream
+10/21 Test #10: generation-stream ................   Passed    0.07 sec
+      Start 11: backend-group
+11/21 Test #11: backend-group ....................   Passed    0.22 sec
+      Start 12: fused-dot-overflow
+12/21 Test #12: fused-dot-overflow ...............   Passed    0.07 sec
+      Start 13: q8-dots
+13/21 Test #13: q8-dots ..........................   Passed    0.13 sec
+      Start 14: backend-errors
+14/21 Test #14: backend-errors ...................   Passed    1.06 sec
+      Start 15: prefill-scope
+15/21 Test #15: prefill-scope ....................   Passed    0.27 sec
+      Start 16: prefill-placement
+16/21 Test #16: prefill-placement ................   Passed    0.15 sec
+      Start 17: chat-template
+17/21 Test #17: chat-template ....................   Passed    0.06 sec
+      Start 18: fp16
+18/21 Test #18: fp16 .............................   Passed    0.09 sec
+      Start 19: kv-cache
+19/21 Test #19: kv-cache .........................   Passed    0.11 sec
+      Start 20: placement
+20/21 Test #20: placement ........................   Passed    0.08 sec
+      Start 21: http
+21/21 Test #21: http .............................   Passed    0.06 sec
+
+100% tests passed, 0 tests failed out of 21
+
+Total Test time (real) =   9.35 sec

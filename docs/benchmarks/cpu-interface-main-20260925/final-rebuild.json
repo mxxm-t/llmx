@@ -1,0 +1,42 @@
+{
+  "exit": 0,
+  "commands": [
+    {
+      "stage": "build-forced",
+      "command": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-interface-main-20260925\\build",
+        "--config",
+        "Release",
+        "--clean-first",
+        "--parallel",
+        "2"
+      ],
+      "exit": 0
+    },
+    {
+      "stage": "native-forced",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-interface-main-20260925\\build",
+        "-C",
+        "Release",
+        "--output-on-failure"
+      ],
+      "exit": 0
+    }
+  ],
+  "version_f32_threads_exit": 0,
+  "identity": {
+    "version": "llmx 0.1.0+g2b67f62fcf10.dirty",
+    "sha256": "3a432612959216b06768957f1fe70eefb2d28712118841e196e054578df47aef"
+  },
+  "source_hashes": {
+    "src/backends/backend.hpp": "485f8e8ec92ee783e9abe0da068f711cf87366594f1d0e28959a2f5d8b5da070",
+    "src/backends/cpu/cpu_backend.hpp": "ff2494ae99d84deaae1eea729d98806832ef6e3709d55943d993204ea70d3d07",
+    "tests/backend_errors.cpp": "15600096b5900f5696031b27cc214b8ea961eb041b80c1a6906039dba6712be9"
+  },
+  "reason": "Previous incremental invocation skipped newer headers under TEMP. This forced clean rebuild compiles the final source; full native and focused HF/version checks repeat."
+}

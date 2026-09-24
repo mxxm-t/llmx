@@ -1,0 +1,14 @@
+{
+  "src/backends/backend.hpp": {
+    "built_sha256": "a0542dc2c5010176b03f1d205d7bf046ca182ddce05d7ac9edf5c5467a39438e",
+    "final_sha256": "485f8e8ec92ee783e9abe0da068f711cf87366594f1d0e28959a2f5d8b5da070",
+    "removed": "// The model layer holds handles and never dereferences them, so a device backend can keep weights resident instead of receiving a host pointer on every call.",
+    "added": "// Models pass buffer handles to compute ops; host-visible results can be read after retirement."
+  },
+  "src/backends/cpu/cpu_backend.hpp": {
+    "built_sha256": "abb1900fb4dd06440ca66948ca01fe33b1895272d936a6de90776cc79ebd24cc",
+    "final_sha256": "ff2494ae99d84deaae1eea729d98806832ef6e3709d55943d993204ea70d3d07",
+    "removed": "        // Views are independent, so batching preserves each sequence's arithmetic.",
+    "added": "    // Views are independent, so batching preserves each sequence's arithmetic."
+  }
+}

@@ -276,7 +276,7 @@ inline bool row_kernel_builds_one_column(KernelId id) {
 }
 
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
-const int kVariants = 2;   // a kernel's pipelines: the wide build, then the one-column
+const int kVariants = 3;   // a kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert
 
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
 const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
@@ -885,6 +885,7 @@ public:
     // A compiled kernel's name, the one-column build of a row kernel marked.
     static std::string kernel_variant_name(int id, int variant) {
         const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_Q || id == K_MATMUL_TILE_Q6;
+        if (variant == 2) return std::string(kKernelNames[id]) + "_grouped";
         return std::string(kKernelNames[id]) + (!variant ? "" : is_row_kernel((KernelId)id) ? "_1col" : tile ? "_small" : "_x8");
     }
 
@@ -1557,7 +1558,7 @@ public:
     void row_dispatch(const RowPlan& plan, const std::vector<const Projection*>& live, CSlice X, VkDescriptorBufferInfo xqi,
                       size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate,
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
-                      uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0, uint32_t group = 0) {
+                      uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0) {
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
         uint32_t total = 0;
         for (size_t i = 0; i < live.size(); ++i) {
@@ -1572,11 +1573,11 @@ public:
         const Projection& b = live.size() > 1 ? *live[1] : a;
         const Projection& c = live.size() > 2 ? *live[2] : a;
         const uint32_t t = plan.type, w = plan.wide;
-        const uint32_t pc[23] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, plan.rows_per_sg,
+        const uint32_t pc[22] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, plan.rows_per_sg,
                                  (uint32_t)live.size(),
                                  nout[0], t, w, start[0],
                                  nout[1], t, w, start[1],
-                                 nout[2], t, w, start[2], accumulate ? 1u : 0u, per, group, order0};
+                                 nout[2], t, w, start[2], accumulate ? 1u : 0u, per, order0};
         dispatch(plan.kernel,
                  {bind(a.out), bind(b.out), bind(c.out),
                   bind(a.data), bind(b.data), bind(c.data),
@@ -1586,7 +1587,7 @@ public:
                   bind(a.data), bind(b.data), bind(c.data),
                   xqi, xqi, xqi, xqi, ids.buffer ? ids : bind(X), tab.buffer ? tab : bind(X)},
                  pc, sizeof(pc), total, u32(entries),
-                 ncols == 1 && row_kernel_builds_one_column(plan.kernel) ? 1 : 0);
+                 tab.buffer ? 2 : ncols == 1 && row_kernel_builds_one_column(plan.kernel) ? 1 : 0);
         // The outputs may overlap what the twin describes; a router's scores beside its input do not, so the experts read the same twin.
         for (const Projection* pr : live)
             if (overlaps_twin(bind(pr->out), (routed ? routed : per ? entries : nbatch) * pr->rows)) xq_tag_ = XqTag{};
@@ -1708,7 +1709,7 @@ public:
             // A column computes the same in either build and as it would alone, so an entry does not depend on what else is routed beside it.
             const RowPlan plan = row_plan(type, nin);
             const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, xcols * nin);
-            row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries, 3);
+            row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries);
             return;
         }
         if (integer_dot_tile(type)) {
@@ -2137,13 +2138,14 @@ private:
         const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
                           id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL;
         const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
-        const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant ? kTileRowsSmall : kTileRowsShort)
-                                         : (variant ? kRowColsOne : kRowColsWide);
-        // Constant 7 selects a producer's build that also writes the 8-bit twin; every pipeline gets both entries, and a module that declares neither ignores them.
-        const uint32_t spec_data[2] = {spec_value, variant ? 1u : 0u};
-        const VkSpecializationMapEntry entries[2] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)}};
+        const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
+                                         : (variant == 1 ? kRowColsOne : kRowColsWide);
+        // Constant 7 selects a producer's build that also writes the 8-bit twin, and constant 8 a row kernel's grouped build; every pipeline gets all three entries, and a module that declares none ignores them.
+        const uint32_t spec_data[3] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u};
+        const VkSpecializationMapEntry entries[3] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)},
+                                                     {8, 2 * sizeof(uint32_t), sizeof(uint32_t)}};
         VkSpecializationInfo spec{};
-        spec.mapEntryCount = 2;
+        spec.mapEntryCount = 3;
         spec.pMapEntries = entries;
         spec.dataSize = sizeof(spec_data);
         spec.pData = spec_data;

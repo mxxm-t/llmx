@@ -16,7 +16,7 @@ layout(push_constant) uniform P {
     uint nout2; uint type2; uint wide2; uint start2;
     uint accum;
     uint per;
-    uint group; uint order0;
+    uint order0;
 } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
@@ -25,15 +25,10 @@ layout(set = 0, binding = 7) readonly buffer XQ4 { uvec2 xq4[]; };
 layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
 layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
-// A grouped routed call (group != 0) runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
+// A grouped routed call, the wide build's third pipeline (GROUPED, specialization constant 8), runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
+// As a specialization it costs the plain and routed pipelines nothing.
+layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
-
-// Column c's X column and output row: consecutive from col0 in a plain call, the workgroup row's entry in a routed one, and in a grouped one the chunk's entries, columns past the last repeating it.
-// Computed where used, so a plain call pays for nothing it does not use.
-uint g_first = 0u, g_cnt = 1u, g_entry = 0u;
-uint entry_of(uint c) { return p.group != 0u ? tab[p.order0 + g_first + min(c, g_cnt - 1u)] : g_entry; }
-uint xcol(uint c) { return p.per != 0u ? entry_of(c) / p.per : p.col0 + c; }
-uint ocol(uint c) { return p.per != 0u ? entry_of(c) : p.col0 + c; }
 
 #ifndef ROWS
 #define ROWS 2u
@@ -48,20 +43,23 @@ void main() {
     uint local_wg = wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2));
     uint lane = gl_SubgroupInvocationID, S = gl_SubgroupSize;
     uint row0 = (local_wg * (256u / S) + gl_SubgroupID) * ROWS;
-    uint wrow0 = 0u;
-    uint ncols = MAX_COLS == 1u ? 1u : p.ncols;
-    if (p.per != 0u && p.group != 0u) {
+    uint col0 = p.col0, out0 = p.col0, wrow0 = 0u, g_first = 0u, g_cnt = 0u;
+    if (GROUPED) {
         uint y = gl_WorkGroupID.y;
         g_first = tab[4u * y + 1u];
         g_cnt = tab[4u * y + 2u];
-        // group 1 takes runs of two or more entries, group 2 lone entries, group 3 every run.
-        if (g_cnt == 0u || (p.group == 1u && g_cnt < 2u) || (p.group == 2u && g_cnt != 1u)) return;
+        if (g_cnt == 0u) return;
         wrow0 = tab[4u * y] * nout;
-        ncols = MAX_COLS == 1u ? 1u : g_cnt;
     } else if (p.per != 0u) {
-        g_entry = gl_WorkGroupID.y;
-        wrow0 = ids[g_entry] * nout;
+        uint e = gl_WorkGroupID.y;
+        col0 = e / p.per;
+        out0 = e;
+        wrow0 = ids[e] * nout;
     }
+    const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : p.ncols;
+// Column c's X column and output row, as in matmul_row.comp.
+#define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
+#define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))
     uint nblk = p.nin / 32u;
     uint q = lane & 3u;
     uint xtab = p.nbatch * p.nin / 8u;
@@ -72,7 +70,7 @@ void main() {
         float dx[MAX_COLS];
         // Column loops run to MAX_COLS with the pushed count as a guard, so the arrays are indexed by constants and stay in registers.
         for (uint c = 0u; c < MAX_COLS; ++c) {
-            uint col = xcol(min(c, ncols - 1u));
+            uint col = XCOL(min(c, ncols - 1u));
             xa[c] = xq4[(col * p.nin + b * 32u + q * 8u) / 8u];
             dx[c] = xt2[xtab + col * nblk + b].x;
         }
@@ -102,8 +100,8 @@ void main() {
             if (c >= ncols) break;
             float s = subgroupAdd(acc[r][c]);
             if (lane == 0u && row < nout) {
-                if (p.accum != 0u) ys[pi].y[ocol(c) * nout + row] += s;
-                else ys[pi].y[ocol(c) * nout + row] = s;
+                if (p.accum != 0u) ys[pi].y[OCOL(c) * nout + row] += s;
+                else ys[pi].y[OCOL(c) * nout + row] = s;
             }
         }
     }

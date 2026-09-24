@@ -81,4 +81,4 @@ kernel notes and measurements are `docs/VULKAN.md`.
   splits a row's history into parts from the row's own length and merges
   them (`shaders/attention_merge.comp`).
 - `kv_variant` picks the shader module for a storage's K and V types.
-- `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`).
+- `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`); routed stacks and gathered tables are bound as they are.

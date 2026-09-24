@@ -118,8 +118,9 @@ public:
     virtual std::optional<size_t> memory_available() const { return std::nullopt; }
 
     // What adopting a matrix of this quant type and shape keeps resident on this backend: its bytes, and any copy the backend makes of it, so a fit counts it.
-    virtual size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes) const {
-        (void)type; (void)nin; (void)rows;
+    // `product` is a matrix a matrix product reads as its weights, as opposed to a gathered table, a norm or a routed expert stack.
+    virtual size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const {
+        (void)type; (void)nin; (void)rows; (void)product;
         return bytes;
     }
 

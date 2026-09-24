@@ -15,10 +15,11 @@
 
 namespace infer {
 
-// One weight matrix as a device would adopt it: its quant type, its row width and row count, and its bytes in the file.
+// One weight matrix as a device would adopt it: its quant type, its row width and row count, its bytes in the file, and whether a matrix product reads it as its weights (a projection or the head) rather than a gather, a norm or a routed expert stack.
 struct Matrix {
     uint32_t type = 0;
     size_t nin = 0, rows = 0, bytes = 0;
+    bool product = false;
 };
 
 // What a model asks of the memory of the devices it runs on, part by part; an architecture computes it from its file and options.
@@ -31,6 +32,7 @@ struct Footprint {
     size_t cache_per_layer = 0;                // one layer's cache for every position the budget allows
     size_t tables = 0;                         // what every device that runs layers holds whatever its share, such as position tables
     size_t activations_per_row = 0;            // one row of a pass's activations on each device
+    size_t logits_per_row = 0;                 // one row of logits where the head runs
 };
 
 // What a device offers a split: the bytes it reports free, or nothing when it cannot tell and is not checked; whether weights placed on it read the mapped file in place, as the CPU's do, rather than being copied into its memory; and what adopting a matrix keeps resident there, its bytes when empty.
@@ -70,10 +72,10 @@ struct LayerSplit {
 };
 
 // Consecutive layers per device in the order given.
-// Devices that copy weights share the layers as evenly as their budgets allow, and devices that read the mapped file in place take only what the others cannot hold.
-// Every choice of the first and last device to run layers is tried, those two carrying the embedding and the head and at least one layer each, and the one kept puts the fewest layers on devices that read in place, then uses the most devices that copy, then loads the busiest of those least.
+// For every choice of the first and last device to run layers, those two carrying the embedding and the head and at least one layer each, the layers are assigned by a small dynamic program over their actual sizes: the fewest layers on devices that read the mapped file in place, then the lightest busiest device, every device within its budget.
+// The plan kept is the best of those choices by the same order.
 // `shares`, when given, is each device's proportion of the layers and overrides the balance; the fit is still checked.
-// What a device must hold: its layers' weights as it keeps them resident and their caches; on the first and last devices the embedding and the head, once when a device holds both and they are tied; the tables; `rows` rows of activations; and on a device that copies weights a reserve for kernel scratch.
+// What a device must hold: its layers' weights as it keeps them resident and their caches; on the first and last devices the embedding and the head, once when a device holds both and they are tied, and on the last the logits rows; the tables; `rows` rows of activations; and on a device that copies weights a reserve for kernel scratch.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {}) {
     if (devices.empty()) throw std::runtime_error("split: no devices");
     const size_t L = fp.layers.size(), N = devices.size();
@@ -83,31 +85,30 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         if (devices[d].host) return 0;
         return devices[d].resident ? devices[d].resident(m) : m.bytes;
     };
-    std::vector<std::vector<size_t>> layer_bytes(N, std::vector<size_t>(L, 0));
-    std::vector<size_t> heaviest(N, 0);
+    // prefix[d][i]: the resident bytes of layers [0, i) on device d.
+    std::vector<std::vector<size_t>> prefix(N, std::vector<size_t>(L + 1, 0));
     for (size_t d = 0; d < N; ++d)
         for (size_t l = 0; l < L; ++l) {
-            for (const Matrix& m : fp.layers[l]) layer_bytes[d][l] += resident(d, m);
-            heaviest[d] = std::max(heaviest[d], layer_bytes[d][l]);
+            size_t b = 0;
+            for (const Matrix& m : fp.layers[l]) b += resident(d, m);
+            prefix[d][l + 1] = prefix[d][l] + b;
         }
-    // The embedding and head weights a device keeps, given whether it runs the first and the last layers.
+    // The embedding, head and logits a device keeps, given whether it runs the first and the last layers.
     auto end_weights = [&](size_t d, bool first, bool last) -> size_t {
         size_t w = first ? resident(d, fp.embedding) : 0;
         if (last) w += resident(d, fp.output_norm) + (first && fp.tied ? 0 : resident(d, fp.output));
         return w;
     };
-    // Besides weights and caches: the tables, a pass's activations and, where weights are copied, a reserve for tile split partials and attention merge state.
-    auto overhead = [&](size_t d) {
+    // Besides weights and caches: the tables, a pass's activations, the logits rows where the head runs and, where weights are copied, a reserve for tile split partials and attention merge state.
+    auto overhead = [&](size_t d, bool last) {
         const size_t reserve = devices[d].host ? 0 : ((size_t)256 << 20) + devices[d].bytes.value_or(0) / 20;
-        return fp.tables + rows * fp.activations_per_row + reserve;
+        return fp.tables + rows * fp.activations_per_row + (last ? rows * fp.logits_per_row : 0) + reserve;
     };
-    auto per_layer = [&](size_t d) { return heaviest[d] + fp.cache_per_layer; };
-    // Layers device d can hold beside what it carries anyway, the model's all when it cannot tell.
-    auto capacity = [&](size_t d, bool first, bool last) -> size_t {
-        if (!devices[d].bytes) return L;
-        const size_t fixed = end_weights(d, first, last) + overhead(d);
-        return *devices[d].bytes > fixed ? std::min(L, (*devices[d].bytes - fixed) / per_layer(d)) : 0;
+    // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
+    auto need = [&](size_t d, size_t i, size_t k, bool first, bool last) {
+        return prefix[d][i + k] - prefix[d][i] + k * fp.cache_per_layer + end_weights(d, first, last) + overhead(d, last);
     };
+    auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 
     std::vector<int> count(N, 0);
     if (!shares.empty()) {
@@ -129,70 +130,55 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         std::stable_sort(fraction.begin(), fraction.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
         for (size_t i = 0; given < L; ++i, ++given) ++count[fraction[i].second];
     } else {
-        // A plan is better with fewer layers on devices that read in place, then more devices that copy, then a lighter busiest device.
-        struct Score { size_t host_layers, copying_used, busiest; };
-        auto better = [](const Score& a, const Score& b) {
-            if (a.host_layers != b.host_layers) return a.host_layers < b.host_layers;
-            if (a.copying_used != b.copying_used) return a.copying_used > b.copying_used;
-            return a.busiest < b.busiest;
-        };
+        // A plan is better with fewer layers on devices that read in place, then a lighter busiest device.
+        using Score = std::pair<size_t, size_t>;
+        const Score none{SIZE_MAX, SIZE_MAX};
         bool found = false;
-        Score best{};
+        Score best = none;
         for (size_t f = 0; f < N; ++f)
             for (size_t l = f; l < N; ++l) {
                 if (f != l && L < 2) continue;
-                std::vector<size_t> cap(N, 0);
-                for (size_t d = f; d <= l; ++d) cap[d] = capacity(d, d == f, d == l);
-                if (!cap[f] || !cap[l]) continue;
-                std::vector<int> c(N, 0);
-                c[f] = 1;
-                c[l] = 1;
-                size_t left = L - (f == l ? 1 : 2);
-                // Devices that copy weights first, filled level by level so none carries more than it must.
-                std::vector<size_t> copying, hosts;
-                for (size_t d = f; d <= l; ++d) (devices[d].host ? hosts : copying).push_back(d);
-                while (left) {
-                    std::vector<size_t> open;
-                    for (size_t d : copying) if ((size_t)c[d] < cap[d]) open.push_back(d);
-                    if (open.empty()) break;
-                    const size_t each = std::max<size_t>(1, left / open.size());
-                    for (size_t d : open) {
-                        const size_t take = std::min({each, cap[d] - (size_t)c[d], left});
-                        c[d] += (int)take;
-                        left -= take;
-                        if (!left) break;
+                // score[j][i]: devices f .. f + j - 1 running layers [0, i); from[j][i]: how many the last of them took.
+                const size_t J = l - f + 1;
+                std::vector<std::vector<Score>> score(J + 1, std::vector<Score>(L + 1, none));
+                std::vector<std::vector<size_t>> from(J + 1, std::vector<size_t>(L + 1, 0));
+                score[0][0] = Score{0, 0};
+                for (size_t j = 0; j < J; ++j) {
+                    const size_t d = f + j;
+                    const bool first = d == f, last = d == l;
+                    for (size_t i = 0; i <= L; ++i) {
+                        if (score[j][i] == none) continue;
+                        // The first and last devices run at least one layer, and the last runs the rest.
+                        const size_t lo = (first || last) ? 1 : 0;
+                        for (size_t k = last ? L - i : lo; i + k <= L; ++k) {
+                            if (k < lo) continue;
+                            Score next = score[j][i];
+                            if (k) {
+                                const size_t bytes = need(d, i, k, first, last);
+                                if (!fits(d, bytes)) break;
+                                if (devices[d].host) next.first += k;
+                                else next.second = std::max(next.second, bytes);
+                            }
+                            if (next < score[j + 1][i + k]) {
+                                score[j + 1][i + k] = next;
+                                from[j + 1][i + k] = k;
+                            }
+                            if (last) break;
+                        }
                     }
                 }
-                // Then the host devices, evenly, for what the others could not hold.
-                for (size_t i = 0; left && i < hosts.size(); ++i) {
-                    const size_t d = hosts[i];
-                    const size_t want = (left + (hosts.size() - i) - 1) / (hosts.size() - i);
-                    const size_t take = std::min({want, cap[d] - (size_t)c[d], left});
-                    c[d] += (int)take;
-                    left -= take;
-                }
-                if (left) continue;
-                Score s{0, 0, 0};
-                for (size_t d = f; d <= l; ++d) {
-                    if (devices[d].host) s.host_layers += (size_t)c[d];
-                    else if (c[d]) {
-                        ++s.copying_used;
-                        s.busiest = std::max(s.busiest, (size_t)c[d] * per_layer(d));
-                    }
-                }
-                if (!found || better(s, best)) {
-                    found = true;
-                    best = s;
-                    count = c;
+                if (score[J][L] == none || (found && !(score[J][L] < best))) continue;
+                found = true;
+                best = score[J][L];
+                std::fill(count.begin(), count.end(), 0);
+                for (size_t j = J, i = L; j > 0; --j) {
+                    count[f + j - 1] = (int)from[j][i];
+                    i -= from[j][i];
                 }
             }
-        if (!found) {
-            size_t each = 0;
-            for (size_t d = 0; d < N; ++d) each = std::max(each, per_layer(d));
+        if (!found)
             throw std::runtime_error("split: the model does not fit: no placement of its " + std::to_string(L) +
-                                     " layers fits the devices (each takes up to " + std::to_string(each >> 20) +
-                                     " MiB with its cache; a smaller cache budget or more devices leave more room)");
-        }
+                                     " layers fits the devices' free memory (a smaller cache budget or more devices leave more room)");
     }
 
     LayerSplit out;
@@ -213,15 +199,14 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     for (size_t d = 0; d < N; ++d) {
         LayerSplit::Stage& st = out.stages[d];
         if (!st.count) continue;
-        for (int i = 0; i < st.count; ++i) st.weights += layer_bytes[d][(size_t)(st.first + i)];
-        st.weights += end_weights(d, (int)d == first_used, (int)d == last_used);
+        st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, (int)d == first_used, (int)d == last_used);
         st.cache = (size_t)st.count * fp.cache_per_layer;
-        st.other = overhead(d);
-        const size_t need = st.weights + st.cache + st.other;
-        if (devices[d].bytes && need > *devices[d].bytes) {
+        st.other = overhead(d, (int)d == last_used);
+        const size_t held = st.weights + st.cache + st.other;
+        if (!fits(d, held)) {
             char msg[256];
             std::snprintf(msg, sizeof msg, "split: %s needs %.2f GiB for layers %d-%d and has %.2f GiB free", devices[d].name.c_str(),
-                          need / 1073741824.0, st.first, st.first + st.count - 1, *devices[d].bytes / 1073741824.0);
+                          held / 1073741824.0, st.first, st.first + st.count - 1, *devices[d].bytes / 1073741824.0);
             throw std::runtime_error(msg);
         }
     }

@@ -284,8 +284,10 @@ inline Footprint footprint(const gguf::GGUFModel& m, const ModelOptions& options
     fp.layers.resize((size_t)cfg.n_layer);
     bool dense = false, output = false;
     for (const auto& t : m.tensors) {
-        Matrix w{t.type, t.ne.empty() ? 0 : (size_t)t.ne[0], 1, (size_t)t.data_size()};
+        Matrix w{t.type, t.ne.empty() ? 0 : (size_t)t.ne[0], 1, (size_t)t.data_size(), false};
         for (size_t d = 1; d < t.ne.size(); ++d) w.rows *= (size_t)t.ne[d];
+        // Projections and the head are a matrix product's weights; the embedding is gathered, norms are vectors and stacked experts are routed.
+        w.product = t.ne.size() == 2 && t.name != "token_embd.weight";
         if (t.name == "token_embd.weight") fp.embedding = w;
         else if (t.name == "output.weight") { fp.output = w; output = true; }
         else if (t.name == "output_norm.weight") fp.output_norm = w;
@@ -295,7 +297,11 @@ inline Footprint footprint(const gguf::GGUFModel& m, const ModelOptions& options
         dense = dense || t.name.find(".ffn_gate.weight") != std::string::npos;
     }
     fp.tied = !output;
-    if (fp.tied) fp.output = fp.embedding;
+    if (fp.tied) {
+        fp.output = fp.embedding;
+        fp.output.product = true;
+    }
+    fp.logits_per_row = fp.output.rows * sizeof(float);
     const size_t tokens = options.kv_tokens ? options.kv_tokens : (size_t)cfg.context_length;
     fp.cache_per_layer = tokens * (size_t)cfg.n_head_kv * (size_t)cfg.head_dim *
                          (backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v));

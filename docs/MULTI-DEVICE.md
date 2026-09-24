@@ -6,7 +6,7 @@ Design for ROADMAP #5, written before any code and open for review. It extends [
 
 Models past one card's memory cannot be run or gated today (Qwen3-32B Q8_0 at about 35 GB, Qwen3-30B-A3B Q8_0 at 32.5 GB without CPU experts, Qwen3-235B-A22B at about 142 GB in Q4_K_M), and a server with many users should turn every added card into throughput. The design is judged on the multi-user case first.
 
-Gates, all required before a phase merges:
+Gates of the design as a whole; each phase merges on the gates its row in Order of work names, and no phase may regress an existing path (gate 1):
 
 1. **No regression** on any current path: single device, CPU, CPU experts beside a device, streamed experts, the server. Interleaved A/B against main with a layout control, on both machines.
 2. **Correctness.** Exact where the arithmetic is the same: pipelined against serialized execution of the same placement, a split over identical devices (CPU+CPU, two identical cards) against one of them, compared as logits over every position and greedy text for prompts, decode and a mixed server pass. Where the devices differ (CPU+Vulkan: the CPU sums in double, the device in its own order), the HF bounds apply independently to the split, as they do to each device alone. A tensor group passes the HF gate within its bounds, is identical run to run, and computes a prompt the same however it is batched. Server and CLI give the same greedy text within one placement at every concurrency.

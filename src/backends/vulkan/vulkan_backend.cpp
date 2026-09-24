@@ -1030,9 +1030,9 @@ public:
         return free;
     }
 
-    // An adopted F32 matrix whose rows are a multiple of 256 floats wide keeps a padded copy beside it once a float tile has read it (padded_f32).
-    size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes) const override {
-        const bool padded = type == gguf::GGML_TYPE_F32 && nin && nin % 256 == 0;
+    // An adopted F32 matrix a product reads, whose rows are a multiple of 256 floats wide, keeps a padded copy beside it once a float tile has read it (padded_f32); routed stacks bind their data as it is.
+    size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const override {
+        const bool padded = product && type == gguf::GGML_TYPE_F32 && nin && nin % 256 == 0;
         return bytes + (padded ? rows * (nin + kF32Pad) * sizeof(float) : 0);
     }
 

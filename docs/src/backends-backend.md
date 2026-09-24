@@ -29,7 +29,7 @@ placement contracts in `docs/EXECUTION.md`.
   cannot throw.
 
 - `set_threads(n)`, `threads_available()`: worker-thread control.
-- `memory_available()`: the bytes the backend can still allocate now, as its device or operating system reports them, or nothing when it cannot tell; `resident_bytes(type, nin, rows, bytes)`: what adopting such a matrix keeps resident, its bytes by default. A split over several devices is fitted against both (`model/layer_split.hpp`).
+- `memory_available()`: the bytes the backend can still allocate now, as its device or operating system reports them, or nothing when it cannot tell; `resident_bytes(type, nin, rows, bytes, product)`: what adopting such a matrix keeps resident, its bytes by default; `product` is a matrix a product reads as its weights. A split over several devices is fitted against both (`model/layer_split.hpp`).
 - `matmul(ggml_type, data, X, Y, nin, nout, nbatch, runs)`: the type-generic
   matmul. The quant type is resolved through `quant::Registry`, so every block
   format gets the generic CPU batched fallback. Vendor backends require kernels

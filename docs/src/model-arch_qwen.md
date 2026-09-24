@@ -43,7 +43,7 @@ to a `backend::Backend`.
   name for every projection of every layer of every token, and a device
   backend recognizes the same weight across calls. See
   `docs/DEVICE-EXECUTION.md` step 1.
-- `footprint(model, options)`: what this architecture asks of memory, for a split fitted to devices (`model/layer_split.hpp`): each layer's matrices from its `blk.N.` tensors, the embedding, the head's matrix and norm and whether it is tied, one layer's cache for the budgeted positions at the options' cache types, the RoPE tables and a row of the arena. `placement_for(split)` turns a `LayerSplit` into a `Placement`. A tied head on the embedding's device reads the buffer adopted for the embedding rather than a second copy.
+- `footprint(model, options)`: what this architecture asks of memory, for a split fitted to devices (`model/layer_split.hpp`): each layer's matrices from its `blk.N.` tensors, the two-dimensional ones marked as product weights, the embedding, the head's matrix and norm and whether it is tied, one layer's cache for the budgeted positions at the options' cache types, the RoPE tables and a row of the arena. `placement_for(split)` turns a `LayerSplit` into a `Placement`. A tied head on the embedding's device reads the buffer adopted for the embedding rather than a second copy.
 - `slot_widths(config, dense)`: the floats one row takes in each of the arena's twelve slots, which `ensure` allocates and `footprint` counts.
 - `Placement`: a device index per tensor role: each layer's attention and
   feed-forward block, the embedding table and the output head. Empty means

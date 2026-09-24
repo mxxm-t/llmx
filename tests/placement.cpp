@@ -210,6 +210,22 @@ void layer_split_fits() {
             "a backend's resident copies were not counted");
     checked += 3;
 
+    // Layers of unequal size are placed by their own sizes: a 400 MiB layer and three of 10 MiB fit devices of 800 and 500 MiB, the large one alone on the first.
+    infer::Footprint uneven;
+    for (size_t mib : {400, 10, 10, 10}) uneven.layers.push_back({infer::Matrix{8, 4096, 1, mib * MiB, true}});
+    uneven.embedding = uneven.output = infer::Matrix{8, 4096, 1, MiB, true};
+    uneven.cache_per_layer = MiB;
+    auto sized = infer::split_layers(uneven, {budget("a", 800 * MiB), budget("b", 500 * MiB)}, 1);
+    require(sized.stages[0].count >= 1 && sized.stages[0].count + sized.stages[1].count == 4, "layers of unequal size did not fit by their sizes");
+    // Three equal devices share three equal layers one each.
+    infer::Footprint three;
+    three.layers.assign(3, {infer::Matrix{8, 4096, 1, 10 * MiB, true}});
+    three.embedding = three.output = infer::Matrix{8, 4096, 1, MiB, true};
+    auto thirds = infer::split_layers(three, {budget("a", GiB), budget("b", GiB), budget("c", GiB)}, 1);
+    require(thirds.stages[0].count == 1 && thirds.stages[1].count == 1 && thirds.stages[2].count == 1,
+            "three equal devices did not share three equal layers");
+    checked += 2;
+
     auto shared = split({budget("a", GiB), budget("b", GiB)}, {2, 0});
     require(shared.stages[0].count == 2 && shared.output_device == 0, "layer shares not honored");
     ++checked;

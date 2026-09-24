@@ -449,7 +449,7 @@ std::unique_ptr<infer::Model> make_split_model(const gguf::GGUFModel& m, const s
         backends.push_back(make_backend(spec));
         const backend::Backend* b = backends.back().get();
         budgets.push_back(infer::DeviceBudget{spec, b->memory_available(), spec == "cpu",
-                                              [b](const infer::Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes); }});
+                                              [b](const infer::Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes, w.product); }});
     }
     const infer::LayerSplit split = infer::split_layers(infer::footprint(m, options), budgets, rows, layer_shares(shares));
     if (verbose) std::cerr << split.describe(budgets);

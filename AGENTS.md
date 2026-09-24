@@ -31,7 +31,7 @@ A Linux machine with AMD cards but no Vulkan driver or SDK of its own
 builds and runs the Vulkan backend through `docker/Dockerfile`, which
 carries the loader, the Mesa driver, the headers and the shader compiler
 and takes the cards from the host through `/dev/dri`. The file itself
-gives the two commands. This is how the MI50 rig runs the backend, and it
+gives the two commands. This is how the Linux MI50 machine runs the backend, and it
 leaves that shared machine's packages untouched.
 
 ## Principles

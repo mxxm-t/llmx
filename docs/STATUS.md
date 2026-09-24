@@ -26,10 +26,10 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
 - **Goal:** the CPU's dense prompt rows through the prompt dots that routed experts took on main (`q8_dots.hpp` `dot_block`), where that beats the batched float path, at or above the reference's CPU prefill.
 - **Done:** K-quant rows (Q4_K, Q5_K, Q6_K) at least 4096 wide (`CpuBackend::kPromptDotsFrom`) meet a prompt through the prompt dots; narrower K-quant rows, Q8_0, Q4_0 and Q4_1 keep the float path, and generated tokens the decode dots, so a matrix takes one path per kind of row and a row computes the same however it is batched (`q8-dots` checks a prompt's rows beside a generated token against each alone, bit for bit, at 256, 2048 and 4096 wide). The full CPU suite and every real-model HF baseline pass on both machines.
-- **Measured on the rig's CPU (EPYC 7262, 16 threads, two interleaved rounds, tok/s, main / prompt dots / the reference's CPU path):** Qwen3-8B Q4_K_M pp64 21.9-22.1 / 30.7-31.2 / 38.4-39.1, pp247 33.4-33.7 / 32.2-32.3 / 39.4-40.3, pp512 19.9-20.0 / 31.4-31.8 / 40.7-40.8. Qwen3-0.6B Q5_K_M with the prompt dots on every width lost at 247 and 512 prompt tokens (415-431 against 378, 393-399 against 345-370), where its 1024-wide rows' dequantized blocks stay in the first-level cache; from 2048 wide it still lost 6 percent at 247, so the rule is 4096, which leaves the 0.6B files on main's path. The Q4_0 drop at 64 tokens seen in the first measurement did not repeat: main read 349 plus or minus 73 and 402 in two rounds, every arm within that.
+- **Measured on the Linux machine's CPU (EPYC 7262, 16 threads, two interleaved rounds, tok/s, main / prompt dots / the reference's CPU path):** Qwen3-8B Q4_K_M pp64 21.9-22.1 / 30.7-31.2 / 38.4-39.1, pp247 33.4-33.7 / 32.2-32.3 / 39.4-40.3, pp512 19.9-20.0 / 31.4-31.8 / 40.7-40.8. Qwen3-0.6B Q5_K_M with the prompt dots on every width lost at 247 and 512 prompt tokens (415-431 against 378, 393-399 against 345-370), where its 1024-wide rows' dequantized blocks stay in the first-level cache; from 2048 wide it still lost 6 percent at 247, so the rule is 4096, which leaves the 0.6B files on main's path. The Q4_0 drop at 64 tokens seen in the first measurement did not repeat: main read 349 plus or minus 73 and 402 in two rounds, every arm within that.
 - **Tried and reverted:** Q4_0 and Q4_1 rows on 8-bit activations, as the device takes them, with an output head's rows kept on 16 bits through `matmul_logits`. The HF gate's Q4_0 file then fails on the CPU ("The capital of France is": top-5 overlap 3 of 5 against a bound of 4). The two types stay on 16-bit activations.
 - **Left:** the reference's CPU is still ahead on Qwen3-8B Q4_K_M (31-32 against 39-41 tok/s) and on Qwen3-0.6B Q4_0 (390-400 against 420-470); weights repacked into interleaved rows at load, so the prompt dots read several rows per load, are the next lever. The prompt dots' per-group horizontal sums follow from the activations' scale per 32 values and do not go away by blocking.
-- **Gotchas:** the desktop's CPU timings wander with its other load; measure on the rig, alone.
+- **Gotchas:** the desktop's CPU timings wander with its other load; measure on the Linux machine, alone.
 
 ## Mixture of experts: qwen3moe on both backends (ROADMAP #2) (2026-09-23, branch feat/moe)
 
@@ -40,7 +40,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Done, Vulkan:** decode runs one entry per workgroup row through the row kernels, which take an expert offset on the weight rows; a prompt whose extent reaches its weight type's `moe_tile_from` (32 for Q8_0 and Q6_K, 48 for Q5_K, 64 for Q4_K, 96 for Q4_0 and Q4_1, measured on both cards; docs/VULKAN.md) takes the tile kernels over each expert's entries, grouped on the device by `moe_group.comp` (a workgroup per expert, stable order) and never split, so an entry computes the same whatever else is routed beside it. `moe_route.comp` routes through subgroup reductions and `moe_combine.comp` adds the weighted slots. The experts read the activation twin the router's input already has.
 - **Done, placement:** `--n-cpu-moe N` and `--cpu-moe` put the experts of the first N (or all) routed layers on the CPU beside a device, through the per-role placement the model layer already had; attention, the dense blocks, the embedding and the head stay on the device.
 - **Gates:** `tests/moe.py`, a tiny random-weight qwen3moe (two routed layers, one dense, 8 experts, top 3) against HF `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`): all 257 logits within 7.5e-7 and windowed NLL within 1e-5 on the CPU, the Radeon VII and the MI50, across batch widths, threads and both placements. `tests/backend_vulkan.cpp` checks routing and the routed projections against the CPU for every supported type on the row kernel, the tile kernel and a batch mixing decode rows with a prompt. Qwen3-30B-A3B Q4_K_M gives the same greedy text on the CPU and the MI50.
-- **Measured, Qwen3-30B-A3B Q4_K_M, one MI50 (card 4, idle), two interleaved rounds:**
+- **Measured, Qwen3-30B-A3B Q4_K_M, one MI50 (idle), two interleaved rounds:**
 
   | test | llmx | llama.cpp Vulkan | share |
   |---|---:|---:|---:|
@@ -51,7 +51,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | tg128 | 116.6 | 107.5 | 108% |
 
   Through the row kernels alone prefill was 383 against 1112; grouping by expert took it to 1048, and a grouping workgroup per expert, reused by the down projection, to 1214. Decode went from 99.3 to 116.6 with the twin reused past the router, subgroup routing (8 to 4 percent of decode time) and F32 router rows four values a load (8.8 to 4.0 percent).
-- **Measured, experts on the CPU (b11075 on the Radeon VII, 8 threads; the rig's reference on card 4, 16 threads):**
+- **Measured, experts on the CPU (b11075 on the Radeon VII, 8 threads; the reference on the same MI50, 16 threads):**
 
   | where | experts on CPU | test | llmx | llama.cpp | share |
   |---|---:|---|---:|---:|---:|
@@ -65,8 +65,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | MI50 | 48 | tg32 | 11.0 | 12.2 | 91% |
 
   12 routed layers on the CPU is what lets the rest fit the Radeon VII's 16 GB. With the decode dots over quantized activations (below), decode on the Radeon VII is 44.7 tok/s with 12 layers' experts on the CPU (163%) and 20.1 with all 48 (128%), and on the MI50 34.3 (133%) and 12.9 (106%); prefill is 195 and 76 on the Radeon VII, and 180 and 52 on the MI50. Some of the Radeon VII runs overlapped the model downloads and are to be repeated on a quiet machine.
-- **Prefill with experts on the CPU, the MI50's gap:** the rig is an EPYC 7262, 8 Zen 2 cores with eight memory channels, and the MI50 sits on PCIe 4.0 x16. The reference prefilled 151 tok/s at 512 rows with every expert on the CPU and 88.5 with `--no-op-offload 1`: from its CPU alone it is ahead of llmx's 52, and copying the CPU-held weights to the device for a large batch gains it another 1.7 times, which the Radeon VII's PCIe 3.0 link halves. Both are llmx's to close: a faster CPU path for a prompt's experts, then the same copy.
-- **Done, mapped loading:** a single-file GGUF is mapped read-only instead of read into one heap allocation (`format/mapped_file.hpp`). Qwen3-30B-A3B Q8_0 is 32.5 GB: on the Radeon VII's 32 GB host with thirty layers' experts on the CPU the heap copy paged through every pass, and on the rig's 62 GB host it sat beside its own page cache. The mapping lets the OS drop what the device copied. Sharded files keep the allocation that assembles them.
+- **Prefill with experts on the CPU, the MI50's gap:** the Linux machine is an EPYC 7262, 8 Zen 2 cores with eight memory channels, and the MI50 sits on PCIe 4.0 x16. The reference prefilled 151 tok/s at 512 rows with every expert on the CPU and 88.5 with `--no-op-offload 1`: from its CPU alone it is ahead of llmx's 52, and copying the CPU-held weights to the device for a large batch gains it another 1.7 times, which the Radeon VII's PCIe 3.0 link halves. Both are llmx's to close: a faster CPU path for a prompt's experts, then the same copy.
+- **Done, mapped loading:** a single-file GGUF is mapped read-only instead of read into one heap allocation (`format/mapped_file.hpp`). Qwen3-30B-A3B Q8_0 is 32.5 GB: on the Radeon VII's 32 GB host with thirty layers' experts on the CPU the heap copy paged through every pass, and on the Linux machine's 62 GB host it sat beside its own page cache. The mapping lets the OS drop what the device copied. Sharded files keep the allocation that assembles them.
 - **Done, device-held pages leave the host:** a model with experts on the host keeps the file mapped for them, and the pages of every tensor a device copied stayed in the process beside them: Qwen3-30B-A3B Q8_0 with thirty layers on the CPU held 21 to 22 GB on the Radeon VII's 32 GB host, which then read pages back from the file through every pass. Once the weights are resolved, the whole pages of each tensor only devices hold are given back (`MappedFile::drop`: `VirtualUnlock` on Windows, `madvise(MADV_DONTNEED)` elsewhere), and the process settles at 16.8 GB. Prefill at 512 rows went from 119.7 +- 33.5 to 129.6 +- 1.2 tok/s over eight runs, decode unchanged.
 - **Done, prompt dots for experts on the CPU:** a prompt's routed entries met each expert through the float path, which converts every weight to a float for each block of four rows; they now meet it through quantized activations, each weight row unpacked 256 values at a time once for all of that expert's entries, integer sums per group of 32, eight groups' scales in one vector multiply-add (`q8_dots.hpp` `dot_block`). Generated tokens keep the fused decode dots, one kernel per kind of row, so a row computes the same alone or beside others (`q8-dots` checks prompt and decode entries beside each other against each alone, bit for bit). An earlier form that unpacked per four columns lost at 512 rows: each weight row swept every column's whole activation row, which no cache holds, and the block now walks the inner dimension so a column's 256 values stay in the first-level cache across eight rows. Qwen3-30B-A3B, experts on the CPU, streaming off (tok/s):
 
@@ -82,7 +82,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Radeon VII, Q4_K_M, 10 layers | tg32 | - | 51 | 51 |
 
   The MI50's reference figures are from the three-way run on the same card, the llmx columns interleaved with each other. With this the CPU path beats the reference at 512 rows without copying experts, so `--moe-stream-from` now defaults to 0.
-- **Done, streamed experts (`--moe-stream-from`, default 0 since the prompt dots; measured while it was 512):** from that prompt extent a host-placed routed layer runs on its attention device, the norm and router copied there at load and the experts copied into one window per device once per pass; decode rows and shorter prompts stay on the host, a mixed server pass split into groups of consecutive entries. The host upload now fills one half of staging while the device copies from the other. The copy is a fixed cost per pass, so the break-even differs by link: on the rig 7.7 GB (twelve Q8_0 layers) takes 0.9 s (11 GB/s by DMA alone, under what the MI50's PCIe 4.0 x16 link allows), on the Radeon VII 19.2 GB (thirty layers) takes 3.3 s (6.4 GB/s by DMA alone). First keyed on extent like every kernel choice, which made a short follow-up in a conversation past the threshold pay the whole copy; it now follows the tokens the request prefills, its reused prefix excluded (`BatchEntry::fresh`), so every slice of a prompt still takes one path, and a reply on a cached prefix may take the CPU where one pass over the whole conversation would stream. On the MI50 with twelve Q8_0 layers on the CPU and the prompt dots, streaming gives 411 tok/s at 512 rows against 311 on the CPU and the reference's 296-299, and loses below that (223 against 268 at 247). Same greedy text as the host path on Qwen3-30B-A3B Q8_0; `tests/moe.py` adds streamed placements (every run, and prompts from extent 4) within 7.2e-7 of HF, and `tests/server.py` checks the synthetic MoE model's ids alone and four at a time with streamed prompt rows beside host decode rows.
+- **Done, streamed experts (`--moe-stream-from`, default 0 since the prompt dots; measured while it was 512):** from that prompt extent a host-placed routed layer runs on its attention device, the norm and router copied there at load and the experts copied into one window per device once per pass; decode rows and shorter prompts stay on the host, a mixed server pass split into groups of consecutive entries. The host upload now fills one half of staging while the device copies from the other. The copy is a fixed cost per pass, so the break-even differs by link: on the MI50 7.7 GB (twelve Q8_0 layers) takes 0.9 s (11 GB/s by DMA alone, under what the MI50's PCIe 4.0 x16 link allows), on the Radeon VII 19.2 GB (thirty layers) takes 3.3 s (6.4 GB/s by DMA alone). First keyed on extent like every kernel choice, which made a short follow-up in a conversation past the threshold pay the whole copy; it now follows the tokens the request prefills, its reused prefix excluded (`BatchEntry::fresh`), so every slice of a prompt still takes one path, and a reply on a cached prefix may take the CPU where one pass over the whole conversation would stream. On the MI50 with twelve Q8_0 layers on the CPU and the prompt dots, streaming gives 411 tok/s at 512 rows against 311 on the CPU and the reference's 296-299, and loses below that (223 against 268 at 247). Same greedy text as the host path on Qwen3-30B-A3B Q8_0; `tests/moe.py` adds streamed placements (every run, and prompts from extent 4) within 7.2e-7 of HF, and `tests/server.py` checks the synthetic MoE model's ids alone and four at a time with streamed prompt rows beside host decode rows.
 
   | where | test | host path | streamed |
   |---|---|---:|---:|
@@ -96,7 +96,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | Radeon VII, 30 layers on CPU | pp512 | 118 | 132 |
 
   A 256 MB staging buffer instead of 64 MB changed nothing. What is left is the copy overlapping the previous layer's compute, which needs a second window and a transfer queue (at pp512 on the MI50 the compute is about 0.35 s of the pass's 1.25 s).
-- **Measured, Qwen3-30B-A3B Q8_0 with experts on the CPU (MI50 card 4 with 12 layers and 16 threads, the reference pinned to the same card; Radeon VII with 30 layers and 8 threads against b11075; two interleaved rounds each):**
+- **Measured, Qwen3-30B-A3B Q8_0 with experts on the CPU (one MI50 with 12 layers and 16 threads, the reference pinned to the same card; Radeon VII with 30 layers and 8 threads against b11075; two interleaved rounds each):**
 
   | where | test | llmx | llama.cpp Vulkan | share |
   |---|---|---:|---:|---:|
@@ -115,7 +115,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Done, server:** an uncapped request reserved its whole reach, the whole pool, so Open WebUI's chats and background requests ran one at a time and each admission dropped the cached prefixes. It now reserves its prompt and a step and grows, the latest admitted uncapped request pausing (history kept as a donor) when the pool runs out; `tests/server.py` checks three uncapped requests sharing a small pool with at least one pause. The compatible replies carry a `timings` object, which Open WebUI shows, and each request logs a line.
 - **Tried and reverted, 2026-09-23:** the integer-dot tile reading the 8-bit twin a producer wrote, in position order, instead of quantizing its own block-major copy. The values are the same, but at 4096 wide a column's blocks are 4 KB apart and the loads stop coalescing: Qwen3-8B Q4_K_M prefill on the MI50 fell from 693 to 368 tok/s at 64 rows and from 845 to 775 at 512, with no gain on the 0.6B files.
 - **Tried and reverted, 2026-09-23:** a decode token's down projection summing its eight slots into the residual inside the row kernel, one token per workgroup row, instead of writing the slots and adding them with `moe_combine`. Same arithmetic, but a workgroup per token running its slots in turn left 256 workgroups where there had been 2048, and MI50 decode fell from 92.8 to 90.7 tok/s on Q6_K and from 118.7 to 118.0 on Q4_K_M (the reference 93.2 and 107.6 in the same interleaved runs). Q6_K decode stays at 99.5 percent of the reference; the F32 router rows already take a whole subgroup each.
-- **Tried and reverted:** a prompt's routed entries through the decode dots as well, a dot per weight row and entry. Each dot unpacks the row's nibbles and scales again, where the batched float path unpacks a row once for all its expert's entries, and prefill with every expert on the CPU went from 52 to 35 tok/s on the rig (during a download). A prompt's entries want a multi-column kernel that unpacks a row once.
+- **Tried and reverted:** a prompt's routed entries through the decode dots as well, a dot per weight row and entry. Each dot unpacks the row's nibbles and scales again, where the batched float path unpacks a row once for all its expert's entries, and prefill with every expert on the CPU went from 52 to 35 tok/s on the Linux machine (during a download). A prompt's entries want a multi-column kernel that unpacks a row once.
 - **Left:** the prompt dots for the CPU's dense prompt rows, which still take the float path; the copy overlapping compute;  and the dense CPU cells before and after the decode dots are to be measured; a real file of every supported type (Q5_K_M, Q6_K, Q8_0, Q4_0, Q4_1 downloading on both machines) through the gate cells; CPU expert decode (the fused dots against float activations) and prefill with experts on the CPU, where the reference likely runs large batches on the device from host-held weights; a server check of routed layers on a real model.
 - **16k check, redefined 2026-09-24:** a hash across the CPU and the device parted at the first near-tie: on Qwen3-0.6B-Q8_0 they agreed for 68 characters, where the CPU's top two logits were 18.498 and 18.379 and the device's 18.383 and 18.346, the two tokens swapped, the device's logits sitting up to 0.23 from the CPU's after the 16k prompt as the 8-bit activations shift them. With the user's agreement `tools/long_context_check.py` now requires the device to give the same 512 greedy tokens after a 16384-token prompt on two runs from fresh servers, and the CPU, reading the prompt and those tokens (`llmx logits --last`), to rank each within 0.5 logits of its top choice. Passed on every run: Qwen3-0.6B-Q8_0 on the MI50 (the CPU's top choice at 509 of 512 tokens, the largest gap 0.135) and on the Radeon VII (512 of 512, 0.000), Qwen3-8B Q4_K_M on the MI50 (510 of 512, 0.014).
 
@@ -189,7 +189,7 @@ above; they were not included in the help implementation commit.
   stream, a client for tests; the `http` CTest covers a whole response, an
   echoed body, a three-chunk stream arriving as written, 413, 400, 404 and
   the listener closed from another thread, on Windows and on the Linux
-  rig. `src/server/scheduler.hpp`: the loop of SERVER.md, admission by
+  machine. `src/server/scheduler.hpp`: the loop of SERVER.md, admission by
   the pool's capacity with every admitted request's blocks reserved up
   front (admitting on blocks merely free let four requests into a
   one-block pool), decode entries then chunked prompt slices in one
@@ -1302,13 +1302,13 @@ above; they were not included in the help implementation commit.
 
   The taller tile wins everywhere despite the lost wave, so work per thread is worth more than occupancy here, unlike the row kernels, and the shipped height choice is already right.
 
-  Whether the host feeds the device in time. BOSS read the card as fully occupied at about three quarters of its power and asked whether prefill is recorded late. With runs short enough that the profiler samples every dispatch, the kernels' own execution times sum to the wall time: 345.7 against 345.2 ms for Qwen3-0.6B-Q8_0 at 512 rows, 3632.6 against 3632.9 for Qwen3-8B-Q4_K_M. A queue waiting on the host would leave time no kernel covers. None is left, so the device never waits and the shortfall is inside the kernels.
+  Whether the host feeds the device in time. The card read as fully occupied at about three quarters of its power which raised whether prefill is recorded late. With runs short enough that the profiler samples every dispatch, the kernels' own execution times sum to the wall time: 345.7 against 345.2 ms for Qwen3-0.6B-Q8_0 at 512 rows, 3632.6 against 3632.9 for Qwen3-8B-Q4_K_M. A queue waiting on the host would leave time no kernel covers. None is left, so the device never waits and the shortfall is inside the kernels.
 
   What the reference does instead. On the MI50 its Vulkan build reports `int dot: 1` and `matrix cores: none`, and its quantized prefill path multiplies 8-bit activations through the four-wide integer dot, where ours multiplies dequantized floats one product per instruction on float tiles. That is a quarter of the instructions and a quarter of the shared memory per product. It is the next thing built, for devices whose integer dot is native, which the profile already records for the MI50 under Mesa; the precision of 8-bit activations against the HF bounds decides whether it ships.
 
   Also measured and not kept: the prefill attention kernel with its online softmax taken four or two keys at a time, one rescale per chunk rather than per key. Flat within one percent on Qwen3-0.6B-Q8_0 at 512 and 4096 rows and Qwen3-8B-Q4_K_M at 2048.
 
-  Thirty-fourth, a correction to every MI50 reference figure above. The reference's Vulkan build uses every device it can see, and the rig has ten MI50s, so `llama-bench -ngl 99` without `GGML_VK_VISIBLE_DEVICES` split the model across all ten. Measured back to back on Qwen3-0.6B-Q8_0, that is pp247 3364 and tg32 101.3 tok/s with ten visible against 6941 and 299.0 on one. The decode leads of 217, 182 and 269 percent, the earlier 2.4 times and the prefill shares were all against the ten-card split. The Radeon VII has one device, so its tables stand, and the per-shape TFLOPS comparison ran pinned to one device and stands. The ROCm arms of the table above are not known to have been pinned either and are unverified. The reference is now pinned to one card.
+  Thirty-fourth, a correction to every MI50 reference figure above. The reference's Vulkan build uses every device it can see, and the Linux machine has ten MI50s, so `llama-bench -ngl 99` without `GGML_VK_VISIBLE_DEVICES` split the model across all ten. Measured back to back on Qwen3-0.6B-Q8_0, that is pp247 3364 and tg32 101.3 tok/s with ten visible against 6941 and 299.0 on one. The decode leads of 217, 182 and 269 percent, the earlier 2.4 times and the prefill shares were all against the ten-card split. The Radeon VII has one device, so its tables stand, and the per-shape TFLOPS comparison ran pinned to one device and stands. The ROCm arms of the table above are not known to have been pinned either and are unverified. The reference is now pinned to one card.
 
   The one-card comparison, llmx at `cb2eb5b` with the integer-dot tile against the reference's Vulkan build on the same MI50, interleaved, two passes, three cards in parallel with one model on each:
 
@@ -1583,7 +1583,7 @@ above; they were not included in the help implementation commit.
   to 256 GB/s against Q8_0's 400 with their loads and their sub-scale
   decode already trimmed; what remains is the per-lane work of the
   nibble unpacking itself, and 8-bit activations would buy another
-  tenth at a numerical cost the CPU experiment measured near the bound. The same backend now runs on the rig's MI50s
+  tenth at a numerical cost the CPU experiment measured near the bound. The same backend now runs on the Linux machine's MI50s
   under Linux through `docker/Dockerfile`, which needs no change to that
   shared machine: Debian's own Mesa driver enumerates all ten cards
   through `/dev/dri` and its own shader compiler is new enough, so the
@@ -1597,7 +1597,7 @@ above; they were not included in the help implementation commit.
   232 the other way), untuned and not a like-for-like comparison, since
   the driver differs as well as the card.
 
-  A real model followed. `llmx pull` fetched Qwen3-0.6B-Q8_0 on the rig
+  A real model followed. `llmx pull` fetched Qwen3-0.6B-Q8_0 on the Linux machine
   through the image's curl, at the same revision the Windows copy has,
   and the whole Python suite passes there on `vulkan:0`, the HF gate
   included: the continuous excerpt reads an NLL delta of 0.001264
@@ -1911,11 +1911,11 @@ above; they were not included in the help implementation commit.
   | 8B Q8_0 | 40.9, 40.7 | 40.1, 40.3 | Radeon VII |
   | 8B Q4_K_M | 47.9, 48.0 | 46.6, 47.0 | Radeon VII |
 
-  So 15 percent of 8B decode and 6 of 0.6B on the rig, and this
+  So 15 percent of 8B decode and 6 of 0.6B on the MI50, and this
   workstation keeps the multiplies and is unchanged. One ordering bug
   on the way, worth noting because the structure invites it: the
   capability flags were filled before the extension scan that
-  discovers them, so the rig silently kept the slower form until the
+  discovers them, so the MI50 silently kept the slower form until the
   profile decision moved after the scan.
 
   Against the reference's own Vulkan build on the MI50, both arms in
@@ -2770,7 +2770,7 @@ replaced by this release.
 | Tiny F32 full-logit maximum HF error | 0.00000070 | 0.00000070 |
 
 These are correctness/build checks; simultaneous jobs and diagnostic synthetic
-timings do not supply new performance measurements. The rig's HF container
+timings do not supply new performance measurements. The Linux machine's HF container
 lacked CMake, so the Linux run used the configured WSL toolchain instead.
 Independent merge review verifies that native tests, all eleven Python
 components, UBSan, required HF fixtures and downloader checks remain wired.
@@ -2890,7 +2890,7 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 - **Plan:** a kernel quantizes each activation column to 8-bit values per 32-value block with the block's scale and scaled sum; a tile kernel stages one quant block per row and column per step as packed 8-bit words and scales, and multiplies with the four-wide integer dot, one float multiply-add per block for the scale and one more for a type's minimum. Q8_0 and Q4_K first, then Q6_K and Q5_K. Used only where the device's integer dot is native, which the profile records as `prefer_integer_dot`; elsewhere the float tile stays.
 - **Done:** the diagnosis above, and `backend-vulkan` now times the tile at that shape in TFLOPS. `quantize_x8.comp` and `matmul_tile_q.comp` for Q8_0 and Q4_K (`cb2eb5b`), taken where the profile says `prefer_integer_dot`. On the MI50 at the 8B feed-forward shape Q8_0 goes 4.87 to 7.72 TFLOPS and Q4_K 4.65 to 11.48, the reference's being 13.30 and 11.42. Qwen3-8B-Q4_K_M prompt processing 297.8 to 488.7 tok/s at 512 rows. Correctness: every HF perplexity cell in both scoring modes on the MI50 with all three 0.6B fixtures, the backend test's 1,172,518 outputs with its reference rounded the same way, and on the 8B Q4_K_M file, which no fixture covers, 40 wikitext windows of 512 at mean NLL 2.47005 against the float tile's 2.47023. Scoring through batched passes (`fc261f9`) is what made the HF gate reach this path at all. Then the thirty-fifth to thirty-seventh paragraphs: Q8_0 staging a word at a time (12.07 TFLOPS), Q6_K in its own module (9.60 against the reference's 7.03) and Q5_K through the tile (`c1bdb09`, `db249b8`); Q4_0 and Q4_1 through it too and the measured profile carrying four thresholds, the MI50's row 16, 32, 24 and 40 (`2b770f6`); and a third tile height of 32 rows for short prompts, 0.6B Q8_0 at 64 rows 2502 tok/s, 54 percent of the reference's 4638 (`33933a9`).
 - **Left:** staging several quant blocks per barrier (being measured); MI50 prompt processing at 69 to 89 percent at 247 rows and more; MI50 decode at 86 to 91 percent on the 8-bit files.
-- **Gotchas:** 8-bit activations cost 0.009 of NLL in the decode kernel earlier, close to the 0.010 bound on one HF cell, so the device suite on the rig decides whether this ships, per type. The AMD Windows driver lowers the integer dot extension to widened multiplies, so the Radeon VII must keep the float tile.
+- **Gotchas:** 8-bit activations cost 0.009 of NLL in the decode kernel earlier, close to the 0.010 bound on one HF cell, so the device suite on the MI50 decides whether this ships, per type. The AMD Windows driver lowers the integer dot extension to widened multiplies, so the Radeon VII must keep the float tile.
 
 ### External floor of merged main (2026-09-20)
 
@@ -2936,7 +2936,7 @@ separate K-quant/device work. Coordination happens in a shared log outside
 this repository. Builds and tests
 may run in parallel when no timing reservation is active. Keep every planned
 performance sample, record ordinary machine activity, and report missing
-telemetry honestly. GitHub receives main only; feature checkpoints stay on Gitea.
+telemetry honestly. GitHub receives main only; feature work stays on its branch until its gates pass.
 
 ## Historical feature blocks (2026-09-19 to 2026-09-21)
 
@@ -3535,7 +3535,7 @@ mx-llama.cpp".
   0.000000645 <= 0.0001 (F32) and 0.007011817 <= 0.01 (Q8). Four separate serial
   NLL cases equal control and pass existing HF bounds. All 25 Markdown files
   reviewed; evidence: `benchmarks/prefill-ordered-reduction-20260920.json`.
-- **Left:** retain this validated feature checkpoint on Gitea; merge with the
+- **Left:** keep this validated feature branch; merge with the
   runtime stack only when broader external performance requirements pass.
 - **Gotchas:** no reassociation or new activation quantization. A synthetic
   gain alone does not establish the external floor. Keep worker implementation
@@ -3556,7 +3556,7 @@ mx-llama.cpp".
   Rounded top-10 logit values differ by at most 0.0001. Existing fixtures,
   acceptance bounds and default CI model downloads are unchanged. Evidence:
   `benchmarks/hf-reference-tools-20260919.json`.
-  Parallel rig work generated actual 8B tokenizer/logit/PPL references from
+  Parallel work on the Linux machine generated actual 8B tokenizer/logit/PPL references from
   verified original `Qwen/Qwen3-8B` at pinned `b968826d9c46dd6066d109eabc6255188de91218`.
   All three modes pass with CPU FP32 eager execution. Measured memory reaches
   the owned container's 40 GiB cap including file cache (3,098 limit events,
@@ -3569,7 +3569,7 @@ mx-llama.cpp".
 - **Gotchas:** do not overwrite small-model goldens with another model or expand
   default CI downloads. Tooling support alone is not an 8B correctness result.
   The tooling-only checkpoint changed no hot path and ran after worker timing.
-  The parallel 8B HF work ran on the separate rig; it is not a performance gate.
+  The parallel 8B HF work ran on the separate Linux machine; it is not a performance gate.
 
 ### Separate Q8 scale/payload storage study (screened out)
 
@@ -3729,7 +3729,7 @@ No mx benchmark or new independent HF gate was run by this scratch probe.
   all 25 Markdown files, including current capabilities, CLI defaults and test
   scope. Evidence: `benchmarks/live-generation-20260919.json`.
 - **Left:** merge with the enclosing runtime stack only after its external
-  performance gates pass. Gitea holds feature checkpoints; GitHub remains
+  performance gates pass. GitHub remains
   main-only. Next runtime work should profile the remaining CPU costs.
 - **Gotchas:** callbacks are synchronous and do not provide concurrent execution
   or resumable-session recovery. Byte chunks can split UTF-8 characters. Loading
@@ -3819,8 +3819,8 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
   or establish Model/session recovery. No concurrent submissions are supported.
   Later GGUF and Qwen checkpoints address file extents, configuration geometry
   and required tensor layouts; token/request checks remain open. Control is
-  `3a82284`; no merge. Gitea holds
-  the feature checkpoint, while the public/default branch remains unchanged.
+  `3a82284`; no merge. The feature branch holds
+  the checkpoint, while the public/default branch remains unchanged.
 
 - **Post-reboot decision:** retain the existing c072af2 implementation. The
   stored-call variant failed its longer comparison. Failure-only exception
@@ -4337,7 +4337,7 @@ feature ships, delete its block and mark the row `Done` above.
 - **Historical stand-in comparison (different conditions; not pooled):**
   Qwen3-8B Q8_0, 343-token wikitext prompt, -t 16, this workstation. Reference
   is the CPU AVX2 llama.cpp shipped with LM Studio, stock `llama-server`, same
-  machine, so no rig time was used.
+  machine, so no time on the Linux machine was used.
     - pp   llmx 37.23 / 37.86   llama.cpp 37.70 / 37.34   -> parity
     - tg   llmx  3.91           llama.cpp  4.99 / 5.02    -> 22% under
   These are the original matched measurements. Later Q8_0 decode commits

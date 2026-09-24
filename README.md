@@ -56,7 +56,7 @@ backends and additional model architectures are not implemented yet; see
 | Hugging Face | `llmx pull` today; safetensors, BF16/F16 tensors and the HF tokenizer/config files planned |
 | Execution model | Done: tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
 | Server | Done: `llmx serve` with continuous batching, streaming HTTP without dependencies, prefix reuse and the OpenAI-compatible routes (`docs/SERVER.md`, `docs/USAGE.md`) |
-| GPU backends | Vulkan done, running on a Radeon VII under Windows and on the rig's MI50s under Linux. Against the reference's own Vulkan build on the same card, decode is 102 to 115 percent and prefill 109 to 455 percent on every file on the Radeon VII, and decode 102 to 115 percent and prefill 102 to 267 percent on one MI50; ROCm first-class on Linux, CUDA and SYCL planned |
+| GPU backends | Vulkan done, running on a Radeon VII under Windows and on MI50s under Linux. Against the reference's own Vulkan build on the same card, decode is 102 to 115 percent and prefill 109 to 455 percent on every file on the Radeon VII, and decode 102 to 115 percent and prefill 102 to 267 percent on one MI50; ROCm first-class on Linux, CUDA and SYCL planned |
 | Multiple devices/nodes | Placement across backends exists; per-layer and per-tensor splits over devices and cluster nodes planned |
 | Hub kernels | Optional later work: port suitable kernel source or distribute llmx kernels through the Hub |
 

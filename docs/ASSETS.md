@@ -670,7 +670,7 @@ mx-llama.cpp at `5542318e74`. Every device comparison on the Radeon VII
 used upstream llama.cpp build 11075, commit `335b21fcb`, its own Vulkan
 backend on the AMD proprietary driver; a source tree of mx-llama.cpp is
 present on that machine but was never built, so no Windows figure here
-is against the fork. On the MI50 rig a reference run must be pinned to one card, `GGML_VK_VISIBLE_DEVICES=N` for its Vulkan build and `HIP_VISIBLE_DEVICES=N` for ROCm, because the reference uses every device it can see and the rig has ten: unpinned, its Vulkan build read 3364 and 101.3 tok/s at pp247 and tg32 on Qwen3-0.6B-Q8_0 against 6941 and 299.0 pinned. MI50 reference figures in STATUS before its thirty-fourth paragraph were unpinned. The MI50 comparison used two arms on the same card:
+is against the fork. On the Linux MI50 machine a reference run must be pinned to one card, `GGML_VK_VISIBLE_DEVICES=N` for its Vulkan build and `HIP_VISIBLE_DEVICES=N` for ROCm, because the reference uses every device it can see and that machine has ten: unpinned, its Vulkan build read 3364 and 101.3 tok/s at pp247 and tg32 on Qwen3-0.6B-Q8_0 against 6941 and 299.0 pinned. MI50 reference figures in STATUS before its thirty-fourth paragraph were unpinned. The MI50 comparison used two arms on the same card:
 upstream build 11100, commit `7ab4ee7ba`, with ROCm, and mx-llama.cpp
 `eefc4e732` built for gfx906, also with ROCm. Neither ROCm arm is known to
 have been pinned with `HIP_VISIBLE_DEVICES`, so the figures that follow are
@@ -1728,7 +1728,7 @@ All candidate/control ranges overlap, but Q8 prefill loses eight of nine paired
 rounds: a performance concern investigated in the post-reboot studies below.
 Q8 decode remains 4.09% below mx. F32 means lead in this session; this is
 not an equivalence test or proof of all-workload parity. The feature branch is
-backed up on Gitea, but no main merge or GitHub publication has occurred; root
+kept as a branch, but no main merge or GitHub publication has occurred; root
 `llmx.exe` stays on the previous KV build.
 
 Separate eight-pair synthetic `bench --size 2048 --iters 10 --threads 6 --p 64

@@ -19,8 +19,8 @@ component starts `llmx serve` on the synthetic model in every CPU job and
 on the real Q8_0 fixture in the HF job. What no hosted job establishes is
 device behaviour: the Vulkan job proves the tree compiles, and the kernel
 comparisons, the HF gate on the device and the matched floors are run on
-the Radeon VII and the rig's MI50s by hand and recorded in `docs/STATUS.md`. A self-hosted
-runner on the rig would close that. The rig needs no packages of its own
+the Radeon VII and the Linux machine's MI50s by hand and recorded in `docs/STATUS.md`. A self-hosted
+runner on that machine would close that. It needs no packages of its own
 for it: `docker/Dockerfile` carries the driver and the compiler and takes
 the cards through `/dev/dri`, and inside it the whole CTest suite,
 `backend-vulkan` included, passes on an MI50.
@@ -150,7 +150,7 @@ preserves the existing local timing floors. `build.bat` still builds the root
 
 Actions are pinned to commit SHAs, checkout credentials are not persisted,
 and workflow permissions are read-only. Jobs run on hosted machines; this
-workflow does not expose the GPU rig to pull-request jobs.
+workflow does not expose the GPU machines to pull-request jobs.
 
 After the hosted runs succeed, the stable check names above can be
 required for `main`. Branch protection is a separate repository setting;

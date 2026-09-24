@@ -106,7 +106,7 @@ above any one vendor, filled by the Vulkan backend today from Vulkan properties
 and by a second backend from its own device properties, so bringing up hardware
 is filling one struct and re-measuring rather than finding literals through a
 backend. Branch on what a device reports, never on who made it.
-- **ROCm (HIP)**: first-class target, matches the MI50 (gfx906) rig, and
+- **ROCm (HIP)**: first-class target, matches the MI50 (gfx906) test machine, and
   **Linux only**. The Windows HIP SDK supports RDNA3, RDNA3.5 and RDNA4 only
   and states that it does not support gfx906; no Instinct card appears in its
   support table. gfx906 also entered ROCm maintenance mode in 5.7 and is

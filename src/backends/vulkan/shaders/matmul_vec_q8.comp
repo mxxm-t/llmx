@@ -47,7 +47,8 @@ void main() {
     uint xc[MAX_COLS], oc[MAX_COLS];
     if (p.per != 0u && p.group != 0u) {
         uint y = gl_WorkGroupID.y, first = tab[4u * y + 1u], cnt = tab[4u * y + 2u];
-        if (cnt == 0u) return;
+        // group 1 takes runs of two or more entries, group 2 lone entries, group 3 every run.
+        if (cnt == 0u || (p.group == 1u && cnt < 2u) || (p.group == 2u && cnt != 1u)) return;
         wrow0 = tab[4u * y] * nout;
         ncols = MAX_COLS == 1u ? 1u : cnt;
         for (uint c = 0u; c < MAX_COLS; ++c) {

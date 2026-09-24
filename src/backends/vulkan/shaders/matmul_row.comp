@@ -69,6 +69,7 @@ layout(set = 0, binding = 9) readonly buffer XT4 { vec4 xt4[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
 layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 // A grouped routed call (group != 0) runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
+// The wide build takes runs of two or more entries and the one-column build the lone ones, since a lone entry in the wide build pays for columns it does not use.
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 
 uint pi = 0u;
@@ -209,7 +210,8 @@ void main() {
     uint xc[MAX_COLS], oc[MAX_COLS];
     if (p.per != 0u && p.group != 0u) {
         uint y = gl_WorkGroupID.y, first = tab[4u * y + 1u], cnt = tab[4u * y + 2u];
-        if (cnt == 0u) return;
+        // group 1 takes runs of two or more entries, group 2 lone entries, group 3 every run.
+        if (cnt == 0u || (p.group == 1u && cnt < 2u) || (p.group == 2u && cnt != 1u)) return;
         wrow = tab[4u * y] * nout + row;
         ncols = MAX_COLS == 1u ? 1u : cnt;
         for (uint c = 0u; c < MAX_COLS; ++c) {

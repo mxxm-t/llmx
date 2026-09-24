@@ -1557,7 +1557,7 @@ public:
     void row_dispatch(const RowPlan& plan, const std::vector<const Projection*>& live, CSlice X, VkDescriptorBufferInfo xqi,
                       size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate,
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
-                      uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0) {
+                      uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0, uint32_t group = 0) {
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
         uint32_t total = 0;
         for (size_t i = 0; i < live.size(); ++i) {
@@ -1576,7 +1576,7 @@ public:
                                  (uint32_t)live.size(),
                                  nout[0], t, w, start[0],
                                  nout[1], t, w, start[1],
-                                 nout[2], t, w, start[2], accumulate ? 1u : 0u, per, tab.buffer ? 1u : 0u, order0};
+                                 nout[2], t, w, start[2], accumulate ? 1u : 0u, per, group, order0};
         dispatch(plan.kernel,
                  {bind(a.out), bind(b.out), bind(c.out),
                   bind(a.data), bind(b.data), bind(c.data),
@@ -1704,11 +1704,16 @@ public:
             throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
         const uint32_t order0 = u32(4 * max_tiles);
         if (!tile) {
-            // Generated tokens beside each other: each run of one expert's entries a workgroup row of the row kernel's wide build, a column per entry.
-            // A column computes as it would alone, so an entry does not depend on what else is routed beside it.
+            // Generated tokens beside each other: each run of one expert's entries a workgroup row, runs of two or more through the row kernel's wide build with a column per entry and lone entries through the one-column build.
+            // A column computes the same in either build and as it would alone, so an entry does not depend on what else is routed beside it.
             const RowPlan plan = row_plan(type, nin);
             const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, xcols * nin);
-            row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries);
+            if (row_kernel_builds_one_column(plan.kernel)) {
+                row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries, 1);
+                row_dispatch(plan, live, X, xqi, nin, xcols, 0, 1, false, u32(per), max_tiles, bind(ids), order0, tab, entries, 2);
+            } else {
+                row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries, 3);
+            }
             return;
         }
         if (integer_dot_tile(type)) {

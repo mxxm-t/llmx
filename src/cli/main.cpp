@@ -774,9 +774,11 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
         return (double)P / (ms_since(t0) / 1e3);
     };
     infer::ExecContext ctx;
-    auto tg = [&] {
+    // `start` runs once the decode is set up and before its first pass, so a profile of it leaves out the sequences' prompts.
+    auto tg = [&](const std::function<void()>& start) {
         if (seqs <= 1) {
             model.reset();
+            if (start) start();
             const auto t0 = clock::now();
             for (uint32_t t : gen) model.step((int)t);
             return (double)G / (ms_since(t0) / 1e3);
@@ -788,6 +790,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
             model.forward(ctx, &e, 1);
         }
         ctx.logits(0);
+        if (start) start();
         std::vector<infer::BatchEntry> batch;
         const auto t0 = clock::now();
         for (int g = 0; g < G; ++g) {
@@ -809,18 +812,18 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
         printf("bench: %s%d  %8.2f +- %.2f tok/s  (%zu runs)\n", what, n, mean, sd, v.size());
     };
     pp();
-    tg();
+    tg({});
     std::vector<double> ppv, tgv;
     for (int r = 0; r < R; r++) ppv.push_back(pp());
-    for (int r = 0; r < R; r++) tgv.push_back(tg());
+    for (int r = 0; r < R; r++) tgv.push_back(tg({}));
     report("pp", P, ppv);
     report(seqs > 1 ? ("x" + std::to_string(seqs) + " tg").c_str() : "tg", G, tgv);
     if (profile) {
 #if LLMX_HAS_BACKEND_VULKAN
         // Device time per kernel over one more prompt and one more decode run, each read on its own, so a pass is attributed to its kernels rather than inferred from kernels timed alone.
-        auto section = [&](const char* what, const std::function<double()>& run) {
-            backend::vulkan_kernel_times(b);   // starts the interval
-            run();
+        // A run calls its argument where its interval starts: a batched decode's after its sequences' prompts.
+        auto section = [&](const char* what, const std::function<double(const std::function<void()>&)>& run) {
+            run([&] { backend::vulkan_kernel_times(b); });
             auto times = backend::vulkan_kernel_times(b);
             std::sort(times.begin(), times.end(),
                       [](const auto& x, const auto& y) { return x.second > y.second; });
@@ -832,7 +835,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
                 std::cout << "profile:   " << t.first << " " << t.second << " ms ("
                           << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
         };
-        section("pp", pp);
+        section("pp", [&](const std::function<void()>& start) { start(); return pp(); });
         section(seqs > 1 ? "batched tg" : "tg", tg);
         // And what the driver made of each kernel that ran: registers, shared memory and waves per SIMD, where it reports them.
         std::istringstream stats(backend::vulkan_kernel_statistics(b));

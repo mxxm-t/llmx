@@ -1163,6 +1163,25 @@ size_t check_kernels(backend::Backend& vk) {
                     p.vk.matmul_experts({{type, wgi.vs(), g.vs(), nff}, {type, wui.vs(), u.vs(), nff}}, xi.vs(), nin, rows, rv, runs);
                     auto rg = p.results(g), ru = p.results(u);
                     values += close(rg.first, rg.second, tol, "routed gate projection differs beyond its bound");
+                    // Generated tokens beside each other go through the grouped row kernel, one run of an expert's entries a workgroup row; each token alone takes an entry per workgroup row.
+                    // The entries must come out bit for bit the same either way.
+                    if (!sh.runs.empty() && rows > 1) {
+                        std::vector<backend::RowRun> decode(rows);
+                        for (size_t r = 0; r < rows; ++r) decode[r] = backend::RowRun{r + 1, 1};
+                        Pair::Out gb = p.out(entries * nff);
+                        p.vk.matmul_experts({{type, wgi.vs(), gb.vs(), nff}}, xi.vs(), nin, rows, rv, {decode.data(), rows});
+                        const std::vector<float> batched = p.results(gb).second;
+                        const backend::RowRun one[1] = {{1, 1}};
+                        for (size_t r = 0; r < rows; ++r) {
+                            Pair::Out ga = p.out(k * nff);
+                            const backend::Backend::Routing alone{{ids.vs().buffer, ids.vs().offset + r * k}, {wts.vs().buffer, wts.vs().offset + r * k}, k, n_expert};
+                            p.vk.matmul_experts({{type, wgi.vs(), ga.vs(), nff}}, {xi.vs().buffer, xi.vs().offset + r * nin}, nin, 1, alone, {one, 1});
+                            const std::vector<float> single = p.results(ga).second;
+                            if (std::memcmp(single.data(), batched.data() + r * k * nff, k * nff * sizeof(float)) != 0)
+                                throw std::runtime_error("a generated token's routed entries differ beside other tokens");
+                            ++values;
+                        }
+                    }
                     values += close(ru.first, ru.second, tol, "routed up projection differs beyond its bound");
                     Pair::Out y = p.out(rows * nout);
                     p.cpu.write(*y.c, 0, y0.data(), y0.size() * sizeof(float));

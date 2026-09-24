@@ -1,9 +1,9 @@
 #version 450
-// A routed call's entries grouped by expert for the tile kernels (matmul_tile.comp, matmul_tile_q.comp), a workgroup per expert.
-// tab holds max_tiles tiles as (expert, first, count, 0), each at most 64 entries of one expert and unused ones with count 0, then from word 4 * max_tiles the entries in expert order, entry order within an expert.
+// A routed call's entries grouped by expert, a workgroup per expert: for the tile kernels (matmul_tile.comp, matmul_tile_q.comp) in chunks of 64, for the row kernels' grouped calls (matmul_row.comp) in chunks of their column count.
+// tab holds max_tiles chunks as (expert, first, count, 0), each at most `chunk` entries of one expert and unused ones with count 0, then from word 4 * max_tiles the entries in expert order, entry order within an expert.
 // The order is stable, so the grouping of a set of ids is always the same.
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint entries; uint n_expert; uint max_tiles; } p;
+layout(push_constant) uniform P { uint entries; uint n_expert; uint max_tiles; uint chunk; } p;
 layout(set = 0, binding = 0) readonly buffer I { uint ids[]; };
 layout(set = 0, binding = 1) buffer T { uint tab[]; };
 
@@ -35,12 +35,12 @@ void main() {
     barrier();
     // This expert's first entry and first tile follow the experts below it; expert 0's workgroup also clears the tiles past the last one used.
     uint f = 0u, tl = 0u;
-    for (uint x = t; x < e; x += 256u) { f += hist[x]; tl += (hist[x] + 63u) / 64u; }
+    for (uint x = t; x < e; x += 256u) { f += hist[x]; tl += (hist[x] + p.chunk - 1u) / p.chunk; }
     uvec2 before = total(f, tl);
     uint first = before.x, tile0 = before.y, count = hist[e];
     if (e == 0u) {
         uint all = 0u;
-        for (uint x = t; x < p.n_expert; x += 256u) all += (hist[x] + 63u) / 64u;
+        for (uint x = t; x < p.n_expert; x += 256u) all += (hist[x] + p.chunk - 1u) / p.chunk;
         uint used = total(all, 0u).x;
         for (uint y = used + t; y < p.max_tiles; y += 256u) {
             tab[4u * y] = 0u;
@@ -50,11 +50,11 @@ void main() {
         }
     }
     if (count == 0u) return;
-    for (uint j = t * 64u; j < count; j += 256u * 64u) {
-        uint y = tile0 + j / 64u;
+    for (uint j = t * p.chunk; j < count; j += 256u * p.chunk) {
+        uint y = tile0 + j / p.chunk;
         tab[4u * y] = e;
         tab[4u * y + 1u] = first + j;
-        tab[4u * y + 2u] = min(64u, count - j);
+        tab[4u * y + 2u] = min(p.chunk, count - j);
         tab[4u * y + 3u] = 0u;
     }
     // Placement 256 entries at a time: an entry's slot is the expert's cursor plus the chunk's earlier entries of this expert, by a prefix sum.

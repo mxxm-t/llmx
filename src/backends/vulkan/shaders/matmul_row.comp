@@ -36,6 +36,7 @@ layout(push_constant) uniform P {
     uint nout2; uint type2; uint wide2; uint start2;
     uint accum;   // Y += rather than Y =, the residual add folded in
     uint per;
+    uint group; uint order0;   // a grouped routed call, and where its entries start in tab
 } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; } w16s[3];
@@ -67,6 +68,8 @@ layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 layout(set = 0, binding = 9) readonly buffer XT4 { vec4 xt4[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
 layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
+// A grouped routed call (group != 0) runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
+layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 
 uint pi = 0u;
 
@@ -198,15 +201,29 @@ void main() {
     uint rsub = lane / p.cluster;      // which of the subgroup's rows
     uint l = lane - rsub * p.cluster;  // lane within the row's cluster
     uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
-    uint col0 = p.col0, out0 = p.col0, wrow = row;
-    if (p.per != 0u) {
-        uint e = gl_WorkGroupID.y;
-        col0 = e / p.per;
-        out0 = e;
-        wrow = ids[e] * nout + row;
-    }
+    uint wrow = row;
     // One in the one-column build, so the column loops collapse.
-    const uint ncols = MAX_COLS == 1u ? 1u : p.ncols;
+    uint ncols = MAX_COLS == 1u ? 1u : p.ncols;
+    // Each column's X column and output row: consecutive from col0 in a plain call, the workgroup row's entry in a routed one, the chunk's entries in a grouped one.
+    // Columns past the last repeat it, so every index a loop reaches is valid.
+    uint xc[MAX_COLS], oc[MAX_COLS];
+    if (p.per != 0u && p.group != 0u) {
+        uint y = gl_WorkGroupID.y, first = tab[4u * y + 1u], cnt = tab[4u * y + 2u];
+        if (cnt == 0u) return;
+        wrow = tab[4u * y] * nout + row;
+        ncols = MAX_COLS == 1u ? 1u : cnt;
+        for (uint c = 0u; c < MAX_COLS; ++c) {
+            uint ent = tab[p.order0 + first + min(c, cnt - 1u)];
+            xc[c] = ent / p.per;
+            oc[c] = ent;
+        }
+    } else if (p.per != 0u) {
+        uint e = gl_WorkGroupID.y;
+        wrow = ids[e] * nout + row;
+        for (uint c = 0u; c < MAX_COLS; ++c) { xc[c] = e / p.per; oc[c] = e; }
+    } else {
+        for (uint c = 0u; c < MAX_COLS; ++c) { xc[c] = p.col0 + c; oc[c] = p.col0 + c; }
+    }
     float acc[MAX_COLS];
     for (uint c = 0u; c < MAX_COLS; ++c) acc[c] = 0.0;
     if (row < nout) {
@@ -233,7 +250,7 @@ void main() {
                 wb = (wb >> 16u) | ((t == 3u ? sc : sb) << 16u);
                 if (t == 0u) wc = 0u;
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = col0 + c;
+                    uint col = xc[c];
                     uint a2 = xa_col(col) / 2u + j * 16u;
                     int p0 = 0, p1 = 0;
                     q8_word(wa, t, a2, p0, p1);
@@ -257,7 +274,7 @@ void main() {
                 uint q0 = hword_at(o + 2u), q1 = hword_at(o + 6u), q2 = hword_at(o + 10u), q3 = hword_at(o + 14u);
                 uint q4 = hword_at(o + 18u), q5 = hword_at(o + 22u), q6 = hword_at(o + 26u), q7 = hword_at(o + 30u);
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = col0 + c;
+                    uint col = xc[c];
                     uint a2 = xa_col(col) / 2u + b * 8u;
                     int s = byte_dot(q0, xq2[a2]) + byte_dot(q1, xq2[a2 + 1u]) + byte_dot(q2, xq2[a2 + 2u]) + byte_dot(q3, xq2[a2 + 3u]) +
                             byte_dot(q4, xq2[a2 + 4u]) + byte_dot(q5, xq2[a2 + 5u]) + byte_dot(q6, xq2[a2 + 6u]) + byte_dot(q7, xq2[a2 + 7u]);
@@ -269,13 +286,13 @@ void main() {
             uint n4 = p.nin / 4u, wbase4 = wrow * n4;
             for (uint i = l; i < n4; i += p.cluster) {
                 vec4 w = uintBitsToFloat(w128s[pi].w128[wbase4 + i]);
-                for (uint c = 0u; c < ncols; ++c) acc[c] += dot(w, xt4[(col0 + c) * n4 + i]);
+                for (uint c = 0u; c < ncols; ++c) acc[c] += dot(w, xt4[xc[c] * n4 + i]);
             }
         } else {
             uint wbase = wrow * p.nin;
             for (uint i = l; i < p.nin; i += p.cluster) {
                 float w = wfs[pi].wf[wbase + i];
-                for (uint c = 0u; c < ncols; ++c) acc[c] += w * x[(col0 + c) * p.nin + i];
+                for (uint c = 0u; c < ncols; ++c) acc[c] += w * x[xc[c] * p.nin + i];
             }
         }
 #endif
@@ -305,7 +322,7 @@ void main() {
                 }
                 uint b = 2u * j + t;
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = col0 + c;
+                    uint col = xc[c];
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
@@ -327,7 +344,7 @@ void main() {
                 float d = unpackHalf2x16(uint(w16s[pi].w16[o >> 1u])).x;
                 uint n0 = hword_at(o + 2u), n1 = hword_at(o + 6u), n2 = hword_at(o + 10u), n3 = hword_at(o + 14u);
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = col0 + c;
+                    uint col = xc[c];
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
@@ -351,7 +368,7 @@ void main() {
                 uint w3 = w32s[pi].w32[o + 3u], w4 = w32s[pi].w32[o + 4u];
                 vec2 dm = unpackHalf2x16(w0);
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = col0 + c;
+                    uint col = xc[c];
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
@@ -398,7 +415,7 @@ void main() {
                 float ml = h == 0u ? dd.y * mnl : 0.0, mh = h == 0u ? dd.y * mnh : 0.0;
                 uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
                 for (uint cc = 0u; cc < ncols; ++cc) {
-                    uint col = col0 + cc;
+                    uint col = xc[cc];
                     uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
@@ -452,7 +469,7 @@ void main() {
                 q0a = signed6(q0a); q0b = signed6(q0b); q1a = signed6(q1a); q1b = signed6(q1b);
                 q2a = signed6(q2a); q2b = signed6(q2b); q3a = signed6(q3a); q3b = signed6(q3b);
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = col0 + c;
+                    uint col = xc[c];
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
                     XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
                     int p0 = dot4(q0a, x0v.x) + dot4(q0b, x0v.y), p1 = dot4(q1a, x1v.x) + dot4(q1b, x1v.y);
@@ -463,7 +480,7 @@ void main() {
                 }
 #else
                 for (uint c = 0u; c < ncols; ++c) {
-                    uint col = col0 + c;
+                    uint col = xc[c];
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
                     XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
                     QDOT p0 = pair_dot(q0a & 0x00FF00FFu, (q0a >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0b & 0x00FF00FFu, (q0b >> 8u) & 0x00FF00FFu, x0v.zw);
@@ -490,8 +507,8 @@ void main() {
         float s = acc[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
         if (l == 0u && row < nout && c < ncols) {
-            if (p.accum != 0u) ys[pi].y[(out0 + c) * nout + row] += s;
-            else ys[pi].y[(out0 + c) * nout + row] = s;
+            if (p.accum != 0u) ys[pi].y[oc[c] * nout + row] += s;
+            else ys[pi].y[oc[c] * nout + row] = s;
         }
     }
 }

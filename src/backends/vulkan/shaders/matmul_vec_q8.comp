@@ -16,6 +16,7 @@ layout(push_constant) uniform P {
     uint nout2; uint type2; uint wide2; uint start2;
     uint accum;
     uint per;
+    uint group; uint order0;
 } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
@@ -24,6 +25,8 @@ layout(set = 0, binding = 7) readonly buffer XQ4 { uvec2 xq4[]; };
 layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
 layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
+// A grouped routed call (group != 0) runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
+layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 
 #ifndef ROWS
 #define ROWS 2u
@@ -38,14 +41,27 @@ void main() {
     uint local_wg = wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2));
     uint lane = gl_SubgroupInvocationID, S = gl_SubgroupSize;
     uint row0 = (local_wg * (256u / S) + gl_SubgroupID) * ROWS;
-    uint col0 = p.col0, out0 = p.col0, wrow0 = 0u;
-    if (p.per != 0u) {
+    uint wrow0 = 0u;
+    uint ncols = MAX_COLS == 1u ? 1u : p.ncols;
+    // Each column's X column and output row, as matmul_row.comp takes them; columns past the last repeat it.
+    uint xc[MAX_COLS], oc[MAX_COLS];
+    if (p.per != 0u && p.group != 0u) {
+        uint y = gl_WorkGroupID.y, first = tab[4u * y + 1u], cnt = tab[4u * y + 2u];
+        if (cnt == 0u) return;
+        wrow0 = tab[4u * y] * nout;
+        ncols = MAX_COLS == 1u ? 1u : cnt;
+        for (uint c = 0u; c < MAX_COLS; ++c) {
+            uint ent = tab[p.order0 + first + min(c, cnt - 1u)];
+            xc[c] = ent / p.per;
+            oc[c] = ent;
+        }
+    } else if (p.per != 0u) {
         uint e = gl_WorkGroupID.y;
-        col0 = e / p.per;
-        out0 = e;
         wrow0 = ids[e] * nout;
+        for (uint c = 0u; c < MAX_COLS; ++c) { xc[c] = e / p.per; oc[c] = e; }
+    } else {
+        for (uint c = 0u; c < MAX_COLS; ++c) { xc[c] = p.col0 + min(c, ncols - 1u); oc[c] = p.col0 + c; }
     }
-    const uint ncols = MAX_COLS == 1u ? 1u : p.ncols;
     uint nblk = p.nin / 32u;
     uint q = lane & 3u;
     uint xtab = p.nbatch * p.nin / 8u;
@@ -56,7 +72,7 @@ void main() {
         float dx[MAX_COLS];
         // Column loops run to MAX_COLS with the pushed count as a guard, so the arrays are indexed by constants and stay in registers.
         for (uint c = 0u; c < MAX_COLS; ++c) {
-            uint col = col0 + min(c, ncols - 1u);
+            uint col = xc[c];
             xa[c] = xq4[(col * p.nin + b * 32u + q * 8u) / 8u];
             dx[c] = xt2[xtab + col * nblk + b].x;
         }
@@ -86,8 +102,8 @@ void main() {
             if (c >= ncols) break;
             float s = subgroupAdd(acc[r][c]);
             if (lane == 0u && row < nout) {
-                if (p.accum != 0u) ys[pi].y[(out0 + c) * nout + row] += s;
-                else ys[pi].y[(out0 + c) * nout + row] = s;
+                if (p.accum != 0u) ys[pi].y[oc[c] * nout + row] += s;
+                else ys[pi].y[oc[c] * nout + row] = s;
             }
         }
     }

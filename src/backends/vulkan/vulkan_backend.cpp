@@ -289,7 +289,7 @@ struct KernelSource {
     const uint32_t* counts;
 };
 
-const uint32_t kMatmulRowCounts[11] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1};
+const uint32_t kMatmulRowCounts[12] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1, 1};
 // The integer-dot tile's outputs and weights, three of each, and the reduce's outputs.
 const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
@@ -316,15 +316,15 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr},
     {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5, nullptr},
     {kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr},
-    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 11, kMatmulRowCounts},
+    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts},
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
     {kSpvAttention, sizeof(kSpvAttention), 7, nullptr},
     {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr},
-    {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 11, kMatmulRowCounts},
-    {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 11, kMatmulRowCounts},
-    {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 11, kMatmulRowCounts},
-    {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 11, kMatmulRowCounts},
+    {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 12, kMatmulRowCounts},
+    {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 12, kMatmulRowCounts},
+    {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 12, kMatmulRowCounts},
+    {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 12, kMatmulRowCounts},
     {kSpvNormRopeKv, sizeof(kSpvNormRopeKv), 11, nullptr},
     {kSpvAttentionTile, sizeof(kSpvAttentionTile), 5, nullptr},
     {kSpvKvWriteK16, sizeof(kSpvKvWriteK16), 5, nullptr},
@@ -340,24 +340,24 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvNormRopeKvV16, sizeof(kSpvNormRopeKvV16), 11, nullptr},
     {kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr},
     {kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr},
-    {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 11, kMatmulRowCounts},
+    {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 12, kMatmulRowCounts},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr},
-    {kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 11, kMatmulRowCounts},
-    {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 11, kMatmulRowCounts},
-    {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 11, kMatmulRowCounts},
-    {kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 11, kMatmulRowCounts},
+    {kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 12, kMatmulRowCounts},
+    {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 12, kMatmulRowCounts},
+    {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 12, kMatmulRowCounts},
+    {kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 12, kMatmulRowCounts},
     {kSpvQuantizeX8, sizeof(kSpvQuantizeX8), 2, nullptr},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts},
     {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts},
-    {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 11, kMatmulRowCounts},
+    {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 12, kMatmulRowCounts},
     {kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr},
     {kSpvMoeCombine, sizeof(kSpvMoeCombine), 3, nullptr},
     {kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr},
-    {kSpvMatmulRowKDot8, sizeof(kSpvMatmulRowKDot8), 11, kMatmulRowCounts},
-    {kSpvMatmulRowQ4Dot8, sizeof(kSpvMatmulRowQ4Dot8), 11, kMatmulRowCounts},
+    {kSpvMatmulRowKDot8, sizeof(kSpvMatmulRowKDot8), 12, kMatmulRowCounts},
+    {kSpvMatmulRowQ4Dot8, sizeof(kSpvMatmulRowQ4Dot8), 12, kMatmulRowCounts},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1556,7 +1556,8 @@ public:
     // A routed dispatch (`per` nonzero) instead runs one entry per workgroup row, `entries` of them, through the expert ids in `ids`.
     void row_dispatch(const RowPlan& plan, const std::vector<const Projection*>& live, CSlice X, VkDescriptorBufferInfo xqi,
                       size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate,
-                      uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {}) {
+                      uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
+                      uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0) {
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
         uint32_t total = 0;
         for (size_t i = 0; i < live.size(); ++i) {
@@ -1571,11 +1572,11 @@ public:
         const Projection& b = live.size() > 1 ? *live[1] : a;
         const Projection& c = live.size() > 2 ? *live[2] : a;
         const uint32_t t = plan.type, w = plan.wide;
-        const uint32_t pc[21] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, plan.rows_per_sg,
+        const uint32_t pc[23] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, plan.rows_per_sg,
                                  (uint32_t)live.size(),
                                  nout[0], t, w, start[0],
                                  nout[1], t, w, start[1],
-                                 nout[2], t, w, start[2], accumulate ? 1u : 0u, per};
+                                 nout[2], t, w, start[2], accumulate ? 1u : 0u, per, tab.buffer ? 1u : 0u, order0};
         dispatch(plan.kernel,
                  {bind(a.out), bind(b.out), bind(c.out),
                   bind(a.data), bind(b.data), bind(c.data),
@@ -1583,12 +1584,12 @@ public:
                   bind(a.data), bind(b.data), bind(c.data),
                   bind(X),
                   bind(a.data), bind(b.data), bind(c.data),
-                  xqi, xqi, xqi, xqi, ids.buffer ? ids : bind(X)},
+                  xqi, xqi, xqi, xqi, ids.buffer ? ids : bind(X), tab.buffer ? tab : bind(X)},
                  pc, sizeof(pc), total, u32(entries),
                  ncols == 1 && row_kernel_builds_one_column(plan.kernel) ? 1 : 0);
         // The outputs may overlap what the twin describes; a router's scores beside its input do not, so the experts read the same twin.
         for (const Projection* pr : live)
-            if (overlaps_twin(bind(pr->out), (per ? entries : nbatch) * pr->rows)) xq_tag_ = XqTag{};
+            if (overlaps_twin(bind(pr->out), (routed ? routed : per ? entries : nbatch) * pr->rows)) xq_tag_ = XqTag{};
     }
 
     // Expert routing and the routed projections (backend.hpp).
@@ -1675,14 +1676,16 @@ public:
         if (!per) per = k;
         const size_t entries = nrows * k;
         const uint32_t type = live[0]->type;
-        if (!tile) {
+        if (!tile && nrows == 1) {
+            // A lone generated token: each entry its own workgroup row, through the one-column build.
             const RowPlan plan = row_plan(type, nin);
             const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, xcols * nin);
             row_dispatch(plan, live, X, xqi, nin, xcols, 0, 1, false, u32(per), entries, bind(ids));
             return;
         }
-        // Tiles: every expert's entries in runs of 64, at most one partial tile per expert that has any.
-        const size_t max_tiles = (entries + 63) / 64 + std::min(n_expert, entries);
+        // Grouped by expert: the tiles in runs of 64, the row kernels in runs of their column count, so an expert's rows are read once per run rather than once per entry; at most one partial run per expert that has any.
+        const size_t chunk = tile ? 64 : kRowColsWide;
+        const size_t max_tiles = (entries + chunk - 1) / chunk + std::min(n_expert, entries);
         const size_t tab_bytes = (4 * max_tiles + entries) * sizeof(uint32_t);
         if (!moe_tab_ || moe_tab_->size() < tab_bytes) {
             grow(moe_tab_, tab_bytes);
@@ -1692,14 +1695,22 @@ public:
         // The down projection routes the same ids as gate and up, so their grouping is reused.
         const VkDescriptorBufferInfo idb = bind(ids);
         if (!(group_tag_.ids.buffer == idb.buffer && group_tag_.ids.offset == idb.offset && group_tag_.entries == entries &&
-              group_tag_.n_expert == n_expert)) {
-            const uint32_t gpc[3] = {u32(entries), u32(n_expert), u32(max_tiles)};
+              group_tag_.n_expert == n_expert && group_tag_.chunk == chunk)) {
+            const uint32_t gpc[4] = {u32(entries), u32(n_expert), u32(max_tiles), u32(chunk)};
             dispatch(K_MOE_GROUP, {idb, tab}, gpc, sizeof(gpc), u32(n_expert));
-            group_tag_ = GroupTag{idb, entries, n_expert};
+            group_tag_ = GroupTag{idb, entries, n_expert, chunk};
         }
         if (max_tiles > dev_->props.limits.maxComputeWorkGroupCount[1])
             throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
         const uint32_t order0 = u32(4 * max_tiles);
+        if (!tile) {
+            // Generated tokens beside each other: each run of one expert's entries a workgroup row of the row kernel's wide build, a column per entry.
+            // A column computes as it would alone, so an entry does not depend on what else is routed beside it.
+            const RowPlan plan = row_plan(type, nin);
+            const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, xcols * nin);
+            row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries);
+            return;
+        }
         if (integer_dot_tile(type)) {
             const VkDescriptorBufferInfo x8 = x8_for(xcols * nin);
             const uint32_t qpc[3] = {u32(xcols * nin), u32(nin), u32(xcols)};
@@ -2283,7 +2294,7 @@ private:
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
     // Which ids moe_tab_ groups: their location and count, cleared by every routing and by anything that writes a buffer from the host.
-    struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0; };
+    struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0, chunk = 0; };
     GroupTag group_tag_;
     // What the twin buffer holds: the float input it was made from, its length, and whether the 8-bit twin was written; cleared by anything else that writes a buffer, since the input may be what was written.
     struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; };

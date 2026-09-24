@@ -9,7 +9,8 @@
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
-layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; uint kper; uint ctiles; } p;
+// `wstride` is an F32 row's stride in floats: nin, or more for the padded copy the backend keeps of a matrix whose rows are a power of two wide.
+layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; uint kper; uint ctiles; uint wstride; } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
@@ -63,12 +64,7 @@ void main() {
     float acc[MROWS][4];
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
     uint nblocks = p.nin / 32u;   // Q8_0 and Q4_0 both have 32-value blocks
-    // F32 rows a power of two wide sit a multiple of the memory's channel interleave apart, so every row of a step reads the same channel; each block of rows starts its part at its own step and wraps, which spreads the tiles in flight across channels.
-    // The rotation follows the 128-row block holding the tile, which every tile height the batch may pick lies within, so a row sums in the same order in any batch.
-    uint nsteps = (kend - kbeg + 31u) / 32u;
-    uint rot = p.type == TYPE_F32 && nsteps > 0u ? (row_base / 128u) % nsteps : 0u;
-    uint kwrap = kbeg + nsteps * 32u, k0 = kbeg + rot * 32u;
-    for (uint s = 0u; s < nsteps; ++s, k0 = k0 + 32u == kwrap ? kbeg : k0 + 32u) {
+    for (uint k0 = kbeg; k0 < kend; k0 += 32u) {
         // W tile: TILE_ROWS rows x 32 values.
         uint row = row_base + wrow, wr = expert * p.nout + row;
         if (row < p.nout) {
@@ -147,7 +143,7 @@ void main() {
             } else {
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = k0 + wseg * WVALS + i;
-                    ws[wseg * WVALS + i][wrow] = k < p.nin ? wf[wr * p.nin + k] : 0.0;
+                    ws[wseg * WVALS + i][wrow] = k < p.nin ? wf[wr * p.wstride + k] : 0.0;
                 }
             }
         } else {

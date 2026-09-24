@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -276,6 +277,7 @@ inline bool row_kernel_builds_one_column(KernelId id) {
 }
 
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
+const size_t kF32Pad = 32;   // floats after each row of a padded F32 matrix (padded_f32)
 const int kVariants = 3;   // a kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert
 
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
@@ -588,6 +590,13 @@ public:
     VulkanBuffer& operator=(const VulkanBuffer&) = delete;
 
     size_t size() const override { return size_; }
+    // Weights arrive through adopt; only those get padded copies, which a write or copy into the buffer drops (VulkanBackend::padded_f32).
+    bool adopted = false;
+    struct Padded {
+        size_t rows, nin;
+        std::shared_ptr<VulkanBuffer> copy;
+    };
+    std::map<size_t, Padded> padded;   // by byte offset
     const void* host_ptr() const override { return mapped_; }
     void* mapped() const { return mapped_; }
     VkBuffer handle() const { return buffer_; }
@@ -1011,6 +1020,7 @@ public:
         if (!src && bytes) throw std::runtime_error("vulkan: adopting null storage");
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, false);
         upload(*b, 0, src, bytes);
+        b->adopted = true;
         return b;
     }
 
@@ -1129,6 +1139,7 @@ public:
         group_tag_ = GroupTag{};
         if (!src && bytes) throw std::runtime_error("vulkan: writing from null storage");
         VulkanBuffer& dst = as_vulkan(dst_b);
+        drop_padded(dst);
         span(dst, off, bytes);
         if (!bytes) return;
         if (dst.host_visible()) {
@@ -1146,6 +1157,7 @@ public:
         group_tag_ = GroupTag{};
         VulkanBuffer& dst = as_vulkan(dst_b);
         const VulkanBuffer& src = as_vulkan(src_b);
+        drop_padded(dst);
         span(dst, dst_off, bytes);
         span(src, src_off, bytes);
         if (!bytes) return;
@@ -1386,33 +1398,36 @@ public:
             // The float tile, one projection a dispatch.
             for (const Projection* pr : live) {
                 if (integer_dot_tile(pr->type)) continue;
-                // A taller tile reads less shared memory per product but halves the workgroups; below one per compute unit the call takes a shorter one.
-                const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
-                                                      pr->rows, gy, nin);
-                const bool tall = height == kTileRowsTall;
                 // Split as the integer-dot tile is, by the rows' whole prompt (matmul_runs), so a projection of few rows, such as a router's, still fills the device.
                 const size_t st = split_tiles ? split_tiles : gy;
                 const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, pr->rows, st, nin);
                 const size_t steps = (nin + 31) / 32;   // an F32 row's last step may be partial
                 // Only a starved call splits, below a quarter of a workgroup per compute unit: above that the reduce dispatch cost more than it saved (Qwen3-0.6B Q4_0 at 64 prompt tokens on a Radeon VII).
                 const size_t fwg = groups(pr->rows, hs) * st;
-                const size_t kper = fwg * 4 < dev_->caps.compute_units ? split_blocks(fwg, steps, dev_->profile.float_tile_split_per_cu) : steps;
+                const bool starved = fwg * 4 < dev_->caps.compute_units;
+                const size_t kper = starved ? split_blocks(groups(pr->rows, kTileRowsSmall) * st, steps, dev_->profile.float_tile_split_per_cu) : steps;
                 const size_t parts = (steps + kper - 1) / kper;
-                const uint32_t pc[9] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate && parts == 1 ? 1u : 0u, 0, 0,
-                                        u32(kper * 32), u32(gy)};
+                // A taller tile reads less shared memory per product but halves the workgroups; below one per compute unit the call takes a shorter one, and a starved call the shortest, for the most workgroups.
+                const uint32_t height = starved ? kTileRowsSmall
+                                                : tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, pr->rows, gy, nin);
+                const bool tall = height == kTileRowsTall;
+                const VkDescriptorBufferInfo wf = pr->type == gguf::GGML_TYPE_F32 ? padded_f32(pr->data, pr->rows, nin) : bind(pr->data);
+                const size_t wstride = wf.buffer == bind(pr->data).buffer ? nin : nin + kF32Pad;
+                const uint32_t pc[10] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate && parts == 1 ? 1u : 0u, 0, 0,
+                                         u32(kper * 32), u32(gy), u32(wstride)};
                 const KernelId kernel = tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE;
                 const int small = height == kTileRowsSmall ? 1 : 0;
                 if (parts > 1) {
                     const size_t n = nbatch * pr->rows;
                     if (!parts_ || parts_->size() < parts * n * sizeof(float)) grow(parts_, parts * n * sizeof(float));
                     const VkDescriptorBufferInfo pb{parts_->handle(), 0, VK_WHOLE_SIZE};
-                    dispatch(kernel, {pb, bind(pr->data), bind(pr->data), bind(X), bind(pr->data), bind(X)},
+                    dispatch(kernel, {pb, bind(pr->data), wf, bind(X), bind(pr->data), bind(X)},
                              pc, sizeof(pc), groups(pr->rows, height), u32(gy * parts), small);
                     const uint32_t start = u32(groups(n, 256));
                     const uint32_t rc[7] = {u32(n), 0, 0, u32(parts), accumulate ? 1u : 0u, start, start + 1};
                     dispatch(K_MATMUL_REDUCE, {bind(pr->out), bind(pr->out), bind(pr->out), pb}, rc, sizeof(rc), start);
                 } else {
-                    dispatch(kernel, {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data), bind(X)},
+                    dispatch(kernel, {bind(pr->out), bind(pr->data), wf, bind(X), bind(pr->data), bind(X)},
                              pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, small);
                 }
             }
@@ -1766,7 +1781,7 @@ public:
             for (const Projection* pr : live) {
                 const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
                                                       pr->rows, max_tiles, nin);
-                const uint32_t pc[9] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0, u32(nin), u32(max_tiles)};
+                const uint32_t pc[10] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0, u32(nin), u32(max_tiles), u32(nin)};
                 dispatch(height == kTileRowsTall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE,
                          {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data), tab},
                          pc, sizeof(pc), groups(pr->rows, height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0);
@@ -1816,6 +1831,35 @@ public:
     }
 
     // The quant blocks each part of a split integer-dot tile call sums, the whole inner dimension when unsplit: a call of fewer workgroups than tile_split_per_cu (tile_split_per_cu_narrow for narrow rows) per compute unit splits, keeping at least tile_split_min_blocks per part.
+    // An adopted F32 matrix whose rows are a multiple of 256 floats wide, as a copy with kF32Pad floats after each row, made on first use and kept with the buffer.
+    // Such rows sit a multiple of the memory's channel interleave apart, so every row of a float tile step read the same channel: a 4096 x 2048 F32 tile took 7 to 10 times as long as a 4096 x 2080 one. Other matrices are bound as they are.
+    VkDescriptorBufferInfo padded_f32(CSlice data, size_t rows, size_t nin) {
+        VulkanBuffer& src = const_cast<VulkanBuffer&>(as_vulkan(*data.buffer));
+        if (!src.adopted || nin % 256 != 0 || !rows) return bind(data);
+        const size_t off = data.offset * sizeof(float);
+        auto it = src.padded.find(off);
+        if (it == src.padded.end() || it->second.rows != rows || it->second.nin != nin) {
+            auto copy = std::make_shared<VulkanBuffer>(dev_, rows * (nin + kF32Pad) * sizeof(float), false);
+            std::vector<VkBufferCopy> regions(rows);
+            for (size_t r = 0; r < rows; ++r)
+                regions[r] = VkBufferCopy{off + r * nin * sizeof(float), r * (nin + kF32Pad) * sizeof(float), nin * sizeof(float)};
+            VkCommandBuffer cmd = open();
+            barrier(cmd);
+            dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), copy->handle(), u32(regions.size()), regions.data());
+            barrier(cmd);
+            if (it != src.padded.end()) pending_[ring_index_].push_back(std::move(it->second.copy));
+            it = src.padded.insert_or_assign(off, VulkanBuffer::Padded{rows, nin, std::move(copy)}).first;
+        }
+        return VkDescriptorBufferInfo{it->second.copy->handle(), 0, VK_WHOLE_SIZE};
+    }
+    // Copies of a buffer about to change, retired in stream order.
+    void drop_padded(VulkanBuffer& b) {
+        if (b.padded.empty()) return;
+        open();
+        for (auto& e : b.padded) pending_[ring_index_].push_back(std::move(e.second.copy));
+        b.padded.clear();
+    }
+
     // `per_cu` overrides both targets, as the float tile's own does.
     size_t split_blocks(size_t workgroups, size_t nblk, uint32_t per_cu = 0) const {
         const bool narrow = nblk * 32 < dev_->profile.tile_narrow_nin;

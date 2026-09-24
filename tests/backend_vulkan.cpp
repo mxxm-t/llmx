@@ -297,6 +297,24 @@ size_t check_kernels(backend::Backend& vk) {
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "embedding row beyond the table accepted");
     }
+    // The float tile reads an F32 matrix 256 or more floats wide through a padded copy made on first use; after a write into the weights the next call must read what was written.
+    {
+        const size_t nin = 256, nout = 67, cols = 64;
+        const auto w1 = uniform(nin * nout, 21), w2 = uniform(nin * nout, 22), xx = uniform(nin * cols, 23);
+        auto wb = p.vk.adopt(w1.data(), w1.size() * sizeof(float));
+        auto fresh = p.vk.adopt(w2.data(), w2.size() * sizeof(float));
+        auto xb = p.vk.adopt(xx.data(), xx.size() * sizeof(float));
+        auto y1 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
+        auto y2 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
+        p.vk.matmul(gguf::GGML_TYPE_F32, {wb.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
+        p.vk.write(*wb, 0, w2.data(), w2.size() * sizeof(float));
+        p.vk.matmul(gguf::GGML_TYPE_F32, {wb.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
+        p.vk.matmul(gguf::GGML_TYPE_F32, {fresh.get(), 0}, {xb.get(), 0}, {y2.get(), 0}, nin, nout, cols);
+        std::vector<float> a(nout * cols), b(nout * cols);
+        p.vk.read(*y1, 0, a.data(), a.size() * sizeof(float));
+        p.vk.read(*y2, 0, b.data(), b.size() * sizeof(float));
+        values += exact(a, b, "an F32 matmul after a write into its weights read the old weights");
+    }
     // matmul: F32 and Q8_0 over odd sizes and batch widths that fall inside, on and past the eight-column chunk.
     // The reduction order differs from the CPU's, so a tolerance.
     for (size_t nin : {size_t(1024), size_t(256), size_t(224)}) {

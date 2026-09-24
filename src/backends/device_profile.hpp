@@ -58,7 +58,7 @@ struct DeviceProfile {
     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, for rows at least tile_narrow_nin wide and narrower, and the fewest quant blocks of 32 a part may sum.
     uint32_t tile_split_per_cu = 8, tile_split_per_cu_narrow = 4, tile_split_min_blocks = 8;
     // The float tile's target when it splits, which only a call of a quarter of a workgroup per compute unit or fewer does, such as a router's.
-    uint32_t float_tile_split_per_cu = 1;
+    uint32_t float_tile_split_per_cu = 4;
     // Workgroups per compute unit the tallest tile must yield before a call takes it, for rows at least tile_narrow_nin wide and narrower: fewer leave too few waves per SIMD to hide the loads.
     uint32_t tile_tall_per_cu = 1, tile_tall_per_cu_narrow = 1;
     // Dispatches recorded before a submission, so the device starts on a pass while the host is still recording it.

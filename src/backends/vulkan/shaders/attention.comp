@@ -1,17 +1,26 @@
 #version 450
-// Causal GQA over every view of a batch: one workgroup per (batch row, head, split), a split being a range of the row's history.
-// The workgroup's subgroups take the split's tokens round robin with an online softmax, and merge through shared memory; with several splits each state goes to scratch for attention_merge.
+// Causal GQA over every view of a batch: one workgroup per (batch row, block of heads, split), a split being a range of the row's history and a block up to four query heads that read one KV head.
+// The workgroup loads each token's key and value once for its block, since a long history's cache outweighs the weights a decode step reads.
+// Each head's arithmetic is what it would be alone: the split's tokens go round robin to the subgroups with an online softmax per head, and the subgroups merge through shared memory one head at a time; with several splits each state goes to scratch for attention_merge.
 // Row b of a view attends through its hist + b.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_control_flow_attributes : require
 layout(local_size_x = 256) in;
 // With `quant` set the row kernel's 16-bit twin of the output is written beside it (xquant.glsl); the head width is then a multiple of 32 and the batch is this dispatch alone.
 layout(push_constant) uniform P {
-    uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts;
+    uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts; uint hg;
 } p;
+// Query heads a workgroup takes at most; `hg` divides the heads that share a KV head and is at most this.
+// The build for one head (the default) keeps the registers a short history's many workgroups want; LLMX_G4 is the long-history build.
+#ifdef LLMX_G4
+#define HG 4u
+#else
+#define HG 1u
+#endif
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
 layout(set = 0, binding = 6) writeonly buffer XQ { uint xq[]; };
@@ -33,24 +42,26 @@ float v_load(uint i) { return vb[i]; }
 layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 5) writeonly buffer S { float scratch[]; };
 #include "views.glsl"
-shared float qs[256];
-shared float ms[8];
-shared float ls[8];
+shared float qs[HG][256];
+shared float ms[HG][8];
+shared float ls[HG][8];
 shared float accs[8][256];
 void main() {
     uint split = gl_WorkGroupID.x % p.nsplit;
-    uint rh = gl_WorkGroupID.x / p.nsplit;
-    uint g = rh / p.n_head;
-    uint h = rh - g * p.n_head;
+    uint rb = gl_WorkGroupID.x / p.nsplit;
+    uint blocks = p.n_head / p.hg;
+    uint g = rb / blocks;
+    uint h0 = (rb - g * blocks) * p.hg;   // the block's first head
     uint v, b;
     view_of_row(g, v, b);
-    uint kvh = h / (p.n_head / p.n_head_kv);
+    uint kvh = h0 / (p.n_head / p.n_head_kv);
     uint lid = gl_LocalInvocationID.x;
     uint nsg = 256u / gl_SubgroupSize;
     uint sg = gl_SubgroupID, lane = gl_SubgroupInvocationID;
     uint qstride = p.n_head * p.dim;
-    uint qbase = (view_row0(v) + b) * qstride + h * p.dim;
-    if (lid < p.dim) qs[lid] = q[qbase + lid];
+    uint qrow = (view_row0(v) + b) * qstride;
+    [[unroll]] for (uint j = 0u; j < HG; ++j)
+        if (j < p.hg && lid < p.dim) qs[j][lid] = q[qrow + (h0 + j) * p.dim + lid];
     barrier();
     // The row's parts: chunk tokens each, the chunk doubling until at most max_parts cover the row, so they depend only on the row's length; a split past them is empty.
     uint len = view_hist(v) + b + 1u, chunk = p.chunk;
@@ -58,55 +69,71 @@ void main() {
     uint start = min(split * chunk, len);
     uint end = min(len, start + chunk);
     uint bf = p.n_head_kv * p.bt * p.dim;
-    // This lane's elements: lane, lane + size, ... below dim; at most four.
-    float acc0 = 0.0, acc1 = 0.0, acc2 = 0.0, acc3 = 0.0;
-    float m = -1.0 / 0.0, l = 0.0;
-    uint d0 = lane, d1 = lane + gl_SubgroupSize, d2 = lane + 2u * gl_SubgroupSize, d3 = lane + 3u * gl_SubgroupSize;
-    float q0 = d0 < p.dim ? qs[d0] : 0.0, q1 = d1 < p.dim ? qs[d1] : 0.0;
-    float q2 = d2 < p.dim ? qs[d2] : 0.0, q3 = d3 < p.dim ? qs[d3] : 0.0;
+    // This lane's elements: lane, lane + size, ... below dim; at most four, per head of the block.
+    float acc[HG][4];
+    float q4[HG][4];
+    float m[HG], l[HG];
+    uint d[4] = uint[4](lane, lane + gl_SubgroupSize, lane + 2u * gl_SubgroupSize, lane + 3u * gl_SubgroupSize);
+    [[unroll]] for (uint j = 0u; j < HG; ++j) {
+        m[j] = -1.0 / 0.0;
+        l[j] = 0.0;
+        [[unroll]] for (uint e = 0u; e < 4u; ++e) {
+            acc[j][e] = 0.0;
+            q4[j][e] = d[e] < p.dim ? qs[j][d[e]] : 0.0;
+        }
+    }
     for (uint t = start + sg; t < end; t += nsg) {
         uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t % p.bt) * p.dim;
-        float part = 0.0;
-        if (d0 < p.dim) part += q0 * k_load(base + d0);
-        if (d1 < p.dim) part += q1 * k_load(base + d1);
-        if (d2 < p.dim) part += q2 * k_load(base + d2);
-        if (d3 < p.dim) part += q3 * k_load(base + d3);
-        float s = subgroupAdd(part) * p.scale;
-        float mn = max(m, s);
-        float corr = exp(m - mn), w = exp(s - mn);
-        l = l * corr + w;
-        if (d0 < p.dim) acc0 = acc0 * corr + w * v_load(base + d0);
-        if (d1 < p.dim) acc1 = acc1 * corr + w * v_load(base + d1);
-        if (d2 < p.dim) acc2 = acc2 * corr + w * v_load(base + d2);
-        if (d3 < p.dim) acc3 = acc3 * corr + w * v_load(base + d3);
-        m = mn;
+        float kx[4], vx[4];
+        [[unroll]] for (uint e = 0u; e < 4u; ++e) {
+            kx[e] = d[e] < p.dim ? k_load(base + d[e]) : 0.0;
+            vx[e] = d[e] < p.dim ? v_load(base + d[e]) : 0.0;
+        }
+        [[unroll]] for (uint j = 0u; j < HG; ++j) {
+            if (j >= p.hg) continue;
+            float part = 0.0;
+            [[unroll]] for (uint e = 0u; e < 4u; ++e)
+                if (d[e] < p.dim) part += q4[j][e] * kx[e];
+            float s = subgroupAdd(part) * p.scale;
+            float mn = max(m[j], s);
+            float corr = exp(m[j] - mn), w = exp(s - mn);
+            l[j] = l[j] * corr + w;
+            [[unroll]] for (uint e = 0u; e < 4u; ++e)
+                if (d[e] < p.dim) acc[j][e] = acc[j][e] * corr + w * vx[e];
+            m[j] = mn;
+        }
     }
-    if (lane == 0u) { ms[sg] = m; ls[sg] = l; }
-    if (d0 < p.dim) accs[sg][d0] = acc0;
-    if (d1 < p.dim) accs[sg][d1] = acc1;
-    if (d2 < p.dim) accs[sg][d2] = acc2;
-    if (d3 < p.dim) accs[sg][d3] = acc3;
-    barrier();
-    if (lid < p.dim) {
-        float M = ms[0];
-        for (uint i = 1u; i < nsg; ++i) M = max(M, ms[i]);
-        float L = 0.0, A = 0.0;
-        // A subgroup that saw no token holds -inf and zeros and adds nothing; exp(-inf - -inf) must never be formed.
-        for (uint i = 0u; i < nsg; ++i) {
-            if (isinf(ms[i])) continue;
-            float c = exp(ms[i] - M);
-            L += ls[i] * c;
-            A += accs[i][lid] * c;
+    if (lane == 0u)
+        [[unroll]] for (uint j = 0u; j < HG; ++j) { ms[j][sg] = m[j]; ls[j][sg] = l[j]; }
+    // The subgroups merge one head at a time through the same shared rows.
+    [[unroll]] for (uint j = 0u; j < HG; ++j) {
+        if (j >= p.hg) continue;
+        [[unroll]] for (uint e = 0u; e < 4u; ++e)
+            if (d[e] < p.dim) accs[sg][d[e]] = acc[j][e];
+        barrier();
+        if (lid < p.dim) {
+            uint h = h0 + j, rh = g * p.n_head + h, qbase = qrow + h * p.dim;
+            float M = ms[j][0];
+            for (uint i = 1u; i < nsg; ++i) M = max(M, ms[j][i]);
+            float L = 0.0, A = 0.0;
+            // A subgroup that saw no token holds -inf and zeros and adds nothing; exp(-inf - -inf) must never be formed.
+            for (uint i = 0u; i < nsg; ++i) {
+                if (isinf(ms[j][i])) continue;
+                float c = exp(ms[j][i] - M);
+                L += ls[j][i] * c;
+                A += accs[i][lid] * c;
+            }
+            if (p.nsplit == 1u) {
+                float v = A / L;
+                o[qbase + lid] = v;
+                if (p.quant != 0u) xquant_twin(qbase + lid, v, p.rows * qstride);
+            } else {
+                // Unnormalized: m, l and the accumulation, dim + 2 floats.
+                uint sbase = (rh * p.nsplit + split) * (p.dim + 2u);
+                scratch[sbase + 2u + lid] = A;
+                if (lid == 0u) { scratch[sbase] = M; scratch[sbase + 1u] = L; }
+            }
         }
-        if (p.nsplit == 1u) {
-            float v = A / L;
-            o[qbase + lid] = v;
-            if (p.quant != 0u) xquant_twin(qbase + lid, v, p.rows * qstride);
-        } else {
-            // Unnormalized: m, l and the accumulation, dim + 2 floats.
-            uint sbase = (rh * p.nsplit + split) * (p.dim + 2u);
-            scratch[sbase + 2u + lid] = A;
-            if (lid == 0u) { scratch[sbase] = M; scratch[sbase + 1u] = L; }
-        }
+        barrier();
     }
 }

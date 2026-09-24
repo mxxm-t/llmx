@@ -94,6 +94,9 @@ kernel notes and measurements are `docs/VULKAN.md`.
   heads whose prompt reaches 32 tokens to the tiled kernel
   (`shaders/attention_tile.comp`) and the rest to the per-row kernel, which
   splits a row's history into parts from the row's own length and merges
-  them (`shaders/attention_merge.comp`).
+  them (`shaders/attention_merge.comp`); once the longest row fills every
+  split, a workgroup takes up to four query heads of one KV head (the
+  `_g4` builds), loading the history once for them with each head's
+  arithmetic unchanged.
 - `kv_variant` picks the shader module for a storage's K and V types.
 - `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`); routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory.

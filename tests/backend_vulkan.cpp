@@ -511,6 +511,62 @@ size_t check_kernels(backend::Backend& vk) {
                 }
             }
         }
+        // Decode after a long history, where a workgroup takes up to four query heads of one KV head: one row after 2100 and 3000 tokens, 1, 2, 4 and 8 query heads a KV head, against the CPU at 1e-4.
+        // A short row beside a long one is taken in groups; it must equal the same row alone, bit for bit, since each head's arithmetic is the same either way.
+        for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16})
+        for (int group : {1, 2, 4, 8}) {
+            const int n_head_kv = 2, n_head = n_head_kv * group, head_dim = 128;
+            const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
+            const size_t longs[2] = {2100, 3000}, shorts = 40;
+            const auto hk = uniform(3001 * kvw, 80 + (uint32_t)group), hv = uniform(3001 * kvw, 81 + (uint32_t)group);
+            const auto qq = uniform(2 * qw, 82 + (uint32_t)group, -6.0f, 6.0f);
+            // Rows of `hists` histories (each followed by one new token) in one call, or each alone; returns every row's output.
+            auto run = [&](backend::Backend& b, const std::vector<size_t>& hists, bool together) {
+                const size_t bt = b.kv_layout().block_tokens;
+                auto st = b.kv_alloc(1, n_head_kv, head_dim, 8192, kt, kt);
+                infer::BlockPool pool(st->max_blocks());
+                const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
+                const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));
+                const auto Qb = b.adopt(qq.data(), qq.size() * sizeof(float));
+                std::vector<infer::KVSequence> seqs;
+                for (size_t i = 0; i < hists.size(); ++i) seqs.emplace_back(&pool, bt);
+                std::vector<backend::KVView> views;
+                for (size_t i = 0; i < hists.size(); ++i) {
+                    seqs[i].prepare(hists[i] + 1);
+                    const backend::KVView h = seqs[i].view(st.get());
+                    b.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                    seqs[i].commit();
+                }
+                std::vector<float> out(hists.size() * qw);
+                const auto ob = b.alloc(out.size() * sizeof(float), backend::Memory::device);
+                auto view_of = [&](size_t i) {
+                    // The row attends as the last of its history: a view of one query row over hist + 1 tokens.
+                    backend::KVView v = seqs[i].view(st.get());
+                    v.length -= 1;
+                    v.nq = 1;
+                    return v;
+                };
+                if (together) {
+                    for (size_t i = 0; i < hists.size(); ++i) views.push_back(view_of(i));
+                    b.attention({Qb.get(), 0}, 0, views.data(), views.size(), {ob.get(), 0}, n_head, n_head_kv, head_dim);
+                } else {
+                    for (size_t i = 0; i < hists.size(); ++i) {
+                        const backend::KVView v = view_of(i);
+                        b.attention({Qb.get(), i * qw}, 0, &v, 1, {ob.get(), i * qw}, n_head, n_head_kv, head_dim);
+                    }
+                }
+                b.read(*ob, 0, out.data(), out.size() * sizeof(float));
+                return out;
+            };
+            for (size_t hist : longs) {
+                const auto ac = run(p.cpu, {hist}, false), av = run(p.vk, {hist}, false);
+                values += close(ac, av, 1e-4, "decode attention after a long history differs beyond 1e-4");
+            }
+            const auto mixed = run(p.vk, {shorts, longs[1]}, true), alone = run(p.vk, {shorts, longs[1]}, false);
+            require(std::memcmp(mixed.data(), alone.data(), qw * sizeof(float)) == 0,
+                    "a short row beside a long history's grouped heads differs from the row alone");
+            values += qw;
+        }
         // Batch invariance: a row computes the same, bit for bit, whatever shares its call, given its prompt's RowRun.
         // A prompt's tail alone against those rows of one pass, a generated row alone against it beside others, and a mixed call against both, at shapes that take the tallest tile whole and the shortest for the tail.
         if (nin == 1024)

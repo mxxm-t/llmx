@@ -68,6 +68,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_row_k_dot8=matmul_row=LLMX_KQUANT+LLMX_DOT+LLMX_X8
         kv_write_k16=kv_write=LLMX_K16 kv_write_v16=kv_write=LLMX_V16 kv_write_kv16=kv_write=LLMX_K16+LLMX_V16
         attention_k16=attention=LLMX_K16 attention_v16=attention=LLMX_V16 attention_kv16=attention=LLMX_K16+LLMX_V16
+        attention_g4=attention=LLMX_G4 attention_k16_g4=attention=LLMX_K16+LLMX_G4 attention_v16_g4=attention=LLMX_V16+LLMX_G4
+        attention_kv16_g4=attention=LLMX_K16+LLMX_V16+LLMX_G4
         attention_tile_k16=attention_tile=LLMX_K16 attention_tile_v16=attention_tile=LLMX_V16
         attention_tile_kv16=attention_tile=LLMX_K16+LLMX_V16
         norm_rope_kv_k16=norm_rope_kv=LLMX_K16 norm_rope_kv_v16=norm_rope_kv=LLMX_V16

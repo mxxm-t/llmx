@@ -545,6 +545,17 @@ HF gate measures the cost of it.
   `n_head / n_head_kv` query heads to one KV head. Several views in one
   call are one dispatch through the view table below. Head widths up to
   256.
+  Once the dispatch's longest row fills every split (2048 tokens at the
+  defaults), a workgroup takes up to four query heads of one KV head and
+  loads each token's key and value once for them, in the `_g4` builds;
+  each head's arithmetic is unchanged, so the output is bit-identical to
+  one head a workgroup. On a long history the cache outweighs the
+  weights a decode step reads, and one head a workgroup read it
+  `n_head / n_head_kv` times: Qwen3-8B Q8_0 at a 16384-token history
+  decoded at 20.8 tok/s on an MI50 against the reference's 44.5, and 27.1
+  grouped. A shorter history keeps one head a workgroup, since grouping
+  there leaves too few workgroups, and its build holds 32 registers where
+  the first grouped kernel's single build held 61.
 - **attention_tile**, for a wide pass of 128-wide heads: a workgroup
   per 32 query rows and head, the head's K and V streamed through shared
   memory in 16-token tiles so a tile is read once per 32 rows rather

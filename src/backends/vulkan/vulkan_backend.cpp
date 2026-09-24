@@ -159,6 +159,18 @@ const uint32_t kSpvKvWriteV16[] = {
 const uint32_t kSpvKvWriteKV16[] = {
 #include "vulkan/kv_write_kv16.inc"
 };
+const uint32_t kSpvAttentionG4[] = {
+#include "vulkan/attention_g4.inc"
+};
+const uint32_t kSpvAttentionK16G4[] = {
+#include "vulkan/attention_k16_g4.inc"
+};
+const uint32_t kSpvAttentionV16G4[] = {
+#include "vulkan/attention_v16_g4.inc"
+};
+const uint32_t kSpvAttentionKV16G4[] = {
+#include "vulkan/attention_kv16_g4.inc"
+};
 const uint32_t kSpvAttentionK16[] = {
 #include "vulkan/attention_k16.inc"
 };
@@ -245,7 +257,8 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
-                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8, K_COUNT };
+                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8,
+                K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
 // F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
@@ -310,6 +323,7 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
     "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
     "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
+    "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -361,6 +375,10 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr},
     {kSpvMatmulRowKDot8, sizeof(kSpvMatmulRowKDot8), 12, kMatmulRowCounts},
     {kSpvMatmulRowQ4Dot8, sizeof(kSpvMatmulRowQ4Dot8), 12, kMatmulRowCounts},
+    {kSpvAttentionG4, sizeof(kSpvAttentionG4), 7, nullptr},
+    {kSpvAttentionK16G4, sizeof(kSpvAttentionK16G4), 7, nullptr},
+    {kSpvAttentionV16G4, sizeof(kSpvAttentionV16G4), 7, nullptr},
+    {kSpvAttentionKV16G4, sizeof(kSpvAttentionKV16G4), 7, nullptr},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -2031,16 +2049,21 @@ public:
             const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
             if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
                 grow(scratch_, scratch_floats * sizeof(float));
-            struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts; }
+            // The query heads a workgroup takes: once the longest row's history fills every split, up to four of those sharing a KV head, so a token's key and value are loaded once for them (shaders/attention.comp).
+            // A shorter history leaves few workgroups, and taking heads together would leave the device idle; each head's arithmetic is the same either way.
+            const size_t group = (size_t)(n_head / n_head_kv);
+            const bool long_history = longest >= chunk * prof.attention_split_max;
+            const uint32_t hg = !long_history ? 1u : group % 4 == 0 ? 4u : group % 2 == 0 ? 2u : 1u;
+            struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts, hg; }
                 pc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, (uint32_t)head_dim, u32(kVkBlockTokens),
-                   scale, u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(prof.attention_split_max)};
+                   scale, u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(prof.attention_split_max), hg};
             const VkDescriptorBufferInfo scratch = scratch_
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
             const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));
-            dispatch(kv_variant(K_ATTENTION, K_ATTENTION_K16, s),
+            dispatch(hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
                       table, scratch, xq},
-                     &pc, sizeof(pc), groups(pairs * nsplit, 1), 1, twin_variant());
+                     &pc, sizeof(pc), groups(pairs / hg * nsplit, 1), 1, twin_variant());
             if (nsplit > 1) {
                 const uint32_t mc[5] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u};
                 dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table, xq}, mc, sizeof(mc), groups(pairs, 1), 1,

@@ -10,7 +10,7 @@ dispatch. It contains six independent checks:
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | CPU (Linux UBSan) | GCC undefined-behavior checks, including mixed-tensor float alignment |
 | Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` skipping, since hosted runners have a loader but no driver |
-| HF reference (CPU) | Linux build plus both pinned real models: tokenizer, logits, continuous/chunked PPL |
+| HF reference (CPU) | Linux build plus all three pinned real models: tokenizer, logits, continuous/chunked PPL |
 
 Every CTest in `CMakeLists.txt` runs in every job's "Backend tests" step,
 so the KV cache, placement, HTTP layer and prefill-scope checks are covered
@@ -81,7 +81,8 @@ or download larger models. The ordinary suite now has 13 components, including
 `reference-consumer` rejection tests for 8B fixture tampering, malformed or
 out-of-bound numerical output, wrong model identity and failed launches. These
 tests use small committed JSON fixtures and doubles, without 8B inference.
-Default real-model downloads remain the two pinned 0.6B GGUFs.
+Default real-model downloads are the three pinned 0.6B GGUFs: Q8_0, Q4_0
+and Q5_K_M.
 
 The separate 8B consumer requires an existing model and a new output directory:
 

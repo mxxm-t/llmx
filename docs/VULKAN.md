@@ -674,6 +674,11 @@ Each sub-step is mergeable, builds with the option off on every CI runner,
 and adds a `backend-vulkan` CTest that skips cleanly with a message when no
 device is present, so the tree stays green without a GPU.
 
+The table preserves the sub-step validation at the time it landed, including
+the then-open floor in step 5. The later two-platform gate is recorded in
+[STATUS](STATUS.md), in the Vulkan block's forty-seventh paragraph; those
+measured cells do not establish a universal performance floor.
+
 | # | Sub-step | Test |
 |---|---|---|
 | 1 | Build gate, loader, device and queue, buffers, `adopt`/`read`/`write`/`copy`, `submit`/`wait`/`sync` (**done**) | `backend-vulkan`: zeroed allocations, adopt and copy round trips at odd offsets, writes into device and host-visible memory, a copy read in place after a wait, monotonic tickets, empty and out-of-range buffers; skips without a device |

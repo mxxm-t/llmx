@@ -49,8 +49,9 @@ the compiled binary portable to older CPUs.
   half conversion and scalar dot fallbacks remain available.
 - **Order of operations decides whether a kernel can overflow, and the two
   families differ.** `dot_row_impl` folds the scale into each weight before it
-  meets the activation, `(q*d)*x`, so nothing intermediate is larger than the
-  result and Q8_0 has no overflow window. The fused K-quant dots accumulate
+  meets the activation, `(q*d)*x`, avoiding the demonstrated scale-after-sum
+  overflow. This does not prevent accumulation overflow under cancellation.
+  The fused K-quant dots accumulate
   `sum(q*x)` and apply the scale afterwards, which is what makes them fast and
   what lets a large activation reach infinity before a small scale could bound
   it. Those rows fall back to dequantizing first when the fused result is not

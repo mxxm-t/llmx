@@ -4,6 +4,20 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Main documentation checkpoint (2026-09-24)
+
+Corrected fixture counts, ticket/completion descriptions, vendor quant support,
+device selection, Q8 overflow scope and historical GPU status against main.
+Recorded the user's independent-feature branch rule in AGENTS. All 35 Markdown
+files are ASCII, 118 local links/anchors resolve and `git diff --check` passes.
+No source, tests, build configuration or historical measurement tables changed.
+Main remains dense Qwen3 with capped server requests; unmerged feature claims
+were excluded. This documentation change is separate from the help fix below.
+
+The parent help commit `5afc1c7` passed all six hosted jobs in
+[CI run 35964866124](https://github.com/mxxm-t/llmx/actions/runs/35964866124):
+Windows, Ubuntu, macOS, Linux UBSan, Vulkan build and required real-model HF.
+
 ## Command help checkpoint (2026-09-24)
 
 `llmx --help` prints a grouped overview; each of the 12 commands accepts
@@ -43,10 +57,8 @@ this change makes no new performance claim.
 
 All 35 tracked Markdown files were reviewed against main: ASCII and 116 local
 links/anchors checked. Help-related claims were corrected here. Independent
-documentation findings are tracked for a separate correction: CI's three-model
-fixture count, backend ticket/completion wording, vendor quantization support,
-implemented device flags, the scope of Q8 overflow protection and historical
-Vulkan status summaries.
+findings were subsequently addressed by the separate documentation checkpoint
+above; they were not included in the help implementation commit.
 
 ## Multi-user server (ROADMAP #7, EXECUTION step 7) (2026-09-22)
 
@@ -2709,7 +2721,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Done: steps 1 to 7, step 7 being the server, see the server row; the placement flags are not added yet |
 | KV cache fork (KV-CACHE step 2)          | Done     |
 | Multi-device split (per-layer, per-tensor) | Placement done in the model layer, tested over CPU backends; no flag selects it yet |
-| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan done: every CPU quant type, f16 caches, 16-bit integer activations in the decode row kernel, an 8-bit integer-dot prefill tile for every quantized type where the profile prefers the integer dot (the MI50 under Mesa) and the float tile elsewhere, tile heights of 32, 64 and 128 picked per dispatch. On the Radeon VII decode at or above the reference on every measured file, 103 to 112 percent (the thirtieth paragraph), prefill ahead of the reference's Vulkan from 128 rows and behind it below that. On one MI50 against one card of the reference (the one-card gate at `2b770f6` and the thirty-seventh paragraph), where the same kernels run through `docker/Dockerfile`: decode 86 to 90 percent on the 8-bit files and 91 to 107 on the 4- and 5-bit ones, prefill 69 to 117 percent at 247 rows and 78 to 99 at 512, 54 percent at 64 rows on 0.6B Q8_0. ROCm planned |
+| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan implemented and the recorded dense-model device gate passed on both platforms (forty-seventh checkpoint above): Radeon VII decode 102-115% and prefill 109-455% of the same-card reference Vulkan build; one MI50 decode 102-115% and prefill 102-267%. These are dated gate results, not new measurements from this documentation review. ROCm planned |
 | Multi-node / cluster                     | Planned  |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 6): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured to have nothing to hide, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |

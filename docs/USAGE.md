@@ -217,8 +217,9 @@ Flags:
 | `-c`, `--ctx-size N` | tokens per window, from 2 through the model's context length |
 | `--chunks N` | maximum windows to evaluate (positive integer; default all) |
 | `--per-token` | score one token at a time, the decode path, instead of in batched passes |
+| `--verbose` | show scoring phase and actual worker count on stderr |
 | `--threads N`   | worker thread count (0 = auto)                 |
-| `-tb`, `--threads-batch N` | threads for the batched passes (default: `--threads`) |
+| `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); ignored with `--per-token` |
 | `--ubatch N`    | tokens per batched pass (default 512)          |
 | `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32` |
 | `--device D`    | backend: `cpu`, or `vulkan:N` in a build with it |
@@ -238,7 +239,9 @@ hardware; the matched thread-scaling tables in ASSETS record the tested cases.
 An omitted or zero `-tb` uses the resolved decode count. After every prefill,
 the runtime restores that count, including automatic selection and follow-up
 chat turns. `--verbose` reports each phase's actual count on stderr; `bench`
-prints its resolved count on stdout. Changing counts recreates the CPU pool.
+prints its resolved count on stdout. Perplexity uses the batch count for batched
+scoring and the decode count with `--per-token`; its `--verbose` output reports
+the selected phase and actual count on stderr. Changing counts recreates the CPU pool.
 
 On supported Windows topology, six-worker prefill automatically places workers
 on separate physical cores and checks restoration of their original affinity

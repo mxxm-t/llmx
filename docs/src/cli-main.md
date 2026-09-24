@@ -30,7 +30,10 @@ Commands and their entry points:
 - `perplexity`: `cmd_perplexity` loads and tokenizes inline or `-f/--file`
   UTF-8 text, then delegates scoring to `infer::perplexity`. `-c/--ctx-size`
   chooses window size; `--chunks` limits windows; `--per-token` scores one token
-  at a time instead of in batched passes. See `inference-perplexity.md`.
+  at a time instead of in batched passes. Batched scoring selects
+  `--threads-batch` / `-tb`, falling back to `--threads` for an omitted or zero
+  override; per-token scoring uses `--threads`. `--verbose` reports the selected
+  phase and actual count on stderr. See `inference-perplexity.md`.
 - `logits`: `cmd_logits` (top-N next-token logits; this is what the correctness
   gate compares against a full-precision reference, since sampled text hides
   everything except argmax flips).

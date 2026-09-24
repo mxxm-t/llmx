@@ -289,6 +289,8 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   `python tools/gen_chat_baseline.py`; running them needs no external libraries.
 - **Thread controls** (`tests/threads.py`): actual auto/explicit phase counts,
   restoration after prefill, follow-up chat and HF-golden replies.
+  Perplexity also checks batched/per-token counts, both batch-thread aliases
+  and automatic/zero selection against an independent HF NLL fixture.
 - **Loading and streaming** (CTest `load-progress`, `generation-stream`,
   `cli-output`):
   mapped-byte reporting, files truncated before loading, callback failures, early text

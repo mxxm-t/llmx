@@ -46,9 +46,7 @@
 #include "model/layer_split.hpp"
 #include "server/api.hpp"
 
-// llmx CLI.
-// This file is intentionally a thin dispatcher: format logic lives in format/, quantization in quant/, inference in inference/, and the model in model/.
-// The only code that belongs here is argument parsing and glue.
+// CLI argument parsing and dispatch; format, quantization, inference and model logic stay in their own layers.
 
 namespace {
 
@@ -349,10 +347,7 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
     return 0;
 }
 
-// The backend a --device spec names.
-// "cpu" is the default; "vulkan:N" is device N as the loader lists them, in a build with that backend.
-// Any other spec, or a device the build lacks, is an error the user can act on rather than a silent fallback.
-// A --device entry in one spelling: cpu, or a backend and its index, so vulkan and vulkan:00 are both vulkan:0 and one device cannot be listed twice under two names.
+// Canonical spelling keeps vulkan and vulkan:00 from naming the same device twice.
 std::string canonical_device(const std::string& spec) {
     if (spec == "cpu") return spec;
     const size_t colon = spec.find(':');
@@ -513,11 +508,8 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     return 0;
 }
 
-// Print the top-N next-token logits for a prompt.
-// This exists for the correctness gate: it is the only way to compare llmx against a full-precision reference at the level where errors actually appear, rather than through sampled text.
-// See docs/ROADMAP.md #8.
-// With `then_ids` the text's tokens are followed by those token ids, so a generated reply is scored as the tokens it was, not as its text re-tokenized.
-// With `last` above zero every one of the last `last` positions is printed as one line, its position and then its top-N ids and logits, through the batched passes a prompt takes.
+// `then_ids` appends exact generated IDs without re-tokenizing their text; `last` reports the final positions through batched passes.
+// These logits support the external correctness gate in docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text,
                int topn, const infer::GenParams& gp, const std::string& then_ids = "", size_t last = 0) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
@@ -584,7 +576,10 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     const auto owned = make_model(m, gp);
     infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
-    if (gp.threads > 0) model.set_threads(gp.threads);
+    const int threads = !per_token && gp.threads_batch > 0 ? gp.threads_batch : gp.threads;
+    if (threads > 0) model.set_threads(threads);
+    if (gp.show_prompt_tokens)
+        std::cerr << "threads: " << (per_token ? "decode " : "prefill ") << model.threads_available() << "\n";
     model.set_ubatch(gp.ubatch);
 
     std::vector<uint32_t> ids = tok.encode(text);
@@ -813,10 +808,8 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     return 0;
 }
 
-// The matched real-model measurement: a warm-up of each test, then R repeats of prompt processing P tokens in one batch into an empty history and of generating G tokens one at a time from an empty history, model time only, token ids fixed and sampling excluded.
-// Reported as mean and standard deviation of tokens per second, so a reference runtime's figures for the same P and G compare directly.
-// With seqs above one the decode measured is a server's: that many sequences each prefilled with the prompt, then every pass one token of each.
-// With depth D, each repeat first fills a history of D tokens outside the timer, and the prompt and the decode run on top of it: a long context's cost, as reference bench tools measure it at a depth.
+// Time model execution over fixed IDs after warm-up; history setup and sampling are outside the timer.
+// Multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth; see docs/USAGE.md.
 int cmd_bench_model(const std::string& path, const std::string& device, int threads,
                     int P, int G, int R, const infer::ModelOptions& options, bool profile, int cpu_moe, int stream_from,
                     int seqs = 1, const std::string& shares = "", int D = 0) {
@@ -1068,7 +1061,8 @@ bool print_usage(const std::string& command = {}) {
             << "  --file PATH, -f         UTF-8 input file, immediately after the model\n"
             << "  --ctx-size N, -c        Window tokens (default: model context)\n"
             << "  --chunks N              Maximum windows (default: all)\n"
-            << "  --per-token             Score through decode; default uses batched passes\n";
+            << "  --per-token             Score through decode; default uses batched passes\n"
+            << "  --verbose               Show scoring phase and actual worker count\n";
         else std::cout << "\nOptions:\n  --top N                 Number of logits to print (default: 10)\n"
             << "  --file                  Read the text from the file named in its place\n"
             << "  --then-ids PATH         Append these whitespace-separated token IDs\n"
@@ -1289,6 +1283,7 @@ int main(int argc, char** argv) {
                     else context_size = (int)n;
                 }
                 else if (a == "--per-token") per_token = true;
+                else if (a == "--verbose") gp.show_prompt_tokens = true;
                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
                 else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;

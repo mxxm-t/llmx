@@ -1,0 +1,197 @@
+{
+  "base": "7ec58f330fb99b5b5871a9563ef9a6a9ee2d84dc",
+  "branch": "fix/perplexity-batch-threads-20260924",
+  "scope": "CLI-only selection: batched perplexity honors --threads-batch/-tb, per-token uses --threads, omitted/zero falls back. No backend arithmetic or inference API change.",
+  "windows": {
+    "version": "llmx 0.1.0+g7ec58f330fb9.dirty",
+    "sha256": "e3835da8b3683c13bd52b36b36f3e0238d778c8eda24fe263a1d1d1c13feac9f",
+    "compiler": "MSVC 19.50.35728.0, x64 Release",
+    "native_passed": 21,
+    "required_hf_components": [
+      "version",
+      "reference-generator",
+      "reference-consumer",
+      "roundtrip",
+      "perf",
+      "tokenizer",
+      "perplexity",
+      "f32",
+      "moe",
+      "shards",
+      "server",
+      "chat",
+      "threads",
+      "baseline"
+    ],
+    "thread_cases": 56,
+    "f32_hf_nll_max_abs_error": 9.3e-07,
+    "f32_hf_nll_bound": 1e-05
+  },
+  "negative_control": {
+    "change": "Restore only ignored batch-thread selection, retain verbose support. Comment-only cleanup differs in the initial CLI header.",
+    "exit": 1,
+    "observed": "batch=1 selected 16 workers instead of 1, regression rejects"
+  },
+  "performance": "Standard smoke floor passed during other correctness work; timing diagnostic only, no matched performance claim. No inference kernel changed.",
+  "docs_review": {
+    "files": 39,
+    "relative_links": 123,
+    "non_ascii": 0,
+    "missing_relative_targets": 0,
+    "scope": "All project Markdown reviewed for affected CLI/test claims and scanned for ASCII/relative targets. Feature updates in AGENTS, USAGE and cli-main. Unrelated architecture/documentation corrections remain in separate checkpoint 1f778af. Historical numbers and remote links not revalidated."
+  },
+  "linux": {
+    "exit": 0,
+    "sha256": "44bfbc1c658bb0b3586f9d3958526482b63ad5ce9b33f8c3e480f79b9f27679a",
+    "version": "llmx 0.1.0+unknown",
+    "compiler": "GNU 13.3.0, Release, local Ubuntu WSL",
+    "native_passed": 20,
+    "focused": [
+      "threads (56 new cases plus existing generation/chat coverage)",
+      "perplexity analytic oracle",
+      "f32 independent HF logits and NLL"
+    ],
+    "thread_nll_max_abs_error": 9.3e-07,
+    "thread_nll_bound": 1e-05,
+    "f32_logit_max_abs_error": 6.4e-07,
+    "f32_logit_bound": 2e-05,
+    "source": "1048-file snapshot verified by SHA256 after extraction, Git metadata excluded; unknown build identifier expected.",
+    "commands": [
+      {
+        "stage": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "/tmp/llmx-perplexity-batch-threads-20260924",
+          "-B",
+          "/tmp/llmx-perplexity-batch-threads-20260924/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "/tmp/llmx-perplexity-batch-threads-20260924/build",
+          "--parallel",
+          "2"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "native",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "/tmp/llmx-perplexity-batch-threads-20260924/build",
+          "--output-on-failure"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "focused",
+        "command": [
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "-c",
+          "import sys; sys.path.insert(0,'/tmp/llmx-perplexity-batch-threads-20260924/tests'); import common,threads,perplexity,f32; common.EXE='/tmp/llmx-perplexity-batch-threads-20260924/build/llmx'; assert threads.run(); assert perplexity.run(); assert f32.run()"
+        ],
+        "exit": 0
+      }
+    ],
+    "limitations": "No Linux real-model HF or Vulkan run and no cross-platform performance comparison claimed."
+  },
+  "artifacts": {
+    "native.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\native.log",
+      "sha256": "bb16dd4205db52703b1cf409d60e3f57bcd8dc7dc0b215a3b53cdcd52a81dc74"
+    },
+    "threads.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\threads.log",
+      "sha256": "38427a0169a9654601823e77b44b58e5c908a9b5fc431d124c6c41312a2789e6"
+    },
+    "full-cpu.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\full-cpu.log",
+      "sha256": "8fe0a28f3c1b95b0bc719eaa487f52d77a03a1ea5f0e4df02a6f0f269927a409"
+    },
+    "negative-result.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\negative-result.json",
+      "sha256": "4670c4d4d96c1b0cc7f44e4fa58e948780e85a7166125ad3973904158cd350a7"
+    },
+    "negative.stdout": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\negative.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "negative.stderr": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\negative.stderr",
+      "sha256": "10fca34d277c18e80191d5e9cb8dc853ea0761d23cdffd46dc6a2b777ffb7c79"
+    },
+    "negative-main.cpp": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\negative-main.cpp",
+      "sha256": "2733c366a6d5b5595e848bf036e16efdd786b55160a1649f90d8efbc88139e7b"
+    },
+    "build-initial.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\build-initial.log",
+      "sha256": "b4616992352356bff500eb256cbcf9eebc4de039c3be8af0a55f0b3ad8efdf9f"
+    },
+    "build-final.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\build-final.log",
+      "sha256": "23bc562950c8ee0183eaf0d27fc5f344d23f9ed69ddb13f70cee0e6361e100ff"
+    },
+    "build-negative.cmd": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\build-negative.cmd",
+      "sha256": "bc536dd244d4810b813c378ee7e9ea4f7e40bd39218d13931dfbf62573a8cc26"
+    },
+    "build-negative.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\build-negative.log",
+      "sha256": "4844d37d8584ec953a06059162e154b63cdf834fc39b34034dc9bf1e2659505e"
+    },
+    "perplexity-help.txt": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\perplexity-help.txt",
+      "sha256": "f54cf78de8ceec1e96ac5cc8288b61ca79a86716829e7d8a04c107f236ad71a2"
+    },
+    "linux-source.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\linux-source.json",
+      "sha256": "cf618c05deace8251ad29ce21b4d3410bbc152ec9701fbb741b3d5390ab13635"
+    },
+    "run-linux.py": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\run-linux.py",
+      "sha256": "f34a1e1866d7ea98a8f8954d0e475e0cbe85341e725130f625d8445e165ec49a"
+    },
+    "linux-configure.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\linux-configure.log",
+      "sha256": "7df72834df1aff796dbd6aa44020b3fd0d57aff3648a24950112a1e827c2b92a"
+    },
+    "linux-build.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\linux-build.log",
+      "sha256": "2518ded95e79713080aa30791d9636ee046453715ded14bac7669d8c4db8a690"
+    },
+    "linux-native.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\linux-native.log",
+      "sha256": "91c69844599c805594f53e59e9f7cde1541312e530afb78897dbadd403f87e3f"
+    },
+    "linux-focused.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\linux-focused.log",
+      "sha256": "52c8a16ae825bba53e4b55a9c0b72200412b251edf975e275f5890a030fe3d08"
+    },
+    "linux-complete.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-perplexity-batch-threads-evidence-20260924\\linux-complete.json",
+      "sha256": "16bb040d456ceb45417755ef3a5ef6ba8f54a77eb319ed0d5c8927341f9a290a"
+    }
+  },
+  "publication": {
+    "source_checkpoint": "fffad9f",
+    "scope": "Runtime source, tests and build configuration match the validated checkpoint; STATUS moves the completed feature into history and the Done row.",
+    "build_version": "llmx 0.1.0+g7ec58f330fb9.dirty",
+    "build_sha256": "4d02ba3972d012f33db98675f348a4518260e504baba325886f61481725d5543",
+    "focused_check": "version and full thread component including 56 perplexity HF/count cases pass",
+    "docs": "39 Markdown files, 123 relative file targets, ASCII pass",
+    "stdout_sha256": "f6f20a250cf71d062ed59ad8f82aa9d4cc07b41ccc604684409a08ed71339b73",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

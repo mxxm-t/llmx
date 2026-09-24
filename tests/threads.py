@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 import re
 import subprocess
@@ -13,6 +14,42 @@ def invoke(args, data=None):
                        capture_output=True, timeout=30)
     assert p.returncode == 0, (args, p.returncode, p.stderr)
     return p.stdout.replace(b"\r\n", b"\n"), p.stderr
+
+
+def check_perplexity_threads(model, automatic, weights):
+    golden = json.loads((Path(__file__).parent / "data/baseline_f32.json").read_text())
+    fixture = next(case for case in golden["fixtures"] if not case["tied"])
+    assert golden["config"] == f32.CONFIG
+    assert fixture["weights_sha256"] == f32.weight_hash(weights)
+    case = fixture["perplexity"][0]
+    worst = 0.0
+    checked = 0
+    for count in (None, 0, 1, 4):
+        for batch in (None, 0, 1, 3):
+            for alias in (("--threads-batch", "-tb") if batch is not None else ("--threads-batch",)):
+                for per_token in (False, True):
+                    flags = ["--verbose", "--ubatch", "3", "--device", "cpu",
+                             "--cache-type-k", "f32", "--cache-type-v", "f32",
+                             "-c", str(case["context"])]
+                    if count is not None:
+                        flags += ["--threads", str(count)]
+                    if batch is not None:
+                        flags += [alias, str(batch)]
+                    if per_token:
+                        flags += ["--per-token"]
+                    out, err = invoke(["perplexity", str(model), f32.TEXTS[-1]] + flags)
+                    expected = count or automatic
+                    if not per_token:
+                        expected = batch or expected
+                    counts = re.findall(rb"^threads: (prefill|decode) (\d+)\r?$", err, re.M)
+                    phase = b"decode" if per_token else b"prefill"
+                    assert counts == [(phase, str(expected).encode())], (count, batch, alias, per_token, counts, expected)
+                    fields = dict(line.split(b":", 1) for line in out.splitlines())
+                    error = abs(float(fields[b"mean NLL"]) - case["mean_nll"])
+                    assert math.isfinite(error) and error < 1e-5, (count, batch, per_token, error)
+                    worst = max(worst, error)
+                    checked += 1
+    print("threads: perplexity effective counts/aliases and HF NLL, %d cases, max error %.8f  [ok]" % (checked, worst))
 
 
 def run():
@@ -40,6 +77,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix="llmx_threads_") as directory:
         model = Path(directory) / "threads.gguf"
         f32.write_model(model, weights, spec["template"])
+        check_perplexity_threads(model, automatic, weights)
         for count in (None, 0, 1, 4):
             for batch in (None, 0, 1, 3):
                 flags = ["--temp", "0", "-n", "1", "--verbose", "--ubatch", "3"]

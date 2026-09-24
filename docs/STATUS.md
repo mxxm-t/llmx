@@ -173,6 +173,33 @@ The parent help commit `5afc1c7` passed all six hosted jobs in
 [CI run 35964866124](https://github.com/mxxm-t/llmx/actions/runs/35964866124):
 Windows, Ubuntu, macOS, Linux UBSan, Vulkan build and required real-model HF.
 
+## Perplexity batch-thread checkpoint (2026-09-25)
+
+Batched perplexity applies `--threads-batch` / `-tb`; omitted or zero values
+follow `--threads`, and `--per-token` uses the decode count. `--verbose`
+reports the selected phase and actual count on stderr. This CLI fix changes
+no backend arithmetic or inference API and has no unmerged feature dependency.
+
+| Check | Windows MSVC | Linux GCC 13.3 | Requirement |
+|---|---:|---:|---:|
+| Effective counts, aliases, modes and HF NLL | 56 pass | 56 pass | All cases |
+| Maximum absolute HF NLL error | 0.00000093 | 0.00000093 | 0.00001 |
+| Native suite | 21/21 | 20/20 | All platform tests |
+| Full required-HF CPU components | 14/14 | Focused checks only | 14/14 when run |
+| Restored ignored-batch bug | Rejected | Not run | Batch 1 must not select 16 |
+
+The negative control retains verbose support and removes only effective batch
+selection. Linux uses a hash-verified source snapshot without Git metadata,
+so its build identifier is `+unknown`. There is no new Vulkan or matched
+performance claim; standard smoke timing is diagnostic during other
+correctness work. Evidence: `docs/benchmarks/perplexity-batch-threads-20260924.json`;
+raw logs: `TEMP/llmx-perplexity-batch-threads-evidence-20260924/`.
+
+All 39 Markdown files were reviewed for affected claims, ASCII and 123 relative
+file targets. Usage, CLI and test coverage were updated, and touched CLI
+comments were swept. Unrelated architecture corrections remain in separate
+checkpoint 1f778af; historical numbers and remote links were not revalidated.
+
 ## Command help checkpoint (2026-09-24)
 
 `llmx --help` prints a grouped overview; each of the 12 commands accepts
@@ -2899,7 +2926,7 @@ their own measurements; K-quant optimization remains separate work below.
 | CPU worker cost profile                 | Done |
 | CPU ordered prefill reductions          | Done |
 | Backend-owned prefill placement | Done (main `3c5d4b9`, five hosted jobs green) |
-| CLI thread settings                    | Done |
+| CLI thread settings, including batched/per-token perplexity | Done |
 | Automatic build identification          | Done (main `9511a4a`) |
 | Focused CLI help and complete current option coverage | Done (2026-09-24 checkpoint) |
 | Live generation and loading progress     | Done |

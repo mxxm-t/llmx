@@ -509,7 +509,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080
 curl -N -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T] [--profile]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T] [--profile]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an
@@ -526,6 +526,11 @@ is a different measurement.
 `--seqs N` measures decode the way a server runs it: `N` sequences each
 prefilled with the `--p` prompt, then `--n` passes of one token from every
 sequence, reported as `xN tg` in tokens per second over all of them.
+
+`--depth N` measures a long context: before every repeat, and outside the
+timer, the history is filled with `N` tokens, and `pp` and `tg` then run on
+top of it, reported as `pp P @ dN` and `tg G @ dN`, the protocol reference
+bench tools use for the same `-d N`. It takes one sequence.
 
 ```
 llmx bench --model Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --p 247 --n 32 --r 3

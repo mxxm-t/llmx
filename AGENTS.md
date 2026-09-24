@@ -343,7 +343,8 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   `tests/moe.py` write as well as real models, and is run by hand.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
-  odd dimensions, batch tails and threads without downloading a model.
+  odd dimensions, batch tails and threads without downloading a model,
+  and `bench --model` at a depth.
 - **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF
   `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and
   one dense, across batch widths and threads and, on a device, with the

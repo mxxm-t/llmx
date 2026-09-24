@@ -150,6 +150,11 @@ def run():
                     fields = dict(line.split(":", 1) for line in out.splitlines())
                     error = abs(float(fields["mean NLL"]) - case["mean_nll"])
                     assert math.isfinite(error) and error < 1e-5, "F32/HF NLL error: %.8f" % error
+        # The bench measures on top of a history when asked for a depth, and refuses one with batched decode.
+        rc, out = cli(["bench", "--model", model, "--p", "4", "--n", "2", "--r", "1", "--depth", "6"])
+        assert rc == 0 and "pp4 @ d6" in out and "tg2 @ d6" in out, "bench --depth failed: " + out
+        rc, out = cli(["bench", "--model", model, "--depth", "6", "--seqs", "2"])
+        assert rc != 0, "bench --depth accepted batched decode"
     print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error %.8f  [ok]" % worst)
     return True
 

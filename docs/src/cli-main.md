@@ -41,7 +41,7 @@ Commands and their entry points:
   prompts to obtain valid next-token logits. A returned stop token may not yet
   be cached, and EOS is supplied by the next rendered transcript rather than
   appended unconditionally. These are single-sequence semantics.
-- `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS), `--seqs N` for decode passes carrying one token of each of N sequences,
+- `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS), `--seqs N` for decode passes carrying one token of each of N sequences, `--depth N` for tests run on top of an N-token history filled outside the timer,
   or with `--model` the matched real-model measurement: warm-up, then `--r`
   repeats of `pp N` and `tg N`, model time only, `--profile` for device time
   per kernel and the driver's statistics of each kernel (registers,

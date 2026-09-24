@@ -816,9 +816,10 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 // The matched real-model measurement: a warm-up of each test, then R repeats of prompt processing P tokens in one batch into an empty history and of generating G tokens one at a time from an empty history, model time only, token ids fixed and sampling excluded.
 // Reported as mean and standard deviation of tokens per second, so a reference runtime's figures for the same P and G compare directly.
 // With seqs above one the decode measured is a server's: that many sequences each prefilled with the prompt, then every pass one token of each.
+// With depth D, each repeat first fills a history of D tokens outside the timer, and the prompt and the decode run on top of it: a long context's cost, as reference bench tools measure it at a depth.
 int cmd_bench_model(const std::string& path, const std::string& device, int threads,
                     int P, int G, int R, const infer::ModelOptions& options, bool profile, int cpu_moe, int stream_from,
-                    int seqs = 1, const std::string& shares = "") {
+                    int seqs = 1, const std::string& shares = "", int D = 0) {
     gguf::GGUFModel m = load_model(path, false);
     const auto specs = device_specs(device);
     const bool split = specs.size() > 1 || !shares.empty();
@@ -830,19 +831,25 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
     infer::Model& model = *owned;
     if (!model.holds_payload()) m.release_payload();
     if (threads > 0) model.set_threads(threads);
-    // Ids below 1000 exist in every vocabulary the runtime loads.
-    auto ids_from = [](uint32_t seed, size_t n) {
+    // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
+    const uint32_t vocab = (uint32_t)std::min<size_t>(1000, model.n_vocab());
+    auto ids_from = [vocab](uint32_t seed, size_t n) {
         std::vector<uint32_t> ids(n);
-        for (auto& t : ids) { seed = seed * 1664525u + 1013904223u; t = (seed >> 8) % 1000; }
+        for (auto& t : ids) { seed = seed * 1664525u + 1013904223u; t = (seed >> 8) % vocab; }
         return ids;
     };
-    const std::vector<uint32_t> prompt = ids_from(12345u, (size_t)P), gen = ids_from(777u, (size_t)G);
+    const std::vector<uint32_t> prompt = ids_from(12345u, (size_t)P), gen = ids_from(777u, (size_t)G), history = ids_from(4242u, (size_t)D);
+    // A cleared history, then the depth's tokens if any, before a timed test starts.
+    auto fresh = [&] {
+        model.reset();
+        if (D > 0) model.prefill(history);
+    };
     using clock = std::chrono::steady_clock;
     auto ms_since = [](clock::time_point t0) {
         return std::chrono::duration<double, std::milli>(clock::now() - t0).count();
     };
     auto pp = [&] {
-        model.reset();
+        fresh();
         const auto t0 = clock::now();
         model.prefill(prompt);
         return (double)P / (ms_since(t0) / 1e3);
@@ -851,7 +858,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
     // `start` runs once the decode is set up and before its first pass, so a profile of it leaves out the sequences' prompts.
     auto tg = [&](const std::function<void()>& start) {
         if (seqs <= 1) {
-            model.reset();
+            fresh();
             if (start) start();
             const auto t0 = clock::now();
             for (uint32_t t : gen) model.step((int)t);
@@ -883,7 +890,8 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
         mean /= (double)v.size();
         for (double x : v) var += (x - mean) * (x - mean);
         const double sd = v.size() > 1 ? std::sqrt(var / (double)(v.size() - 1)) : 0.0;
-        printf("bench: %s%d  %8.2f +- %.2f tok/s  (%zu runs)\n", what, n, mean, sd, v.size());
+        const std::string at = D > 0 ? " @ d" + std::to_string(D) : "";
+        printf("bench: %s%d%s  %8.2f +- %.2f tok/s  (%zu runs)\n", what, n, at.c_str(), mean, sd, v.size());
     };
     pp();
     tg({});
@@ -1081,6 +1089,7 @@ bool print_usage(const std::string& command = {}) {
             << "  --model PATH            Benchmark this model instead of synthetic weights\n"
             << "  --r N                   Real-model repetitions (default: 3)\n"
             << "  --seqs N                Sequences decoding together, a pass one token of each (default: 1)\n"
+            << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: 0)\n"
             << "  --profile               Real-model device kernel timing and statistics\n";
         model_options(false, false);
         std::cout << "\nCache options apply only with --model.\n"
@@ -1375,7 +1384,7 @@ int main(int argc, char** argv) {
             return cmd_serve(argv[2], cfg, gp);
         }
         if (cmd == "bench") {
-            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3, seqs = 1;
+            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3, seqs = 1, depth = 0;
             bool profile = false;
             std::string device = "cpu", model_path;
             infer::GenParams gp;
@@ -1393,6 +1402,7 @@ int main(int argc, char** argv) {
                 else if (a == "--n") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;
                 else if (a == "--r") repeats = (i + 1 < argc) ? std::atoi(argv[++i]) : repeats;
                 else if (a == "--seqs") seqs = (i + 1 < argc) ? std::atoi(argv[++i]) : seqs;
+                else if (a == "--depth") depth = (i + 1 < argc) ? std::atoi(argv[++i]) : depth;
                 else if (a == "--model") model_path = (i + 1 < argc) ? argv[++i] : model_path;
                 else if (a == "--profile") profile = true;
                 else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
@@ -1404,9 +1414,14 @@ int main(int argc, char** argv) {
             if (iters <= 0 || prefill <= 0 || decode <= 0 || repeats <= 0 || seqs <= 0) {
                 std::cerr << "bench: --iters, --p, --n, --r and --seqs must be positive\n"; return 2;
             }
+            if (depth < 0) { std::cerr << "bench: --depth must not be negative\n"; return 2; }
+            // Batched decode already starts after each sequence's prompt, and the synthetic bench has no history.
+            if (depth > 0 && (seqs > 1 || model_path.empty())) {
+                std::cerr << "bench: --depth takes --model and one sequence\n"; return 2;
+            }
             if (!model_path.empty())
                 return cmd_bench_model(model_path, device, threads, prefill, decode, repeats, model_options(gp),
-                                       profile, gp.cpu_moe, gp.moe_stream_from, seqs, gp.layer_shares);
+                                       profile, gp.cpu_moe, gp.moe_stream_from, seqs, gp.layer_shares, depth);
             return cmd_bench(size, iters, threads, prefill, decode, device);
         }
         print_usage();

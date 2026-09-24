@@ -244,6 +244,11 @@ if(BUILD_TESTING)
         add_executable(llmx-moe-kernel-bench tools/moe_kernel_bench.cpp)
         target_link_libraries(llmx-moe-kernel-bench PRIVATE llmx-vulkan)
         list(APPEND LLMX_TARGETS llmx-moe-kernel-bench)
+        # Not a test: the device queries and handoff timings of phase 0 in docs/MULTI-DEVICE.md, on the loader alone.
+        add_executable(llmx-vk-handoff tools/vulkan_handoff.cpp)
+        target_include_directories(llmx-vk-handoff PRIVATE ${LLMX_VULKAN_INCLUDE_DIR})
+        target_link_libraries(llmx-vk-handoff PRIVATE ${CMAKE_DL_LIBS})
+        list(APPEND LLMX_TARGETS llmx-vk-handoff)
     endif()
 endif()
 

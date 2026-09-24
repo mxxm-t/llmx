@@ -48,7 +48,7 @@ A layer split is stages of width-1 groups, a tensor split one stage of width N, 
 | Too big for one card, many users | Layer split with passes in flight | Throughput grows with cards once enough passes are in flight: 20 to 122 tokens/s from 1 to 16 concurrent on 8 cards |
 | Too big for one card, few users | Tensor group of 2 to 4 | Per-request decode scales: dense 27B 21.5 to 46.8 tokens/s on 1 to 4 cards. Layer split stays at one card's speed (22.3 to 21.3) |
 | Long prompt | Layer split, prompt chunks pipelined | A prompt's chunks flow through the stages like separate passes |
-| Mixture of experts | Layer split, or tensor groups of at most 4 | MoE decode under tensor split peaked at 4 cards (103 tokens/s) and fell at 8 (92); expert parallelism over PCIe lost (29 against 81) |
+| Mixture of experts | Layer split; expert tiers where a model barely does not fit; see Mixture of experts | Below |
 
 Group widths beyond 4 lose on this hardware: the sum's wait is the slowest of N-1 PCIe latencies, 8.2 us at 4 cards and 20.3 us at 8, which is 27 percent of an 8-card decode token.
 
@@ -105,6 +105,21 @@ Flag names are chosen for what fits llmx best; an established name is kept where
 - A stage boundary never splits a layer's attention from its feed-forward block, except where the placement asks for it (CPU experts).
 - A second card beside another job halved layer-split prefill in earlier measurements, so gates run on cards with no neighbour.
 
+## Mixture of experts
+
+A MoE layer is a small attention block and a large set of experts of which each token uses a few: Qwen3-30B-A3B has 128 experts of 768 values per layer and uses 8, Qwen3-235B-A22B 128 of 1536 and uses 8. Most of the bytes are experts, few are read per token, and with many users most experts are read every pass anyway: 32 decode tokens of Qwen3-30B-A3B touch about 111 of the 128. Measured on this hardware, MoE decode is not bound by memory bandwidth (31 percent of the ceiling against 72 for a dense model) but by dispatches and small matmuls, which is also what llmx's own MoE decode showed (`docs/STATUS.md`).
+
+The placement already puts a layer's feed-forward block on its own group, separate from its attention (the CPU experts use it). Four ways to split the experts follow from that, in order of preference on this hardware:
+
+1. **Layer split** (the default). Whole MoE layers per stage, attention and experts together. One crossing per boundary per pass, and with passes in flight each card reads its layers' experts once per pass for all of that pass's tokens, so aggregate expert bandwidth grows with the cards. This is the multi-user choice, and the only one needed for Qwen3-30B-A3B Q8_0 on two cards or Qwen3-235B-A22B on six.
+2. **Expert tiers.** A layer's experts divided by id between two devices, the most used on the faster one: a card and the CPU (the Radeon VII with a model slightly past its 16 GB, where today whole layers go to the CPU), or two cards when the last stage overflows by a few experts. The router runs on the attention device; each token's entries go to the device that holds their expert; the slots come back and are combined on the attention device in slot order, as `moe_combine` does now. Two crossings per MoE layer, as the CPU experts pay today, and both devices compute at once. The split is chosen from usage counts that `route_experts` collects per expert and layer, measured on a calibration run and stored with the placement, and it stays fixed while serving. This generalizes `--n-cpu-moe` from whole layers to single experts and replaces most of what streamed experts do for long prompts.
+3. **Expert parallelism** across a group of cards: every card holds a share of each layer's experts, and every MoE layer exchanges token states out to the cards holding their experts and slot results back. It scales a single pass's expert bandwidth with the cards, which is its only advantage over a layer split with passes in flight. On this hardware it lost 3 to 1 single-stream in earlier work (29 against 81 tokens/s on gpt-oss-120B), mostly to host sorting, a readback and a synchronization per call, and lost fusion. If it is built, it keeps llmx's device-side grouping (`moe_group.comp`), never synchronizes the host inside a layer, combines in slot order, and replicates the most used experts on several cards to balance load, as DeepSeek's EPLB does. It needs peer copies to be worth measuring, so it waits for ROCm, and its exchange cost through host memory is measured in phase 0 first.
+4. **Expert tensor split.** Each expert's matrices split across a tensor group, with the group's sums. The split must fall on whole quant blocks: 768 splits into 3 by 256 but not into 2 for K-quants, 1536 into 2, 3 or 6. MoE tensor decode gained little on this hardware (each added card cost about 0.9 ms of host launch time per token against a 9.9 ms device pass), so this follows the tensor groups and is used only where the attention is tensor-split anyway.
+
+Shared experts (Qwen2-MoE, DeepSeek) go with the routed ones and are never copied to every member: a copied shared expert was 89 percent of each card's feed-forward bytes in an earlier tensor split.
+
+A token's routed entries computed on the same kind of device in the same slot order give the same result wherever the experts sit, so an expert split across two identical cards is bit-identical to one card. Across a card and the CPU the dot kernels differ, so the gate there is the HF bound, determinism and batch invariance, as for the CPU experts today.
+
 ## Tensor groups
 
 Built after the layer split and on the same structure.
@@ -138,6 +153,7 @@ Each phase is its own branch from main, merged on its own gates, with a STATUS b
 | 3 | Scheduler: P passes in flight, batch assembly by predicted stage time, admission over several pools | Server gates at 1 to 64 users and a rate sweep against llama.cpp and vLLM on the same cards; server/CLI equality across placements |
 | 4 | Pipelined long prompts with shrinking chunks | Prefill at 512 to 16384 tokens against both references on 2 and 4 cards |
 | 5 | Replicas | Aggregate throughput against one split instance on the same cards |
+| 5b | Expert tiers: per-expert placement by measured use, card and CPU or two cards | Radeon VII with Qwen3-30B-A3B Q4_K_M and Q8_0 against today's whole-layer CPU experts and against the references' expert offload; HF MoE gate; bit-identity across two cards |
 | 6 | Tensor groups (ROCm first, Vulkan if phase 0 says it pays) | HF gate, determinism and batch invariance; decode at 1 to 4 users against the layer split and both references |
 | 7 | Staged tensor | Prefill and decode against the best single mode at each concurrency |
 
@@ -155,7 +171,9 @@ Each phase is its own branch from main, merged on its own gates, with a STATUS b
 10. **The vLLM baseline.** It depends on a community fork for gfx906 and on AWQ or GPTQ weights. If it does not run, the gate says so rather than dropping the comparison.
 11. **Shared machine.** Multi-card timing needs cards with no neighbour for the whole run, and link speed checked at the start.
 12. **Windows.** One GPU, so the Windows gates cover the Radeon VII with CPU stages; multi-card gates run on Linux only.
-13. **Downloads.** The Linux machine's uplink measured about 2.5 MB/s, so a 142 GB model takes most of a day to fetch; phase 0 starts the downloads first.
+13. **Expert use drifts.** Expert tiers placed from a calibration run lose when a workload uses other experts. Placement stays fixed while serving; moving experts between passes is possible later but not designed.
+14. **Expert exchange cost.** Expert parallelism crosses twice per MoE layer; through host memory that is about 94 x 2 synchronizations per pass on Qwen3-235B-A22B. Phase 0 measures it before anything is built.
+15. **Downloads.** The Linux machine's uplink measured about 2.5 MB/s, so a 142 GB model takes most of a day to fetch; phase 0 starts the downloads first.
 
 ## Sources
 
@@ -164,4 +182,6 @@ Each phase is its own branch from main, merged on its own gates, with a STATUS b
 - llama.cpp pipeline parallelism and its limits: https://github.com/ggml-org/llama.cpp/pull/6017 ; https://github.com/ggml-org/llama.cpp/issues/27428 ; https://github.com/ggml-org/llama.cpp/discussions/20252
 - SGLang chunked pipeline parallelism: https://www.lmsys.org/blog/2026-01-15-chunked-pipeline/
 - vLLM for gfx906: https://github.com/nlzy/vllm-gfx906
+- Expert load balancing by replicating used experts (DeepSeek EPLB): https://github.com/deepseek-ai/EPLB
+- Hybrid CPU and GPU expert placement: https://github.com/kvcache-ai/ktransformers
 - Measurements on this hardware: mx-llama.cpp research notes (`tp-notes/split-modes-explained.md` in that repository) and the records summarized above.

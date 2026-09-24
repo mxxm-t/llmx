@@ -90,8 +90,10 @@ the compiled binary portable to older CPUs.
   scalar tails. This avoids repeatedly loading/storing output rows while
   retaining each value lane's sequence order.
 - Decode rows and prompt rows: with row runs a generated token (extent 1)
-  takes the decode dots and a prompt's rows the batched float path (the
-  prompt dots for routed experts, below), so a row computes the same alone
+  takes the decode dots and a prompt's rows the batched float path, or the
+  prompt dots for routed experts (below) and for K-quant rows at least
+  `kPromptDotsFrom` (4096) wide, where the float path's dequantized row
+  blocks no longer stay in the first-level cache, so a row computes the same alone
   or beside others; without runs a one-column call is decode. The decode dots (`q8_dots.hpp`) quantize a call's activations once
   per block of 32, 8-bit for Q8_0, Q4_K and Q5_K and 16-bit for Q4_0, Q4_1
   and Q6_K, the same split as the device's row kernels, and meet the packed

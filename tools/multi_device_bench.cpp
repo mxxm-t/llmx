@@ -1,7 +1,7 @@
 // Phase 0 of docs/MULTI-DEVICE.md through the runtime's own Vulkan backend: what several devices in one process cost each other, and what a split pays for moving data between them.
 // Every mode uses the Backend interface as a split would (adopt, matmul, copy into host-visible memory, submit, wait, write), so the numbers include the backend's own submission and waiting.
 // `concurrent D...`: each device runs decode-shaped passes on its own thread, first alone, then all at once.
-// `pipeline D0 D1 [stage_ms]`: two stages with P passes in flight for P from 1 to 6; each pass leaves stage 0 through host memory into stage 1, and the host holds it for a sampling time before it re-enters stage 0.
+// `pipeline D0 D1 [stage_ms] [warm_rows]`: two stages with P passes in flight for P from 1 to 6; each pass leaves stage 0 through host memory into stage 1, and the host holds it for a sampling time before it re-enters stage 0.
 // `groupsum D...`: every device's vector summed on the host in device order and written back to each, for a decode row and a 512-row chunk.
 // `exchange D... [tokens] [skew]`: a mixture-of-experts layer's dispatch and return between ranks, each rank's entries sent to the ranks holding their experts and the results sent back.
 // Shapes are those of a 5120-wide dense model (Qwen3-32B) and Qwen3-235B-A22B's experts (4096 wide, 128 experts of 1536, 8 per token).
@@ -139,6 +139,15 @@ struct Channel {
         q.pop_front();
         return true;
     }
+    // Takes an item if one is waiting; `closed` reports a channel that will never have one.
+    bool try_get(T& v, bool& is_closed) {
+        std::lock_guard<std::mutex> l(m);
+        is_closed = closed && q.empty();
+        if (q.empty()) return false;
+        v = std::move(q.front());
+        q.pop_front();
+        return true;
+    }
     void close() {
         {
             std::lock_guard<std::mutex> l(m);
@@ -154,7 +163,8 @@ struct Pass {
     Clock::time_point started;
 };
 
-int pipeline(int d0, int d1, double stage_ms) {
+// With `warm_rows`, a stage waiting for its next pass keeps its device working on that many rows of its up projection at a time, so the device does not drop its clock between passes.
+int pipeline(int d0, int d1, double stage_ms, size_t warm_rows) {
     Stage s0(d0), s1(d1);
     s0.calibrate(stage_ms);
     s1.calibrate(stage_ms);
@@ -198,7 +208,18 @@ int pipeline(int d0, int d1, double stage_ms) {
             std::vector<double> latency;
             auto stage = [&](Stage& s, Channel<Pass>& in, Channel<Pass>& out) {
                 Pass p;
-                while (in.get(p)) {
+                for (;;) {
+                    if (warm_rows) {
+                        bool closed = false;
+                        if (!in.try_get(p, closed)) {
+                            if (closed) break;
+                            s.b->matmul(kQ8, {s.up.get(), 0}, {s.x.get(), 0}, {s.h.get(), 0}, kEmbd, warm_rows, 1);
+                            s.b->wait(s.b->submit());
+                            continue;
+                        }
+                    } else if (!in.get(p)) {
+                        break;
+                    }
                     s.b->write(*s.x, 0, p.residual.data(), p.residual.size() * 4);
                     s.b->wait(s.run(rows));
                     std::memcpy(p.residual.data(), s.out->host_ptr(), p.residual.size() * 4);
@@ -392,7 +413,8 @@ int main(int argc, char** argv) {
         const std::string mode = argc > 1 ? argv[1] : "";
         int next = 0;
         if (mode == "concurrent") return concurrent(parse_devices(argc, argv, 2, next));
-        if (mode == "pipeline" && argc >= 4) return pipeline(std::atoi(argv[2]), std::atoi(argv[3]), argc > 4 ? std::atof(argv[4]) : 10.0);
+        if (mode == "pipeline" && argc >= 4)
+            return pipeline(std::atoi(argv[2]), std::atoi(argv[3]), argc > 4 ? std::atof(argv[4]) : 10.0, argc > 5 ? (size_t)std::atoi(argv[5]) : 0);
         if (mode == "groupsum") return groupsum(parse_devices(argc, argv, 2, next));
         if (mode == "exchange") {
             const auto d = parse_devices(argc, argv, 2, next);
@@ -400,7 +422,7 @@ int main(int argc, char** argv) {
             const double skew = next + 1 < argc ? std::atof(argv[next + 1]) : 0.0;
             return exchange(d, tokens, skew);
         }
-        std::fprintf(stderr, "usage: llmx-multi-device-bench concurrent D... | pipeline D0 D1 [stage_ms] | groupsum D... | exchange D... [-- tokens skew]\n");
+        std::fprintf(stderr, "usage: llmx-multi-device-bench concurrent D... | pipeline D0 D1 [stage_ms] [warm_rows] | groupsum D... | exchange D... [-- tokens skew]\n");
         return 2;
     } catch (const std::exception& e) {
         std::fprintf(stderr, "llmx-multi-device-bench: %s\n", e.what());

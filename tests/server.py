@@ -19,7 +19,7 @@ from tokenizer import build_byte_vocab
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 import server_load  # noqa: E402
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; /v1/tokenize and /v1/detokenize give the ids and text `llmx tokenize` and `llmx detokenize` give, while the queue is full too, and a text the tokenizer cannot encode is refused there as the generating routes refuse it; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
+# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; on the real fixture, seeded requests on the sampler's four paths, four at a time, give the text `generate` gives alone with the same settings and seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; /v1/tokenize and /v1/detokenize give the ids and text `llmx tokenize` and `llmx detokenize` give, while the queue is full too, and a text the tokenizer cannot encode is refused there as the generating routes refuse it; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 # The synthetic model's file name holds a byte that is not UTF-8 on Linux and characters beyond ASCII that several Windows code pages cannot map elsewhere, and every reply naming the model must still be UTF-8.
 # The synthetic MoE model gives each prompt the same ids alone and four at a time, on the CPU as it is and on a device with its experts on the host.
@@ -638,6 +638,31 @@ def check_mixed(model, prompts, n, flags):
         srv.close()
 
 
+def check_seeded(model):
+    """Seeded requests on each of the sampler's four paths, four at a time and the other settings at their defaults, give the text `generate` gives alone with the same settings and seed, as the server writes it: the default top-k with its nucleus, the default top-k without one, a nucleus over the whole vocabulary, and every token kept."""
+    cases = [({}, []), ({"top_k": 40, "top_p": 1.0}, ["--topk", "40", "--topp", "1"]),
+             ({"top_k": 0, "top_p": 0.95}, ["--topk", "0", "--topp", "0.95"]),
+             ({"top_k": 0, "top_p": 1.0}, ["--topk", "0", "--topp", "1"])]
+    prompt, n, seed = "Once upon a time", 16, 7
+    srv = Server(model)
+    results = {}
+    try:
+        def worker(i):
+            results[i] = srv.post("/v1/generate", dict({"prompt": prompt, "max_tokens": n, "seed": seed}, **cases[i][0]))
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(len(cases))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    finally:
+        srv.close()
+    for i, (fields, sampling) in enumerate(cases):
+        status, reply = results[i]
+        assert status == 200, reply
+        want = repaired(cli_reply(model, prompt, n, ["--seed", str(seed)] + sampling)[0])
+        assert reply["text"] == want, (fields, reply["text"], want)
+
+
 def check_limits(model):
     """The serving limits: a KV budget below the context bounds a request, and a full queue refuses with 503 rather than waiting, while the tokenize routes, which pass no queue, still answer and count a text past the context."""
     srv = Server(model, "--max-seqs", "1", "--max-queue", "1", "--ctx-size", "512")
@@ -931,6 +956,7 @@ def run():
             texts = [case["text"] for case in json.load(f)["cases"]] + [""]
         n = check_server(real, ["The capital of France is", "Once upon a time", "def fib(n):", "The three laws of"],
                          16, 4000, chat=True, texts=texts, prefix=excerpt)
+        check_seeded(real)
         check_limits(real)
         check_uncapped(real)
         check_paused_prefill(real)
@@ -939,7 +965,7 @@ def run():
         check_departed(real)
         k, n = check_ignore_eos_real(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
-              "refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
+              "seeded requests equal to the CLI on four sampler paths, refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
               "a prompt paused while prefilling, a %d-turn conversation past half the pool reusing its history on every follow-up, "
               "a follow-up consuming the turn it repeats while an unrelated donor stays, clients leaving a whole reply, a prefill and the queue, and one shutting its sending side  [ok]"
               % (os.path.basename(real), n, turns))

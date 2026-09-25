@@ -1,6 +1,9 @@
 // infer::sample against expectations taken from the definitions rather than from the code.
 // Greedy is the argmax, the penalty divides a seen positive score and multiplies a seen negative one, top-k keeps the k best, the nucleus is the shortest ranked prefix whose probability reaches top_p, and a draw follows the softmax of the kept scores over the temperature.
 // Frequencies are held to three binomial standard deviations per token from fixed seeds, so every run draws the same tokens.
+// Every draw is also held, token for token and with the generator's state after it, to a slow reference that sorts all scores but a masked one, ties by the lower id, which fixes the ranking, the tokens kept, the order a draw walks them in and the generator's use.
+// The reference sums the softmax in id order as the definition does, but a sum in another order differs only in its last bits, so no draw here can show that order.
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -170,11 +173,18 @@ void masked() {
     require(greedy(row, 1.0f, no_history, 4) == 1, "an id past the row masked a token");
     // Penalty 2 would take a seen leader of 3 to 1.5, above the rest; masked, it stays below them.
     require(greedy({3.0f, -5.0f, -6.0f}, 2.0f, {0}, 0) == 1, "the penalty brought a masked token back");
-    // Beside scores that are all negative infinity or NaN a masked id 0 is still not given, greedy or drawn.
+    // Beside scores that are all negative infinity or NaN a masked id 0 is still not given, greedy or drawn on every path: nothing ranked, a top-k's kept set with and without a nucleus, and a nucleus over the whole row.
     const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
     require(greedy({1.0f, -inf, -inf}, 1.0f, no_history, 0) == 1, "greedy gave a masked id 0 over negative infinities");
     require(greedy({1.0f, nan, nan}, 1.0f, no_history, 0) == 1, "greedy gave a masked id 0 over NaN");
-    require(counts({1.0f, -inf, -inf}, 1.0f, 0, 1.0f, 12, 0)[0] == 0, "a draw gave a masked id 0 over negative infinities");
+    for (float other : {-inf, nan})
+        for (int top_k : {0, 1})
+            for (float top_p : {1.0f, 0.95f}) {
+                char name[96];
+                std::snprintf(name, sizeof name, "a draw at top_k %d and top_p %g gave a masked id 0 over %s", top_k, top_p,
+                              std::isnan(other) ? "NaN" : "negative infinities");
+                require(counts({1.0f, other, other}, 1.0f, top_k, top_p, 12, 0)[0] == 0, name);
+            }
 
     const std::vector<float> logits = {1.0f, 0.0f, 2.0f, 0.5f, -0.5f};
     fits("temperature 1 with the leader masked", counts(logits, 1.0f, 0, 1.0f, 7, 2), softmax(logits, 1.0, {0, 1, 3, 4}));
@@ -198,6 +208,118 @@ void masked() {
     require(infer::sample(row, s, -1, no_history, rng) == 1, "ignore_eos masked a token of a model without an end id");
 }
 
+// infer::sample as its definition reads, slowly: every token but a masked one ranked by a full sort on score and then id, and the kept tokens' softmax summed in id order.
+// Without top-p the draw walks the kept tokens in id order; with it the nucleus is summed best first and the draw walks it best first.
+// Its draws pin the ranking, the tie rule, the walk order and the generator's use; its sums follow the definition's order too, though no draw shows the order of a sum.
+uint32_t reference(const std::vector<float>& logits, float temp, int top_k, float top_p, float penalty,
+                   const std::vector<uint32_t>& gen, infer::RNG& rng, int64_t masked) {
+    const size_t n = logits.size();
+    std::vector<float> s = logits;
+    if (penalty != 1.0f)
+        for (uint32_t id : gen) s[id] = logits[id] > 0.0f ? logits[id] / penalty : logits[id] * penalty;
+    std::vector<uint32_t> order;
+    for (uint32_t i = 0; i < (uint32_t)n; i++)
+        if (n < 2 || (int64_t)i != masked) order.push_back(i);
+    std::sort(order.begin(), order.end(),
+              [&](uint32_t a, uint32_t b) { return s[a] > s[b] || (s[a] == s[b] && a < b); });
+    if (temp <= 0.0f) return order[0];
+
+    const size_t m = order.size();
+    const size_t keep = (top_k > 0 && (size_t)top_k < m) ? (size_t)top_k : m;
+    const float best = s[order[0]];
+    const auto weight = [&](uint32_t id) { return std::exp((s[id] - best) / temp); };
+    std::vector<uint32_t> kept(order.begin(), order.begin() + (std::ptrdiff_t)keep);
+    std::sort(kept.begin(), kept.end());
+    double sum = 0.0;
+    for (uint32_t id : kept) sum += weight(id);
+    const float r = rng.unit();
+    if (top_p >= 1.0f) {
+        const double target = r * sum;
+        double acc = 0.0;
+        for (uint32_t id : kept)
+            if (target < (acc += weight(id))) return id;
+        return order[0];
+    }
+    const double goal = top_p * sum;
+    double nucleus_weight = 0.0;
+    size_t nucleus = 0;
+    do {
+        nucleus_weight += weight(order[nucleus]);
+        nucleus++;
+    } while (nucleus < keep && nucleus_weight < goal);
+    const double target = r * nucleus_weight;
+    double acc = 0.0;
+    for (size_t i = 0; i < nucleus; i++)
+        if (target < (acc += weight(order[i]))) return order[i];
+    return order[0];
+}
+
+// n scores from a seed.
+// With `levels` they take that many values a quarter apart, so ties are everywhere and fall across every cut, and a zero is -0 or +0 at random, which compare equal.
+// Without they spread as a model's do, with one in 200 far ahead.
+std::vector<float> scores(size_t n, int levels, uint64_t seed) {
+    infer::RNG rng = seeded(seed);
+    std::vector<float> s(n);
+    for (float& v : s) {
+        if (levels) {
+            v = (float)(rng.next() % (uint64_t)levels) * 0.25f - 1.0f;
+            if (v == 0.0f && rng.next() % 2) v = -0.0f;
+        } else {
+            v = (rng.unit() + rng.unit() + rng.unit() - 1.5f) * 4.0f;
+            if (rng.next() % 200 == 0) v += 12.0f;
+        }
+    }
+    return s;
+}
+
+// `steps` draws of infer::sample and of the reference, each from its own copy of one seeded state and with the history growing by each draw, must be the same tokens and leave the same state.
+void agrees(const std::vector<float>& logits, float temp, int top_k, float top_p, float penalty, uint64_t seed,
+            int steps, int64_t masked) {
+    infer::RNG fast = seeded(seed), slow = seeded(seed);
+    std::vector<uint32_t> gen;
+    for (int i = 0; i < steps; i++) {
+        const uint32_t got = infer::sample(logits, temp, top_k, top_p, penalty, gen, fast, masked);
+        const uint32_t want = reference(logits, temp, top_k, top_p, penalty, gen, slow, masked);
+        if (got != want || fast.s != slow.s) {
+            char buf[256];
+            std::snprintf(buf, sizeof buf,
+                          "%zu scores, temperature %g, top_k %d, top_p %g, penalty %g, masked %lld, seed %llu, draw %d: token %u, the reference's %u",
+                          logits.size(), temp, top_k, top_p, penalty, (long long)masked, (unsigned long long)seed, i, got, want);
+            require(false, buf);
+        }
+        ++checks;
+        gen.push_back(got);
+    }
+}
+
+// The id greedy takes from a row: the best score, the lowest id on a tie.
+int64_t leader(const std::vector<float>& logits) {
+    return std::max_element(logits.begin(), logits.end()) - logits.begin();
+}
+
+void against_reference() {
+    const float temps[] = {0.0f, 0.2f, 0.8f, 1.5f};
+    const float top_ps[] = {0.1f, 0.95f, 1.0f};
+    const float penalties[] = {1.0f, 1.1f};
+    uint64_t seed = 1;
+    // Half the cells mask the row's leader, as ignore_eos masks a likely end of text, so the next best leads and every path passes over an id.
+    // Each top-k, temperature and top-p masks under one penalty and not under the other, which penalty alternating, so both penalties draw with and without a mask.
+    const auto grid = [&](const std::vector<float>& logits, std::initializer_list<int> top_ks, int steps) {
+        for (int top_k : top_ks)
+            for (float temp : temps)
+                for (float top_p : top_ps)
+                    for (float penalty : penalties) {
+                        agrees(logits, temp, top_k, top_p, penalty, seed, steps, (seed >> 1) % 2 ? -1 : leader(logits));
+                        seed++;
+                    }
+    };
+    // Five levels put the zeros, of both signs, first, so the top-k cut falls among them.
+    for (int levels : {5, 12, 0})
+        for (uint64_t row = 0; row < 2; row++) grid(scores(1000, levels, 100 * row + (uint64_t)levels), {0, 1, 40, 1000}, 12);
+    // The sampler ranks a nucleus with a heap only to 512 tokens and a top-k set only to 4096, so on 40000 a flat nucleus grows through the selections past the heap, and a top-k of 5000 is selected from every key.
+    for (int levels : {5, 0}) grid(scores(40000, levels, 7 + (uint64_t)levels), {0, 40, 5000, 40000}, 3);
+}
+
 }  // namespace
 
 int main() {
@@ -209,6 +331,7 @@ int main() {
         temperature();
         seeds();
         masked();
+        against_reference();
         std::cout << "sampler: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& error) {

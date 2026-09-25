@@ -450,6 +450,8 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
 `--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1, the ranges the server takes for the same settings.
+A sampled token is drawn from the tokens `--topk` and `--topp` keep, ranked by score with a tie going to the lower id, so a `--seed` gives the same tokens on every run and through the server with the same settings.
+`--topk 0` ranks only as many of the best tokens as the `--topp` nucleus needs, and with `--topp 1` ranks none: the draw walks every token in id order.
 `--ignore-eos` takes the end-of-text token out of every draw, greedy included, so the reply runs to `-n` unless a `--stop` match ends it first; the server's `ignore_eos` is the same rule, and the two give the same tokens for the same settings.
 The model's context still bounds the reply: a `-n` up to what the prompt leaves of it runs to `-n`, and past that the command stops with the context error, as it does without the option, where the server refuses such a request before it starts.
 
@@ -559,7 +561,7 @@ The compatible replies carry the reused-prefix count as `timings.cache_n`.
 With `"stream": true` the reply is `text/event-stream`: one `data:` line per token holding its id and text (a character split across tokens is held until complete), then `data: {"done": true, "finish": ..., "tokens": N}` and `data: [DONE]`.
 A stream whose pass fails ends with one `data:` event holding the error in the native shape, `{"error": "..."}`, in place of the `done` event and without `data: [DONE]`.
 A request is admitted when the KV pool can hold its prompt plus `max_tokens`, otherwise it waits in the queue; a prompt that cannot fit the context at all is refused with 413.
-A greedy request gives the ids `generate --temp 0` gives for the same prompt, alone or beside other requests, and a seeded request is reproducible whatever it is batched with.
+A greedy request gives the ids `generate --temp 0` gives for the same prompt, alone or beside other requests, and a seeded request gives the ids `generate` gives with the same settings and `--seed`, whatever it is batched with.
 A finished request's cache stays a while as a donor: a new prompt that repeats its tokens shares those KV blocks read-only and prefills only what follows, `reused_tokens` in the reply, whole blocks only and never the last prompt token.
 Donors give their blocks up, oldest first, when a request needs them, except that the donor a request forks is kept and, if the pool is still short, consumed by it: the blocks it shares pass to the request and the rest are freed.
 A follow-up turn or a resumed request, which shares every full block of its donor, consumes that donor before any other gives its blocks up.

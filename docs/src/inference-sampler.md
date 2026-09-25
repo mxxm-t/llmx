@@ -13,12 +13,21 @@ Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `g
   The server's `SampleParams` is `Sampling` plus its list of stop texts and `until_limit` (see [server](server.md)).
 - `sample(logits, temp, top_k, top_p, penalty, gen, rng, masked = -1) -> uint32_t`: temperature + top-k + top-p nucleus sampling with repetition penalty.
   Returns the chosen token id.
-  A `masked` id of the row scores negative infinity whatever the penalty, so greedy never takes it, and a draw leaves it out before top-k, top-p and the softmax, so no rounding in the nucleus's sum can fall back on it; a row holding nothing else keeps it, and -1 or an id past the row masks nothing.
-  The mask reads the caller's logits as the penalty does and writes nothing to them.
-  At `temp <= 0` it takes a linear maximum and returns, allocating nothing; ties go to the lowest token id.
+  A `masked` id of the row is passed over by every path whatever the penalty, so greedy never takes it, and a draw leaves it out before top-k, top-p and the softmax, so no rounding in the nucleus's sum can fall back on it; a row holding nothing else keeps it, and -1 or an id past the row masks nothing.
+  The mask writes nothing to the caller's logits.
+  The repetition penalty is applied into a copy of the logits, made only when a token is penalized, and a token seen several times is penalized once.
+  At `temp <= 0` it takes a linear maximum and returns; ties go to the lowest token id.
   The scan starts past a masked id 0, so greedy does not give the masked id even when every other score is negative infinity or NaN.
-  Above zero the top-k window comes from `std::partial_sort`, because nothing after it is read.
-  Ordering the whole vocabulary first cost 12.5 ms per token on Qwen3-8B for a result that reads one element.
-  The repetition penalty is applied through a lambda over the caller's logits rather than into a copy.
+  Above zero tokens rank by score and a tie by the lower id, through `detail::rank_key`, one integer per token whose order is that ranking, so no sort's or selection's handling of equal scores reaches the result.
+  A token's weight is `exp((score - best score) / temp)`.
+  The kept tokens' weights are summed in id order, and the nucleus is the shortest ranked prefix whose weight, summed best first, reaches `top_p` of that sum, so no sum depends on the order a selection leaves its candidates in.
+  The draw walks the drawn tokens to `r` times their weight in the order that weight was summed in: the nucleus best first, or without top-p the kept tokens in id order.
+  `detail::Ranking` ranks the kept tokens only as far as they are read: a top-k set of up to 4096, and a nucleus up to 512, in one pass over the scores with a heap, and more by laying out the keys not yet ranked once behind the ranked ones and selecting each further prefix with `std::nth_element`.
+  The heap's pass forms a token's key only when its score is not below the worst score the heap holds, since a lower score has the smaller key whatever its id.
+  A top-k below the vocabulary is selected first, and its best token is then found within it.
+  A nucleus is ranked 64 tokens first, then 512 in a second heap pass, and past that each selection doubles the ranked prefix, so top-k 0 with top-p below 1 ranks 64 tokens, fewer than eight times a nucleus of up to 512, or fewer than twice a larger one, and the whole vocabulary only when the nucleus holds more than half of it.
+  A nucleus leaves the heap at 512 because on rows whose nucleus runs to tens of thousands of tokens a heap pass of 4096 cost more than the selections it saves.
+  With every token kept each weight is held by id as the sum takes it, in a buffer that is not zeroed, so the nucleus and the draw take no exp again; within a top-k the nucleus takes its tokens' weights again, at most k of them.
+  With top-k 0 and top-p 1 nothing is ranked: one pass finds the best score, one sums the weights and the draw walks the ids in order.
 - `sample(logits, s, end, gen, rng) -> uint32_t`: the next token of a reply under the settings `s`, where `end` is the id that ends a reply (`bpe::Tokenizer::eos_id`, -1 for none), masked when `s.ignore_eos` is set.
   `infer::generate` and the scheduler both sample through it, so the rule is written once and the CLI and the server draw the same tokens for the same settings.

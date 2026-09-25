@@ -4,6 +4,54 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## The sampler selects only what top-k and top-p keep (2026-09-26, branch perf/sampler-select)
+
+- **Why:** a `top_k` of 0, which the compatible routes give a client's -1, sorted all 151,936 scores of a row, 12.6 ms a row on the EPYC 7262, and a penalty looked up a hash set for every entry, 1.1 to 1.2 ms a row. Phase 3's step 4 samples on a pool sized from these times (Layer split phase 3, below), and the plan approved this branch to merge before it, greedy unchanged and seeded draws changing once. The sort also left tied tokens in whatever order the standard library leaves them, which a seeded draw could depend on.
+- **Done:**
+  - `infer::sample` ranks tokens by one integer key each, the higher score first and the lower id on a tie, -0 and +0 equal, so no sort's or selection's handling of equal scores reaches a draw.
+  - It ranks only as far as the draw reads. A top-k set of up to 4096 is ranked in one heap pass, which forms no key for a score below the heap's worst, and a larger one by a selection over every key. A nucleus is ranked 64 tokens first, then 512 by the heap, then by selections behind the ranked prefix that double it each time. Top-k 0 with top-p 1 ranks nothing.
+  - The kept weights are summed in id order and the nucleus best first; the draw walks the nucleus best first or, without top-p, the kept set in id order. With every token kept, each weight is held from that sum in a buffer that is not zeroed, so no exp is taken twice.
+  - The penalty writes into a copy of the row, made only when a token is penalized.
+  - The `ignore_eos` mask is passed over by every path instead of scoring negative infinity, which the `ignore_eos` block below describes as it merged.
+  - `infer::Sampling`, the settings overload and every caller are unchanged.
+- **Review fixes:**
+  - A nucleus past 32,768 tokens sorted the rest of the vocabulary, since a selection past the heap asked for eight times the last, and the heap's ranked keys were thrown away when the keys were laid out; a nucleus token's exp was taken up to three times. Past the heap each selection now doubles the ranked prefix, laying the keys out keeps the heap's ranked ones in place, and with every token kept the weights are held from the sum. The heap now stops a nucleus at 512 rather than 4096, as the review also suggested, since that measured faster on every large nucleus below.
+  - The test's grid masked the leader in exactly its penalty 1.1 cells, so a sampler that applied the penalty only beside a mask passed every reference draw. Half the cells now mask, each top-k, temperature and top-p under one penalty, and with `penalty()` left out that sampler fails the grid, where the old grid passes it.
+  - A masked id 0 beside negative infinities or NaN is checked on all four paths of a draw, where one was.
+  - `check_seeded` covers the fourth path, `top_k` 40 with `top_p` 1, and compares the CLI's text repaired as the server writes a character a reply ends partway through, read through `cli_reply`; `cli_text`, which repeated it, is gone.
+  - The test and AGENTS say that no draw can show the order of a sum, so the reference pins the ranking, the tie rule, the walk order and the generator's use; SERVER says the mask is passed over, and SERVER and USAGE no longer say "a pass at a time", which read as a forward pass.
+- **Changed draws on a fixed set**, Qwen3-0.6B Q8_0, 20 prompts, seeds 1 to 50, `generate -n 32` and the server's ids, against main: none of 1000 requests at the defaults, 1 of 1000 at top-k 0 with top-p 0.95 (from its 29th token), and 1000 of 1000 at top-k 40 with top-p 1, 750 of them from the first token, since without a nucleus the draw walks the kept tokens in id order where main walked them best first. Greedy gives main's bytes.
+  The CLI equals the server on 1999 of 2000 of these requests on main and on the branch alike; the one left is the same request on both, whose 32nd token is the first two bytes of a character, which the server writes as two U+FFFD and the CLI as the bytes.
+  The counts were taken on the reviewed commit, the top-k 40 one on the commit before the mask moved into the sampler, whose unmasked draws are the same; the review fixes change no draw (Gates).
+- **Per-row time**, one thread on the EPYC 7262, in ms: 64 rows of Qwen3-0.6B's logits for a prompt, and 16 synthetic rows of the same vocabulary, flat (every score within 0.5 of the others) or Gaussian (standard deviation 2). Medians of four runs per arm, interleaved with two other variants as A B C D E E D C B A twice, at a one-minute load average of 10.2 to 12.0; greedy, the same code in both branch arms, shows the spread.
+
+  | Case | main `04e85b3` | reviewed `873a63e` | this commit |
+  |---|---:|---:|---:|
+  | Greedy | 0.13 | 0.15 | 0.14 |
+  | Greedy, penalty 1.1 | 1.33 | 0.20 | 0.20 |
+  | Defaults (temperature 0.8, top-k 40, top-p 0.95) | 0.23 | 0.12 | 0.11 |
+  | Defaults, penalty 1.1 | 1.36 | 0.15 | 0.14 |
+  | Top-k 0, top-p 0.95 | 12.6 | 0.80 | 0.85 |
+  | Top-k 0, top-p 1 | 12.6 | 0.81 | 0.79 |
+  | Top-k 0, top-p 0.95, temperature 1.5 | 12.7 | 3.86 | 3.28 |
+  | Flat rows, top-k 0, top-p 0.95 | 12.9 | 13.5 | 11.3 |
+  | Flat rows, top-k 0, top-p 0.5 | 12.7 | 12.8 | 6.72 |
+  | Gaussian rows, top-k 0, top-p 0.95, temperature 1.5 | 12.8 | 13.0 | 10.4 |
+
+  - Two more interleaved rounds at the same load timed the review's variants on the three synthetic cases in turn. The heap to 4096 with a zeroed row of weights took 12.6, 7.95 and 11.5 ms, and without the row 13.9, 8.6 and 12.3. Leaving the heap at 512 took 11.4, 6.73 and 10.2, and holding only the nucleus's weights there 13.2, 7.10 and 11.0.
+  - On the model's rows a zeroed row cost 0.01 to 0.04 ms more than one not zeroed, and this commit takes 0.05 ms more than the reviewed one at top-k 0 and top-p 0.95, within the spread greedy shows and far below what the large nuclei gain.
+  - A jump to a lower bound of the nucleus from the last weight summed took 10.6 to 10.7, 8.6 and 8.4 to 9.1 ms, faster on two cases and slower on the third, so it is not taken.
+- **Gates**, on the Linux machine's CPU (EPYC 7262), no GPU device, against main `04e85b3` built beside it and the reviewed commit's CPU build, at a load average of 11 to 28:
+  - Both builds configured fresh and built in full (25 and 32 targets): 0 warnings and 0 errors. MSVC builds the sampler test at /W4 without a warning, and it passes.
+  - CTest 22/22 on the CPU build and 25/25 on the Vulkan-enabled one, `backend-vulkan` and `vulkan-lifetime` skipped without a device. `sampler` passes 7539 checks in 3.0 s, also under the address and undefined-behaviour sanitizers, and built against main's sampler it fails at its first reference draw.
+  - The final sampler against the reviewed one, over rows of 1 to 151,936 scores with ties, both zeros and negative infinity and 64 rows of Qwen3-0.6B's logits, at random top-k, top-p, temperature, penalty and mask: 99,866 draws with every token and generator state equal, 24,790 of them on the model's rows, and 14,338 greedy draws equal to main's; 10,125 more under the sanitizers.
+  - On Qwen3-0.6B Q8_0, 21 CLI cases, stdout without its timing lines: the 12 greedy ones (`generate -n 64 --temp 0` on four prompts, with a penalty, with top-k 0 and top-p 1 and twice with `--ignore-eos`, `logits --top 20` three ways, and a greedy `chat`) give main's bytes. All 21, the 9 seeded ones included (the defaults, a penalty, top-k 0, top-k 0 with top-p 1, top-k 40 with top-p 1, top-k 0 at temperature 1.5, top-k 5000, `--ignore-eos` and a seeded `chat`), give the reviewed commit's bytes, the same on the branch's two builds.
+  - The four routes, 23 requests greedy and seeded, whole and streamed, with a penalty, `top_k` -1 and `ignore_eos`: every greedy reply gives main's bytes and every reply the reviewed commit's. On main, the reviewed commit and this one the server's text equals the CLI's on all 8 seeded settings.
+  - `tools/server_mix_check.py` on Qwen3-0.6B Q8_0: 0 of 16 differ together, 0 of 12 skewed with 4 clients leaving, and the 4 CLI checks equal.
+  - The suite with `--no-perf-floor --require-tools --require-baseline --device cpu` on the Vulkan-enabled build: 18 of 18, `server` with its seeded check on four paths included.
+  - The 2000 seeded server requests of the changed-draw count give the reviewed commit's ids and texts, 2000 of 2000.
+- **Left:** the hosted jobs on this commit, then the merge; phase 3's step 4 builds on it.
+
 ## CPU kernels without runtime CPU checks, with one decode row dot and one row split (2026-09-26, branch cleanup/cpu-kernels)
 
 - **Why:** item 16 of the second audit's cleanup (below). Every build compiles for AVX2, FMA and F16C (CMake and `build.bat`), so the CPU backend's runtime AVX2 and F16C checks always passed and the scalar branches they guarded never ran. The float decode row dot was written three times beside `row_dot` (`matvec_q8_0`, the K-quant lambda in `matmul_raw` and the F32 branch of its batched path), and the split of the row dots over the pool five times.
@@ -418,7 +466,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - The fit balances layer counts. Modeled, the head is 7 percent of an 8B pass and 2 percent of a 32B pass. So for 8B the last stage is about 15 percent heavier than the others on two cards and 30 percent on four, which caps two cards near 1.9 times one card and four near 3.3, and for 32B about 4 percent on two.
   - Sampling per row on the EPYC 7262, with the scheduler's 594 KiB row copy, medians at host load average 36 to 39: 0.25 ms greedy, 0.45 at the defaults (temperature 0.8, top-k 40, top-p 0.95), 1.55 greedy with a penalty of 1.1, 1.68 at the defaults with it, and 15.4 with top-k 0 (18.3 with top-p 0.95), which the compatible routes give a client's `top_k: -1`. The row copy alone takes 0.054 ms.
     - Main's penalty looks up a hash set for each of the 151,936 entries, which is the 1.31 to 1.35 ms it adds at a load average of 11 to 12. `perf/sampler-select` writes the penalized scores into a copy of the row instead, and with it a penalty adds 0.02 to 0.10 ms.
-    - `perf/sampler-select` selects only what top-k and top-p keep, so the defaults take less than main's, and top-k 0 takes 0.85 ms at top-p 1 and 6.0 to 6.1 ms at top-p 0.95 (below).
+    - `perf/sampler-select` selects only what top-k and top-p keep, so the defaults take less than main's, and top-k 0 takes 0.85 ms at top-p 1 and 6.0 to 6.1 ms at top-p 0.95 on uniform logits (below), and 0.79 and 0.85 ms on Qwen3-0.6B's own logits (the sampler block above).
     - Step 0 timed both again at a one-minute load average of 11.2 to 11.9, two rounds each.
       - main: 0.125 to 0.128 ms greedy, 0.256 to 0.258 at the defaults, 1.47 to 1.48 greedy with a penalty of 1.1, 1.56 to 1.57 at the defaults with it, 12.6 to 12.7 with top-k 0, and 12.7 to 13.7 with top-k 0 and top-p 0.95.
       - `perf/sampler-select`: 0.124 to 0.132, 0.216 to 0.221, 0.142 to 0.227, 0.234 to 0.240, 0.85 with top-k 0, and 6.0 to 6.1 with top-k 0 and top-p 0.95. That last figure is on uniform logits, which keep nearly every token under top-p.
@@ -432,7 +480,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     | One thread, the new sampler | 21% / 21% | 28% / 28% | 39% / 40% |
     | One thread and four sampling threads, the new sampler | 14% / 15% | 20% / 20% | 28% / 28% |
 
-    - With the new sampler the penalty no longer needs the pool. Top-k 0 at top-p 1 (0.85 ms) takes up to 81 percent of a round at S = 4 without the pool and 38 percent with it. At top-p 0.95, the bench's 6.0 ms takes at worst 69 to 70, 89 to 90 and 125 to 126 percent of a round at S = 2, 3 and 4 even with the pool. Real logits keep far fewer tokens, so step 0 times it on the model's own logits before the pool is sized.
+    - With the new sampler the penalty no longer needs the pool. Top-k 0 at top-p 1 (0.85 ms) takes up to 81 percent of a round at S = 4 without the pool and 38 percent with it. At top-p 0.95, the bench's 6.0 ms takes at worst 69 to 70, 89 to 90 and 125 to 126 percent of a round at S = 2, 3 and 4 even with the pool. On Qwen3-0.6B's own logits it takes 0.85 ms, about what top-p 1 takes there (the sampler block above).
     - A faster pass shortens the round. At the pass costs 32B needs (8 rows in 21.5 ms and 16 in 25 ms, 8B-equivalent, Targets) and with head-aware shares, one thread with the pool is modeled at 62 to 63 percent of a round at S = 4 with 32 users and 84 to 86 percent with 64, recording being the largest part.
   - Whether one thread keeps the devices fed is not modeled reliably. The first model put it at 55 to 71 percent of the device-bound rate at four stages in a fixed round order, and at 83 to 91 percent serving stages as they complete. A later simulation put it near 100 percent with the pool, but it does not state its order and is unchecked. Phase 0's P sweep ran a thread per stage, so step 0's pipeline bench, driven by one thread and by a thread per stage, measures it.
   - Elsewhere, servers that keep decode passes in flight across stages give each device a process (vLLM, SGLang, TensorRT-LLM) or a thread (Orca, in C++), and all but SGLang keep one central scheduler. LMDeploy's TurboMind, also C++, gives each device a scheduling thread and an executor thread but has no pipeline stages. None relays activations through the host as llmx does.
@@ -587,7 +635,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   0. **Measure; no change to the model, the backends or the server**, with cards pinned, clocks held high and the host at a load average under 12. Each program's effective P and ring depth are read from its own log, never from its command line. Which cards are free is recorded before each run, since other processes held memory on two of them during 32B's `--seqs`. Done so far:
      - the one-card runs in Found, at a host load of 15 to 54;
      - 4-card servers at 512/128, two rounds: llmx at P = 1 (109 to 116 tok/s), the ROCm layer and tensor splits, and vLLM FP16 with tensor parallelism 4;
-     - the sampler timing;
+     - the sampler timing, and top-k 0 with top-p 0.95 on the model's own logits (the sampler block above);
      - `bench --seqs` for 8B Q8_0 on one card and 32B Q8_0 on two;
      - the ROCm and Vulkan batched benches;
      - 128/128 servers on one and two cards, a first round of each; the second round is running.
@@ -600,7 +648,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
        - the head's share of the last stage;
        - each stage's device time from GPU timestamps;
        - `llmx-multi-device-bench pipeline` at P = S and S + 1, with the measured stage times, against 4 and 16 command-ring slots (the 16-slot arm a build with `kRing` 16), driven by one thread and by a thread per stage. The bench runs two stages with a thread each today, so a `tools/` commit of its own first gives it 3 and 4 stages and a one-thread driver.
-     - The server's host time between a pass's logits and the next pass, which `docs/SERVER.md` records far lower than the sampler's time a row, and top-k 0 with top-p 0.95 timed on the model's own logits.
+     - The server's host time between a pass's logits and the next pass, which `docs/SERVER.md` records far lower than the sampler's time a row.
      - Today's server and the references on the same cards in the same minutes, under the gate's loads and server settings (Gate): 8B on 1 to 4 MI50s, 32B on 2, 30B-A3B on 2 and 3, and the Q4_K_M rows beside vLLM's AWQ. The references' 8B servers on 2, 3 and 4 cards are measured for the first time, every reference runs at 48 and 64 users too, and vLLM runs as its newest and its fastest build, in 8 bits and in AWQ where they run.
      - Gate: the numbers recorded in this block. Every target is re-derived for every placement and load the gate runs, prompts included, with the estimates replaced by same-minute measurements. The host share of a round is predicted for S = 2, 3 and 4 at today's decode cost and at step 5's targets.
   1. **The pass API**, as in Design (Model): `reserve_passes`, `Pass::handoff`, `logits_base`, the in-flight mark, the frozen context and the fit's slot count. The server still calls `forward`.

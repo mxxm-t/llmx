@@ -65,6 +65,9 @@ public:
     int32_t bos_id = -1;
     int32_t eos_id = -1;
 
+    // Whether `id` ends a generation. A model without an EOS id has no stop token at all; folding it to 0 made token zero, an ordinary token, end every generation.
+    bool is_eos(uint32_t id) const { return eos_id >= 0 && id == (uint32_t)eos_id; }
+
     Tokenizer(const gguf::GGUFModel& m) {
         byte_to_char = build_byte_encoder();
         for (const auto& kv : byte_to_char) char_to_byte[kv.second] = kv.first;

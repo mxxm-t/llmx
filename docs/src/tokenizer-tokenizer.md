@@ -20,6 +20,8 @@ merge algorithm are GPT-2's; the pretokenizer is not.
   - `decode(ids) -> string`: reverse; an id outside the vocabulary throws.
   - `bpe(word)`, `byte_encode(raw)`.
   - Tracks `bos_id`, `eos_id` and the special tokens.
+  - `is_eos(id)`: whether a token ends a generation, for `generate` and the
+    server alike; a model without an EOS id has no stop token.
 
 Character classes are approximated for UTF-8 without a Unicode table: any byte
 at or above 0x80 counts as a letter. This matches Qwen's classes on the scripts

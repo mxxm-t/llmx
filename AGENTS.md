@@ -124,24 +124,10 @@ do not want while measuring.
   number and were removed with the finding recorded in `docs/STATUS.md`.
 - **The runtime credential exception is `HF_TOKEN`** for `llmx pull` gated-repo
   access. It is not a tuning knob and must not appear in child argv or logs.
-- **Test configuration**: `LLMX_BASELINE_GGUF` points
-  `tests/baseline.py` at a fixture model; `LLMX_DEVICE`, set by
-  `run_tests.py --device`, appends `--device` to every command that takes
-  it so the suite runs on a device backend, except where a component names
-  its own device (`threads` names the CPU, whose thread counts it checks);
-  `LLMX_CACHE_TYPE`, set by
-  `run_tests.py --cache-type`, appends `--cache-type-k` and
-  `--cache-type-v` the same way so the HF gate runs with a chosen cache
-  type; `LLMX_LAYER_SHARES`, set by `run_tests.py --layer-shares`,
-  appends `--layer-shares` so a device list is tested at a split the fit
-  would not choose. The synthetic bench (`bench` without `--model`) takes
-  only `--device` and `--threads`, so it gets neither shares nor cache
-  types. The runtime stores f16 by default, so the components that check
-  exact f32 arithmetic against independent fixtures (`f32`, `moe`,
-  `shards`, `server`) ask for f32 sides themselves and skip when
-  `--cache-type` asks for another type (`common.f32_cache_skip`). That
-  is test configuration, not runtime configuration, and it reaches the
-  binary only as the flags.
+- **Test configuration**: `LLMX_BASELINE_GGUF` points `tests/baseline.py` at a fixture model; `LLMX_DEVICE`, set by `run_tests.py --device`, appends `--device` to every command that takes it so the suite runs on a device backend, except where a component names its own devices (`threads` names the CPU, whose thread counts it checks, and `split` names the CPU backends its tool splits over); `LLMX_CACHE_TYPE`, set by `run_tests.py --cache-type`, appends `--cache-type-k` and `--cache-type-v` the same way so the HF gate runs with a chosen cache type; `LLMX_LAYER_SHARES`, set by `run_tests.py --layer-shares`, appends `--layer-shares` so a device list is tested at a split the fit would not choose.
+  The synthetic bench (`bench` without `--model`) takes only `--device` and `--threads`, so it gets neither shares nor cache types, and `split` gives its tool equal shares and the cache types it names itself.
+  The runtime stores f16 by default, so the components that check exact f32 arithmetic against independent fixtures (`f32`, `moe`, `shards`, `server`) ask for f32 sides themselves and skip when `--cache-type` asks for another type (`common.f32_cache_skip`).
+  That is test configuration, not runtime configuration, and it reaches the binary only as the flags.
 
 If you add a flag, add it to `docs/USAGE.md` and to `print_usage` in the same
 change, or it does not exist as far as a user is concerned.
@@ -304,10 +290,9 @@ checks skip when their models are absent):
 python tests/run_tests.py
 ```
 
-For a CMake build, pass `--exe <path-to-built-llmx>`. CI uses
-`--no-perf-floor` for shared runners and `--require-baseline` in its real-model
-job so missing fixtures fail. Local performance floors remain enabled by
-default. See `docs/CI.md` for workflow coverage and reproduction commands.
+For a CMake build, pass `--exe <path-to-built-llmx>`.
+CI uses `--no-perf-floor` for shared runners, `--require-tools` in every job that runs the suite so a tool missing beside the executable fails rather than skips, and `--require-baseline` in its real-model job so missing fixtures fail.
+Local performance floors remain enabled by default. See `docs/CI.md` for workflow coverage and reproduction commands.
 
 - **Version** (`tests/version.py`): `--version` matches the CMake project
   version and build identifier format, and the usage banner starts with it.
@@ -398,22 +383,12 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   near-ties where either token is right, so identical text is only
   required of one backend against itself. It needs a real model and is run
   by hand, not by `run_tests.py`.
-- **Layer split** (`tools/split_check.cpp`, target `llmx-split-check`): a
-  model on one device against the same model split in equal shares over a
-  comma-separated list of devices of the same kind (default `0,1`; a device
-  is `cpu` or a Vulkan index), with optional decode steps, ubatch and cache
-  type (`f16`, the default, or `f32`, both sides of both models), as raw
-  float logits compared with `memcmp`: every position of a scored text
-  through the prompt path, the prefill in chunks of the ubatch, which a split
-  pipelines over its stages, and greedy decode steps, then three passes of a
-  decoding sequence beside a fresh prompt, every row's logits. The split must be
-  bit-identical, since each layer runs the same kernels on the same rows
-  wherever it sits; a split over different backends is held to the HF
-  bounds instead. It takes real models, and the tiny models of
-  `tests/f32.py` and `tests/moe.py` once written to a file by the functions
-  those components use (`f32.write_model` over `f32.tensors` or
-  `moe.tensors`), which a script can call; the components themselves write
-  them to a temporary directory they remove. It is run by hand.
+- **Layer split** (`tools/split_check.cpp`, target `llmx-split-check`, built in every configuration with tests, which is the default, and linked to the Vulkan backend when that is on): a model on one device against the same model split in equal shares over a comma-separated list of devices of the same kind (default `0,1`; a device is `cpu` or a Vulkan index), with optional decode steps, ubatch and cache type (`f16`, the default, or `f32`, both sides of both models), as raw float logits compared with `memcmp`: every position of a scored text through the prompt path, the prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, then three passes of a decoding sequence beside a fresh prompt, every row's logits.
+  The split must be bit-identical, since each layer runs the same kernels on the same rows wherever it sits; a split over different backends is held to the HF bounds instead.
+  Each listed device is a backend of its own, without the CLI's listed-once rule, so `cpu,cpu` is two CPU backends.
+  The `split` component (`tests/split.py`) runs the tool found beside `--exe` on the tiny F32 model, tied and untied, and the tiny MoE model, one CPU against `cpu,cpu` and the MoE also against `cpu,cpu,cpu`, at ubatch 1, 3 and 16 and with f16 and f32 caches, with 3 decode steps after a 13-token text, which fills their 16-token context.
+  It skips when the tool is not there, unless `--require-tools` is given, and the configured device, shares and cache type do not reach it.
+  Real models and splits over devices are run by hand.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model,

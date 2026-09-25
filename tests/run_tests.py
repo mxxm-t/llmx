@@ -14,6 +14,7 @@ import tokenizer
 import perplexity
 import f32
 import moe
+import split
 import shards
 import server
 import chat
@@ -31,6 +32,8 @@ def main():
     parser.add_argument("--exe", default=common.EXE, help="path to the built llmx executable")
     parser.add_argument("--no-perf-floor", action="store_true", help="report timings without workstation-specific floors")
     parser.add_argument("--require-baseline", action="store_true", help="fail if either real-model fixture is absent")
+    parser.add_argument("--require-tools", action="store_true",
+                        help="fail, rather than skip, when a tool a component runs is not beside --exe")
     parser.add_argument("--device", default=None, help="run every command that takes --device on this backend, e.g. vulkan:0")
     parser.add_argument("--layer-shares", default=None,
                         help="with several devices in --device, their proportions of the layers, e.g. 1,1")
@@ -60,6 +63,7 @@ def main():
                      ("perplexity", perplexity.run),
                      ("f32", f32.run),
                      ("moe", moe.run),
+                     ("split", lambda: split.run(require=args.require_tools)),
                      ("shards", shards.run),
                      ("server", server.run),
                      ("chat", chat.run),

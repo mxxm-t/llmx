@@ -74,6 +74,7 @@ int main(int argc, char** argv) {
         infer::Model one(m, backend::make_backend(name(single)), options);
         one.set_ubatch(ubatch);
         // The split takes equal shares of the layers, placed as a device list with --layer-shares 1,1,... places them.
+        // Each entry is a backend of its own, without the CLI's listed-once rule (backend::device_specs), so `cpu,cpu` splits over two CPU backends.
         infer::PlacementRequest request;
         for (const std::string& d : core::comma_list(split)) {
             request.names.push_back(name(d));

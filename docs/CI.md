@@ -27,6 +27,8 @@ the cards through `/dev/dri`, and inside it the whole CTest suite,
 
 The layer split is covered on the CPU.
 The `placement` CTest, in every job, splits a model over two and three CPU backends, among them a pipelined prompt of five chunks, which reuses pass slots and handoff buffers, and its rollback when a backend on the last stage fails.
+The Python suite's `split` component, in every job that runs the suite, runs `llmx-split-check` on the tiny F32 and MoE models over two and three CPU backends against one, with f16 and f32 caches.
+CMake builds that tool in every configuration with tests (the default), and those jobs pass `--require-tools`, so a tool missing beside the executable fails the job rather than skipping.
 Splits over GPUs are run by hand on the Radeon VII and the MI50s.
 
 The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
@@ -81,7 +83,7 @@ absent; the separate HF job supplies that coverage.
 
 The Python suite also checks reference-generator argument safeguards and that the requested commit, float32 dtype and eager attention reach the HF loader.
 These use standard-library test doubles; CI does not generate new HF goldens or download larger models.
-The ordinary suite now has 15 components, including `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
+The ordinary suite now has 16 components, including `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
 These tests use small committed JSON fixtures and doubles, without 8B inference.
 Default real-model downloads are the three pinned 0.6B GGUFs: Q8_0, Q4_0 and Q5_K_M.
 
@@ -141,9 +143,9 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 2
 ctest --test-dir build -C Release --output-on-failure
 python -X utf8 tests/fetch_models.py
-python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor
+python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools
 python -X utf8 tools/fetch_test_models.py
-python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-baseline
+python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --require-baseline
 ```
 
 For MSVC, use `--exe build/Release/llmx.exe`. Omitting `--no-perf-floor`

@@ -238,6 +238,15 @@ if(BUILD_TESTING)
     add_test(NAME http COMMAND llmx-http-test)
     set_tests_properties(http PROPERTIES TIMEOUT 30)
 
+    # Not a CTest: a model on one device against it split by layers over several, raw logits compared bit for bit; the suite's `split` component runs it over CPU backends, beside the executable.
+    # It reads the build's config.hpp first, so it takes Vulkan devices exactly when the build has them.
+    add_executable(llmx-split-check tools/split_check.cpp)
+    target_include_directories(llmx-split-check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(LLMX_HAS_BACKEND_VULKAN)
+        target_link_libraries(llmx-split-check PRIVATE llmx-vulkan)
+    endif()
+    list(APPEND LLMX_TARGETS llmx-split-check)
+
     if(LLMX_HAS_BACKEND_VULKAN)
         # Exits 77 when there is no loader or no device, which CTest reports as skipped rather than passed.
         add_executable(llmx-backend-vulkan-test tests/backend_vulkan.cpp)
@@ -268,10 +277,6 @@ if(BUILD_TESTING)
         add_executable(llmx-multi-device-bench tools/multi_device_bench.cpp)
         target_link_libraries(llmx-multi-device-bench PRIVATE llmx-vulkan)
         list(APPEND LLMX_TARGETS llmx-multi-device-bench)
-        # Not a test: a model on one device against it split over two, raw logits compared bit for bit; needs two devices and a model.
-        add_executable(llmx-split-check tools/split_check.cpp)
-        target_link_libraries(llmx-split-check PRIVATE llmx-vulkan)
-        list(APPEND LLMX_TARGETS llmx-split-check)
     endif()
 endif()
 

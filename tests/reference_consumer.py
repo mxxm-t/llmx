@@ -74,6 +74,25 @@ class ReferenceConsumer(unittest.TestCase):
             with self.subTest(output=output), self.assertRaises(ValueError):
                 consumer.check_logits(output, case)
 
+    def test_top5_boundary_swaps(self):
+        # llmx's logits from the 4th place down sit `step` apart, so a step of 0.01 makes any two of them an llmx tie.
+        def output(case, order, step):
+            values = case["top_logits"][:3] + [case["top_logits"][4] - step * i for i in range(7)]
+            return "tokens: %d\n" % case["n_tokens"] + "".join(
+                "%d %.6f\n" % (case["top_ids"][rank], value) for rank, value in zip(order, values))
+
+        # The first case's reference puts its 6th token 0.125 below its 5th and its 4th 0.369 above; the second puts its 6th 0.023 below.
+        apart, near = self.docs["baseline_logits.json"]["cases"][:2]
+        swap = [0, 1, 2, 3, 5, 4, 6, 7, 8, 9]
+        # The 5th and 6th trading places is forgiven once, whether llmx or the reference puts them within 0.1.
+        for case in (apart, near):
+            self.assertEqual(consumer.check_logits(output(case, swap, 0.01), case)["top5_overlap"], 5)
+        # An llmx gap of 0.15, a strong 4th place dropping out, or the 7th place coming in, alone or beside a forgiven swap, is a miss.
+        for order, step in [(swap, 0.15), ([0, 1, 2, 5, 4, 3, 6, 7, 8, 9], 0.01),
+                            ([0, 1, 2, 3, 6, 4, 5, 7, 8, 9], 0.01), ([0, 1, 2, 5, 6, 4, 3, 7, 8, 9], 0.01)]:
+            with self.subTest(order=order, step=step), self.assertRaisesRegex(ValueError, "top-5 overlap 4/5"):
+                consumer.check_logits(output(apart, order, step), apart)
+
     def test_ppl_counters_and_bounds(self):
         doc = self.docs["baseline_perplexity.json"]
         for case in common.ppl_cases(doc):

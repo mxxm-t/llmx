@@ -73,7 +73,7 @@ kernel notes and measurements are `docs/VULKAN.md`.
 - Wide batches take a tile kernel. Where the profile sets
   `prefer_integer_dot`, every quantized type goes through the 8-bit
   integer-dot tile (`shaders/matmul_tile_q.comp`, Q6_K in its own module
-  `matmul_tile_q6`) over block-major activations from
+  `matmul_tile_q6` and Q8_0 in `matmul_tile_q8`) over block-major activations from
   `shaders/quantize_x8.comp`. A layer's projections of one type share one
   dispatch, and a call too small to fill the device splits its inner
   dimension into parts that `shaders/matmul_reduce.comp` adds in order.

@@ -255,6 +255,9 @@ const uint32_t kSpvMatmulTileQ[] = {
 const uint32_t kSpvMatmulTileQ6[] = {
 #include "vulkan/matmul_tile_q6.inc"
 };
+const uint32_t kSpvMatmulTileQ8[] = {
+#include "vulkan/matmul_tile_q8.inc"
+};
 const uint32_t kSpvMatmulReduce[] = {
 #include "vulkan/matmul_reduce.inc"
 };
@@ -282,6 +285,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
+                K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL,
                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8,
                 K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4,
                 K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_COUNT };
@@ -357,6 +361,7 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
     "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
+    "matmul_tile_q8", "matmul_tile_q8_tall",
     "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
     "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
     "attention_vec", "attention_vec_k16", "attention_vec_v16", "attention_vec_kv16", "attention_vec_g4", "attention_vec_k16_g4", "attention_vec_v16_g4", "attention_vec_kv16_g4",
@@ -404,6 +409,8 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts},
+    {kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts},
+    {kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts},
     {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts},
     {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 12, kMatmulRowCounts},
     {kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr},
@@ -932,7 +939,7 @@ public:
 
     // A compiled kernel's name, the one-column build of a row kernel marked.
     static std::string kernel_variant_name(int id, int variant) {
-        const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_Q || id == K_MATMUL_TILE_Q6;
+        const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_Q || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q8;
         if (variant == 2) return std::string(kKernelNames[id]) + "_grouped";
         return std::string(kKernelNames[id]) + (!variant ? "" : is_row_kernel((KernelId)id) ? "_1col" : tile ? "_small" : "_x8");
     }
@@ -1868,7 +1875,8 @@ public:
         t.height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
         const bool tall = t.height == kTileRowsTall;
         t.kernel = ps[0]->type == gguf::GGML_TYPE_Q6_K ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
-                                                         : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
+                 : ps[0]->type == gguf::GGML_TYPE_Q8_0 ? (tall ? K_MATMUL_TILE_Q8_TALL : K_MATMUL_TILE_Q8)
+                                                       : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
         for (size_t i = 0; i < 3; ++i) {
             t.p[i] = i < ps.size() ? ps[i] : ps[0];
             if (i >= ps.size()) continue;
@@ -2275,8 +2283,10 @@ private:
             ci.stage.pName = "main";
             // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
             const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
-                              id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL;
-            const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
+                              id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL ||
+                              id == K_MATMUL_TILE_Q8 || id == K_MATMUL_TILE_Q8_TALL;
+            const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL ||
+                                   id == K_MATMUL_TILE_Q8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
                                              : (variant == 1 ? kRowColsOne : kRowColsWide);
             // Constant 7 selects a producer's build that also writes the 8-bit twin, and constant 8 a row kernel's grouped build; every pipeline gets all three entries, and a module that declares none ignores them.

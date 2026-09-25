@@ -70,7 +70,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         attention_tile_kv16=attention_tile=LLMX_K16+LLMX_V16
         norm_rope_kv_k16=norm_rope_kv=LLMX_K16 norm_rope_kv_v16=norm_rope_kv=LLMX_V16
         norm_rope_kv_kv16=norm_rope_kv=LLMX_K16+LLMX_V16
-        matmul_tile_q6=matmul_tile_q=LLMX_Q6)
+        matmul_tile_q6=matmul_tile_q=LLMX_Q6 matmul_tile_q8=matmul_tile_q=LLMX_Q8)
     set(LLMX_VK_SPV)
     foreach(entry IN LISTS LLMX_VK_SHADERS LLMX_VK_VARIANTS)
         string(REPLACE "=" ";" parts ${entry})

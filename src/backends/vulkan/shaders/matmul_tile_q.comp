@@ -3,7 +3,8 @@
 // A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time, over all of it or over one part when the call is split; matmul_reduce.comp adds the parts in order.
 // Each step stages, per row, the block's quants as 8 words of signed bytes with its scale and minimum, and per column the activation block's 8 words with its scale and scaled sum.
 // A thread forms (TILE_ROWS / 16) x 4 dots of 32 products, as two of 16 since Q6_K scales the halves apart.
-// Types: Q8_0, Q4_0, Q4_1, Q4_K and Q5_K, and Q6_K in its own build (LLMX_Q6).
+// Types: Q4_0, Q4_1, Q4_K and Q5_K, Q6_K in its own build (LLMX_Q6) and Q8_0 in its own build (LLMX_Q8).
+// The Q8_0 build stages one float scale per row and per column, since Q8_0 has one scale per block and no minimum, and takes no type branch.
 // Rows past nout and columns past nbatch read as zero and are not stored.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
@@ -39,10 +40,17 @@ uint pi = 0u;   // this workgroup's projection, uniform across it
 #endif
 // k-major: word w of every row, then of every column; block s of a step at words 8s to 8s + 7.
 shared uint wq[8u * STEP][TILE_ROWS];
+#ifdef LLMX_Q8
+shared float wsc[STEP * TILE_ROWS];   // per row and block: the scale
+shared uint xw[8u * STEP][64];
+// Per column and block: the activation scale, one stored by each of a column's four threads, so a step of two leaves two unused.
+shared float xsc[4u * 64u];
+#else
 // Per row and block: the scale of each half and the minimum it subtracts; only Q6_K scales its halves apart.
 shared vec4 wsc[STEP * TILE_ROWS];
 shared uint xw[8u * STEP][64];
 shared vec2 xsc[STEP * 64u];     // per column and block: the activation scale and scale times integer sum
+#endif
 
 // scale_min_k4 (qdecode.glsl) over the twelve packed sub-scale bytes held in three words, without a branch.
 uint k4_byte(uvec3 v, uint i) { return (v[i >> 2u] >> (8u * (i & 3u))) & 255u; }
@@ -52,6 +60,7 @@ void scale_min_k4_words(uvec3 v, uint j, out uint sc, out uint mn) {
     mn = j < 4u ? bj4 & 63u : (bj4 >> 4u) | ((bj >> 6u) << 4u);
 }
 
+#ifndef LLMX_Q8
 // Stores this thread's share of the four scale values of its scale block (ks in main()), zero when the block is out of range.
 // A row's WPR threads each take block wseg % STEP of the step, which needs STEP to divide WPR: a step of two does at every tile height.
 void store_scales(uint wrow, uint wseg, bool ok, vec4 v) {
@@ -60,9 +69,15 @@ void store_scales(uint wrow, uint wseg, bool ok, vec4 v) {
         wsc[(wseg % STEP) * TILE_ROWS + wrow][c] = ok ? v[c] : 0.0;
     }
 }
+#endif
 
 // A step's activations: a column's four threads each load two of a block's eight words and one of the step's 2 * STEP scale values (STEP of 2 or 4).
+// In the Q8_0 build a block has one scale value, and thread xseg loads block xseg's.
+#ifdef LLMX_Q8
+#define XSC 1u
+#else
 #define XSC (STEP / 2u)
+#endif
 // Stores them from the registers they were loaded into, zero past the batch or the thread's part of the inner dimension.
 void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, uvec2 xv[STEP], float xf[XSC]) {
     for (uint s = 0u; s < STEP; ++s) {
@@ -70,10 +85,14 @@ void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, uvec2 xv[STEP],
         xw[s * 8u + xseg * 2u][xcol] = colv ? xv[s].x : 0u;
         xw[s * 8u + xseg * 2u + 1u][xcol] = colv ? xv[s].y : 0u;
     }
+#ifdef LLMX_Q8
+    xsc[xseg * 64u + xcol] = xin && xseg < STEP && k0 + xseg < kend ? xf[0] : 0.0;
+#else
     for (uint k = 0u; k < XSC; ++k) {
         uint s = xseg % STEP;
         xsc[s * 64u + xcol][xseg / STEP + k * (4u / STEP)] = xin && k0 + s < kend ? xf[k] : 0.0;
     }
+#endif
 }
 
 void main() {
@@ -126,13 +145,20 @@ void main() {
             xv[s] = uvec2(xq[xb], xq[xb + 1u]);
         }
         for (uint k = 0u; k < XSC; ++k) {
+#ifdef LLMX_Q8
+            uint kb = k0 + xseg;
+            xf[k] = xs[xin && xseg < STEP && kb < kend ? xtab + kb * p.nbatch + xc : 0u].x;
+#else
             uint kb = k0 + xseg % STEP;
             xf[k] = xs[xin && kb < kend ? xtab + kb * p.nbatch + xc : 0u][xseg / STEP + k * (4u / STEP)];
+#endif
         }
         uint row = row_base + wrow, wr = expert * nout + row;
+#ifndef LLMX_Q8
         // The block whose scales this thread stages (store_scales).
         uint ks = k0 + wseg % STEP;
         bool oks = row < nout && ks < kend;
+#endif
 #ifdef LLMX_Q6
         {
             // Q6_K, 210-byte blocks: group g takes its low four bits from 32 bytes of ql and its top two from 32 of qh, with a sub-scale per 16 values; the -32 offset goes into each byte, and both runs are funnelled when they straddle.
@@ -173,33 +199,35 @@ void main() {
             store_scales(wrow, wseg, oks, vec4(d * s0, d * s1, 0.0, 0.0));
             store_x(k0, kend, xin, xcol, xseg, xv, xf);
         }
-#else
-        if (p.type == TYPE_Q8_0) {
-            // A 34-byte block: the half scale, then 32 quants starting on a word boundary or two bytes past one, so a thread loads its words plus one and funnels them when they straddle.
-            // A block that does not straddle loads its last word twice, so no load leaves the matrix.
-            uint qv[STEP][WW + 1u], obs[STEP];
-            bool okw[STEP];
+#elif defined(LLMX_Q8)
+        {
+            // Q8_0, 34-byte blocks: the half scale, then 32 quants starting on a word boundary or two bytes past one, so a thread loads its words plus one and funnels them when they straddle.
+            // Where they straddle the extra word is the one after the thread's share, and where they do not the one before, so a load reads past the block only where it straddles, and then only the rest of the word holding its last two quants.
+            // A row's first thread then holds the half scale, in the low half of its first word or the high half of the word before, and stores the step's scales.
+            uint qv[STEP][WW + 1u];
+            bool okw[STEP], str[STEP];
             for (uint s = 0u; s < STEP; ++s) {
                 uint kb = k0 + s;
                 okw[s] = row < nout && kb < kend;
-                obs[s] = okw[s] ? (wr * nblk + kb) * Q8_0_BYTES : 0u;
-                uint base = ((obs[s] + 2u) >> 2u) + wseg * WW;
+                uint ob = okw[s] ? (wr * nblk + kb) * Q8_0_BYTES : 0u;
+                str[s] = (ob & 3u) == 0u;
+                uint base = ((ob + 2u) >> 2u) + wseg * WW;
                 for (uint m = 0u; m < WW; ++m) qv[s][m] = ws[pi].w32[base + m];
-                qv[s][WW] = ws[pi].w32[base + WW - ((obs[s] & 3u) >> 1u)];
+                qv[s][WW] = ws[pi].w32[str[s] ? base + WW : base - 1u];
             }
-            uint os = oks ? (wr * nblk + ks) * Q8_0_BYTES : 0u;
-            uint sw = ws[pi].w32[os >> 2u];
             for (uint s = 0u; s < STEP; ++s) {
-                bool straddles = (obs[s] & 3u) == 0u;
                 for (uint m = 0u; m < WW; ++m) {
-                    uint v = straddles ? (qv[s][m] >> 16u) | (qv[s][m + 1u] << 16u) : qv[s][m];
+                    uint v = str[s] ? (qv[s][m] >> 16u) | (qv[s][m + 1u] << 16u) : qv[s][m];
                     wq[s * 8u + wseg * WW + m][wrow] = okw[s] ? v : 0u;
                 }
             }
-            float d = unpackHalf2x16((os & 3u) == 0u ? sw : (sw >> 16u)).x;
-            store_scales(wrow, wseg, oks, vec4(d, d, 0.0, 0.0));
+            if (wseg == 0u)
+                for (uint s = 0u; s < STEP; ++s)
+                    wsc[s * TILE_ROWS + wrow] = okw[s] ? unpackHalf2x16(str[s] ? qv[s][0] : qv[s][WW] >> 16u).x : 0.0;
             store_x(k0, kend, xin, xcol, xseg, xv, xf);
-        } else if (p.type == TYPE_Q4_K || p.type == TYPE_Q5_K) {
+        }
+#else
+        if (p.type == TYPE_Q4_K || p.type == TYPE_Q5_K) {
             // Q4_K, 144-byte blocks: block 32 is group g of a 256-value block; its nibbles are the low or high halves of 32 word-aligned bytes, so a quant word is one load, a shift and a mask.
             // Q5_K, 176-byte blocks: the same with a fifth bit per value, bit g of 32 word-aligned high-bit bytes before the nibbles.
             // The scale block's scales come from the 16-byte head of its 256-value block: the two half scales and the twelve packed sub-scale bytes.
@@ -276,8 +304,13 @@ void main() {
 #ifndef LLMX_Q6
         // Word w of every row of the thread against word w of its four columns, so all 4 * MROWS dot sums of the block stay live and a column word is read once.
         // Each sum still takes the block's eight words in order, so it is the integer a row at a time gave.
+#ifdef LLMX_Q8
+        float c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
+        float c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
+#else
         vec2 c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
         vec2 c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
+#endif
         int t[MROWS][4];
         for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) t[i][j] = 0;
         for (uint w = 0u; w < 8u; ++w) {
@@ -291,11 +324,23 @@ void main() {
             }
         }
         for (uint i = 0u; i < MROWS; ++i) {
+#ifdef LLMX_Q8
+            // The scales' product, then its product with the sum, each rounded before the add.
+            // The general build rounds them so too, since its minimum term, zero for Q8_0, stands between the last product and the add.
+            float d = wsc[s * TILE_ROWS + tr * MROWS + i];
+            precise float p0 = d * c0 * float(t[i][0]), p1 = d * c1 * float(t[i][1]);
+            precise float p2 = d * c2 * float(t[i][2]), p3 = d * c3 * float(t[i][3]);
+            acc[i][0] += p0;
+            acc[i][1] += p1;
+            acc[i][2] += p2;
+            acc[i][3] += p3;
+#else
             vec4 ws = wsc[s * TILE_ROWS + tr * MROWS + i];
             acc[i][0] += ws.x * c0.x * float(t[i][0]) - ws.z * c0.y;
             acc[i][1] += ws.x * c1.x * float(t[i][1]) - ws.z * c1.y;
             acc[i][2] += ws.x * c2.x * float(t[i][2]) - ws.z * c2.y;
             acc[i][3] += ws.x * c3.x * float(t[i][3]) - ws.z * c3.y;
+#endif
         }
 #else
         // The same word-outer form over groups of RG6 rows, the block's two halves of 16 summed apart since Q6_K scales them apart.

@@ -4,6 +4,24 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## One owner for the default cache type (2026-09-25, branch fix/kv-cache-default)
+
+- **Why:** the CLI's parameters said f16 while `ModelOptions` said f32, so a model built without the CLI's flags stored f32 caches. The synthetic bench, which the `perf` floors read, and `llmx-split-check`, the layer split's bit-identity gate, never ran the caches users and the server run. Separately, `run_tests.py --cache-type f16` or `f32` failed `perf` and `threads`, because `device_args` gave the synthetic bench cache flags it refuses.
+- **Done:** `ModelOptions` holds the one default, f16; the CLI starts from it, changes a side only when its flag is given and prints the default from it in the help; the two cache type names sit beside `KVType`; `llmx-split-check` takes a cache type after the ubatch. The kv-cache transaction check, which counts cache bytes as floats, and `tools/compare_cpu.cpp`, whose reference arm stores f32, ask for f32 sides. `model-validation`, `generation-stream`, `prefill-scope` and `placement` compare two models built with the same options or read zero-weight fixtures, so they keep the default and now run f16. `device_args` gives the synthetic bench neither layer shares nor cache types.
+- **Exact:** `generate`, `logits`, `perplexity` and `chat` on Qwen3-0.6B Q8_0 give the same bytes as 2946b8a apart from the timing lines, on the CPU and on the Radeon VII, with the default, both sides f16, both f32, and each side alone f32. `llmx-split-check` on 0.6B is bit-identical at f16 and at f32 over two and three CPU stages with 64-token chunks.
+- **Left before merge:** `llmx-split-check` at f16 and at f32 over 0.6B, 8B and 30B-A3B on the MI50s, and the suites with `--cache-type f16` and `f32` there.
+- **Tests:** CTest 24/24; the suites on the CPU and the Radeon VII pass with the default cache and with `--cache-type f16` and `f32`; on 2946b8a `--cache-type f16` and `f32` fail `perf` and `threads` on the bench's refusal.
+- **Synthetic bench** (`bench --size 2048 --iters 5 --threads 1`, the `perf` command, 2946b8a with f32 caches against this branch with f16, 30 interleaved runs each, medians):
+
+  | device | matmul GFLOPS | prefill tok/s | decode tok/s |
+  |---|---:|---:|---:|
+  | CPU, before | 58.4 | 10364 | 9869 |
+  | CPU, after | 56.0 | 10003 | 9160 |
+  | Radeon VII, before | 53.3 | 1947 | 1977 |
+  | Radeon VII, after | 58.4 | 1666 | 2539 |
+
+  This block ran with the machine otherwise quiet (system CPU 13 percent). On the CPU the interquartile ranges do not overlap: the synthetic model's decode is 7.2 percent and its prefill 3.5 percent slower with f16 caches. The matmul line, which no cache touches, moved 4 percent, so the prefill change is within the layout band and the decode change is not. The Radeon VII's 64-token passes vary by half between runs of one binary. The floors hold in the quiet block (the branch's lowest runs 33.8 GFLOPS, 5443 and 5099 tok/s against 8, 1000 and 800). Three more blocks ran while other test suites held 11 to 16 cores; there single matmul runs of either arm fell below the 8 GFLOPS floor, and neither arm differed from the other beyond the spread.
+
 ## Layer split phase 2: a prompt pipelined over the stages (2026-09-25, branch feat/split-pipeline, done)
 
 - **Goal:** phase 2's targets (`docs/MULTI-DEVICE.md`, Order of work): prefill on a layer split about one device's times the stage count, single-stream decode about one device's, and pipelined output exact against the same placement run serialized, so still exact against one device.
@@ -430,7 +448,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Correctness bugs first:**
   1. `fix/server-pause-prefill`: a request paused while still prefilling loses the unread part of its prompt, so the client gets text unrelated to it.
   2. `fix/server-http`: one `accept()` error stops the server; a streamed request whose pass fails gets a second HTTP response inside its body; request numbers are cast from double unchecked; the limit rules and the compatible-route decision are each split across files.
-  3. `fix/kv-cache-default`: the model layer defaults caches to f32 while the CLI says f16, so the synthetic bench and `llmx-split-check` never run the default users run; `run_tests.py --cache-type` fails.
+  3. `fix/kv-cache-default` (implemented, see its section): the model layer defaults caches to f32 while the CLI says f16, so the synthetic bench and `llmx-split-check` never run the default users run; `run_tests.py --cache-type` fails.
   4. `fix/server-prefix-fork`: the reservation ledger counts shared prefix blocks twice, so a follow-up turn evicts the donor it would fork; a fork copies a tail block only to truncate it.
   - `fix/server-cancel`, after branch 2 since both edit `http.hpp` and `api.hpp`: a request is cancelled only when a write to its client fails, so a client that leaves during a streamed request's prefill, while its request is queued, or at any point of a whole reply is not noticed, and the request runs to its end (an uncapped one up to the token limit), holding a slot and its blocks. The connection thread waits for tokens with a timeout of about 100 ms and, whenever nothing arrives, probes the socket without blocking and cancels the request once the client has closed it. Tests: a whole reply, a streamed long prompt during prefill and a queued request, each client leaving, and the server with nothing active and its blocks back within seconds.
 - **Then the input and text bugs:** 5 `cleanup/cli-arguments` (numbers parsed four ways, garbage and negatives accepted, flags still ignored), 6 `cleanup/utf8` (UTF-8 written three times; the server can send invalid UTF-8 in JSON), 8 `fix/tokenizer-metadata` (a file with another tokenizer tokenizes silently wrong), 9 `fix/chat-template-defined` (`is defined` always true).

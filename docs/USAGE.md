@@ -409,7 +409,6 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--cpu-moe`             | experts of every routed layer on the CPU             | off     |
 | `--moe-stream-from N`   | new prompt tokens from which those experts run on the device | 0 (never) |
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
-| `--system TEXT`         | accepted but unused by raw generation; use `chat` for a system message | (unused) |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status | off   |
 
@@ -522,7 +521,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080
 curl -N -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--profile]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--profile]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an

@@ -356,6 +356,24 @@ std::vector<int> layer_shares(const std::string& value) {
     return shares;
 }
 
+// The execution flags every model command takes, the "Execution options" of its help: where it runs, its workers, its prompt batch and its caches.
+// Reads argv[i] (and its value) into `gp` and returns true when it is one of them.
+bool exec_flag(int argc, char** argv, int& i, infer::GenParams& gp) {
+    const std::string a = argv[i];
+    auto value = [&]() -> const char* { return i + 1 < argc ? argv[++i] : nullptr; };
+    if (a == "--device") { if (const char* v = value()) gp.device = v; }
+    else if (a == "--layer-shares") { if (const char* v = value()) gp.layer_shares = v; }
+    else if (a == "--n-cpu-moe") { if (const char* v = value()) gp.cpu_moe = std::atoi(v); }
+    else if (a == "--cpu-moe") gp.cpu_moe = -1;
+    else if (a == "--moe-stream-from") { if (const char* v = value()) gp.moe_stream_from = std::atoi(v); }
+    else if (a == "--threads") { if (const char* v = value()) gp.threads = std::atoi(v); }
+    else if (a == "--ubatch") { if (const char* v = value()) gp.ubatch = std::atoi(v); }
+    else if (a == "--cache-type-k" || a == "-ctk") { if (const char* v = value()) gp.cache_type_k = v; }
+    else if (a == "--cache-type-v" || a == "-ctv") { if (const char* v = value()) gp.cache_type_v = v; }
+    else return false;
+    return true;
+}
+
 // A model file opened for a command: the file, which the model reads while it lives, its tokenizer, and the model placed over the devices --device lists.
 // Built in place and never moved, since the model keeps the file's address.
 struct Opened {
@@ -876,7 +894,7 @@ bool print_usage(const std::string& command = {}) {
         return true;
     }
     const infer::GenParams defaults;
-    const auto model_options = [&](bool batch_threads, bool ubatch = true) {
+    const auto model_options = [&](bool batch_threads) {
         std::cout << "\nExecution options:\n"
             << "  --device D              cpu (default), or vulkan:N when built with Vulkan;\n"
             << "                          several, comma separated, split the model by layers\n"
@@ -885,9 +903,8 @@ bool print_usage(const std::string& command = {}) {
             << "  --threads N             CPU workers; 0 selects automatically (default)\n";
         if (batch_threads) std::cout
             << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
-        if (ubatch) std::cout
-            << "  --ubatch N              Prompt tokens per pass (default: 512)\n";
         std::cout
+            << "  --ubatch N              Prompt tokens per pass (default: 512)\n"
             << "  --cache-type-k T, -ctk  Key cache: f16 (default) or f32\n"
             << "  --cache-type-v T, -ctv  Value cache: f16 (default) or f32\n"
             << "  --n-cpu-moe N           First N routed layers' experts on CPU (default: 0)\n"
@@ -913,8 +930,6 @@ bool print_usage(const std::string& command = {}) {
             << "  --verbose               Show prompt IDs, progress and execution details\n";
         if (chat) std::cout
             << "  --system TEXT           System message (default: You are a helpful assistant.)\n";
-        else std::cout
-            << "  --system TEXT           Accepted but unused for raw generation\n";
         model_options(true);
         if (chat) std::cout << "\nEnter one message per line; Ctrl+C or end of input exits.\n";
         std::cout << "\nExample: llmx " << command << " model.gguf"
@@ -984,7 +999,7 @@ bool print_usage(const std::string& command = {}) {
             << "  --seqs N                Sequences decoding together, a pass one token of each (default: 1)\n"
             << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: 0)\n"
             << "  --profile               Real-model device kernel timing and statistics\n";
-        model_options(false, false);
+        model_options(false);
         std::cout << "\nCache options apply only with --model.\n"
             << "Example: llmx bench --model model.gguf --p 512 --n 128 --r 3\n";
     } else if (command == "quantize") {
@@ -1111,8 +1126,8 @@ int main(int argc, char** argv) {
 
         if (cmd == "generate" || cmd == "chat") {
             if (argc < 3) {
-                std::cerr << "usage: llmx " << cmd << " <model.gguf> [--system \"<text>\"] [flags...]\n";
-                std::cerr << "       llmx generate <model.gguf> \"<prompt>\" [flags...]\n";
+                if (cmd == "chat") std::cerr << "usage: llmx chat <model.gguf> [--system \"<text>\"] [flags...]\n";
+                else std::cerr << "usage: llmx generate <model.gguf> \"<prompt>\" [flags...]\n";
                 return 2;
             }
             infer::GenParams gp;
@@ -1128,22 +1143,14 @@ int main(int argc, char** argv) {
                 else if (a == "--penalty") gp.penalty = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.penalty;
                 else if (a == "--seed") gp.seed = (i + 1 < argc) ? std::strtoull(argv[++i], nullptr, 0) : gp.seed;
                 else if (a == "--stop") gp.stop = (i + 1 < argc) ? argv[++i] : gp.stop;
-                else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
-                else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
-                else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
-                else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
+                else if (exec_flag(argc, argv, i, gp)) {}
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
-                else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
-                else if (a == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
-                else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
-                else if (a == "--cpu-moe") gp.cpu_moe = -1;
-                else if (a == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
-                else if (a == "--system") system = (i + 1 < argc) ? argv[++i] : system;
+                else if (a == "--system" && cmd == "chat") system = (i + 1 < argc) ? argv[++i] : system;
                 else if (a == "--verbose") gp.show_prompt_tokens = true;
                 else if (!a.empty() && a[0] == '-') { std::cerr << "unknown flag: " << a << "\n"; return 2; }
                 else { prompt = a; have_prompt = true; }
             }
-            if (gp.max_tokens <= 0) gp.max_tokens = 32;
+            if (gp.max_tokens <= 0) { std::cerr << cmd << ": --max-tokens must be positive\n"; return 2; }
             if (cmd == "generate") {
                 if (!have_prompt) { std::cerr << "generate requires a prompt\n"; return 2; }
                 return cmd_generate(argv[2], prompt, gp);
@@ -1182,16 +1189,8 @@ int main(int argc, char** argv) {
                 }
                 else if (a == "--per-token") per_token = true;
                 else if (a == "--verbose") gp.show_prompt_tokens = true;
-                else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
-                else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
-                else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
-                else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
+                else if (exec_flag(argc, argv, i, gp)) {}
                 else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
-                else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
-                else if (a == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
-                else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
-                else if (a == "--cpu-moe") gp.cpu_moe = -1;
-                else if (a == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];
@@ -1211,15 +1210,7 @@ int main(int argc, char** argv) {
                 else if (a2 == "--file") from_file = true;
                 else if (a2 == "--then-ids") then_ids = (i + 1 < argc) ? argv[++i] : then_ids;
                 else if (a2 == "--last") last = (i + 1 < argc) ? (size_t)std::max(0, std::atoi(argv[++i])) : last;
-                else if (a2 == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
-                else if (a2 == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
-                else if (a2 == "--cache-type-k" || a2 == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
-                else if (a2 == "--cache-type-v" || a2 == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
-                else if (a2 == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
-                else if (a2 == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
-                else if (a2 == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
-                else if (a2 == "--cpu-moe") gp.cpu_moe = -1;
-                else if (a2 == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
+                else if (exec_flag(argc, argv, i, gp)) {}
                 else { std::cerr << "unknown flag: " << a2 << "\n"; return 2; }
             }
             if (topn <= 0) topn = 10;
@@ -1261,15 +1252,7 @@ int main(int argc, char** argv) {
                 else if (a == "--max-seqs") cfg.max_seqs = (i + 1 < argc) ? (size_t)std::atoi(argv[++i]) : cfg.max_seqs;
                 else if (a == "--max-queue") cfg.max_queue = (i + 1 < argc) ? (size_t)std::atoi(argv[++i]) : cfg.max_queue;
                 else if (a == "--ctx-size" || a == "-c") gp.kv_tokens = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.kv_tokens;
-                else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
-                else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
-                else if (a == "--device") gp.device = (i + 1 < argc) ? argv[++i] : gp.device;
-                else if (a == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
-                else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
-                else if (a == "--cpu-moe") gp.cpu_moe = -1;
-                else if (a == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
-                else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
-                else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
+                else if (exec_flag(argc, argv, i, gp)) {}
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
             if (cfg.max_seqs == 0) { std::cerr << "serve: --max-seqs must be positive\n"; return 2; }
@@ -1277,47 +1260,36 @@ int main(int argc, char** argv) {
             return cmd_serve(argv[2], cfg, gp);
         }
         if (cmd == "bench") {
-            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3, seqs = 1, depth = 0;
+            int size = 1024, iters = 5, prefill = 64, decode = 64, repeats = 3, seqs = 1, depth = 0;
             bool profile = false;
-            std::string device = "cpu", model_path;
+            std::string model_path, model_only;   // model_only: the first flag given that only --model reads
             infer::GenParams gp;
             for (int i = 2; i < argc; i++) {
                 std::string a = argv[i];
                 if (a == "--size") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;
-                else if (a == "--device") device = (i + 1 < argc) ? argv[++i] : device;
-                else if (a == "--layer-shares") gp.layer_shares = (i + 1 < argc) ? argv[++i] : gp.layer_shares;
-                else if (a == "--n-cpu-moe") gp.cpu_moe = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.cpu_moe;
-                else if (a == "--cpu-moe") gp.cpu_moe = -1;
-                else if (a == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
                 else if (a == "--iters") iters = (i + 1 < argc) ? std::atoi(argv[++i]) : iters;
-                else if (a == "--threads") threads = (i + 1 < argc) ? std::atoi(argv[++i]) : threads;
                 else if (a == "--p") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;
                 else if (a == "--n") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;
-                else if (a == "--r") repeats = (i + 1 < argc) ? std::atoi(argv[++i]) : repeats;
-                else if (a == "--seqs") seqs = (i + 1 < argc) ? std::atoi(argv[++i]) : seqs;
-                else if (a == "--depth") depth = (i + 1 < argc) ? std::atoi(argv[++i]) : depth;
                 else if (a == "--model") model_path = (i + 1 < argc) ? argv[++i] : model_path;
-                else if (a == "--profile") profile = true;
-                else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
-                else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = (i + 1 < argc) ? argv[++i] : gp.cache_type_v;
+                else if (exec_flag(argc, argv, i, gp)) { if (a != "--device" && a != "--threads" && model_only.empty()) model_only = a; }
+                else if (a == "--r") { repeats = (i + 1 < argc) ? std::atoi(argv[++i]) : repeats; if (model_only.empty()) model_only = a; }
+                else if (a == "--seqs") { seqs = (i + 1 < argc) ? std::atoi(argv[++i]) : seqs; if (model_only.empty()) model_only = a; }
+                else if (a == "--depth") { depth = (i + 1 < argc) ? std::atoi(argv[++i]) : depth; if (model_only.empty()) model_only = a; }
+                else if (a == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
                 else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
             }
+            // The synthetic bench times one backend's kernels and reads only --device, --threads, --size, --iters, --p and --n.
+            if (model_path.empty() && !model_only.empty()) { std::cerr << "bench: " << model_only << " takes --model\n"; return 2; }
             if (size <= 0 || size % 32 != 0) { std::cerr << "bench: --size must be positive and a multiple of 32\n"; return 2; }
             // Each of these divides a measured duration or token count.
             if (iters <= 0 || prefill <= 0 || decode <= 0 || repeats <= 0 || seqs <= 0) {
                 std::cerr << "bench: --iters, --p, --n, --r and --seqs must be positive\n"; return 2;
             }
             if (depth < 0) { std::cerr << "bench: --depth must not be negative\n"; return 2; }
-            // Batched decode already starts after each sequence's prompt, and the synthetic bench has no history.
-            if (depth > 0 && (seqs > 1 || model_path.empty())) {
-                std::cerr << "bench: --depth takes --model and one sequence\n"; return 2;
-            }
-            if (!model_path.empty()) {
-                gp.device = device;
-                gp.threads = threads;
-                return cmd_bench_model(model_path, gp, prefill, decode, repeats, profile, seqs, depth);
-            }
-            return cmd_bench(size, iters, threads, prefill, decode, device);
+            // Batched decode already starts after each sequence's prompt.
+            if (depth > 0 && seqs > 1) { std::cerr << "bench: --depth takes one sequence\n"; return 2; }
+            if (!model_path.empty()) return cmd_bench_model(model_path, gp, prefill, decode, repeats, profile, seqs, depth);
+            return cmd_bench(size, iters, gp.threads, prefill, decode, gp.device);
         }
         print_usage();
         return 1;

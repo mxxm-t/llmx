@@ -1,4 +1,4 @@
-// Include the real CLI so its glue is tested as it runs: removing the emitter's flush is observable without process-timing assumptions, and --device lists are read as the commands read them.
+// Include the real CLI so its glue is tested as it runs: removing the emitter's flush is observable without process-timing assumptions, and --device lists and cache types are read as the commands read them.
 #define main llmx_cli_main
 #include "../src/cli/main.cpp"
 #undef main
@@ -23,6 +23,24 @@ bool device_lists() {
            refused("vulkan:x") && refused("gpu:0") && layer_shares("3,1") == std::vector<int>{3, 1} && refused("");
 }
 
+// A cache type is kept in its one spelling, and an empty or unknown name is refused as the flag is read, before any model file is.
+bool cache_types() {
+    auto read = [](std::string flag, std::string value, infer::GenParams& gp) {
+        char* argv[] = {flag.data(), value.data()};
+        int i = 0;
+        return exec_flag(2, argv, i, gp) && i == 1;
+    };
+    auto refused = [&](const std::string& flag, const std::string& value) {
+        infer::GenParams gp;
+        try { read(flag, value, gp); } catch (const std::runtime_error&) { return gp.cache_type_k.empty() && gp.cache_type_v.empty(); }
+        return false;
+    };
+    infer::GenParams gp;
+    return gp.cache_type_k.empty() && gp.cache_type_v.empty() && read("-ctk", "f32", gp) && read("--cache-type-v", "f16", gp) &&
+           gp.cache_type_k == "f32" && gp.cache_type_v == "f16" && refused("-ctk", "") && refused("-ctv", "") &&
+           refused("--cache-type-k", "q8_0") && refused("--cache-type-v", "F16");
+}
+
 int main() {
     OutputBuffer output;
     auto* saved = std::cout.rdbuf(&output);
@@ -39,6 +57,10 @@ int main() {
         std::cerr << "CLI device lists not read canonically\n";
         return 1;
     }
-    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical\n";
+    if (!cache_types()) {
+        std::cerr << "CLI cache types not read as given or not refused as the flag is read\n";
+        return 1;
+    }
+    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types refused as read\n";
     return 0;
 }

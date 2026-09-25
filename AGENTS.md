@@ -356,8 +356,7 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   `cli-output`):
   mapped-byte reporting, files truncated before loading, callback failures, early text
   delivery, split UTF-8 bytes and stop/EOS accounting;
-  `cli-output` also reads `--device` lists as the commands do (canonical
-  spellings, a device once, malformed entries refused).
+  `cli-output` also reads `--device` lists as the commands do (canonical spellings, a device once, malformed entries refused), and the cache types as `exec_flag` reads them (one spelling each, an empty or unknown name refused before any model file is read).
 - **KV cache** (`tests/kv_cache.cpp`, CTest `kv-cache`): block pool reuse and
   exhaustion, sequence prepare/commit/abort/reset, on-demand storage growth
   and retained reset across block boundaries, paged attention over two

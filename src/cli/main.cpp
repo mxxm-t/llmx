@@ -219,8 +219,9 @@ bool exec_flag(int argc, char** argv, int& i, infer::GenParams& gp) {
     else if (a == "--moe-stream-from") { if (const char* v = value()) gp.moe_stream_from = std::atoi(v); }
     else if (a == "--threads") { if (const char* v = value()) gp.threads = std::atoi(v); }
     else if (a == "--ubatch") { if (const char* v = value()) gp.ubatch = std::atoi(v); }
-    else if (a == "--cache-type-k" || a == "-ctk") { if (const char* v = value()) gp.cache_type_k = v; }
-    else if (a == "--cache-type-v" || a == "-ctv") { if (const char* v = value()) gp.cache_type_v = v; }
+    // A cache type is checked as it is read, so an empty or unknown name is refused before any model file is read.
+    else if (a == "--cache-type-k" || a == "-ctk") { if (const char* v = value()) gp.cache_type_k = backend::kv_type_name(backend::kv_type_of(v)); }
+    else if (a == "--cache-type-v" || a == "-ctv") { if (const char* v = value()) gp.cache_type_v = backend::kv_type_name(backend::kv_type_of(v)); }
     else return false;
     return true;
 }
@@ -671,6 +672,11 @@ bool print_usage(const std::string& command = {}) {
     }
     const infer::GenParams defaults;
     const infer::ModelOptions caches;
+    // A cache side's two types, the model's default first and marked.
+    const auto cache_types = [](backend::KVType d) {
+        const backend::KVType other = d == backend::KVType::f16 ? backend::KVType::f32 : backend::KVType::f16;
+        return std::string(backend::kv_type_name(d)) + " (default) or " + backend::kv_type_name(other);
+    };
     const auto model_options = [&](bool batch_threads) {
         std::cout << "\nExecution options:\n"
             << "  --device D              cpu (default), or vulkan:N when built with Vulkan;\n"
@@ -682,8 +688,8 @@ bool print_usage(const std::string& command = {}) {
             << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
         std::cout
             << "  --ubatch N              Prompt tokens per pass (default: 512)\n"
-            << "  --cache-type-k T, -ctk  Key cache: f16 or f32 (default: " << backend::kv_type_name(caches.kv_k) << ")\n"
-            << "  --cache-type-v T, -ctv  Value cache: f16 or f32 (default: " << backend::kv_type_name(caches.kv_v) << ")\n"
+            << "  --cache-type-k T, -ctk  Key cache: " << cache_types(caches.kv_k) << "\n"
+            << "  --cache-type-v T, -ctv  Value cache: " << cache_types(caches.kv_v) << "\n"
             << "  --n-cpu-moe N           First N routed layers' experts on CPU (default: 0)\n"
             << "  --cpu-moe               All routed layers' experts on CPU\n"
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"

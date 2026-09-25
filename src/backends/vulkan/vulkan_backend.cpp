@@ -1930,7 +1930,7 @@ public:
         size_t parts = std::min((target + workgroups - 1) / workgroups, std::max<size_t>(1, nblk / floor_blocks));
         if (parts <= 1) return nblk;
         size_t kper = (nblk + parts - 1) / parts;
-        kper = (kper + 1) & ~size_t(1);   // a multiple of the tile's STEP
+        kper = (kper + 1) & ~size_t(1);   // a split call's parts are a multiple of the general tile's STEP; the Q8_0 build's step of four reads blocks past the part as zero
         return std::min(kper, nblk);
     }
 

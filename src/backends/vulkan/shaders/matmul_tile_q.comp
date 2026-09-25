@@ -9,10 +9,13 @@
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_integer_dot_product : require
+#ifdef LLMX_Q8
+#extension GL_EXT_control_flow_attributes : require
+#endif
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
-// Up to three projections of one X and one type per dispatch; workgroups start0, start1 and start2 on begin each projection's row tiles. kper is the quant blocks a workgroup sums, a multiple of STEP.
+// Up to three projections of one X and one type per dispatch; workgroups start0, start1 and start2 on begin each projection's row tiles. kper is the quant blocks a workgroup sums, a multiple of two when the call is split; blocks of a step past its part read as zero.
 // When the call is split, projection q's part z goes to y at parts * nbatch * (rows of the projections before q) + z * nbatch * nout_q, all projections sharing one scratch buffer.
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint type; uint accum; uint kper; uint nproj;
@@ -35,8 +38,13 @@ uint pi = 0u;   // this workgroup's projection, uniform across it
 #define WW (8u / WPR)            // and how many words each
 
 // Quant blocks staged per barrier, so their loads are in flight together.
+// The Q8_0 build stages four: its float scales keep the tallest tile's shared arrays at 27 KB, still two workgroups per compute unit.
 #ifndef STEP
+#ifdef LLMX_Q8
+#define STEP 4u
+#else
 #define STEP 2u
+#endif
 #endif
 // k-major: word w of every row, then of every column; block s of a step at words 8s to 8s + 7.
 shared uint wq[8u * STEP][TILE_ROWS];
@@ -300,6 +308,10 @@ void main() {
         }
 #endif
         barrier();
+#ifdef LLMX_Q8
+      // Unrolled, since the compiler keeps four blocks a loop.
+      [[unroll]]
+#endif
       for (uint s = 0u; s < STEP; ++s) {
 #ifndef LLMX_Q6
         // Word w of every row of the thread against word w of its four columns, so all 4 * MROWS dot sums of the block stay live and a column word is read once.

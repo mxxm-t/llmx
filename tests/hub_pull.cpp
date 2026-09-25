@@ -1,6 +1,8 @@
 #include "hub/pull.hpp"
 #include <atomic>
+#include <condition_variable>
 #include <iostream>
+#include <mutex>
 
 static void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
@@ -35,6 +37,12 @@ int main(int argc, char** argv) {
             std::to_string(size) + ",\"lfs\":{\"size\":" + std::to_string(size) + ",\"sha256\":\"" + digest + "\"}}]}";
         std::atomic<unsigned> active{0}, peak{0}, requests{0}, metadata_requests{0};
         bool fail = false, truncate = false, corrupt = false, retry = false;
+        // While gather is set, each range request waits until all four have started, so the overlap check does not depend on thread start timing.
+        // A serial pull meets the deadline alone, which turns gather off and leaves the peak below four.
+        bool gather = false;
+        unsigned gathered = 0;
+        std::mutex meeting;
+        std::condition_variable arrival;
         auto fetch = [&](const std::string& url, const std::string& token, const std::filesystem::path& partial,
                          uint64_t limit, std::optional<hub::ByteRange> range) -> hub::Response {
             require(token == options.token, "credential not passed to transport");
@@ -55,7 +63,13 @@ int main(int argc, char** argv) {
             struct Done { std::atomic<unsigned>& n; ~Done() { --n; } } done{active};
             if (range) {
                 require(range->total == size && range->length == limit && range->offset + range->length <= size, "invalid range plan");
-                std::this_thread::sleep_for(std::chrono::milliseconds(30));
+                std::unique_lock<std::mutex> lock(meeting);
+                if (gather) {
+                    ++gathered;
+                    arrival.notify_all();
+                    if (!arrival.wait_for(lock, std::chrono::seconds(20), [&] { return gathered >= 4; })) gather = false;
+                }
+                lock.unlock();
                 if (fail && !range->offset) throw hub::TransportError("range failure fixture", 403, 22);
             }
             std::ofstream output(partial, std::ios::binary | std::ios::trunc);
@@ -72,7 +86,9 @@ int main(int argc, char** argv) {
         };
         std::vector<std::string> events;
         auto progress = [&](const std::string& event) { events.push_back(event); };
+        gather = true;
         const auto downloaded = hub::pull_detail::pull(options, progress, fetch);
+        gather = false;
         require(peak == 4 && requests == 4 && active == 0, "four streams did not overlap or join");
         require(downloaded == std::filesystem::canonical(options.cache) / "models--test--model" / "snapshots" / revision / "model-Q8_0.gguf", "cache layout");
         require(events.back() == "Ready model-Q8_0.gguf", "missing completion progress");

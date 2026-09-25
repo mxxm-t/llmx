@@ -151,11 +151,11 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Branches are not pushed to GitHub before their merge; each branch's local gate runs the same commands.
   - A pinned Qwen3-0.6B Q4_K_M fixture joins the HF job with HF bounds, so K-quant decoding meets the reference in CI.
   - `test/reference-8b-per-token` goes ahead: the 8B HF check scores batched and per-token with its bounds unchanged, and the 0.6B check takes the 8B check's stricter validators.
+  - The hosted Windows job also builds with `build.bat`, which now finds Visual Studio itself, requires its binary to report the CMake build's version, and runs the suite on it, so the first Windows route in the build docs has an automated check.
 - **Not doing:**
   - A software Vulkan job: the kernel changes it needs would be tested only by that job.
   - A test-only way past the subgroup check to run the storage and submission checks: `vulkan-buffer` already covers them with its fake device and no runtime hook.
   - A CPU alias so the CLI can split on the CPU: the listed-once refusal exists because two stages would drive one backend and count its free memory twice. The placement CTest and `llmx-split-check` cover the split without it.
-  - `build.bat` on the hosted Windows runner: CMake is the hosted build.
   - A nightly long-context run on the CPU against itself: it proves only determinism, which the server checks already require.
   - The real-model server pass on Windows and macOS: the synthetic server pass already runs on every platform.
   - `MappedFile::drop` with a payload larger than host memory, and the split lines of `--verbose`: they need memory or devices a hosted runner lacks.

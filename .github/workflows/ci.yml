@@ -45,6 +45,16 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Test
         run: python -X utf8 tests/run_tests.py --exe "${{ matrix.executable }}" --no-perf-floor
+      - name: Plain build and test
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call .\build.bat || exit /b 1
+          .\llmx.exe --version > "%RUNNER_TEMP%\plain-version.txt" || exit /b 1
+          build\Release\llmx.exe --version > "%RUNNER_TEMP%\cmake-version.txt" || exit /b 1
+          type "%RUNNER_TEMP%\plain-version.txt"
+          fc "%RUNNER_TEMP%\plain-version.txt" "%RUNNER_TEMP%\cmake-version.txt" || exit /b 1
+          python -X utf8 tests/run_tests.py --exe llmx.exe --no-perf-floor
 
   sanitizer:
     name: CPU (Linux UBSan)

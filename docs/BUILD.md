@@ -46,6 +46,7 @@ In PowerShell, type `.\build.bat` and `.\llmx.exe --version`.
 If `vswhere.exe` is missing, or no installation has the C++ tools, it stops and says which.
 It compiles `src\cli\main.cpp` in one `cl` call and writes `llmx.exe` to the repository root, with its version header in `build\plain-generated` and the object file `main.obj` beside `llmx.exe`; git ignores all three.
 It builds the CPU backend only: the Vulkan backend and the native tests need CMake.
+CI runs `build.bat` on its Windows runner too, requires the binary to report the same version as the CMake build, and runs the tests on it.
 
 ### CMake
 

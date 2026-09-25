@@ -368,7 +368,9 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   context bounds a request and a full queue answers 503. With the Q8_0
   fixture, uncapped requests share a pool too small for all of them: a
   request is paused when it runs out, resumes from its history, and each
-  runs to its own end. On a single device other than the CPU, the
+  runs to its own end; a long prompt read one token a pass is paused
+  while it is still prefilling and, resumed, gives the CLI's greedy text.
+  On a single device other than the CPU, the
   synthetic MoE model runs with its experts on the host and prompts from
   three tokens streamed, and each prompt's ids alone must equal its ids
   four at a time, where a pass holds streamed prompt rows beside host

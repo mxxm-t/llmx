@@ -210,8 +210,7 @@ def check_mixed(model, prompts, n, flags):
 
 
 def check_limits(model):
-    """The serving limits: a KV budget below the context bounds a request,
-    and a full queue refuses with 503 rather than waiting."""
+    """The serving limits: a KV budget below the context bounds a request, and a full queue refuses with 503 rather than waiting."""
     srv = Server(model, "--max-seqs", "1", "--max-queue", "1", "--ctx-size", "512")
     try:
         assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": 600})[0] == 413
@@ -255,6 +254,47 @@ def check_uncapped(model):
         srv.close()
 
 
+def check_paused_prefill(model):
+    """A long uncapped prompt read one token a pass is still prefilling when an earlier uncapped request has to grow and the pool has no room, so it is paused part-way; resumed, its greedy text is the CLI's for the whole prompt."""
+    flags = ("--ubatch", "1")
+    srv = Server(model, "--ctx-size", "1280", *flags)
+    try:
+        # 464 tokens in a pool of 1280: in blocks of 64 or 128 both requests fit at admission, the short one reaches its first growth step before this prompt is read, and that step does not fit beside it.
+        with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
+            long_prompt = f.read()[:1800]
+        # The short request streams and is queued first, so the long one is the latest admitted and the one paused.
+        s = socket.create_connection(("127.0.0.1", srv.port))
+        body = json.dumps({"prompt": "Once upon a time", "temperature": 0, "stream": True}).encode()
+        s.sendall(b"POST /v1/completions HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % len(body) + body)
+        s.recv(64)
+        result = []
+        failure = []
+        # A stop string ends the long request a few tokens in, enough to tell which prompt it resumed from.
+        def worker():
+            try:
+                result.append(srv.post("/v1/completions", {"prompt": long_prompt, "temperature": 0, "stop": [" ."]}, timeout=900))
+            except Exception as e:
+                failure.append(e)
+        later = threading.Thread(target=worker)
+        later.start()
+        # Once the long request is paused the short one leaves, so the long one resumes now rather than after the short one's whole reply.
+        while later.is_alive() and srv.get("/v1/health")["pauses"] == 0:
+            time.sleep(0.05)
+        s.close()
+        later.join()
+        # A post that failed in the worker raises its own error here rather than leaving result empty.
+        if failure:
+            raise failure[0]
+        status, reply = result[0]
+        assert status == 200, reply
+        want = cli_greedy_text(model, long_prompt, reply["usage"]["completion_tokens"], flags)
+        assert reply["choices"][0]["text"] == want, (reply["choices"][0]["text"], want)
+        health = srv.get("/v1/health")
+        assert health["active"] == 0 and health["pauses"] >= 1, health
+    finally:
+        srv.close()
+
+
 def run():
     if common.f32_cache_skip("server"):
         return True
@@ -280,8 +320,10 @@ def run():
                          16, 4000, chat=True, prefix=excerpt)
         check_limits(real)
         check_uncapped(real)
+        check_paused_prefill(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
-              "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool  [ok]"
+              "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
+              "a prompt paused while prefilling  [ok]"
               % (os.path.basename(real), n))
     else:
         print("server: SKIP real-model pass - fixture model not on disk")

@@ -292,13 +292,20 @@ private:
         }
     }
 
-    // A paused request's history goes to the donors and the request to the front of the queue, its prompt now what it has read and generated.
+    // A request's prompt, then what it generated since it was last queued: its cache holds the first seq_.length() of these, and a paused request resumes from all of them.
+    // A decoding request has read its whole prompt and a prefilling one has generated nothing since, so a prompt paused part-way keeps the part it has not read.
+    static std::vector<uint32_t> history(const Request& r) {
+        std::vector<uint32_t> h = r.prompt_;
+        h.insert(h.end(), r.gen_.begin() + (std::ptrdiff_t)r.resumed_gen_, r.gen_.end());
+        return h;
+    }
+
+    // A paused request's history goes to the donors and the request to the front of the queue, its prompt now that history.
     void pause(std::vector<std::shared_ptr<Request>>& active, size_t i) {
         auto r = active[i];
-        std::vector<uint32_t> history(r->prompt_.begin(), r->prompt_.begin() + (std::ptrdiff_t)r->prompt_done_);
-        history.insert(history.end(), r->gen_.begin() + (std::ptrdiff_t)r->resumed_gen_, r->gen_.end());
-        park(active, i, history);
-        r->prompt_ = std::move(history);
+        std::vector<uint32_t> h = history(*r);
+        park(active, i, h);
+        r->prompt_ = std::move(h);
         r->prompt_done_ = 0;
         r->resumed_gen_ = r->gen_.size();
         r->resumed_ = true;
@@ -394,15 +401,13 @@ private:
     void finish(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::string& why,
                 const std::string& err = "") {
         auto r = active[i];
-        std::vector<uint32_t> history(r->prompt_.begin(), r->prompt_.begin() + (std::ptrdiff_t)r->prompt_done_);
-        history.insert(history.end(), r->gen_.begin() + (std::ptrdiff_t)r->resumed_gen_, r->gen_.end());
         if (why == "error") {
             active.erase(active.begin() + (std::ptrdiff_t)i);
             release(*r);
             r->seq_ = infer::Sequence{};
             active_count_.store(active.size());
         } else {
-            park(active, i, history);
+            park(active, i, history(*r));
         }
         r->end(why, err);
         const Request::Timings t = r->timings();
@@ -414,7 +419,7 @@ private:
 
     // A request leaves the active set, its history kept as a donor when it holds a full block and its blocks returned otherwise.
     // A donor keeps only the blocks it holds reserved, and there are at most max_seqs donors, the oldest going when a newcomer needs the room.
-    void park(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::vector<uint32_t>& history) {
+    void park(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::vector<uint32_t>& h) {
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
         const size_t bt = model_.kv_block_tokens();
@@ -423,7 +428,7 @@ private:
             std::lock_guard<std::mutex> lk(m_);
             while (donors_.size() >= max_seqs_) drop_donor();
             Donor d;
-            d.tokens.assign(history.begin(), history.begin() + (std::ptrdiff_t)std::min(history.size(), held));
+            d.tokens.assign(h.begin(), h.begin() + (std::ptrdiff_t)std::min(h.size(), held));
             d.seq = std::move(r->seq_);
             d.blocks = blocks_for(held);
             sub(reserved_, r->need_);

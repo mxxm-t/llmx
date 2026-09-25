@@ -11,7 +11,6 @@
 #include <stdexcept>
 #include <algorithm>
 #include <chrono>
-#include <random>
 #include <limits>
 
 #if defined(_WIN32)
@@ -35,6 +34,7 @@
 #include "hub/pull.hpp"
 #include "format/gguf.hpp"
 #include "quant/quant.hpp"
+#include "quant/convert.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/sampler.hpp"
 #include "inference/generate.hpp"
@@ -89,163 +89,20 @@ void emit_text(const std::string& text) {
 }
 
 // ---------------------------------------------------------------------------
-// model.json / model.bin helper structures (quantize input)
-// ---------------------------------------------------------------------------
-
-std::vector<gguf::TensorInfo> parse_model_json(const jmini::Value& root, uint32_t type) {
-    std::vector<gguf::TensorInfo> out;
-    const jmini::Value* tensors = root.get("tensors");
-    if (!tensors || !tensors->isArray())
-        throw std::runtime_error("model.json: missing \"tensors\" array");
-    for (const auto& t : tensors->asArray()) {
-        gguf::TensorInfo jt;
-        jt.type = type;
-        const jmini::Value* name = t.get("name");
-        if (!name || !name->isString())
-            throw std::runtime_error("model.json: tensor missing \"name\" string");
-        jt.name = name->asString();
-        const jmini::Value* shape = t.get("shape");
-        if (!shape || !shape->isArray())
-            throw std::runtime_error("model.json: tensor missing \"shape\" array: " + jt.name);
-        if (shape->asArray().empty() || shape->asArray().size() > 4)
-            throw std::runtime_error("model.json: tensor rank must be between 1 and 4: " + jt.name);
-        for (const auto& d : shape->asArray()) {
-            if (!d.isNumber())
-                throw std::runtime_error("model.json: shape dim is not a number: " + jt.name);
-            const double v = d.asNumber();
-            // JSON numbers are doubles; stay within their consecutive integer range.
-            if (!std::isfinite(v) || v < 1 || v > 9007199254740991.0 || std::floor(v) != v)
-                throw std::runtime_error("model.json: dimension must be an integer from 1 to 2^53-1: " + jt.name);
-            jt.ne.push_back(uint64_t(v));
-        }
-        out.push_back(std::move(jt));
-    }
-    return out;
-}
-
-// ---------------------------------------------------------------------------
 // commands
 // ---------------------------------------------------------------------------
 
 int cmd_quantize(const std::string& json_path, const std::string& bin_path,
                  const std::string& out_path, const std::string& type_arg) {
-    uint32_t type;
-    size_t block;
-    void (*quantize)(const float*, uint8_t*, size_t);
-    if (type_arg == "q4_0") {
-        type = gguf::GGML_TYPE_Q4_0; block = gguf::Q4_0_BLOCK;
-        quantize = quant::quantize_row_q4_0;
-    } else { // default q8_0
-        type = gguf::GGML_TYPE_Q8_0; block = gguf::Q8_0_BLOCK;
-        quantize = quant::quantize_row_q8_0;
-    }
-    std::ifstream jf(json_path);
-    if (!jf) throw std::runtime_error("cannot open " + json_path);
-    std::stringstream jss;
-    jss << jf.rdbuf();
-    jmini::Value root = jmini::parse(jss.str());
-    gguf::GGUFModel m;
-    m.tensors = parse_model_json(root, type);
-    uint64_t need = 0;
-    uint64_t output_size = 0;
-    for (const auto& t : m.tensors) {
-        need = gguf::checked_add(need, gguf::checked_multiply(t.n_elements(), sizeof(float)));
-        output_size = gguf::checked_add(gguf::aligned_size(output_size, alignof(float)), t.data_size());
-    }
-    std::vector<float> values;
-    if (need / sizeof(float) > values.max_size() ||
-        need > uint64_t(std::numeric_limits<std::streamsize>::max()) ||
-        output_size > m.blob.max_size())
-        throw std::runtime_error("model.json: tensor storage exceeds allocation or stream limit");
-
-    std::ifstream bf(bin_path, std::ios::binary);
-    if (!bf) throw std::runtime_error("cannot open " + bin_path);
-    bf.exceptions(std::ios::failbit | std::ios::badbit);
-    bf.seekg(0, std::ios::end);
-    const std::streamoff sz = bf.tellg();
-    if (sz < 0) throw std::runtime_error("cannot determine model.bin size");
-    if (uint64_t(sz) != need)
-        throw std::runtime_error("model.bin size does not match model.json tensor shapes");
-    bf.seekg(0, std::ios::beg);
-    values.resize(size_t(need / sizeof(float)));
-    if (need) bf.read(reinterpret_cast<char*>(values.data()), std::streamsize(need));
-    const float* fptr = values.data();
-    m.blob.reserve(size_t(output_size));
-
-    const jmini::Value* name = root.get("name");
-    std::string model_name = (name && name->isString()) ? name->asString() : "custom";
-
-    gguf::MetaValue mv_name; mv_name.vtype = gguf::V_STRING; mv_name.s = model_name;
-    gguf::MetaValue mv_arch; mv_arch.vtype = gguf::V_STRING; mv_arch.s = "custom";
-    gguf::MetaValue mv_qver; mv_qver.vtype = gguf::V_UINT32; mv_qver.u = 2;   // quantization_version
-    gguf::MetaValue mv_ft;   mv_ft.vtype   = gguf::V_UINT32;
-    mv_ft.u = (type == gguf::GGML_TYPE_Q8_0) ? 7 : 2;   // 7 = MOSTLY_Q8_0, 2 = MOSTLY_Q4_0
-    m.kv.emplace_back("general.name", mv_name);
-    m.kv.emplace_back("general.architecture", mv_arch);
-    m.kv.emplace_back("general.quantization_version", mv_qver);
-    m.kv.emplace_back("general.file_type", mv_ft);
-
-    for (const auto& t : m.tensors) {
-        size_t nblocks = size_t(t.n_elements() / block);
-        std::vector<uint8_t> q(size_t(t.data_size()));
-        quantize(fptr, q.data(), nblocks);
-        fptr += size_t(t.n_elements());
-        m.add_tensor_data(q);
-    }
-
-    gguf::write_gguf(m, out_path);
-    std::cout << "wrote " << out_path << " (" << m.tensors.size() << " tensors, "
-              << type_arg << ")\n";
+    const uint32_t type = type_arg == "q4_0" ? gguf::GGML_TYPE_Q4_0 : gguf::GGML_TYPE_Q8_0;
+    const size_t tensors = quant::quantize_raw(json_path, bin_path, out_path, type);
+    std::cout << "wrote " << out_path << " (" << tensors << " tensors, " << type_arg << ")\n";
     return 0;
 }
 
 int cmd_dequantize(const std::string& in_path, const std::string& out_json,
                    const std::string& out_bin) {
-    gguf::GGUFModel m = gguf::read_gguf(in_path);
-
-    std::stringstream js;
-    js << "{\n";
-    js << "  \"name\": " << jmini::quote(in_path) << ",\n";
-    js << "  \"tensors\": [\n";
-    for (size_t i = 0; i < m.tensors.size(); i++) {
-        const auto& t = m.tensors[i];
-        js << "    {\"name\": " << jmini::quote(t.name) << ", \"shape\": [";
-        for (size_t d = 0; d < t.ne.size(); d++) {
-            if (d) js << ", ";
-            js << t.ne[d];
-        }
-        js << "]}";
-        if (i + 1 < m.tensors.size()) js << ",";
-        js << "\n";
-    }
-    js << "  ]\n}\n";
-
-    std::vector<uint8_t> out;
-    for (size_t i = 0; i < m.tensors.size(); i++) {
-        const auto& t = m.tensors[i];
-        const uint8_t* raw = std::as_const(m).tensor_data(i);
-        size_t n = (size_t)t.n_elements();
-        std::vector<float> f(n);
-        if (t.type == gguf::GGML_TYPE_F32) {
-            std::memcpy(f.data(), raw, n * 4);
-        } else {
-            const quant::QuantType* qt = quant::Registry::instance().get(t.type);
-            if (!qt || !qt->dequantize)
-                throw std::runtime_error("unsupported tensor type in dequantize: " + t.name);
-            qt->dequantize(raw, f.data(), n / qt->block_size);
-        }
-        out.resize(out.size() + n * 4);
-        std::memcpy(out.data() + (out.size() - n * 4), f.data(), n * 4);
-    }
-
-    std::ofstream oj(out_json);
-    if (!oj) throw std::runtime_error("cannot open " + out_json);
-    oj << js.str();
-
-    std::ofstream ob(out_bin, std::ios::binary);
-    if (!ob) throw std::runtime_error("cannot open " + out_bin);
-    ob.write((const char*)out.data(), (std::streamsize)out.size());
-
+    quant::dequantize_to_raw(in_path, out_json, out_bin);
     std::cout << "wrote " << out_json << " and " << out_bin << "\n";
     return 0;
 }
@@ -587,74 +444,6 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     return 0;
 }
 
-// Build a small random Qwen3 model in memory for end-to-end prefill/decode TPS measurement.
-// Matrices are Q8_0, norms F32 (matching what infer::Model expects).
-gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
-                                      int n_head, int n_head_kv, int head_dim,
-                                      int n_vocab, uint32_t seed) {
-    gguf::GGUFModel m;
-    auto u32 = [&](const std::string& k, uint64_t v) {
-        gguf::MetaValue mv; mv.vtype = gguf::V_UINT32; mv.u = v;
-        m.kv.emplace_back(k, mv);
-    };
-    u32("qwen3.block_count", (uint64_t)n_layer);
-    u32("qwen3.embedding_length", (uint64_t)n_embd);
-    u32("qwen3.feed_forward_length", (uint64_t)n_ff);
-    u32("qwen3.attention.head_count", (uint64_t)n_head);
-    u32("qwen3.attention.head_count_kv", (uint64_t)n_head_kv);
-    u32("qwen3.attention.key_length", (uint64_t)head_dim);
-    u32("qwen3.context_length", 2048);
-
-    std::mt19937 rng(seed);
-    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-
-    // ne = [nin, nout]; f32 tensors are stored raw, others quantized to Q8_0.
-    auto add_tensor = [&](const std::string& name, size_t nin, size_t nout, bool f32) {
-        gguf::TensorInfo t;
-        t.name = name;
-        t.ne = { (uint64_t)nin, (uint64_t)nout };
-        t.type = f32 ? gguf::GGML_TYPE_F32 : gguf::GGML_TYPE_Q8_0;
-        t.offset = 0;
-        if (f32) {
-            std::vector<uint8_t> buf(nin * nout * 4);
-            float* p = (float*)buf.data();
-            for (size_t o = 0; o < nout; o++)
-                for (size_t i = 0; i < nin; i++) *p++ = dist(rng);
-            m.tensors.push_back(std::move(t));
-            m.add_tensor_data(buf);
-        } else {
-            size_t nblocks = nin / gguf::Q8_0_BLOCK;
-            std::vector<uint8_t> buf(nout * nblocks * gguf::Q8_0_TYPESIZE);
-            std::vector<float> row(nin);
-            for (size_t o = 0; o < nout; o++) {
-                for (size_t i = 0; i < nin; i++) row[i] = dist(rng);
-                quant::quantize_row_q8_0(row.data(), buf.data() + o * nblocks * gguf::Q8_0_TYPESIZE, nblocks);
-            }
-            m.tensors.push_back(std::move(t));
-            m.add_tensor_data(buf);
-        }
-    };
-
-    size_t kv_dim = (size_t)n_head_kv * head_dim;
-    add_tensor("token_embd.weight", n_embd, n_vocab, false);
-    add_tensor("output.weight", n_embd, n_vocab, false);
-    add_tensor("output_norm.weight", n_embd, 1, true);
-    for (int l = 0; l < n_layer; l++) {
-        std::string pre = "blk." + std::to_string(l) + ".";
-        add_tensor(pre + "attn_norm.weight", n_embd, 1, true);
-        add_tensor(pre + "attn_q.weight", n_embd, n_embd, false);
-        add_tensor(pre + "attn_k.weight", n_embd, kv_dim, false);
-        add_tensor(pre + "attn_v.weight", n_embd, kv_dim, false);
-        add_tensor(pre + "attn_output.weight", n_embd, n_embd, false);
-        add_tensor(pre + "attn_q_norm.weight", head_dim, 1, true);
-        add_tensor(pre + "attn_k_norm.weight", head_dim, 1, true);
-        add_tensor(pre + "ffn_norm.weight", n_embd, 1, true);
-        add_tensor(pre + "ffn_gate.weight", n_embd, n_ff, false);
-        add_tensor(pre + "ffn_up.weight", n_embd, n_ff, false);
-        add_tensor(pre + "ffn_down.weight", n_ff, n_embd, false);
-    }
-    return m;
-}
 
 // Micro-benchmark of the backend hot paths (matmul, RMSNorm, norm+RoPE) plus end-to-end prefill/decode TPS on a synthetic Qwen3 model.
 // Used by tests/perf.py as the perf-regression gate for hot-path changes.
@@ -712,7 +501,7 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     // End-to-end TPS on a small synthetic Qwen3 model (2 layers, 256 embd).
     {
         const int nl = 2, ne = 256, nf = 1024, nh = 8, nk = 2, hd = 32, nv = 512;
-        gguf::GGUFModel sm = build_synthetic_model(nl, ne, nf, nh, nk, hd, nv, 12345u);
+        gguf::GGUFModel sm = infer::synthetic_model(nl, ne, nf, nh, nk, hd, nv, 12345u);
         infer::Model model(sm, b);
 
         const int P = prefill, G = decode;

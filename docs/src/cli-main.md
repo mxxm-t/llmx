@@ -15,10 +15,9 @@ Commands and their entry points:
   pass HF credentials to `hub::pull`, render status on stderr and print the
   verified model path on stdout. See [Hub acquisition](hub.md).
 
-- `quantize` / `dequantize`: `cmd_quantize` / `cmd_dequantize` (Q8_0/Q4_0
-  writing and supported-type dequantization via `model.json`/`model.bin`).
-  Input uses the core JSON parser; output quotes paths and tensor names through
-  its string helper, preserving UTF-8 and escaping JSON special characters.
+- `quantize` / `dequantize`: `cmd_quantize` / `cmd_dequantize` check the
+  arguments and call `quant::quantize_raw` / `quant::dequantize_to_raw`
+  (`quant/convert.hpp`), which read and write `model.json`/`model.bin`.
   Quantize requires one to four positive integral dimensions in the JSON
   parser's consecutive integer range (`1..2^53-1`) and whole 32-value rows.
   Shared GGUF tensor arithmetic checks products and output bytes; the CLI
@@ -70,6 +69,6 @@ read and mapped, before the weights are uploaded and the model is ready. They sh
 prefill and generating before sampling. `emit_text` writes and flushes inference
 text chunks to stdout; the caller appends a newline per reply.
 
-Also holds the `build_synthetic_model` helper (an in-memory random Qwen3 model
-for the end-to-end TPS measurement) and `print_usage`. See `docs/USAGE.md` for
+The synthetic bench's model comes from `infer::synthetic_model`
+(`model/arch_qwen.hpp`). Also holds `print_usage`. See `docs/USAGE.md` for
 the full command reference.

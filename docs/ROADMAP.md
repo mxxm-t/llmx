@@ -98,8 +98,8 @@ Four vendor targets. Each is opt-in at build time because its SDK is heavy, and
 each is gated by its own `LLMX_HAS_BACKEND_*` in `config.hpp`.
 
 What they share is not kernels, which are written per API, but the numbers that
-shape a launch: how wide a subgroup is, how many compute units there are, how
-much shared memory a workgroup may have, and the measured choices those do not
+shape a launch: how wide a subgroup is, how many compute units there are,
+whether the integer dot is there, and the measured choices those do not
 imply, such as how many lanes share a quantized block or from how many rows a
 tiled kernel beats a per-row one. Those live in `backends/device_profile.hpp`
 above any one vendor, filled by the Vulkan backend today from Vulkan properties

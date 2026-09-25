@@ -548,14 +548,9 @@ struct Device {
     uint32_t queue_family = 0;
     VkPhysicalDeviceProperties props{};
     VkPhysicalDeviceMemoryProperties memory{};
-    uint32_t subgroup_size = 0;
-    uint32_t compute_units = 16;  // what the vendor reports, else a small assumption
     DeviceCaps caps{};            // what this device says of itself
     DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
-    std::string name;
     bool push_descriptor = false;
-    bool int8 = false, float16 = false, storage8 = false, storage16 = false;
-    bool integer_dot = false;     // the integer dot product instructions, if the device has them
     bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)
     // The driver's per-kernel statistics (registers, occupancy), when it reports them.
     bool exec_stats = false;
@@ -754,11 +749,12 @@ public:
             p2.pNext = &core;
         }
         fn.vkGetPhysicalDeviceProperties2(d.physical, &p2);
-        d.subgroup_size = sg.subgroupSize;
-        if (has_core_props && core.shaderEngineCount && core.shaderArraysPerEngineCount &&
-            core.computeUnitsPerShaderArray)
-            d.compute_units = core.shaderEngineCount * core.shaderArraysPerEngineCount *
-                              core.computeUnitsPerShaderArray;
+        d.caps.subgroup_size = sg.subgroupSize;
+        const bool has_units = has_core_props && core.shaderEngineCount && core.shaderArraysPerEngineCount &&
+                               core.computeUnitsPerShaderArray;
+        d.caps.compute_units = has_units ? core.shaderEngineCount * core.shaderArraysPerEngineCount *
+                                               core.computeUnitsPerShaderArray
+                                         : 16;
         VkPhysicalDeviceDriverProperties drv{};
         drv.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
         VkPhysicalDeviceProperties2 dp{};
@@ -767,21 +763,15 @@ public:
         fn.vkGetPhysicalDeviceProperties2(d.physical, &dp);
         d.caps.device = d.props.deviceName;
         d.caps.driver = drv.driverName;
-        d.caps.subgroup_size = d.subgroup_size;
-        d.caps.compute_units = d.compute_units;
-        d.caps.shared_memory_bytes = d.props.limits.maxComputeSharedMemorySize;
-        d.caps.matrix_units = false;   // no gfx906 has them; a device that does sets this
         // The row kernel places one subgroup per row group in a 256-lane workgroup, so the subgroup size must divide it.
-        if (!d.subgroup_size || 256 % d.subgroup_size ||
+        if (!d.caps.subgroup_size || 256 % d.caps.subgroup_size ||
             !(sg.supportedOperations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT))
-            throw VulkanUnavailable("vulkan: " + std::string(d.props.deviceName) +
-                                     " has an unsupported subgroup size or no subgroup arithmetic");
-        d.name = d.props.deviceName;
+            throw VulkanUnavailable("vulkan: " + d.caps.device + " has an unsupported subgroup size or no subgroup arithmetic");
         if (d.props.apiVersion < VK_API_VERSION_1_2)
-            throw VulkanUnavailable("vulkan: " + d.name + " is older than Vulkan 1.2");
+            throw VulkanUnavailable("vulkan: " + d.caps.device + " is older than Vulkan 1.2");
         // A block of 32 activations is quantized across 32 consecutive lanes (shaders/xquant.glsl).
-        if (d.subgroup_size < 32)
-            throw VulkanUnavailable("vulkan: " + d.name + " has subgroups narrower than 32 lanes");
+        if (d.caps.subgroup_size < 32)
+            throw VulkanUnavailable("vulkan: " + d.caps.device + " has subgroups narrower than 32 lanes");
 
         // A compute family without graphics keeps the queue clear of the desktop; any compute family will do.
         uint32_t families = 0;
@@ -795,7 +785,7 @@ public:
             if (chosen < 0 || (!(f & VK_QUEUE_GRAPHICS_BIT) && (qf[(size_t)chosen].queueFlags & VK_QUEUE_GRAPHICS_BIT)))
                 chosen = (int)i;
         }
-        if (chosen < 0) throw VulkanUnavailable("vulkan: " + d.name + " has no compute queue");
+        if (chosen < 0) throw VulkanUnavailable("vulkan: " + d.caps.device + " has no compute queue");
         d.queue_family = (uint32_t)chosen;
 
         // Timeline semaphores are what submit and wait are built on; the 8- and 16-bit storage and arithmetic features are what the kernels read quantized blocks and half scales with.
@@ -809,15 +799,7 @@ public:
         f2.pNext = &f11;
         fn.vkGetPhysicalDeviceFeatures2(d.physical, &f2);
         if (!f12.timelineSemaphore)
-            throw VulkanUnavailable("vulkan: " + d.name + " has no timeline semaphores");
-        d.int8 = f12.shaderInt8;
-        d.float16 = f12.shaderFloat16;
-        d.storage8 = f12.storageBuffer8BitAccess;
-        d.storage16 = f11.storageBuffer16BitAccess;
-        d.caps.fp16_arithmetic = d.float16;
-        d.caps.int8_arithmetic = d.int8;
-        d.caps.storage_8bit = d.storage8;
-        d.caps.storage_16bit = d.storage16;
+            throw VulkanUnavailable("vulkan: " + d.caps.device + " has no timeline semaphores");
         VkPhysicalDeviceVulkan12Features e12{};
         e12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
         e12.timelineSemaphore = VK_TRUE;
@@ -833,11 +815,11 @@ public:
         e2.pNext = &e11;
         // The row kernels select a projection's buffers per workgroup, dynamic indexing of a storage buffer array.
         if (!f2.features.shaderStorageBufferArrayDynamicIndexing)
-            throw VulkanUnavailable("vulkan: " + d.name + " cannot index storage buffer arrays dynamically");
+            throw VulkanUnavailable("vulkan: " + d.caps.device + " cannot index storage buffer arrays dynamically");
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
         // The row kernel's activations are 16-bit integers (shaders/quantize_x.comp).
         if (!f2.features.shaderInt16)
-            throw VulkanUnavailable("vulkan: " + d.name + " has no 16-bit integer arithmetic");
+            throw VulkanUnavailable("vulkan: " + d.caps.device + " has no 16-bit integer arithmetic");
         e2.features.shaderInt16 = VK_TRUE;
 
         uint32_t ext_count = 0;
@@ -854,7 +836,7 @@ public:
             } else if (std::strcmp(e.extensionName, VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME) == 0) {
                 // Core in 1.3, an extension on the 1.2 devices this targets; enabled where present so the dot-form kernels can run.
                 enabled.push_back(VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME);
-                d.integer_dot = true;
+                d.caps.integer_dot = true;
             } else if (std::strcmp(e.extensionName, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
                 d.exec_stats = true;
@@ -873,13 +855,12 @@ public:
         VkPhysicalDeviceShaderIntegerDotProductFeatures edot{};
         edot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
         edot.shaderIntegerDotProduct = VK_TRUE;
-        if (d.integer_dot) {
+        if (d.caps.integer_dot) {
             edot.pNext = e2.pNext;
             e2.pNext = &edot;
         }
 
         // The profile is chosen here because it depends on the extension scan above.
-        d.caps.integer_dot = d.integer_dot;
         d.profile = profile_for(d.caps);
         // A queue that timestamps lets a diagnostics backend attribute a pass's time to kernels.
         d.timestamps = diagnostics && d.props.limits.timestampComputeAndGraphics;
@@ -915,7 +896,7 @@ public:
             d.exec_ir = d.exec_stats && d.get_exec_ir && diagnostics;
         }
         if (!d.push_descriptor)
-            throw VulkanUnavailable("vulkan: " + d.name + " has no VK_KHR_push_descriptor");
+            throw VulkanUnavailable("vulkan: " + d.caps.device + " has no VK_KHR_push_descriptor");
         fn.vkCmdPushDescriptorSetKHR =
             (PFN_vkCmdPushDescriptorSetKHR)fn.vkGetDeviceProcAddr(d.device, "vkCmdPushDescriptorSetKHR");
         if (!fn.vkCmdPushDescriptorSetKHR)
@@ -964,7 +945,7 @@ public:
         return std::string(kKernelNames[id]) + (!variant ? "" : is_row_kernel((KernelId)id) ? "_1col" : tile ? "_small" : "_x8");
     }
 
-    const std::string& name() const { return dev_->name; }
+    const std::string& name() const { return dev_->caps.device; }
     const DeviceProfile& profile() const { return dev_->profile; }
 
     // The driver's statistics for every kernel compiled so far, one line each: on AMD the vector and scalar register counts, scratch, shared memory and occupancy.
@@ -1166,7 +1147,7 @@ public:
         const VkResult r = dev_->fn.vkWaitSemaphores(dev_->device, &wi, UINT64_MAX);
         if (r != VK_SUCCESS) {
             std::fprintf(stderr, "vulkan: waiting on %s failed with %s; the device is lost\n",
-                         dev_->name.c_str(), vk_result_name(r));
+                         dev_->caps.device.c_str(), vk_result_name(r));
             std::abort();
         }
     }
@@ -1634,7 +1615,7 @@ public:
         switch (type) {
         case gguf::GGML_TYPE_Q8_0: {
             const uint32_t per_pair = dev_->profile.q8_lanes_per_pair;
-            wide = nblocks % 2 == 0 && nblocks / 2 >= per_pair && dev_->subgroup_size >= per_pair;
+            wide = nblocks % 2 == 0 && nblocks / 2 >= per_pair && dev_->caps.subgroup_size >= per_pair;
             lanes = wide ? per_pair : 1;
             units = wide ? nblocks / 2 * lanes : nblocks;
             if (wide) kernel = K_MATMUL_ROW_Q8W;
@@ -1654,7 +1635,7 @@ public:
         case gguf::GGML_TYPE_Q5_K:
         case gguf::GGML_TYPE_Q6_K:
             lanes = dev_->profile.kquant_lanes;
-            if (dev_->subgroup_size < lanes)
+            if (dev_->caps.subgroup_size < lanes)
                 throw std::runtime_error("vulkan: K-quant rows need a subgroup of " + std::to_string(lanes) + " lanes");
             units = nblocks * lanes;
             kernel = type == gguf::GGML_TYPE_Q6_K ? K_MATMUL_ROW_K : type == gguf::GGML_TYPE_Q5_K ? K_MATMUL_ROW_K5 : K_MATMUL_ROW_K4;
@@ -1666,18 +1647,18 @@ public:
         if (kernel == K_MATMUL_ROW_K_DOT && !logits_) kernel = K_MATMUL_ROW_K_DOT8;
         if (kernel == K_MATMUL_ROW_Q4_DOT && !logits_) kernel = K_MATMUL_ROW_Q4_DOT8;
         uint32_t cluster = lanes;
-        while (cluster < dev_->subgroup_size && cluster < units) cluster *= 2;
+        while (cluster < dev_->caps.subgroup_size && cluster < units) cluster *= 2;
         if (kernel == K_MATMUL_ROW_K_DOT8 || kernel == K_MATMUL_ROW_Q4_DOT8)
             cluster = std::min(cluster, std::max(lanes, dev_->profile.q6k_row_lanes));
         if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT)
             cluster = std::min(cluster, std::max(lanes, dev_->profile.k45_row_lanes));
         // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin (shaders/matmul_vec_q8.comp).
-        if (type == gguf::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot && dev_->subgroup_size >= 8) {
+        if (type == gguf::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot && dev_->caps.subgroup_size >= 8) {
             kernel = K_MATMUL_VEC_Q8;
-            cluster = dev_->subgroup_size / 2;
+            cluster = dev_->caps.subgroup_size / 2;
         }
-        const uint32_t rows_per_sg = dev_->subgroup_size / cluster;
-        return RowPlan{kernel, type, wide, cluster, rows_per_sg, (256 / dev_->subgroup_size) * rows_per_sg};
+        const uint32_t rows_per_sg = dev_->caps.subgroup_size / cluster;
+        return RowPlan{kernel, type, wide, cluster, rows_per_sg, (256 / dev_->caps.subgroup_size) * rows_per_sg};
     }
 
     // What a row kernel reads X through: the floats for F32 rows, else the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag.
@@ -1928,10 +1909,9 @@ public:
                id == K_MATMUL_VEC_Q8;
     }
 
-    // Whether a type's wide matmul goes through the integer-dot tile on this device.
+    // Whether a type's wide matmul goes through the integer-dot tile on this device; profile_for prefers the integer dot only where the device has it.
     bool integer_dot_tile(uint32_t type) const {
-        return dev_->profile.prefer_integer_dot && dev_->caps.integer_dot &&
-               type != gguf::GGML_TYPE_F32;
+        return dev_->profile.prefer_integer_dot && type != gguf::GGML_TYPE_F32;
     }
 
     // Cache adopted F32 matrices with kF32Pad floats after each row whose width is a multiple of 256, reducing channel conflicts (docs/VULKAN.md).
@@ -2100,7 +2080,7 @@ public:
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
             const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));
             // Heads whose width is eight lanes' worth of eight values take the kernel that reads a token's row in one load a lane and several tokens a subgroup (shaders/attention_vec.comp).
-            const bool vec = head_dim == 128 && dev_->subgroup_size >= 16;
+            const bool vec = head_dim == 128 && dev_->caps.subgroup_size >= 16;
             const KernelId kernel = vec ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
                                         : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
             dispatch(kernel,

@@ -509,7 +509,7 @@ HF gate measures the cost of it.
   `tile_from_8bit_narrow`, `tile_from_other` and
   `tile_from_other_narrow`. The defaults are 32, 64, 64 and 64; a device
   and driver that have been measured take their own row from
-  `measured_profiles`: the Radeon VII under the AMD proprietary driver
+  `tuned_devices`: the Radeon VII under the AMD proprietary driver
   32, 48, 64 and 64, and the MI50 under Mesa, measured against the
   integer-dot tile, 16, 32, 24 and 40. A row measured with the
   integer-dot tile applies only when the device has the integer dot. To

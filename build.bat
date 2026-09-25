@@ -2,7 +2,14 @@
 setlocal
 pushd "%~dp0"
 if errorlevel 1 exit /b 1
-call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" >nul
+set "LLMX_VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%LLMX_VSWHERE%" ( echo [build] vswhere.exe not found at "%LLMX_VSWHERE%": install Visual Studio 2022 or later with the Desktop development with C++ workload & popd & exit /b 1 )
+set "LLMX_VS="
+for /f "usebackq delims=" %%P in (`"%LLMX_VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "LLMX_VS=%%P"
+if not defined LLMX_VS for /f "usebackq delims=" %%P in (`"%LLMX_VSWHERE%" -latest -prerelease -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "LLMX_VS=%%P"
+if not defined LLMX_VS ( echo [build] no Visual Studio installation has the x64 C++ build tools: add the Desktop development with C++ workload in the Visual Studio Installer & popd & exit /b 1 )
+if not exist "%LLMX_VS%\VC\Auxiliary\Build\vcvars64.bat" ( echo [build] vcvars64.bat not found under "%LLMX_VS%": repair the C++ workload in the Visual Studio Installer & popd & exit /b 1 )
+call "%LLMX_VS%\VC\Auxiliary\Build\vcvars64.bat" >nul
 if errorlevel 1 ( echo [build] vcvars64 failed & popd & exit /b 1 )
 set "LLMX_BUILD_ID=unknown"
 set "LLMX_GIT_ROOT="

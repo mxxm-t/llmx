@@ -155,7 +155,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - A software Vulkan job: the kernel changes it needs would be tested only by that job.
   - A test-only way past the subgroup check to run the storage and submission checks: `vulkan-buffer` already covers them with its fake device and no runtime hook.
   - A CPU alias so the CLI can split on the CPU: the listed-once refusal exists because two stages would drive one backend and count its free memory twice. The placement CTest and `llmx-split-check` cover the split without it.
-  - `build.bat` on the hosted Windows runner: it hard-codes the workstation's Visual Studio path, and CMake is the hosted build.
+  - `build.bat` on the hosted Windows runner: CMake is the hosted build.
   - A nightly long-context run on the CPU against itself: it proves only determinism, which the server checks already require.
   - The real-model server pass on Windows and macOS: the synthetic server pass already runs on every platform.
   - `MappedFile::drop` with a payload larger than host memory, and the split lines of `--verbose`: they need memory or devices a hosted runner lacks.

@@ -30,15 +30,24 @@ is measured against the single-sequence path and the reference.
   Finished requests stay a while as donors; the donor with the longest
   run of matching full blocks is found by comparing tokens, not hashes,
   since a server holds at most `max_seqs` donors for one model
-  ([KV-CACHE](KV-CACHE.md), "Prefix sharing"). A live request's growing
-  history is never shared.
+  ([KV-CACHE](KV-CACHE.md), "Prefix sharing"). A run is counted in the
+  largest block of the model's storages (a device and the CPU in one
+  placement can differ), which is whole in every storage because a model
+  refuses block sizes that do not nest. A live request's growing history
+  is never shared.
 - **A memory budget that admits, not crashes.** The KV pool holds
-  `--ctx-size` tokens in total, the model context by default. A request is
-  admitted when the pool can hold its prompt and its `max_tokens`;
-  otherwise it waits in the queue, and past `--max-queue` waiting requests
-  a new one is refused with 503. An admitted request is never evicted;
-  donors are, oldest first, when a request needs their blocks. A request
-  that cannot be admitted is not started.
+  `--ctx-size` tokens in total, the model context by default. A capped
+  request is admitted when the pool can hold its prompt and its
+  `max_tokens`, an uncapped one (a compatible route without `max_tokens`)
+  when it can hold its prompt and a growth step, reserving more as it
+  generates; otherwise it waits in the queue, and past `--max-queue`
+  waiting requests a new one is refused with 503. Donors are evicted,
+  oldest first, when a request needs their blocks. When an uncapped
+  request cannot grow even then, the latest admitted uncapped request is
+  paused: its history becomes a donor and it is queued again at the front,
+  resuming from those blocks unless another request needed them. A capped
+  request is never paused, and a request that cannot be admitted is not
+  started.
 - **Dependency-free transport.** HTTP/1.1 over BSD sockets and Winsock,
   request parsing, chunked responses, JSON in and out through
   `core/json.hpp`. No TLS: the server sits behind a reverse proxy when it
@@ -88,11 +97,15 @@ has retired.
 ```
 loop:
   admit:   while the queue has a request and the pool can hold its prompt
-           plus max_tokens (dropping donors, oldest first, to make room),
-           and active < max_seqs: take it, find the donor sharing the
+           plus max_tokens, or an uncapped request's prompt plus a growth
+           step (dropping donors, oldest first, to make room), and
+           active < max_seqs: take it, find the donor sharing the
            longest run of full blocks, fork it and roll the fork back to
            the shared blocks, or make a fresh sequence; mark the request
            "prefilling" with an offset into its prompt
+  grow:    an uncapped decoding request whose next token passes its
+           reservation reserves another step, dropping donors first, or
+           else the latest admitted uncapped request is paused
   assemble: one entry per decoding request with its last sampled id;
            then prompt slices from prefilling requests, in queue order,
            until the pass holds ubatch tokens; a request whose slice ends
@@ -140,7 +153,8 @@ POST /v1/generate    {"prompt": "...", "max_tokens": 64, "temperature": 0.8,
 POST /v1/chat        {"messages": [{"role": "user", "content": "..."}], ...}
                      the model's chat template renders the prompt
 GET  /v1/health      {"status": "ok", "model": "...", "active": n, "queued": m,
-                      "donors": d, "prefix_hits": h, "prefix_tokens": t}
+                      "donors": d, "prefix_hits": h, "prefix_tokens": t,
+                      "pauses": p}
 GET  /v1/models      {"object": "list", "data": [{"id": "...", "object": "model", ...}]}
 POST /v1/chat/completions   the OpenAI clients' shape over the same scheduler
 POST /v1/completions        request: one parse, one request, one drain loop
@@ -167,12 +181,8 @@ full.
 
 ### What is not in the first version
 
-- Eviction or preemption of admitted requests; admission is the budget.
 - A prefix index that outlives the process, spans models or holds more
   than a few dozen donors: the hashed key of KV-CACHE is for that scale.
-- Prefix reuse across two block sizes (a device and the CPU in one
-  placement): the shared run is rounded to the first storage's block
-  size, which every storage of one model shares today.
 - Speculative decoding, grammars, logit bias, embeddings endpoints.
 - TLS, authentication, rate limiting: the reverse proxy's job.
 

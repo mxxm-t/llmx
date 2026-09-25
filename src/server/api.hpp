@@ -204,7 +204,7 @@ private:
         return "{\"prompt_tokens\":" + std::to_string(prompt_tokens) + ",\"completion_tokens\":" + std::to_string(tokens) +
                ",\"total_tokens\":" + std::to_string(prompt_tokens + tokens) + "}";
     }
-    // A finished request's speed in the fields clients such as Open WebUI read beside the standard usage: prompt tokens prefilled and reused, milliseconds to the first token, and generation after it.
+    // A finished request's speed in the fields clients that display speed read beside the standard usage: prompt tokens prefilled and reused, milliseconds to the first token, and generation after it.
     static std::string timings_json(const Request& r, size_t tokens) {
         const Request::Timings t = r.timings();
         const size_t cached = r.reused(), prefilled = r.prompt_tokens() - cached, predicted = tokens > 1 ? tokens - 1 : 0;

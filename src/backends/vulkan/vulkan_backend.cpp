@@ -835,11 +835,6 @@ public:
         if (!f2.features.shaderStorageBufferArrayDynamicIndexing)
             throw VulkanUnavailable("vulkan: " + d.name + " cannot index storage buffer arrays dynamically");
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
-        VkPhysicalDeviceShaderIntegerDotProductFeatures edot{};
-        edot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
-        edot.shaderIntegerDotProduct = VK_TRUE;
-        edot.pNext = e2.pNext;
-        e2.pNext = &edot;
         // The row kernel's activations are 16-bit integers (shaders/quantize_x.comp).
         if (!f2.features.shaderInt16)
             throw VulkanUnavailable("vulkan: " + d.name + " has no 16-bit integer arithmetic");
@@ -873,6 +868,14 @@ public:
         if (d.exec_stats) {
             estat.pNext = e2.pNext;
             e2.pNext = &estat;
+        }
+        // A feature struct of an extension the device lacks must not be chained.
+        VkPhysicalDeviceShaderIntegerDotProductFeatures edot{};
+        edot.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES;
+        edot.shaderIntegerDotProduct = VK_TRUE;
+        if (d.integer_dot) {
+            edot.pNext = e2.pNext;
+            e2.pNext = &edot;
         }
 
         // The profile is chosen here because it depends on the extension scan above.

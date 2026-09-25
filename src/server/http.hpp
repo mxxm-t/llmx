@@ -289,7 +289,7 @@ private:
     uint16_t port_ = 0;
 };
 
-// The client side, for tests and for the CLI's own checks: one request, the whole response read to the end, chunked bodies decoded.
+// The client side, for the tests: one request, the whole response read to the end, chunked bodies decoded.
 // Returns the status; `chunks` receives each chunk as it arrived when the reply was chunked, so a test can see where the server split the stream.
 inline int fetch(const std::string& host, uint16_t port, const std::string& method, const std::string& path,
                  const std::string& body, std::string& out, std::vector<std::string>* chunks = nullptr,

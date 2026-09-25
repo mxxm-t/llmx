@@ -8,9 +8,9 @@
 #include "format/gguf.hpp"
 #include "quant/k_quants.hpp"
 
-// Q8_0 block quantization kernels, from scratch.
-// A block holds 32 float values that are compressed into a 2-byte f16 scale + 32 int8 quantized values (gguf::Q8_0_TYPESIZE bytes per block).
-// These kernels are the building blocks for both the quantize command (float -> Q8_0) and the dequantize command / CPU inference path (Q8_0 -> float).
+// Block quantization: the Q8_0, Q4_0 and Q4_1 row kernels, and the registry naming each GGUF type llmx reads with its block size and kernels (the K-quants' are in k_quants.hpp).
+// A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (gguf::Q8_0_TYPESIZE bytes per block).
+// The kernels serve the quantize command (float -> block) and the dequantize command and CPU inference path (block -> float).
 
 namespace quant {
 
@@ -164,7 +164,7 @@ private:
     std::unordered_map<uint32_t, QuantType> types_;
 };
 
-// Register the built-in quant types (Q8_0). Safe to call multiple times.
+// Register the built-in quant types. Safe to call multiple times.
 inline void register_builtins() {
     Registry& r = Registry::instance();
     r.clear();
@@ -177,7 +177,7 @@ inline void register_builtins() {
     r.add(gguf::GGML_TYPE_Q4_1,
           { "Q4_1", gguf::Q4_1_BLOCK, gguf::Q4_1_TYPESIZE,
             quantize_row_q4_1, dequantize_row_q4_1 });
-    // Q6_K is read-only: converters upgrade a few tensors to it inside an otherwise Q4_0 file, so llmx needs to LOAD it, but nothing here produces it and a quantizer would be unused code.
+    // The K-quants are read-only: llmx loads files that carry them, including a few Q6_K tensors inside an otherwise Q4_0 file, but produces none, so a quantizer would be unused code.
     r.add(gguf::GGML_TYPE_Q4_K,
           { "Q4_K", gguf::Q4_K_BLOCK, gguf::Q4_K_TYPESIZE,
             nullptr, dequantize_row_q4_K });

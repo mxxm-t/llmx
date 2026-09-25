@@ -2,6 +2,7 @@
 #include "backends/device_profile.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "format/gguf.hpp"
+#include "quant/quant.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -1375,7 +1376,7 @@ public:
     void matmul_runs(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nbatch,
                      bool accumulate, RowRuns runs) {
         if (!runs.n || !nbatch) {
-            matmul_group_impl(projections, X, nin, nbatch, accumulate);
+            matmul_group_impl(projections.begin(), projections.size(), X, nin, nbatch, accumulate);
             return;
         }
         if (runs.runs[runs.n - 1].end != nbatch) throw std::runtime_error("vulkan: row runs do not cover the batch");
@@ -1397,15 +1398,12 @@ public:
             if (end > start) {
                 const int k = tile ? 1 : 0;
                 if (start == 0 && end == nbatch) {
-                    matmul_group_impl(projections, X, nin, nbatch, accumulate, k, split);
+                    matmul_group_impl(projections.begin(), projections.size(), X, nin, nbatch, accumulate, k, split);
                 } else {
                     std::vector<Projection> at(projections);
                     for (Projection& pr : at) pr.out.offset += start * pr.rows;
                     const CSlice xs{X.buffer, X.offset + start * nin};
-                    if (at.size() == 1) matmul_group_impl({at[0]}, xs, nin, end - start, accumulate, k, split);
-                    else if (at.size() == 2) matmul_group_impl({at[0], at[1]}, xs, nin, end - start, accumulate, k, split);
-                    else if (at.size() == 3) matmul_group_impl({at[0], at[1], at[2]}, xs, nin, end - start, accumulate, k, split);
-                    else throw std::logic_error("vulkan: a row-run call of more than three projections");
+                    matmul_group_impl(at.data(), at.size(), xs, nin, end - start, accumulate, k, split);
                 }
             }
             start = end;
@@ -1415,28 +1413,19 @@ public:
 
     // Up to three projections of one X in one dispatch: the row kernel for narrow batches hands workgroups to projections in order; wide batches take the tile.
     // `kernel_choice` forces the row kernel (0) or the tile (1), below zero the call's width chooses; `split_tiles` is the column tiles the tile's split is taken for, zero for the call's own.
-    void matmul_group_impl(std::initializer_list<Projection> projections, CSlice X,
+    void matmul_group_impl(const Projection* projections, size_t count, CSlice X,
                            size_t nin, size_t nbatch, bool accumulate, int kernel_choice = -1, size_t split_tiles = 0) {
-        if (projections.size() > 3) {
-            // The kernel's limit, and no caller passes more; split.
-            std::vector<Projection> all(projections);
-            for (size_t i = 0; i < all.size(); i += 3) {
-                std::initializer_list<Projection> part =
-                    i + 3 <= all.size() ? std::initializer_list<Projection>{all[i], all[i + 1], all[i + 2]}
-                    : (i + 2 == all.size() ? std::initializer_list<Projection>{all[i], all[i + 1]}
-                                           : std::initializer_list<Projection>{all[i]});
-                matmul_group_impl(part, X, nin, nbatch, accumulate, kernel_choice, split_tiles);
-            }
-            return;
-        }
+        // The kernels' limit; no caller passes more.
+        if (count > 3) throw std::logic_error("vulkan: a matmul call of more than three projections");
         if (!nbatch) return;
         std::vector<const Projection*> live;
-        for (const Projection& pr : projections) {
+        for (size_t i = 0; i < count; ++i) {
+            const Projection& pr = projections[i];
             if (!pr.data.buffer) throw std::runtime_error("vulkan: projection without storage");
             const size_t row_bytes = row_bytes_of(pr.type, nin);
             if (!row_bytes)
                 throw std::runtime_error("vulkan: unsupported matrix type " + std::to_string(pr.type) +
-                                         " (docs/VULKAN.md sub-step 6)");
+                                         " (docs/VULKAN.md lists the types the kernels decode)");
             if (nin % block_values_of(pr.type))
                 throw std::runtime_error("vulkan: matrix width is not whole blocks");
             if (bytes_from(pr.data) < pr.rows * row_bytes || floats_from(pr.out) < nbatch * pr.rows)
@@ -1508,39 +1497,23 @@ public:
                     const uint32_t qpc[3] = {u32(nbatch * nin), u32(nin), u32(nbatch)};
                     dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(nbatch * nin, 256));
                 }
-                size_t rows = 0;
-                for (const Projection* pr : group) rows += pr->rows;
-                const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
-                                                      rows, gy, nin);
-                const bool tall = height == kTileRowsTall;
-                const bool q6 = group[0]->type == gguf::GGML_TYPE_Q6_K;
-                const KernelId kernel = q6 ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
-                                           : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
-                uint32_t start[3] = {0, 0, 0}, nout[3] = {0, 0, 0};
-                size_t gx = 0;
-                for (size_t i = 0; i < group.size(); ++i) {
-                    start[i] = u32(gx);
-                    nout[i] = u32(group[i]->rows);
-                    gx += groups(group[i]->rows, height);
-                }
+                const QTile t = qtile(group, gy, nin);
                 // The split is the one the rows' whole prompt would take (matmul_runs).
                 const size_t st = split_tiles ? split_tiles : gy;
-                const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, rows, st, nin);
+                const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, st, nin);
                 size_t gxs = 0;
                 for (const Projection* pr : group) gxs += groups(pr->rows, hs);
                 const size_t kper = split_blocks(gxs * st, nblk);
                 const size_t parts = (nblk + kper - 1) / kper;
                 const uint32_t pc[14] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
-                                         u32(group.size()), nout[0], start[0], nout[1], start[1], nout[2], start[2], 0, 0};
-                const Projection& a = *group[0];
-                const Projection& b = group.size() > 1 ? *group[1] : a;
-                const Projection& c = group.size() > 2 ? *group[2] : a;
-                const int small = height == kTileRowsSmall ? 1 : 0;
+                                         u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0};
+                const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
+                const int small = t.height == kTileRowsSmall ? 1 : 0;
                 if (parts > 1) {
-                    const size_t n = nbatch * rows;
+                    const size_t n = nbatch * t.rows;
                     if (!parts_ || parts_->size() < parts * n * sizeof(float)) grow(parts_, parts * n * sizeof(float));
                     const VkDescriptorBufferInfo pb{parts_->handle(), 0, VK_WHOLE_SIZE};
-                    dispatch(kernel, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), x8, x8, x8}, pc, sizeof(pc), u32(gx),
+                    dispatch(t.kernel, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), x8, x8, x8}, pc, sizeof(pc), u32(t.gx),
                              u32(gy * parts), small);
                     const size_t n0 = nbatch * a.rows, n1 = group.size() > 1 ? nbatch * b.rows : 0,
                                  n2 = group.size() > 2 ? nbatch * c.rows : 0;
@@ -1551,8 +1524,8 @@ public:
                     dispatch(K_MATMUL_REDUCE, {bind(a.out), bind(b.out), bind(c.out), pb}, rc, sizeof(rc),
                              u32(start2 + groups(n2, 256)));
                 } else {
-                    dispatch(kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, x8},
-                             pc, sizeof(pc), u32(gx), (uint32_t)gy, small);
+                    dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, x8},
+                             pc, sizeof(pc), u32(t.gx), (uint32_t)gy, small);
                 }
             }
             return;
@@ -1564,13 +1537,8 @@ public:
                 std::vector<Projection> same, rest;
                 for (const Projection* pr : live)
                     (pr->type == live[0]->type ? same : rest).push_back(*pr);
-                auto run = [&](const std::vector<Projection>& v) {
-                    if (v.size() == 1) matmul_group_impl({v[0]}, X, nin, nbatch, accumulate, kernel_choice);
-                    else if (v.size() == 2) matmul_group_impl({v[0], v[1]}, X, nin, nbatch, accumulate, kernel_choice);
-                    else matmul_group_impl({v[0], v[1], v[2]}, X, nin, nbatch, accumulate, kernel_choice);
-                };
-                run(same);
-                run(rest);
+                matmul_group_impl(same.data(), same.size(), X, nin, nbatch, accumulate, kernel_choice);
+                matmul_group_impl(rest.data(), rest.size(), X, nin, nbatch, accumulate, kernel_choice);
                 return;
             }
         const RowPlan plan = row_plan(live[0]->type, nin);
@@ -1820,26 +1788,12 @@ public:
             const VkDescriptorBufferInfo x8 = x8_for(xcols * nin);
             const uint32_t qpc[3] = {u32(xcols * nin), u32(nin), u32(xcols)};
             dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(xcols * nin, 256));
-            size_t rows = 0;
-            for (const Projection* pr : live) rows += pr->rows;
-            const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
-                                                  rows, max_tiles, nin);
-            const bool tall = height == kTileRowsTall, q6 = type == gguf::GGML_TYPE_Q6_K;
-            const KernelId kernel = q6 ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6) : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
-            uint32_t start[3] = {0, 0, 0}, nout[3] = {0, 0, 0};
-            size_t gx = 0;
-            for (size_t i = 0; i < live.size(); ++i) {
-                start[i] = u32(gx);
-                nout[i] = u32(live[i]->rows);
-                gx += groups(live[i]->rows, height);
-            }
-            const Projection& a = *live[0];
-            const Projection& b = live.size() > 1 ? *live[1] : a;
-            const Projection& c = live.size() > 2 ? *live[2] : a;
+            const QTile t = qtile(live, max_tiles, nin);
+            const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
             const uint32_t pc[14] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
-                                     nout[0], start[0], nout[1], start[1], nout[2], start[2], u32(per), order0};
-            dispatch(kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, tab},
-                     pc, sizeof(pc), u32(gx), u32(max_tiles), height == kTileRowsSmall ? 1 : 0);
+                                     t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0};
+            dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, tab},
+                     pc, sizeof(pc), u32(t.gx), u32(max_tiles), t.height == kTileRowsSmall ? 1 : 0);
         } else {
             for (const Projection* pr : live) {
                 const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
@@ -1890,6 +1844,32 @@ public:
     // Whether a type's wide matmul goes through the integer-dot tile on this device; profile_for prefers the integer dot only where the device has it.
     bool integer_dot_tile(uint32_t type) const {
         return dev_->profile.prefer_integer_dot && type != gguf::GGML_TYPE_F32;
+    }
+
+    // An integer-dot tile call over up to three projections of one type: the height their rows and `column_groups` call for, its module, and each projection's first workgroup and rows.
+    // Unused slots repeat the first projection, which no workgroup reaches.
+    struct QTile {
+        uint32_t height = 0;
+        KernelId kernel = K_MATMUL_TILE_Q;
+        size_t rows = 0, gx = 0;
+        uint32_t start[3] = {0, 0, 0}, nout[3] = {0, 0, 0};
+        const Projection* p[3] = {nullptr, nullptr, nullptr};
+    };
+    QTile qtile(const std::vector<const Projection*>& ps, size_t column_groups, size_t nin) const {
+        QTile t;
+        for (const Projection* pr : ps) t.rows += pr->rows;
+        t.height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
+        const bool tall = t.height == kTileRowsTall;
+        t.kernel = ps[0]->type == gguf::GGML_TYPE_Q6_K ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
+                                                         : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
+        for (size_t i = 0; i < 3; ++i) {
+            t.p[i] = i < ps.size() ? ps[i] : ps[0];
+            if (i >= ps.size()) continue;
+            t.start[i] = u32(t.gx);
+            t.nout[i] = u32(ps[i]->rows);
+            t.gx += groups(ps[i]->rows, t.height);
+        }
+        return t;
     }
 
     // Cache adopted F32 matrices with kF32Pad floats after each row whose width is a multiple of 256, reducing channel conflicts (docs/VULKAN.md).
@@ -2160,22 +2140,24 @@ private:
         return *s;
     }
 
-    // Bytes per row of a matrix type the kernels decode, zero for one they do not; and the values per block.
-    static size_t block_values_of(uint32_t type) {
-        return type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K || type == gguf::GGML_TYPE_Q6_K
-                   ? gguf::Q6_K_BLOCK : type == gguf::GGML_TYPE_F32 ? 1 : 32;
-    }
-    static size_t row_bytes_of(uint32_t type, size_t nin) {
+    // The registry's entry for a block type the kernels decode, null for any other type.
+    static const quant::QuantType* decoded_blocks(uint32_t type) {
         switch (type) {
-        case gguf::GGML_TYPE_F32: return nin * sizeof(float);
-        case gguf::GGML_TYPE_Q8_0: return (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE;
-        case gguf::GGML_TYPE_Q4_0: return (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE;
-        case gguf::GGML_TYPE_Q4_1: return (nin / gguf::Q4_1_BLOCK) * gguf::Q4_1_TYPESIZE;
-        case gguf::GGML_TYPE_Q4_K: return (nin / gguf::Q4_K_BLOCK) * gguf::Q4_K_TYPESIZE;
-        case gguf::GGML_TYPE_Q5_K: return (nin / gguf::Q5_K_BLOCK) * gguf::Q5_K_TYPESIZE;
-        case gguf::GGML_TYPE_Q6_K: return (nin / gguf::Q6_K_BLOCK) * gguf::Q6_K_TYPESIZE;
-        default: return 0;
+        case gguf::GGML_TYPE_Q8_0: case gguf::GGML_TYPE_Q4_0: case gguf::GGML_TYPE_Q4_1:
+        case gguf::GGML_TYPE_Q4_K: case gguf::GGML_TYPE_Q5_K: case gguf::GGML_TYPE_Q6_K:
+            return quant::Registry::instance().get(type);
+        default: return nullptr;
         }
+    }
+    // Bytes per row of a matrix type the kernels decode, zero for one they do not; and the values per block, one for F32.
+    static size_t row_bytes_of(uint32_t type, size_t nin) {
+        if (type == gguf::GGML_TYPE_F32) return nin * sizeof(float);
+        const quant::QuantType* qt = decoded_blocks(type);
+        return qt ? nin / qt->block_size * qt->type_size : 0;
+    }
+    static size_t block_values_of(uint32_t type) {
+        const quant::QuantType* qt = decoded_blocks(type);
+        return qt ? qt->block_size : 1;
     }
 
     static uint32_t u32(size_t v) {
@@ -2384,12 +2366,6 @@ private:
         barrier(cmd);
         // A pass is submitted in chunks so the device starts on the first while the host records the rest; the ordered timeline makes the last chunk's ticket cover them all.
         if (++chunk_ >= dev_->profile.dispatch_chunk) submit();
-    }
-
-    [[noreturn]] static void todo(const char* op, int substep) {
-        throw std::runtime_error(std::string("vulkan: ") + op +
-                                 " is not implemented yet (docs/VULKAN.md sub-step " +
-                                 std::to_string(substep) + ")");
     }
 
     // The open command buffer, beginning the next ring slot once its last submission has retired.

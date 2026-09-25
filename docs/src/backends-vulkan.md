@@ -42,7 +42,9 @@ kernel notes and measurements are `docs/VULKAN.md`.
   Successfully adopted weights retain their eligibility for padded F32 copies.
   Padded copies enter their owning cache before their copy command is recorded;
   a replaced copy is retained by the command-buffer slot first.
-- `matmul` and `matmul_group`: narrow batches take the row kernel, one
+- `matmul` and `matmul_group` (up to three projections a call, the
+  kernels' limit, with a type's block sizes from `quant::Registry`): narrow
+  batches take the row kernel, one
   module per family of types, reading quantized rows against an integer
   twin of the activations (`shaders/xquant.glsl`) that the producing
   kernel, the norm, the SiLU or the attention, writes beside its output

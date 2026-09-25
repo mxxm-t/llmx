@@ -22,6 +22,7 @@
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "bench_weights.hpp"
 #include "format/gguf.hpp"
+#include "quant/quant.hpp"
 
 namespace {
 
@@ -396,6 +397,7 @@ std::vector<int> parse_devices(int argc, char** argv, int from, int& next) {
 
 int main(int argc, char** argv) {
     try {
+        quant::register_builtins();
         const std::string mode = argc > 1 ? argv[1] : "";
         int next = 0;
         if (mode == "concurrent") return concurrent(parse_devices(argc, argv, 2, next));

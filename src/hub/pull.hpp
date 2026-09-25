@@ -13,10 +13,13 @@
 
 namespace hub {
 
+// The most byte-range streams one file is downloaded over, the top of --parallel's range, which the CLI reads and pull checks.
+constexpr unsigned max_parallel_streams = 16;
+
 struct PullOptions {
     std::string repo, quant, revision = "main", filename, token;
     std::filesystem::path cache;
-    unsigned parallel = 4;
+    unsigned parallel = 4;   // from 1 to max_parallel_streams
 };
 using PullProgress = std::function<void(const std::string&)>;
 
@@ -227,7 +230,8 @@ inline std::filesystem::path pull(PullOptions options, const PullProgress& progr
     if (options.revision.empty() || options.revision.size() > 256)
         throw std::runtime_error("pull: invalid revision");
     transport_detail::clean_text(options.revision);
-    if (options.parallel < 1 || options.parallel > 16) throw std::runtime_error("pull: --parallel must be between 1 and 16");
+    if (options.parallel < 1 || options.parallel > max_parallel_streams)
+        throw std::runtime_error("pull: --parallel must be between 1 and " + std::to_string(max_parallel_streams));
     if (options.cache.empty()) options.cache = default_cache();
     std::filesystem::create_directories(options.cache);
     const auto root = std::filesystem::canonical(options.cache);

@@ -125,7 +125,7 @@ def check_logits_input(directory, model, cases):
     path = os.path.join(directory, "prompt.txt")
     with open(path, "wb") as f:
         f.write(text.encode())
-    rc, out = cli(["logits", model, path, "--file", "--top", "257"])
+    rc, out = cli(["logits", model, "--file", path, "--top", "257"])
     assert rc == 0 and out == inline, "logits --file differs from the inline prompt: " + out
     # The vocabulary is one token per byte, id equal to the byte, so a case's last position is its length less one.
     head = TEXTS[2]

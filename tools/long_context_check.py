@@ -133,7 +133,7 @@ def baseline_logits(exe, model, baseline, prompt, reply_ids, extra):
             f.write(prompt)
         with open(ids_path, "w", encoding="utf-8") as f:
             f.write(" ".join(str(i) for i in reply_ids[:-1]))
-        cmd = [exe, "logits", model, text_path, "--file", "--then-ids", ids_path,
+        cmd = [exe, "logits", model, "--file", text_path, "--then-ids", ids_path,
                "--last", str(len(reply_ids)), "--top", str(TOP), "--device", baseline] + extra
         out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if out.returncode != 0:

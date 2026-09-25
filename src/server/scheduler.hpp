@@ -139,8 +139,8 @@ struct TooLong : std::runtime_error {
 class Scheduler {
 public:
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue)
-        : model_(model), tok_(tok), max_seqs_(max_seqs ? max_seqs : 1), ubatch_(model.prefill_batch()),
-          max_queue_(max_queue ? max_queue : 1), reserved_(model.kv_pools(), 0) {}
+        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()),
+          max_queue_(max_queue), reserved_(model.kv_pools(), 0) {}
 
     // Tokens one request may hold, prompt and reply together: the model context or the KV pool, whichever is smaller.
     size_t token_limit() const {

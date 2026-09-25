@@ -1342,6 +1342,8 @@ struct PlacedModel {
 inline PlacedModel place_model(const gguf::GGUFModel& m, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
                                const ModelOptions& options) {
     if (backends.empty()) throw std::runtime_error("placement: no device");
+    if (request.stream_from && !request.cpu_moe)
+        throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
     PlacedModel placed;
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)

@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <limits>
 #include <unordered_set>
 
 // Sampling logic and generation parameters, split out of the CLI so the same sampler can drive generate, perplexity, and chat.
@@ -44,6 +45,17 @@ struct GenParams {
     std::string stop;       // stop generating when decoded output contains this
     bool show_prompt_tokens = false;
 };
+
+// The values a sampling setting takes, from lo to hi; the CLI's flags and the server's request fields both refuse a value outside them.
+template <class T>
+struct SampleRange {
+    T lo, hi;
+    bool holds(T v) const { return v >= lo && v <= hi; }   // false for NaN
+};
+inline constexpr SampleRange<float> kTempRange{0.0f, std::numeric_limits<float>::max()};   // 0 is greedy
+inline constexpr SampleRange<int> kTopKRange{0, std::numeric_limits<int>::max()};           // 0 keeps every token
+inline constexpr SampleRange<float> kTopPRange{0.0f, 1.0f};                                 // 1 keeps every token
+inline constexpr SampleRange<float> kPenaltyRange{1.0f, std::numeric_limits<float>::max()}; // 1 is none, and below 1 would favor repeats
 
 // Temperature + top-k + top-p nucleus sampling with repetition penalty.
 // `penalty` >= 1: divide the score of each already-generated token by penalty to discourage repeats.

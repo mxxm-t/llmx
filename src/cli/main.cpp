@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <chrono>
+#include <charconv>
 #include <limits>
 
 #if defined(_WIN32)
@@ -46,6 +47,108 @@
 // CLI argument parsing and dispatch; format, quantization, inference and model logic stay in their own layers.
 
 namespace {
+
+// A command line the command cannot take: main prints the command's page on stderr and exits with status 2.
+struct UsageError : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
+// The value after `flag`, which a flag at the end of the line lacks.
+std::string flag_value(int argc, char** argv, int& i, const std::string& flag) {
+    if (i + 1 >= argc) throw UsageError(flag + " needs a value");
+    return argv[++i];
+}
+
+template <class T>
+std::string range_text(T lo, T hi) {
+    std::ostringstream s;
+    if (hi == std::numeric_limits<T>::max()) s << "of at least " << lo;
+    else s << "from " << lo << " to " << hi;
+    return s.str();
+}
+
+// A decimal whole number from `lo` to `hi`, digits and nothing else: no space, sign, base prefix or fraction.
+template <class T>
+T whole_number(const std::string& text, const std::string& what, T lo, T hi) {
+    T v{};
+    const char* end = text.data() + text.size();
+    const bool digits = !text.empty() && text.find_first_not_of("0123456789") == std::string::npos;
+    const auto parsed = std::from_chars(text.data(), end, v);
+    if (!digits || parsed.ec != std::errc() || parsed.ptr != end || v < lo || v > hi)
+        throw UsageError(what + ": '" + text + "' is not a whole number " + range_text(lo, hi));
+    return v;
+}
+
+// The whole number after `flag`, from `lo` to `hi`.
+template <class T = int>
+T int_arg(int argc, char** argv, int& i, const std::string& flag, T lo, T hi = std::numeric_limits<T>::max()) {
+    return whole_number<T>(flag_value(argc, argv, i, flag), flag, lo, hi);
+}
+
+// The decimal number after `flag`, from `lo` to `hi`: digits, a point and an exponent, so no infinity, NaN or hexadecimal form.
+float float_arg(int argc, char** argv, int& i, const std::string& flag, float lo, float hi = std::numeric_limits<float>::max()) {
+    const std::string text = flag_value(argc, argv, i, flag);
+    const bool decimal = !text.empty() && text[0] != '+' && text.find_first_not_of("0123456789.eE+-") == std::string::npos;
+    char* end = nullptr;
+    const float v = decimal ? std::strtof(text.c_str(), &end) : 0.0f;
+    if (!decimal || end != text.c_str() + text.size() || !(v >= lo && v <= hi))
+        throw UsageError(flag + ": '" + text + "' is not a number " + range_text(lo, hi));
+    return v;
+}
+
+// The cache type after `flag` in its one spelling, checked as it is read, so an empty or unknown name is refused before any model file is read.
+std::string cache_type_arg(int argc, char** argv, int& i, const std::string& flag) {
+    const std::string name = flag_value(argc, argv, i, flag);
+    try {
+        return backend::kv_type_name(backend::kv_type_of(name));
+    } catch (const std::runtime_error& e) {
+        throw UsageError(flag + ": " + e.what());
+    }
+}
+
+// Token ids separated by commas or whitespace, each checked against the vocabulary while it is still 64 bits wide, so an id past 2^32 is not narrowed into it.
+std::vector<uint32_t> token_ids(const std::string& text, size_t vocab_size) {
+    static const char separators[] = ", \t\n\v\f\r";
+    std::vector<uint32_t> ids;
+    for (size_t i = text.find_first_not_of(separators); i != std::string::npos; i = text.find_first_not_of(separators, i)) {
+        const size_t end = std::min(text.find_first_of(separators, i), text.size());
+        const std::string item = text.substr(i, end - i);
+        if (item.find_first_not_of("0123456789") != std::string::npos)
+            throw std::runtime_error("'" + item + "' is not a token id");
+        uint64_t id = 0;
+        if (std::from_chars(item.data(), item.data() + item.size(), id).ec != std::errc() || id >= vocab_size)
+            throw std::runtime_error("token id " + item + " is outside the vocabulary of " + std::to_string(vocab_size) + " tokens");
+        ids.push_back((uint32_t)id);
+        i = end;
+    }
+    return ids;
+}
+
+// The bytes of a text file as they are; `command` names the refusal.
+std::string read_text_file(const std::string& path, const std::string& command) {
+    std::ifstream input(std::filesystem::u8path(path), std::ios::binary);
+    if (!input) throw std::runtime_error(command + ": cannot open file: " + path);
+    std::string text;
+    char buffer[8192];
+    while (input.read(buffer, sizeof(buffer)) || input.gcount())
+        text.append(buffer, (size_t)input.gcount());
+    if (!input.eof()) throw std::runtime_error(command + ": cannot read file: " + path);
+    return text;
+}
+
+// logits and perplexity take their text right after the model, inline or from the file `--file` or `-f` names; returns the first flag's index, 5 for a file.
+int text_arg(int argc, char** argv) {
+    if (argc < 4) throw UsageError("missing the model or the text");
+    const std::string a = argv[3];
+    if (a != "--file" && a != "-f") return 4;
+    if (argc < 5) throw UsageError(a + " needs a path");
+    return 5;
+}
+
+// A file among the flags comes after the text, so it would be a second one.
+void no_second_text(const std::string& a) {
+    if (a == "--file" || a == "-f") throw UsageError(a + " goes right after the model, in place of the text");
+}
 
 bool show_progress(const infer::GenParams& gp) {
 #if defined(_WIN32)
@@ -86,11 +189,11 @@ void emit_text(const std::string& text) {
 // commands
 // ---------------------------------------------------------------------------
 
-// An unknown type name is refused as a usage error, with status 2, before any file is opened.
+// An unknown type name is a usage error, refused before any file is opened.
 int cmd_quantize(const std::string& json_path, const std::string& bin_path,
                  const std::string& out_path, const std::string& type_arg) {
     const std::optional<uint32_t> type = quant::quant_type_of(type_arg);
-    if (!type) { std::cerr << "unknown quant type: " << type_arg << " (expected q8_0 or q4_0)\n"; return 2; }
+    if (!type) throw UsageError("unknown quant type: " + type_arg + " (expected q8_0 or q4_0)");
     const size_t tensors = quant::quantize_raw(json_path, bin_path, out_path, *type);
     std::cout << "wrote " << out_path << " (" << tensors << " tensors, " << type_arg << ")\n";
     return 0;
@@ -159,18 +262,6 @@ int cmd_info(const std::string& in_path) {
     return 0;
 }
 
-std::vector<uint32_t> parse_token_ids(const std::string& s) {
-    std::vector<uint32_t> ids;
-    std::string cur;
-    for (char c : s) {
-        if (c == ',' || c == ' ') {
-            if (!cur.empty()) { ids.push_back((uint32_t)std::stoull(cur)); cur.clear(); }
-        } else cur += c;
-    }
-    if (!cur.empty()) ids.push_back((uint32_t)std::stoull(cur));
-    return ids;
-}
-
 int cmd_tokenize(const std::string& model_path, const std::string& text) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer t(m);
@@ -186,26 +277,15 @@ int cmd_tokenize(const std::string& model_path, const std::string& text) {
 int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
     gguf::GGUFModel m = gguf::read_gguf(model_path);
     bpe::Tokenizer t(m);
-    std::vector<uint32_t> ids = parse_token_ids(ids_arg);
-    // decode() rejects an out-of-range id, but only the caller knows which id it was and how large the vocabulary is.
-    for (uint32_t id : ids)
-        if (id >= t.vocab.size())
-            throw std::runtime_error("detokenize: token id " + std::to_string(id) +
-                                     " is outside the vocabulary of " +
-                                     std::to_string(t.vocab.size()) + " tokens");
-    std::cout << t.decode(ids) << "\n";
+    std::cout << t.decode(token_ids(ids_arg, t.vocab.size())) << "\n";
     return 0;
 }
 
-// Canonical spelling keeps vulkan and vulkan:00 from naming the same device twice.
+// --layer-shares: one whole-number proportion per listed device.
 std::vector<int> layer_shares(const std::string& value) {
     std::vector<int> shares;
     if (value.empty()) return shares;
-    for (const auto& item : core::comma_list(value)) {
-        if (item.empty() || item.find_first_not_of("0123456789") != std::string::npos || item.size() > 6)
-            throw std::runtime_error("--layer-shares: '" + item + "' is not a whole-number share");
-        shares.push_back(std::atoi(item.c_str()));
-    }
+    for (const auto& item : core::comma_list(value)) shares.push_back(whole_number(item, "--layer-shares", 0, 999999));
     return shares;
 }
 
@@ -213,17 +293,15 @@ std::vector<int> layer_shares(const std::string& value) {
 // Reads argv[i] (and its value) into `gp` and returns true when it is one of them.
 bool exec_flag(int argc, char** argv, int& i, infer::GenParams& gp) {
     const std::string a = argv[i];
-    auto value = [&]() -> const char* { return i + 1 < argc ? argv[++i] : nullptr; };
-    if (a == "--device") { if (const char* v = value()) gp.device = v; }
-    else if (a == "--layer-shares") { if (const char* v = value()) gp.layer_shares = v; }
-    else if (a == "--n-cpu-moe") { if (const char* v = value()) gp.cpu_moe = std::atoi(v); }
+    if (a == "--device") gp.device = flag_value(argc, argv, i, a);
+    else if (a == "--layer-shares") { gp.layer_shares = flag_value(argc, argv, i, a); layer_shares(gp.layer_shares); }
+    else if (a == "--n-cpu-moe") gp.cpu_moe = int_arg(argc, argv, i, a, 0);
     else if (a == "--cpu-moe") gp.cpu_moe = -1;
-    else if (a == "--moe-stream-from") { if (const char* v = value()) gp.moe_stream_from = std::atoi(v); }
-    else if (a == "--threads") { if (const char* v = value()) gp.threads = std::atoi(v); }
-    else if (a == "--ubatch") { if (const char* v = value()) gp.ubatch = std::atoi(v); }
-    // A cache type is checked as it is read, so an empty or unknown name is refused before any model file is read.
-    else if (a == "--cache-type-k" || a == "-ctk") { if (const char* v = value()) gp.cache_type_k = backend::kv_type_name(backend::kv_type_of(v)); }
-    else if (a == "--cache-type-v" || a == "-ctv") { if (const char* v = value()) gp.cache_type_v = backend::kv_type_name(backend::kv_type_of(v)); }
+    else if (a == "--moe-stream-from") gp.moe_stream_from = int_arg(argc, argv, i, a, 0);
+    else if (a == "--threads") gp.threads = int_arg(argc, argv, i, a, 0);
+    else if (a == "--ubatch") gp.ubatch = int_arg(argc, argv, i, a, 1);
+    else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = cache_type_arg(argc, argv, i, a);
+    else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = cache_type_arg(argc, argv, i, a);
     else return false;
     return true;
 }
@@ -241,18 +319,19 @@ struct Opened {
 // `threads` is the worker count to set, 0 to keep the backend's own; `profile` times the one device's kernels.
 std::unique_ptr<Opened> open_model(const std::string& path, const infer::GenParams& gp, bool progress, int threads, size_t decode_rows = 0,
                                    bool show_plan = false, bool profile = false) {
+    // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
+    if (gp.moe_stream_from && !gp.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     auto opened = std::make_unique<Opened>();
     opened->file = load_model(path, progress);
     opened->tok.emplace(opened->file);
     const auto specs = backend::device_specs(gp.device);
-    if (profile && (specs.size() > 1 || !gp.layer_shares.empty())) throw std::runtime_error("bench: --profile times one device; not with several");
     auto backends = backend::make_backends(specs, profile);
     opened->first = backends.front().get();
     infer::PlacementRequest request;
     request.names = specs;
     request.shares = layer_shares(gp.layer_shares);
     request.cpu_moe = gp.cpu_moe;
-    request.stream_from = gp.moe_stream_from > 0 ? (size_t)gp.moe_stream_from : 0;
+    request.stream_from = (size_t)gp.moe_stream_from;
     request.ubatch = gp.ubatch;
     request.decode_rows = decode_rows;
     infer::PlacedModel placed = infer::place_model(opened->file, std::move(backends), request, model_options(gp));
@@ -314,13 +393,8 @@ int cmd_logits(const std::string& model_path, const std::string& text,
 
     std::vector<uint32_t> ids = tok.encode(text);
     if (!then_ids.empty()) {
-        std::ifstream in(std::filesystem::u8path(then_ids));
-        if (!in) throw std::runtime_error("logits: cannot open token ids: " + then_ids);
-        for (unsigned long long id; in >> id;) {
-            if (id >= model.n_vocab()) throw std::runtime_error("logits: token id out of range");
-            ids.push_back((uint32_t)id);
-        }
-        if (!in.eof()) throw std::runtime_error("logits: token ids must be whitespace-separated integers");
+        const std::vector<uint32_t> more = token_ids(read_text_file(then_ids, "logits"), model.n_vocab());
+        ids.insert(ids.end(), more.begin(), more.end());
     }
     if (ids.empty()) throw std::runtime_error("logits: empty prompt");
 
@@ -348,17 +422,6 @@ int cmd_logits(const std::string& model_path, const std::string& text,
     std::vector<float> logits = model.prefill(ids);
     for (const auto& r : top(logits.data())) printf("%u %.6f\n", r.second, r.first);
     return 0;
-}
-
-std::string read_perplexity_file(const std::string& path) {
-    std::ifstream input(std::filesystem::u8path(path), std::ios::binary);
-    if (!input) throw std::runtime_error("perplexity: cannot open file: " + path);
-    std::string text;
-    char buffer[8192];
-    while (input.read(buffer, sizeof(buffer)) || input.gcount())
-        text.append(buffer, (size_t)input.gcount());
-    if (!input.eof()) throw std::runtime_error("perplexity: cannot read file: " + path);
-    return text;
 }
 
 int cmd_perplexity(const std::string& model_path, const std::string& text,
@@ -617,8 +680,7 @@ int cmd_bench_model(const std::string& path, const infer::GenParams& gp, int P, 
         std::istringstream stats(backend::vulkan_kernel_statistics(*b));
         for (std::string line; std::getline(stats, line);) std::cout << "profile: kernel " << line << "\n";
 #else
-        (void)b;
-        std::cerr << "bench --profile: this build has no Vulkan backend\n";
+        (void)b;   // main refuses --profile unless the device is a Vulkan one, which this build cannot open
 #endif
     }
     return 0;
@@ -640,15 +702,16 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const in
     return 0;
 }
 
-bool print_usage(const std::string& command = {}) {
+// Writes the overview, or `command`'s page, to `out`; false when there is no such command.
+bool print_usage(const std::string& command, std::ostream& out) {
     if (!command.empty() && command != "chat" && command != "generate" &&
         command != "serve" && command != "pull" && command != "info" &&
         command != "quantize" && command != "dequantize" && command != "tokenize" &&
         command != "detokenize" && command != "logits" && command != "perplexity" &&
         command != "bench") return false;
-    std::cout << "llmx " << LLMX_VERSION_STRING << " - ground-up LLM runtime\n\n";
+    out << "llmx " << LLMX_VERSION_STRING << " - ground-up LLM runtime\n\n";
     if (command.empty()) {
-        std::cout
+        out
             << "Usage: llmx <command> [arguments] [options]\n\n"
             << "Run a model:\n"
             << "  chat        <model>                  Interactive chat with follow-up turns\n"
@@ -661,7 +724,7 @@ bool print_usage(const std::string& command = {}) {
             << "  dequantize  <gguf> <json> <bin>       Export tensors as F32\n\n"
             << "Inspect and measure:\n"
             << "  tokenize    <model> \"<text>\"         Encode text to token IDs\n"
-            << "  detokenize  <model> <ids>            Decode comma/space-separated IDs\n"
+            << "  detokenize  <model> <ids>            Decode comma/whitespace-separated IDs\n"
             << "  logits      <model> \"<text>\"         Inspect next-token scores\n"
             << "  perplexity  <model> \"<text>\"         Score text or a file\n"
             << "  bench                               Measure kernels or a real model\n\n"
@@ -680,15 +743,15 @@ bool print_usage(const std::string& command = {}) {
         return std::string(backend::kv_type_name(d)) + " (default) or " + backend::kv_type_name(other);
     };
     const auto model_options = [&](bool batch_threads) {
-        std::cout << "\nExecution options:\n"
+        out << "\nExecution options:\n"
             << "  --device D              cpu (default), or vulkan:N when built with Vulkan;\n"
             << "                          several, comma separated, split the model by layers\n"
             << "                          over them in that order, fitted to their free memory\n"
             << "  --layer-shares A,B      With several devices, their proportions of the layers\n"
             << "  --threads N             CPU workers; 0 selects automatically (default)\n";
-        if (batch_threads) std::cout
+        if (batch_threads) out
             << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
-        std::cout
+        out
             << "  --ubatch N              Prompt tokens per pass (default: 512)\n"
             << "  --cache-type-k T, -ctk  Key cache: " << cache_types(caches.kv_k) << "\n"
             << "  --cache-type-v T, -ctv  Value cache: " << cache_types(caches.kv_v) << "\n"
@@ -700,8 +763,8 @@ bool print_usage(const std::string& command = {}) {
     };
     if (command == "chat" || command == "generate") {
         const bool chat = command == "chat";
-        std::cout << (chat ? "Interactive chat with retained conversation history.\n\n"
-                          : "Generate from raw text without applying a chat template.\n\n")
+        out << (chat ? "Interactive chat with retained conversation history.\n\n"
+                     : "Generate from raw text without applying a chat template.\n\n")
             << "Usage: llmx " << command << " <model.gguf>"
             << (chat ? " [options]\n" : " \"<prompt>\" [options]\n")
             << "\nGeneration options:\n"
@@ -713,65 +776,63 @@ bool print_usage(const std::string& command = {}) {
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
             << "  --verbose               Show prompt IDs, progress and execution details\n";
-        if (chat) std::cout
+        if (chat) out
             << "  --system TEXT           System message (default: You are a helpful assistant.)\n";
         model_options(true);
-        if (chat) std::cout << "\nEnter one message per line; Ctrl+C or end of input exits.\n";
-        std::cout << "\nExample: llmx " << command << " model.gguf"
+        if (chat) out << "\nEnter one message per line; Ctrl+C or end of input exits.\n";
+        out << "\nExample: llmx " << command << " model.gguf"
             << (chat ? "" : " \"The capital of France is\"") << " --temp 0 -n 256\n";
     } else if (command == "serve") {
         const server::Config cfg;
-        std::cout << "Serve concurrent requests with streaming and prefix reuse.\n\n"
+        out << "Serve concurrent requests with streaming and prefix reuse.\n\n"
             << "Usage: llmx serve <model.gguf> [options]\n\n"
             << "Server options:\n"
             << "  --host H                Listen address (default: " << cfg.host << ")\n"
-            << "  --port N                Listen port (default: " << cfg.port << ")\n"
+            << "  --port N                Listen port; 0 picks a free one (default: " << cfg.port << ")\n"
             << "  --max-seqs N            Active request limit (default: " << cfg.max_seqs << ")\n"
             << "  --max-queue N           Waiting request limit (default: " << cfg.max_queue << ")\n"
             << "  --ctx-size N, -c        Total KV token budget (default: model context)\n";
         model_options(false);
-        std::cout << "\nRoutes:\n"
+        out << "\nRoutes:\n"
             << "  POST /v1/generate             POST /v1/chat\n"
             << "  POST /v1/completions          POST /v1/chat/completions\n"
             << "  GET  /v1/health               GET  /v1/models\n\n"
             << "Sampling settings belong in each request's JSON body.\n"
             << "Example: llmx serve model.gguf --device vulkan:0 --port 8080\n";
     } else if (command == "pull") {
-        std::cout << "Download and verify a GGUF model or complete shard set.\n\n"
+        out << "Download and verify a GGUF model or complete shard set.\n\n"
             << "Usage: llmx pull <owner/repo>:<quant> [options]\n\n"
             << "Options:\n"
             << "  --revision REF          Branch, tag or commit SHA (default: main)\n"
             << "  --file NAME             Choose a file when several match the quant\n"
             << "  --cache-dir PATH        Cache root (default: <home>/.cache/llmx)\n"
-            << "  --parallel N            Streams per file, 1..16 (default: 4)\n\n"
+            << "  --parallel N            Streams per file, 1.." << hub::max_parallel_streams << " (default: " << hub::PullOptions{}.parallel << ")\n\n"
             << "Requires curl 8.4+. HF_TOKEN supplies gated-repo credentials.\n"
             << "The verified local path goes to stdout; progress goes to stderr.\n\n"
             << "Example: llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0 --parallel 4\n";
     } else if (command == "logits" || command == "perplexity") {
         const bool ppl = command == "perplexity";
-        std::cout << (ppl ? "Score next-token likelihoods over text or bounded windows.\n\n"
-                         : "Print the highest next-token logits after a prompt.\n\n")
-            << "Usage: llmx " << command << " <model.gguf> \"<text>\" [options]\n";
-        if (!ppl) std::cout
-            << "       llmx logits <model.gguf> <path> --file [options]\n";
-        if (ppl) std::cout
-            << "       llmx perplexity <model.gguf> --file <path> [options]\n"
-            << "\nScoring options:\n"
-            << "  --file PATH, -f         UTF-8 input file, immediately after the model\n"
+        out << (ppl ? "Score next-token likelihoods over text or bounded windows.\n\n"
+                    : "Print the highest next-token logits after a prompt.\n\n")
+            << "Usage: llmx " << command << " <model.gguf> \"<text>\" [options]\n"
+            << "       llmx " << command << " <model.gguf> --file <path> [options]\n"
+            << (ppl ? "\nScoring options:\n" : "\nOptions:\n")
+            << "  --file PATH, -f         UTF-8 input file, immediately after the model\n";
+        if (ppl) out
             << "  --ctx-size N, -c        Window tokens (default: model context)\n"
             << "  --chunks N              Maximum windows (default: all)\n"
             << "  --per-token             Score through decode; default uses batched passes\n"
             << "  --verbose               Show scoring phase and actual worker count\n";
-        else std::cout << "\nOptions:\n  --top N                 Number of logits to print (default: 10)\n"
-            << "  --file                  Read the text from the file named in its place\n"
-            << "  --then-ids PATH         Append these whitespace-separated token IDs\n"
+        else out
+            << "  --top N                 Number of logits to print (default: 10)\n"
+            << "  --then-ids PATH         Append these token IDs, comma or whitespace separated\n"
             << "  --last N                Print each of the last N positions, one per line\n";
         model_options(ppl);
-        std::cout << "\nExample: llmx " << command << " model.gguf "
+        out << "\nExample: llmx " << command << " model.gguf "
             << (ppl ? "--file corpus.txt --ctx-size 512 --chunks 4\n"
                     : "\"The capital of France is\" --top 10\n");
     } else if (command == "bench") {
-        std::cout << "Measure synthetic kernels or a real model after warm-up.\n\n"
+        out << "Measure synthetic kernels or a real model after warm-up.\n\n"
             << "Usage: llmx bench [options]\n"
             << "       llmx bench --model <model.gguf> [options]\n\n"
             << "Benchmark options:\n"
@@ -783,35 +844,35 @@ bool print_usage(const std::string& command = {}) {
             << "  --r N                   Real-model repetitions (default: 3)\n"
             << "  --seqs N                Sequences decoding together, a pass one token of each (default: 1)\n"
             << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: 0)\n"
-            << "  --profile               Real-model device kernel timing and statistics\n";
+            << "  --profile               Real-model kernel timing and statistics on one Vulkan device\n";
         model_options(false);
-        std::cout << "\nCache options apply only with --model.\n"
+        out << "\nCache options apply only with --model.\n"
             << "Example: llmx bench --model model.gguf --p 512 --n 128 --r 3\n";
     } else if (command == "quantize") {
-        std::cout << "Convert raw F32 tensors into a quantized GGUF file.\n\n"
+        out << "Convert raw F32 tensors into a quantized GGUF file.\n\n"
             << "Usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n\n"
             << "Default quant: q8_0. Input row widths must be divisible by 32.\n"
             << "The JSON describes tensor names/shapes; the binary contains F32 values.\n"
             << "Example: llmx quantize model.json model.bin model.gguf q8_0\n";
     } else if (command == "dequantize") {
-        std::cout << "Export supported GGUF tensors as JSON metadata and F32 values.\n\n"
+        out << "Export supported GGUF tensors as JSON metadata and F32 values.\n\n"
             << "Usage: llmx dequantize <in.gguf> <out.json> <out.bin>\n\n"
             << "Example: llmx dequantize model.gguf model.json model.bin\n";
     } else if (command == "info") {
-        std::cout << "Show GGUF metadata, tensor types and dimensions.\n\n"
+        out << "Show GGUF metadata, tensor types and dimensions.\n\n"
             << "Usage: llmx info <model.gguf>\n\n"
             << "For a sharded model, pass its first shard.\n"
             << "Example: llmx info model.gguf\n";
     } else if (command == "tokenize") {
-        std::cout << "Encode text with the model's tokenizer.\n\n"
+        out << "Encode text with the model's tokenizer.\n\n"
             << "Usage: llmx tokenize <model.gguf> \"<text>\"\n\n"
             << "Example: llmx tokenize model.gguf \"hello world\"\n";
     } else {
-        std::cout << "Decode comma- or space-separated token IDs.\n\n"
+        out << "Decode comma- or whitespace-separated token IDs.\n\n"
             << "Usage: llmx detokenize <model.gguf> <ids>\n\n"
             << "Example: llmx detokenize model.gguf \"1,2,3\"\n";
     }
-    std::cout << "\n-h, --help shows this page. Full reference: docs/USAGE.md\n";
+    out << "\n-h, --help shows this page. Full reference: docs/USAGE.md\n";
     return true;
 }
 
@@ -850,28 +911,24 @@ int main(int argc, char** argv) {
     utf8_argv(argc, argv, argv_store, argv_ptrs);
     SetConsoleOutputCP(CP_UTF8);
 #endif
+    const std::string cmd = argc > 1 ? argv[1] : "";
     try {
-        if (argc < 2) { print_usage(); return 1; }
-        std::string cmd = argv[1];
-        if (argc == 2 && (cmd == "--help" || cmd == "-h")) {
-            print_usage();
-            return 0;
+        if (argc < 2) { print_usage({}, std::cout); return 1; }
+        if (cmd == "--help" || cmd == "-h") {
+            if (argc == 2) { print_usage({}, std::cout); return 0; }
+            throw UsageError(cmd + " takes nothing after it; a command's page is llmx <command> --help");
         }
-        if (argc == 3 && (std::string(argv[2]) == "--help" || std::string(argv[2]) == "-h")) {
-            if (print_usage(cmd)) return 0;
-            std::cerr << "unknown command: " << cmd << '\n';
-            return 2;
-        }
+        if (argc == 3 && (std::string(argv[2]) == "--help" || std::string(argv[2]) == "-h") && print_usage(cmd, std::cout)) return 0;
         if (cmd == "--version") {
             std::cout << "llmx " << LLMX_VERSION_STRING << "\n";
             return 0;
         }
 
         if (cmd == "pull") {
-            if (argc < 3) throw std::runtime_error("usage: llmx pull <owner/repo>:<quant> [flags...]");
+            if (argc < 3) throw UsageError("missing the <owner/repo>:<quant> to download");
             const std::string target = argv[2];
             const auto colon = target.find(':');
-            if (colon == std::string::npos) throw std::runtime_error("pull: expected owner/repository:quant");
+            if (colon == std::string::npos) throw UsageError("expected <owner/repo>:<quant>, not '" + target + "'");
             hub::PullOptions options;
             options.repo = target.substr(0, colon);
             options.quant = target.substr(colon + 1);
@@ -886,20 +943,14 @@ int main(int argc, char** argv) {
 #endif
             for (int i = 3; i < argc; ++i) {
                 const std::string flag = argv[i];
-                if (flag != "--revision" && flag != "--file" && flag != "--cache-dir" && flag != "--parallel")
-                    throw std::runtime_error("pull: unknown flag: " + flag);
-                if (i + 1 == argc) throw std::runtime_error("pull: missing value for " + flag);
-                const std::string value = argv[++i];
-                if (flag == "--revision") options.revision = value;
-                else if (flag == "--file") options.filename = value;
+                if (flag == "--revision") options.revision = flag_value(argc, argv, i, flag);
+                else if (flag == "--file") options.filename = flag_value(argc, argv, i, flag);
                 else if (flag == "--cache-dir") {
-                    if (value.empty()) throw std::runtime_error("pull: empty cache path");
+                    const std::string value = flag_value(argc, argv, i, flag);
+                    if (value.empty()) throw UsageError("--cache-dir needs a path");
                     options.cache = std::filesystem::u8path(value);
-                } else {
-                    if (value.empty() || value.size() > 2 || value.find_first_not_of("0123456789") != std::string::npos)
-                        throw std::runtime_error("pull: --parallel must be between 1 and 16");
-                    options.parallel = unsigned(std::stoul(value));
-                }
+                } else if (flag == "--parallel") options.parallel = int_arg(argc, argv, i, flag, 1u, hub::max_parallel_streams);
+                else throw UsageError("unknown flag: " + flag);
             }
             const auto path = hub::pull(options, [](const std::string& message) { std::cerr << message << '\n'; });
             std::cout << path.u8string() << '\n';
@@ -908,172 +959,154 @@ int main(int argc, char** argv) {
 
 
         if (cmd == "generate" || cmd == "chat") {
-            if (argc < 3) {
-                if (cmd == "chat") std::cerr << "usage: llmx chat <model.gguf> [--system \"<text>\"] [flags...]\n";
-                else std::cerr << "usage: llmx generate <model.gguf> \"<prompt>\" [flags...]\n";
-                return 2;
-            }
+            const bool chat = cmd == "chat";
+            if (argc < 3) throw UsageError("missing the model");
             infer::GenParams gp;
             std::string system = "You are a helpful assistant.";
             std::string prompt;
-            bool have_prompt = false;
+            bool have_prompt = false, have_stop = false;
             for (int i = 3; i < argc; i++) {
-                std::string a = argv[i];
-                if (a == "-n" || a == "--max-tokens") gp.max_tokens = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.max_tokens;
-                else if (a == "--temp") gp.temp = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.temp;
-                else if (a == "--topk") gp.top_k = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.top_k;
-                else if (a == "--topp") gp.top_p = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.top_p;
-                else if (a == "--penalty") gp.penalty = (i + 1 < argc) ? (float)std::atof(argv[++i]) : gp.penalty;
-                else if (a == "--seed") gp.seed = (i + 1 < argc) ? std::strtoull(argv[++i], nullptr, 0) : gp.seed;
-                else if (a == "--stop") gp.stop = (i + 1 < argc) ? argv[++i] : gp.stop;
+                const std::string a = argv[i];
+                if (a == "-n" || a == "--max-tokens") gp.max_tokens = int_arg(argc, argv, i, a, 1);
+                else if (a == "--temp") gp.temp = float_arg(argc, argv, i, a, infer::kTempRange.lo, infer::kTempRange.hi);
+                else if (a == "--topk") gp.top_k = int_arg(argc, argv, i, a, infer::kTopKRange.lo, infer::kTopKRange.hi);
+                else if (a == "--topp") gp.top_p = float_arg(argc, argv, i, a, infer::kTopPRange.lo, infer::kTopPRange.hi);
+                else if (a == "--penalty") gp.penalty = float_arg(argc, argv, i, a, infer::kPenaltyRange.lo, infer::kPenaltyRange.hi);
+                else if (a == "--seed") gp.seed = int_arg<uint64_t>(argc, argv, i, a, 0);
+                else if (a == "--stop") {
+                    if (have_stop) throw UsageError("--stop takes one text, given once");
+                    gp.stop = flag_value(argc, argv, i, a);
+                    have_stop = true;
+                }
                 else if (exec_flag(argc, argv, i, gp)) {}
-                else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
-                else if (a == "--system" && cmd == "chat") system = (i + 1 < argc) ? argv[++i] : system;
+                else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = int_arg(argc, argv, i, a, 0);
+                else if (a == "--system" && chat) system = flag_value(argc, argv, i, a);
                 else if (a == "--verbose") gp.show_prompt_tokens = true;
-                else if (!a.empty() && a[0] == '-') { std::cerr << "unknown flag: " << a << "\n"; return 2; }
+                else if (!a.empty() && a[0] == '-') throw UsageError("unknown flag: " + a);
+                else if (chat) throw UsageError("chat reads its messages from standard input, not '" + a + "'");
+                else if (have_prompt) throw UsageError("a second prompt, '" + a + "'; quote the prompt to keep its spaces");
                 else { prompt = a; have_prompt = true; }
             }
-            if (gp.max_tokens <= 0) { std::cerr << cmd << ": --max-tokens must be positive\n"; return 2; }
-            if (cmd == "generate") {
-                if (!have_prompt) { std::cerr << "generate requires a prompt\n"; return 2; }
-                return cmd_generate(argv[2], prompt, gp);
-            }
-            return cmd_chat(argv[2], system, gp);
+            if (chat) return cmd_chat(argv[2], system, gp);
+            if (!have_prompt) throw UsageError("missing the prompt");
+            return cmd_generate(argv[2], prompt, gp);
         }
 
         if (cmd == "perplexity") {
-            if (argc < 4) { std::cerr << "usage: llmx perplexity <model.gguf> (\"<text>\" | --file <path>) [flags...]\n"; return 2; }
             infer::GenParams gp;
             int context_size = 0, chunks = 0;
             bool per_token = false;
-            const bool from_file = std::string(argv[3]) == "--file" || std::string(argv[3]) == "-f";
-            if (from_file && argc < 5) { std::cerr << "perplexity: --file requires a path\n"; return 2; }
-            for (int i = from_file ? 5 : 4; i < argc; i++) {
-                std::string a = argv[i];
-                if (a == "--file" || a == "-f") {
-                    std::cerr << "perplexity: use either inline text or one --file <path> immediately after the model\n";
-                    return 2;
-                }
-                if (a == "--ctx-size" || a == "-c" || a == "--chunks") {
-                    if (i + 1 >= argc) { std::cerr << a << " requires a positive integer\n"; return 2; }
-                    const std::string value = argv[++i];
-                    unsigned long long n = 0;
-                    for (char c : value) {
-                        if (c < '0' || c > '9' || n > (unsigned long long)std::numeric_limits<int>::max() / 10) {
-                            std::cerr << a << " requires a positive integer\n"; return 2;
-                        }
-                        n = n * 10 + (unsigned)(c - '0');
-                    }
-                    if (n == 0 || n > (unsigned long long)std::numeric_limits<int>::max()) {
-                        std::cerr << a << " requires a positive integer\n"; return 2;
-                    }
-                    if (a == "--chunks") chunks = (int)n;
-                    else context_size = (int)n;
-                }
+            const int first = text_arg(argc, argv);
+            for (int i = first; i < argc; i++) {
+                const std::string a = argv[i];
+                no_second_text(a);
+                if (a == "--ctx-size" || a == "-c") context_size = int_arg(argc, argv, i, a, 1);
+                else if (a == "--chunks") chunks = int_arg(argc, argv, i, a, 1);
                 else if (a == "--per-token") per_token = true;
                 else if (a == "--verbose") gp.show_prompt_tokens = true;
                 else if (exec_flag(argc, argv, i, gp)) {}
-                else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads_batch;
-                else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
+                else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = int_arg(argc, argv, i, a, 0);
+                else throw UsageError("unknown flag: " + a);
             }
-            const std::string text = from_file ? read_perplexity_file(argv[4]) : argv[3];
+            const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
             return cmd_perplexity(argv[2], text, gp, context_size, chunks, per_token);
         }
 
         if (cmd == "logits") {
-            if (argc < 4) { std::cerr << "usage: llmx logits <model.gguf> \"<text>\" | <file> --file [--then-ids FILE] [--last N] [--top N] [--threads N] [--device D]\n"; return 2; }
             infer::GenParams gp;
             int topn = 10;
-            bool from_file = false;
             std::string then_ids;
             size_t last = 0;
-            for (int i = 4; i < argc; i++) {
-                std::string a2 = argv[i];
-                if (a2 == "--top") topn = (i + 1 < argc) ? std::atoi(argv[++i]) : topn;
-                else if (a2 == "--file") from_file = true;
-                else if (a2 == "--then-ids") then_ids = (i + 1 < argc) ? argv[++i] : then_ids;
-                else if (a2 == "--last") last = (i + 1 < argc) ? (size_t)std::max(0, std::atoi(argv[++i])) : last;
+            const int first = text_arg(argc, argv);
+            for (int i = first; i < argc; i++) {
+                const std::string a = argv[i];
+                no_second_text(a);
+                if (a == "--top") topn = int_arg(argc, argv, i, a, 1);
+                else if (a == "--then-ids") then_ids = flag_value(argc, argv, i, a);
+                else if (a == "--last") last = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (exec_flag(argc, argv, i, gp)) {}
-                else { std::cerr << "unknown flag: " << a2 << "\n"; return 2; }
+                else throw UsageError("unknown flag: " + a);
             }
-            if (topn <= 0) topn = 10;
-            const std::string text = from_file ? read_perplexity_file(argv[3]) : argv[3];
+            const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
             return cmd_logits(argv[2], text, topn, gp, then_ids, last);
         }
 
         if (cmd == "tokenize") {
-            if (argc != 4) { std::cerr << "usage: llmx tokenize <model.gguf> \"<text>\"\n"; return 2; }
+            if (argc != 4) throw UsageError("takes a model and a text");
             return cmd_tokenize(argv[2], argv[3]);
         }
         if (cmd == "detokenize") {
-            if (argc != 4) { std::cerr << "usage: llmx detokenize <model.gguf> <id1,id2,...>\n"; return 2; }
+            if (argc != 4) throw UsageError("takes a model and a list of token ids");
             return cmd_detokenize(argv[2], argv[3]);
         }
 
         if (cmd == "quantize") {
-            if (argc < 5 || argc > 6) { std::cerr << "usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n"; return 2; }
+            if (argc < 5 || argc > 6) throw UsageError("takes the JSON file, the binary file, the output file and optionally the type");
             return cmd_quantize(argv[2], argv[3], argv[4], argc == 6 ? argv[5] : "q8_0");
         }
         if (cmd == "dequantize") {
-            if (argc != 5) { std::cerr << "usage: llmx dequantize <in.gguf> <out.json> <out.bin>\n"; return 2; }
+            if (argc != 5) throw UsageError("takes the model and the two output files");
             return cmd_dequantize(argv[2], argv[3], argv[4]);
         }
         if (cmd == "info") {
-            if (argc != 3) { std::cerr << "usage: llmx info <in.gguf>\n"; return 2; }
+            if (argc != 3) throw UsageError("takes one model file");
             return cmd_info(argv[2]);
         }
         if (cmd == "serve") {
-            if (argc < 3) { print_usage(); return 1; }
+            if (argc < 3) throw UsageError("missing the model");
             server::Config cfg;
             infer::GenParams gp;
             for (int i = 3; i < argc; i++) {
-                std::string a = argv[i];
-                if (a == "--host") cfg.host = (i + 1 < argc) ? argv[++i] : cfg.host;
-                else if (a == "--port") cfg.port = (i + 1 < argc) ? (uint16_t)std::atoi(argv[++i]) : cfg.port;
-                else if (a == "--max-seqs") cfg.max_seqs = (i + 1 < argc) ? (size_t)std::atoi(argv[++i]) : cfg.max_seqs;
-                else if (a == "--max-queue") cfg.max_queue = (i + 1 < argc) ? (size_t)std::atoi(argv[++i]) : cfg.max_queue;
-                else if (a == "--ctx-size" || a == "-c") gp.kv_tokens = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.kv_tokens;
+                const std::string a = argv[i];
+                if (a == "--host") cfg.host = flag_value(argc, argv, i, a);
+                else if (a == "--port") cfg.port = (uint16_t)int_arg(argc, argv, i, a, 0, 65535);   // 0 asks the system for a free port
+                else if (a == "--max-seqs") cfg.max_seqs = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (a == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (a == "--ctx-size" || a == "-c") gp.kv_tokens = int_arg(argc, argv, i, a, 1);
                 else if (exec_flag(argc, argv, i, gp)) {}
-                else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
+                else throw UsageError("unknown flag: " + a);
             }
-            if (cfg.max_seqs == 0) { std::cerr << "serve: --max-seqs must be positive\n"; return 2; }
-            if (gp.kv_tokens < 0) { std::cerr << "serve: --ctx-size must be positive\n"; return 2; }
             return cmd_serve(argv[2], cfg, gp);
         }
         if (cmd == "bench") {
             int size = 1024, iters = 5, prefill = 64, decode = 64, repeats = 3, seqs = 1, depth = 0;
             bool profile = false;
-            std::string model_path, model_only;   // model_only: the first flag given that only --model reads
+            std::string model_path, model_only, synthetic_only;   // the first flag given that only a model run reads, and the first only the synthetic bench reads
             infer::GenParams gp;
             for (int i = 2; i < argc; i++) {
-                std::string a = argv[i];
-                if (a == "--size") size = (i + 1 < argc) ? std::atoi(argv[++i]) : size;
-                else if (a == "--iters") iters = (i + 1 < argc) ? std::atoi(argv[++i]) : iters;
-                else if (a == "--p") prefill = (i + 1 < argc) ? std::atoi(argv[++i]) : prefill;
-                else if (a == "--n") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;
-                else if (a == "--model") model_path = (i + 1 < argc) ? argv[++i] : model_path;
+                const std::string a = argv[i];
+                if (a == "--size") { size = int_arg(argc, argv, i, a, 32); if (synthetic_only.empty()) synthetic_only = a; }
+                else if (a == "--iters") { iters = int_arg(argc, argv, i, a, 1); if (synthetic_only.empty()) synthetic_only = a; }
+                else if (a == "--p") prefill = int_arg(argc, argv, i, a, 1);
+                else if (a == "--n") decode = int_arg(argc, argv, i, a, 1);
+                else if (a == "--model") model_path = flag_value(argc, argv, i, a);
                 else if (exec_flag(argc, argv, i, gp)) { if (a != "--device" && a != "--threads" && model_only.empty()) model_only = a; }
-                else if (a == "--r") { repeats = (i + 1 < argc) ? std::atoi(argv[++i]) : repeats; if (model_only.empty()) model_only = a; }
-                else if (a == "--seqs") { seqs = (i + 1 < argc) ? std::atoi(argv[++i]) : seqs; if (model_only.empty()) model_only = a; }
-                else if (a == "--depth") { depth = (i + 1 < argc) ? std::atoi(argv[++i]) : depth; if (model_only.empty()) model_only = a; }
+                else if (a == "--r") { repeats = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
+                else if (a == "--seqs") { seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
+                else if (a == "--depth") { depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
                 else if (a == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
-                else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
+                else throw UsageError("unknown flag: " + a);
             }
-            // The synthetic bench times one backend's kernels and reads only --device, --threads, --size, --iters, --p and --n.
-            if (model_path.empty() && !model_only.empty()) { std::cerr << "bench: " << model_only << " takes --model\n"; return 2; }
-            if (size <= 0 || size % 32 != 0) { std::cerr << "bench: --size must be positive and a multiple of 32\n"; return 2; }
-            // Each of these divides a measured duration or token count.
-            if (iters <= 0 || prefill <= 0 || decode <= 0 || repeats <= 0 || seqs <= 0) {
-                std::cerr << "bench: --iters, --p, --n, --r and --seqs must be positive\n"; return 2;
-            }
-            if (depth < 0) { std::cerr << "bench: --depth must not be negative\n"; return 2; }
+            // The synthetic bench times one backend's kernels and reads only --device, --threads, --size, --iters, --p and --n; a model run reads neither --size nor --iters.
+            if (model_path.empty() && !model_only.empty()) throw UsageError(model_only + " takes --model");
+            if (!model_path.empty() && !synthetic_only.empty()) throw UsageError(synthetic_only + " is for the synthetic bench, not --model");
+            if (size % 32 != 0) throw UsageError("--size must be a multiple of 32");
             // Batched decode already starts after each sequence's prompt.
-            if (depth > 0 && seqs > 1) { std::cerr << "bench: --depth takes one sequence\n"; return 2; }
+            if (depth > 0 && seqs > 1) throw UsageError("--depth takes one sequence");
+            if (profile) {
+                const auto specs = backend::device_specs(gp.device);
+                if (specs.size() != 1 || specs[0].rfind("vulkan:", 0) != 0 || !gp.layer_shares.empty())
+                    throw UsageError("--profile times the kernels of one Vulkan device");
+            }
             if (!model_path.empty()) return cmd_bench_model(model_path, gp, prefill, decode, repeats, profile, seqs, depth);
             return cmd_bench(size, iters, gp.threads, prefill, decode, gp.device);
         }
-        print_usage();
-        return 1;
+        std::cerr << "unknown command: " << cmd << "\n";
+        return 2;
+    } catch (const UsageError& e) {
+        if (!print_usage(cmd, std::cerr)) print_usage({}, std::cerr);
+        std::cerr << "\nerror: " << e.what() << "\n";
+        return 2;
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";
         return 1;

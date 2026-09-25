@@ -17,6 +17,12 @@ after the command, without other arguments. Positional text remains text in
 commands such as `tokenize`, `logits` and `perplexity`; `generate` still rejects
 unrecognized arguments beginning with a dash.
 
+A usage error prints the command's page on stderr, then `error:` and the reason, and exits with status 2.
+That is a missing or extra argument, an unknown flag, a flag without its value, a number out of its form or range, or a flag or argument the command would ignore or overwrite, and it includes `serve` and `pull` without arguments.
+Numbers are decimal and within the flag's range, and a whole number is digits only, with no sign, space, base prefix or fraction.
+An unknown command prints `unknown command:` and exits with status 2.
+Any other failure, such as a file that cannot be read, prints `error:` and exits with status 1.
+
 ## `llmx --version`
 
 Print the release and build identifier, for example `llmx 0.1.0+g0123456789ab`.
@@ -33,7 +39,8 @@ change the release number, or embed timestamps.
   A key the file omits is not checked.
 - Text arguments containing spaces must be quoted so they arrive as one argv
   element (`"The capital of France is"`).
-- Token ids in `detokenize` are comma- or space-separated integers.
+- Token ids in `detokenize` and in a `logits --then-ids` file are separated by commas or any whitespace.
+  Any other character, or an id outside the vocabulary, is refused.
 - `--threads` omitted or zero keeps the CPU backend's automatic hardware
   thread count, including in `bench`. Specify a positive count for matched
   performance comparisons.
@@ -158,19 +165,16 @@ comma-separated list on one line.
 
 ## `llmx detokenize <in.gguf> <id1,id2,...>`
 
-Decode a comma- or space-separated list of token ids back into text and print it.
+Decode a comma- or whitespace-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> "<text>" [--file] [--then-ids F] [--last N] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T]`
+## `llmx logits <in.gguf> ("<text>" | --file <path>) [--then-ids F] [--last N] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T]`
 
-Print the top-N next-token logits for `text`, one `id value` pair per line
-after a `tokens:` header. `--top` defaults to 10. `--file` reads the text
-from the file named in its place, for a text longer than a command line
-holds. `--then-ids F` appends the whitespace-separated token ids in `F`
-after the text's tokens, so a generated reply is read as the tokens it
-was. `--last N` prints each of the last `N` positions instead, one line
-of its position followed by its top-N `id value` pairs, from the batched
-passes a prompt takes; `tools/long_context_check.py` reads a device's
-reply this way.
+Print the top-N next-token logits for `text`, one `id value` pair per line after a `tokens:` header.
+`--top` defaults to 10.
+`--file <path>` (`-f`) in place of the text reads it from a UTF-8 file, as `perplexity` does, for a text longer than a command line holds.
+`--then-ids F` appends the token ids in `F`, separated by commas or whitespace, after the text's tokens, so a generated reply is read as the tokens it was.
+`--last N` prints each of the last `N` positions instead, one line of its position followed by its top-N `id value` pairs, from the batched passes a prompt takes; `tools/long_context_check.py` reads a device's reply this way.
+`--top` and `--last` are at least 1.
 
 This exists for the correctness gate. Comparing llmx against a reference
 through sampled text hides everything except argmax flips, so
@@ -293,8 +297,9 @@ the layers, one whole number per listed device: `1,1` halves the layers,
 device may be listed once. Experts on the CPU (`--n-cpu-moe`, `--cpu-moe`)
 are a placement of one device and are refused with a list; list the CPU
 as a device to give it layers. `bench` without `--model` measures the
-first device listed, and `--profile` takes one device. Every command that
-takes `--device` takes a list.
+first device listed.
+`--profile` takes one Vulkan device and is refused with a list or layer shares.
+Every command that takes `--device` takes a list.
 
 One request at a time leaves each device idle while the others run their
 layers, and a card left at its automatic clock level drops its clock in
@@ -341,6 +346,7 @@ other requests. A server reply that reuses a cached prefix can therefore
 take the CPU for tokens a single pass over the whole conversation would
 stream, and differ from it by rounding. Generated tokens never stream. The device holds one layer's experts for this
 (about 640 MB for Qwen3-30B-A3B Q8_0).
+Without `--n-cpu-moe` or `--cpu-moe` there are no experts on the CPU to stream, so a nonzero `--moe-stream-from` is refused.
 
 ## KV cache types (`--cache-type-k`, `--cache-type-v`)
 
@@ -414,12 +420,16 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status | off   |
 
+`--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
+`--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1.
+
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
 
 Interactive chat loop reading lines from stdin. Uses the model's
 `tokenizer.chat_template` (Jinja2-subset renderer) to format the conversation.
 Supports the same sampling flags as `generate`, plus `--system` to set the
 system message (default: `You are a helpful assistant.`).
+Messages come only from stdin, so a positional argument after the model is refused.
 
 Each input line is a follow-up in the same conversation. The runtime renders
 the complete conversation with its assistant-generation header and reuses KV
@@ -480,6 +490,7 @@ by every request, the model context by default: with 16 sequences over a
 serves long conversations sets it to what its memory holds, rounded up
 to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request whose prompt plus
 `max_tokens` exceeds the budget is refused with 413.
+`--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue` and `--ctx-size` are at least 1.
 
 | Route | Body | Reply |
 |---|---|---|
@@ -539,7 +550,10 @@ bench tools use for the same `-d N`. It takes one sequence.
 decode run after the timed runs, each reported on its own as the device
 time each kernel spent (`profile pp`, then `profile tg` or
 `profile batched tg`, which starts after its sequences' prompts); the
-first 4096 dispatches of each are timed. It takes one device.
+first 4096 dispatches of each are timed.
+It takes one Vulkan device and is refused on the CPU, with a device list or with layer shares.
+
+`--size` and `--iters` belong to the synthetic bench and are refused with `--model`, as the flags only a model run reads are refused without it.
 
 ```
 llmx bench --model Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --p 247 --n 32 --r 3

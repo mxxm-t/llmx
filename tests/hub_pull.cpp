@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
         const auto git_file = fixture.path / "git.bin";
         write(git_file, "abc");
         require(hub::pull_detail::verified(git_file, {"git.bin",3,"f2ba8f84ab5c1bce84a7b441cb1959cfc7093b7f",false}), "Git blob identity");
-        options.parallel = 17;
+        options.parallel = hub::max_parallel_streams + 1;
         rejects([&] { hub::pull_detail::pull(options, {}, fetch); });
         unsigned refused_requests = 0;
         auto long_wait = [&](const std::string&, const std::string&, const std::filesystem::path&,

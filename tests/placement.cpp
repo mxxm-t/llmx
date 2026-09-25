@@ -287,7 +287,7 @@ void layer_split_fits() {
     for (int t : {3, 14, 1}) exact(single.step(t), fitted.step(t), "fitted split step differs from one device");
     ++checked;
 
-    // The one placement entry (infer::place_model): budgets asked of the backends, a split by shares exact against one device, the request's ubatch applied, and experts on the CPU refused beside several devices.
+    // The one placement entry (infer::place_model): budgets asked of the backends, a split by shares exact against one device, the request's ubatch applied, experts on the CPU refused beside several devices, and a stream point refused without experts on the CPU.
     auto cpus = [] {
         std::vector<backend::BackendPtr> v{std::make_shared<backend::CpuBackend>(), std::make_shared<backend::CpuBackend>()};
         for (auto& c : v) c->set_threads(1);
@@ -307,6 +307,14 @@ void layer_split_fits() {
     bool experts_refused = false;
     try { infer::place_model(weights, cpus(), request, options); } catch (const std::runtime_error&) { experts_refused = true; }
     require(experts_refused, "experts on the CPU accepted beside several devices");
+    // A stream point has nothing to stream without experts on the CPU, so place_model refuses it for every caller, whatever the caller checked first.
+    infer::PlacementRequest stream_alone;
+    stream_alone.names = {"cpu"};
+    stream_alone.stream_from = 1;
+    bool stream_refused = false;
+    try { infer::place_model(weights, {std::make_shared<backend::CpuBackend>()}, stream_alone, options); }
+    catch (const std::runtime_error&) { stream_refused = true; }
+    require(stream_refused, "a stream point accepted without experts on the CPU");
     // A CPU reads its weights in place, so experts on the CPU beside it are the one device alone.
     infer::PlacementRequest experts_on_cpu;
     experts_on_cpu.names = {"cpu"};
@@ -314,7 +322,7 @@ void layer_split_fits() {
     require(infer::place_model(weights, {std::make_shared<backend::CpuBackend>()}, experts_on_cpu, options).model->prefill_batch() ==
                 (size_t)infer::kDefaultUbatch,
             "experts on the CPU beside a CPU not taken as one device");
-    checked += 4;
+    checked += 5;
 }
 
 // Three layers placed by place_model over two CPU backends at shares 1:2 and over three at 1:1:1, prompts chunked at ubatch 3.

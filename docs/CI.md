@@ -110,6 +110,7 @@ committed HF float32 logits/NLL cover tied and untied embeddings, matrix
 tails, multiple physical batches and thread counts.
 The same fixture holds the rows `logits --last` and `--then-ids` print to its bound at their positions, and `logits --file` to the inline prompt's output.
 The `cli` component checks that these builds, which have no Vulkan backend, refuse a Vulkan device rather than run on the CPU, and that `info` lists a synthetic model's architecture, layer count and tensors.
+It also checks that the CLI's usage errors exit with status 2 and the command's page on stderr, before any model file is opened.
 The UBSan job makes misaligned in-memory tensors a test failure. These jobs also
 run CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
 GGUF structure, custom alignment and loading failures, Qwen model configuration
@@ -164,6 +165,7 @@ CTest also covers synchronous text delivery before the next model step, legacy
 filtering and split UTF-8 bytes, plus loader progress, truncated reads and
 consumer exceptions. `cli-output` observes flushing through the actual CLI
 emitter with a controlled stream buffer, without wall-clock timing assertions.
+It also runs the CLI's number readers and token id lists over every malformed form they refuse.
 Python chat checks keep progress on stderr and compare
 follow-up replies to the HF goldens with progress enabled and disabled.
 

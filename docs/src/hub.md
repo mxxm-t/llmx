@@ -33,6 +33,7 @@ in order into a final temporary file while hashing, then atomically published.
 The hash check also runs on cache hits. Git files include Git's blob header in
 their SHA1 input. Completion returns the first shard after every file is ready.
 Progress callbacks run on the caller and currently report phases per file.
+`max_parallel_streams` (16) is the most streams a file takes, the top of `PullOptions::parallel`'s range, which `pull` checks and the CLI reads `--parallel` against.
 
 Temporary cleanup is best effort after failures. Forced process termination can
 leave a private temporary directory. Cache publication is atomic per file, not

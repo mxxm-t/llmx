@@ -90,7 +90,21 @@ def run():
                             ("abcd", ["-c", "5"]), ("abcd", ["--file", path])):
             assert cli(["perplexity", model, text] + flags)[0] != 0
         assert cli(["perplexity", model, "--file", path + ".missing"])[0] != 0
-    print("perplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]")
+        # logits takes its text the same two ways, and --then-ids appends ids separated by commas or any whitespace, each within the vocabulary.
+        prompt = os.path.join(directory, "prompt ü.txt")
+        with open(prompt, "wb") as f:
+            f.write(b"a\r\n")
+        inline = cli(["logits", model, "a\r\n", "--threads", "1"])
+        assert inline[0] == 0 and inline[1].startswith("tokens: 3\n"), inline
+        for flag in ("-f", "--file"):
+            assert cli(["logits", model, flag, prompt, "--threads", "1"]) == inline
+        ids = os.path.join(directory, "ids.txt")
+        for text, accepted in (("13,\n10", True), ("13\t10\r\n", True), ("13;10", False), ("13 256", False), ("13 4294967306", False)):
+            with open(ids, "w", encoding="ascii", newline="") as f:
+                f.write(text)
+            got = cli(["logits", model, "a", "--then-ids", ids, "--threads", "1"])
+            assert (got == inline) if accepted else got[0] == 1, (text, got)
+    print("perplexity: analytic NLL, window boundaries, file parity and invalid flags; logits text from a file and appended ids  [ok]")
     return True
 
 

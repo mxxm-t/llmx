@@ -283,6 +283,7 @@ refuses malformed placements, among them a device whose attention layers are
 not one run, and sequences of another model.
 A three-layer model placed by `place_model` over two and three CPU backends at ubatch 3 takes a 13-token prompt in five chunks, more than the stages, so the pipelined prefill reuses its pass slots and both handoff buffers; the prompt, three decode steps, a second prompt continuing the history, every row of `score()` and a two-sequence pass must be exact against one backend, with the same `n_tokens` and `kv_used_bytes`.
 A backend on the last stage then fails while the first stage is chunks ahead, on top of a history, once at an attention mid-prompt and once at the head on the last chunk (`FailingCpu` in `tests/tiny_qwen.hpp`, which `kv-cache` also uses): every storage's length and `kv_used_bytes` must be back at the history, and the same prompt again must be exact.
+`place_model` refuses experts on the CPU beside several devices, and a stream point without experts on the CPU.
 
 Run the Python suite (synthetic fixtures are generated locally; real-model HF
 checks skip when their models are absent):
@@ -300,6 +301,8 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   A Vulkan device is refused with an error and nothing on stdout, never run on the CPU instead, through a model command and through the synthetic bench.
   A build without the Vulkan backend refuses it, and so does a Vulkan build that cannot open it; where device 0 opens, an index no machine has stands in for the missing device.
   `info` on the synthetic MoE model names its architecture and layer count, and lists every tensor written with its type, shape and size.
+  It also checks the CLI's usage errors, all refused before a model is opened: an unknown command, `serve` and `pull` without arguments, missing and extra arguments, unknown flags and flags without a value, a chat positional argument, a second prompt or `--stop`, the synthetic bench's flags with `--model` and the model run's without it, `--profile` off a single Vulkan device, `--moe-stream-from` without experts on the CPU, an unknown cache type, and numbers out of their form or range.
+  Each exits with status 2, nothing on stdout and the command's page then the reason on stderr.
   It needs no device, so it runs in every job.
 - **Round-trip** (`tests/roundtrip.py`): build a random Q8_0 model, quantize,
   dequantize, assert max error below a Q8_0-appropriate bound. Regression gate
@@ -316,6 +319,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
 - **Perplexity** (`tests/perplexity.py`): a synthetic model with an analytic
   scoring oracle checks window boundaries, chunk limits, target counts, file
   and inline input parity and invalid flags.
+  On the same model `logits` gives the same output for inline text and `--file` or `-f`, appends `--then-ids` ids separated by commas or whitespace, and refuses any other separator and an id past the vocabulary, 2^32 plus a valid id included.
 - **Chat** (`tests/chat.py`): follow-up replies against independent HF/Jinja2
   goldens, including changed prefixes, stop/EOS and token-limit endings.
   CTest also runs `chat-template`, comparing the real Qwen template against
@@ -332,6 +336,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   mapped-byte reporting, files truncated before loading, callback failures, early text
   delivery, split UTF-8 bytes and stop/EOS accounting;
   `cli-output` also reads `--device` lists as the commands do (canonical spellings, a device once, malformed entries refused), and the cache types as `exec_flag` reads them (one spelling each, an empty or unknown name refused before any model file is read).
+  It runs the CLI's number readers (`int_arg`, `float_arg` with the sampler's ranges, `--seed`'s decimal 64-bit read) and `token_ids` over every malformed form: a missing value, a sign, space, base prefix, fraction or trailing character, infinity and NaN, a value past its range or its type, and an id that would narrow into the vocabulary.
 - **KV cache** (`tests/kv_cache.cpp`, CTest `kv-cache`): block pool reuse and
   exhaustion, sequence prepare/commit/abort/reset, on-demand storage growth
   and retained reset across block boundaries, paged attention over two

@@ -4,6 +4,25 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Long-context decode and the 16k check (2026-09-25)
+
+- **Goal:** the pp16384 / tg512 case and the long-context greedy check asked for once decode reached its floor, on one card and on a layer split, beside the reference's Vulkan build on the same cards and file.
+- **Done, 16k check** (`tools/long_context_check.py`, Qwen3-8B Q8_0, main 32914a9, rocm-smi GPU[2] and GPU[2]+GPU[3]): one card and the 1:1 split each give the same 512 tokens on two fresh servers, the same text as each other; the CPU reading the prompt and those tokens ranks 505 of them first, the largest gap 0.041 logits. Passed again with the vectorized decode attention below (508 of 512, largest gap 0.177).
+- **Done, matched long-context bench:** `llmx bench --depth N` fills an N-token history outside the timer before every repeat, the protocol reference bench tools use for the same depth (`--seqs 1` had decoded from an empty history). Qwen3-8B Q8_0, two interleaved rounds, tok/s:
+
+  | | llmx one MI50 | reference one MI50 | llmx split | reference split |
+  |---|---:|---:|---:|---:|
+  | pp16384 | 411.7, 448.7 | 354.9, 354.9 | 646.7 | 528.1, 528.0 |
+  | tg512 from empty | 64.6, 64.7 | 58.0, 58.0 | 38.7 | 37.0, 36.5 |
+  | pp512 @ d16384 | 261.2, 257.7 | 213.7, 213.6 | 251.8, 252.9 | 212.3, 212.1 |
+  | tg @ d16384, main 7e195ff | 19.1, 19.3 | 44.5, 44.5 | 15.6, 15.6 | 29.4, 28.9 |
+  | tg @ d16384, now | 30.4, 28.5 | | 21.4, 20.9 | |
+
+  Both runtimes process a 16k prompt faster split than on one card; one card alone over a long prefill is likely held back by its power or thermal limit, not checked.
+- **Done, decode attention on a long history, two steps** (`docs/VULKAN.md`, attention): a workgroup takes up to four query heads of one KV head once the history fills every split, so the history is read once for them, bit-identical to before (merged f8e0c5a); then heads 128 wide take `attention_vec.comp`, a token's row read in one load a lane and several tokens a subgroup (merged 435d610). One MI50, tg128 at a 16384-token history, main then grouped then vectorized: 0.6B 51.0, 64.4, 86.3; 8B Q8_0 21.2, 27.9, 29.4; 30B-A3B 21.0, 29.1, 31.4; level or faster at every shorter history on the MI50 and the Radeon VII. The vectorized kernel sits closer to the CPU than the one it replaces and resolves the MI50's reversed 8B near-tie (the pinned 8B HF check passes 37 of 37 on one MI50); it swapped the 0.6B Q8_0 fixture's 5th and 6th tokens for "The capital of France is", 0.024 apart on the CPU, and with the user's agreement both HF checks now count a swap at the 5th place when the reference puts both tokens within 0.1 of its 5th value (`common.top5_overlap`).
+- **Measured and not taken, 16-bit activations on the MI50:** the integer-dot prefill tile over 16-bit activations fixed the 8B near-tie but cost prefill 17 to 62 percent (8B Q8_0 pp512 898 to 339), and the Q8_0 head on the 16-bit twin cost decode 3.5 to 7 percent; the reference's build reverses the same near-tie with 8-bit activations.
+- **Left:** decode at a 16384-token history is 29.4 tok/s against the reference's 44.5 on one MI50; on the split 21 against 29. Layer-split speed now has the phase 2 targets in `docs/MULTI-DEVICE.md`: single-stream decode about one device's, prefill about one device's times the stages.
+
 ## CPU activation range checkpoint (2026-09-25)
 
 Tiny finite CPU activation blocks now retain a representable scale and

@@ -93,7 +93,7 @@ python -X utf8 tests/baseline_8b.py --exe build/llmx --model path/to/Qwen3-8B-Q8
 
 Use `--exe build/Release/llmx.exe` for MSVC.
 It verifies model/fixture hashes, records executable identity, commands and failures in `report.json`, saves raw output beside it, and never downloads or skips a missing model.
-Frozen bounds require exact token IDs, top-1 agreement and top-5 overlap 5/5, with absolute NLL deltas <= 0.01 continuous and <= 0.02 windowed.
+Frozen bounds require exact token IDs, top-1 agreement and top-5 overlap 5/5, counting the boundary swaps AGENTS.md's HF baseline rule allows, with absolute NLL deltas <= 0.01 continuous and <= 0.02 windowed.
 Each NLL case is scored twice, in batched passes and with `--per-token`, as in `tests/baseline.py`, so a run has 41 checks.
 Top-10 output must be finite, sorted, unique-ID and within absolute magnitude 100; `tests/baseline.py` holds the 0.6B outputs to the same validators at its own bounds.
 This optional run is outside default CI; see [ASSETS](ASSETS.md#optional-qwen3-8b-hf-consumer) for reference provenance, the verified Linux cache path and the limits of short-excerpt coverage.
@@ -130,9 +130,8 @@ used to establish its local floors; automatic counts are tested separately.
 Hosted timings are diagnostic. The performance gate against mx-llama.cpp
 still requires matched hardware, model, quant and workload; see ROADMAP #8.
 
-The last hosted run before the Vulkan job's suite and the HF job's added steps, at `a2b732f`, took 7 min 33 s for the HF job, 3 min 34 s for macOS, 3 min 7 s for Windows, 2 min 9 s for the Vulkan build, 2 min 6 s for UBSan and 1 min 40 s for Linux.
-Those additions are estimates until a hosted run measures them: about 3 minutes for the Vulkan job's suite, and for the HF job 1 to 2 for the Q4_K_M fixture, 5 to 7 for the f32 pass, 1 for the split check and 4 to 6 for many users, less the minute its CTest step took, which puts the HF job at about 18 to 23 minutes.
-The HF job keeps its 30-minute limit until then, and the first such run's job times are recorded here.
+The first hosted run with the Vulkan job's suite and the HF job's added steps, at `73f4f78`, took 15 min 13 s for the HF job, 3 min 54 s for macOS, 2 min 58 s for Windows, 2 min 6 s for the Vulkan build and its suite, 1 min 54 s for UBSan and 1 min 5 s for Linux.
+The HF job keeps its 30-minute limit, about twice its time.
 
 To reproduce locally:
 
@@ -212,7 +211,7 @@ runs `prefill-placement`: active real topology when available, real fallback
 otherwise, and synthetic topology/failure cases even on small hosted runners.
 These checks do not require a real model or establish performance.
 
-Native counts are 22 on Windows and 21 on Linux/macOS; the Windows-only `prefill-placement` target accounts for the difference, and a build with `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and `vulkan-lifetime`: 25 native tests on Windows and 24 on Linux/macOS.
+Native counts are 23 on Windows and 22 on Linux/macOS; the Windows-only `prefill-placement` target accounts for the difference, and a build with `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and `vulkan-lifetime`: 26 native tests on Windows and 25 on Linux/macOS.
 The buffer test runs on a fake device that supplies every Vulkan call, so it needs no loader; the lifetime test opens a device and intercepts transfers for ownership checks, including failed padded-cache invalidation.
 It also substitutes five kernel creation failures to check cleanup/retry, and runs two real diagnostic-query cases for failed creation and idle-before-destruction.
 Query cases skip on a device without diagnostic timestamps.

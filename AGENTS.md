@@ -416,8 +416,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
 - **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
   Compares llmx against golden fixtures generated once from the HF reference by `tools/gen_baseline.py` and committed to `tests/data/`.
   Needs a real model, so it SKIPS when none is on disk; point it at one with `LLMX_BASELINE_GGUF`.
-  Otherwise each check, the tokenizer's included, reads its model from the HF cache at the revision `BASELINE_MODELS` pins, the path `tools/fetch_test_models.py` downloads to.
-  Its models are pinned in `tests/data/fixtures.json` (repo, revision, file and SHA-256), which `tools/fetch_test_models.py` downloads, and their bounds sit in `tests/baseline.py`, which refuses to load unless each pinned file has bounds and each bounded file is pinned once.
+  Otherwise each check, the tokenizer's included, reads its model from the HF cache at the revision `tests/data/fixtures.json` pins (repo, revision, file and SHA-256), read into `BASELINE_MODELS`, the path `tools/fetch_test_models.py` downloads to; their bounds sit in `tests/baseline.py`, which refuses to load unless each pinned file has bounds and each bounded file is pinned once.
   Every perplexity cell is scored twice, in batched passes (the default) and with `--per-token`, so the prompt and decode kernels both meet the reference.
   Its logit and PPL outputs go through the validators the 8B check uses, `common.check_logits` and `common.check_ppl`, at each fixture model's bounds: the exact prompt token count, ten unique in-vocabulary IDs with finite logits sorted from the top, and exactly the PPL fields with every count exact.
   Regenerating tokenizer fixtures needs `tokenizers` and `huggingface_hub`; numerical fixtures also need `torch` and `transformers`.

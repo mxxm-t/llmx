@@ -114,7 +114,7 @@ run CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
 GGUF structure, custom alignment and loading failures, Qwen model configuration
 and required tensor/storage layouts,
 grouped kernels, worker
-failures, chat rendering and KV storage,
+failures, chat rendering, sampling and KV storage,
 plus the Python HF/Jinja2 follow-up fixtures and CLI thread-control checks.
 The combined five-job workflow first ran on published runtime `08351b0`.
 [Run 35512421834](https://github.com/mxxm-t/llmx/actions/runs/35512421834)
@@ -206,10 +206,10 @@ runs `prefill-placement`: active real topology when available, real fallback
 otherwise, and synthetic topology/failure cases even on small hosted runners.
 These checks do not require a real model or establish performance.
 
-Native counts are 21 on Windows and 20 on Linux/macOS; the Windows-only
+Native counts are 22 on Windows and 21 on Linux/macOS; the Windows-only
 `prefill-placement` target accounts for the difference, and a build with
 `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and
-`vulkan-lifetime`: 24 native tests on Windows and 23 on Linux/macOS.
+`vulkan-lifetime`: 25 native tests on Windows and 24 on Linux/macOS.
 The buffer test substitutes Vulkan allocation calls and needs only a loader;
 the lifetime test opens a device and intercepts transfers for ownership checks,
 including failed padded-cache invalidation. It also substitutes five kernel

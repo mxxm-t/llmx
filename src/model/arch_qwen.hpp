@@ -1053,20 +1053,12 @@ private:
             p.views[storage][e].extent = p.runs[e].extent;
         }
         size_t cur = st.device;
-        // A device whose work runs at submit records the whole stage before the rows arrive from a device still running, and the host fills them in just before the submit, so the recording is off the path between the two.
-        void* held = nullptr;
-        const size_t from = p.at;
-        const backend::Ticket sent = p.sent;
-        const size_t E = (size_t)cfg.n_embd;
         if (s == 0) {
             cur = (size_t)place_.embed_device;
             devices_[cur]->b->embed(slot(ctx, cur, 0), token_embd_.type, token_embd_.slice(),
                                     token_embd_.nin, token_embd_.nout, p.ids.data(), p.rows);
-        } else if (from != cur) {
-            const backend::Slice x = slot(ctx, cur, 0);
-            if (st.touches.size() == 1 && !devices_[from]->b->reads_in_place())
-                held = devices_[cur]->b->hold_input(*x.buffer, x.offset * sizeof(float), p.rows * E * sizeof(float));
-            if (!held) receive(ctx, from, p.parity, sent, cur, 0, p.rows);
+        } else if (p.at != cur) {
+            receive(ctx, p.at, p.parity, p.sent, cur, 0, p.rows);
         }
         const backend::RowRuns all{p.runs.data(), p.runs.size()};
         for (int l = st.first; l < st.end; l++) {
@@ -1089,6 +1081,7 @@ private:
             if (o != cur) { cross(ctx, cur, o, 0, p.rows); cur = o; }
             if (p.want) {
                 // The rows that want logits are not contiguous once entries mix, so they are compacted first and the head runs once over exactly those rows.
+                const size_t E = (size_t)cfg.n_embd;
                 backend::Backend& b = *devices_[cur]->b;
                 b.gather_rows(slot(ctx, cur, 1), slot(ctx, cur, 0), E, p.pick.data(), p.want);
                 b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), output_norm_.slice(),
@@ -1098,7 +1091,6 @@ private:
                                 backend::RowRuns{p.head_runs.data(), p.head_runs.size()});
             }
         }
-        if (held) std::memcpy(held, sent_rows(ctx, from, p.parity, sent), p.rows * E * sizeof(float));
         for (size_t d : st.touches) ctx.tickets[d] = devices_[d]->b->submit();
         p.sent = ctx.tickets[cur];
         for (const BatchEntry& en : p.entries) {
@@ -1215,18 +1207,13 @@ private:
                                 (x.offset + base * E) * sizeof(float), rows * E * sizeof(float));
     }
 
-    // The rows `send` put in the source's handoff buffer, once the submission that carries the copy has retired.
-    const uint8_t* sent_rows(ExecContext& ctx, size_t from, size_t parity, backend::Ticket sent) {
-        devices_[from]->b->wait(sent);
-        return (const uint8_t*)ctx.handoff[from][parity]->host_ptr();
-    }
-
-    // `receive` writes them into the destination's residual, enqueued there.
+    // `receive` waits for that submission and writes the rows into the destination's residual, enqueued there.
     void receive(ExecContext& ctx, size_t from, size_t parity, backend::Ticket sent, size_t to, size_t base, size_t rows) {
         const size_t E = (size_t)cfg.n_embd;
+        devices_[from]->b->wait(sent);
         const backend::Slice x = slot(ctx, to, 0);
-        devices_[to]->b->write(*x.buffer, (x.offset + base * E) * sizeof(float),
-                               sent_rows(ctx, from, parity, sent) + base * E * sizeof(float), rows * E * sizeof(float));
+        const uint8_t* rows_out = (const uint8_t*)ctx.handoff[from][parity]->host_ptr() + base * E * sizeof(float);
+        devices_[to]->b->write(*x.buffer, (x.offset + base * E) * sizeof(float), rows_out, rows * E * sizeof(float));
     }
 
     // A crossing inside a stage, both halves at once.

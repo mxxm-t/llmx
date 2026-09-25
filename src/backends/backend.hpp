@@ -157,10 +157,6 @@ public:
     // Zero-filled backend storage.
     virtual BufferPtr alloc(size_t bytes, Memory where = Memory::device) = 0;
 
-    // Host bytes that work enqueued after this call reads before they are ready: `bytes` into `dst` from byte `off`, copied ahead of that work, from host memory returned here that the caller fills before its next submit().
-    // Nothing is submitted until then, and no read, write or adopt may come between. A backend whose ops run as they are called returns null, and the caller writes the bytes first.
-    virtual void* hold_input(Buffer& dst, size_t off, size_t bytes) { (void)dst; (void)off; (void)bytes; return nullptr; }
-
     // Make src reachable without copying on a host backend; src must outlive the returned buffer.
     virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
 

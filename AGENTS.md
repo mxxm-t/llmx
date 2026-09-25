@@ -356,6 +356,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   release, and a sequence forked at a block boundary continuing exactly as
   a fresh one fed the same history. This oracle supplements the
   independent HF gate.
+  The shared KV storage (`BlockKVStorage`) is held to the doubling rule it replaced, written out in the test: every growth step and the peak, with out-of-order ids and mixed cache types, an overflowing budget refused at allocation, and the growth hooks, each old buffer retired once, the backend drained and the accounting unchanged when a growth fails, and a retry.
 - **Server** (`tests/server.py`): `llmx serve` on a system-chosen port
   against the CLI on the same file, the synthetic F32 model without a
   download and the Q8_0 fixture when present: greedy through `/v1/generate`

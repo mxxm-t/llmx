@@ -1,5 +1,6 @@
-// Paged KV cache oracle (docs/KV-CACHE.md): the logical pool and sequence, the CPU storage behind them, and attention over a shuffled block table.
+// Paged KV cache oracle (docs/KV-CACHE.md): the logical pool and sequence, the CPU storage behind them and the growth every backend's storage shares, and attention over a shuffled block table.
 // HF/model history checks remain separate; this does not replace them.
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -234,6 +235,142 @@ void storage_growth_and_reset() {
         append(cpu, *st, seq, heads, width, 3, 2);
         check(*st, seq, bt, heads, width, 2);
     }
+}
+
+// The growth rule the CPU and Vulkan storages each wrote before they shared one, written out here so a change to the shared rule fails: back through the block written, and at least double what is backed, up to the budget.
+size_t rule_before_sharing(size_t backed, size_t id, size_t max_blocks) {
+    return std::max(id + 1, std::min(max_blocks, backed * 2));
+}
+
+// Writes one row into block `id` of every layer through a one-block view, which is how a pass first reaches a block.
+void write_block(backend::CpuBackend& cpu, backend::KVStorage& st, size_t layers, size_t row_floats, int32_t id) {
+    std::vector<float> row(row_floats, 1.0f);
+    const auto rowb = cpu.adopt(row.data(), row.size() * sizeof(float));
+    const backend::KVView view{&st, &id, 1, 0, 1};
+    for (size_t layer = 0; layer < layers; ++layer)
+        cpu.kv_write(layer, &view, 1, {rowb.get(), 0}, {rowb.get(), 0});
+}
+
+// Every growth step and the peak against the rule above: the blocks backed after each write, the bytes retained, and the most held while a growth copies, which is the old blocks plus the new.
+// Ids are written out of order and past twice what is backed, so each branch of the rule is taken, with the two sides of different types.
+void growth_steps_and_peak() {
+    for (size_t target = 0; target <= 40; ++target)
+        for (size_t max_blocks = 1; max_blocks <= 40; ++max_blocks)
+            for (size_t backed = 0; backed <= std::min(target, max_blocks); ++backed)
+                if (target < max_blocks)
+                    require(backend::BlockKVStorage::growth_target(backed, target, max_blocks) ==
+                            rule_before_sharing(backed, target, max_blocks),
+                            "the growth target differs from the rule before sharing");
+
+    backend::CpuBackend cpu;
+    cpu.set_threads(1);
+    const size_t bt = cpu.kv_layout().block_tokens, layers = 2, heads = 2, width = 8;
+    const size_t max_blocks = 11;
+    // One block of every layer, K in f16 and V in f32.
+    const size_t block = layers * heads * bt * width * (2 + 4);
+    struct Case {
+        std::vector<int32_t> ids;
+        std::vector<size_t> steps;
+    };
+    const Case cases[] = {
+        {{0, 1, 2, 3, 4, 8, 9, 10}, {1, 2, 4, 4, 8, 11, 11, 11}},
+        {{6, 7, 2, 7, 10}, {7, 11, 11, 11, 11}},
+        {{1, 0, 5, 4}, {2, 2, 6, 6}},
+    };
+    for (const Case& c : cases) {
+        auto st = cpu.kv_alloc(layers, heads, width, max_blocks * bt, backend::KVType::f16, backend::KVType::f32);
+        require(st->max_blocks() == max_blocks, "budget in blocks");
+        size_t backed = 0, peak = 0;
+        for (size_t i = 0; i < c.ids.size(); ++i) {
+            const size_t id = (size_t)c.ids[i];
+            if (id >= backed) {
+                const size_t grown = rule_before_sharing(backed, id, max_blocks);
+                peak = std::max(peak, (backed + grown) * block);
+                backed = grown;
+            }
+            write_block(cpu, *st, layers, heads * width, c.ids[i]);
+            require(backed == c.steps[i], "the rule before sharing gives other steps than the test lists");
+            require(st->allocated_bytes() == backed * block, "growth step differs from the rule before sharing");
+            require(st->peak_bytes() == peak, "growth peak differs from old plus new under the rule before sharing");
+        }
+        rejects([&] { write_block(cpu, *st, layers, heads * width, (int32_t)max_blocks); },
+                "a block past the budget accepted");
+        require(st->allocated_bytes() == backed * block && st->peak_bytes() == peak,
+                "a refused block changed the accounting");
+    }
+
+    // The whole budget is checked in bytes at the types before anything is backed.
+    rejects([&] { cpu.kv_alloc(1, 1, 1, std::numeric_limits<size_t>::max()); }, "an overflowing budget accepted");
+    rejects([&] {
+        cpu.kv_alloc(1, 1, 1, std::numeric_limits<size_t>::max(), backend::KVType::f16, backend::KVType::f16);
+    }, "an overflowing f16 budget accepted");
+    auto large = cpu.kv_alloc(1, 1, 1, std::numeric_limits<size_t>::max() / 1024);
+    require(large->allocated_bytes() == 0, "a large budget in range was backed on allocation");
+}
+
+// A backend whose allocation fails on request and whose syncs are counted.
+struct FailingAlloc : backend::CpuBackend {
+    int allocs = 0, fail_at = 0, syncs = 0;
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        if (++allocs == fail_at) throw std::runtime_error("injected allocation failure");
+        return backend::CpuBackend::alloc(bytes, where);
+    }
+    void sync() noexcept override { ++syncs; }
+};
+
+// A storage that records its hooks, standing in for a backend whose copies run after a growth returns.
+struct HookedStorage final : backend::BlockKVStorage {
+    std::vector<const backend::Buffer*> retired;
+    std::vector<const backend::Buffer*> seen;
+    HookedStorage(backend::Backend& owner, size_t max_tokens)
+        : BlockKVStorage(owner, "test", 4, 2, 1, 2, max_tokens, backend::KVType::f32, backend::KVType::f16) {}
+    void retire(const backend::BufferPtr& old) override { retired.push_back(old.get()); }
+    void after_growth(const std::vector<backend::BufferPtr>& keys, const std::vector<backend::BufferPtr>& values) override {
+        seen.clear();
+        for (size_t l = 0; l < keys.size(); ++l) {
+            seen.push_back(keys[l].get());
+            seen.push_back(values[l].get());
+        }
+    }
+    std::vector<const backend::Buffer*> held() const {
+        std::vector<const backend::Buffer*> out;
+        for (size_t l = 0; l < layers(); ++l) {
+            out.push_back(k_buffer(l).get());
+            out.push_back(v_buffer(l).get());
+        }
+        return out;
+    }
+};
+
+// A growth hands every old buffer to `retire` once and shows the new ones to `after_growth` before publishing them.
+// A growth that fails drains the backend and leaves buffers, accounting and hooks as they were, and the retry grows.
+// Errors carry the storage's prefix.
+void growth_hooks() {
+    FailingAlloc cpu;
+    HookedStorage st(cpu, 4 * 8);
+    require(st.max_blocks() == 8 && st.block_tokens() == 4, "hooked storage shape");
+    st.ensure(0);
+    require(st.retired.empty() && st.seen == st.held(), "first growth retired a buffer or hid the new ones");
+    const std::vector<const backend::Buffer*> first = st.held();
+    st.ensure(1);
+    require(st.retired == first && st.seen == st.held(), "growth did not retire every old buffer once");
+    const std::vector<const backend::Buffer*> second = st.held();
+    const size_t allocated = st.allocated_bytes(), peak = st.peak_bytes();
+    const int syncs = cpu.syncs;
+    cpu.fail_at = cpu.allocs + 3;
+    rejects([&] { st.ensure(2); }, "injected allocation failure did not propagate");
+    require(cpu.syncs == syncs + 1, "a failed growth did not drain the backend");
+    require(st.held() == second && st.retired == first && st.seen == second,
+            "a failed growth changed the buffers or ran a hook");
+    require(st.allocated_bytes() == allocated && st.peak_bytes() == peak && !st.backed(2),
+            "a failed growth changed the accounting");
+    st.ensure(2);
+    require(st.backed(3) && !st.backed(4) && st.retired.size() == 2 * first.size(), "retry after a failed growth");
+    require(cpu.syncs == syncs + 1, "a successful growth drained the backend");
+    bool prefixed = false;
+    try { st.ensure(8); }
+    catch (const std::runtime_error& e) { prefixed = std::string(e.what()) == "test: KV block outside the budget"; }
+    require(prefixed, "a storage error without its prefix");
 }
 
 // A fork at a whole-block length shares every block below it, read-only, and allocates and copies nothing, so the two histories agree up to the fork and then diverge without touching each other.
@@ -656,6 +793,8 @@ int main() {
     try {
         pool_and_sequence();
         storage_growth_and_reset();
+        growth_steps_and_peak();
+        growth_hooks();
         attention_over_blocks();
         model_transaction();
         release_syncs();
@@ -663,8 +802,8 @@ int main() {
         batched_forward();
         fork_shares_blocks();
         model_fork();
-        std::cout << "KV cache: pool, sequence, ownership, on-demand storage, reset, paged attention, "
-                     "failed-step transactions and retire-before-release pass\n";
+        std::cout << "KV cache: pool, sequence, ownership, on-demand storage, growth steps and peak, growth hooks, "
+                     "reset, paged attention, failed-step transactions and retire-before-release pass\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

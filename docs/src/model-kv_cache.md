@@ -47,3 +47,4 @@ against a double-precision reference, and forks: a whole-block length
 shares its blocks and allocates none, a length inside a block or past the
 history is refused, appends into shared blocks are refused and release
 follows the refcounts. HF/model history checks remain separate.
+It also holds the backends' shared storage (`backends/kv_storage.hpp`) to the doubling rule it replaced: every growth step and the peak, and a failed growth leaving the accounting as it was.

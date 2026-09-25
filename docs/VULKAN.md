@@ -648,18 +648,14 @@ HF gate measures the cost of it.
 
 ### KV layout on the device
 
-The backend chooses its block size and the layout inside a block, per
-[KV-CACHE](KV-CACHE.md). Blocks are per-layer device buffers holding K and
-V, grown by allocate-and-copy exactly as the CPU storage does, the copy
-enqueued on the queue. Failed growth drains those copies while the new buffers
-are still alive, preserves the prior backing and peak accounting, and permits
-a retry. Successful growth stays asynchronous. The layout inside a block is
-`[kv_head][token][head_dim]` so a head's keys within a block are contiguous
-for the attention lanes. The block size starts at 64 tokens, half the
-CPU's, because the attention workgroup reads a block per iteration and
-smaller blocks waste less tail per sequence on the device that bounds
-concurrency; screened on the real models the same way the CPU's 128
-was, 32, 64 and 128 measured within noise and 64 kept (sub-step 7).
+The backend chooses its block size and the layout inside a block, per [KV-CACHE](KV-CACHE.md).
+Blocks are per-layer device buffers holding K and V.
+The storage derives from `BlockKVStorage` (`src/backends/kv_storage.hpp`), the one the CPU storage derives from, so both grow by the same allocate-and-copy, the same doubling rule and the same accounting, and check views the same way.
+Here the copy is enqueued on the queue, and the buffers it reads are kept until the command buffer that recorded it retires.
+Failed growth drains those copies while the new buffers are still alive, preserves the prior backing and peak accounting, and permits a retry.
+Successful growth stays asynchronous.
+The layout inside a block is `[kv_head][token][head_dim]` so a head's keys within a block are contiguous for the attention lanes.
+The block size starts at 64 tokens, half the CPU's, because the attention workgroup reads a block per iteration and smaller blocks waste less tail per sequence on the device that bounds concurrency; screened on the real models the same way the CPU's 128 was, 32, 64 and 128 measured within noise and 64 kept (sub-step 7).
 
 Each side is stored as f32 or f16 (`--cache-type-k`, `--cache-type-v`,
 the same flags and meaning on the CPU). An f16 side is written by the

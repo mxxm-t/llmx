@@ -11,6 +11,7 @@
 #include <atomic>
 
 #include "backends/backend.hpp"
+#include "backends/kv_storage.hpp"
 #include "backends/cpu/prefill_placement.hpp"
 #include "backends/cpu/q8_dots.hpp"
 #include "core/fp16.hpp"
@@ -48,63 +49,13 @@ private:
 // KV block size selected by the screening in docs/KV-CACHE.md.
 static const size_t KV_BLOCK_TOKENS = 128;
 
-// KV blocks, one K and one V buffer per layer; block b starts at b*block_floats() and holds [kv_head][token][head_dim].
-// Blocks grow by allocating and copying through the backend; cached layer pointers avoid repeated resolution in attention.
-class CpuKVStorage final : public KVStorage {
+// KV blocks in host memory, kept and grown by BlockKVStorage (backends/kv_storage.hpp).
+// Copies are eager, so a growth has no old buffer to keep, and each growth resolves the layers' host pointers once: attention walks the block table for every head of every query.
+class CpuKVStorage final : public BlockKVStorage {
 public:
-    CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim,
-                 size_t max_blocks, KVType kt, KVType vt)
-        : owner_(&owner), heads_(heads), dim_(dim), max_(max_blocks), kt_(kt), vt_(vt),
-          kb_(kv_elem_bytes(kt)), vb_(kv_elem_bytes(vt)),
-          k_(layers), v_(layers), kp_(layers, nullptr), vp_(layers, nullptr) {
-        // Called for its overflow throw, not its value: block_floats() recomputes this on every access and must not wrap.
-        size_mul(size_mul(heads, KV_BLOCK_TOKENS), dim);
-    }
-
-    size_t max_blocks() const override { return max_; }
-    size_t allocated_bytes() const override {
-        size_t bytes = 0;
-        for (size_t l = 0; l < k_.size(); ++l)
-            if (k_[l]) bytes += k_[l]->size() + v_[l]->size();
-        return bytes;
-    }
-    size_t peak_bytes() const override { return peak_; }
-    size_t layers() const { return k_.size(); }
-    size_t heads() const { return heads_; }
-    size_t dim() const { return dim_; }
-    size_t block_floats() const { return heads_ * KV_BLOCK_TOKENS * dim_; }
-    KVType k_type() const { return kt_; }
-    KVType v_type() const { return vt_; }
-    size_t k_block_bytes() const { return block_floats() * kb_; }
-    size_t v_block_bytes() const { return block_floats() * vb_; }
-    bool backed(size_t id) const { return id < backed_; }
-
-    // The complete new set is allocated and already holds the history before any of it is published, so an allocation that throws leaves the storage exactly as it was and a retry starts over. alloc is zero-filled, which is what leaves a newly backed block reading as zeros.
-    void ensure(size_t id) {
-        if (id < backed_) return;
-        if (id >= max_) throw std::runtime_error("backend: KV block outside the budget");
-        const size_t want = std::max(id + 1, std::min(max_, backed_ * 2));
-        const size_t kbytes = size_mul(want, k_block_bytes()), vbytes = size_mul(want, v_block_bytes());
-        const size_t held = size_mul(size_add(kbytes, vbytes), k_.size());
-        std::vector<BufferPtr> nk(k_.size()), nv(v_.size());
-        std::vector<uint8_t*> nkp(k_.size()), nvp(v_.size());
-        for (size_t l = 0; l < k_.size(); ++l) {
-            nk[l] = owner_->alloc(kbytes);
-            nv[l] = owner_->alloc(vbytes);
-            if (k_[l]) {
-                owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
-                owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
-            }
-            nkp[l] = host_bytes(*nk[l]);
-            nvp[l] = host_bytes(*nv[l]);
-        }
-        peak_ = std::max(peak_, size_add(allocated_bytes(), held));
-        k_.swap(nk);
-        v_.swap(nv);
-        kp_.swap(nkp);
-        vp_.swap(nvp);
-        backed_ = want;
-    }
+    CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt)
+        : BlockKVStorage(owner, "backend", KV_BLOCK_TOKENS, layers, heads, dim, max_tokens, kt, vt),
+          kp_(layers, nullptr), vp_(layers, nullptr) {}
 
     // Block `id` of a layer as bytes, and as the element type it holds; the caller checks the type and casts once per block.
     uint8_t* kraw(size_t layer, int32_t id) { return kp_[layer] + (size_t)id * k_block_bytes(); }
@@ -121,18 +72,23 @@ public:
     const uint16_t* vh(size_t layer, int32_t id) const { return (const uint16_t*)vraw(layer, id); }
 
 private:
-    // Resolved once per growth rather than per access: attention walks the block table for every head of every query.
+    void retire(const BufferPtr&) override {}
+    // The pointers are resolved into new tables and swapped in only once every one resolved.
+    void after_growth(const std::vector<BufferPtr>& keys, const std::vector<BufferPtr>& values) override {
+        std::vector<uint8_t*> kp(keys.size()), vp(values.size());
+        for (size_t l = 0; l < keys.size(); ++l) {
+            kp[l] = host_bytes(*keys[l]);
+            vp[l] = host_bytes(*values[l]);
+        }
+        kp_.swap(kp);
+        vp_.swap(vp);
+    }
     static uint8_t* host_bytes(Buffer& b) {
         auto* cpu = dynamic_cast<CpuBuffer*>(&b);
         if (!cpu) throw std::runtime_error("backend: KV storage needs host blocks");
         return (uint8_t*)cpu->host_address();
     }
 
-    Backend* owner_;
-    size_t heads_, dim_, max_, backed_ = 0, peak_ = 0;
-    KVType kt_, vt_;
-    size_t kb_, vb_;
-    std::vector<BufferPtr> k_, v_;
     std::vector<uint8_t*> kp_, vp_;
 };
 
@@ -729,11 +685,7 @@ public:
                                         KVType v_type = KVType::f32) override {
         if (layers == 0 || n_head_kv == 0 || head_dim == 0)
             throw std::runtime_error("backend: invalid KV storage shape");
-        const size_t blocks = blocks_for(max_tokens, KV_BLOCK_TOKENS);
-        // Every factor uses checked multiplication so the whole budget is addressable even before it is backed.
-        size_mul(size_mul(size_mul(size_mul(blocks, layers), 2), n_head_kv),
-                 size_mul(size_mul(KV_BLOCK_TOKENS, head_dim), sizeof(float)));
-        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, blocks, k_type, v_type);
+        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type);
     }
 
     // A row of floats into a cache side of either type; f16 rounds to nearest, eight at a time where F16C is present.
@@ -772,15 +724,12 @@ public:
         for (size_t vi = 0; vi < n_views; ++vi) {
             const KVView& view = views[vi];
             CpuKVStorage& s = storage_of(view);
+            s.check_view(view, layer, true);
             const size_t bt = KV_BLOCK_TOKENS, heads = s.heads(), dim = s.dim();
             const size_t pos = view.length, batch = view.nq;
-            if (layer >= s.layers() ||
-                blocks_for(size_add(pos, batch), bt) > view.n_blocks)
-                throw std::runtime_error("backend: KV write outside the view");
             for (size_t b = 0; b < batch; ++b) {
                 const size_t t = pos + b;
                 const int32_t id = view.blocks[t / bt];
-                s.ensure((size_t)id);
                 for (size_t h = 0; h < heads; ++h) {
                     const size_t in = ((row0 + b) * heads + h) * dim;
                     const size_t out = (h * bt + t % bt) * dim;
@@ -813,16 +762,12 @@ public:
             const int nbatch = (int)view.nq;
             const float* Q = Q_all + row0 * q_stride;
             float* out = out_all + row0 * q_stride;
-            const CpuKVStorage& s = storage_of(view);
-            const size_t bt = KV_BLOCK_TOKENS;
-            const size_t sequence = size_add(view.length, view.nq);
-            const size_t blocks = blocks_for(sequence, bt);
-            if (layer >= s.layers() || (size_t)head_dim != s.dim() ||
-                (size_t)n_head_kv != s.heads() || blocks > view.n_blocks)
+            CpuKVStorage& s = storage_of(view);
+            if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads())
                 throw std::runtime_error("backend: attention outside the KV view");
-            for (size_t i = 0; i < blocks; ++i)
-                if (!s.backed((size_t)view.blocks[i]))
-                    throw std::runtime_error("backend: attention over unwritten KV blocks");
+            s.check_view(view, layer, false);
+            const size_t bt = KV_BLOCK_TOKENS;
+            const size_t sequence = view.length + view.nq;
             attention_scores_.resize((size_t)n_head * sequence);
             parallel_for(n_head, [&](int h) {
                 const size_t kvh = (size_t)(h / ratio);

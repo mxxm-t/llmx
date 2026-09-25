@@ -312,6 +312,7 @@ device memory, `kv_alloc` and a `KVStorage` it owns, the ops themselves, and a
 `sync()` that means it. What it does not have to do is invent a place for
 activations or a cache layout, because the model layer holds no address and
 computes no offset into KV storage.
+Nor does it write the cache's bookkeeping again: its storage derives from `BlockKVStorage` (`src/backends/kv_storage.hpp`), which grows the blocks through its `alloc` and `copy` and keeps the accounting and the view checks, and it supplies the block size, the kernels, its error prefix and a `retire` that keeps the buffers a growth copied from until its copies retire.
 
 **No step lands without its consumer.** Adding `Buffer` and its five methods
 while the model still passes host pointers would be a seam with no caller and

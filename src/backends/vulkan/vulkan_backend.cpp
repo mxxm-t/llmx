@@ -1,5 +1,6 @@
 // Vulkan backend (docs/VULKAN.md). Everything runs on one compute queue: ops record into an open command buffer, submit() ends it and signals a timeline semaphore with the ticket, wait() blocks on it, and a ring of command buffers is reused once their tickets retire.
 #include "backends/device_profile.hpp"
+#include "backends/kv_storage.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "format/gguf.hpp"
 #include "quant/quant.hpp"
@@ -441,41 +442,15 @@ const size_t kVkBlockTokens = 64;
 
 class VulkanBackend;
 
-// KV blocks on the device, one K and one V buffer per layer; block b starts at b*block_floats() and holds [kv_head][token][head_dim].
-// Blocks are backed in doubling steps as ids are first written; growth allocates and copies on the queue, keeping the old buffers alive until the copy retires.
-class VulkanKVStorage final : public KVStorage {
+// KV blocks on the device, kept and grown by BlockKVStorage (backends/kv_storage.hpp).
+// A growth's copies run on the queue after it returns, so the old buffers are kept until the command buffer that recorded the copies retires.
+class VulkanKVStorage final : public BlockKVStorage {
 public:
-    VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_blocks,
-                    KVType kt, KVType vt)
-        : owner_(&owner), heads_(heads), dim_(dim), max_(max_blocks), kt_(kt), vt_(vt), k_(layers), v_(layers) {
-        size_mul(size_mul(heads, kVkBlockTokens), dim);
-    }
-    size_t max_blocks() const override { return max_; }
-    size_t allocated_bytes() const override {
-        size_t bytes = 0;
-        for (size_t l = 0; l < k_.size(); ++l)
-            if (k_[l]) bytes += k_[l]->size() + v_[l]->size();
-        return bytes;
-    }
-    size_t peak_bytes() const override { return peak_; }
-    size_t layers() const { return k_.size(); }
-    size_t heads() const { return heads_; }
-    size_t dim() const { return dim_; }
-    size_t block_floats() const { return heads_ * kVkBlockTokens * dim_; }
-    KVType k_type() const { return kt_; }
-    KVType v_type() const { return vt_; }
-    size_t k_block_bytes() const { return block_floats() * kv_elem_bytes(kt_); }
-    size_t v_block_bytes() const { return block_floats() * kv_elem_bytes(vt_); }
-    bool backed(size_t id) const { return id < backed_; }
-    void ensure(size_t id);
-    const BufferPtr& k(size_t layer) const { return k_[layer]; }
-    const BufferPtr& v(size_t layer) const { return v_[layer]; }
+    VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt,
+                    KVType vt);
 
 private:
-    VulkanBackend* owner_;
-    size_t heads_, dim_, max_, backed_ = 0, peak_ = 0;
-    KVType kt_, vt_;
-    std::vector<BufferPtr> k_, v_;
+    void retire(const BufferPtr& old) override;
 };
 
 // A compiled kernel: module, a layout of `bindings` pushed storage buffers and 128 bytes of push constants, and the pipeline.
@@ -1357,7 +1332,7 @@ public:
         dispatch(kv_variant(K_NORM_ROPE_KV, K_NORM_ROPE_KV_K16, s),
                  {bind(q), bind(k), bind(v), bind(q_w), bind(k_w), bind(rope.cos), bind(rope.sin),
                   args(rope.pos, rows * sizeof(uint32_t)),
-                  bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
+                  bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                   args(t.words.data(), t.words.size() * sizeof(uint32_t))},
                  &pc, sizeof(pc), u32(rows * (n_head + 2 * n_head_kv)));
     }
@@ -2017,8 +1992,7 @@ public:
         if (!layers || !n_head_kv || !head_dim)
             throw std::runtime_error("vulkan: KV storage without layers, heads or width");
         if (head_dim > 256) throw std::runtime_error("vulkan: head width above 256 is not supported");
-        return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim,
-                                                 blocks_for(max_tokens, kVkBlockTokens), k_type, v_type);
+        return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type);
     }
 
     // One dispatch for every view of the batch through the view table, each view's rows scattering into its blocks.
@@ -2033,7 +2007,7 @@ public:
             throw std::runtime_error("vulkan: KV rows outside their allocation");
         const uint32_t pc[4] = {u32(t.rows), u32(s.heads()), u32(s.dim()), u32(kVkBlockTokens)};
         dispatch(kv_variant(K_KV_WRITE, K_KV_WRITE_K16, s),
-                 {bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
+                 {bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                   bind(k), bind(v), args(t.words.data(), t.words.size() * sizeof(uint32_t))},
                  pc, sizeof(pc), groups(t.rows * hd, 256));
     }
@@ -2062,7 +2036,7 @@ public:
         if (!wide.empty()) {
             ViewTable t = view_table(layer, wide, false);
             VulkanKVStorage& s = *t.storage;
-            check_storage(s, layer, n_head_kv, head_dim);
+            check_storage(s, n_head_kv, head_dim);
             size_t tiles = 0;
             for (const Placed& pv : wide) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
             // With every view here and the integer-dot tile reading the output next, the tile's 8-bit copy of it (shaders/attention_tile.comp).
@@ -2072,7 +2046,7 @@ public:
             struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, xrow; }
                 tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(x8_row(rows))};
             dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
-                     {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
+                     {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                       args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? x8_for(x8_row(rows) * qstride) : bind(out)},
                      &tc, sizeof(tc), u32(tiles * (size_t)n_head));
             if (tile) made_x8(bind(out), qstride, rows);
@@ -2080,7 +2054,7 @@ public:
         if (!narrow.empty()) {
             ViewTable t = view_table(layer, narrow, false);
             VulkanKVStorage& s = *t.storage;
-            check_storage(s, layer, n_head_kv, head_dim);
+            check_storage(s, n_head_kv, head_dim);
             // The output's 16-bit twin, written by whichever kernel writes the output, when the whole batch is this dispatch and a head is whole blocks.
             const bool quant = wide.empty() && head_dim % 32 == 0;
             const VkDescriptorBufferInfo xq = quant ? xq_for(rows * qstride) : bind(out);
@@ -2112,7 +2086,7 @@ public:
             const KernelId kernel = vec ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
                                         : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
             dispatch(kernel,
-                     {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
+                     {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                       table, scratch, xq},
                      &pc, sizeof(pc), groups(pairs / hg * nsplit, 1), 1, twin_variant());
             if (nsplit > 1) {
@@ -2139,7 +2113,8 @@ public:
         }
         return placed;
     }
-    // The table the batched cache kernels read (shaders/views.glsl) for a subset of a batch's views. Every view is checked against the storage; a writing op backs the blocks its rows land in, a reading op requires them written.
+    // The table the batched cache kernels read (shaders/views.glsl) for a subset of a batch's views.
+    // Every view is checked against the storage by BlockKVStorage::check_view, which backs the blocks a writing op's rows land in and requires a reading op's written.
     struct ViewTable {
         std::vector<uint32_t> words;
         size_t rows = 0;
@@ -2152,22 +2127,10 @@ public:
         size_t local = 0;
         for (const Placed& pv : placed) {
             const KVView& view = *pv.view;
-            VulkanKVStorage& s = storage_of(*view.storage);
+            VulkanKVStorage& s = storage_of(view.storage);
             if (t.storage && t.storage != &s) throw std::runtime_error("vulkan: views of two storages in one call");
             t.storage = &s;
-            const size_t sequence = size_add(view.length, view.nq);
-            const size_t used = blocks_for(sequence, kVkBlockTokens);
-            if (layer >= s.layers() || used > view.n_blocks)
-                throw std::runtime_error(writing ? "vulkan: KV write outside the view" : "vulkan: attention outside the KV view");
-            if (writing) {
-                for (size_t tk = view.length; tk < sequence; tk += kVkBlockTokens - tk % kVkBlockTokens)
-                    s.ensure((size_t)view.blocks[tk / kVkBlockTokens]);
-                if (view.nq) s.ensure((size_t)view.blocks[(sequence - 1) / kVkBlockTokens]);
-            } else {
-                for (size_t b = 0; b < used; ++b)
-                    if (!s.backed((size_t)view.blocks[b]))
-                        throw std::runtime_error("vulkan: attention over unwritten KV blocks");
-            }
+            const size_t used = s.check_view(view, layer, writing);
             t.words.push_back(u32(pv.row0));
             t.words.push_back(u32(local));
             t.words.push_back(u32(view.nq));
@@ -2181,8 +2144,9 @@ public:
         t.rows = local;
         return t;
     }
-    static void check_storage(const VulkanKVStorage& s, size_t layer, int n_head_kv, int head_dim) {
-        if (layer >= s.layers() || (size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads())
+    // The heads and width attention is asked for against the storage's; the view table has checked the layer.
+    static void check_storage(const VulkanKVStorage& s, int n_head_kv, int head_dim) {
+        if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads())
             throw std::runtime_error("vulkan: attention outside the KV view");
     }
 
@@ -2204,8 +2168,8 @@ private:
         size_t used = 0;
     };
 
-    static VulkanKVStorage& storage_of(KVStorage& storage) {
-        auto* s = dynamic_cast<VulkanKVStorage*>(&storage);
+    static VulkanKVStorage& storage_of(KVStorage* storage) {
+        auto* s = dynamic_cast<VulkanKVStorage*>(storage);
         if (!s) throw std::runtime_error("vulkan: KV storage of another backend");
         return *s;
     }
@@ -2543,35 +2507,12 @@ inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s)
     return i == 0 ? f32 : (KernelId)((int)k16 + i - 1);
 }
 
-void VulkanKVStorage::ensure(size_t id) {
-    if (id < backed_) return;
-    if (id >= max_) throw std::runtime_error("vulkan: KV block outside the budget");
-    const size_t want = std::max(id + 1, std::min(max_, backed_ * 2));
-    const size_t kbytes = size_mul(want, k_block_bytes()), vbytes = size_mul(want, v_block_bytes());
-    const size_t held = size_mul(size_add(kbytes, vbytes), k_.size());
-    std::vector<BufferPtr> nk(k_.size()), nv(v_.size());
-    const size_t peak = std::max(peak_, size_add(allocated_bytes(), held));
-    try {
-        for (size_t l = 0; l < k_.size(); ++l) {
-            nk[l] = owner_->alloc(kbytes, Memory::device);
-            nv[l] = owner_->alloc(vbytes, Memory::device);
-            if (k_[l]) {
-                owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
-                owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
-            }
-        }
-        for (size_t l = 0; l < k_.size(); ++l) {
-            if (k_[l]) { owner_->keep_until_retired(k_[l]); owner_->keep_until_retired(v_[l]); }
-        }
-    } catch (...) {
-        // New buffers can already be queued destinations; keep them alive until the stream drains.
-        owner_->sync();
-        throw;
-    }
-    k_.swap(nk);
-    v_.swap(nv);
-    backed_ = want;
-    peak_ = peak;
+VulkanKVStorage::VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens,
+                                 KVType kt, KVType vt)
+    : BlockKVStorage(owner, "vulkan", kVkBlockTokens, layers, heads, dim, max_tokens, kt, vt) {}
+
+void VulkanKVStorage::retire(const BufferPtr& old) {
+    static_cast<VulkanBackend&>(owner()).keep_until_retired(old);
 }
 
 } // namespace

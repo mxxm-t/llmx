@@ -70,6 +70,7 @@ placement contracts in `docs/EXECUTION.md`.
   to positions `length .. length + nq` of its sequence. Storage is backed on
   demand up to the blocks `max_tokens` needs; it reports retained bytes and
   the peak held during a growth copy.
+  The backends here derive their storage from `BlockKVStorage` (`backends-kv_storage.md`), which holds the buffers, the accounting, the growth rule, the whole-budget check and the view checks once.
 - `attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)`:
   causal GQA over every view, shared by decode and prefill. Queries/output
   have shape `[rows, n_head, head_dim]` in view order; row `b` of view `v`

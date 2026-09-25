@@ -84,14 +84,11 @@ the compiled binary portable to older CPUs.
   approximation would shift logits and needs its own correctness gate.
 - `parallel_for` stays public here but is deliberately off the `Backend`
   interface; the batched ops above are how the model gets parallelism.
-- `CpuKVStorage`, `kv_layout`, `kv_alloc`, `kv_write`: the physical half of
-  the paged KV cache. Per layer, block `b` of K or V holds
-  `[kv_head][token][head_dim]`, so a head's history is contiguous inside a
-  block. Blocks are backed in doubling steps as ids are first written, up to
-  the budget; growth copies the history into exact-size buffers for every
-  layer before publishing any, and `allocated_bytes` is the retained
-  capacity. `KV_BLOCK_TOKENS` is 128, fixed by the screening in
-  `docs/KV-CACHE.md`; it is a property of this backend, not a knob.
+- `CpuKVStorage`, `kv_layout`, `kv_alloc`, `kv_write`: the physical half of the paged KV cache.
+  Per layer, block `b` of K or V holds `[kv_head][token][head_dim]`, so a head's history is contiguous inside a block.
+  The storage derives from `BlockKVStorage` (`backends-kv_storage.md`), which backs blocks in doubling steps as ids are first written, up to the budget, copies the history into exact-size buffers for every layer before publishing any, and checks the views.
+  Its copies are eager, so its `retire` keeps nothing, and its `after_growth` resolves each layer's host pointers once per growth, which `kraw`, `k`, `kh` and their V forms read.
+  `KV_BLOCK_TOKENS` is 128, fixed by the screening in `docs/KV-CACHE.md`; it is a property of this backend, not a knob.
 - `attention`: causal GQA over a `KVView`. Heads use the persistent worker
   pool and separate score rows, reused across queries. Blocks are walked in
   table order with one global softmax and token-ordered value accumulation

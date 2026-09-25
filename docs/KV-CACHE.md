@@ -106,10 +106,9 @@ Both own what they hold: neither is copyable, the pool is not movable either
 because sequences hold its address and it is configured in place while idle,
 a sequence returns its blocks when destroyed or moved from, and every
 bookkeeping vector is reserved to the budget so alloc, release, abort and
-reset never allocate. The CPU storage grows by copying the history into
-exact-size buffers, all layers before any is published, and reports the
-capacity it retains. A failed step restores history and length; capacity
-the backend grew for the attempt may stay retained, within the budget.
+reset never allocate.
+Every backend's storage derives from `BlockKVStorage` (`src/backends/kv_storage.hpp`), which grows it by copying the history into exact-size buffers, all layers before any is published, at least doubling what is backed up to the budget, and reports the capacity it retains.
+A failed step restores history and length; capacity the backend grew for the attempt may stay retained, within the budget.
 
 `KVSequence` replaces the per-model position bookkeeping. `Model` keeps one
 `Sequence`, which holds a `KVSequence` for each storage, and the server

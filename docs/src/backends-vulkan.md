@@ -112,6 +112,7 @@ kernel notes and measurements are `docs/VULKAN.md`.
   their weighted sum to the residual; the grouping and the activation
   twin made for gate and up are reused by it.
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16, written and read through view tables, so every view of a batch goes through one dispatch of each cache kernel.
+  It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses heads wider than 256.
   Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
   It gives views of 128-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
   Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one load a lane, and several tokens a subgroup; other widths keep `attention.comp`.

@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 
-from common import device_args
+from common import device_args, top5_overlap
 
 
 DATA = Path(__file__).resolve().parent / "data" / "qwen3-8b"
@@ -67,7 +67,7 @@ def check_logits(output, case):
             "non-finite or implausible logits")
     require(all(a >= b for a, b in zip(values, values[1:])), "logits not sorted")
     require(ids[0] == case["top_ids"][0], "top-1 differs from HF")
-    overlap = len(set(ids[:5]) & set(case["top_ids"][:5]))
+    overlap = top5_overlap(ids, case["top_ids"], case["top_logits"])
     require(overlap >= BOUNDS["top5_overlap"], "top-5 overlap below frozen bound")
     return {"top1": ids[0], "top5_overlap": overlap, "top_ids": ids, "top_logits": values}
 

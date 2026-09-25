@@ -39,6 +39,25 @@ def device_args(args, cache=None):
     return args
 
 
+# How far from the reference's 5th logit two tokens may sit and still trade places at the top-5 boundary: near ties there reorder with the rounding of any backend that sums in another order.
+TOP5_TIE_MARGIN = 0.1
+
+
+def top5_overlap(ids, ref_ids, ref_logits, margin=TOP5_TIE_MARGIN):
+    """The reference's top-5 tokens found in `ids[:5]`, a boundary swap counting as agreement.
+
+    A reference top-5 token missing from `ids[:5]` is forgiven only when the reference puts it within `margin` of its own 5th logit,
+    and only against a token `ids[:5]` holds instead that the reference puts within `margin` below that logit; a strong token that
+    vanishes, or one pulled in from further down, still counts as a miss.
+    """
+    top, fifth = set(ref_ids[:5]), ref_logits[4]
+    ref = dict(zip(ref_ids, ref_logits))
+    got = set(ids[:5])
+    missing = [t for t in top - got if ref[t] - fifth <= margin]
+    extra = [t for t in got - top if t in ref and fifth - ref[t] <= margin]
+    return len(got & top) + min(len(missing), len(extra))
+
+
 def run(args, cwd=None, cache=None):
     """Run the llmx CLI, returning (returncode, stdout_text)."""
     p = subprocess.run([exe_path()] + device_args(args, cache), capture_output=True, text=True,

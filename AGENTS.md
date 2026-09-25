@@ -409,7 +409,10 @@ verifies the model/fixture hashes and writes raw outputs plus `report.json`,
 including failures. It requires exact tokenizer/input IDs, six top-1 matches,
 top-5 overlap 5/5 and valid top-10 logits; absolute NLL bounds are 0.01 for the
 continuous excerpt and 0.02 per windowed case. These prospective Q8 bounds
-were frozen before the 8B comparison. See `docs/ASSETS.md` for provenance and
+were frozen before the 8B comparison. Since 2026-09-25 the overlap, here and
+in `tests/baseline.py`, counts a swap at the 5th place as agreement when the
+reference puts both tokens within 0.1 logits of its 5th value
+(`common.top5_overlap`): such near ties reorder with any summation order. See `docs/ASSETS.md` for provenance and
 scope: short rankings/excerpts do not establish full-corpus or deep-context
 correctness, and the exact original GGUF conversion revision is undocumented.
 

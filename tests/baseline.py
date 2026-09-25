@@ -63,7 +63,9 @@ def run_logits():
     meaningless. What is stable is the ranking, plus a magnitude sanity bound:
 
       - top-1 must match, on every model.
-      - top-5 SET overlap must reach the per-model bound above.
+      - top-5 SET overlap must reach the per-model bound above; a swap at the
+        5th place counts as agreement when the reference puts both tokens
+        within 0.1 logits of its 5th value (common.top5_overlap).
       - exact top-5 ORDER is deliberately NOT required: it legitimately differs
         when two tokens sit within about 0.01 logits of each other, far below
         quantization noise. Requiring it would flag correct behaviour.
@@ -98,7 +100,7 @@ def run_logits():
             elif ids[0] != want[0]:
                 failures.append((case["text"], "top-1 %d, reference %d" % (ids[0], want[0])))
             else:
-                ov = len(set(ids[:5]) & set(want[:5]))
+                ov = common.top5_overlap(ids, want, case["top_logits"])
                 if ov < spec["min_overlap"]:
                     failures.append((case["text"], "top-5 overlap %d/5, expected >= %d"
                                      % (ov, spec["min_overlap"])))

@@ -1,9 +1,9 @@
-import glob
 import hashlib
 import io
 import json
 import math
 import os
+from pathlib import Path
 import sys
 import tempfile
 
@@ -158,20 +158,21 @@ def find_fixture(spec):
             "LLMX_BASELINE_GGUF must retain the fixture filename to select its quantization bounds")
         if name != spec["file"]:
             return None
-    return find_model({"gguf_repo": spec["repo"], "gguf_file": spec["file"],
-                       "gguf_revision": spec["revision"]})
+    return find_model(spec)
 
 
-def find_model(doc):
+def snapshot_path(repo, revision, file):
+    """Where the HF cache keeps `file` of `repo` at `revision`, which is where tools/fetch_test_models.py writes it."""
+    return Path.home() / ".cache" / "huggingface" / "hub" / ("models--" + repo.replace("/", "--")) / "snapshots" / revision / file
+
+
+def find_model(spec):
+    """The model LLMX_BASELINE_GGUF names when it is set, otherwise the pinned snapshot of the BASELINE_MODELS entry `spec`; None when that file is absent."""
     env = os.environ.get("LLMX_BASELINE_GGUF")
     if env:
         return env if os.path.exists(env) else None
-    repo = doc["gguf_repo"].replace("/", "--")
-    pattern = os.path.join(
-        os.path.expanduser("~"), ".cache", "huggingface", "hub",
-        "models--" + repo, "snapshots", doc.get("gguf_revision", "*"), doc["gguf_file"])
-    hits = sorted(glob.glob(pattern))
-    return hits[0] if hits else None
+    path = snapshot_path(spec["repo"], spec["revision"], spec["file"])
+    return str(path) if path.exists() else None
 
 
 def run():
@@ -182,7 +183,10 @@ def run_tokenizer():
     with io.open(GOLDEN, encoding="utf-8") as f:
         doc = json.load(f)
 
-    model = find_model(doc)
+    # The golden names its model by repository and file, and the entry for that file in BASELINE_MODELS pins its revision.
+    spec = next((s for s in BASELINE_MODELS if s["repo"] == doc["gguf_repo"] and s["file"] == doc["gguf_file"]), None)
+    assert spec, "the tokenizer golden's model %s is not a pinned fixture" % doc["gguf_file"]
+    model = find_model(spec)
     if not model:
         print("baseline: SKIP - no fixture model on disk (%s). "
               "Set LLMX_BASELINE_GGUF or `python tools/gen_baseline.py` deps."

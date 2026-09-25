@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
-from baseline import BASELINE_MODELS
+from baseline import BASELINE_MODELS, snapshot_path
 
 
 def sha256(path):
@@ -70,9 +70,7 @@ def download(url, destination, expected_sha256):
 
 
 def fetch(spec):
-    destination = (Path.home() / ".cache" / "huggingface" / "hub" /
-                   ("models--" + spec["repo"].replace("/", "--")) /
-                   "snapshots" / spec["revision"] / spec["file"])
+    destination = snapshot_path(spec["repo"], spec["revision"], spec["file"])
     if destination.is_file() and sha256(destination) == spec["sha256"]:
         print("verified " + spec["file"], flush=True)
         return

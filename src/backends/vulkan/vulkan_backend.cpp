@@ -1079,6 +1079,7 @@ public:
 
     // A copy in chunks through staging; weights arrive here once at load.
     BufferPtr adopt(const void* src, size_t bytes) override {
+        refuse_while_held();
         if (!src && bytes) throw std::runtime_error("vulkan: adopting null storage");
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, false);
         try {
@@ -1095,6 +1096,8 @@ public:
     Ticket submit() override {
         VkCommandBuffer cmd = open();
         chunk_ = 0;
+        const int held = held_;
+        held_ = -1;
         check(dev_->fn.vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
         const Ticket ticket = ++last_ticket_;
         VkTimelineSemaphoreSubmitInfo tsi{};
@@ -1116,7 +1119,30 @@ public:
         }
         ring_ticket_[ring_index_] = ticket;
         ring_index_ = (ring_index_ + 1) % kRing;
+        if (held >= 0) staged_[held] = ticket;
         return ticket;
+    }
+
+    // The copy out of a staging half goes first in the open command buffer, and the host fills the half before the submit, which host-coherent memory makes visible to the device; the whole stage stays one command buffer until then.
+    void* hold_input(Buffer& dst_b, size_t off, size_t bytes) override {
+        VulkanBuffer& dst = as_vulkan(dst_b);
+        if (held_ >= 0 || !bytes || dst.host_visible()) return nullptr;
+        span(dst, off, bytes);
+        VulkanBuffer& st = staging();
+        const size_t half = st.size() / 2;
+        if (bytes > half) return nullptr;
+        xq_tag_ = XqTag{};
+        group_tag_ = GroupTag{};
+        drop_padded(dst);
+        const int i = staged_[0] <= staged_[1] ? 0 : 1;
+        wait(staged_[i]);
+        VkCommandBuffer cmd = open();
+        barrier(cmd);
+        VkBufferCopy region{i * half, off, bytes};
+        dev_->fn.vkCmdCopyBuffer(cmd, st.handle(), dst.handle(), 1, &region);
+        barrier(cmd);
+        held_ = i;
+        return (uint8_t*)st.mapped() + i * half;
     }
 
     // noexcept by contract: a device that cannot report its work finished has been lost, and nothing here can act on that.
@@ -1179,6 +1205,7 @@ public:
     }
 
     void read(const Buffer& src_b, size_t off, void* dst, size_t bytes) override {
+        refuse_while_held();
         const VulkanBuffer& src = as_vulkan(src_b);
         span(src, off, bytes);
         if (!bytes) return;
@@ -1203,6 +1230,7 @@ public:
     }
 
     void write(Buffer& dst_b, size_t off, const void* src, size_t bytes) override {
+        refuse_while_held();
         xq_tag_ = XqTag{};
         group_tag_ = GroupTag{};
         if (!src && bytes) throw std::runtime_error("vulkan: writing from null storage");
@@ -2365,7 +2393,8 @@ private:
         }
         barrier(cmd);
         // A pass is submitted in chunks so the device starts on the first while the host records the rest; the ordered timeline makes the last chunk's ticket cover them all.
-        if (++chunk_ >= dev_->profile.dispatch_chunk) submit();
+        // A held input keeps the stage whole until the host has filled it.
+        if (++chunk_ >= dev_->profile.dispatch_chunk && held_ < 0) submit();
     }
 
     // The open command buffer, beginning the next ring slot once its last submission has retired.
@@ -2393,6 +2422,11 @@ private:
                            VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
         const VkPipelineStageFlags stages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
         dev_->fn.vkCmdPipelineBarrier(cmd, stages, stages, 0, 1, &mb, 0, nullptr, 0, nullptr);
+    }
+
+    // Each of these submits on its own, which would send a held input before the host has filled it.
+    void refuse_while_held() const {
+        if (held_ >= 0) throw std::logic_error("vulkan: a held input is not filled yet");
     }
 
     VulkanBuffer& staging() {
@@ -2431,6 +2465,7 @@ private:
     Ticket last_ticket_ = 0;
     std::unique_ptr<VulkanBuffer> staging_;
     Ticket staged_[2] = {};                   // the last copy out of each half of staging
+    int held_ = -1;                           // the half a held input waits in, until the next submit
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
     static const uint32_t kQueries = 8192;    // two per dispatch; a reading empties the pool, which the next dispatch resets

@@ -1373,6 +1373,37 @@ int main(int argc, char** argv) {
         require(std::memcmp(window.data(), kept.data(), 64) == 0, "work before sync not retired");
         checks += 2;
 
+        // A held input is copied ahead of the work recorded after it and filled by the host before the submit, as a stage crossing takes its rows; the work sees exactly what writing the bytes first gives it.
+        {
+            std::vector<float> rows(1024);
+            for (size_t i = 0; i < rows.size(); ++i) rows[i] = std::sin(0.37f * (float)i);
+            const size_t bytes = rows.size() * sizeof(float);
+            const auto first = b->alloc(bytes), held_in = b->alloc(bytes), got_first = b->alloc(bytes), got_held = b->alloc(bytes);
+            b->write(*first, 0, rows.data(), bytes);
+            b->add({got_first.get(), 0}, {first.get(), 0}, rows.size());
+            void* fill = b->hold_input(*held_in, 0, bytes);
+            require(fill != nullptr, "a device refused to hold an input");
+            require(b->hold_input(*dst, 0, 64) == nullptr, "a second input held at once");
+            bool refused = false;
+            try { b->write(*dst, 0, rows.data(), 64); } catch (const std::logic_error&) { refused = true; }
+            require(refused, "a write while an input is held was accepted");
+            b->add({got_held.get(), 0}, {held_in.get(), 0}, rows.size());
+            std::memcpy(fill, rows.data(), bytes);
+            b->wait(b->submit());
+            std::vector<float> a(rows.size()), c(rows.size());
+            b->read(*got_first, 0, a.data(), bytes);
+            b->read(*got_held, 0, c.data(), bytes);
+            require(std::memcmp(a.data(), c.data(), bytes) == 0 && std::memcmp(a.data(), rows.data(), bytes) == 0,
+                    "a held input differs from one written first");
+            const auto big = b->alloc(((size_t)32 << 20) + 4);
+            require(b->hold_input(*big, 0, big->size()) == nullptr, "an input larger than a staging half was held");
+            // A sync while an input is held submits it; nothing submitted waits on the host, so it returns.
+            require(b->hold_input(*held_in, 0, bytes) != nullptr, "an input could not be held after a submit");
+            b->sync();
+            b->write(*dst, 0, rows.data(), 64);
+            checks += 5;
+        }
+
         // Empty allocations and ranges outside an allocation.
         const auto empty = b->alloc(0);
         require(empty->size() == 0, "empty allocation has a size");

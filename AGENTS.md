@@ -236,14 +236,9 @@ It pins that construction and count changes start no threads, and that the first
 A start that fails partway fails its dispatch and keeps the count, and the next dispatch starts the whole pool without a new count.
 It does not establish recovery of partially executed model sessions.
 
-`backend-vulkan` exists only in a build with `LLMX_HAS_BACKEND_VULKAN=ON`. It
-opens device 0, round-trips buffers through adopt, copy, write and read,
-checks zeroed allocations, host-visible memory read in place after a wait
-and monotonic tickets, then runs every implemented kernel against the CPU
-backend on random inputs with bounds fixed in the test: exact where the
-arithmetic is the same operation in the same order, a stated relative
-tolerance where a transcendental or a reduction order differs. The decode
-row kernel reads quantized rows against 16-bit integer activations, and on
+`backend-vulkan` exists only in a build with `LLMX_HAS_BACKEND_VULKAN=ON`.
+It opens device 0, round-trips buffers through adopt, copy, write and read, checks zeroed allocations, host-visible memory read in place after a wait, monotonic tickets and the refusal of a KV budget that overflows, then runs every implemented kernel against the CPU backend on random inputs with bounds fixed in the test: exact where the arithmetic is the same operation in the same order, a stated relative tolerance where a transcendental or a reduction order differs.
+The decode row kernel reads quantized rows against 16-bit integer activations, and on
 a device whose profile prefers the integer dot the wide tile reads 8-bit
 ones, so the CPU reference is fed the activations quantized the same way and
 the comparison is about the dots; the norm, SiLU and attention kernels' twin
@@ -356,7 +351,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   release, and a sequence forked at a block boundary continuing exactly as
   a fresh one fed the same history. This oracle supplements the
   independent HF gate.
-  The shared KV storage (`BlockKVStorage`) is held to the doubling rule it replaced, written out in the test: every growth step and the peak, with out-of-order ids and mixed cache types, an overflowing budget refused at allocation, and the growth hooks, each old buffer retired once, the backend drained and the accounting unchanged when a growth fails, and a retry.
+  The shared KV storage (`BlockKVStorage`) is held to the doubling rule it replaced, written out in the test: every growth step and the peak, with out-of-order ids and mixed cache types, an overflowing budget refused at allocation, attention over a block no write backed refused, and the growth hooks, each old buffer retired once, the backend drained and the accounting unchanged when a growth fails, and a retry.
 - **Server** (`tests/server.py`): `llmx serve` on a system-chosen port
   against the CLI on the same file, the synthetic F32 model without a
   download and the Q8_0 fixture when present: greedy through `/v1/generate`

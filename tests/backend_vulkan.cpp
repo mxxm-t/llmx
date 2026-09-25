@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <stdexcept>
 #include <vector>
@@ -1505,6 +1506,13 @@ int main(int argc, char** argv) {
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "copy past the source accepted");
         checks += 2;
+
+        // A KV budget whose bytes overflow is refused before any block is allocated.
+        rejected = false;
+        try { b->kv_alloc(1, 1, 1, std::numeric_limits<size_t>::max()); }
+        catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, "an overflowing KV budget accepted");
+        checks += 1;
 
         const size_t values = check_kernels(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "

@@ -253,6 +253,7 @@ void write_block(backend::CpuBackend& cpu, backend::KVStorage& st, size_t layers
 
 // Every growth step and the peak against the rule above: the blocks backed after each write, the bytes retained, and the most held while a growth copies, which is the old blocks plus the new.
 // Ids are written out of order and past twice what is backed, so each branch of the rule is taken, with the two sides of different types.
+// Attention over a block inside the budget that no write backed is refused and backs nothing.
 void growth_steps_and_peak() {
     for (size_t target = 0; target <= 40; ++target)
         for (size_t max_blocks = 1; max_blocks <= 40; ++max_blocks)
@@ -297,6 +298,18 @@ void growth_steps_and_peak() {
                 "a block past the budget accepted");
         require(st->allocated_bytes() == backed * block && st->peak_bytes() == peak,
                 "a refused block changed the accounting");
+        if (backed < max_blocks) {
+            const int32_t unwritten = (int32_t)max_blocks - 1;
+            const backend::KVView view{st.get(), &unwritten, 1, 0, 1};
+            const auto q = cpu.alloc(heads * width * sizeof(float), backend::Memory::device);
+            const auto out = cpu.alloc(heads * width * sizeof(float), backend::Memory::device);
+            std::string error;
+            try { cpu.attention({q.get(), 0}, 0, &view, 1, {out.get(), 0}, (int)heads, (int)heads, (int)width); }
+            catch (const std::runtime_error& e) { error = e.what(); }
+            require(error == "backend: attention over unwritten KV blocks", "attention over an unwritten block accepted");
+            require(st->allocated_bytes() == backed * block && st->peak_bytes() == peak,
+                    "a refused read changed the accounting");
+        }
     }
 
     // The whole budget is checked in bytes at the types before anything is backed.

@@ -12,6 +12,7 @@
 namespace infer {
 
 struct PerplexityResult {
+    size_t context = 0;   // the window's size in tokens: the one asked for, or the model's context
     size_t used_tokens = 0;
     size_t scored_tokens = 0;
     size_t chunks = 0;
@@ -40,6 +41,7 @@ inline PerplexityResult perplexity(Model& model, const std::vector<uint32_t>& id
     if (max_chunks < 0) throw std::runtime_error("perplexity: chunks must be nonnegative");
 
     PerplexityResult result;
+    result.context = (size_t)context;
     for (size_t begin = 0; begin < ids.size();) {
         const size_t count = std::min((size_t)context, ids.size() - begin);
         if (count < 2 || (max_chunks > 0 && result.chunks >= (size_t)max_chunks)) break;

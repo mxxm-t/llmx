@@ -1,3 +1,4 @@
+import concurrent.futures
 import math
 import os
 import re
@@ -9,7 +10,7 @@ import f32
 import moe
 
 
-# The command-line surface the numerical components do not reach: a device that cannot run, the file listing, and the command lines refused as usage errors.
+# The command-line surface the numerical components do not reach: a device that cannot run, the file listing, the command lines refused as usage errors, and the help pages against the flags each command reads.
 # It needs no device, so it runs in every job; each command here that takes a device names its own.
 
 
@@ -101,14 +102,97 @@ def check_usage_errors():
         usage_error(args, page)
 
 
+def help_page(command, directory):
+    """`command`'s page, or the overview for None, as `--help` and `-h` print it: status 0, the page on stdout and nothing on stderr, in a directory with no model in it."""
+    pages = []
+    for spelling in ("--help", "-h"):
+        p = subprocess.run([common.exe_path()] + ([command] if command else []) + [spelling], capture_output=True, cwd=directory, timeout=10)
+        assert p.returncode == 0 and not p.stderr and p.stdout.startswith(b"llmx "), (command, spelling, p)
+        pages.append(p.stdout.decode("utf-8"))
+    assert pages[0] == pages[1], command
+    return pages[0]
+
+
+def listed_flags(page):
+    """The flags a page lists, each spelling with its value's placeholder or None.
+    An option line is two spaces, the flag's spellings separated by ', ', each with its placeholder, then two or more spaces and the description."""
+    flags = {}
+    for line in page.splitlines():
+        m = re.match(r"  (-\S.*?)(?:  +|$)", line)
+        if m:
+            spellings = m.group(1).split(", ")
+            value = next((s.split(" ", 1)[1] for s in spellings if " " in s), None)
+            flags.update((s.split(" ", 1)[0], value) for s in spellings)
+    return flags
+
+
+# What each placeholder stands for in a line that takes the flag, a value every command listing that flag accepts.
+PLACEHOLDERS = {"N": "1", "F": "1", "D": "cpu", "T": "f16", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1"}
+
+# The last line a taken line prints: a missing input file's error, which a command may prefix with its name, or pull's on its empty quant.
+UNREACHED = re.compile(r"error: (\w+: )?cannot open (file: )?missing\.|error: pull: quant is required$")
+
+
+def check_help():
+    """Every page needs no model, every flag a command's page lists is accepted by that command, and a flag its page does not list is refused.
+    A flag is tried on a line that the command reads in full and then fails on as it opens an input file that does not exist, the model or a file a flag names, so no file, device or network is reached; pull fails on an empty quant the same way."""
+    model = "missing.gguf"
+    bases = {"chat": ["chat", model], "generate": ["generate", model, "a"], "serve": ["serve", model],
+             "logits": ["logits", model, "a"], "perplexity": ["perplexity", model, "a"], "bench": ["bench", "--model", model],
+             "pull": ["pull", "owner/repo:"], "info": ["info", model], "tokenize": ["tokenize", model, "a"],
+             "detokenize": ["detokenize", model, "1"], "dequantize": ["dequantize", model, "out.json", "out.bin"],
+             "quantize": ["quantize", "missing.json", "missing.bin", "out.gguf"]}
+    # bench's --size and --iters are the synthetic bench's, which runs in full on this line; --profile times one Vulkan device, and --moe-stream-from streams the experts on the CPU.
+    synthetic = ["bench", "--size", "32", "--iters", "1", "--p", "1", "--n", "1"]
+    company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"]}
+    values = {"--size": "32"}
+
+    def line(command, flag, value):
+        args = [flag] + ([values.get(flag, PLACEHOLDERS[value])] if value else [])
+        if command == "bench" and flag in ("--size", "--iters"):
+            return synthetic + args
+        # A text file stands in place of the text, right after the model.
+        if command in ("logits", "perplexity") and flag in ("--file", "-f"):
+            return bases[command][:2] + args
+        return bases[command] + args + company.get(flag, [])
+
+    def accepted(args, directory):
+        """The line is read in full: the synthetic bench runs, and any other line ends with status 1 and no page on a missing input file's error, or pull's on its empty quant."""
+        p = subprocess.run([common.exe_path()] + args, capture_output=True, cwd=directory, timeout=120)
+        err = p.stderr.decode("utf-8", "replace")
+        ran = p.returncode == 0 if args[:len(synthetic)] == synthetic else p.returncode == 1 and bool(UNREACHED.match((err.splitlines() or [""])[-1]))
+        assert ran and "Usage: llmx" not in err, (args, p.returncode, err)
+
+    with tempfile.TemporaryDirectory(prefix="llmx_help_") as directory:
+        overview = help_page(None, directory)
+        commands = re.findall(r"^  ([a-z]+) ", overview, re.M)
+        assert sorted(commands) == sorted(bases), commands
+        pages = {c: help_page(c, directory) for c in commands}
+        assert all("Usage: llmx " + c in pages[c] for c in commands), commands
+        listed = {c: listed_flags(pages[c]) for c in commands}
+        every = {"--frobnicate": None}
+        for flags in listed.values():
+            every.update(flags)
+        take = [bases[c] for c in commands] + [line(c, f, v) for c in commands for f, v in listed[c].items()]
+        refuse = [bases[c] + [f] + ([PLACEHOLDERS[v]] if v else []) for c in commands for f, v in every.items() if f not in listed[c]]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            jobs = [pool.submit(accepted, args, directory) for args in take]
+            jobs += [pool.submit(usage_error, args, args[0]) for args in refuse]
+            for job in jobs:
+                job.result()
+    return len(take), len(refuse)
+
+
 def run():
     with tempfile.TemporaryDirectory(prefix="llmx_cli_") as directory:
         model = f32.write_model(os.path.join(directory, "tiny-f32.gguf"), f32.tensors(False))
         check_device(model)
         check_info(directory)
     check_usage_errors()
+    taken, refused = check_help()
     print("cli: a Vulkan device refused without the backend or without the device, info's architecture, layers and tensors, "
-          "and usage errors exiting 2 with the command's page  [ok]")
+          "usage errors exiting 2 with the command's page, and every help page shown without a model, "
+          "with %d lines of the flags it lists taken and %d of the flags it does not list refused  [ok]" % (taken, refused))
     return True
 
 

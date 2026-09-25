@@ -243,14 +243,14 @@ For `generate` and `chat`, `--threads` is the CPU worker count for **decode** an
 `--threads-batch` / `-tb` is the count for **prefill**, defaulting to
 `--threads`. `-tb` is the short form of `--threads-batch`; `--threads` has none.
 
-Prefill and decode can favor different counts. Measure the chosen model and
-hardware; the matched thread-scaling tables in ASSETS record the tested cases.
-An omitted or zero `-tb` uses the resolved decode count. After every prefill,
-the runtime restores that count, including automatic selection and follow-up
-chat turns. `--verbose` reports each phase's actual count on stderr; `bench`
-prints its resolved count on stdout. Perplexity uses the batch count for batched
-scoring and the decode count with `--per-token`; its `--verbose` output reports
-the selected phase and actual count on stderr. Changing counts recreates the CPU pool.
+Prefill and decode can favor different counts.
+Measure the chosen model and hardware; the matched thread-scaling tables in ASSETS record the tested cases.
+An omitted or zero `-tb` uses the resolved decode count.
+After every prefill, the runtime restores that count, including automatic selection and follow-up chat turns.
+`--verbose` reports each phase's actual count on stderr.
+`bench` without `--model` prints its resolved count on stdout.
+Perplexity uses the batch count for batched scoring and the decode count with `--per-token`; its `--verbose` output reports the selected phase and actual count on stderr.
+Changing counts recreates the CPU pool.
 
 On supported Windows topology, six-worker prefill automatically places workers
 on separate physical cores and checks restoration of their original affinity
@@ -588,9 +588,7 @@ are fixed, sampling and text output are excluded, and every repeat starts
 from a cleared history. The report is the mean and standard deviation of
 tokens per second, the protocol reference runtimes' bench tools use for
 the same `-p N -n N -r R`, so the figures compare directly.
-`generate --verbose` also prints `pp` and `tg`, but its `tg` is a single
-cold run decoding after the prompt with sampling inside the timer, which
-is a different measurement.
+`generate` always prints `pp` and `tg` as well, but its `tg` is a single cold run decoding after the prompt with sampling inside the timer, which is a different measurement.
 
 `--seqs N` measures decode the way a server runs it: `N` sequences each
 prefilled with the `--p` prompt, then `--n` passes of one token from every

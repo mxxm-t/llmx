@@ -31,7 +31,6 @@
 #endif
 #include "core/list.hpp"
 #include "backends/devices.hpp"
-#include "core/json.hpp"
 #include "hub/pull.hpp"
 #include "format/gguf.hpp"
 #include "quant/quant.hpp"
@@ -47,6 +46,22 @@
 // CLI argument parsing and dispatch; format, quantization, inference and model logic stay in their own layers.
 
 namespace {
+
+// Defaults only the CLI owns, which each command's parser starts from and its help prints.
+constexpr int kLogitsTop = 10;                                      // logits --top
+constexpr const char* kChatSystem = "You are a helpful assistant.";  // chat --system
+constexpr const char* kQuantType = "q8_0";                          // quantize without a type
+
+// bench's numbers as its parser starts them, which its help prints as the defaults.
+struct BenchNumbers {
+    int size = 1024;    // the synthetic matrix width
+    int iters = 5;      // the synthetic kernels' repetitions
+    int prompt = 64;    // prompt tokens
+    int decode = 64;    // decode tokens
+    int repeats = 3;    // a model run's repetitions
+    int seqs = 1;       // sequences decoding together
+    int depth = 0;      // tokens of history each test runs after
+};
 
 // A command line the command cannot take: main prints the command's page on stderr and exits with status 2.
 struct UsageError : std::runtime_error {
@@ -208,7 +223,6 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
 
 // Type names come from the quant registry, so a new quant type shows up in `info` without touching the CLI.
 const char* type_name(uint32_t t) {
-    if (t == gguf::GGML_TYPE_F32) return "F32";
     const quant::QuantType* qt = quant::Registry::instance().get(t);
     return qt ? qt->name : "?";
 }
@@ -392,7 +406,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text,
                int topn, const infer::GenParams& gp, const std::string& then_ids = "", size_t last = 0) {
-    const auto opened = open_model(model_path, gp, false, gp.threads, 0, gp.show_prompt_tokens);
+    const auto opened = open_model(model_path, gp, false, gp.threads);
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
 
@@ -446,7 +460,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     std::cout << "used tokens: " << result.used_tokens << "\n";
     std::cout << "scored tokens: " << result.scored_tokens << "\n";
     std::cout << "chunks: " << result.chunks << "\n";
-    std::cout << "context size: " << (context_size ? context_size : model.context_length()) << "\n";
+    std::cout << "context size: " << result.context << "\n";
     std::cout << "mean NLL: " << mean_nll << "\n";
     std::cout << "perplexity: " << ppl << "\n";
     return 0;
@@ -700,7 +714,7 @@ int cmd_bench_model(const std::string& path, const infer::GenParams& gp, int P, 
 
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const infer::GenParams& gp) {
-    const auto opened = open_model(model_path, gp, true, gp.threads, cfg.max_seqs, gp.show_prompt_tokens);
+    const auto opened = open_model(model_path, gp, true, gp.threads, cfg.max_seqs);
     const gguf::GGUFModel& m = opened->file;
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
@@ -757,21 +771,21 @@ bool print_usage(const std::string& command, std::ostream& out) {
     };
     const auto model_options = [&](bool batch_threads) {
         out << "\nExecution options:\n"
-            << "  --device D              cpu (default), or vulkan:N when built with Vulkan;\n"
+            << "  --device D              " << defaults.device << " (default), or vulkan:N when built with Vulkan;\n"
             << "                          several, comma separated, split the model by layers\n"
             << "                          over them in that order, fitted to their free memory\n"
             << "  --layer-shares A,B      With several devices, their proportions of the layers\n"
-            << "  --threads N             CPU workers; 0 selects automatically (default)\n";
+            << "  --threads N             CPU workers; 0 selects automatically (default: " << defaults.threads << ")\n";
         if (batch_threads) out
             << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
         out
-            << "  --ubatch N              Prompt tokens per pass (default: 512)\n"
+            << "  --ubatch N              Prompt tokens per pass (default: " << infer::kDefaultUbatch << ")\n"
             << "  --cache-type-k T, -ctk  Key cache: " << cache_types(caches.kv_k) << "\n"
             << "  --cache-type-v T, -ctv  Value cache: " << cache_types(caches.kv_v) << "\n"
-            << "  --n-cpu-moe N           First N routed layers' experts on CPU (default: 0)\n"
+            << "  --n-cpu-moe N           First N routed layers' experts on CPU (default: " << defaults.cpu_moe << ")\n"
             << "  --cpu-moe               All routed layers' experts on CPU\n"
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
-            << "                          at least N new tokens; 0 disables this (default).\n"
+            << "                          at least N new tokens; 0 disables this (default: " << defaults.moe_stream_from << ").\n"
             << "                          Generated tokens stay on CPU.\n";
     };
     if (command == "chat" || command == "generate") {
@@ -788,9 +802,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --penalty F             Repetition penalty (default: " << defaults.penalty << ")\n"
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
-            << "  --verbose               Show prompt IDs, progress and execution details\n";
+            << "  --verbose               Show the prompt token count, progress and execution details\n";
         if (chat) out
-            << "  --system TEXT           System message (default: You are a helpful assistant.)\n";
+            << "  --system TEXT           System message (default: " << kChatSystem << ")\n";
         model_options(true);
         if (chat) out << "\nEnter one message per line; Ctrl+C or end of input exits.\n";
         out << "\nExample: llmx " << command << " model.gguf"
@@ -813,13 +827,14 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "Sampling settings belong in each request's JSON body.\n"
             << "Example: llmx serve model.gguf --device vulkan:0 --port 8080\n";
     } else if (command == "pull") {
+        const hub::PullOptions pull;
         out << "Download and verify a GGUF model or complete shard set.\n\n"
             << "Usage: llmx pull <owner/repo>:<quant> [options]\n\n"
             << "Options:\n"
-            << "  --revision REF          Branch, tag or commit SHA (default: main)\n"
+            << "  --revision REF          Branch, tag or commit SHA (default: " << pull.revision << ")\n"
             << "  --file NAME             Choose a file when several match the quant\n"
             << "  --cache-dir PATH        Cache root (default: <home>/.cache/llmx)\n"
-            << "  --parallel N            Streams per file, 1.." << hub::max_parallel_streams << " (default: " << hub::PullOptions{}.parallel << ")\n\n"
+            << "  --parallel N            Streams per file, 1.." << hub::max_parallel_streams << " (default: " << pull.parallel << ")\n\n"
             << "Requires curl 8.4+. HF_TOKEN supplies gated-repo credentials.\n"
             << "The verified local path goes to stdout; progress goes to stderr.\n\n"
             << "Example: llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0 --parallel 4\n";
@@ -837,7 +852,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --per-token             Score through decode; default uses batched passes\n"
             << "  --verbose               Show scoring phase and actual worker count\n";
         else out
-            << "  --top N                 Number of logits to print (default: 10)\n"
+            << "  --top N                 Number of logits to print (default: " << kLogitsTop << ")\n"
             << "  --then-ids PATH         Append these token IDs, comma or whitespace separated\n"
             << "  --last N                Print each of the last N positions, one per line\n";
         model_options(ppl);
@@ -845,26 +860,27 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << (ppl ? "--file corpus.txt --ctx-size 512 --chunks 4\n"
                     : "\"The capital of France is\" --top 10\n");
     } else if (command == "bench") {
+        const BenchNumbers bench;
         out << "Measure synthetic kernels or a real model after warm-up.\n\n"
             << "Usage: llmx bench [options]\n"
             << "       llmx bench --model <model.gguf> [options]\n\n"
             << "Benchmark options:\n"
-            << "  --p N                   Prompt tokens (default: 64)\n"
-            << "  --n N                   Decode tokens (default: 64)\n"
-            << "  --size N                Synthetic matrix width, multiple of 32 (default: 1024)\n"
-            << "  --iters N               Synthetic kernel repetitions (default: 5)\n"
+            << "  --p N                   Prompt tokens (default: " << bench.prompt << ")\n"
+            << "  --n N                   Decode tokens (default: " << bench.decode << ")\n"
+            << "  --size N                Synthetic matrix width, multiple of 32 (default: " << bench.size << ")\n"
+            << "  --iters N               Synthetic kernel repetitions (default: " << bench.iters << ")\n"
             << "  --model PATH            Benchmark this model instead of synthetic weights\n"
-            << "  --r N                   Real-model repetitions (default: 3)\n"
-            << "  --seqs N                Sequences decoding together, a pass one token of each (default: 1)\n"
-            << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: 0)\n"
+            << "  --r N                   Real-model repetitions (default: " << bench.repeats << ")\n"
+            << "  --seqs N                Sequences decoding together, a pass one token of each (default: " << bench.seqs << ")\n"
+            << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: " << bench.depth << ")\n"
             << "  --profile               Real-model kernel timing and statistics on one Vulkan device\n";
         model_options(false);
-        out << "\nCache options apply only with --model.\n"
+        out << "\nExecution options other than --device and --threads apply only with --model.\n"
             << "Example: llmx bench --model model.gguf --p 512 --n 128 --r 3\n";
     } else if (command == "quantize") {
         out << "Convert raw F32 tensors into a quantized GGUF file.\n\n"
             << "Usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n\n"
-            << "Default quant: q8_0. Input row widths must be divisible by 32.\n"
+            << "Default quant: " << kQuantType << ". Input row widths must be divisible by 32.\n"
             << "The JSON describes tensor names/shapes; the binary contains F32 values.\n"
             << "Example: llmx quantize model.json model.bin model.gguf q8_0\n";
     } else if (command == "dequantize") {
@@ -975,7 +991,7 @@ int main(int argc, char** argv) {
             const bool chat = cmd == "chat";
             if (argc < 3) throw UsageError("missing the model");
             infer::GenParams gp;
-            std::string system = "You are a helpful assistant.";
+            std::string system = kChatSystem;
             std::string prompt;
             bool have_prompt = false, have_stop = false;
             for (int i = 3; i < argc; i++) {
@@ -1027,7 +1043,7 @@ int main(int argc, char** argv) {
 
         if (cmd == "logits") {
             infer::GenParams gp;
-            int topn = 10;
+            int topn = kLogitsTop;
             std::string then_ids;
             size_t last = 0;
             const int first = text_arg(argc, argv);
@@ -1055,7 +1071,7 @@ int main(int argc, char** argv) {
 
         if (cmd == "quantize") {
             if (argc < 5 || argc > 6) throw UsageError("takes the JSON file, the binary file, the output file and optionally the type");
-            return cmd_quantize(argv[2], argv[3], argv[4], argc == 6 ? argv[5] : "q8_0");
+            return cmd_quantize(argv[2], argv[3], argv[4], argc == 6 ? argv[5] : kQuantType);
         }
         if (cmd == "dequantize") {
             if (argc != 5) throw UsageError("takes the model and the two output files");
@@ -1082,37 +1098,37 @@ int main(int argc, char** argv) {
             return cmd_serve(argv[2], cfg, gp);
         }
         if (cmd == "bench") {
-            int size = 1024, iters = 5, prefill = 64, decode = 64, repeats = 3, seqs = 1, depth = 0;
+            BenchNumbers n;
             bool profile = false;
             std::string model_path, model_only, synthetic_only;   // the first flag given that only a model run reads, and the first only the synthetic bench reads
             infer::GenParams gp;
             for (int i = 2; i < argc; i++) {
                 const std::string a = argv[i];
-                if (a == "--size") { size = int_arg(argc, argv, i, a, 32); if (synthetic_only.empty()) synthetic_only = a; }
-                else if (a == "--iters") { iters = int_arg(argc, argv, i, a, 1); if (synthetic_only.empty()) synthetic_only = a; }
-                else if (a == "--p") prefill = int_arg(argc, argv, i, a, 1);
-                else if (a == "--n") decode = int_arg(argc, argv, i, a, 1);
+                if (a == "--size") { n.size = int_arg(argc, argv, i, a, 32); if (synthetic_only.empty()) synthetic_only = a; }
+                else if (a == "--iters") { n.iters = int_arg(argc, argv, i, a, 1); if (synthetic_only.empty()) synthetic_only = a; }
+                else if (a == "--p") n.prompt = int_arg(argc, argv, i, a, 1);
+                else if (a == "--n") n.decode = int_arg(argc, argv, i, a, 1);
                 else if (a == "--model") model_path = flag_value(argc, argv, i, a);
                 else if (exec_flag(argc, argv, i, gp)) { if (a != "--device" && a != "--threads" && model_only.empty()) model_only = a; }
-                else if (a == "--r") { repeats = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
-                else if (a == "--seqs") { seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
-                else if (a == "--depth") { depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
+                else if (a == "--r") { n.repeats = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
+                else if (a == "--seqs") { n.seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
+                else if (a == "--depth") { n.depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
                 else if (a == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
                 else throw UsageError("unknown flag: " + a);
             }
             // The synthetic bench times one backend's kernels and reads only --device, --threads, --size, --iters, --p and --n; a model run reads neither --size nor --iters.
             if (model_path.empty() && !model_only.empty()) throw UsageError(model_only + " takes --model");
             if (!model_path.empty() && !synthetic_only.empty()) throw UsageError(synthetic_only + " is for the synthetic bench, not --model");
-            if (size % 32 != 0) throw UsageError("--size must be a multiple of 32");
+            if (n.size % 32 != 0) throw UsageError("--size must be a multiple of 32");
             // Batched decode already starts after each sequence's prompt.
-            if (depth > 0 && seqs > 1) throw UsageError("--depth takes one sequence");
+            if (n.depth > 0 && n.seqs > 1) throw UsageError("--depth takes one sequence");
             if (profile) {
                 const auto specs = backend::device_specs(gp.device);
                 if (specs.size() != 1 || specs[0].rfind("vulkan:", 0) != 0 || !gp.layer_shares.empty())
                     throw UsageError("--profile times the kernels of one Vulkan device");
             }
-            if (!model_path.empty()) return cmd_bench_model(model_path, gp, prefill, decode, repeats, profile, seqs, depth);
-            return cmd_bench(size, iters, gp.threads, prefill, decode, gp.device);
+            if (!model_path.empty()) return cmd_bench_model(model_path, gp, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth);
+            return cmd_bench(n.size, n.iters, gp.threads, n.prompt, n.decode, gp.device);
         }
         std::cerr << "unknown command: " << cmd << "\n";
         return 2;

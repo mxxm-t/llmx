@@ -106,6 +106,7 @@ Those rows are printed once each, and the ones printed over passes of five token
 `bench --model` with `--seqs 2` runs on it and reports the token counts of its prompt and batched decode tests: two sequences need two cache blocks where the model's context fills one.
 The `cli` component checks that these builds, which have no Vulkan backend, refuse a Vulkan device rather than run on the CPU, and that `info` lists a synthetic model's architecture, layer count and tensors.
 It also checks that the CLI's usage errors exit with status 2 and the command's page on stderr, before any model file is opened.
+It shows every help page without a model, and checks that each command takes every flag its page lists and refuses the flags its page does not.
 The UBSan job makes misaligned in-memory tensors a test failure. These jobs also
 run CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
 GGUF structure, custom alignment and loading failures, Qwen model configuration

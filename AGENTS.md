@@ -304,6 +304,9 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   `info` on the synthetic MoE model names its architecture and layer count, and lists every tensor written with its type, shape and size.
   It also checks the CLI's usage errors, all refused before a model is opened: an unknown command, `serve` and `pull` without arguments, missing and extra arguments, unknown flags and flags without a value, a chat positional argument, a second prompt or `--stop`, the synthetic bench's flags with `--model` and the model run's without it, `--profile` off a single Vulkan device, `--moe-stream-from` without experts on the CPU, an unknown cache type, and numbers out of their form or range.
   Each exits with status 2, nothing on stdout and the command's page then the reason on stderr.
+  The help check reads the overview and every command's page, each shown by `--help` and `-h` alike with status 0 and without a model.
+  Every flag a page lists, in each spelling, is taken by its command: the line is read in full and fails only on a missing input file, or pull on its empty quant, or with `--size` and `--iters` runs the synthetic bench.
+  Every flag another page lists, and one no page lists, is refused by a command whose page does not list it, as a usage error.
   It needs no device, so it runs in every job.
 - **Round-trip** (`tests/roundtrip.py`): build a random F32 model and quantize it to Q8_0 and Q4_0, each dequantized and checked against its own bound.
   Regression gate for `quant/` + `format/`.

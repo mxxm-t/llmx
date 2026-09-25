@@ -4,7 +4,7 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Layer split phase 2: a prompt pipelined over the stages (2026-09-25, branch feat/split-pipeline)
+## Layer split phase 2: a prompt pipelined over the stages (2026-09-25, branch feat/split-pipeline, done)
 
 - **Goal:** phase 2's targets (`docs/MULTI-DEVICE.md`, Order of work): prefill on a layer split about one device's times the stage count, single-stream decode about one device's, and pipelined output exact against the same placement run serialized, so still exact against one device.
 - **Measured before any code** (main 5ef32e5, Qwen3-8B Q8_0, clocks held high on two MI50s, two rounds, tok/s): pp4096 on one card 738, 730 and on a 1:1 split 1101, 1103, 1.50 times; tg16 68.2, 68.4 and 67.2, 68.1. Decode meets its target already. Prefill stops at 1.5 times because a stage's work is submitted only when the crossing reads its output, and the host waits there: the first card idles while the host writes the handoff into the second and records the next chunk. Chunks of one prompt overlap only by that accident.
@@ -13,21 +13,25 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   2. `forward` becomes `begin` (the checks, rows and positions of a pass, in a plan per pass), `run_stage` (the stage's cache blocks prepared and committed, the embedding before the first stage, its layers, the head after the last, and its submission) and `finish`. `forward` runs them in a row, so the server, decode and every test are unchanged. A pass that fails rolls every storage back to where it started, committed stages included.
   3. One crossing in two halves: the source copies the residual rows into a host-visible buffer inside its own submission and keeps the ticket (`send`); the destination waits that ticket and writes the rows (`receive`). Today's `cross` becomes the two back to back. It uses existing backend calls only (`copy`, `submit`, `wait`, `write`). There are two such buffers per used device on a pipelined split, one when crossings happen only inside a stage, which the fit counts in host memory.
   4. `prefill` over more than one stage runs as a software pipeline on the calling thread: step t submits stage 0 of chunk t, then receives and submits stage 1 of chunk t-1, and so on down the stages. Each device runs its chunks in order, so the activation arenas are shared and only the pass plan is kept per chunk in flight. Chunks stay the ubatch, so a split computes exactly what one device computes. Over K chunks and S stages the gain is K·S/(K+S-1): 1.78 for pp4096 over two, 1.94 for pp16384. The handoff subtracts 2.1 to 2.7 ms per 512-row chunk (phase 0) from stage times near 350 ms.
-- **Not in this phase:**
-  - A thread per stage. One thread keeps every device fed while recording and the relay stay small against a stage's time. A CPU stage computes on the host thread after its GPU peers were submitted, so they still overlap.
-  - Passes of different sequences in flight (phase 3).
-  - Per-storage progress visible to the scheduler, and cancelling dependent chunks (phase 4). Here partial progress stays inside the prompt's transaction.
-  - Pipelined scoring for perplexity.
-- **Gates:**
-  - `tests/placement.cpp`'s CPU+CPU split prefill against one device, now pipelined.
-  - `llmx-split-check` bit-identical to one device over prefill and greedy steps (0.6B, 8B, 30B-A3B).
-  - Suites, one card and split, on the Radeon VII and on two MI50s.
-  - pp4096 and pp16384 on one MI50 against the split, with the reference's split beside them at the same clocks.
-  - tg on the split level with one card.
-  - The 16k greedy check on the split.
-  - More than two devices: split-check and suites over three and four MI50s.
-  - Many users on the split through the server: prefills and decodes in the same passes, then skewed loads (long prompts beside short ones, staggered arrivals, cancellations). Every request's text must equal what it gives alone and through the CLI, so no case breaks the pipelined path or the stage commits.
-  - The server's vLLM-style metrics (TTFT, inter-token latency and throughput percentiles) against the reference's server on the same cards and split, which llmx must beat by a wide margin. That is phase 3's gate; phase 2 records where the split stands.
+- **Done:** steps 1 to 4 as planned, plus:
+  - A device's attention layers must form one run, or the placement is refused, so each storage is written by one stage; `ensure()` waits for a context's last submission on a device before it replaces storage a pass may still use.
+  - The fit gives the busiest device as few layers as the budgets allow before it balances bytes: it had placed 12/13/11 on three MI50s and 8/10/10/8 on four, because the embedding and head sit on the end devices, and the pipeline runs at its slowest stage.
+  - `llmx-split-check` takes a device list and a ubatch; `tools/server_mix_check.py` checks many users at once.
+- **Exact:** `llmx-split-check` with 64-token chunks, so the prefill is pipelined, is bit-identical to one card on 2, 3 and 4 MI50s for Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M. CTest, and the suites on one card and 2- and 3-card splits on the MI50s and on the Radeon VII with the CPU, pass. Many users through the server (16 requests, prompts and decodes together, then skewed with four clients leaving) match their text alone and through the CLI on 4 cards (8B) and 3 cards (30B-A3B, 0.6B). The 16k greedy check on a 2-card split: the same 512 tokens from two fresh servers, the CPU's top choice 508 of 512 times, largest gap 0.177 logits.
+- **Measured** (Qwen3-8B Q8_0, clocks held high, cards pinned, two interleaved rounds, tok/s; the reference is mx-llama.cpp on the same cards, its layer and tensor split):
+
+  | cards | llmx pp4096 | llmx pp16384 | llmx tg | mx pp4096, layer / tensor | mx pp16384, layer / tensor | mx tg, layer / tensor |
+  |---|---:|---:|---:|---:|---:|---:|
+  | 1 | 746, 715 | 442, 419 | 67.6, 67.8 | 1168 | 812 | 71.0 |
+  | 2 | 1225, 1217 | 821, 812 | 65.9, 66.2 | 1890 / 1823 | 1467 / 1375 | 70.5 / 107 |
+  | 3 | 1686, 1678 | 1224, 1212 | 65.7, 66.2 | 2542 / 2298 | 2068 / 1768 | 70.4 / 126 |
+  | 4 | 2010, 2011 | 1546, 1553 | 64.7, 65.3 | 3021 / 2311 | 2602 / 1916 | 69.7 / 134 |
+
+  Four cards prefill 16k tokens at 3.5 times one card and 4k tokens at 2.7 times, the pipeline's bound for chunks that grow with depth (the last chunk drains through every stage alone); main's split had given 1.5 times. Decode on the split is 96 to 98 percent of one card. The split scales as the reference's layer split does (2.6 to 2.7 times on four cards at pp4096), so the gap to it is the single card: its prefill is 1.56 times llmx's at 4k tokens and 1.92 times at 16k, and on one card 86.6 percent of llmx's pp512 device time is the integer-dot matmul tile (`matmul_tile_q_tall`). Its tensor split decodes at 107 to 134 tok/s, which llmx's layer split cannot: that is tensor groups (phase 6).
+- **Measured and not taken:**
+  - A deeper command ring (16 or 32 slots): it took the host's block in recording away but moved throughput under 2 percent, since every device already had its next chunk queued.
+  - Recording the next stage before its rows arrive (a held input the host fills before the submit): decode on 3 and 4 cards gained under 1.5 percent, 2 cards lost a little in decode and prefill; a stage's first 64 dispatches already start while the rest is recorded.
+- **Left, in later phases:** passes of different sequences in flight (phase 3) with the server gate against the reference's server; per-storage progress visible to the scheduler (phase 4); tensor groups for multi-card decode (phase 6); a thread per stage only if the host is measured to limit a pipeline; pipelined scoring for perplexity. The single-card prefill kernels come after the correctness-bug branches and the loader.
 
 ## Cleanup from the second code audit (planned 2026-09-25)
 

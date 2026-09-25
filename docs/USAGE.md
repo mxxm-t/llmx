@@ -291,6 +291,15 @@ as a device to give it layers. `bench` without `--model` measures the
 first device listed, and `--profile` takes one device. Every command that
 takes `--device` takes a list.
 
+One request at a time leaves each device idle while the others run their
+layers, and a card left at its automatic clock level drops its clock in
+those gaps: Qwen3-8B Q8_0 split over two MI50s decodes at 39 tokens per
+second at the automatic level and at 66, level with one card's 67, with
+both cards held high. llmx does not change a machine's power settings;
+hold the clocks up with the system's own tool where a split serves one
+stream, on Linux with AMD cards `rocm-smi -d 2 3 --setperflevel high` for
+the cards in the split, and `--setperflevel auto` to return them.
+
 ## Experts on the CPU (`--n-cpu-moe N`, `--cpu-moe`)
 
 A mixture-of-experts model (`qwen3moe`, such as Qwen3-30B-A3B) larger than

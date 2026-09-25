@@ -93,7 +93,7 @@ the backend maps those to bytes however it likes.
 
 ```
 BlockPool     free list (O(1) alloc/release), refcount per block,
-              byte budget as the constructor limit; physical storage grows
+              block budget as the constructor limit; physical storage grows
               on demand up to it, so a short chat does not allocate the budget
 KVSequence    ordered physical block ids, valid length;
               append allocates a block when length % block_tokens == 0;
@@ -110,11 +110,11 @@ capacity it retains. A failed step restores history and length; capacity
 the backend grew for the attempt may stay retained, within the budget.
 
 `KVSequence` replaces the per-model position bookkeeping; `Model` keeps one
-and the server keeps one per request. The budget covers every
-layer, K and V, and layout and alignment overhead. The CLI exposes it only
-as `llmx serve --ctx-size`, the pool's total token budget, whose exhaustion
-behaviour is admission: a request that does not fit waits or is refused
-(`docs/SERVER.md`).
+and the server keeps one per request. The budget is a token count that
+the backend rounds up to whole blocks of every layer's K and V, the model
+context by default. The CLI exposes it only as `llmx serve --ctx-size`,
+the pool's total token budget, whose exhaustion behaviour is admission: a
+request that does not fit waits or is refused (`docs/SERVER.md`).
 
 `length` is the committed history: tokens whose K and V are written and
 retired. A forward pass appends `batch` tokens with `kv_write` after
@@ -130,7 +130,8 @@ KVLayout   { block_tokens }                      queried once, backend-chosen
 KVStorage  handle from kv_alloc; owns the physical blocks of one cache
 KVView     { storage, blocks, n_blocks, length, nq } one sequence's history
            and its nq rows of the current pass
-kv_alloc(layers, max_tokens) -> KVStorage        grows on demand
+kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type, v_type)
+           -> KVStorage                          grows on demand
 kv_write(layer, views, n_views, k, v)            model -> storage, rows in view order
 attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)
 ```
@@ -149,9 +150,10 @@ backend implementation details.
 ### CPU physical layout
 
 Per layer, K and V pools of `n_blocks * block_tokens * n_head_kv * head_dim`
-floats. Inside a block the order is `[kv_head][token][head_dim]`, so each
-head's history within a block is contiguous and the existing dot and
-weighted-value loops run unchanged inside a block. Attention walks blocks in
+elements of each side's cache type, f16 by default or f32. Inside a block
+the order is `[kv_head][token][head_dim]`, so each head's history within a
+block is contiguous and the existing dot and weighted-value loops run
+unchanged inside a block. Attention walks blocks in
 table order, which is the form the benchmark measured. The softmax stays one
 global pass over the scores and the value accumulation stays token-ordered
 across block boundaries; there are no per-block partial reductions, so the
@@ -163,10 +165,11 @@ arithmetic and its reduction order are those of the contiguous path.
 A physical block returns to the free list when its refcount reaches zero
 **and** the backend has retired every submission that read it. On the eager
 CPU backend the second condition is always already true. Under the async
-contract of DEVICE-EXECUTION it is the `sync()` point; refcounts alone must
-never free device memory a kernel may still be reading. The same rule holds
-the view's block table and its `KVStorage` alive until retirement, not only
-the blocks.
+contract of DEVICE-EXECUTION it is a wait on the ticket of the last pass
+that touched the sequence, which `Model::reset` and `Model::truncate` take
+before returning blocks; refcounts alone must never free device memory a
+kernel may still be reading. The same rule holds the view's block table
+and its `KVStorage` alive until retirement, not only the blocks.
 
 A fork copies only the partial tail block; full blocks are shared read-only.
 A write to a shared full block is a design error and is checked, not handled:
@@ -192,7 +195,8 @@ the identity fields are compared before two sequences alias a block.
 
 ## Out of scope
 
-- F16 or quantized KV. A separate change with its own HF gate.
+- Quantized KV, a separate change with its own HF gate. F16 storage came
+  as one and is the default (`docs/USAGE.md`, KV cache types).
 - Scheduler, admission, continuous batching across sequences.
 - A prefix index beyond the server's donor list.
 - Any change to attention arithmetic or reduction order.

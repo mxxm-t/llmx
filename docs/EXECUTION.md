@@ -151,10 +151,10 @@ in one launch, which is what continuous batching needs from it.
 storage**, which for the dense cache is tokens. A storage whose entry
 stands for several tokens (compressed attention) has a shorter table with
 the same contract. Nothing in the view says what an entry contains; the
-storage that was allocated does, and `kv_alloc` describes an entry by its
-key and value widths rather than by a head count and a head dimension, so
-a latent-attention row (one wide key, a narrower value, no heads) is the
-same call with different numbers.
+storage that was allocated does. `kv_alloc` describes an entry by a KV
+head count and a head dimension (`backend.hpp`), so a latent-attention
+row (one wide key, a narrower value, no heads) needs it described by key
+and value widths instead.
 
 Logits are wanted for every decode row but only the last row of a prefill
 entry. A batch mixing both selects rows that are not contiguous, so one op
@@ -247,11 +247,12 @@ exist.
 Flags are named for what fits best (AGENTS.md, Configuration). `--device`
 already selects `cpu` or `vulkan:N`; ROCm selection waits for that backend.
 `--n-cpu-moe N` and `--cpu-moe` put the experts of the first `N` routed
-layers, or all, on the CPU beside a device (`docs/USAGE.md`). The flags for
-layer splits and tensor groups are sketched in [MULTI-DEVICE](MULTI-DEVICE.md)
-and land in `docs/USAGE.md` and `print_usage` with their phase. Choosing a fit automatically needs each backend to
-report its free memory; that query is added with the first device backend
-that can answer it.
+layers, or all, on the CPU beside a device (`docs/USAGE.md`). A layer
+split is a `--device` list, fitted to the memory each backend reports free
+(`Backend::memory_available`, `split_layers` in `model/layer_split.hpp`)
+unless `--layer-shares` sets the proportions. The flags for tensor groups
+are sketched in [MULTI-DEVICE](MULTI-DEVICE.md) and land in
+`docs/USAGE.md` and `print_usage` with their phase.
 
 Two implementation notes for the crossing itself. A `read` whose
 destination is host-addressable lands directly in it, so a device-to-CPU
@@ -352,5 +353,7 @@ a small released member of the family when one exists.
   each backend owns its per-type kernel table keyed by the same ids.
 - **Block size per device.** The CPU block is 128 tokens by measurement. A
   device backend chooses its own, and `Sequence` holding one table per
-  device is what allows them to differ; whether a shared prefix index can
-  span two block sizes is a #7 question.
+  device is what allows them to differ. Settled with #7: a shared prefix
+  ends on a whole block of the largest size (`Model::kv_block_tokens`),
+  which is whole in every storage because a model refuses block sizes
+  that do not nest.

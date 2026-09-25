@@ -82,18 +82,26 @@ route, not before.
 ```
 accept thread ---> connection thread (one per socket)
                      parse request, validate, tokenize, render the chat
-                     template, enqueue a Request, then block on the
-                     request's token channel and write chunks until done
+                     template, enqueue a Request, then wait on the
+                     request's token channel and write chunks until done,
+                     looking at the socket every 100 ms meanwhile
 scheduler thread   the only caller of Model::forward for its devices
 ```
 
 A `Request` carries the prompt ids, the sampling parameters, a `Sequence`, the stop conditions and a channel: a mutex, a condition variable and a deque of sampled ids that the connection thread drains.
-Cancellation is a flag the connection thread sets when a write to the client fails, so a stream notices a departed client at its next token and a whole reply only when it is written at the end; the scheduler sees the flag at the next iteration, drops the request from the batch and releases its sequence, which returns its blocks once the last pass that read them has retired.
+Cancellation is a flag the connection thread sets once its client has gone, which it learns in one of two ways: a write to the client fails, or a look at the socket finds the connection closed.
+The thread waits on the channel for at most 100 ms at a time and looks at the socket whenever 100 ms have passed since its last look, token or not, so a departed client is noticed within about 100 ms wherever its request is: waiting in the queue, prefilling, building a whole reply or streaming.
+The look takes no byte and never blocks: an end of stream or a reset from the client is gone, and nothing to read, data waiting or only urgent (out-of-band) data is present.
+So a client that shuts only its sending side after the request is taken as gone, since that arrives as the same end of stream, and one that has sent bytes past its request is taken as present until a write to it fails.
+A client taken as gone gets no answer, not even an error: its request is cancelled and the connection closes, so a client that shut only its sending side and still reads sees the end of the connection.
+The scheduler sees the flag at its next iteration, after the pass in flight: a queued request leaves the queue wherever it waits, and an active one is dropped from the batch and its sequence released, which returns its blocks once the last pass that read them has retired.
 
 ### The scheduler loop
 
 ```
 loop:
+  drop:    end the queued requests whose client left, wherever they
+           wait, and look again as admission reaches each one
   admit:   while the queue has a request and active < max_seqs: find
            the donor sharing the longest run of full blocks; if the pool
            can hold the prompt plus max_tokens, or an uncapped request's

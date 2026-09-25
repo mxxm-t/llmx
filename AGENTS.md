@@ -284,7 +284,7 @@ these cases skip if diagnostic timestamps are unavailable. Transfer ownership
 cases intercept copies so old failures cannot submit references to freed
 memory. Broad device arithmetic remains covered by `backend-vulkan` and HF.
 
-`http` starts the server's HTTP layer (`src/server/http.hpp`) on a system-chosen port from a thread and drives it with the layer's own client: a whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, and the listener closed from the main thread ending the accept loop.
+`http` starts the server's HTTP layer (`src/server/http.hpp`) on a system-chosen port from a thread and drives it with the layer's own client: a whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, a client seen by `peer_closed` as open while it waits for its answer, also after one urgent (out-of-band) byte, and as closed once it leaves, a write to it then throwing `ClientGone`, and the listener closed from the main thread ending the accept loop.
 Windows and Linux.
 
 `placement` splits a two-layer model over two CPU backends with a device per
@@ -368,6 +368,7 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   blocks with the CLI's greedy text, and the limits: a KV budget below the
   context bounds a request and a full queue answers 503.
   With the Q8_0 fixture, uncapped requests share a pool too small for all of them: a request is paused when it runs out, resumes from its history, and each runs to its own end; a long prompt read one token a pass is paused while it is still prefilling and, resumed, gives the CLI's greedy text; a conversation of six turns on a 1024-token pool, its history growing past half the pool, reuses the last turn's history on every follow-up (its `reused_tokens` and the server's `prefix_tokens` grow each time) with each turn's greedy text equal to the CLI's; and a follow-up that fits the pool only once one donor goes, beside an unrelated donor, consumes the turn it repeats, so a later prompt repeating the unrelated request's history still reuses it with the CLI's greedy text.
+  With the Q8_0 fixture too, a client that leaves a whole reply while it is generated, a streamed prompt while it is read one token a pass, or a request waiting for the one slot is noticed within seconds, though nothing written to it fails, and the server then holds nothing active or queued and starts a request reaching the whole pool at once; a client that shuts only its sending side during a whole reply gets no answer, the connection just closing; and each request left behind would run for thousands of passes, so a server that noticed nothing fails on any device.
   On a single device other than the CPU, the
   synthetic MoE model runs with its experts on the host and prompts from
   three tokens streamed, and each prompt's ids alone must equal its ids

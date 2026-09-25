@@ -30,22 +30,25 @@ struct SampleParams {
 };
 
 // One request from submission to completion.
-// The connection thread reads the channel: `next` blocks until a token or the end.
+// The connection thread reads the channel: `next` waits for a token or the end until a deadline, so the thread can look at its client between tokens.
 // Everything below the channel belongs to the scheduler thread.
 class Request {
 public:
+    using Clock = std::chrono::steady_clock;
+
     Request(std::vector<uint32_t> prompt, SampleParams params)
         : prompt_(std::move(prompt)), params_(std::move(params)), prompt_tokens_(prompt_.size()),
           submitted_(Clock::now()) {}
 
-    // Blocks for the next sampled id; false when the request has ended, with `finish` set: "eos", "stop", "length", "cancel" or "error".
-    bool next(uint32_t& id) {
+    // What a wait on the channel found: a sampled id, the end of the request with `finish` set ("eos", "stop", "length", "cancel" or "error"), or neither by the deadline.
+    enum class Next { id, end, timeout };
+    Next next(uint32_t& id, Clock::time_point until) {
         std::unique_lock<std::mutex> lk(m_);
-        cv_.wait(lk, [&] { return !out_.empty() || done_; });
-        if (out_.empty()) return false;
+        if (!cv_.wait_until(lk, until, [&] { return !out_.empty() || done_; })) return Next::timeout;
+        if (out_.empty()) return Next::end;
         id = out_.front();
         out_.pop_front();
-        return true;
+        return Next::id;
     }
     std::string finish() const {
         std::lock_guard<std::mutex> lk(m_);
@@ -55,7 +58,7 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         return error_;
     }
-    // Set by the connection thread when the client goes away; the scheduler drops the request at its next iteration.
+    // Set by the connection thread when the client goes away; at its next iteration the scheduler drops the request from the queue or from the batch.
     void cancel() { cancel_.store(true); }
     // The client's prompt tokens; a paused request's queued prompt also holds what it generated.
     size_t prompt_tokens() const { return prompt_tokens_; }
@@ -80,7 +83,6 @@ public:
 
 private:
     friend class Scheduler;
-    using Clock = std::chrono::steady_clock;
     void push(uint32_t id) {
         std::lock_guard<std::mutex> lk(m_);
         if (first_ == Clock::time_point{}) first_ = Clock::now();
@@ -187,12 +189,18 @@ public:
                 std::unique_lock<std::mutex> lk(m_);
                 cv_.wait(lk, [&] { return stopping_ || !queue_.empty() || !active.empty(); });
                 if (stopping_) break;
+                // A queued request whose client left ends wherever it waits, not only once admission reaches it, which may be after every active request has finished.
+                for (auto it = queue_.begin(); it != queue_.end();) {
+                    if ((*it)->cancel_.load()) { (*it)->end("cancel"); it = queue_.erase(it); }
+                    else ++it;
+                }
                 // Admission, in queue order, by the pool's budget: a capped request reserves the blocks its prompt and max_tokens can reach, an uncapped one its prompt and a growth step.
                 // The donor a request forks is chosen first, and the others give their blocks up, oldest first, when it needs them.
                 // If that is not enough, the chosen donor is consumed: the request forks it and it goes, so the blocks they share are counted once and a follow-up turn never evicts the history it repeats.
                 // A request sharing every full block of its donor, a follow-up turn or a resume, consumes it before any other goes, since the donor then holds nothing the request does not keep but a partial last block.
                 while (!queue_.empty() && active.size() < max_seqs_) {
                     const auto& r = queue_.front();
+                    // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
                     if (r->cancel_.load()) { r->end("cancel"); queue_.pop_front(); continue; }
                     const size_t tokens = r->prompt_.size() + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
                     std::vector<size_t> need = blocks_for(tokens);

@@ -1,7 +1,7 @@
 #pragma once
-// HTTP/1.1 over blocking sockets, enough for the server in docs/SERVER.md: listen, accept, read one request with a Content-Length body, write one response or a chunked stream.
+// HTTP/1.1 over blocking sockets, enough for the server in docs/SERVER.md: listen, accept, read one request with a Content-Length body, write one response or a chunked stream, and tell whether the client has left.
 // One thread per connection, no keep-alive beyond one request, no TLS, no external library: a reverse proxy does the rest when the server faces a network.
-// Windows uses Winsock, everything else BSD sockets; the two differ only in the handle type, in how a socket is closed and in their error codes, which is what the few #if blocks below cover.
+// Windows uses Winsock, everything else BSD sockets; the two differ only in the handle type, in how a socket is closed or polled and in their error codes, which is what the few #if blocks below cover.
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -28,6 +28,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <poll.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -42,6 +43,16 @@ inline void close_socket(Socket s) { closesocket(s); }
 inline int last_error() { return WSAGetLastError(); }
 // The accept failures that belong to one client, a connection reset before it was taken or an interrupted call, after which the next accept can succeed at once.
 inline bool per_client(int e) { return e == WSAECONNRESET || e == WSAEINTR; }
+// A failed read that says nothing about the connection: no data yet, or an interrupted call.
+inline bool transient(int e) { return e == WSAEWOULDBLOCK || e == WSAEINTR; }
+// Whether a read would return at once, with data, an end of stream or an error, asked without waiting.
+// Normal data only, since POLLIN also takes out-of-band data, which the blocking peek in peer_closed would wait past; an end of stream or a reset is still reported, since WSAPoll sets POLLHUP and POLLERR whatever is asked.
+inline bool readable(Socket s) {
+    WSAPOLLFD p{};
+    p.fd = s;
+    p.events = POLLRDNORM;
+    return WSAPoll(&p, 1, 0) > 0;
+}
 // Winsock wants one startup per process; the first listener does it and nothing undoes it, since the process ends with the server.
 inline void platform_init() {
     static std::once_flag once;
@@ -57,6 +68,15 @@ inline void close_socket(Socket s) { ::close(s); }
 inline int last_error() { return errno; }
 // The accept failures that belong to one client, a connection aborted before it was taken, an interrupted call or a protocol error on the new connection, after which the next accept can succeed at once.
 inline bool per_client(int e) { return e == ECONNABORTED || e == EINTR || e == EPROTO; }
+// A failed read that says nothing about the connection: no data yet, or an interrupted call.
+inline bool transient(int e) { return e == EAGAIN || e == EWOULDBLOCK || e == EINTR; }
+// Whether a read would return at once, with data, an end of stream or an error, asked without waiting.
+inline bool readable(Socket s) {
+    pollfd p{};
+    p.fd = s;
+    p.events = POLLIN;
+    return ::poll(&p, 1, 0) > 0;
+}
 // A write to a socket the peer has closed raises SIGPIPE and ends the process unless the process ignores it; a client leaving mid-stream is ordinary here, so the signal is ignored once and every send also passes MSG_NOSIGNAL where the platform has it.
 inline void platform_init() {
     static std::once_flag once;
@@ -67,6 +87,12 @@ inline void platform_init() {
 constexpr int kSendFlags = MSG_NOSIGNAL;
 #else
 constexpr int kSendFlags = 0;
+#endif
+// The peek after a readiness check also passes MSG_DONTWAIT where the platform has it, so a readiness that turns out spurious cannot block the connection thread.
+#if defined(MSG_DONTWAIT)
+constexpr int kPeekFlags = MSG_PEEK | MSG_DONTWAIT;
+#else
+constexpr int kPeekFlags = MSG_PEEK;
 #endif
 
 struct Request {
@@ -95,8 +121,14 @@ inline const char* reason(int status) {
     }
 }
 
+// A client that has left: a write to it failed, or peer_closed found its connection closed.
+// Nothing written after that can reach it, so a caller that catches this sends no answer and lets the connection close.
+struct ClientGone : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 // One accepted connection.
-// Reads exactly one request, then writes either a whole response or a chunked stream; either way the socket closes with the object, and a write to a peer that has gone away throws.
+// Reads exactly one request, then writes either a whole response or a chunked stream; either way the socket closes with the object, a write to a peer that has gone away throws ClientGone, and peer_closed asks without writing.
 class Connection {
 public:
     explicit Connection(Socket s) : s_(s) {}
@@ -177,6 +209,15 @@ public:
         streaming_ = false;
     }
 
+    // Whether the client has closed the connection, asked without blocking and without taking a byte: an end of stream or a reset is closed, nothing to read or data waiting is open.
+    // A client that shuts only its sending side after the request reads as closed too, since both arrive as the same end of stream.
+    bool peer_closed() {
+        if (!readable(s_)) return false;
+        char b;
+        const int n = (int)::recv(s_, &b, 1, kPeekFlags);
+        return n == 0 || (n < 0 && !transient(last_error()));
+    }
+
     void close() {
         if (s_ != kInvalid) { close_socket(s_); s_ = kInvalid; }
     }
@@ -188,7 +229,7 @@ private:
         size_t off = 0;
         while (off < data.size()) {
             const int n = (int)::send(s_, data.data() + off, (int)(data.size() - off), kSendFlags);
-            if (n <= 0) throw std::runtime_error("http: the client went away");
+            if (n <= 0) throw ClientGone("http: the client went away");
             off += (size_t)n;
         }
     }

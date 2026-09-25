@@ -2,6 +2,7 @@
 // The routes of docs/SERVER.md: native /v1/generate, /v1/chat and /v1/health, and the OpenAI-compatible /v1/chat/completions, /v1/completions and /v1/models.
 // Both families share one parse, one scheduler request and one drain loop; one thread per connection parses, tokenizes, submits and drains.
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
@@ -88,12 +89,17 @@ public:
             c.respond(404, "application/json", error_json("no such route", shape));
         } catch (const BadRequest& e) {
             c.respond(e.status, "application/json", error_json(e.what(), shape));
+        } catch (const http::ClientGone&) {
+            // A client that has left gets no answer, the 500 below included: a client that shut only its sending side may still be reading, and an error would tell it of a failure that is not the server's.
         } catch (const std::exception& e) {
             try { c.respond(500, "application/json", error_json(e.what(), shape)); } catch (...) {}
         }
     }
 
 private:
+    // How often a connection waiting on its request looks for a departed client.
+    static constexpr std::chrono::milliseconds kProbe{100};
+
     enum class Route { generate, chat, chat_completions, completions };
     static std::optional<Route> route_of(const std::string& path) {
         if (path == "/v1/generate") return Route::generate;
@@ -283,13 +289,22 @@ private:
 
         // Drain the channel.
         // A write that fails means the client went away: cancel the request and stop.
+        // Between writes the socket is looked at every kProbe, token or not, since a request that is queued, prefilling or building a whole reply writes nothing that could fail.
         std::vector<uint32_t> gen;
         std::string text, pending;
         bool first = true;
         try {
             if (stream) c.begin_stream(200, "text/event-stream");
             uint32_t tid;
-            while (r->next(tid)) {
+            Request::Clock::time_point probe = Request::Clock::now() + kProbe;
+            for (;;) {
+                const Request::Next got = r->next(tid, probe);
+                if (got == Request::Next::end) break;
+                if (Request::Clock::now() >= probe) {
+                    if (c.peer_closed()) throw http::ClientGone("http: the client closed the connection");
+                    probe = Request::Clock::now() + kProbe;
+                }
+                if (got == Request::Next::timeout) continue;
                 gen.push_back(tid);
                 pending += tok_.decode({tid});
                 const size_t whole = utf8_complete(pending);
@@ -349,7 +364,7 @@ private:
         } catch (...) {
             r->cancel();
             uint32_t drop;
-            while (r->next(drop)) {}
+            while (r->next(drop, Request::Clock::now() + kProbe) != Request::Next::end) {}
             throw;
         }
     }

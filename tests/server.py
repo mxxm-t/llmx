@@ -15,7 +15,7 @@ import f32
 import moe
 from common import run as cli
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold and a request past the context are refused; a client that goes away mid-stream leaves the server with nothing active; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
+# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 
 
@@ -52,6 +52,24 @@ class Server:
                     payload = line[6:]
                     events.append(None if payload == "[DONE]" else json.loads(payload))
         return events
+
+    def open(self, path, body):
+        """A POST on a socket of its own, sent whole and left open, for a client that leaves when the test says."""
+        s = socket.create_connection(("127.0.0.1", self.port))
+        data = json.dumps(body).encode()
+        s.sendall(b"POST %s HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n"
+                  % (path.encode(), len(data)) + data)
+        return s
+
+    def wait(self, done, what, seconds=5):
+        """/v1/health once `done` holds for it, within `seconds`; `what` names the failure otherwise."""
+        deadline = time.time() + seconds
+        while True:
+            health = self.get("/v1/health")
+            if done(health):
+                return health
+            assert time.time() < deadline, "%s: %s" % (what, health)
+            time.sleep(0.05)
 
     def close(self):
         self.proc.kill()
@@ -121,15 +139,10 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
         assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": -1})[0] == 400
 
         # A client that leaves mid-stream: open the socket, start a request, close after the first bytes, and the server ends with nothing active.
-        s = socket.create_connection(("127.0.0.1", srv.port))
-        body = json.dumps({"prompt": prompts[0], "max_tokens": long_n, "temperature": 0, "stream": True}).encode()
-        s.sendall(b"POST /v1/generate HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % len(body) + body)
+        s = srv.open("/v1/generate", {"prompt": prompts[0], "max_tokens": long_n, "temperature": 0, "stream": True})
         s.recv(64)
         s.close()
-        deadline = time.time() + 60
-        while time.time() < deadline and srv.get("/v1/health")["active"] != 0:
-            time.sleep(0.2)
-        assert srv.get("/v1/health")["active"] == 0, "a cancelled request stayed active"
+        srv.wait(lambda h: h["active"] == 0, "a cancelled request stayed active", 60)
 
         # /v1/chat renders through the template and answers; the synthetic model's 16-token context has no room for a rendered turn.
         if chat:
@@ -292,9 +305,7 @@ def check_paused_prefill(model):
         with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
             long_prompt = f.read()[:1800]
         # The short request streams and is queued first, so the long one is the latest admitted and the one paused.
-        s = socket.create_connection(("127.0.0.1", srv.port))
-        body = json.dumps({"prompt": "Once upon a time", "temperature": 0, "stream": True}).encode()
-        s.sendall(b"POST /v1/completions HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % len(body) + body)
+        s = srv.open("/v1/completions", {"prompt": "Once upon a time", "temperature": 0, "stream": True})
         s.recv(64)
         result = []
         failure = []
@@ -374,6 +385,90 @@ def check_unrelated_donor(model):
         srv.close()
 
 
+# A client that leaves is noticed within seconds wherever its request is, though nothing written to it fails: a whole reply while it is generated, a streamed prompt while it is read, a request waiting for the one slot, and a whole reply whose client shuts only its sending side, which then gets no answer.
+# The server runs one slot and reads prompts one token a pass, so a second request queues and a long prompt stays in its prefill; the pool is POOL tokens.
+# Every request left behind would run for thousands of passes, a whole reply of LONG tokens or a prompt of about 6400, far past the seconds its departure has to be noticed in, so a server that notices nothing fails here on any device.
+POOL = 8192
+LONG = POOL - 64
+
+
+def leave_whole(srv):
+    s = srv.open("/v1/generate", {"prompt": "Once upon a time", "max_tokens": LONG, "temperature": 0})
+    srv.wait(lambda h: h["active"] == 1, "the whole reply did not start")
+    s.close()
+    return "a whole reply whose client left"
+
+
+def leave_prefill(srv):
+    with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
+        long_prompt = f.read()[:28000]
+    # About 6400 tokens, one a pass: the stream has sent only its head when the client leaves.
+    s = srv.open("/v1/completions", {"prompt": long_prompt, "max_tokens": 8, "temperature": 0, "stream": True})
+    s.recv(64)
+    srv.wait(lambda h: h["active"] == 1, "the long prompt did not start")
+    s.close()
+    return "a streamed prompt whose client left while it was read"
+
+
+def leave_queued(srv):
+    busy = srv.open("/v1/generate", {"prompt": "Once upon a time", "max_tokens": LONG, "temperature": 0, "stream": True})
+    busy.recv(64)
+    srv.wait(lambda h: h["active"] == 1, "the busy request did not start")
+    s = srv.open("/v1/generate", {"prompt": "The capital of France is", "max_tokens": 8, "temperature": 0})
+    srv.wait(lambda h: h["queued"] == 1, "the second request did not queue")
+    s.close()
+    # It leaves the queue while the slot's request, whose client stays, goes on.
+    health = srv.wait(lambda h: h["queued"] == 0, "a queued request whose client left stayed queued")
+    assert health["active"] == 1, health
+    busy.close()
+    return "a queued request whose client left"
+
+
+def leave_half(srv):
+    """A client that shuts its sending side and reads on is taken as gone: its request ends and the connection closes with no answer, not even an error."""
+    s = srv.open("/v1/generate", {"prompt": "Once upon a time", "max_tokens": LONG, "temperature": 0})
+    srv.wait(lambda h: h["active"] == 1, "the whole reply did not start")
+    s.shutdown(socket.SHUT_WR)
+    s.settimeout(5)
+    raw = b""
+    try:
+        part = s.recv(4096)
+        while part:
+            raw += part
+            part = s.recv(4096)
+    except socket.timeout:
+        raise AssertionError("a client that shut its sending side: the connection stayed open")
+    s.close()
+    assert raw == b"", raw
+    return "a whole reply whose client shut its sending side"
+
+
+def settled(srv, what):
+    """Nothing active or queued, and a request reaching the whole pool starts, which it can only once no request holds blocks, donors giving theirs up; its first token is enough."""
+    srv.wait(lambda h: h["active"] == 0 and h["queued"] == 0, what + " stayed")
+    s = srv.open("/v1/generate", {"prompt": "a", "max_tokens": POOL - 1, "temperature": 0, "stream": True})
+    s.settimeout(5)
+    raw = b""
+    try:
+        while b"\"id\"" not in raw:
+            part = s.recv(4096)
+            assert part, raw
+            raw += part
+    except socket.timeout:
+        raise AssertionError(what + ": the pool's blocks did not come back")
+    s.close()
+    srv.wait(lambda h: h["active"] == 0, "a request reaching the whole pool stayed after its client left")
+
+
+def check_departed(model):
+    srv = Server(model, "--max-seqs", "1", "--ctx-size", str(POOL), "--ubatch", "1")
+    try:
+        for leave in (leave_whole, leave_prefill, leave_queued, leave_half):
+            settled(srv, leave(srv))
+    finally:
+        srv.close()
+
+
 def run():
     if common.f32_cache_skip("server"):
         return True
@@ -402,10 +497,11 @@ def run():
         check_paused_prefill(real)
         turns = check_conversation(real, excerpt)
         check_unrelated_donor(real)
+        check_departed(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
               "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
               "a prompt paused while prefilling, a %d-turn conversation past half the pool reusing its history on every follow-up, "
-              "a follow-up consuming the turn it repeats while an unrelated donor stays  [ok]"
+              "a follow-up consuming the turn it repeats while an unrelated donor stays, clients leaving a whole reply, a prefill and the queue, and one shutting its sending side  [ok]"
               % (os.path.basename(real), n, turns))
     else:
         print("server: SKIP real-model pass - fixture model not on disk")

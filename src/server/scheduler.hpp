@@ -188,18 +188,27 @@ public:
                 cv_.wait(lk, [&] { return stopping_ || !queue_.empty() || !active.empty(); });
                 if (stopping_) break;
                 // Admission, in queue order, by the pool's budget: a capped request reserves the blocks its prompt and max_tokens can reach, an uncapped one its prompt and a growth step.
-                // Donors give theirs up, oldest first, when a request needs them.
+                // The donor a request forks is chosen first, and the others give their blocks up, oldest first, when it needs them.
+                // If that is not enough, the chosen donor is consumed: the request forks it and it goes, so the blocks they share are counted once and a follow-up turn never evicts the history it repeats.
                 while (!queue_.empty() && active.size() < max_seqs_) {
                     const auto& r = queue_.front();
                     if (r->cancel_.load()) { r->end("cancel"); queue_.pop_front(); continue; }
                     const size_t tokens = r->prompt_.size() + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
                     std::vector<size_t> need = blocks_for(tokens);
-                    while (!room_for(need) && !donors_.empty()) drop_donor();
-                    if (!room_for(need)) break;
+                    size_t shared = 0;
+                    size_t d = best_donor(r->prompt_, shared);
+                    for (size_t i = 0; !room_for(need) && i < donors_.size();) {
+                        if (i == d) { ++i; continue; }
+                        drop_donor(i);
+                        if (i < d) --d;
+                    }
+                    const bool consume = shared && !room_for(need);
+                    if (consume ? !room_for(need, donors_[d].blocks) : !room_for(need)) break;
+                    admit(*r, d, shared);
+                    if (consume) drop_donor(d);
                     add(reserved_, need);
                     r->need_ = std::move(need);
                     r->admission_ = ++admissions_;
-                    admit(*r);
                     active.push_back(r);
                     queue_.pop_front();
                 }
@@ -351,18 +360,15 @@ private:
         return best;
     }
 
-    // A history for an admitted request: a fork of the best donor rolled back to the shared blocks, or a fresh sequence.
+    // A history for an admitted request: a fork of donor `d` holding the `shared` tokens best_donor found, or a fresh sequence when it found none.
     // Under the lock.
-    void admit(Request& r) {
+    void admit(Request& r, size_t d, size_t shared) {
         {
             std::lock_guard<std::mutex> lk(r.m_);
             if (r.admitted_ == Request::Clock::time_point{}) r.admitted_ = Request::Clock::now();
         }
-        size_t shared = 0;
-        const size_t d = best_donor(r.prompt_, shared);
         if (shared) {
-            r.seq_ = model_.fork(donors_[d].seq);
-            model_.truncate(r.seq_, shared);
+            r.seq_ = model_.fork(donors_[d].seq, shared);
             r.prompt_done_ = shared;
             if (!r.resumed_) {
                 r.reused_.store(shared);
@@ -376,12 +382,12 @@ private:
         if (!r.resumed_) r.rng_.seed(r.params_.seed);
     }
 
-    // The oldest donor's blocks back to the pool. Under the lock.
-    void drop_donor() {
-        Donor& d = donors_.front();
+    // A donor's blocks back to the pool, the oldest donor's unless another is named. Under the lock.
+    void drop_donor(size_t i = 0) {
+        Donor& d = donors_[i];
         try { model_.reset(d.seq); } catch (const std::exception&) {}
         sub(reserved_, d.blocks);
-        donors_.pop_front();
+        donors_.erase(donors_.begin() + (std::ptrdiff_t)i);
     }
 
     // How many prompt tokens of r were in this pass.
@@ -466,10 +472,10 @@ private:
             b[s] = std::min(backend::blocks_for(tokens, model_.kv_pool_block_tokens(s)), model_.kv_pool_blocks(s));
         return b;
     }
-    // Whether every pool can take `more` beside what is reserved.
-    bool room_for(const std::vector<size_t>& more) const {
+    // Whether every pool can take `more` beside what is reserved, once the `freed` blocks of a reservation that ends are returned.
+    bool room_for(const std::vector<size_t>& more, const std::vector<size_t>& freed = {}) const {
         for (size_t s = 0; s < more.size(); ++s)
-            if (reserved_[s] + more[s] > model_.kv_pool_blocks(s)) return false;
+            if (reserved_[s] - (s < freed.size() ? freed[s] : 0) + more[s] > model_.kv_pool_blocks(s)) return false;
         return true;
     }
     // Whether `want` needs more than `held` in any pool; an empty `held` holds nothing.

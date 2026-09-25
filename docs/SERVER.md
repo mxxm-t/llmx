@@ -26,7 +26,8 @@ is measured against the single-sequence path and the reference.
   or a client library reads them without a client of its own.
 - **Prefix reuse without sharing mutable state.** A request whose prompt
   repeats the tokens of a finished request's history shares its full KV
-  blocks read-only through `Model::fork` and prefills only what follows.
+  blocks read-only through `Model::fork` at the length of those blocks,
+  which copies nothing, and prefills only what follows.
   Finished requests stay a while as donors; the donor with the longest
   run of matching full blocks is found by comparing tokens, not hashes,
   since a server holds at most `max_seqs` donors for one model
@@ -41,9 +42,15 @@ is measured against the single-sequence path and the reference.
   `max_tokens`, an uncapped one (a compatible route without `max_tokens`)
   when it can hold its prompt and a growth step, reserving more as it
   generates; otherwise it waits in the queue, and past `--max-queue`
-  waiting requests a new one is refused with 503. Donors are evicted,
-  oldest first, when a request needs their blocks. When an uncapped
-  request cannot grow even then, the latest admitted uncapped request is
+  waiting requests a new one is refused with 503. A request's donor is
+  chosen before room is made for it, and the other donors are evicted,
+  oldest first, when it needs their blocks. If the pool is still short,
+  its donor is consumed: the request forks it and the donor goes, so the
+  blocks they share are reserved once rather than for each, and a
+  follow-up turn keeps the history it repeats however full the pool is. A
+  donor is consumed only then, so while there is room it stays for other
+  requests sharing its prefix. When an uncapped request cannot grow even
+  with every donor evicted, the latest admitted uncapped request is
   paused: its history becomes a donor and it is queued again at the front,
   resuming from those blocks unless another request needed them. A capped
   request is never paused, and a request that cannot be admitted is not
@@ -93,13 +100,13 @@ Cancellation is a flag the connection thread sets when a write to the client fai
 
 ```
 loop:
-  admit:   while the queue has a request and the pool can hold its prompt
-           plus max_tokens, or an uncapped request's prompt plus a growth
-           step (dropping donors, oldest first, to make room), and
-           active < max_seqs: take it, find the donor sharing the
-           longest run of full blocks, fork it and roll the fork back to
-           the shared blocks, or make a fresh sequence; mark the request
-           "prefilling" with an offset into its prompt
+  admit:   while the queue has a request and active < max_seqs: find
+           the donor sharing the longest run of full blocks; if the pool
+           can hold the prompt plus max_tokens, or an uncapped request's
+           prompt plus a growth step (dropping the other donors, oldest
+           first, then consuming that donor, to make room), take it, fork
+           the donor at the shared blocks or make a fresh sequence, and
+           mark the request "prefilling" with an offset into its prompt
   grow:    an uncapped decoding request whose next token passes its
            reservation reserves another step, dropping donors first, or
            else the latest admitted uncapped request is paused

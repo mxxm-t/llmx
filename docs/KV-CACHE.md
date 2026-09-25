@@ -98,7 +98,8 @@ BlockPool     free list (O(1) alloc/release), refcount per block,
               on demand up to it, so a short chat does not allocate the budget
 KVSequence    ordered physical block ids, valid length;
               append allocates a block when length % block_tokens == 0;
-              fork shares full blocks (refcount+1) and copies the partial tail
+              fork at a length shares the full blocks below it (refcount+1)
+              and copies a partial tail
 ```
 
 Both own what they hold: neither is copyable, the pool is not movable either
@@ -110,8 +111,9 @@ exact-size buffers, all layers before any is published, and reports the
 capacity it retains. A failed step restores history and length; capacity
 the backend grew for the attempt may stay retained, within the budget.
 
-`KVSequence` replaces the per-model position bookkeeping; `Model` keeps one
-and the server keeps one per request. The budget is a token count that
+`KVSequence` replaces the per-model position bookkeeping. `Model` keeps one
+`Sequence`, which holds a `KVSequence` for each storage, and the server
+keeps one `Sequence` per request. The budget is a token count that
 the backend rounds up to whole blocks of every layer's K and V, the model
 context by default. The CLI exposes it only as `llmx serve --ctx-size`,
 the pool's total token budget, whose exhaustion behaviour is admission: a
@@ -127,12 +129,14 @@ so a failed step leaves the previous history valid.
 ### Backend contract
 
 ```
-KVLayout   { block_tokens }                      queried once, backend-chosen
+KVLayout   { block_tokens }                      a constant per backend
 KVStorage  handle from kv_alloc; owns the physical blocks of one cache
-KVView     { storage, blocks, n_blocks, length, nq } one sequence's history
-           and its nq rows of the current pass
+KVView     { storage, blocks, n_blocks, length, nq, extent }
+           one sequence's history, its nq rows of the current pass and
+           their extent, which a device chooses its kernels by
 kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type, v_type)
            -> KVStorage                          grows on demand
+kv_copy(storage, src, dst)                       block to block, a fork's tail
 kv_write(layer, views, n_views, k, v)            model -> storage, rows in view order
 attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)
 ```
@@ -185,7 +189,8 @@ Sharing is by full immutable blocks only. The server (`docs/SERVER.md`
 step 4) keeps finished requests' histories as donors, at most `max_seqs`
 of them for the one model it serves, and finds the one sharing the
 longest run of full blocks with a new prompt by comparing token ids;
-the fork is rolled back to those blocks and appends into fresh ones.
+it forks the donor at those blocks, which copies nothing, and appends into
+fresh ones.
 At that scale a hash buys nothing. An index that outlives a process,
 spans models or holds many more entries would key a block on the hash of
 (model identity including revision and the effective RoPE and position

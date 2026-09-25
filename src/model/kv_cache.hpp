@@ -138,18 +138,19 @@ public:
     // Blocks return to the pool; the backend keeps the physical storage they occupied, so a reused sequence does not reallocate.
     void reset() noexcept { truncate(0); }
 
-    // The block a fork's partial tail must be filled from, and the private block it goes to; -1 when the history ends on a block boundary.
+    // The block a fork's partial tail must be filled from, and the private block it goes to; -1 when the fork ends on a block boundary.
     struct Tail { int32_t from = -1, to = -1; };
 
-    // A second history with the same committed tokens: every full block is shared, read-only from now on, and a partial tail gets a fresh block the caller fills from ours before either sequence appends.
+    // A second history holding our first `length` committed tokens: every full block below `length` is shared, read-only from now on, and a partial tail gets a fresh block the caller fills from ours before either sequence appends.
     // The tail is taken first, so a failure part way leaves nothing retained.
-    KVSequence fork(Tail& tail) const {
+    KVSequence fork(size_t length, Tail& tail) const {
         if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");
         if (pending_) throw std::logic_error("KV cache: fork during a step");
+        if (length > length_) throw std::logic_error("KV cache: fork past the history");
         KVSequence f(pool_, block_tokens_);
-        const size_t full = length_ / block_tokens_;
+        const size_t full = length / block_tokens_;
         tail = Tail{};
-        if (length_ % block_tokens_) {
+        if (length % block_tokens_) {
             tail.from = blocks_[full];
             tail.to = pool_->alloc();
         }
@@ -163,7 +164,7 @@ public:
             throw;
         }
         if (tail.to >= 0) f.blocks_.push_back(tail.to);
-        f.length_ = length_;
+        f.length_ = length;
         return f;
     }
 

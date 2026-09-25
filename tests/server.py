@@ -15,7 +15,7 @@ import f32
 import moe
 from common import run as cli
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold and a request past the context are refused; a client that goes away mid-stream leaves the server with nothing active; a chat turn renders.
+# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold and a request past the context are refused; a client that goes away mid-stream leaves the server with nothing active; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 
 
@@ -324,6 +324,29 @@ def check_paused_prefill(model):
         srv.close()
 
 
+def check_conversation(model, text):
+    """A conversation whose history grows past half of a small pool: each follow-up repeats the last turn's prompt and reply and adds half of `text`, forks that turn's history however full the pool is, so `prefix_tokens` grows on every follow-up, and gives the CLI's greedy text for its whole prompt."""
+    pool, n, turns = 1024, 16, 6
+    srv = Server(model, "--ctx-size", str(pool))
+    try:
+        words = text.split(" ")
+        halves = [" ".join(words[:len(words) // 2]), " ".join(words[len(words) // 2:])]
+        prompt, reused = halves[0], 0
+        for turn in range(turns):
+            status, reply = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
+            assert status == 200, reply
+            assert reply["text"] == cli_greedy_text(model, prompt, n), (turn, reply["text"])
+            health = srv.get("/v1/health")
+            if turn:
+                assert health["prefix_tokens"] > reused, (turn, reply["prompt_tokens"], reply["reused_tokens"], health)
+            reused = health["prefix_tokens"]
+            prompt += reply["text"] + " " + halves[(turn + 1) % 2]
+        assert reply["prompt_tokens"] > pool // 2, reply
+        return turns
+    finally:
+        srv.close()
+
+
 def run():
     if common.f32_cache_skip("server"):
         return True
@@ -350,10 +373,11 @@ def run():
         check_limits(real)
         check_uncapped(real)
         check_paused_prefill(real)
+        turns = check_conversation(real, excerpt)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
               "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
-              "a prompt paused while prefilling  [ok]"
-              % (os.path.basename(real), n))
+              "a prompt paused while prefilling, a %d-turn conversation past half the pool reusing its history on every follow-up  [ok]"
+              % (os.path.basename(real), n, turns))
     else:
         print("server: SKIP real-model pass - fixture model not on disk")
     return True

@@ -637,16 +637,16 @@ public:
     int n_tokens() const { return (int)seq_.length(); }
     int context_length() const { return cfg.context_length; }
 
-    // A second history with the same committed tokens as `src`, sharing every full block and copying the partial tail on each storage.
+    // A second history holding the first `length` tokens of `src`, sharing every full block below `length` and copying a partial tail on each storage.
     // The fork inherits the tickets of the passes that wrote what it shares.
     // Shared blocks are read-only from now on: a sequence truncated into one cannot append and has to be forked instead.
-    Sequence fork(const Sequence& src) {
+    Sequence fork(const Sequence& src, size_t length) {
         if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
         Sequence f;
         f.kv_.reserve(storages_.size());
         for (size_t s = 0; s < storages_.size(); ++s) {
             KVSequence::Tail tail;
-            f.kv_.push_back(src.kv_[s].fork(tail));
+            f.kv_.push_back(src.kv_[s].fork(length, tail));
             if (tail.to >= 0)
                 storages_[s]->b->kv_copy(*storages_[s]->storage, tail.from, tail.to);
         }
@@ -693,7 +693,6 @@ public:
     }
 
     // Roll a history back to `length` tokens, returning the blocks beyond it.
-    // A fork truncated to a block boundary keeps only blocks it shares with its donor, and appends from there into fresh blocks, which is how the server reuses a prompt prefix (docs/SERVER.md).
     void truncate(Sequence& s, size_t length) {
         if (s.owner_ != this)
             throw std::runtime_error("inference: sequence of another model");

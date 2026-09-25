@@ -20,11 +20,12 @@ computes an offset into them.
 - `view(storage)` produces the `backend::KVView` that `kv_write` and
   `attention` consume: storage handle, block table, committed length and
   the rows prepared for this pass.
-- `fork(tail)` is a second sequence with the same committed tokens: every
-  full block shared by refcount and a fresh block for a partial tail, whose
-  ids come back in `tail` for the backend's `kv_copy`. Shared blocks are
-  read-only: `prepare` refuses to append into one, which a history
-  truncated into a shared block would do.
+- `fork(length, tail)` is a second sequence holding the first `length`
+  committed tokens: every full block below `length` shared by refcount and,
+  when `length` ends inside a block, a fresh block for that partial tail,
+  whose ids come back in `tail` for the backend's `kv_copy`. A length past
+  the history is refused. Shared blocks are read-only: `prepare` refuses to
+  append into one, which a history truncated into a shared block would do.
 - Ownership: neither class is copyable and the pool is not movable, since
   sequences hold its address; `configure` sets the budget in place and is
   refused while blocks are held. A sequence returns its blocks when destroyed
@@ -35,13 +36,16 @@ computes an offset into them.
 
 `Model` owns one pool per device that runs attention, and one default
 sequence; a `Sequence` holds a table per storage and `Model::fork` forks
-every table and copies every tail. The server keeps one sequence per
-request over a shared pool and finds prefix donors by comparing tokens in
-`server/scheduler.hpp`; nothing here indexes prefixes.
+every table at one length and copies every tail. The server keeps one
+sequence per request over a shared pool, finds prefix donors by comparing
+tokens in `server/scheduler.hpp` and forks a donor at the whole blocks it
+shares, so it never takes a tail; nothing here indexes prefixes.
 
 CTest's `kv-cache` test covers pool reuse and exhaustion, sequence
 prepare/commit/abort/reset, on-demand CPU storage growth and retained reset
 across block boundaries, paged attention over two different block tables
-against a double-precision reference, and forks: shared full blocks, a copied
-tail, refused appends into shared blocks and refcounted release. HF/model
-history checks remain separate.
+against a double-precision reference, and forks: a whole-block length
+shares its blocks and allocates none, a length past the history is refused,
+a length inside a block copies its tail, appends into shared blocks are
+refused and release follows the refcounts. HF/model history checks remain
+separate.

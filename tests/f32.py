@@ -86,7 +86,8 @@ def golden(name):
     return doc
 
 
-def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3"):
+def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3", tokens=None):
+    # `tokens` replaces the VOCAB token strings, one a byte and then <|endoftext|> by default.
     # A 34-byte Q8 tensor exposes unaligned F32 rows if the loader discards file padding without preserving float alignment in its in-memory blob.
     entries = [("unused.weight", [32], 8, b"\0" * 34)]
     entries += [(name, shape, 0, struct.pack("<%df" % len(v), *v))
@@ -117,9 +118,11 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
                 w_str(f, "tokenizer.ggml.eos_token_id")
                 f.write(struct.pack("<II", 4, eos_id))
             if index == 0:
+                vocab = build_byte_vocab() + ["<|endoftext|>"] if tokens is None else tokens
+                assert len(vocab) == VOCAB, len(vocab)
                 w_str(f, "tokenizer.ggml.tokens")
                 f.write(struct.pack("<IIQ", 9, 8, VOCAB))
-                for token in build_byte_vocab() + ["<|endoftext|>"]:
+                for token in vocab:
                     w_str(f, token)
             offset = 0
             for name, shape, kind, data in subset:

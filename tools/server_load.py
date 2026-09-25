@@ -21,7 +21,7 @@ The words are drawn from --seed and the level and round, so the requests of a ru
 The defaults are the earlier load of this tool, and the earlier flags keep their meaning.
 
 A prompt's length counts every token the server reads for it, a start token it adds included.
-Where the server has a tokenize route (POST /tokenize), each prompt is counted there and a word added or dropped until the count is exact.
+Where the server has a tokenize route (POST /tokenize, or POST /v1/tokenize as llmx serve has), each prompt is counted there and a word added or dropped until the count is exact.
 Otherwise two requests for one token, on the word list once and twice, show whether every word is one token and what a prompt costs beyond its words; when every word is one token, a prompt of k words has a known length.
 Where a reply reports its prompt tokens, the achieved lengths are checked against the target and the mismatches reported.
 
@@ -366,15 +366,24 @@ def send(target, api, spec, index, limits, t0):
     return finish_record(rec, sent, arrivals, end if end is not None else time.perf_counter(), t0)
 
 
+TOKENIZE_PATHS = ("/tokenize", "/v1/tokenize")
+
+
 def tokenize_route(target, timeout):
-    """A counter through the server's tokenize route, or None when it has none: the body carries the field names both common tokenize routes read, with the start token counted."""
-    def count(text):
-        status, reply = target.call("POST", "/tokenize", {"content": text, "prompt": text, "add_special": True,
-                                                          "add_special_tokens": True}, timeout)
-        if status == 200 and isinstance(reply, dict) and isinstance(reply.get("tokens"), list):
-            return len(reply["tokens"])
-        return None
-    return count if count(WORDS[0]) is not None else None
+    """A counter through the server's tokenize route, the first of TOKENIZE_PATHS it answers on, or None when it has none: the body carries the field names the common tokenize routes read, with the start token counted."""
+    def counter(path):
+        def count(text):
+            status, reply = target.call("POST", path, {"content": text, "prompt": text, "text": text, "add_special": True,
+                                                       "add_special_tokens": True}, timeout)
+            if status == 200 and isinstance(reply, dict) and isinstance(reply.get("tokens"), list):
+                return len(reply["tokens"])
+            return None
+        return count
+    for path in TOKENIZE_PATHS:
+        count = counter(path)
+        if count(WORDS[0]) is not None:
+            return count
+    return None
 
 
 class Lengths:
@@ -855,6 +864,7 @@ def main(argv=None):
 
 class FakeServer:
     """A server for --self-test that speaks the three APIs, counts a prompt's tokens as its words, and sends each streamed token at a known time after the request arrives: the first after `ttft` seconds and one every `itl` after it.
+    With `tokenize` one of TOKENIZE_PATHS it has a tokenize route there, reading the field that path's servers read.
     Streamed requests take their behaviour from `plan` in arrival order: ok, 503, cut (the connection drops after two tokens), short (half the tokens, then the end of text) or stall (silence after the first token until the server closes).
     Every streamed reply reports 4 reused prompt tokens, and /v1/health counts them."""
 
@@ -903,8 +913,11 @@ class FakeServer:
                 arrived = time.perf_counter()
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8"))
                 api = {"/v1/generate": "llmx", "/v1/completions": "openai", "/completion": "completion"}.get(self.path)
-                if self.path == "/tokenize" and fake.tokenize:
-                    return self.reply(200, {"tokens": list(range(len(body["content"].split())))})
+                if self.path == fake.tokenize:
+                    field = {"/tokenize": "content", "/v1/tokenize": "text"}[self.path]
+                    if not isinstance(body.get(field), str):
+                        return self.reply(400, {"error": field + " must be a string"})
+                    return self.reply(200, {"tokens": list(range(len(body[field].split())))})
                 if api is None:
                     return self.reply(404, {"error": "no such route"})
                 prompt = len(body["prompt"].split())
@@ -1150,13 +1163,15 @@ def fake_checks(name, check):
         check(label, bool(values) and all(v is not None and lo - 0.001 <= v <= lo + loose for v in values),
               "= %r, want %.3f to %.3f" % (values, lo, lo + loose))
 
-    fake = FakeServer(ttft, itl, tokenize=name == "completion")
+    # The reference server's tokenize route is /tokenize and llmx's /v1/tokenize; the OpenAI route's server here has none.
+    route = {"completion": "/tokenize", "llmx": "/v1/tokenize"}.get(name)
+    fake = FakeServer(ttft, itl, tokenize=route)
     try:
         target = Target(fake.url)
         api = Api(name, "fake" if name == "openai" else None)
         lengths = Lengths.calibrate(target, api, 10)
         check(name + " lengths", lengths.uniform and lengths.base == 0 and
-              lengths.source == ("tokenize route" if name == "completion" else "two probe requests"), lengths.json())
+              lengths.source == ("tokenize route" if route else "two probe requests"), lengths.json())
         args = argparse.Namespace(seed=3, output_len=n, tokens=64, input_len=12, input_len_range=None)
         work = Workload(args, lengths)
         specs = work.specs("closed/2/0", 4)
@@ -1214,7 +1229,7 @@ def fake_checks(name, check):
 
 def main_checks(check):
     """The whole tool against FakeServer: a closed level of two rounds whose first has a refusal shows the clean round, lists the refusal below the table, writes it to --json and exits 3."""
-    fake = FakeServer(0.02, 0.01, tokenize=False)
+    fake = FakeServer(0.02, 0.01, tokenize=None)
     fake.plan = ["503"]
     out, err = io.StringIO(), io.StringIO()
     fd, path = tempfile.mkstemp(suffix=".json")
@@ -1252,7 +1267,7 @@ def self_test():
     for line in failed:
         print("  self-test: " + line)
     print("server_load self-test: streams and figures on made-up times; closed and open loads on llmx, openai and "
-          "completion against a server with known token times; failures by reason, timeouts, a short reply and the "
+          "completion against a server with known token times; prompts counted through /tokenize and /v1/tokenize; failures by reason, timeouts, a short reply and the "
           "exit status  [%s]" % ("ok" if not failed else "FAILED"))
     return not failed
 

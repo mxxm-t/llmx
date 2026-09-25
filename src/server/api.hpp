@@ -1,5 +1,5 @@
 #pragma once
-// The routes of docs/SERVER.md: native /v1/generate, /v1/chat and /v1/health, and the OpenAI-compatible /v1/chat/completions, /v1/completions and /v1/models.
+// The routes of docs/SERVER.md: native /v1/generate, /v1/chat, /v1/tokenize, /v1/detokenize and /v1/health, and the OpenAI-compatible /v1/chat/completions, /v1/completions and /v1/models.
 // Both families share one parse, one scheduler request and one drain loop; one thread per connection parses, tokenizes, submits and drains.
 #include <atomic>
 #include <chrono>
@@ -90,6 +90,8 @@ public:
         try {
             if (req.method == "GET" && req.path == "/v1/health") return health(c);
             if (req.method == "GET" && req.path == "/v1/models") return models(c);
+            if (req.method == "POST" && req.path == "/v1/tokenize") return tokenize(c, req);
+            if (req.method == "POST" && req.path == "/v1/detokenize") return detokenize(c, req);
             if (req.method == "POST" && route) return generate(c, req, *route);
             c.respond(404, "application/json", error_json("no such route", shape));
         } catch (const BadRequest& e) {
@@ -153,20 +155,36 @@ private:
         return (float)x;
     }
     // A whole number from lo to hi, refused before the caller casts it, since a double outside the target type has no defined conversion.
-    static double integer(const jmini::Value& v, const char* key, double lo, double hi, double fallback) {
-        const jmini::Value* f = v.get(key);
-        if (!f) return fallback;
-        const double x = f->isNumber() ? f->asNumber() : NAN;
+    static double integer_value(const jmini::Value& f, const std::string& name, double lo, double hi) {
+        const double x = f.isNumber() ? f.asNumber() : NAN;
         if (!(x >= lo && x <= hi) || x != std::floor(x)) {
             char range[96];
             std::snprintf(range, sizeof range, " must be an integer from %.0f to %.0f", lo, hi);
-            throw BadRequest(400, key + std::string(range));
+            throw BadRequest(400, name + range);
         }
         return x;
+    }
+    // A whole-number field, or `fallback` when it is absent.
+    static double integer(const jmini::Value& v, const char* key, double lo, double hi, double fallback) {
+        const jmini::Value* f = v.get(key);
+        return f ? integer_value(*f, key, lo, hi) : fallback;
     }
     static bool flag(const jmini::Value& v, const char* key) {
         const jmini::Value* f = v.get(key);
         return f && f->t == jmini::Value::T::Bool && f->b;
+    }
+    // A POST route's body, which must be one JSON object.
+    static jmini::Value body_of(const http::Request& req) {
+        jmini::Value body;
+        try { body = jmini::parse(req.body); }
+        catch (const std::exception& e) { throw BadRequest(400, std::string("bad JSON: ") + e.what()); }
+        if (!body.isObject()) throw BadRequest(400, "the body must be a JSON object");
+        return body;
+    }
+    static std::string ids_json(const std::vector<uint32_t>& ids) {
+        std::string json = "[";
+        for (size_t i = 0; i < ids.size(); ++i) json += (i ? "," : "") + std::to_string(ids[i]);
+        return json + "]";
     }
 
     // A message's content: a string, or the array of text parts the compatible chat route accepts.
@@ -280,12 +298,36 @@ private:
         return c + ",\"timings\":" + timings_json(r, tokens) + "}";
     }
 
-    void generate(http::Connection& c, const http::Request& req, Route route) {
-        jmini::Value body;
-        try { body = jmini::parse(req.body); }
-        catch (const std::exception& e) { throw BadRequest(400, std::string("bad JSON: ") + e.what()); }
-        if (!body.isObject()) throw BadRequest(400, "the body must be a JSON object");
+    // A prompt's ids, a text the tokenizer cannot encode refused with 400 on every route that reads one.
+    std::vector<uint32_t> encode(const std::string& text) const {
+        try { return tok_.encode(text); }
+        catch (const std::exception& e) { throw BadRequest(400, e.what()); }
+    }
 
+    // The ids a prompt of `text` reads, or of `messages` rendered as the chat routes render them.
+    // `add_special` is not read, since the generating routes add no start or end token to a prompt and there is none to add or leave out.
+    void tokenize(http::Connection& c, const http::Request& req) {
+        const jmini::Value body = body_of(req);
+        const bool chat = body.get("messages") != nullptr;
+        const jmini::Value* text = body.get("text");
+        if (chat && text) throw BadRequest(400, "give text or messages, not both");
+        if (!chat && (!text || !text->isString())) throw BadRequest(400, "text must be a string");
+        const std::vector<uint32_t> ids = encode(chat ? render_messages(body) : text->asString());
+        c.respond(200, "application/json", "{\"tokens\":" + ids_json(ids) + ",\"count\":" + std::to_string(ids.size()) + "}");
+    }
+
+    // The text of token ids with the repair a reply's text gets, so the ids of a whole reply give back its text.
+    void detokenize(http::Connection& c, const http::Request& req) {
+        const jmini::Value body = body_of(req);
+        const jmini::Value* tokens = body.get("tokens");
+        if (!tokens || !tokens->isArray()) throw BadRequest(400, "tokens must be an array of token ids");
+        std::vector<uint32_t> ids;
+        for (const auto& t : tokens->asArray()) ids.push_back((uint32_t)integer_value(t, "each token id", 0, (double)tok_.vocab.size() - 1));
+        c.respond(200, "application/json", "{\"text\":" + jmini::quote(utf8_sanitize(tok_.decode(ids))) + "}");
+    }
+
+    void generate(http::Connection& c, const http::Request& req, Route route) {
+        const jmini::Value body = body_of(req);
         const std::string prompt = prompt_of(body, route);
         const SampleParams params = params_of(body, route);
         const bool stream = flag(body, "stream");
@@ -293,7 +335,7 @@ private:
         const bool include_usage = so && so->isObject() && flag(*so, "include_usage");
 
         std::shared_ptr<Request> r;
-        try { r = sched_.submit(tok_.encode(prompt), params); }
+        try { r = sched_.submit(encode(prompt), params); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
@@ -364,11 +406,8 @@ private:
                           ",\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
                           usage_json(prompt_tokens, gen.size()) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
             } else {
-                std::string ids_json = "[";
-                for (size_t i = 0; i < gen.size(); ++i) ids_json += (i ? "," : "") + std::to_string(gen[i]);
-                ids_json += "]";
                 c.respond(200, "application/json",
-                          "{\"text\":" + jmini::quote(text) + ",\"ids\":" + ids_json +
+                          "{\"text\":" + jmini::quote(text) + ",\"ids\":" + ids_json(gen) +
                           ",\"finish\":" + jmini::quote(finish) + ",\"prompt_tokens\":" +
                           std::to_string(prompt_tokens) + ",\"reused_tokens\":" + std::to_string(r->reused()) +
                           ",\"tokens\":" + std::to_string(gen.size()) + "}");

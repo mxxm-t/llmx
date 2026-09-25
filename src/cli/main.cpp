@@ -841,6 +841,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
         out << "\nRoutes:\n"
             << "  POST /v1/generate             POST /v1/chat\n"
             << "  POST /v1/completions          POST /v1/chat/completions\n"
+            << "  POST /v1/tokenize             POST /v1/detokenize\n"
             << "  GET  /v1/health               GET  /v1/models\n\n"
             << "Sampling settings belong in each request's JSON body.\n"
             << "Example: llmx serve model.gguf --device vulkan:0 --port 8080\n";

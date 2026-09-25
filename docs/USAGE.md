@@ -496,6 +496,8 @@ to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request
 |---|---|---|
 | `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "stream": false}` | `{"text", "ids", "finish", "prompt_tokens", "reused_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length` |
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "..."}], ...}` (the same sampling fields) | as above; the prompt is the model's chat template over the messages |
+| `POST /v1/tokenize` | `{"text": "..."}`, or `{"messages": [...]}` in place of the text | `{"tokens": [ids], "count": n}` |
+| `POST /v1/detokenize` | `{"tokens": [ids]}` | `{"text": "..."}` |
 | `GET /v1/health` | | `{"status": "ok", "model", "active", "queued", "donors", "prefix_hits", "prefix_tokens", "pauses"}` |
 | `GET /v1/models` | | `{"object": "list", "data": [{"id", "object": "model", "created", "owned_by", "context_length", "vocab"}]}` |
 | `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}}`, plus `top_k`, `penalty` or `repetition_penalty` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "content"}, "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}` |
@@ -520,9 +522,17 @@ A finished request's cache stays a while as a donor: a new prompt that repeats i
 Donors give their blocks up, oldest first, when a request needs them, except that the donor a request forks is kept and, if the pool is still short, consumed by it: the blocks it shares pass to the request and the rest are freed.
 A follow-up turn or a resumed request, which shares every full block of its donor, consumes that donor before any other gives its blocks up.
 
+`/v1/tokenize` gives the ids `llmx tokenize` prints for `text`, the ids a prompt of that text reads: no chat template is applied, and the text of a special token such as `<|im_start|>` reads as that token.
+With `messages` in place of `text`, as `/v1/chat` takes them, the model's chat template renders them first, the assistant's header included, so the ids are the ones a chat request with those messages reads.
+No start or end token is added, since no route adds one to a prompt, so `add_special`, which clients of other servers send true to count one, is not read.
+Neither route waits in the queue, and a text past the context is counted rather than refused.
+`/v1/detokenize` gives the text `llmx detokenize` prints for the ids, with each byte that starts no UTF-8 character replaced by U+FFFD as in a reply, so the `ids` of a whole reply give back its `text`.
+A body that is not a JSON object, a `text` that is not a string, both `text` and `messages` or neither, a text the tokenizer cannot encode, as the generating routes refuse it, and a token id that is not a whole number within the vocabulary are refused with 400, and a body past 64 MiB with 413, in the native error shape.
+
 ```
 llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080
 curl -N -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
+curl -d '{"text":"The capital of France is"}' http://127.0.0.1:8080/v1/tokenize
 ```
 
 ## Serving load (`tools/server_load.py`)
@@ -557,7 +567,7 @@ A prompt of `--input-len N` is the word "the" and random words from a fixed list
 The prompt lengths come from the seed alone, before any prompt is built, so the n-th request of every level and round has the same length, whatever the server under test counts; the words come from the seed and the level and round.
 The same seed gives the same prompts, so a second run against a server that kept the first run's prefixes can reuse them; the `reused` column shows it, and another `--seed` avoids it.
 A prompt's length counts every token the server reads, a start token it adds included.
-Where the server has a tokenize route (`POST /tokenize`) each prompt is counted there and trimmed or extended to its length, and a line below the table lists any prompt that cannot reach it; otherwise two one-token requests on the word list, once and twice, show whether every word is one token, and when it is a prompt's length is exact by construction.
+Where the server has a tokenize route (`POST /tokenize`, or `POST /v1/tokenize` as `llmx serve` has) each prompt is counted there and trimmed or extended to its length, and a line below the table lists any prompt that cannot reach it; otherwise two one-token requests on the word list, once and twice, show whether every word is one token, and when it is a prompt's length is exact by construction.
 Where the replies report their prompt tokens (`usage` on `--api openai`, `tokens_evaluated` on `--api completion`) a line below the table lists any that miss their target.
 `--output-len` asks every route to ignore the end of text; llmx's routes do not read `ignore_eos` today, so a reply there can still end at the model's end of text, and the `short` column counts such replies.
 

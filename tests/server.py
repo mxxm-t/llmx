@@ -13,8 +13,12 @@ import baseline
 import common
 import f32
 import moe
+from tokenizer import build_byte_vocab
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+import server_load  # noqa: E402
+
+# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; /v1/tokenize and /v1/detokenize give the ids and text `llmx tokenize` and `llmx detokenize` give, while the queue is full too, and a text the tokenizer cannot encode is refused there as the generating routes refuse it; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 # The synthetic model's file name holds a byte that is not UTF-8 on Linux and characters beyond ASCII that several Windows code pages cannot map elsewhere, and every reply naming the model must still be UTF-8.
 # The synthetic MoE model gives each prompt the same ids alone and four at a time, on the CPU as it is and on a device with its experts on the host.
@@ -31,7 +35,8 @@ class Server:
             return json.loads(r.read().decode("utf-8"))
 
     def post(self, path, body, timeout=300):
-        data = json.dumps(body).encode("utf-8")
+        """`body` as JSON, or as it is when it is bytes."""
+        data = body if isinstance(body, bytes) else json.dumps(body).encode("utf-8")
         req = urllib.request.Request("http://127.0.0.1:%d%s" % (self.port, path), data=data,
                                      headers={"Content-Type": "application/json"})
         try:
@@ -62,6 +67,20 @@ class Server:
                   % (path.encode(), len(data)) + data)
         return s
 
+    def oversized(self, path):
+        """The head and the parsed body of the reply to a POST announcing a body past the size limit, which the server refuses while it reads."""
+        s = socket.create_connection(("127.0.0.1", self.port), timeout=30)
+        s.sendall(b"POST %s HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % (path.encode(), 65 << 20))
+        raw = b""
+        while True:
+            part = s.recv(4096)
+            if not part:
+                break
+            raw += part
+        s.close()
+        head, _, payload = raw.partition(b"\r\n\r\n")
+        return head, json.loads(payload)
+
     def wait(self, done, what, seconds=5):
         """/v1/health once `done` holds for it, within `seconds`; `what` names the failure otherwise."""
         deadline = time.time() + seconds
@@ -83,7 +102,95 @@ def cli_greedy_text(model, prompt, n, flags=()):
     return common.generate_text(p.stdout).decode("utf-8")
 
 
-def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
+def repaired(raw):
+    """The bytes `raw` as the server writes text into JSON: each valid UTF-8 character as it is, and U+FFFD for each byte that starts none."""
+    out, i = [], 0
+    while i < len(raw):
+        for n in (1, 2, 3, 4):
+            try:
+                ch = raw[i:i + n].decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            if len(ch) == 1:
+                out.append(ch)
+                i += n
+                break
+        else:
+            out.append("\ufffd")
+            i += 1
+    return "".join(out)
+
+
+def cli_tokenize(model, text):
+    """The ids `llmx tokenize` prints for `text`."""
+    p = common.run_process(["tokenize", model, text])
+    assert p.returncode == 0, p.stderr
+    return common.parse_ids(common.cli_stdout(p.stdout).decode("ascii"))
+
+
+def cli_detokenize(model, ids):
+    """The bytes `llmx detokenize` prints for `ids`, without the line feed that ends them, repaired as the server repairs text."""
+    p = common.run_process(["detokenize", model, ",".join(map(str, ids))])
+    assert p.returncode == 0, p.stderr
+    out = common.cli_stdout(p.stdout)
+    assert out.endswith(b"\n"), out
+    return repaired(out[:-1])
+
+
+def check_tokenize(srv, model, texts, replies, vocab, chat):
+    """/v1/tokenize and /v1/detokenize against `llmx tokenize` and `llmx detokenize`, the load tool's count and the prompts the generating routes read; AGENTS.md lists the cases."""
+    counts = {}
+    for text in texts:
+        want = cli_tokenize(model, text)
+        counts[text] = len(want)
+        # add_special is not read, whatever its value.
+        for extra in ({}, {"add_special": False}, {"add_special": True}, {"add_special": 1}):
+            status, reply = srv.post("/v1/tokenize", dict({"text": text}, **extra))
+            assert status == 200 and reply == {"tokens": want, "count": len(want)}, (text, extra, status, reply, want)
+        status, reply = srv.post("/v1/detokenize", {"tokens": want})
+        assert status == 200 and reply == {"text": text}, (text, status, reply)
+        if any(ord(ch) > 127 for ch in text):
+            for ids in [[i] for i in dict.fromkeys(want)] + [want, want[::-1]]:
+                status, reply = srv.post("/v1/detokenize", {"tokens": ids})
+                assert status == 200 and reply["text"] == cli_detokenize(model, ids), (text, ids, reply)
+    # `vocab` is the output rows /v1/models counts, and the edge the route checks is the tokenizer's, so the CLI must take the id below it and refuse the one at it.
+    status, reply = srv.post("/v1/detokenize", {"tokens": [vocab - 1]})
+    assert status == 200 and reply["text"] == cli_detokenize(model, [vocab - 1]), reply
+    assert common.run_process(["detokenize", model, str(vocab)]).returncode != 0, vocab
+    for prompt, generated in replies.items():
+        status, reply = srv.post("/v1/tokenize", {"text": prompt})
+        assert status == 200 and reply["count"] == generated["prompt_tokens"], (prompt, reply, generated)
+        status, reply = srv.post("/v1/detokenize", {"tokens": generated["ids"]})
+        assert status == 200 and reply["text"] == generated["text"], (prompt, reply, generated)
+    count = server_load.tokenize_route(server_load.Target("http://127.0.0.1:%d" % srv.port), 30)
+    assert count is not None and {text: count(text) for text in counts} == counts, counts
+    if chat:
+        with open(os.path.join(os.path.dirname(__file__), "data", "baseline_chat_template.json"), encoding="utf-8") as f:
+            cases = [case for case in json.load(f)["cases"] if case["generate"]]
+        for case in cases:
+            want = cli_tokenize(model, case["expected"])
+            status, reply = srv.post("/v1/tokenize", {"messages": case["messages"]})
+            assert status == 200 and reply == {"tokens": want, "count": len(want)}, (case, reply, want)
+        last = cases[-1]
+        status, turn = srv.post("/v1/chat", {"messages": last["messages"], "max_tokens": 4, "temperature": 0})
+        assert status == 200 and turn["prompt_tokens"] == len(cli_tokenize(model, last["expected"])), turn
+        status, plain = srv.post("/v1/generate", {"prompt": last["expected"], "max_tokens": 4, "temperature": 0})
+        assert status == 200 and plain["ids"] == turn["ids"], (plain, turn)
+    # Refusals in the native error shape: a body that is not JSON or not an object, a text that is not a string, both text and messages or neither, messages that are not a non-empty array, tokens that are not an array, an id that is not a whole number or lies outside the vocabulary, 2^32 past a valid id included, and a body past the size limit.
+    refused = [("/v1/tokenize", b"{"), ("/v1/tokenize", b"[]"), ("/v1/tokenize", {}), ("/v1/tokenize", {"text": 5}),
+               ("/v1/tokenize", {"text": "a", "messages": [{"role": "user", "content": "a"}]}),
+               ("/v1/tokenize", {"messages": []}), ("/v1/tokenize", {"messages": "a"}),
+               ("/v1/detokenize", b"{"), ("/v1/detokenize", {}), ("/v1/detokenize", {"tokens": "97"})]
+    refused += [("/v1/detokenize", {"tokens": [97, bad]}) for bad in (vocab, -1, 1.5, "97", True, None, 2 ** 32 + 97, 1e300)]
+    for path, body in refused:
+        status, err = srv.post(path, body)
+        assert status == 400 and isinstance(err["error"], str) and err["error"], (path, body, status, err)
+    for path in ("/v1/tokenize", "/v1/detokenize"):
+        head, err = srv.oversized(path)
+        assert head.startswith(b"HTTP/1.1 413") and isinstance(err["error"], str), (path, head, err)
+
+
+def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
     srv = Server(model, *flags)
     try:
         health = srv.get("/v1/health")
@@ -96,8 +203,8 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
         name = "".join("\ufffd" if "\udc80" <= ch <= "\udcff" else ch for ch in os.path.basename(model))
         assert models["data"][0]["id"] == name and health["model"] == name, (models, health, name)
 
-        # Greedy through the server gives the CLI's text, and the ids are kept for the checks that follow.
-        expected = {}
+        # Greedy through the server gives the CLI's text, and the replies are kept for the checks that follow.
+        expected, replies = {}, {}
         for prompt in prompts:
             want = cli_greedy_text(model, prompt, n, flags)
             status, reply = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
@@ -105,6 +212,7 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
             assert reply["text"] == want, (prompt, reply["text"], want)
             assert reply["finish"] in ("eos", "length", "stop"), reply
             expected[prompt] = reply["ids"]
+            replies[prompt] = reply
 
         # The same requests four at a time give the same ids each.
         results = {}
@@ -149,6 +257,8 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
             assert status == 400 and field in err["error"]["message"], (field, status, err)
         status, reply = srv.post("/v1/generate", {"prompt": "a", "max_tokens": 2, "temperature": 0, "top_k": 0, "top_p": 1, "penalty": 1})
         assert status == 200 and reply["ids"], (status, reply)
+
+        check_tokenize(srv, model, texts, replies, models["data"][0]["vocab"], chat)
 
         # A client that leaves mid-stream once its reply has begun, and the server ends with nothing active.
         common.leave_mid_stream(srv.port, {"prompt": prompts[0], "max_tokens": long_n, "temperature": 0}, 64)
@@ -202,18 +312,8 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
         status, err = srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": 2, "top_k": -2})
         assert status == 400 and "top_k" in err["error"]["message"], err
         # A body past the size limit is refused while it is read, still in the compatible route's error shape.
-        s = socket.create_connection(("127.0.0.1", srv.port), timeout=30)
-        s.sendall(b"POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % (65 << 20))
-        raw = b""
-        while True:
-            part = s.recv(4096)
-            if not part:
-                break
-            raw += part
-        s.close()
-        head, _, payload = raw.partition(b"\r\n\r\n")
-        err = json.loads(payload)
-        assert head.startswith(b"HTTP/1.1 413") and isinstance(err["error"], dict) and err["error"]["message"], raw
+        head, err = srv.oversized("/v1/chat/completions")
+        assert head.startswith(b"HTTP/1.1 413") and isinstance(err["error"], dict) and err["error"]["message"], (head, err)
         if chat:
             status, reply = srv.post("/v1/chat/completions",
                                      {"messages": [{"role": "user", "content": [{"type": "text", "text": prompts[0]}]}],
@@ -269,10 +369,13 @@ def check_mixed(model, prompts, n, flags):
 
 
 def check_limits(model):
-    """The serving limits: a KV budget below the context bounds a request, and a full queue refuses with 503 rather than waiting."""
+    """The serving limits: a KV budget below the context bounds a request, and a full queue refuses with 503 rather than waiting, while the tokenize routes, which pass no queue, still answer and count a text past the context."""
     srv = Server(model, "--max-seqs", "1", "--max-queue", "1", "--ctx-size", "512")
     try:
         assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": 600})[0] == 413
+        long_text = " ".join(["the"] * 600)
+        long_ids = cli_tokenize(model, long_text)
+        assert len(long_ids) > 512, len(long_ids)
         results = {}
         def worker(i):
             results[i] = srv.post("/v1/generate", {"prompt": "The capital of France is", "max_tokens": 300,
@@ -281,11 +384,38 @@ def check_limits(model):
         for t in threads:
             t.start()
             time.sleep(0.2)
+        # The one slot and the one queue place are held from before the tokenize requests to after them.
+        full = srv.get("/v1/health")
+        tokenized = srv.post("/v1/tokenize", {"text": long_text})
+        detokenized = srv.post("/v1/detokenize", {"tokens": long_ids})
+        after = srv.get("/v1/health")
         for t in threads:
             t.join()
         codes = sorted(status for status, _ in results.values())
         assert codes == [200, 200, 503], codes
         assert [r for s, r in results.values() if s == 503][0]["error"], results
+        assert full["active"] == 1 and full["queued"] == 1 and after["active"] == 1 and after["queued"] == 1, (full, after)
+        assert tokenized == (200, {"tokens": long_ids, "count": len(long_ids)}), tokenized
+        assert detokenized == (200, {"text": long_text}), detokenized
+    finally:
+        srv.close()
+
+
+def check_unencodable(directory):
+    """A model whose vocabulary lacks the byte token `q`: /v1/tokenize refuses a text holding it with the 400 and the message the generating routes give, as a text and as messages, and `llmx tokenize` fails on it."""
+    tokens = build_byte_vocab() + ["<|endoftext|>"]
+    tokens[ord("q")] = "qq"
+    model = f32.write_model(os.path.join(directory, "tiny-f32-no-q.gguf"), f32.tensors(True), tokens=tokens)
+    p = common.run_process(["tokenize", model, "q"])
+    assert p.returncode != 0 and b"not in vocab" in p.stderr, (p.returncode, p.stderr)
+    srv = Server(model)
+    try:
+        messages = [{"role": "user", "content": "q"}]
+        replies = [srv.post(path, body) for path, body in (("/v1/tokenize", {"text": "q"}),
+                                                           ("/v1/generate", {"prompt": "q", "max_tokens": 1}),
+                                                           ("/v1/tokenize", {"messages": messages}),
+                                                           ("/v1/chat", {"messages": messages, "max_tokens": 1}))]
+        assert all(status == 400 for status, _ in replies) and len({err["error"] for _, err in replies}) == 1, replies
     finally:
         srv.close()
 
@@ -496,9 +626,13 @@ def run():
         model = os.path.join(directory, name)
         f32.write_model(model, f32.tensors(True))
         # The synthetic model's context is 16 tokens: prompt plus tokens stay inside it.
-        n = check_server(model, ["a", "ab", "abc", "abcdefg"], 6, 14, chat=False)
+        # One token a byte and no special token: text beyond ASCII splits inside its characters, a special token's text reads as its bytes, and the longest text runs past the 16-token context, which the route counts rather than refuses.
+        texts = ["a", "h\u00e9llo w\u00f6rld", "\u65e5\u672c\u8a9e", "\U0001f600", "<|endoftext|>", "<|im_start|>user\nhi<|im_end|>", ""]
+        n = check_server(model, ["a", "ab", "abc", "abcdefg"], 6, 14, chat=False, texts=texts)
         print("server: synthetic F32 model, %d prompts greedy-equal to the CLI alone and four at a time, a stream, "
-              "a seeded repeat, refusals, a cancelled stream, the compatible completions, its file name as UTF-8 in every reply  [ok]" % n)
+              "a seeded repeat, refusals, the tokenize routes, a cancelled stream, the compatible completions, its file name as UTF-8 in every reply  [ok]" % n)
+        check_unencodable(directory)
+        print("server: synthetic F32 model without the byte token q, a text holding it refused alike by /v1/tokenize, /v1/generate and /v1/chat  [ok]")
         # The synthetic mixture of experts, each prompt's ids alone equal to its ids four at a time, where a pass routes one request's prompt rows beside another's decode rows.
         # On a device its routed layers run on the host with prompts from extent 3 streamed, so a pass holds streamed prompt rows beside host decode rows; those flags need a device, so the CPU runs the model without them.
         # Experts on the host are a placement of one device, so a list of several skips this.
@@ -515,8 +649,11 @@ def run():
     if real:
         with open(os.path.join(os.path.dirname(__file__), "data", "baseline_perplexity.json"), encoding="utf-8") as f:
             excerpt = json.load(f)["text"]
+        # The tokenizer golden's texts: whitespace, digits, text beyond ASCII, emoji, special tokens and a soft hyphen.
+        with open(baseline.GOLDEN, encoding="utf-8") as f:
+            texts = [case["text"] for case in json.load(f)["cases"]] + [""]
         n = check_server(real, ["The capital of France is", "Once upon a time", "def fib(n):", "The three laws of"],
-                         16, 4000, chat=True, prefix=excerpt)
+                         16, 4000, chat=True, texts=texts, prefix=excerpt)
         check_limits(real)
         check_uncapped(real)
         check_paused_prefill(real)
@@ -524,7 +661,7 @@ def run():
         check_unrelated_donor(real)
         check_departed(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
-              "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
+              "refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
               "a prompt paused while prefilling, a %d-turn conversation past half the pool reusing its history on every follow-up, "
               "a follow-up consuming the turn it repeats while an unrelated donor stays, clients leaving a whole reply, a prefill and the queue, and one shutting its sending side  [ok]"
               % (os.path.basename(real), n, turns))

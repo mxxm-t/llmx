@@ -719,8 +719,9 @@ size_t check_kernels(backend::Backend& vk) {
                 vk.read(*b, 0, v.data(), bytes);
                 return v;
             };
+            // One output for every matmul, allocated before any producer runs, since a new buffer drops the producer's copy.
+            const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
             auto matmul_of = [&](const backend::BufferPtr& x) {
-                const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
                 vk.matmul(gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, {x.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, rr);
                 std::vector<float> y(rows * n_out);
                 vk.read(*yb, 0, y.data(), y.size() * sizeof(float));

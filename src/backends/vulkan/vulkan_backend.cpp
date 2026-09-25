@@ -1081,7 +1081,15 @@ public:
         return bytes + (product && pads_f32(type, nin) ? rows * (nin + kF32Pad) * sizeof(float) : 0);
     }
 
+    // The tags name a buffer by its handle, which a new buffer can take over once the buffer it named is freed, so a new buffer drops them as a write from the host does.
+    void drop_tags() {
+        xq_tag_ = XqTag{};
+        x8_tag_ = X8Tag{};
+        group_tag_ = GroupTag{};
+    }
+
     BufferPtr alloc(size_t bytes, Memory where) override {
+        drop_tags();
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, where == Memory::host_visible);
         if (bytes && !b->host_visible()) {
             // Zeroed like every other allocation, in stream order.
@@ -1095,6 +1103,7 @@ public:
     // A copy in chunks through staging; weights arrive here once at load.
     BufferPtr adopt(const void* src, size_t bytes) override {
         if (!src && bytes) throw std::runtime_error("vulkan: adopting null storage");
+        drop_tags();
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, false);
         try {
             upload(*b, 0, src, bytes);
@@ -1218,9 +1227,7 @@ public:
     }
 
     void write(Buffer& dst_b, size_t off, const void* src, size_t bytes) override {
-        xq_tag_ = XqTag{};
-        x8_tag_ = X8Tag{};
-        group_tag_ = GroupTag{};
+        drop_tags();
         if (!src && bytes) throw std::runtime_error("vulkan: writing from null storage");
         VulkanBuffer& dst = as_vulkan(dst_b);
         drop_padded(dst);
@@ -1237,9 +1244,7 @@ public:
 
     void copy(Buffer& dst_b, size_t dst_off, const Buffer& src_b, size_t src_off,
               size_t bytes) override {
-        xq_tag_ = XqTag{};
-        x8_tag_ = X8Tag{};
-        group_tag_ = GroupTag{};
+        drop_tags();
         VulkanBuffer& dst = as_vulkan(dst_b);
         const VulkanBuffer& src = as_vulkan(src_b);
         drop_padded(dst);
@@ -2516,16 +2521,16 @@ private:
     bool logits_ = false;                     // inside matmul_logits
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
-    // Which ids moe_tab_ groups: their location and count, cleared by every routing and by anything that writes a buffer from the host.
+    // Which ids moe_tab_ groups: their location and count, cleared by every routing, by anything that writes a buffer from the host and by a new buffer (drop_tags).
     struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0, chunk = 0; };
     GroupTag group_tag_;
-    // What the twin buffer holds: the float input it was made from, its length, and whether the 8-bit twin was written; cleared by anything else that writes a buffer, since the input may be what was written.
+    // What the twin buffer holds: the float input it was made from, its length, and whether the 8-bit twin was written; cleared by anything else that writes a buffer, since the input may be what was written, and by a new buffer (drop_tags).
     struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; };
     // Set once a matmul that reads the 8-bit twin has run, so producers take their build that writes it from then on.
     bool want_x8_ = false;
     int twin_variant() const { return want_x8_ ? 1 : 0; }
     XqTag xq_tag_;
-    // What x8_ holds when a producer wrote it (made_x8): the batch it is the tile's 8-bit copy of, cleared by every dispatch that could write that batch or x8_, and by anything that writes a buffer from the host.
+    // What x8_ holds when a producer wrote it (made_x8): the batch it is the tile's 8-bit copy of, cleared by every dispatch that could write that batch or x8_, by anything that writes a buffer from the host and by a new buffer (drop_tags).
     struct X8Tag { VkDescriptorBufferInfo x{}; size_t nin = 0, nbatch = 0; };
     X8Tag x8_tag_;
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];

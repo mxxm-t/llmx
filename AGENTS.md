@@ -295,6 +295,8 @@ the residual stream crosses exactly where the placement changes and never on
 one device, and each stage and crossing submits the devices it records on. It
 refuses malformed placements, among them a device whose attention layers are
 not one run, and sequences of another model.
+A three-layer model placed by `place_model` over two and three CPU backends at ubatch 3 takes a 13-token prompt in five chunks, more than the stages, so the pipelined prefill reuses its pass slots and both handoff buffers; the prompt, three decode steps, a second prompt continuing the history, every row of `score()` and a two-sequence pass must be exact against one backend, with the same `n_tokens` and `kv_used_bytes`.
+A backend on the last stage then fails while the first stage is chunks ahead, on top of a history, once at an attention mid-prompt and once at the head on the last chunk (`FailingCpu` in `tests/tiny_qwen.hpp`, which `kv-cache` also uses): every storage's length and `kv_used_bytes` must be back at the history, and the same prompt again must be exact.
 
 Run the Python suite (synthetic fixtures are generated locally; real-model HF
 checks skip when their models are absent):

@@ -1,4 +1,4 @@
-// Placement across backends (docs/EXECUTION.md step 6): a model split over two CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
+// Placement across backends (docs/EXECUTION.md step 6): a model split over two or three CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
 // Crossings are counted so they happen exactly where the placement changes and nowhere on a single device; bad placements are refused at load.
 #include <cmath>
 #include <cstring>
@@ -317,6 +317,124 @@ void layer_split_fits() {
     checked += 4;
 }
 
+// Three layers placed by place_model over two CPU backends at shares 1:2 and over three at 1:1:1, prompts chunked at ubatch 3.
+// A 13-token prompt is five chunks, more than the stages, so the pipelined prefill reuses its pass slots and both handoff buffers of every device.
+struct PipelinedSplit {
+    std::vector<int> shares;
+    int last_layers;   // the layers the last stage runs
+};
+const PipelinedSplit kPipelined[] = {{{1, 2}, 2}, {{1, 1, 1}, 1}};
+const std::vector<uint32_t> kPrompt{3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9};
+
+infer::PlacedModel pipelined(const gguf::GGUFModel& weights, std::vector<backend::BackendPtr> backends, const std::vector<int>& shares) {
+    infer::PlacementRequest request;
+    request.names.assign(backends.size(), "cpu");
+    request.shares = shares;
+    request.ubatch = 3;
+    for (auto& b : backends) b->set_threads(1);
+    return infer::place_model(weights, std::move(backends), request, infer::ModelOptions{});
+}
+
+// The prompt, decode steps after it, a second prompt continuing that history, every row score() hands out, and a pass of a decoding sequence beside a fresh prompt, each exact against one backend.
+void pipelined_matches_single() {
+    for (bool tied : {true, false}) {
+        const auto weights = tiny_qwen(3, 2 * 128, tied);
+        for (const PipelinedSplit& ps : kPipelined) {
+            auto one = std::make_shared<backend::CpuBackend>();
+            one->set_threads(1);
+            infer::Model single(weights, one);
+            single.set_ubatch(3);
+            std::vector<backend::BackendPtr> cpus;
+            for (size_t i = 0; i < ps.shares.size(); ++i) cpus.push_back(std::make_shared<backend::CpuBackend>());
+            infer::PlacedModel placed = pipelined(weights, cpus, ps.shares);
+            infer::Model& split = *placed.model;
+            const size_t V = single.n_vocab();
+
+            exact(single.prefill(kPrompt), split.prefill(kPrompt), "pipelined prefill differs from one device");
+            for (int t : {7, 9, 3}) exact(single.step(t), split.step(t), "step after a pipelined prefill differs from one device");
+            const std::vector<uint32_t> more{2, 7, 1, 8, 2, 8, 1};
+            exact(single.prefill(more), split.prefill(more), "a pipelined prompt continuing a history differs from one device");
+            require(split.n_tokens() == 23 && single.n_tokens() == 23 && split.kv_used_bytes() == single.kv_used_bytes(),
+                    "pipelined history differs from one device");
+            checked += 3;
+
+            std::vector<float> scored;
+            single.score(kPrompt, [&](size_t, const float* logits) { scored.insert(scored.end(), logits, logits + V); });
+            size_t rows = 0;
+            bool same = scored.size() == kPrompt.size() * V;
+            split.score(kPrompt, [&](size_t pos, const float* logits) {
+                same = same && pos == rows && rows < kPrompt.size() && !std::memcmp(logits, &scored[pos * V], V * sizeof(float));
+                ++rows;
+            });
+            require(same && rows == kPrompt.size(), "a scored row differs from one device");
+            ++checked;
+
+            // The budget is two blocks, so the default sequences give theirs back first.
+            single.reset();
+            split.reset();
+            infer::Sequence a = split.make_sequence(), b = split.make_sequence();
+            infer::Sequence c = single.make_sequence(), d = single.make_sequence();
+            infer::ExecContext xs, xc;
+            const infer::BatchEntry history_split{&a, kPrompt.data(), 4, false}, history_single{&c, kPrompt.data(), 4, false};
+            split.forward(xs, &history_split, 1);
+            single.forward(xc, &history_single, 1);
+            const uint32_t next = 6;
+            const infer::BatchEntry es[2] = {{&a, &next, 1, true}, {&b, more.data(), more.size(), true}};
+            const infer::BatchEntry ec[2] = {{&c, &next, 1, true}, {&d, more.data(), more.size(), true}};
+            split.forward(xs, es, 2);
+            single.forward(xc, ec, 2);
+            for (size_t r = 0; r < 2; ++r)
+                require(!std::memcmp(xs.logits(r), xc.logits(r), V * sizeof(float)), "a two-sequence pass differs from one device");
+            require(a.length() == 5 && b.length() == more.size(), "a two-sequence pass did not commit both");
+            ++checked;
+        }
+    }
+}
+
+// A backend on the last stage fails while the first stage is chunks ahead, on top of a history: at its first attention on chunk 2 of 5, and at the head on the last chunk.
+// Every storage must be back at the history, which the first attention each device runs next reads, and the same prompt again must be exact.
+void pipelined_failure_rolls_back() {
+    const auto weights = tiny_qwen(3, 2 * 128, true);
+    for (const PipelinedSplit& ps : kPipelined) {
+        auto plain = std::make_shared<backend::CpuBackend>();
+        plain->set_threads(1);
+        infer::Model control(weights, plain);
+        control.set_ubatch(3);
+        std::vector<std::shared_ptr<FailingCpu>> stages;
+        for (size_t i = 0; i < ps.shares.size(); ++i) stages.push_back(std::make_shared<FailingCpu>());
+        infer::PlacedModel placed = pipelined(weights, std::vector<backend::BackendPtr>(stages.begin(), stages.end()), ps.shares);
+        infer::Model& split = *placed.model;
+        FailingCpu& first = *stages.front();
+        FailingCpu& last = *stages.back();
+        const std::vector<uint32_t> history{2, 7, 1, 8};
+        exact(control.prefill(history), split.prefill(history), "history before a failure differs from one device");
+
+        for (bool at_head : {false, true}) {
+            const size_t before = (size_t)split.n_tokens(), used = split.kv_used_bytes();
+            for (auto& s : stages) s->histories.clear();
+            if (at_head)
+                last.fail_output = true;
+            else
+                last.fail_attention = 2 * ps.last_layers + 1;
+            bool failed = false;
+            try { split.prefill(kPrompt); } catch (const std::runtime_error&) { failed = true; }
+            require(failed && !last.fail_output && !last.fail_attention, "the injected failure did not fire");
+            // Chunk 2 starts 6 tokens past the history and the last chunk 12; the first stage had begun chunk 3 at least.
+            require(last.histories.back() == before + (at_head ? 12 : 6) && first.histories.back() >= before + 9,
+                    "the failure was not on the last stage with the first chunks ahead");
+            require((size_t)split.n_tokens() == before && split.kv_used_bytes() == used, "a failed pipelined prompt changed the history");
+
+            for (auto& s : stages) s->histories.clear();
+            exact(control.prefill(kPrompt), split.prefill(kPrompt), "a pipelined prompt after a failure differs from one device");
+            for (auto& s : stages)
+                require(!s->histories.empty() && s->histories.front() == before, "a storage kept tokens of a failed pipelined prompt");
+            checked += 2;
+        }
+        exact(control.step(5), split.step(5), "a step after the retried prompts differs from one device");
+        ++checked;
+    }
+}
+
 void bad_placements_refused() {
     const auto weights = fixture();
     auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();
@@ -372,7 +490,9 @@ int main() {
         split_matches_single();
         layer_split_fits();
         bad_placements_refused();
-        std::cout << "placement: " << checked << " checks across two CPU backends\n";
+        pipelined_matches_single();
+        pipelined_failure_rolls_back();
+        std::cout << "placement: " << checked << " checks across two and three CPU backends\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

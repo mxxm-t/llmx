@@ -438,33 +438,6 @@ void batched_views() {
 // One layer and a context of four CPU blocks, so a step can cross a block boundary, for the transaction check below.
 gguf::GGUFModel fixture() { return tiny_qwen(1, 4 * 128, true); }
 
-// Fails the output projection (the only 16-row matmul) once, after every layer's KV has been written for the step.
-struct FailingCpu : backend::CpuBackend {
-    bool fail_output = false;
-    int outputs = 0;
-    int syncs = 0, submits = 0, waits = 0, reads = 0;
-    backend::Ticket last_wait = 0;
-    void matmul(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
-                size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs = {}) override {
-        if (nout == 16) {
-            ++outputs;
-            if (fail_output) { fail_output = false; throw std::runtime_error("injected"); }
-        }
-        backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch, runs);
-    }
-    void sync() noexcept override { ++syncs; backend::CpuBackend::sync(); }
-    backend::Ticket submit() override { ++submits; return backend::CpuBackend::submit(); }
-    void wait(backend::Ticket t) noexcept override {
-        ++waits;
-        last_wait = t;
-        backend::CpuBackend::wait(t);
-    }
-    void read(const backend::Buffer& src, size_t off, void* dst, size_t bytes) override {
-        ++reads;
-        backend::CpuBackend::read(src, off, dst, bytes);
-    }
-};
-
 // Every path handing blocks back to the pool must retire the backend's work first (docs/KV-CACHE.md): failed passes drain with sync(), reset() waits on the pass's ticket. Counting the calls keeps the contract from lapsing on the eager CPU backend.
 void release_syncs() {
     const auto weights = fixture();

@@ -25,6 +25,10 @@ for it: `docker/Dockerfile` carries the driver and the compiler and takes
 the cards through `/dev/dri`, and inside it the whole CTest suite,
 `backend-vulkan` included, passes on an MI50.
 
+The layer split is covered on the CPU.
+The `placement` CTest, in every job, splits a model over two and three CPU backends, among them a pipelined prompt of five chunks, which reuses pass slots and handoff buffers, and its rollback when a backend on the last stage fails.
+Splits over GPUs are run by hand on the Radeon VII and the MI50s.
+
 The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
 at `ec74308`. Local Windows MSVC and WSL Linux GCC CMake builds also passed
 the suite with both HF fixtures required. Workflow lint and negative checks

@@ -82,13 +82,19 @@ def run(args, cache=None):
     return p.returncode, p.stdout if p.returncode == 0 else p.stdout + p.stderr
 
 
+def cli_stdout(raw):
+    """The bytes the CLI wrote to stdout, from the raw bytes its pipe carried.
+    Windows text-mode stdout writes every line feed as CR LF, generated ones included, so there each pair is read back as the line feed it was; elsewhere the bytes arrive as written."""
+    return raw.replace(b"\r\n", b"\n") if os.name == "nt" else raw
+
+
 def generate_text(stdout):
     """The bytes `llmx generate` wrote between its `pp:` and `tg:` lines, from its raw stdout, without the line feed that ends the text.
-    The lines `--verbose` adds, the prompt token count before them and the cache line after, may frame them; any other output fails the assertion."""
-    # Windows text-mode stdout writes every line feed as CR LF, generated ones included, so each pair is read back as the line feed it was.
-    out = stdout.replace(b"\r\n", b"\n")
+    The lines `--verbose` adds, the prompt token count before them and the cache line after, may frame them; any other output raises ValueError."""
+    out = cli_stdout(stdout)
     frame = re.fullmatch(rb"(?:prompt tokens: \d+\n)?pp: [^\n]*\n(.*)\ntg: [^\n]*\n(?:kv: [^\n]*\n)?", out, re.S)
-    assert frame, out
+    if not frame:
+        raise ValueError("generate output outside the pp and tg frame: %r" % out)
     return frame[1]
 
 

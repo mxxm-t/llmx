@@ -96,8 +96,7 @@ def run():
                                 (b"decode", str(decode).encode())] * turns
                     assert counts == expected, (command, count, batch, counts, expected)
                     if command == "chat":
-                        # Windows text-mode stdout writes each line feed as CR LF, generated ones included.
-                        assert out.replace(b"\r\n", b"\n") == BANNER + replies(case, turns), out
+                        assert common.cli_stdout(out) == BANNER + replies(case, turns), out
                     else:
                         assert common.generate_text(out) + b"\n" == replies(case, turns), out
     print("threads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]")

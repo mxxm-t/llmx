@@ -135,7 +135,7 @@ def main():
                              capture_output=True)
         try:
             same = out.returncode == 0 and common.generate_text(out.stdout).decode("utf-8", errors="replace") == replies[i]["text"]
-        except AssertionError:  # output outside the pp and tg frame
+        except ValueError:  # output outside the pp and tg frame
             same = False
         if not same:
             failures.append("cli %d" % i)

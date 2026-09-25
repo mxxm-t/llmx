@@ -2361,6 +2361,14 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
      - It is prototyped first.
      - If it wins, it lands as one backend call that wraps caller memory as a host-visible buffer. The CPU aliases the memory; Vulkan imports it once per slot through `VK_EXT_external_memory_host`, which both cards take at 4096-byte alignment.
      - The fill then copies each fragment with `copy`, and waits for a slot's last ticket before refilling it.
+- **Done:**
+  - Step 1 as planned, except that `LoadedModel` has no `host` member until step 5 brings `core::HostPages`.
+    - A device that cannot be made now fails before "Reading model metadata...", which `tests/chat.py` checks. Main has since refused a bad `--layer-shares` or cache type as a usage error while the flags are read, so the check keeps only the devices.
+    - Main's `cli` component, which came after this step, tries `bench --profile`'s line with `vulkan:0` on a model that does not exist and expected the missing file's error. Since the devices are made first, it also takes that device's refusal on a build or a machine without one.
+    - Stdout is byte-identical to main on the CPU for Qwen3-0.6B Q8_0, Q4_0 and Q5_K_M: 64 greedy tokens, logits, perplexity batched and per token, `info`, `tokenize`, `detokenize` and `chat` with a fixed seed.
+    - On one MI50, 64 greedy tokens and logits are byte-identical to main for Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M, and so are a split over the MI50 and the CPU, `--n-cpu-moe 12` and `llmx-split-check`, apart from the free memory they report.
+    - Warm loads of Qwen3-8B Q8_0 on one MI50 are level with main: 2.62 to 2.81 s against 2.82 to 3.23 s.
+    - Open before the merge to main: the cold A/B, which needs a scratch dataset with `primarycache=metadata`, and the Vulkan identity on the Radeon VII.
 - **The `--load-mode` flag, for docs/USAGE.md.** The execution options of chat, generate, serve, logits, perplexity and `bench --model` take it. Help line: `--load-mode M           How weights are read: auto (default), mapped or direct`.
   - **`auto` (default):**
     - Weights a device copies are read from the file in large sequential reads, overlapped with the uploads.

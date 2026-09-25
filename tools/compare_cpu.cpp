@@ -11,7 +11,7 @@
 #ifdef LLMX_COMPARE_REFERENCE
 #include "llama.h"
 #else
-#include "model/arch_qwen.hpp"
+#include "inference/load.hpp"
 #endif
 using Clock = std::chrono::steady_clock;
 int main(int argc, char ** argv) {
@@ -56,12 +56,14 @@ int main(int argc, char ** argv) {
     const size_t nv = llama_vocab_n_tokens(llama_model_get_vocab(model));
     std::vector<llama_token> ref_ids(ids.begin(), ids.end());
 #else
-    auto weights = gguf::read_gguf(argv[1]);
     infer::ModelOptions options;
     options.kv_k = options.kv_v = backend::KVType::f32;
-    infer::Model model(weights, backend::make_cpu_backend(), options);
+    infer::PlacementRequest request;
+    request.names = {"cpu"};
+    request.ubatch = 128;
+    const auto loaded = infer::load_model(argv[1], {backend::make_cpu_backend()}, request, options);
+    infer::Model& model = *loaded->model;
     model.set_threads(threads);
-    model.set_ubatch(128);
 #endif
     for (int run = 0; run < 2; ++run) {
 #ifdef LLMX_COMPARE_REFERENCE

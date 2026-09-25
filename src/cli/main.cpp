@@ -41,6 +41,7 @@
 #include "inference/generate.hpp"
 #include "inference/perplexity.hpp"
 #include "inference/chat.hpp"
+#include "inference/load.hpp"
 #include "model/arch_qwen.hpp"
 #include "server/api.hpp"
 
@@ -198,19 +199,20 @@ infer::ModelOptions model_options(const ExecOptions& exec) {
     return o;
 }
 
-gguf::GGUFModel load_model(const std::string& path, bool visible) {
-    if (!visible) return gguf::read_gguf(path);
-    std::cerr << "Reading model metadata...\n";
-    int previous = -1;
-    auto model = gguf::read_gguf(path, [&](size_t completed, size_t total) {
+// The loading progress on stderr: the share of the payload read, then "Preparing model..." once it is complete, while the model is placed.
+// A second report of completion prints nothing.
+format::LoadProgress progress_bar() {
+    return [previous = -1, finished = false](size_t completed, size_t total) mutable {
         const int percent = total ? int(100.0 * double(completed) / double(total)) : 100;
-        if (percent == previous) return;
-        previous = percent;
-        std::cerr << "\rLoading tensor data: " << percent << "%" << std::flush;
-        if (completed == total) std::cerr << "\n";
-    });
-    std::cerr << "Preparing model...\n";
-    return model;
+        if (percent != previous) {
+            previous = percent;
+            std::cerr << "\rLoading tensor data: " << percent << "%" << std::flush;
+        }
+        if (completed == total && !finished) {
+            finished = true;
+            std::cerr << "\nPreparing model...\n";
+        }
+    };
 }
 
 void emit_text(const std::string& text) {
@@ -339,30 +341,16 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
     return true;
 }
 
-// A model file opened for a command: the file, which the model reads while it lives, its tokenizer, its chat format, and the model placed over the devices --device lists.
-// Built in place and never moved, since the model keeps the file's address.
-struct Opened {
-    gguf::GGUFModel file;
-    std::optional<bpe::Tokenizer> tok;
-    chat::ChatFormat chat;  // the file's chat template parsed, or why it is refused, which only chat and serve raise
-    std::unique_ptr<infer::Model> model;
-    backend::Backend* first = nullptr;   // the first device listed, which bench --profile times
-};
-
-// Open a model file as the flags ask: read it, showing progress when `progress`, place the model over the listed devices for its ubatch plus `decode_rows` generated tokens a pass (a server's sequences), print a split's plan when `show_plan`, and release the host's copy of the weights when no weight reads it in place.
-// `threads` is the worker count to set, 0 to keep the backend's own; `profile` times the one device's kernels.
+// Open a model file as the flags ask, through infer::load_model: the devices --device lists, made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass (a server's sequences), progress on stderr when `progress`, and a split's plan when `show_plan`.
+// `threads` is the worker count to set, 0 to keep the backend's own; with `profiled`, the one device times its kernels and its address is written there (bench --profile).
 // `history_tokens`, when given, is what each of the `decode_rows` sequences holds, and the cache grows to hold them all at once where its budget would not (infer::PlacementRequest::histories).
-std::unique_ptr<Opened> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
-                                   bool show_plan = false, bool profile = false, size_t history_tokens = 0) {
+std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
+                                               bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
-    auto opened = std::make_unique<Opened>();
-    opened->file = load_model(path, progress);
-    opened->tok.emplace(opened->file);
-    opened->chat = chat::chat_format(opened->file, *opened->tok);
     const auto specs = backend::device_specs(exec.device);
-    auto backends = backend::make_backends(specs, profile);
-    opened->first = backends.front().get();
+    auto backends = backend::make_backends(specs, profiled != nullptr);
+    if (profiled) *profiled = backends.front().get();
     infer::PlacementRequest request;
     request.names = specs;
     request.shares = layer_shares(exec.layer_shares);
@@ -374,12 +362,16 @@ std::unique_ptr<Opened> open_model(const std::string& path, const ExecOptions& e
         request.histories = decode_rows;
         request.history_tokens = history_tokens;
     }
-    infer::PlacedModel placed = infer::place_model(opened->file, std::move(backends), request, model_options(exec));
-    if (show_plan) std::cerr << placed.plan;
-    opened->model = std::move(placed.model);
-    if (!opened->model->holds_payload()) opened->file.release_payload();
-    if (threads > 0) opened->model->set_threads(threads);
-    return opened;
+    const infer::ModelOptions options = model_options(exec);
+    format::LoadProgress shown;
+    if (progress) {
+        std::cerr << "Reading model metadata...\n";
+        shown = progress_bar();
+    }
+    auto loaded = infer::load_model(path, std::move(backends), request, options, shown);
+    if (show_plan) std::cerr << loaded->plan;
+    if (threads > 0) loaded->model->set_threads(threads);
+    return loaded;
 }
 
 // One turn's prompt, before its reply is generated: prefill `ids` on the prompt's worker count (--threads-batch, else `decode_threads`), then set `decode_threads` back.
@@ -402,9 +394,9 @@ std::vector<float> prefill_turn(infer::Model& model, const ExecOptions& exec, co
 
 int cmd_generate(const std::string& model_path, const std::string& prompt, const infer::GenParams& gp, const ExecOptions& exec) {
     const bool progress = show_progress(exec);
-    const auto opened = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
-    bpe::Tokenizer& tok = *opened->tok;
-    infer::Model& model = *opened->model;
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
+    bpe::Tokenizer& tok = *loaded->tok;
+    infer::Model& model = *loaded->model;
     const int decode_threads = model.threads_available();
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
@@ -433,9 +425,9 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, const
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text,
                int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0) {
-    const auto opened = open_model(model_path, exec, false, exec.threads);
-    bpe::Tokenizer& tok = *opened->tok;
-    infer::Model& model = *opened->model;
+    const auto loaded = open_model(model_path, exec, false, exec.threads);
+    bpe::Tokenizer& tok = *loaded->tok;
+    infer::Model& model = *loaded->model;
 
     std::vector<uint32_t> ids = tok.encode(text);
     if (!then_ids.empty()) {
@@ -473,9 +465,9 @@ int cmd_logits(const std::string& model_path, const std::string& text,
 int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const ExecOptions& exec, int context_size, int chunks, bool per_token) {
     const int threads = !per_token && exec.threads_batch > 0 ? exec.threads_batch : exec.threads;
-    const auto opened = open_model(model_path, exec, false, threads, 0, exec.verbose);
-    bpe::Tokenizer& tok = *opened->tok;
-    infer::Model& model = *opened->model;
+    const auto loaded = open_model(model_path, exec, false, threads, 0, exec.verbose);
+    bpe::Tokenizer& tok = *loaded->tok;
+    infer::Model& model = *loaded->model;
     if (exec.verbose)
         std::cerr << "threads: " << (per_token ? "decode " : "prefill ") << model.threads_available() << "\n";
 
@@ -495,10 +487,10 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
 
 int cmd_chat(const std::string& model_path, const std::string& system, const infer::GenParams& gp, const ExecOptions& exec) {
     const bool progress = show_progress(exec);
-    const auto opened = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
-    bpe::Tokenizer& tok = *opened->tok;
-    infer::Model& model = *opened->model;
-    const chat::ChatFormat& format = opened->chat;
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
+    bpe::Tokenizer& tok = *loaded->tok;
+    infer::Model& model = *loaded->model;
+    const chat::ChatFormat& format = loaded->chat;
     format.require();
     const int decode_threads = model.threads_available();
     infer::RNG rng;
@@ -625,9 +617,9 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int G, int R, bool profile, int seqs = 1, int D = 0) {
     // What each sequence holds at most: a batched one its prompt and its generated tokens, the one sequence its depth and the longer of its two tests.
     const size_t reach = seqs > 1 ? (size_t)P + (size_t)G : (size_t)D + (size_t)std::max(P, G);
-    const auto opened = open_model(path, exec, false, exec.threads, (size_t)seqs, true, profile, reach);
-    backend::Backend* b = opened->first;
-    infer::Model& model = *opened->model;
+    backend::Backend* b = nullptr;   // the device --profile times
+    const auto loaded = open_model(path, exec, false, exec.threads, (size_t)seqs, true, profile ? &b : nullptr, reach);
+    infer::Model& model = *loaded->model;
     // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
     const uint32_t vocab = (uint32_t)std::min<size_t>(1000, model.n_vocab());
     auto ids_from = [vocab](uint32_t seed, size_t n) {
@@ -729,11 +721,11 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
 
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec) {
-    const auto opened = open_model(model_path, exec, true, exec.threads, cfg.max_seqs);
-    bpe::Tokenizer& tok = *opened->tok;
-    infer::Model& model = *opened->model;
+    const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs);
+    bpe::Tokenizer& tok = *loaded->tok;
+    infer::Model& model = *loaded->model;
     // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
-    opened->chat.require();
+    loaded->chat.require();
     server::Config c = cfg;
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
@@ -741,7 +733,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
               << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
               << model.kv_tokens_total() << " KV tokens, queue of " << c.max_queue << ")\n";
-    server::serve(model, tok, opened->chat, c, listener);
+    server::serve(model, tok, loaded->chat, c, listener);
     return 0;
 }
 

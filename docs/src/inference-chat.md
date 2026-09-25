@@ -13,6 +13,7 @@ Namespace `chat`, with the language itself in `chat::jj`.
   `assistant(text)` is an assistant turn as a conversation keeps it: split by `assistant_turn` when `split_turns`, and whole otherwise.
   `chat` records each of its replies through it, and the server reads an assistant message a client sends back through it when the message carries no `reasoning_content`, so a conversation renders the same through both.
 - `chat_format(source, bos, eos)` parses a template's source; `chat_format(file, tok)` takes the file's template, or ChatML when it carries none, with its tokenizer's start and end text.
+  The loader builds it once (`LoadedModel::chat`, [load](inference-load.md)), and `chat` and the server take it from there.
 - `Refused` is a template the renderer does not take; `TemplateError` is a render that fails.
 
 The variables a render reads are those the reference passes for a conversation without tools or documents: `messages` (each a dict of `role`, `content` and, when present, `reasoning_content`, in that order), `tools` and `documents` as none, `add_generation_prompt`, `bos_token` and `eos_token`.

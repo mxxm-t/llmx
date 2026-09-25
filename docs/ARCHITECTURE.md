@@ -15,8 +15,8 @@ cli/           argument parsing, command dispatch, usage text
 server/        HTTP transport, scheduler, native and compatible routes (SERVER.md)
    |
    v
-inference/     sampler (RNG + top-k/top-p/temp/penalty), generate loop,
-               chat template rendering, perplexity driver
+inference/     model loading (load), sampler (RNG + top-k/top-p/temp/penalty),
+               generate loop, chat template rendering, perplexity driver
    |
    v
 model/         Qwen3 Model + logical KV cache (block pool, sequence);
@@ -84,7 +84,7 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass + its memory footprint, `Placement` of each tensor role, and `place_model`, which places a model over its backends), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
 | `backends/`     | `backend.hpp` (interface), `kv_storage.hpp` (the paged KV storage the backends derive theirs from: buffers, accounting, growth and view checks), `devices.hpp` (the backend a device spec names: `device_specs`, `make_backends`), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/q8_dots.hpp` (the CPU's dots against quantized activations), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
-| `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |
+| `inference/`    | `load.hpp` (`load_model`, the one load sequence: file, tokenizer, chat format, placed model, host copy released), `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
 | `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, sampling, prefix reuse), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
 
@@ -234,12 +234,9 @@ These are structural format checks. Qwen model construction separately validates
 consumed configuration values, attention geometry, required tensor names/shapes,
 normalization types and in-memory payload ranges before model activation/KV/RoPE
 allocation. Explicit malformed values cannot select optional metadata defaults.
-The backend may already exist before these model checks. Borrowed model metadata
-and weights must stay unchanged for the model's lifetime, except that the CLI
-releases the host payload (`GGUFModel::release_payload`) once no weight reads it
-in place (`Model::holds_payload`), as on device backends. Metadata string encoding,
-numeric weight contents, arbitrary token IDs and dynamic request limits are not
-fully validated by construction.
+The loader's callers make the backends before the file is read, so a device that cannot be opened fails first.
+Borrowed model metadata and weights must stay unchanged for the model's lifetime, except that the loader (`infer::load_model`) releases the host payload (`GGUFModel::release_payload`) once no weight reads it in place (`Model::holds_payload`), as on device backends.
+Metadata string encoding, numeric weight contents, arbitrary token IDs and dynamic request limits are not fully validated by construction.
 Valid large files or overlapping tensor ranges can still exceed available memory;
 there is no per-request memory budget. The JSON parser validates syntax and
 Unicode with bounded nesting and finite-double storage. The quantize CLI

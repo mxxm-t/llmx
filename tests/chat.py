@@ -95,6 +95,12 @@ def run():
             assert p.stderr.index(b"Loading tensor data: 100%") < p.stderr.index(b"Preparing model")
             assert p.stderr.count(b"Processing ") == len(spec["inputs"])
             assert p.stderr.count(b"Generating...") == len(spec["inputs"])
+        # The devices are made before the file is read, so neither of these reads it; no machine has a Vulkan device at index 999999.
+        # A bad cache type or layer share is a usage error before any file is opened, which the cli component checks.
+        for bad in (["--device", "bogus"], ["--device", "vulkan:999999"]):
+            p = common.run_process(args + ["--verbose"] + bad, input=b"a\n", timeout=30)
+            assert p.returncode == 1 and b"Reading model metadata" not in p.stderr, (bad, p.returncode, p.stderr)
     print("chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit; a refused template stops chat and serve, not generate  [ok]")
     print("chat progress: completed loading percentages and per-turn phases stay on stderr  [ok]")
+    print("chat flags: a device that cannot be made fails before the file is read  [ok]")
     return True

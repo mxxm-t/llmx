@@ -8,9 +8,7 @@
 #include <string>
 #include <vector>
 #include "backends/devices.hpp"
-#include "format/gguf.hpp"
-#include "model/arch_qwen.hpp"
-#include "tokenizer/tokenizer.hpp"
+#include "inference/load.hpp"
 
 // A device given as `cpu` or a Vulkan index, in the spelling a device list takes.
 static std::string name(const std::string& spec) { return spec == "cpu" ? spec : "vulkan:" + spec; }
@@ -64,15 +62,16 @@ int main(int argc, char** argv) {
         infer::ModelOptions options;
         if (argc > 7) options.kv_k = options.kv_v = backend::kv_type_of(argv[7]);
         options.kv_tokens = 4096;
-        gguf::GGUFModel m = gguf::read_gguf(argv[1]);
-        bpe::Tokenizer tok(m);
+        infer::PlacementRequest alone;
+        alone.names = {name(single)};
+        alone.ubatch = ubatch;
+        const auto first = infer::load_model(argv[1], backend::make_backends(alone.names), alone, options);
+        infer::Model& one = *first->model;
         std::ifstream in(argv[2], std::ios::binary);
         const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-        const std::vector<uint32_t> ids = tok.encode(text);
+        const std::vector<uint32_t> ids = first->tok->encode(text);
         if (ids.size() < 2) throw std::runtime_error("the text holds fewer than two tokens");
 
-        infer::Model one(m, backend::make_backend(name(single)), options);
-        one.set_ubatch(ubatch);
         // The split takes equal shares of the layers, placed as a device list with --layer-shares 1,1,... places them.
         // Each entry is a backend of its own, without the CLI's listed-once rule (backend::device_specs), so `cpu,cpu` splits over two CPU backends.
         infer::PlacementRequest request;
@@ -81,9 +80,9 @@ int main(int argc, char** argv) {
             request.shares.push_back(1);
         }
         request.ubatch = ubatch;
-        infer::PlacedModel placed = infer::place_model(m, backend::make_backends(request.names), request, options);
-        infer::Model& two = *placed.model;
-        std::printf("%s: %zu tokens, %s caches; single %s, split:\n%s", argv[1], ids.size(), backend::kv_type_name(options.kv_k), name(single).c_str(), placed.plan.c_str());
+        const auto second = infer::load_model(argv[1], backend::make_backends(request.names), request, options);
+        infer::Model& two = *second->model;
+        std::printf("%s: %zu tokens, %s caches; single %s, split:\n%s", argv[1], ids.size(), backend::kv_type_name(options.kv_k), name(single).c_str(), second->plan.c_str());
 
         const size_t vocab = one.n_vocab();
         std::vector<float> scored(ids.size() * vocab);

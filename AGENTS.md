@@ -161,6 +161,8 @@ escaped Unicode tensor names through the actual CLI.
 array depth, tensor arithmetic, file extents, quantized row widths and custom
 alignment. These are format checks; they do not establish model-schema safety.
 `load-progress` also checks early rejection and a file truncated before loading, refused before any progress.
+It then writes a tiny Qwen model with tokenizer metadata and loads it twice through `infer::load_model`: on the CPU the payload is kept, and on a CPU backend that copies what it adopts and reports `reads_in_place()` false the host copy is released (`payload_size()` is 0).
+Both give logits bit-identical to the same model built in memory, with the tokenizer and the chat format loaded beside them.
 
 `gguf-shards` covers complete shard sets, metadata-only first shards, exact
 payloads, inconsistent metadata, truncation, aggregate progress and Unicode
@@ -313,6 +315,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   Each exits with status 2, nothing on stdout and the command's page then the reason on stderr.
   The help check reads the overview and every command's page, each shown by `--help` and `-h` alike with status 0 and without a model.
   Every flag a page lists, in each spelling, is taken by its command: the line is read in full and fails only on a missing input file, or pull on its empty quant, or with `--size` and `--iters` runs the synthetic bench.
+  The devices are made before the model is opened, so `--profile`'s line, which names `vulkan:0`, fails on that device instead where the build or the machine has none.
   Every flag another page lists, and one no page lists, is refused by a command whose page does not list it, as a usage error.
   It needs no device, so it runs in every job.
 - **Round-trip** (`tests/roundtrip.py`): build a random F32 model and quantize it to Q8_0 and Q4_0 through the CLI, each dequantized and checked against its own bound.
@@ -356,12 +359,13 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   CTest also runs `chat-template` on `tests/data/baseline_chat_template.json`: the pinned real Qwen templates (Qwen2.5, the Qwen3 variants, and every Qwen 3.5, 3.6 and 3.8 template found in GGUF files and the official repositories), each held to its SHA-256, over 34 conversations each, tools, tool calls and content given as parts among them, with whether a conversation keeps an assistant turn split under each and a two-turn conversation of seven replies kept that way, and small feature templates, every case byte for byte against transformers' own chat template renderer, a failure where it fails with its message; templates the renderer must refuse; templates past its nesting and value limits, a `map` filter naming `map` 5000 times among them, which must be refused or fail without ending the process; the texts `chat::assistant_turn` must split as the Qwen templates split them; and a conversation ending in an assistant turn under the Qwen3 template of the official repositories, held in the test's source, whose reasoning the old renderer dropped.
   Regenerate both fixtures with `python tools/gen_chat_baseline.py` in the reference environment of `docs/ASSETS.md`; running them needs no external libraries.
   The same tool's `--extract` and `--scan` check every template on a machine by hand, through the same test binary.
+  `tests/chat.py` also checks that a device that cannot be made is refused before the model file is read.
 - **Thread controls** (`tests/threads.py`): actual auto/explicit phase counts,
   restoration after prefill, follow-up chat and HF-golden replies.
   Perplexity also checks batched/per-token counts, both batch-thread aliases
   and automatic/zero selection against an independent HF NLL fixture.
 - **Loading and streaming** (CTest `load-progress`, `generation-stream`, `cli-output`):
-  mapped-byte reporting, files truncated before loading, callback failures, early text delivery, split UTF-8 bytes and stop/EOS accounting, with `ignore_eos` a reply running past the masked EOS to its limit or to a stop text;
+  mapped-byte reporting, files truncated before loading, callback failures, the loader's host copy and logits, early text delivery, split UTF-8 bytes and stop/EOS accounting, with `ignore_eos` a reply running past the masked EOS to its limit or to a stop text;
   `cli-output` also reads `--device` lists as the commands do (canonical spellings, a device once, malformed entries refused), and the cache types as `exec_flag` reads them (one spelling each, an empty or unknown name refused before any model file is read).
   It checks that `exec_flag` reads `--threads-batch` and `-tb` only where the command asks for them.
   It runs the CLI's number readers (`int_arg`, `float_arg` with the ranges of `infer::Sampling`, `--seed`'s decimal 64-bit read) and `token_ids` over every malformed form: a missing value, a sign, space, base prefix, fraction or trailing character, infinity and NaN, a value past its range or its type, and an id that would narrow into the vocabulary.
@@ -516,7 +520,7 @@ matters: **each layer depends only on the layers below it** -
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
-| `inference/` | sampler, generate, perplexity, chat template renderer      |
+| `inference/` | model loading, sampler, generate, perplexity, chat template renderer |
 | `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler with prefix reuse, routes |
 | `cli/`       | thin argument parsing + dispatch               |
 

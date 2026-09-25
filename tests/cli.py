@@ -14,12 +14,16 @@ import moe
 # It needs no device, so it runs in every job; each command here that takes a device names its own.
 
 
+# How a Vulkan device that cannot be made is refused: a build without the Vulkan backend names the backend, and a Vulkan build names what it lacks.
+NO_VULKAN = ("error: --device vulkan: this build has no Vulkan backend", "error: vulkan: ")
+
+
 def check_device(model):
     """A build without the Vulkan backend refuses a Vulkan device, and a Vulkan build refuses a device it cannot open; neither runs on the CPU instead.
     The model commands and the synthetic bench each reach the device through their own call."""
     for args in (["logits", model, "a"], ["bench", "--size", "32", "--iters", "1", "--p", "1", "--n", "1"]):
         p = common.run_process(args + ["--device", "vulkan:0"], text=True, timeout=120)
-        messages = ("error: --device vulkan: this build has no Vulkan backend", "error: vulkan: ")
+        messages = NO_VULKAN
         if p.returncode == 0:
             # Only a Vulkan build with a device 0 gets here, so an index no machine has stands in for the missing device.
             p = common.run_process(args + ["--device", "vulkan:999999"], text=True, timeout=120)
@@ -141,7 +145,8 @@ UNREACHED = re.compile(r"error: (\w+: )?cannot open (file: )?missing\.|error: pu
 
 def check_help():
     """Every page needs no model, every flag a command's page lists is accepted by that command, and a flag its page does not list is refused.
-    A flag is tried on a line that the command reads in full and then fails on as it opens an input file that does not exist, the model or a file a flag names, so no file, device or network is reached; pull fails on an empty quant the same way."""
+    A flag is tried on a line that the command reads in full and then fails on as it opens an input file that does not exist, the model or a file a flag names, so no file or network is reached; pull fails on an empty quant the same way.
+    The devices are made before the model is opened, so the one line naming a Vulkan device, --profile's, ends at that device's refusal on a build or a machine without it."""
     model = "missing.gguf"
     bases = {"chat": ["chat", model], "generate": ["generate", model, "a"], "serve": ["serve", model],
              "logits": ["logits", model, "a"], "perplexity": ["perplexity", model, "a"], "bench": ["bench", "--model", model],
@@ -163,10 +168,12 @@ def check_help():
         return bases[command] + args + company.get(flag, [])
 
     def accepted(args, directory):
-        """The line is read in full: the synthetic bench runs, and any other line ends with status 1 and no page on a missing input file's error, or pull's on its empty quant."""
+        """The line is read in full: the synthetic bench runs, and any other line ends with status 1 and no page on a missing input file's error, pull's on its empty quant, or --profile's on its device's refusal."""
         p = subprocess.run([common.exe_path()] + args, capture_output=True, cwd=directory, timeout=120)
         err = p.stderr.decode("utf-8", "replace")
-        ran = p.returncode == 0 if args[:len(synthetic)] == synthetic else p.returncode == 1 and bool(UNREACHED.match((err.splitlines() or [""])[-1]))
+        last = (err.splitlines() or [""])[-1]
+        ended = UNREACHED.match(last) or ("vulkan:0" in args and last.startswith(NO_VULKAN))
+        ran = p.returncode == 0 if args[:len(synthetic)] == synthetic else p.returncode == 1 and bool(ended)
         assert ran and "Usage: llmx" not in err, (args, p.returncode, err)
 
     with tempfile.TemporaryDirectory(prefix="llmx_help_") as directory:

@@ -923,6 +923,8 @@ def check_uncapped(model):
             same_choice(alone[p], reply["choices"][0], "an uncapped request paused beside others, %r" % p)
         health = srv.get("/v1/health")
         assert health["active"] == 0 and health["pauses"] > before, health
+        # Nothing waits paused once every request has ended, and the resumes took their donors back or recomputed what their caches lacked.
+        assert health["paused"] == 0 and (health["recomputed"] > 0 or health["taken_back"] > 0) and health["stalls"] >= 0, health
     finally:
         srv.close()
 

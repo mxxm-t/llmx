@@ -47,8 +47,13 @@ is measured against the single-sequence path and the reference.
   If the pool is still short, its donor is consumed: the request forks it and the donor goes, so the blocks they share are reserved once rather than for each, and a follow-up turn keeps the history it repeats however many donors fill the pool.
   A request that shares every full block of its donor, a follow-up turn or a resume, consumes that donor before any other is evicted, since all the donor holds beyond what the request keeps is a partial last block; the other donors go only if that does not make room.
   A donor is consumed only when the pool is short, so while there is room it stays for other requests sharing its prefix.
-  When an uncapped request cannot grow even with every donor evicted, the latest admitted uncapped request is paused: its history becomes a donor and it is queued again at the front, resuming from those blocks unless another request needed them.
-  A capped request is never paused, and a request that cannot be admitted is not started.
+  Nothing is evicted for a request that would still not fit: it waits with every donor in place.
+- **Room by first admission.** One function, `make_room`, decides who gives up blocks for whom, and a request's place is its first admission, never renumbered.
+  A request takes donors first, oldest first; only a request that grows then pauses uncapped requests admitted after it, the latest first, each giving up its reservation and, if that is still short, the donor its history became.
+  A capped request is never paused, and a request is never paused for its own growth: one that cannot grow sits out the pass with its cache as it is (a stall) and asks again before the next, and since only capped requests and requests admitted before it can hold what it lacks, the stall ends when one of them ends or is paused.
+  Paused requests wait apart from the queue, in order of first admission: they do not count against `--max-queue`, a client that leaves ends its paused request at the next iteration, and they hold nothing but an evictable donor.
+  While a request is stalled nothing resumes or is admitted; paused requests resume oldest first and stop at the first that does not fit, and new requests are admitted only once none is paused.
+  `/v1/health` counts the requests paused now, the passes requests sat out, the tokens resumes recomputed and the resumes that took their donor back.
 - **An exact resume.** A request keeps its prompt and what it generated, never rewritten, and a record of how each stretch of its history was computed, its row classes: the extent and fresh count each stretch took (`BatchEntry`).
   At its first admission that is the forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent with the tokens it prefills, and the generated tokens at extent 1; a donor keeps the classes of the history it holds.
   A resumed request whose own donor, the one its pause left, is still there because nothing evicted it takes that donor back whole, its partial last block included, and recomputes nothing: the rows it continues from are the ones it computed itself. Its history goes to that donor even when it holds less than a full block, which only it can take.
@@ -105,26 +110,31 @@ The scheduler sees the flag at its next iteration, after the pass in flight: a q
 
 ```
 loop:
-  drop:    end the queued requests whose client left, wherever they
-           wait, and look again as admission reaches each one
-  admit:   while the queue has a request and active < max_seqs: take a
-           resumed request's own donor if it is still there, else find
-           the donor sharing the longest run of full blocks (for a
-           resumed request, of rows computed as its own were); if the pool
-           can hold the history plus max_tokens, or an uncapped request's
-           history plus a growth step (dropping the other donors, oldest
-           first, then consuming that donor, to make room; a donor whose
-           full blocks the request all shares, or its own, is consumed
-           first), take it, take its own donor back whole, fork the donor
-           at the shared blocks or make a fresh sequence; the cache's
-           length is all the progress there is
+  drop:    end the queued and paused requests whose client left,
+           wherever they wait, and look again as admission reaches each
+  admit:   unless a request sat out the last pass, and while active <
+           max_seqs: the paused requests oldest first, then, once none
+           is paused, the queue in order; for each, take a resumed
+           request's own donor if it is still there, else find the donor
+           sharing the longest run of full blocks (for a resumed request,
+           of rows computed as its own were); if make_room finds room for
+           the history plus max_tokens, or an uncapped request's history
+           plus a growth step (the other donors, oldest first, then
+           consuming that donor; its own donor, or a donor whose full
+           blocks the request all shares, is consumed first), take it,
+           take its own donor back whole, fork the donor at the shared
+           blocks or make a fresh sequence; else stop, evicting nothing;
+           the cache's length is all the progress there is
   grow:    an uncapped decoding request whose next token passes its
-           reservation reserves another step, dropping donors first, or
-           else the latest admitted uncapped request is paused
-  assemble: one entry per decoding request, whose cache lacks only its
-           last sampled id; then for every other request a slice of the
-           next stretch its cache lacks, at that stretch's extent and
-           fresh count, until the pass holds ubatch tokens, generated
+           reservation reserves another step, the earliest admitted
+           first, with what make_room gives it: donors, then pausing
+           uncapped requests admitted after it, latest first; if that is
+           not enough it sits out this pass (a stall)
+  assemble: one entry per decoding request that did not stall, whose
+           cache lacks only its last sampled id; then for every other
+           request a slice of the next stretch its cache lacks, at that
+           stretch's extent and fresh count, in order of first
+           admission, until the pass holds ubatch tokens, generated
            tokens at most 64 a pass and each counting ubatch / 64; the
            entry that ends a request's history wants logits, the others
            do not
@@ -198,7 +208,8 @@ POST /v1/tokenize    {"text": "..."} or {"messages": [...]}
 POST /v1/detokenize  {"tokens": [ids]} -> {"text": "..."}
 GET  /v1/health      {"status": "ok", "model": "...", "active": n, "queued": m,
                       "donors": d, "prefix_hits": h, "prefix_tokens": t,
-                      "pauses": p}
+                      "pauses": p, "paused": w, "stalls": s,
+                      "recomputed": r, "taken_back": b}
 GET  /v1/models      {"object": "list", "data": [{"id": "...", "object": "model", ...}]}
 POST /v1/chat/completions   the OpenAI clients' shape over the same scheduler
 POST /v1/completions        request: one parse, one request, one drain loop
@@ -270,3 +281,4 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 7 | `/v1/tokenize` and `/v1/detokenize`, and `messages` rendered by the chat template in place of a text (**done**) | The `server` component against `llmx tokenize` and `llmx detokenize` on the synthetic model and the Q8_0 fixture: text beyond ASCII, special tokens, an empty text, ids ending inside a character, a reply's ids giving back its text, the chat fixture's goldens under the file's template and a chat request reading the same count, the refusals |
 | 8 | Log-probabilities on every generating route, in the compatible shapes and a native one (**done**) | The `logprobs` CTest: the log-softmax against a double-precision reference and the scheduler's channel against a second model's logits, read at once or left to fall behind; the `server` component: each route's shape whole and streamed, the ids unchanged, the values repeating byte for byte and equal alone and four at a time, greedy's token the most likely, and a reply that does not ask byte-identical to one that never names them |
 | 9 | An exact resume: each request's row classes, a resume taking its own donor back whole when it survived, or forking only rows of its own classes and recomputing the rest in them (**done**) | `server-resume`: uncapped requests paused beside others give every id and value they give alone, on the CPU, a two-CPU split and a device, a follow-up turn's forked reply rows and a prefix of another extent included; a donor taken back recomputing nothing, a follow-up turn's among them, part of a history kept after its donor went, and a paused request cancelled; the `server` component's uncapped checks by value; `tools/server_mix_check.py --uncapped` on the MI50s |
+| 10 | Room by first admission: `make_room` as the one owner of who gives up blocks for whom, growth that stalls rather than pausing itself, paused requests apart from the queue (**done**) | `server-room`: `make_room` through random admissions, growth, pauses, cancellations and ends over two pools of 64- and 128-token blocks, the ledger adding up, the oldest request never refused room younger requests or donors hold, no empty pass while requests are active, every request ending; `server-resume` and the uncapped mix unchanged in their values |

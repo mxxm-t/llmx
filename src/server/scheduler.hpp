@@ -1,6 +1,6 @@
 #pragma once
 // The scheduler of docs/SERVER.md: one thread drives the model, one Model::forward per iteration carrying every decoding request's next token and a slice of a prefilling prompt, sampling each request's logits into its channel.
-// Admission is by the KV pool's budget, in queue order. A capped request reserves its whole reach up front and is never paused; an uncapped one reserves its prompt and grows as it generates, and when the pool runs out the latest admitted uncapped request is paused and queued again, resuming where it stopped. Finished requests stay as prefix donors, whose full blocks a repeating prompt forks.
+// Admission is by the KV pool's budget, in queue order. A capped request reserves its whole reach up front and is never paused; an uncapped one reserves its prompt and grows as it generates. Room goes by first admission (make_room): a request that cannot grow takes donors, then pauses uncapped requests admitted after it, and otherwise sits out passes until room frees; paused requests wait apart from the queue and resume oldest first, where they stopped. Finished requests stay as prefix donors, whose full blocks a repeating prompt forks.
 // A request records how each stretch of its history was computed (RowClass), and a resume recomputes what its cache lacks the same way, so a paused request gives the logits it gives when never paused.
 #include <algorithm>
 #include <atomic>
@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <condition_variable>
 #include <deque>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -36,6 +37,71 @@ struct SampleParams : infer::Sampling {
 struct RowClass {
     size_t end, extent, fresh;
 };
+
+// A running request as make_room sees it: its first admission, whether it may be paused (an uncapped one), the blocks it has reserved, and those its history would keep as a donor once paused, per pool.
+struct Holder {
+    uint64_t admission;
+    bool uncapped;
+    std::vector<size_t> need, kept;
+};
+
+// What make_room takes, in the order it takes it: donors by index, then running requests to pause by index, each with whether the donor its history becomes goes too.
+struct Taken {
+    bool enough = false;
+    std::vector<size_t> donors;
+    std::vector<std::pair<size_t, bool>> paused;
+};
+
+// Who gives up blocks for whom: the one owner of that rule (docs/SERVER.md, room by first admission).
+// A request needing `need` more blocks in each pool, beside `reserved` of `pool`, takes donors first, oldest first, the donor it forks (`keep`) last, or first when it shares every full block of it (`keep_first`).
+// Only a request that grows (`preempt`) then pauses uncapped requests admitted after its own first admission (`after`), latest first, taking what each frees and then, if that is short, the donor its history becomes.
+// Nothing is taken unless what may be taken is enough, so a request refused waits with nothing evicted for it: to be admitted later, or to grow at a later pass.
+inline Taken make_room(const std::vector<size_t>& pool, const std::vector<size_t>& reserved, const std::vector<std::vector<size_t>>& donors,
+                       size_t keep, bool keep_first, const std::vector<Holder>& active, uint64_t after, bool preempt,
+                       const std::vector<size_t>& need) {
+    std::vector<size_t> free(pool.size());
+    for (size_t s = 0; s < pool.size(); ++s) free[s] = pool[s] - reserved[s];
+    const auto fits = [&] {
+        for (size_t s = 0; s < need.size(); ++s)
+            if (need[s] > free[s]) return false;
+        return true;
+    };
+    const auto gain = [&](const std::vector<size_t>& b, const std::vector<size_t>& less) {
+        for (size_t s = 0; s < free.size(); ++s) {
+            const size_t l = s < less.size() ? less[s] : 0, v = s < b.size() ? b[s] : 0;
+            free[s] += v > l ? v - l : 0;
+        }
+    };
+    Taken t;
+    t.enough = fits();
+    std::vector<size_t> order;
+    if (keep < donors.size() && keep_first) order.push_back(keep);
+    for (size_t d = 0; d < donors.size(); ++d)
+        if (d != keep) order.push_back(d);
+    if (keep < donors.size() && !keep_first) order.push_back(keep);
+    for (size_t i = 0; i < order.size() && !t.enough; ++i) {
+        gain(donors[order[i]], {});
+        t.donors.push_back(order[i]);
+        t.enough = fits();
+    }
+    if (preempt && !t.enough) {
+        std::vector<size_t> later;
+        for (size_t i = 0; i < active.size(); ++i)
+            if (active[i].uncapped && active[i].admission > after) later.push_back(i);
+        std::sort(later.begin(), later.end(), [&](size_t a, size_t b) { return active[a].admission > active[b].admission; });
+        for (size_t i = 0; i < later.size() && !t.enough; ++i) {
+            const Holder& h = active[later[i]];
+            gain(h.need, h.kept);
+            t.paused.push_back({later[i], false});
+            if ((t.enough = fits()) || std::all_of(h.kept.begin(), h.kept.end(), [](size_t b) { return b == 0; })) continue;
+            gain(h.kept, {});
+            t.paused.back().second = true;
+            t.enough = fits();
+        }
+    }
+    if (!t.enough) return Taken{};
+    return t;
+}
 
 // One request from submission to completion.
 // The connection thread reads the channel: `next` waits for a token or the end until a deadline, so the thread can look at its client between tokens.
@@ -172,8 +238,10 @@ private:
     std::string decoded_;
     infer::RNG rng_;
     std::vector<float> logits_;
-    uint64_t admission_ = 0;       // order of admission, for choosing whom to pause
+    uint64_t admission_ = 0;       // order of first admission, by which room goes; set once
     uint64_t donor_ = 0;           // the donor its last pause left, which it takes back whole on resuming unless something evicted it
+    bool stalled_ = false;         // it could not grow before this pass and sits it out
+    size_t stalls_ = 0;            // passes it sat out
     size_t pauses_ = 0;            // times it was paused
     size_t taken_back_ = 0;        // resumes that took its donor back
     size_t reached_ = 0;           // the longest history its cache has held, past which nothing is recomputed
@@ -226,64 +294,46 @@ public:
 
     struct Stats {
         size_t active = 0, queued = 0, donors = 0, prefix_hits = 0, prefix_tokens = 0, pauses = 0;
+        size_t paused = 0;       // requests paused now, waiting to resume
+        size_t stalls = 0;       // passes a request sat out, unable to grow
         size_t recomputed = 0;   // rows resumes computed again
         size_t taken_back = 0;   // resumes that took their own donor back whole
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
-        return Stats{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_, recomputed_, taken_back_};
+        return Stats{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_,
+                     paused_count_.load(), stalls_, recomputed_, taken_back_};
     }
 
     // The loop, in the caller's thread, until stop().
     // The only caller of Model::forward for this model.
     void run() {
-        std::vector<std::shared_ptr<Request>> active;
+        std::vector<std::shared_ptr<Request>> active;   // in order of first admission
         std::vector<infer::BatchEntry> entries;
         std::vector<std::shared_ptr<Request>> wanting;
         std::vector<size_t> lengths;   // per active request, its history before the pass
         for (;;) {
             {
                 std::unique_lock<std::mutex> lk(m_);
-                cv_.wait(lk, [&] { return stopping_ || !queue_.empty() || !active.empty(); });
+                cv_.wait(lk, [&] { return stopping_ || !queue_.empty() || !active.empty() || !paused_.empty(); });
                 if (stopping_) break;
-                // A queued request whose client left ends wherever it waits, not only once admission reaches it, which may be after every active request has finished.
-                for (auto it = queue_.begin(); it != queue_.end();) {
-                    if ((*it)->cancel_.load()) { (*it)->end("cancel"); it = queue_.erase(it); }
-                    else ++it;
-                }
-                // Admission, in queue order, by the pool's budget: a capped request reserves the blocks its prompt and max_tokens can reach, an uncapped one its prompt and a growth step.
-                // The donor a request forks is chosen first, and the others give their blocks up, oldest first, when it needs them.
-                // If that is not enough, the chosen donor is consumed: the request forks it and it goes, so the blocks they share are counted once and a follow-up turn never evicts the history it repeats.
-                // A request sharing every full block of its donor, a follow-up turn or a resume, consumes it before any other goes, since the donor then holds nothing the request does not keep but a partial last block.
-                // A resumed request whose own donor is still there takes it back whole instead, its partial last block included, and recomputes nothing.
-                while (!queue_.empty() && active.size() < max_seqs_) {
-                    const auto& r = queue_.front();
-                    // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
-                    if (r->cancel_.load()) { r->end("cancel"); queue_.pop_front(); continue; }
-                    const size_t tokens = history_tokens(*r) + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
-                    std::vector<size_t> need = blocks_for(tokens);
-                    size_t shared = 0;
-                    size_t d = own_donor(*r);
-                    const bool take = d < donors_.size();
-                    if (!take) d = best_donor(*r, shared);
-                    bool consume = take || (shared && donors_[d].tokens.size() - shared < model_.kv_block_tokens() && !room_for(need));
-                    const auto fits = [&] { return consume ? room_for(need, donors_[d].blocks) : room_for(need); };
-                    for (size_t i = 0; !fits() && i < donors_.size();) {
-                        if (i == d) { ++i; continue; }
-                        drop_donor(i);
-                        if (i < d) --d;
+                // A waiting request whose client left ends wherever it waits, queued or paused, not only once admission reaches it, which may be after every active request has finished.
+                for (auto* waiting : {&queue_, &paused_})
+                    for (auto it = waiting->begin(); it != waiting->end();) {
+                        if ((*it)->cancel_.load()) { (*it)->end("cancel"); it = waiting->erase(it); }
+                        else ++it;
                     }
-                    consume = consume || (shared && !room_for(need));
-                    if (!fits()) break;
-                    admit(*r, d, shared, take);
-                    if (consume && !take) drop_donor(d);
-                    add(reserved_, need);
-                    r->need_ = std::move(need);
-                    r->admission_ = ++admissions_;
-                    active.push_back(r);
+                // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the passes, paused requests resume oldest first and stop at the first that does not fit, and new requests come in queue order only once none is paused.
+                const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
+                while (!stalled && !paused_.empty() && active.size() < max_seqs_ && enter(paused_.front(), active)) paused_.pop_front();
+                while (!stalled && paused_.empty() && !queue_.empty() && active.size() < max_seqs_) {
+                    // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
+                    if (queue_.front()->cancel_.load()) { queue_.front()->end("cancel"); queue_.pop_front(); continue; }
+                    if (!enter(queue_.front(), active)) break;
                     queue_.pop_front();
                 }
                 active_count_.store(active.size());
+                paused_count_.store(paused_.size());
             }
             // Cancelled requests leave before the pass.
             for (size_t i = 0; i < active.size();) {
@@ -294,14 +344,14 @@ public:
             grow(active);
             if (active.empty()) continue;
 
-            // Decode entries first, then what the other requests' caches lack, one stretch's slice each, up to ubatch tokens.
+            // Decode entries first, but for a request that could not grow, then what the other requests' caches lack, one stretch's slice each, up to ubatch tokens.
             entries.clear();
             wanting.clear();
             lengths.clear();
             size_t budget = ubatch_;
             for (auto& r : active) {
                 lengths.push_back(r->seq_.length());
-                if (!decoding(*r)) continue;
+                if (!decoding(*r) || r->stalled_) continue;
                 entries.push_back(infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
                 wanting.push_back(r);
             }
@@ -362,10 +412,13 @@ public:
         }
         for (auto& r : active) { release(*r); r->end("cancel"); }
         std::lock_guard<std::mutex> lk(m_);
-        for (auto& r : queue_) r->end("cancel");
-        queue_.clear();
+        for (auto* waiting : {&queue_, &paused_}) {
+            for (auto& r : *waiting) r->end("cancel");
+            waiting->clear();
+        }
         while (!donors_.empty()) drop_donor();
         active_count_.store(0);
+        paused_count_.store(0);
     }
 
     void stop() {
@@ -417,30 +470,78 @@ private:
         return std::min(at, n);
     }
 
-    // Before a pass, every uncapped decoding request whose next token would pass its reservation takes another step.
-    // When the pool is short, donors go first, then the latest admitted uncapped request is paused: its history becomes a donor and it is queued again at the front, so it resumes from its own blocks unless another request needs them.
+    // Before a pass, every uncapped decoding request whose next token would pass its reservation takes another step, the earliest admitted first, with what make_room gives it.
+    // A request make_room cannot give it to sits the pass out with its cache as it is (a stall) and asks again before the next; it is never paused for its own growth.
     void grow(std::vector<std::shared_ptr<Request>>& active) {
-        for (size_t i = 0; i < active.size();) {
+        for (size_t i = 0; i < active.size(); ++i) {
             Request& r = *active[i];
-            if (!r.params_.until_limit || !decoding(r) || !beyond(blocks_for(r.seq_.length() + 1), r.need_)) { ++i; continue; }
+            r.stalled_ = false;
+            if (!r.params_.until_limit || !decoding(r) || !beyond(blocks_for(r.seq_.length() + 1), r.need_)) continue;
             std::vector<size_t> step = blocks_for(r.seq_.length() + 1 + kGrowTokens);
             for (size_t s = 0; s < step.size(); ++s) step[s] = step[s] > r.need_[s] ? step[s] - r.need_[s] : 0;
-            {
+            const Taken t = make_room(pools(), reserved_, donor_blocks(), npos, false, holders(active), r.admission_, true, step);
+            if (!t.enough) {
+                r.stalled_ = true;
+                ++r.stalls_;
                 std::lock_guard<std::mutex> lk(m_);
-                while (!room_for(step) && !donors_.empty()) drop_donor();
-                if (room_for(step)) {
-                    add(reserved_, step);
-                    add(r.need_, step);
-                    ++i;
-                    continue;
-                }
+                ++stalls_;
+                continue;
             }
-            // The latest admitted uncapped request makes the room, which may be this one.
-            size_t victim = i;
-            for (size_t j = 0; j < active.size(); ++j)
-                if (active[j]->params_.until_limit && active[j]->admission_ > active[victim]->admission_) victim = j;
-            pause(active, victim);
-            if (victim < i) --i;
+            take(t, active);
+            std::lock_guard<std::mutex> lk(m_);
+            add(reserved_, step);
+            add(r.need_, step);
+        }
+    }
+
+    // Admits r, a queued request or a paused one, if make_room finds it room without pausing anyone: it reserves its history and max_tokens, or an uncapped one its history and a growth step, and takes back its own donor, forks the donor best_donor found or starts a fresh sequence.
+    // The donor it forks goes last, or first when the request shares every full block of it, a follow-up turn or its own history, since that donor then holds nothing the request does not keep but a partial last block; a donor it takes is consumed, the blocks they share counted once.
+    // Its own donor, taken back whole, goes first in the same way, and leaves the donors whether make_room needed its blocks or not.
+    // Under the lock.
+    bool enter(const std::shared_ptr<Request>& r, std::vector<std::shared_ptr<Request>>& active) {
+        const size_t tokens = history_tokens(*r) + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
+        std::vector<size_t> need = blocks_for(tokens);
+        size_t shared = 0;
+        size_t d = own_donor(*r);
+        const bool take = d < donors_.size();
+        if (!take) d = best_donor(*r, shared);
+        const bool keep = take || shared;
+        const bool keep_first = take || (shared && donors_[d].tokens.size() - shared < model_.kv_block_tokens());
+        const Taken t = make_room(pools(), reserved_, donor_blocks(), keep ? d : npos, keep_first, {}, 0, false, need);
+        if (!t.enough) return false;
+        std::vector<size_t> gone = t.donors;
+        std::sort(gone.begin(), gone.end(), std::greater<size_t>());
+        bool consume = false;
+        for (size_t i : gone) {
+            if (keep && i == d) { consume = true; continue; }
+            drop_donor(i);
+            if (i < d) --d;
+        }
+        admit(*r, d, shared, take);
+        if (consume && !take) drop_donor(d);
+        add(reserved_, need);
+        r->need_ = std::move(need);
+        if (!r->admission_) r->admission_ = ++admissions_;
+        active.insert(std::upper_bound(active.begin(), active.end(), r, by_admission), r);
+        return true;
+    }
+
+    // Takes what make_room chose for a growing request: the donors, then the requests it pauses, latest admitted first, and the donor a paused request's history became where make_room took that too.
+    void take(const Taken& t, std::vector<std::shared_ptr<Request>>& active) {
+        {
+            std::vector<size_t> gone = t.donors;
+            std::sort(gone.begin(), gone.end(), std::greater<size_t>());
+            std::lock_guard<std::mutex> lk(m_);
+            for (size_t i : gone) drop_donor(i);
+        }
+        std::vector<std::pair<std::shared_ptr<Request>, bool>> victims;
+        for (const auto& p : t.paused) victims.push_back({active[p.first], p.second});
+        for (const auto& v : victims) {
+            const size_t at = (size_t)(std::find(active.begin(), active.end(), v.first) - active.begin());
+            if (pause(active, at) && v.second) {
+                std::lock_guard<std::mutex> lk(m_);
+                drop_donor(donors_.size() - 1);
+            }
         }
     }
 
@@ -451,15 +552,41 @@ private:
         return h;
     }
 
-    // A paused request's history and its record go to the donors and the request, unchanged, to the front of the queue.
+    // A paused request's history and its record go to the donors and the request, unchanged, to the paused requests, which are kept in order of first admission and hold nothing else.
     // The request remembers that donor, which it takes back whole when it resumes unless something evicted it meanwhile; its history goes there even short of a full block, which only it can take.
-    void pause(std::vector<std::shared_ptr<Request>>& active, size_t i) {
+    // Whether it left a donor.
+    bool pause(std::vector<std::shared_ptr<Request>>& active, size_t i) {
         auto r = active[i];
         r->donor_ = park(active, i, history(*r), 1);
         ++r->pauses_;
+        r->stalled_ = false;
+        paused_.insert(std::upper_bound(paused_.begin(), paused_.end(), r, by_admission), r);
+        paused_count_.store(paused_.size());
         std::lock_guard<std::mutex> lk(m_);
         ++pauses_;
-        queue_.push_front(r);
+        return r->donor_ != 0;
+    }
+
+    static bool by_admission(const std::shared_ptr<Request>& a, const std::shared_ptr<Request>& b) { return a->admission_ < b->admission_; }
+    static constexpr size_t npos = std::numeric_limits<size_t>::max();
+    // The ledger as make_room reads it: each pool's blocks, each donor's, and each running request's.
+    std::vector<size_t> pools() const {
+        std::vector<size_t> p(model_.kv_pools());
+        for (size_t s = 0; s < p.size(); ++s) p[s] = model_.kv_pool_blocks(s);
+        return p;
+    }
+    std::vector<std::vector<size_t>> donor_blocks() const {
+        std::vector<std::vector<size_t>> b;
+        for (const Donor& d : donors_) b.push_back(d.blocks);
+        return b;
+    }
+    std::vector<Holder> holders(const std::vector<std::shared_ptr<Request>>& active) const {
+        std::vector<Holder> h;
+        for (const auto& r : active) {
+            const size_t len = r->seq_.length();
+            h.push_back(Holder{r->admission_, r->params_.until_limit, r->need_, len ? blocks_for(len) : std::vector<size_t>(model_.kv_pools(), 0)});
+        }
+        return h;
     }
 
     // A finished or paused request kept for its cache: the tokens its history holds, how they were computed, the sequence holding them and the blocks it has reserved.
@@ -583,13 +710,14 @@ private:
         }
         r->end(why, err);
         const Request::Timings t = r->timings();
-        char paused[128] = "";
+        char paused[128] = "", stalled[48] = "";
         if (r->pauses_)
             std::snprintf(paused, sizeof paused, ", paused %zu time%s, %zu taken back, %zu tokens recomputed", r->pauses_, r->pauses_ == 1 ? "" : "s",
                           r->taken_back_, r->recomputed_);
-        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s\n",
+        if (r->stalls_) std::snprintf(stalled, sizeof stalled, ", sat out %zu pass%s", r->stalls_, r->stalls_ == 1 ? "" : "es");
+        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s%s\n",
                      r->prompt_tokens(), r->reused(), r->gen_.size(), t.queued_ms, t.prompt_ms,
-                     t.predicted_per_second(r->gen_.size()), why.c_str(), paused);
+                     t.predicted_per_second(r->gen_.size()), why.c_str(), paused, stalled);
     }
 
     // A request leaves the active set, its history kept as a donor when it holds at least `least` tokens (a full block unless a paused request's own asks for less) and its blocks returned otherwise; the donor's id, 0 when none is kept.
@@ -660,12 +788,15 @@ private:
     mutable std::mutex m_;
     std::condition_variable cv_;
     std::deque<std::shared_ptr<Request>> queue_;
+    // Paused requests in order of first admission, the scheduler thread's; they hold nothing but a donor, and do not count against max_queue.
+    std::deque<std::shared_ptr<Request>> paused_;
     std::deque<Donor> donors_;
-    std::atomic<size_t> active_count_{0};
+    std::atomic<size_t> active_count_{0}, paused_count_{0};
     size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
     uint64_t admissions_ = 0;   // the scheduler thread's
     uint64_t pauses_ = 0;       // under the lock
     uint64_t donor_ids_ = 0;    // under the lock
+    size_t stalls_ = 0;         // under the lock
     size_t recomputed_ = 0;     // under the lock
     size_t taken_back_ = 0;     // under the lock
     std::vector<size_t> reserved_;   // per cache pool, blocks promised to admitted requests and held by donors

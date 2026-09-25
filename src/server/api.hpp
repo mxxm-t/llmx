@@ -129,7 +129,9 @@ private:
                   "{\"status\":\"ok\",\"model\":" + jmini::quote(cfg_.model_name) +
                   ",\"active\":" + std::to_string(s.active) + ",\"queued\":" + std::to_string(s.queued) +
                   ",\"donors\":" + std::to_string(s.donors) + ",\"prefix_hits\":" + std::to_string(s.prefix_hits) +
-                  ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + ",\"pauses\":" + std::to_string(s.pauses) + "}");
+                  ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + ",\"pauses\":" + std::to_string(s.pauses) +
+                  ",\"paused\":" + std::to_string(s.paused) + ",\"stalls\":" + std::to_string(s.stalls) +
+                  ",\"recomputed\":" + std::to_string(s.recomputed) + ",\"taken_back\":" + std::to_string(s.taken_back) + "}");
     }
     // The list clients read the model id from, with the file's context length and vocabulary beside the standard fields.
     void models(http::Connection& c) {

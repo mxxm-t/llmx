@@ -17,6 +17,7 @@ import moe
 # The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 # The synthetic model's file name holds a byte that is not UTF-8 on Linux and characters beyond ASCII that several Windows code pages cannot map elsewhere, and every reply naming the model must still be UTF-8.
+# The synthetic MoE model gives each prompt the same ids alone and four at a time, on the CPU as it is and on a device with its experts on the host.
 
 
 class Server:
@@ -498,13 +499,18 @@ def run():
         n = check_server(model, ["a", "ab", "abc", "abcdefg"], 6, 14, chat=False)
         print("server: synthetic F32 model, %d prompts greedy-equal to the CLI alone and four at a time, a stream, "
               "a seeded repeat, refusals, a cancelled stream, the compatible completions, its file name as UTF-8 in every reply  [ok]" % n)
-        # On a device, the synthetic mixture of experts with its routed layers on the host and prompts from extent 3 streamed: four at a time, a pass holds streamed prompt rows beside host decode rows.
+        # The synthetic mixture of experts, each prompt's ids alone equal to its ids four at a time, where a pass routes one request's prompt rows beside another's decode rows.
+        # On a device its routed layers run on the host with prompts from extent 3 streamed, so a pass holds streamed prompt rows beside host decode rows; those flags need a device, so the CPU runs the model without them.
         # Experts on the host are a placement of one device, so a list of several skips this.
-        if os.environ.get("LLMX_DEVICE", "cpu") != "cpu" and "," not in os.environ.get("LLMX_DEVICE", ""):
+        device = os.environ.get("LLMX_DEVICE", "cpu")
+        if "," not in device:
             routed = os.path.join(directory, "tiny-moe.gguf")
             f32.write_model(routed, moe.tensors(), config=moe.CONFIG, arch="qwen3moe")
-            n = check_mixed(routed, ["a", "ab", "abc", "abcdefg", "abcd", "b"], 6, ("--cpu-moe", "--moe-stream-from", "3"))
-            print("server: synthetic MoE model, experts on the host and long prompts streamed, %d prompts alone and four at a time  [ok]" % n)
+            host = device != "cpu"
+            n = check_mixed(routed, ["a", "ab", "abc", "abcdefg", "abcd", "b"], 6,
+                            ("--cpu-moe", "--moe-stream-from", "3") if host else ())
+            print("server: synthetic MoE model, %s, %d prompts alone and four at a time  [ok]"
+                  % ("experts on the host and long prompts streamed" if host else "on the CPU", n))
     real = baseline.find_fixture(baseline.BASELINE_MODELS[0])
     if real:
         with open(os.path.join(os.path.dirname(__file__), "data", "baseline_perplexity.json"), encoding="utf-8") as f:

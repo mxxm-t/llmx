@@ -16,7 +16,7 @@ It contains six independent checks:
 
 Every CTest a CPU build registers runs in every job's "Backend tests" step, so the KV cache, placement, HTTP layer, server UTF-8 repair and prefill-scope checks are covered on all three platforms and under UBSan.
 The three Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan` and `vulkan-lifetime` skip without a device, and that job runs no Python.
-The Python suite's `server` component starts `llmx serve` on the synthetic model in every CPU job and on the real Q8_0 fixture in the HF job.
+The Python suite's `server` component starts `llmx serve` on the synthetic dense and MoE models in every CPU job, the MoE model's prompts alone against four at a time, and on the real Q8_0 fixture in the HF job.
 What no hosted job establishes is device behaviour: the Vulkan job proves the tree compiles, and the kernel comparisons, the HF gate on the device and the matched floors are run on the Radeon VII and the Linux machine's MI50s by hand and recorded in `docs/STATUS.md`.
 A self-hosted runner on that machine would close that.
 It needs no packages of its own for it: `docker/Dockerfile` carries the driver and the compiler and takes the cards through `/dev/dri`, and inside it the whole CTest suite, `backend-vulkan` included, passes on an MI50.

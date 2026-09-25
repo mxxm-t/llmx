@@ -119,6 +119,7 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
 
 def check_logits_input(directory, model, cases):
     """`logits --file` against the same prompt inline, then the `--last` rows of the prompt, and of its head continued by `--then-ids`, against every fixture case at its position.
+    The rows the prompt prints over several passes, and those of its head continued by the same ids, must be the bytes it prints in one pass.
     Returns the largest logit error."""
     text = TEXTS[-1]
     rc, inline = cli(["logits", model, text, "--top", "257"])
@@ -136,20 +137,29 @@ def check_logits_input(directory, model, cases):
         f.write(" ".join(tail[:3]) + "\n" + "\t".join(tail[3:]) + "\n")
     # The first two leave the prompt's first positions out, the second over several passes, and the third prints exactly the appended positions.
     worst = 0.0
+    printed = []
     for args, last in (([text], len(text) - 2), ([text, "--ubatch", "5"], len(text) - 2), ([head, "--then-ids", ids], len(tail))):
         rc, out = cli(["logits", model] + args + ["--last", str(last), "--top", "257"])
         assert rc == 0, "logits --last failed: " + out
         lines = out.splitlines()
         assert lines[0] == "tokens: %d" % len(text), out
-        rows = {}
-        for line in lines[1:]:
-            fields = line.split()
-            rows[int(fields[0])] = {int(i): float(v) for i, v in zip(fields[1::2], fields[2::2])}
-        assert sorted(rows) == list(range(len(text) - last, len(text))), (args, sorted(rows))
+        # Each position once and in order, so a position printed twice fails.
+        positions = [int(line.split()[0]) for line in lines[1:]]
+        assert len(positions) == last and positions == list(range(len(text) - last, len(text))), (args, positions)
+        rows = dict(zip(positions, lines[1:]))
+        printed.append(rows)
         checked = [case for case in cases if len(case["text"]) - 1 in rows]
         assert checked, args
         for case in checked:
-            worst = max(worst, common.hf_logit_error("F32 --last", rows[len(case["text"]) - 1], case["logits"]))
+            fields = rows[len(case["text"]) - 1].split()
+            got = {int(i): float(v) for i, v in zip(fields[1::2], fields[2::2])}
+            worst = max(worst, common.hf_logit_error("F32 --last", got, case["logits"]))
+    # A position computes the same bytes however its prompt arrives: in one pass, over passes of five tokens, or as a head continued by ids, whose rows are positions 3 to 12.
+    one_pass, sliced, continued = printed
+    for position in one_pass:
+        assert sliced[position] == one_pass[position], ("--ubatch 5 differs from one pass", position, sliced[position], one_pass[position])
+    for position in continued:
+        assert continued[position] == one_pass[position], ("--then-ids differs from one pass", position, continued[position], one_pass[position])
     return worst
 
 
@@ -179,7 +189,7 @@ def run():
         reports = re.findall(r"^bench: (.+?)\s+(\S+) \+- (\S+) tok/s  \((\d+) runs\)$", out, re.M)
         assert rc == 0 and [(what, runs) for what, _, _, runs in reports] == [("pp4", "2"), ("x2 tg2", "2")], "bench --seqs 2 failed: " + out
         assert all(math.isfinite(float(mean)) and float(mean) > 0 and math.isfinite(float(sd)) for _, mean, sd, _ in reports), out
-    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids rows, bench --seqs 2; max error %.8f  [ok]" % worst)
+    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids rows, the same bytes over passes, bench --seqs 2; max error %.8f  [ok]" % worst)
     return True
 
 

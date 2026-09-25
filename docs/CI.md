@@ -101,7 +101,8 @@ banner agree with the release version, then runs the small F32 HF fixture
 without downloads. Its deterministic weights are generated locally;
 committed HF float32 logits/NLL cover tied and untied embeddings, matrix
 tails, multiple physical batches and thread counts.
-The same fixture holds the rows `logits --last` and `--then-ids` print to its bound at their positions, and `logits --file` to the inline prompt's output.
+The same fixture checks that `logits --file` prints what the inline prompt does, and holds the rows `logits --last` and `--then-ids` print to its HF bound at their positions.
+Those rows are printed once each, and the ones printed over passes of five tokens or after a head continued by `--then-ids` are the bytes the same positions print in one pass.
 `bench --model` with `--seqs 2` runs on it and reports the token counts of its prompt and batched decode tests: two sequences need two cache blocks where the model's context fills one.
 The `cli` component checks that these builds, which have no Vulkan backend, refuse a Vulkan device rather than run on the CPU, and that `info` lists a synthetic model's architecture, layer count and tensors.
 It also checks that the CLI's usage errors exit with status 2 and the command's page on stderr, before any model file is opened.

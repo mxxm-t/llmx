@@ -412,6 +412,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   and `bench --model` at a depth and with `--seqs 2`, two sequences where the model's context fills one cache block.
   `logits --file` must print what the same prompt inline does.
   The `--last` rows of the prompt, in one pass and in several, and of its first three tokens continued by `--then-ids`, are held to the HF bound at their positions.
+  Each row is printed once, and the rows over several passes and after `--then-ids` are the bytes of the one-pass rows at the same positions.
 - **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF
   `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and
   one dense, across batch widths and threads and, on a device, with the

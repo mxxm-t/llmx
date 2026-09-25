@@ -20,6 +20,7 @@
 #include "model/kv_cache.hpp"
 #include "model/layer_split.hpp"
 #include "backends/cpu/cpu_backend.hpp"
+#include "core/host_memory.hpp"
 
 // Qwen3-style transformer forward pass, from scratch: dense Qwen3 and its mixture-of-experts form, qwen3moe.
 // The compute primitives (matmul, attention, RMSNorm, RoPE, expert routing) are delegated to a backend::Backend, so the same model code runs on every backend.
@@ -1120,5 +1121,53 @@ private:
         return {w.type, {copy ? copy : w.data.get(), 0}, out, w.nout};
     }
 };
+
+// How a caller wants a model placed over the backends it made (docs/MULTI-DEVICE.md).
+struct PlacementRequest {
+    std::vector<std::string> names;   // each backend's name, for the fit's messages and its description
+    std::vector<int> shares;          // each backend's proportion of the layers; empty to fit them to the devices' free memory
+    int cpu_moe = 0;                  // with one backend, the routed layers whose experts run on the CPU beside it, -1 for every one
+    size_t stream_from = 0;           // with experts on the CPU, the prompt length from which they are copied to the device (Placement::stream_from)
+    size_t rows = 512;                // the most rows one pass carries: a prompt's ubatch, and on a server its decoding requests beside it
+};
+
+// A placed model and, when it was split, what each device was given (LayerSplit::describe).
+struct PlacedModel {
+    std::unique_ptr<Model> model;
+    std::string plan;
+};
+
+// The model over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several.
+// The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; attention, the dense blocks, the embedding and the head stay on the device.
+inline PlacedModel place_model(const gguf::GGUFModel& m, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
+                               const ModelOptions& options) {
+    if (backends.empty()) throw std::runtime_error("placement: no device");
+    if (backends.size() > 1 || !request.shares.empty()) {
+        if (request.cpu_moe)
+            throw std::runtime_error("--n-cpu-moe and --cpu-moe: not with several devices; list the CPU as a device to give it layers");
+        const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
+        const LayerSplit split = split_layers(footprint(m, options), budgets, request.rows, request.shares, core::host_memory_available());
+        return {std::make_unique<Model>(m, std::move(backends), placement_for(split), options), split.describe(budgets)};
+    }
+    if (!request.cpu_moe || backends[0]->reads_in_place()) return {std::make_unique<Model>(m, std::move(backends[0]), options), {}};
+    const QwenConfig cfg = load_config(m);
+    Placement place;
+    place.attn_device.assign((size_t)cfg.n_layer, 1);
+    place.ffn_device.assign((size_t)cfg.n_layer, 1);
+    place.embed_device = place.output_device = 1;
+    place.stream_from = request.stream_from;
+    int routed = 0;
+    for (int l = 0; l < cfg.n_layer; ++l) {
+        const std::string router = "blk." + std::to_string(l) + ".ffn_gate_inp.weight";
+        bool present = false;
+        for (const auto& t : m.tensors) present = present || t.name == router;
+        if (!present) continue;
+        if (request.cpu_moe < 0 || routed < request.cpu_moe) place.ffn_device[(size_t)l] = 0;
+        ++routed;
+    }
+    if (!routed) throw std::runtime_error("--n-cpu-moe: the model has no expert layers");
+    std::vector<backend::BackendPtr> both{backend::make_cpu_backend(), std::move(backends[0])};
+    return {std::make_unique<Model>(m, std::move(both), place, options), {}};
+}
 
 } // namespace infer

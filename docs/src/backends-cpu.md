@@ -136,7 +136,7 @@ the compiled binary portable to older CPUs.
   `set_decode_activations8(false)`, a prompt's entries take one batched float
   matmul per expert over its gathered rows (`matmul_raw`, the matmul on host
   addresses, reaches an expert's matrix inside the stacked tensor).
-- `memory_available()`: the host's available physical memory (`core/host_memory.hpp`). Weights on the CPU read the mapped file in place, so what counts against it is caches, activations and what a loader materializes.
+- `memory_available()`: the host's available physical memory (`core/host_memory.hpp`). Weights on the CPU read the mapped file in place, so what counts against it is caches, activations and what a loader materializes. `reads_in_place()` is true: `adopt` aliases the caller's bytes.
 - `make_cpu_backend()` factory.
 
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a

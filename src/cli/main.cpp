@@ -30,7 +30,8 @@
 #include "backends/vulkan/vulkan_backend.hpp"
 #endif
 #include "core/fp16.hpp"
-#include "core/host_memory.hpp"
+#include "core/list.hpp"
+#include "backends/devices.hpp"
 #include "core/json.hpp"
 #include "hub/pull.hpp"
 #include "format/gguf.hpp"
@@ -348,85 +349,10 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
 }
 
 // Canonical spelling keeps vulkan and vulkan:00 from naming the same device twice.
-std::string canonical_device(const std::string& spec) {
-    if (spec == "cpu") return spec;
-    const size_t colon = spec.find(':');
-    const std::string name = spec.substr(0, colon);
-    if (name != "vulkan") throw std::runtime_error("--device: unknown backend '" + name + "' (cpu, vulkan:N)");
-    unsigned long index = 0;
-    if (colon != std::string::npos) {
-        const std::string rest = spec.substr(colon + 1);
-        if (rest.empty() || rest.size() > 6 || rest.find_first_not_of("0123456789") != std::string::npos)
-            throw std::runtime_error("--device: invalid device index in '" + spec + "'");
-        index = std::stoul(rest);
-    }
-    return name + ":" + std::to_string(index);
-}
-
-backend::BackendPtr make_backend(const std::string& spec, bool diagnostics = false) {
-    const std::string device = canonical_device(spec);
-    if (device == "cpu") return backend::make_cpu_backend();
-#if LLMX_HAS_BACKEND_VULKAN
-    return backend::make_vulkan_backend(std::atoi(device.c_str() + device.find(':') + 1), diagnostics);
-#else
-    (void)diagnostics;
-    throw std::runtime_error("--device vulkan: this build has no Vulkan backend (LLMX_HAS_BACKEND_VULKAN)");
-#endif
-}
-
-// The model over the backend a --device spec names, with the experts of the first `cpu_moe` routed layers (all when -1) on the CPU beside it.
-// The CPU is device 0 there, so the thread count the model reports is the host's; attention, the dense blocks, the embedding and the head stay on the device.
-std::unique_ptr<infer::Model> make_model(const gguf::GGUFModel& m, backend::BackendPtr device, bool on_cpu, int cpu_moe,
-                                         int stream_from, const infer::ModelOptions& options) {
-    if (!cpu_moe || on_cpu) return std::make_unique<infer::Model>(m, std::move(device), options);
-    const infer::QwenConfig cfg = infer::load_config(m);
-    infer::Placement place;
-    place.attn_device.assign((size_t)cfg.n_layer, 1);
-    place.ffn_device.assign((size_t)cfg.n_layer, 1);
-    place.embed_device = place.output_device = 1;
-    place.stream_from = stream_from > 0 ? (size_t)stream_from : 0;
-    int routed = 0;
-    for (int l = 0; l < cfg.n_layer; ++l) {
-        const std::string router = "blk." + std::to_string(l) + ".ffn_gate_inp.weight";
-        bool present = false;
-        for (const auto& t : m.tensors) present = present || t.name == router;
-        if (!present) continue;
-        if (cpu_moe < 0 || routed < cpu_moe) place.ffn_device[(size_t)l] = 0;
-        ++routed;
-    }
-    if (!routed) throw std::runtime_error("--n-cpu-moe: the model has no expert layers");
-    std::vector<backend::BackendPtr> backends{backend::make_cpu_backend(), std::move(device)};
-    return std::make_unique<infer::Model>(m, std::move(backends), place, options);
-}
-
-// The entries of a comma-separated flag value, in order, empty ones included so the caller can refuse them.
-std::vector<std::string> comma_list(const std::string& value) {
-    std::vector<std::string> items;
-    size_t start = 0;
-    for (size_t comma; (comma = value.find(',', start)) != std::string::npos; start = comma + 1)
-        items.push_back(value.substr(start, comma - start));
-    items.push_back(value.substr(start));
-    return items;
-}
-
-// A --device value names one device, or several separated by commas for a model split by layers over them in that order, each in its canonical spelling.
-// A device listed twice would have two stages driving one backend and its free memory counted twice, so it is refused.
-std::vector<std::string> device_specs(const std::string& value) {
-    std::vector<std::string> specs;
-    for (const auto& entry : comma_list(value)) {
-        if (entry.empty()) throw std::runtime_error("--device: an empty entry in '" + value + "'");
-        const std::string spec = canonical_device(entry);
-        if (std::find(specs.begin(), specs.end(), spec) != specs.end())
-            throw std::runtime_error("--device: " + spec + " is listed twice");
-        specs.push_back(spec);
-    }
-    return specs;
-}
-
 std::vector<int> layer_shares(const std::string& value) {
     std::vector<int> shares;
     if (value.empty()) return shares;
-    for (const auto& item : comma_list(value)) {
+    for (const auto& item : core::comma_list(value)) {
         if (item.empty() || item.find_first_not_of("0123456789") != std::string::npos || item.size() > 6)
             throw std::runtime_error("--layer-shares: '" + item + "' is not a whole-number share");
         shares.push_back(std::atoi(item.c_str()));
@@ -434,33 +360,27 @@ std::vector<int> layer_shares(const std::string& value) {
     return shares;
 }
 
-// The model split by layers over every device listed, each device's layers fitted to the memory it reports free unless --layer-shares gives their proportions (docs/MULTI-DEVICE.md).
-// `rows` is the most rows one pass carries: a prompt's ubatch, and on a server every decoding request's token beside it.
-std::unique_ptr<infer::Model> make_split_model(const gguf::GGUFModel& m, const std::vector<std::string>& specs, const std::string& shares,
-                                               int cpu_moe, const infer::ModelOptions& options, size_t rows, bool verbose) {
-    if (cpu_moe) throw std::runtime_error("--n-cpu-moe and --cpu-moe: not with several devices; list the CPU as a device to give it layers");
-    std::vector<backend::BackendPtr> backends;
-    std::vector<infer::DeviceBudget> budgets;
-    for (const auto& spec : specs) {
-        backends.push_back(make_backend(spec));
-        const backend::Backend* b = backends.back().get();
-        budgets.push_back(infer::DeviceBudget{spec, b->memory_available(), spec == "cpu",
-                                              [b](const infer::Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes, w.product); },
-                                              b->host_resident()});
-    }
-    const infer::LayerSplit split = infer::split_layers(infer::footprint(m, options), budgets, rows, layer_shares(shares),
-                                                        core::host_memory_available());
-    if (verbose) std::cerr << split.describe(budgets);
-    return std::make_unique<infer::Model>(m, std::move(backends), infer::placement_for(split), options);
+// What the placement flags ask of the model's placement over the devices `specs` names (infer::place_model); `rows` is the most rows one pass carries.
+infer::PlacementRequest placement_request(const std::vector<std::string>& specs, const std::string& shares, int cpu_moe, int stream_from,
+                                          size_t rows) {
+    infer::PlacementRequest request;
+    request.names = specs;
+    request.shares = layer_shares(shares);
+    request.cpu_moe = cpu_moe;
+    request.stream_from = stream_from > 0 ? (size_t)stream_from : 0;
+    request.rows = rows;
+    return request;
 }
 
-// `decode_rows` is how many generated tokens a pass may carry beside a prompt's ubatch: a server's sequences.
+// The model over the devices --device lists, placed as the flags ask; `decode_rows` is how many generated tokens a pass may carry beside a prompt's ubatch: a server's sequences.
 std::unique_ptr<infer::Model> make_model(const gguf::GGUFModel& m, const infer::GenParams& gp, size_t decode_rows = 0) {
-    const auto specs = device_specs(gp.device);
-    if (specs.size() > 1 || !gp.layer_shares.empty())
-        return make_split_model(m, specs, gp.layer_shares, gp.cpu_moe, model_options(gp),
-                                (gp.ubatch > 0 ? (size_t)gp.ubatch : 512) + decode_rows, gp.show_prompt_tokens);
-    return make_model(m, make_backend(gp.device), gp.device == "cpu", gp.cpu_moe, gp.moe_stream_from, model_options(gp));
+    const auto specs = backend::device_specs(gp.device);
+    const size_t rows = (gp.ubatch > 0 ? (size_t)gp.ubatch : 512) + decode_rows;
+    infer::PlacedModel placed = infer::place_model(m, backend::make_backends(specs),
+                                                   placement_request(specs, gp.layer_shares, gp.cpu_moe, gp.moe_stream_from, rows),
+                                                   model_options(gp));
+    if (gp.show_prompt_tokens) std::cerr << placed.plan;
+    return std::move(placed.model);
 }
 
 int cmd_generate(const std::string& model_path, const std::string& prompt,
@@ -736,7 +656,7 @@ gguf::GGUFModel build_synthetic_model(int n_layer, int n_embd, int n_ff,
 int cmd_bench(int size, int iters, int threads, int prefill, int decode,
               const std::string& device) {
     // The hot paths are one backend's; with several devices listed, the first one's.
-    auto b = make_backend(device_specs(device).front());
+    auto b = backend::make_backend(backend::device_specs(device).front());
     if (threads > 0) b->set_threads(threads);
     std::cout << "bench: threads " << b->threads_available() << "\n";
 
@@ -814,14 +734,14 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
                     int P, int G, int R, const infer::ModelOptions& options, bool profile, int cpu_moe, int stream_from,
                     int seqs = 1, const std::string& shares = "", int D = 0) {
     gguf::GGUFModel m = load_model(path, false);
-    const auto specs = device_specs(device);
-    const bool split = specs.size() > 1 || !shares.empty();
-    if (split && profile) throw std::runtime_error("bench: --profile times one device; not with several");
-    backend::BackendPtr backend_for_model = split ? nullptr : make_backend(device, profile);
-    backend::Backend* b = backend_for_model.get();
-    const auto owned = split ? make_split_model(m, specs, shares, cpu_moe, options, 512 + (size_t)seqs, true)
-                             : make_model(m, std::move(backend_for_model), device == "cpu", cpu_moe, stream_from, options);
-    infer::Model& model = *owned;
+    const auto specs = backend::device_specs(device);
+    if ((specs.size() > 1 || !shares.empty()) && profile) throw std::runtime_error("bench: --profile times one device; not with several");
+    auto backends = backend::make_backends(specs, profile);
+    backend::Backend* b = backends.front().get();
+    infer::PlacedModel placed = infer::place_model(m, std::move(backends),
+                                                   placement_request(specs, shares, cpu_moe, stream_from, 512 + (size_t)seqs), options);
+    std::cerr << placed.plan;
+    infer::Model& model = *placed.model;
     if (!model.holds_payload()) m.release_payload();
     if (threads > 0) model.set_threads(threads);
     // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.

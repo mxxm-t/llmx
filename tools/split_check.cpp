@@ -7,17 +7,12 @@
 #include <iterator>
 #include <string>
 #include <vector>
-#include "backends/cpu/cpu_backend.hpp"
-#include "backends/vulkan/vulkan_backend.hpp"
+#include "backends/devices.hpp"
 #include "format/gguf.hpp"
 #include "model/arch_qwen.hpp"
-#include "model/layer_split.hpp"
 #include "tokenizer/tokenizer.hpp"
 
-static backend::BackendPtr device(const std::string& spec) {
-    return spec == "cpu" ? backend::make_cpu_backend() : backend::make_vulkan_backend(std::atoi(spec.c_str()));
-}
-
+// A device given as `cpu` or a Vulkan index, in the spelling a device list takes.
 static std::string name(const std::string& spec) { return spec == "cpu" ? spec : "vulkan:" + spec; }
 
 // A decoding sequence with an established history beside a fresh prompt, then both decoding, in the same row order on one device and the split.
@@ -74,15 +69,14 @@ int main(int argc, char** argv) {
 
         infer::ModelOptions options;
         options.kv_tokens = 4096;
-        infer::Model one(m, device(single), options);
-        std::vector<backend::BackendPtr> pair{device(first), device(second)};
-        std::vector<infer::DeviceBudget> budgets;
-        for (const std::string& spec : {first, second}) budgets.push_back(infer::DeviceBudget{name(spec), std::nullopt, spec == "cpu", {}, 0});
-        const infer::LayerSplit split = infer::split_layers(infer::footprint(m, options), budgets, 512, {1, 1});
-        infer::Model two(m, std::move(pair), infer::placement_for(split), options);
-        std::printf("%s: %zu tokens; single %s, split layers 0-%d on %s and %d-%d on %s\n", argv[1], ids.size(), name(single).c_str(),
-                    split.stages[0].count - 1, name(first).c_str(), split.stages[0].count, split.stages[0].count + split.stages[1].count - 1,
-                    name(second).c_str());
+        infer::Model one(m, backend::make_backend(name(single)), options);
+        // The split takes the layers half and half, placed as a device list with --layer-shares 1,1 places them.
+        infer::PlacementRequest request;
+        request.names = {name(first), name(second)};
+        request.shares = {1, 1};
+        infer::PlacedModel placed = infer::place_model(m, backend::make_backends(request.names), request, options);
+        infer::Model& two = *placed.model;
+        std::printf("%s: %zu tokens; single %s, split:\n%s", argv[1], ids.size(), name(single).c_str(), placed.plan.c_str());
 
         const size_t vocab = one.n_vocab();
         std::vector<float> scored(ids.size() * vocab);

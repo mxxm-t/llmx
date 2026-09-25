@@ -54,13 +54,13 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 
 | Directory       | Contents                                                              |
 |-----------------|-----------------------------------------------------------------------|
-| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory) |
+| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory), `list.hpp` (comma-separated values) |
 | `hub/`          | Hub metadata/quant selection, curl HTTPS transport, verified download cache |
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants)                       |
 | `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3), `mapped_file.hpp` (read-only mapping) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3 pretokenizer)             |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass + its memory footprint), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
-| `backends/`     | `backend.hpp` (interface), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
+| `backends/`     | `backend.hpp` (interface), `devices.hpp` (the backend a device spec names), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |
 | `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, sampling, prefix reuse), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |

@@ -121,6 +121,9 @@ public:
     // Host memory the backend holds for its own use, such as staging for uploads, which counts against the host rather than against memory_available().
     virtual size_t host_resident() const { return 0; }
 
+    // Whether adopt() reads the caller's memory in place rather than copying it into the backend's own, so weights placed here cost no memory of this backend.
+    virtual bool reads_in_place() const { return false; }
+
     // Invoke once on the caller and complete all cleanup before returning.
     virtual void run_prefill(const std::function<void()>& work) { work(); }
 

@@ -15,10 +15,10 @@ public:
 // A --device list is canonical and each device appears once, however it is spelled; malformed entries are refused.
 bool device_lists() {
     auto refused = [](const std::string& value) {
-        try { device_specs(value); } catch (const std::runtime_error&) { return true; }
+        try { backend::device_specs(value); } catch (const std::runtime_error&) { return true; }
         return false;
     };
-    return device_specs("vulkan,cpu,vulkan:01") == std::vector<std::string>{"vulkan:0", "cpu", "vulkan:1"} &&
+    return backend::device_specs("vulkan,cpu,vulkan:01") == std::vector<std::string>{"vulkan:0", "cpu", "vulkan:1"} &&
            refused("vulkan,vulkan:0") && refused("vulkan:00,vulkan:0") && refused("cpu,cpu") && refused("vulkan:0,") &&
            refused("vulkan:x") && refused("gpu:0") && layer_shares("3,1") == std::vector<int>{3, 1} && refused("");
 }

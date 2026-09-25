@@ -181,6 +181,7 @@ public:
 
     // Weights on the host read the mapped file in place, so what counts against this is caches, activations and whatever a loader materializes.
     std::optional<size_t> memory_available() const override { return core::host_memory_available(); }
+    bool reads_in_place() const override { return true; }
 
     void run_prefill(const std::function<void()>& work) override {
         if (prefill_active_) throw std::runtime_error("Nested CPU prefill is unsupported");

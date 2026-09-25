@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "backends/backend.hpp"
 
 // A model split by layers over several devices: which consecutive layers each device runs, fitted against what each device reports free (docs/MULTI-DEVICE.md, phase 1).
 // Nothing here knows an architecture: the model describes what it asks of memory as a Footprint, and the split works on those numbers alone.
@@ -45,6 +46,19 @@ struct DeviceBudget {
     std::function<size_t(const Matrix&)> resident;
     size_t host_side = 0;
 };
+
+// A budget for each backend, named as its caller names it: what the backend reports free, whether it reads weights in place, what adopting a matrix keeps on it, and its own host memory.
+inline std::vector<DeviceBudget> budgets_for(const std::vector<backend::BackendPtr>& backends, const std::vector<std::string>& names) {
+    if (names.size() != backends.size()) throw std::runtime_error("split: a name for every device");
+    std::vector<DeviceBudget> budgets;
+    for (size_t d = 0; d < backends.size(); ++d) {
+        const backend::Backend* b = backends[d].get();
+        budgets.push_back(DeviceBudget{names[d], b->memory_available(), b->reads_in_place(),
+                                       [b](const Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes, w.product); },
+                                       b->host_resident()});
+    }
+    return budgets;
+}
 
 // Per device, in the order given, the consecutive layers it runs and what it was fitted to hold; the embedding goes with the first device that runs layers and the head with the last.
 struct LayerSplit {

@@ -373,9 +373,100 @@ Its logits give the HF top-1 on all six prompts, a top-5 overlap of 4, 4, 5, 4, 
 With f32 caches, as the HF job's second pass runs it, the largest deltas are 0.105454 continuous and 0.215150 per chunk, with the HF top-1 on all six prompts and a top-5 overlap of at least 4, so the bounds hold for both cache types (0.105454 + 0.024 still rounds up to 0.13).
 The same build measured Q5_K_M at 0.026144 and 0.027534 continuous and 0.129440 at most per chunk, the values its bounds were set from.
 
-Fetch and SHA-256 verify the pinned snapshots with `python tools/fetch_test_models.py` (Python standard library only, about 1.9 GB combined).
-Repos, revisions, files and digests are recorded in `tests/data/fixtures.json`, which the downloader and `tests/baseline.py` both read, and each model's bounds in `tests/baseline.py`.
+Fetch and SHA-256 verify the gate's pinned snapshots with `python tools/fetch_test_models.py` (Python standard library only, about 1.9 GB combined).
+Repos, revisions, files, digests and sizes are recorded in `tests/data/fixtures.json`, the gate's models marked `gate`, which the downloader and `tests/baseline.py` both read, and each gate model's bounds in `tests/baseline.py`.
 The numerical checks use those exact snapshots unless explicitly overridden.
+
+### Type fixtures, spec decoders and file-exact references (2026-09-26)
+
+Six more files from the same repository and revision as the Q4_0 and Q5_K_M fixtures are pinned in `tests/data/fixtures.json`, for the tensor types the quantization plan adds.
+Their SHA-256 and sizes match the Hub's LFS records at `50968a4468ef4233ed78cd7c3de230dd1d61a56b`, and the downloader verified all six.
+Each has `gate` false, so none is in `BASELINE_MODELS`: each joins the gate with its type and the bounds measured then.
+`python tools/fetch_test_models.py --all` fetches them with the gate's files.
+`hosted` marks the three the hosted HF job is to fetch once their types join the gate (1.51 GB); the other three are checked by hand.
+`tests/baseline.py` refuses a gate model not marked `hosted`, since the job downloads and requires every gate model, so one of those three joins the gate only with a change that lets the job leave it out.
+
+| `unsloth/Qwen3-0.6B-GGUF` file | Tensor types (count) | Bytes | SHA-256 | Hosted |
+|---|---|---:|---|---|
+| `Qwen3-0.6B-BF16.gguf` | BF16 197, F32 113 | 1,198,182,848 | `f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e` | no |
+| `Qwen3-0.6B-UD-Q8_K_XL.gguf` | Q8_0 171, F16 26, F32 113 | 844,288,704 | `523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad` | yes |
+| `Qwen3-0.6B-IQ4_NL.gguf` | IQ4_NL 196, Q6_K 1, F32 113 | 381,566,656 | `f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71` | no |
+| `Qwen3-0.6B-IQ4_XS.gguf` | IQ4_XS 196, Q6_K 1, F32 113 | 367,804,096 | `dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d` | yes |
+| `Qwen3-0.6B-Q2_K.gguf` | Q2_K 112, Q3_K 84, Q6_K 1, F32 113 | 296,238,784 | `26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d` | yes |
+| `Qwen3-0.6B-Q3_K_S.gguf` | Q3_K 196, Q6_K 1, F32 113 | 323,075,776 | `1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67` | no |
+
+The Q6_K tensor of the four lower files is the tied `token_embd`.
+
+`tests/spec_decode.py` decodes every one of these types, and every type llmx reads, in a pure form and a numpy form, written from the GGUF type layouts and, for MXFP4, the OCP Microscaling Formats (MX) v1.0 specification.
+Its MXFP4 rules: code 8 (-0) decodes as +0; every E8M0 byte e, 255 included, scales by 2^(e - 128) times the doubled E2M1 value, so e = 255 is 2^127 rather than NaN; exponents 0 and 1 keep their subnormal f32 scales; a value of 2^128 or more is an infinity of its sign.
+`tests/raw_blocks.py` holds both forms to values computed from the fields, each zero to the sign the format's arithmetic gives it (see AGENTS.md).
+On the real files:
+
+| Check | Result |
+|---|---|
+| Numpy form against a separate Python GGUF reader, every tensor of the six files and of Q4_0, Q5_K_M and Q4_K_M, Windows (numpy 2.4.3) | 2,790 tensors, all bit for bit equal |
+| Pure form against numpy form, 128 blocks of each of the first four tensors of each type in those files, Windows | all equal |
+| Numpy form against the separate reader on the Linux host (numpy 2.2.6), every tensor of those nine files, of Q8_0 and of the MXFP4 writer's file, with the pure form on the first and last 8 blocks of every tensor | 3,410 tensors, all equal |
+| MXFP4 against the separate reader on 20,000 random blocks, the first 256 with every E8M0 byte from 0 to 255 | all 640,000 values equal |
+| Numpy form against `llmx dequantize` on every tensor of Q8_0, Q4_0, Q5_K_M and Q4_K_M, Linux host | every value equal, and every bit but the sign of zero in the 193 Q4_0 tensors of the Q4_0 file |
+| The BF16 file's 310 tensors, widened by the spec decoder, against `Qwen/Qwen3-0.6B` at `c1899de289a04d12100db370d81485cdf75e47ca` | 310/310 bit for bit equal; the tied head is not in the file |
+
+In those Q4_0 tensors, where the scale d is negative and the nibble is 8, llmx writes +0: it computes nibble·d − 8d, and the format's d·(nibble − 8) gives −0.
+That is 26,631,920 values, and no sum changes.
+`tests/roundtrip.py` does not see it: llmx's own Q4_0 quantizer never writes a negative d, and the round trip takes no Q4_0 raw blocks here.
+The spec decoder keeps the format's -0, and `tests/raw_blocks.py` holds both of its forms to it.
+llmx's decode is to compute d·(nibble − 8) instead, in a fix that brings the one test depending on it: raw Q4_0 blocks under every scale of the round trip's set, negatives included, which `tests/roundtrip.py` compares with the spec decoder bit for bit, the sign of zero included.
+On the Linux host's CPU they fail on today's decode at 8 of their 512 values, each +0 where the spec decoder gives -0, and pass with the fix.
+
+#### MXFP4 writer
+
+No dense Qwen3 MXFP4 file is published, so `tools/write_mxfp4.py` writes one from the pinned BF16 file: every tensor of two dimensions, the tied embedding included, becomes MXFP4, and every other tensor is copied byte for byte.
+The metadata is copied in order without `general.file_type`, `general.quantized_by` and `general.repo_url`.
+Each block of 32 values takes the OCP scale rule: its shared exponent is floor(log2(amax)) - 2, amax being the block's largest magnitude and 2 the exponent of E2M1's largest value, 6.
+The exponent is clamped at -127, which is also the exponent of an all-zero block, and stored as the E8M0 byte exponent + 127.
+Each value divided by 2^exponent rounds to the nearest E2M1 magnitude of {0, 0.5, 1, 1.5, 2, 3, 4, 6}, a tie going to the one whose mantissa bit is 0, and saturates at 6.
+Its sign bit is set only when it rounds to a nonzero magnitude, so code 8 is never written.
+The output replaces nothing until the spec decoder has read every tensor back as exactly the values the writer intended.
+
+```
+python -X utf8 tools/write_mxfp4.py --output Qwen3-0.6B-MXFP4.gguf
+```
+
+It wrote 322,830,656 bytes with SHA-256 `84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45`, twice on Windows (numpy 2.4.3) and twice on the Linux host (numpy 2.2.6).
+It holds 197 MXFP4 matrices and 113 F32 tensors, with E8M0 bytes from 115 to 125 and no code 8, and the separate reader decodes it to the same values.
+The file is local and not hosted; regenerate it and compare the digest.
+
+#### File-exact HF references
+
+`python tools/gen_baseline.py file-exact --weights-gguf FILE --output-dir DIR` loads the pinned `Qwen/Qwen3-0.6B` reference, replaces every parameter with the file's own tensors as the numpy spec decoder reads them, and writes logit and PPL goldens in the format of `tests/data`, labelled with the file's name, SHA-256, repository and tensor types.
+It runs on the CPU in float32 with eager attention.
+`python -X utf8 tests/baseline.py --file-exact DIR --model FILE` then holds llmx on that file to the Q8_0 fixture's bounds, since the format's loss is on both sides.
+These goldens were generated on Windows with torch 2.5.1+cpu and transformers 4.55.2 and are not committed; each type's branch commits the ones it is gated on.
+
+| File | Reference mean NLL over the excerpt | Windows of 64, two windows of 64, windows of 123 |
+|---|---:|---|
+| fp32 reference (`baseline_perplexity.json`) | 3.360285580 | 4.0304, 3.7102, 3.6308 |
+| BF16 | 3.360285580 | 4.0304, 3.7102, 3.6308 |
+| UD-Q8_K_XL | 3.356609853 | 4.0287, 3.7065, 3.6311 |
+| Q8_0 (the gate's fixture) | 3.361663511 | 4.0370, 3.7126, 3.6432 |
+| Q5_K_M | 3.386461556 | 4.1599, 3.7778, 3.6550 |
+| Q4_0 | 3.491839425 | 4.1979, 3.7791, 3.7512 |
+| IQ4_NL | 3.521144849 | 4.2098, 3.8577, 3.8132 |
+| IQ4_XS | 3.530625278 | 4.2054, 3.8622, 3.8080 |
+| MXFP4 from the writer | 3.554803849 | 4.3593, 3.9596, 3.8755 |
+| Q3_K_S | 3.862358879 | 4.6171, 4.0592, 4.1637 |
+| Q2_K | 4.214239009 | 5.0164, 4.5511, 4.4188 |
+
+The BF16 file's goldens reproduce the committed fp32 ones: every PPL number and token ID is identical, the top-10 IDs agree on 6/6 prompts, and the rounded logits differ by at most 0.0001, as in the 2026-09-19 regeneration below.
+llmx meets its file-exact goldens on the three gate files at the Q8_0 bounds, on the Linux host's CPU, with builds of main's C++ sources at d48f2b2 and at b7b585f giving the same numbers:
+
+| File | Top-1, top-5 set | Largest NLL delta, batched | Largest NLL delta, `--per-token` |
+|---|---|---:|---:|
+| Q8_0 | 6/6, 6/6 | 0.000224 (continuous, bound 0.01) | 0.012932 (windows of 123, bound 0.02) |
+| Q4_0 | 6/6, 6/6 | 0.000083 | 0.000153 |
+| Q5_K_M | 6/6, 6/6 | 0.000096 | 0.012446 (four windows of 64, bound 0.02) |
+
+The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
@@ -561,7 +652,7 @@ feature, and these correctness runs are not throughput measurements.
 `tests/reference_consumer.py` checks fixture tampering, token mismatch, malformed/nonfinite/duplicate/unsorted logits, damaged PPL counters/bounds and failed launches using the standard library.
 It also runs the consumer over simulated passing outputs and requires 41 checks, each NLL case scored in both modes.
 It was the eleventh ordinary suite component when it was added.
-The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` still cover only the four pinned 0.6B models.
+The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` still cover only the four 0.6B gate models.
 
 ### Fixed-excerpt HF perplexity gate
 

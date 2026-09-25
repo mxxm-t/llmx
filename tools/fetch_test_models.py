@@ -15,10 +15,7 @@ import urllib.error
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
-from baseline import snapshot_path
-
-# The pinned models alone, repo, revision, file and SHA-256 each, which tests/baseline.py reads too.
-FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "data" / "fixtures.json"
+from baseline import PINNED, snapshot_path
 
 
 def sha256(path):
@@ -109,8 +106,32 @@ def fetch(spec):
             time.sleep(delay)
 
 
-if __name__ == "__main__":
-    argparse.ArgumentParser(description="Download the models pinned in tests/data/fixtures.json into the HF cache, "
-                                        "each verified by its SHA-256 before it replaces anything there.").parse_args()
-    for spec in json.loads(FIXTURES.read_text(encoding="utf-8")):
+def selected(everything=False):
+    """The pinned entries of tests/data/fixtures.json a run downloads: the gate's models, or with `everything` every pinned model."""
+    return [spec for spec in PINNED if everything or spec["gate"]]
+
+
+def cache_key(specs):
+    """A SHA-256 of `specs`, which changes when one of their downloads does and not when a check or a bound does."""
+    return hashlib.sha256(json.dumps(specs, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Download the gate's models pinned in tests/data/fixtures.json into the HF cache, "
+                                                 "each verified by its SHA-256 before it replaces anything there.")
+    parser.add_argument("--all", action="store_true",
+                        help="also download the models pinned ahead of the tensor types they hold, which the gate does not use yet")
+    parser.add_argument("--key", action="store_true",
+                        help="print a SHA-256 of the pins these arguments select and download nothing; the HF job's cache key")
+    args = parser.parse_args(argv)
+    specs = selected(args.all)
+    if args.key:
+        print(cache_key(specs))
+        return 0
+    for spec in specs:
         fetch(spec)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

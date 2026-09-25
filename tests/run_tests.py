@@ -9,6 +9,7 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import roundtrip
+import raw_blocks
 import perf
 import tokenizer
 import perplexity
@@ -36,9 +37,9 @@ def main():
     parser = argparse.ArgumentParser(description="Run llmx tests against the selected binary.")
     parser.add_argument("--exe", default=common.EXE, help="path to the built llmx executable")
     parser.add_argument("--no-perf-floor", action="store_true", help="report timings without workstation-specific floors")
-    parser.add_argument("--require-baseline", action="store_true", help="fail if any real-model fixture pinned in tests/data/fixtures.json is absent")
+    parser.add_argument("--require-baseline", action="store_true", help="fail if any gate model pinned in tests/data/fixtures.json is absent")
     parser.add_argument("--require-tools", action="store_true",
-                        help="fail, rather than skip, when a tool a component runs is not beside --exe")
+                        help="fail, rather than skip, when a tool a component runs is not beside --exe, or numpy, which raw-blocks checks the spec decoders' numpy form with, is not installed")
     parser.add_argument("--device", default=None, help="run every command that takes --device on this backend, e.g. vulkan:0")
     parser.add_argument("--layer-shares", default=None,
                         help="with several devices in --device, their proportions of the layers, e.g. 1,1")
@@ -64,6 +65,7 @@ def main():
                   ("reference-generator", reference_generator.run),
                   ("reference-consumer", reference_consumer.run),
                   ("roundtrip", roundtrip.run),
+                  ("raw-blocks", lambda: raw_blocks.run(require=args.require_tools)),
                   ("perf", lambda: perf.run(enforce_floor=not args.no_perf_floor)),
                   ("tokenizer", tokenizer.run),
                   ("perplexity", perplexity.run),

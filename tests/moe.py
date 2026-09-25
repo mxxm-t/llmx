@@ -4,7 +4,7 @@ import os
 import tempfile
 
 import common
-from f32 import TEXTS, weight_hash, write_model
+from f32 import TEXTS, hf_name, weight_hash, write_model
 
 
 # A tiny qwen3moe model with deterministic weights against HF Qwen3MoeForCausalLM (tools/gen_baseline.py moe): all 257 logits and windowed NLL, through batch widths that route one row and many rows to an expert.
@@ -24,43 +24,35 @@ def tensors():
     hd = CONFIG["attention.key_length"]
     n_expert, ff = CONFIG["expert_count"], CONFIG["expert_feed_forward_length"]
 
-    def add(name, hf_name, shape, norm=False, scale=1.0):
+    # A tensor takes its HF name from tests/f32.py's map, except the router and the experts, whose names only a MoE model has.
+    def add(name, shape, norm=False, scale=1.0, hf=None):
         nonlocal state
         values = []
         for _ in range(math.prod(shape)):
             state = (1664525 * state + 1013904223) & 0xffffffff
             value = (((state >> 16) & 1023) - 512) / 8192
             values.append(1.0 + value if norm else value * scale)
-        result.append((name, hf_name, shape, values))
+        result.append((name, hf or hf_name(name), shape, values))
 
-    add("token_embd.weight", "model.embed_tokens.weight", [37, 257])
-    add("output_norm.weight", "model.norm.weight", [37], True)
+    add("token_embd.weight", [37, 257])
+    add("output_norm.weight", [37], True)
     for layer in range(CONFIG["block_count"]):
         name, hf = "blk.%d." % layer, "model.layers.%d." % layer
-        for norm, mapped, width in (("attn_norm", "input_layernorm", 37),
-                                    ("ffn_norm", "post_attention_layernorm", 37),
-                                    ("attn_q_norm", "self_attn.q_norm", hd),
-                                    ("attn_k_norm", "self_attn.k_norm", hd)):
-            add(name + norm + ".weight", hf + mapped + ".weight", [width], True)
-        for tensor, mapped, shape in (("attn_q", "self_attn.q_proj", [37, 2 * hd]),
-                                      ("attn_k", "self_attn.k_proj", [37, hd]),
-                                      ("attn_v", "self_attn.v_proj", [37, hd]),
-                                      ("attn_output", "self_attn.o_proj", [2 * hd, 37])):
-            add(name + tensor + ".weight", hf + mapped + ".weight", shape)
+        for norm, width in (("attn_norm", 37), ("ffn_norm", 37), ("attn_q_norm", hd), ("attn_k_norm", hd)):
+            add(name + norm + ".weight", [width], True)
+        for tensor, shape in (("attn_q", [37, 2 * hd]), ("attn_k", [37, hd]), ("attn_v", [37, hd]), ("attn_output", [2 * hd, 37])):
+            add(name + tensor + ".weight", shape)
         if layer in DENSE_LAYERS:
-            for tensor, mapped, shape in (("ffn_gate", "mlp.gate_proj", [37, 19]),
-                                          ("ffn_up", "mlp.up_proj", [37, 19]),
-                                          ("ffn_down", "mlp.down_proj", [19, 37])):
-                add(name + tensor + ".weight", hf + mapped + ".weight", shape)
+            for tensor, shape in (("ffn_gate", [37, 19]), ("ffn_up", [37, 19]), ("ffn_down", [19, 37])):
+                add(name + tensor + ".weight", shape)
             continue
-        add(name + "ffn_gate_inp.weight", hf + "mlp.gate.weight", [37, n_expert], scale=ROUTER_SCALE)
+        add(name + "ffn_gate_inp.weight", [37, n_expert], scale=ROUTER_SCALE, hf=hf + "mlp.gate.weight")
         # A stacked tensor is expert-major, so expert e's matrix is the e-th of n_expert equal parts.
         for tensor, mapped, shape in (("ffn_gate_exps", "gate_proj", [37, ff, n_expert]),
                                       ("ffn_up_exps", "up_proj", [37, ff, n_expert]),
                                       ("ffn_down_exps", "down_proj", [ff, 37, n_expert])):
-            add(name + tensor + ".weight",
-                [hf + "mlp.experts.%d.%s.weight" % (e, mapped) for e in range(n_expert)], shape)
-    add("output.weight", "lm_head.weight", [37, 257])
+            add(name + tensor + ".weight", shape, hf=[hf + "mlp.experts.%d.%s.weight" % (e, mapped) for e in range(n_expert)])
+    add("output.weight", [37, 257])
     return result
 
 

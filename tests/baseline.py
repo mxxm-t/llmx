@@ -1,3 +1,4 @@
+import argparse
 import hashlib
 import io
 import json
@@ -8,6 +9,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from baseline_8b import file_sha256
 import common
 from common import run as cli
 
@@ -21,7 +23,9 @@ GOLDEN = os.path.join(HERE, "data", "baseline_tokenizer.json")
 GOLDEN_LOGITS = os.path.join(HERE, "data", "baseline_logits.json")
 GOLDEN_PPL = os.path.join(HERE, "data", "baseline_perplexity.json")
 
-# The fixture models for the logit/PPL gates are pinned in tests/data/fixtures.json (repo, revision, file and SHA-256), which tools/fetch_test_models.py downloads and the HF job's cache key hashes, so a change of bounds keeps the cached downloads.
+# The fixture models are pinned in tests/data/fixtures.json: repo, revision, file, SHA-256 and size, "gate" for the models the logit/PPL gates check, and "hosted" for those the hosted HF job downloads.
+# tools/fetch_test_models.py downloads the gate's models, and the HF job's cache key hashes their pins, so a change of bounds keeps the cached downloads.
+# The other entries are pinned ahead of the tensor types they hold, each joining the gate with its type's bounds (docs/ASSETS.md).
 FIXTURES = os.path.join(HERE, "data", "fixtures.json")
 
 # Each model's bounds against the full-precision reference: the top-5 overlap it reaches, measured per model since coarser quantization reorders more of the tail, and its NLL deltas (docs/ASSETS.md).
@@ -37,10 +41,13 @@ BOUNDS = {
 
 with io.open(FIXTURES, encoding="utf-8") as f:
     PINNED = json.load(f)
-# Every pinned fixture model needs bounds, and only those, each pinned once.
-assert sorted(spec["file"] for spec in PINNED) == sorted(BOUNDS), (
-    "tests/data/fixtures.json pins %s, but tests/baseline.py bounds %s" % (sorted(spec["file"] for spec in PINNED), sorted(BOUNDS)))
-BASELINE_MODELS = [dict(spec, **BOUNDS[spec["file"]]) for spec in PINNED]
+# Each model is pinned once, and every gate model needs bounds, and only those.
+assert len({spec["file"] for spec in PINNED}) == len(PINNED), "tests/data/fixtures.json pins a file twice"
+GATE_FILES = sorted(spec["file"] for spec in PINNED if spec["gate"])
+assert GATE_FILES == sorted(BOUNDS), "tests/data/fixtures.json gates %s, but tests/baseline.py bounds %s" % (GATE_FILES, sorted(BOUNDS))
+# The hosted HF job downloads and requires every gate model, so a model it is to leave out joins the gate only with a change that lets the job leave it out.
+assert all(spec["hosted"] for spec in PINNED if spec["gate"]), "tests/data/fixtures.json gates a model the hosted HF job does not download"
+BASELINE_MODELS = [dict(spec, **BOUNDS[spec["file"]]) for spec in PINNED if spec["gate"]]
 
 # A correct next-token logit for these models sits around 15-25.
 # Gross corruption blows this up (the reintroduced f16 bug gave 582), so a magnitude bound catches whole classes of damage that a ranking check can miss.
@@ -51,7 +58,7 @@ MODEL_CONTEXT = 40960
 
 
 def run_logits():
-    """Compare llmx's next-token ranking against a FULL-PRECISION reference.
+    """Compare llmx's next-token ranking against a FULL-PRECISION reference, on each fixture model on disk (check_model_logits).
 
     llmx runs a quantized GGUF while the golden comes from the fp32 model, so logit VALUES differ by quantization error and comparing them directly is meaningless.
     What is stable is the ranking, plus a magnitude sanity bound:
@@ -72,80 +79,126 @@ def run_logits():
         if not model:
             continue
         ran += 1
-        bounds = dict(spec, max_abs_logit=MAX_PLAUSIBLE_LOGIT)
-        failures, ordered = [], 0
-        skipped = False
-        for case in doc["cases"]:
-            rc, out = cli(["logits", model, case["text"], "--top", "10"])
-            if common.device_lacks_kernel(rc, out):
-                print("baseline-logits[%s]: SKIP - %s has no kernel for this model's matrices"
-                      % (spec["file"], os.environ["LLMX_DEVICE"]))
-                skipped = True
-                break
-            if rc != 0:
-                failures.append((case["text"], "exit %d" % rc))
-                continue
-            try:
-                ids = common.check_logits(out, case, VOCAB_SIZE, bounds)["top_ids"]
-            except ValueError as error:
-                failures.append((case["text"], str(error)))
-                continue
-            if ids[:5] == case["top_ids"][:5]:
-                ordered += 1
-
-        if skipped:
-            continue
-        n = len(doc["cases"])
-        if failures:
-            print("baseline-logits[%s]: %d/%d prompts agree, %d differ:"
-                  % (spec["file"], n - len(failures), n, len(failures)))
-            for text, why in failures:
-                print("    %s" % text.encode("unicode_escape").decode("ascii")[:60])
-                print("      %s" % why)
+        if check_model_logits(doc, model, spec) is False:
             return False
-        print("baseline-logits[%s]: top-1 %d/%d, top-5 set >=%d %d/%d, exact order %d/%d  [ok]"
-              % (spec["file"], n, n, spec["top5_overlap"], n, n, ordered, n))
 
     if ran == 0:
         print("baseline-logits: SKIP - no fixture model on disk")
     return True
 
 
-def run_perplexity():
-    with io.open(GOLDEN_PPL, encoding="utf-8") as f:
-        doc = json.load(f)
+def check_model_logits(doc, model, spec, name="baseline-logits"):
+    """`llmx logits` on `model` against the cases of the logit golden `doc` at the bounds in `spec`.
+    True when every case agrees, False after printing the ones that do not, and None when the configured device has no kernel for the model."""
+    bounds = dict(spec, max_abs_logit=MAX_PLAUSIBLE_LOGIT)
+    failures, ordered = [], 0
+    for case in doc["cases"]:
+        rc, out = cli(["logits", model, case["text"], "--top", "10"])
+        if common.device_lacks_kernel(rc, out):
+            print("%s[%s]: SKIP - %s has no kernel for this model's matrices"
+                  % (name, spec["file"], os.environ["LLMX_DEVICE"]))
+            return None
+        if rc != 0:
+            failures.append((case["text"], "exit %d" % rc))
+            continue
+        try:
+            ids = common.check_logits(out, case, VOCAB_SIZE, bounds)["top_ids"]
+        except ValueError as error:
+            failures.append((case["text"], str(error)))
+            continue
+        if ids[:5] == case["top_ids"][:5]:
+            ordered += 1
+
+    n = len(doc["cases"])
+    if failures:
+        print("%s[%s]: %d/%d prompts agree, %d differ:"
+              % (name, spec["file"], n - len(failures), n, len(failures)))
+        for text, why in failures:
+            print("    %s" % text.encode("unicode_escape").decode("ascii")[:60])
+            print("      %s" % why)
+        return False
+    print("%s[%s]: top-1 %d/%d, top-5 set >=%d %d/%d, exact order %d/%d  [ok]"
+          % (name, spec["file"], n, n, spec["top5_overlap"], n, n, ordered, n))
+    return True
+
+
+def ppl_excerpt(doc, directory):
+    """The perplexity golden's text written to a file in `directory`, once the golden is checked to hold together."""
     raw = doc["text"].encode("utf-8")
     assert hashlib.sha256(raw).hexdigest() == doc["text_sha256"], "PPL fixture text changed"
     assert len(doc["token_ids"]) == doc["n_tokens"] == doc["n_scored"] + 1
     assert math.isfinite(doc["mean_nll"]) and math.isfinite(doc["perplexity"])
     assert math.isclose(math.exp(doc["mean_nll"]), doc["perplexity"], rel_tol=1e-12)
+    path = os.path.join(directory, "excerpt.txt")
+    with open(path, "wb") as f:
+        f.write(raw)
+    return path
+
+
+def run_perplexity():
+    with io.open(GOLDEN_PPL, encoding="utf-8") as f:
+        doc = json.load(f)
     with tempfile.TemporaryDirectory(prefix="llmx_ppl_") as directory:
-        path = os.path.join(directory, "excerpt.txt")
-        with open(path, "wb") as f:
-            f.write(raw)
+        path = ppl_excerpt(doc, directory)
         for spec in BASELINE_MODELS:
             model = find_fixture(spec)
             if not model:
                 print("baseline-ppl[%s]: SKIP - fixture model not on disk" % spec["file"])
                 continue
-            rc, out = cli(["tokenize", model, doc["text"]])
-            assert rc == 0 and common.parse_ids(out) == doc["token_ids"], "PPL token IDs differ from HF"
-            for case, mode in ((case, mode) for case in common.ppl_cases(doc) for mode in common.PPL_MODES):
-                rc, out = cli(common.ppl_command(model, path, case, mode))
-                if common.device_lacks_kernel(rc, out):
-                    print("baseline-ppl[%s]: SKIP - %s has no kernel for this model's matrices"
-                          % (spec["file"], os.environ["LLMX_DEVICE"]))
-                    break
-                assert rc == 0, "perplexity failed (exit %d): %s" % (rc, out)
-                try:
-                    result = common.check_ppl(out, case, doc["n_tokens"], MODEL_CONTEXT, spec)
-                except ValueError as error:
-                    raise AssertionError("%s context %d %s: %s: %s"
-                                         % (spec["file"], case["context_size"], mode, error, out)) from error
-                print("baseline-ppl[%s c=%d chunks=%d %s]: PPL %.4f vs HF %.4f, NLL delta %.6f <= %.3f  [ok]"
-                      % (spec["file"], case["context_size"], case["chunks"], mode, result["perplexity"],
-                         case["perplexity"], result["absolute_nll_delta"], result["bound"]))
+            check_model_ppl(doc, path, model, spec)
     return True
+
+
+def check_model_ppl(doc, path, model, spec, name="baseline-ppl"):
+    """`llmx perplexity` on `model` over the text in the file `path` against every case of the perplexity golden `doc`, batched and per token, at the bounds in `spec`.
+    The first case out of bounds raises AssertionError; None when the configured device has no kernel for the model."""
+    rc, out = cli(["tokenize", model, doc["text"]])
+    assert rc == 0 and common.parse_ids(out) == doc["token_ids"], "PPL token IDs differ from HF"
+    for case, mode in ((case, mode) for case in common.ppl_cases(doc) for mode in common.PPL_MODES):
+        rc, out = cli(common.ppl_command(model, path, case, mode))
+        if common.device_lacks_kernel(rc, out):
+            print("%s[%s]: SKIP - %s has no kernel for this model's matrices"
+                  % (name, spec["file"], os.environ["LLMX_DEVICE"]))
+            return None
+        assert rc == 0, "perplexity failed (exit %d): %s" % (rc, out)
+        try:
+            result = common.check_ppl(out, case, doc["n_tokens"], MODEL_CONTEXT, spec)
+        except ValueError as error:
+            raise AssertionError("%s context %d %s: %s: %s"
+                                 % (spec["file"], case["context_size"], mode, error, out)) from error
+        print("%s[%s c=%d chunks=%d %s]: PPL %.4f vs HF %.4f, NLL delta %.6f <= %.3f  [ok]"
+              % (name, spec["file"], case["context_size"], case["chunks"], mode, result["perplexity"],
+                 case["perplexity"], result["absolute_nll_delta"], result["bound"]))
+    return True
+
+
+# A file against its file-exact goldens (tools/gen_baseline.py file-exact), HF run on that file's own weights as tests/spec_decode.py decodes them, is held to the Q8_0 fixture's bounds whatever its type.
+# The format's loss is on both sides, so what is left to bound is llmx's arithmetic.
+FILE_EXACT_BOUNDS = dict(BOUNDS["Qwen3-0.6B-Q8_0.gguf"])
+
+
+def run_file_exact(directory, model):
+    """`model` against the logit and perplexity goldens in `directory`, which must have been made from this very file.
+    A device with no kernel for the model fails the run rather than skipping it, since the run was asked for this one file there."""
+    docs = []
+    for name in ("baseline_logits.json", "baseline_perplexity.json"):
+        with io.open(os.path.join(directory, name), encoding="utf-8") as f:
+            docs.append(json.load(f))
+    sha256 = file_sha256(Path(model))
+    for doc in docs:
+        assert "weights" in doc, "%s holds goldens that are not file-exact" % directory
+        assert doc["weights"]["sha256"] == sha256, ("the goldens in %s were made from %s with SHA-256 %s, not from %s"
+                                                    % (directory, doc["weights"]["file"], doc["weights"]["sha256"], model))
+    spec = dict(FILE_EXACT_BOUNDS, file=os.path.basename(model))
+    logits, ppl = docs
+    checked = check_model_logits(logits, model, spec, "file-exact-logits")
+    if checked:
+        with tempfile.TemporaryDirectory(prefix="llmx_ppl_") as temporary:
+            checked = check_model_ppl(ppl, ppl_excerpt(ppl, temporary), model, spec, "file-exact-ppl")
+    if checked is None:
+        print("file-exact[%s]: FAIL - %s has no kernel for this model's matrices, which fails a file-exact run"
+              % (spec["file"], os.environ["LLMX_DEVICE"]))
+    return bool(checked)
 
 
 def find_fixture(spec):
@@ -162,6 +215,11 @@ def find_fixture(spec):
 def snapshot_path(repo, revision, file):
     """Where the HF cache keeps `file` of `repo` at `revision`, which is where tools/fetch_test_models.py writes it."""
     return Path.home() / ".cache" / "huggingface" / "hub" / ("models--" + repo.replace("/", "--")) / "snapshots" / revision / file
+
+
+def pinned_fixture(file):
+    """The entry of tests/data/fixtures.json that pins `file`, or None."""
+    return next((spec for spec in PINNED if spec["file"] == file), None)
 
 
 def find_model(spec):
@@ -207,5 +265,21 @@ def run_tokenizer():
     return True
 
 
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="The real-model HF checks on the pinned fixture models, or one file against its file-exact goldens.")
+    parser.add_argument("--exe", default=common.EXE, help="path to the built llmx executable")
+    parser.add_argument("--device", help="run the commands that take --device on this device, e.g. vulkan:0")
+    parser.add_argument("--file-exact", metavar="DIR", help="the goldens tools/gen_baseline.py file-exact wrote for --model")
+    parser.add_argument("--model", help="with --file-exact, the GGUF file those goldens were made from")
+    args = parser.parse_args(argv)
+    if bool(args.file_exact) != bool(args.model):
+        parser.error("--file-exact and --model go together")
+    common.EXE = os.path.abspath(args.exe)
+    common.exe_path()
+    if args.device:
+        os.environ["LLMX_DEVICE"] = args.device
+    return 0 if (run_file_exact(args.file_exact, args.model) if args.file_exact else run()) else 1
+
+
 if __name__ == "__main__":
-    sys.exit(0 if run() else 1)
+    sys.exit(main())

@@ -174,5 +174,35 @@ class DownloadTests(unittest.TestCase):
         self.sleep.assert_not_called()
 
 
+class SelectionTests(unittest.TestCase):
+    def run_main(self, argv):
+        out = io.StringIO()
+        with mock.patch.object(fetcher, "fetch") as fetch, contextlib.redirect_stdout(out):
+            self.assertEqual(fetcher.main(argv), 0)
+        return [call.args[0] for call in fetch.call_args_list], out.getvalue()
+
+    def test_default_fetches_the_gate_and_all_every_pin(self):
+        gate, _ = self.run_main([])
+        everything, _ = self.run_main(["--all"])
+        self.assertEqual(gate, [spec for spec in fetcher.PINNED if spec["gate"]])
+        self.assertEqual(everything, fetcher.PINNED)
+        self.assertTrue(gate and len(gate) < len(everything))
+
+    def test_key_hashes_the_selected_pins_alone(self):
+        fetched, out = self.run_main(["--key"])
+        self.assertEqual(fetched, [])
+        key = out.strip()
+        self.assertRegex(key, r"^[0-9a-f]{64}$")
+        self.assertEqual(key, fetcher.cache_key(fetcher.selected()))
+        self.assertNotEqual(key, fetcher.cache_key(fetcher.selected(True)))
+        # A model pinned ahead of the gate leaves the key as it is, and a new pin of a gate model changes it.
+        later = dict(fetcher.PINNED[0], file="later.gguf", gate=False)
+        with mock.patch.object(fetcher, "PINNED", fetcher.PINNED + [later]):
+            self.assertEqual(fetcher.cache_key(fetcher.selected()), key)
+        repinned = [dict(spec, sha256="0" * 64) if n == 0 else spec for n, spec in enumerate(fetcher.PINNED)]
+        with mock.patch.object(fetcher, "PINNED", repinned):
+            self.assertNotEqual(fetcher.cache_key(fetcher.selected()), key)
+
+
 if __name__ == "__main__":
     unittest.main()

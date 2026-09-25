@@ -54,6 +54,10 @@ jobs:
         run: cmake --build build --config Release --parallel 4
       - name: Backend tests
         run: ctest --test-dir build -C Release --output-on-failure
+      # The suite needs only the standard library, and with numpy raw-blocks also holds the spec decoders' numpy form to the pure form.
+      # That form makes the file-exact references and the MXFP4 fixture, so --require-tools fails raw-blocks without numpy.
+      - name: Numpy for the spec decoders
+        run: python -m pip install --only-binary=numpy numpy==2.4.3
       - name: Test
         run: python -X utf8 tests/run_tests.py --exe "${{ matrix.executable }}" --no-perf-floor --require-tools
       # build.bat builds llmx.exe alone, without the tools beside it, so this run lets the split component skip.
@@ -87,6 +91,8 @@ jobs:
         run: cmake --build build --config Release --parallel 4
       - name: Backend tests
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Numpy for the spec decoders
+        run: python -m pip install --only-binary=numpy numpy==2.4.3
       - name: Test
         run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools
 
@@ -114,6 +120,8 @@ jobs:
         run: cmake --build build --config Release --parallel 4
       - name: Backend tests
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Numpy for the spec decoders
+        run: python -m pip install --only-binary=numpy numpy==2.4.3
       # The build Linux GPU users make, on its CPU path: the runner has no device, so the Vulkan commands the suite tries are refused.
       - name: Test on the CPU
         run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --device cpu
@@ -135,13 +143,18 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build --config Release --parallel 4
-      # The key hashes only the pinned model specs, so it changes when a download does and not when a check or a bound does.
+      # The key hashes the pins of the models the fetch below downloads, the gate's, so it changes when a download does and not when a check, a bound or a model pinned ahead of the gate does.
+      - name: HF fixtures key
+        id: hf-key
+        run: |
+          key=$(python -X utf8 tools/fetch_test_models.py --key)
+          echo "key=hf-fixtures-v1-${{ runner.os }}-$key" >> "$GITHUB_OUTPUT"
       - name: Restore HF fixtures
         id: hf-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/huggingface/hub
-          key: hf-fixtures-v1-${{ runner.os }}-${{ hashFiles('tests/data/fixtures.json') }}
+          key: ${{ steps.hf-key.outputs.key }}
       - name: Fetch pinned HF fixtures
         run: python -X utf8 tools/fetch_test_models.py
       # Saved as soon as every download is verified, so a run that fails later still keeps them.
@@ -151,6 +164,8 @@ jobs:
         with:
           path: ~/.cache/huggingface/hub
           key: ${{ steps.hf-cache.outputs.cache-primary-key }}
+      - name: Numpy for the spec decoders
+        run: python -m pip install --only-binary=numpy numpy==2.4.3
       - name: Test with required HF fixtures
         run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --require-baseline
       - name: HF gate with f32 caches

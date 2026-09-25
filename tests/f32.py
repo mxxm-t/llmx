@@ -18,6 +18,25 @@ TEXTS = ["a", "ab", "abc", "abcdefg", "abcdefghijklm"]
 # One token per byte, then <|endoftext|>.
 VOCAB = 257
 
+# The HF Qwen3 parameter each qwen3 GGUF tensor holds: the tensors outside the blocks, then those of block N by the name after "blk.N.", which take model.layers.N.<name>.weight.
+# The tiny models here and in tests/moe.py, and tools/gen_baseline.py file-exact, all name their parameters from these.
+HF_NAMES = {"token_embd.weight": "model.embed_tokens.weight", "output_norm.weight": "model.norm.weight", "output.weight": "lm_head.weight"}
+HF_BLOCK_NAMES = {"attn_norm": "input_layernorm", "ffn_norm": "post_attention_layernorm",
+                  "attn_q_norm": "self_attn.q_norm", "attn_k_norm": "self_attn.k_norm",
+                  "attn_q": "self_attn.q_proj", "attn_k": "self_attn.k_proj", "attn_v": "self_attn.v_proj",
+                  "attn_output": "self_attn.o_proj", "ffn_gate": "mlp.gate_proj", "ffn_up": "mlp.up_proj",
+                  "ffn_down": "mlp.down_proj"}
+
+
+def hf_name(name):
+    """The HF Qwen3 parameter the qwen3 GGUF tensor `name` holds; a tensor with none raises ValueError."""
+    match = re.fullmatch(r"blk\.(\d+)\.(\w+)\.weight", name)
+    if match and match[2] in HF_BLOCK_NAMES:
+        return "model.layers.%s.%s.weight" % (match[1], HF_BLOCK_NAMES[match[2]])
+    if name in HF_NAMES:
+        return HF_NAMES[name]
+    raise ValueError("GGUF tensor %s has no HF Qwen3 parameter" % name)
+
 
 def tensors(tied):
     state = 12345
@@ -25,34 +44,27 @@ def tensors(tied):
     width, ff, hd = CONFIG["embedding_length"], CONFIG["feed_forward_length"], CONFIG["attention.key_length"]
     q, kv = CONFIG["attention.head_count"] * hd, CONFIG["attention.head_count_kv"] * hd
 
-    def add(name, hf_name, shape, norm=False):
+    def add(name, shape, norm=False):
         nonlocal state
         values = []
         for _ in range(math.prod(shape)):
             state = (1664525 * state + 1013904223) & 0xffffffff
             value = (((state >> 16) & 1023) - 512) / 8192
             values.append(1.0 + value if norm else value)
-        result.append((name, hf_name, shape, values))
+        result.append((name, hf_name(name), shape, values))
 
-    add("token_embd.weight", "model.embed_tokens.weight", [width, VOCAB])
-    add("output_norm.weight", "model.norm.weight", [width], True)
+    add("token_embd.weight", [width, VOCAB])
+    add("output_norm.weight", [width], True)
     for layer in range(CONFIG["block_count"]):
-        name, hf = "blk.%d." % layer, "model.layers.%d." % layer
-        for norm, mapped, size in (("attn_norm", "input_layernorm", width),
-                                   ("ffn_norm", "post_attention_layernorm", width),
-                                   ("attn_q_norm", "self_attn.q_norm", hd),
-                                   ("attn_k_norm", "self_attn.k_norm", hd)):
-            add(name + norm + ".weight", hf + mapped + ".weight", [size], True)
-        for tensor, mapped, shape in (("attn_q", "self_attn.q_proj", [width, q]),
-                                      ("attn_k", "self_attn.k_proj", [width, kv]),
-                                      ("attn_v", "self_attn.v_proj", [width, kv]),
-                                      ("attn_output", "self_attn.o_proj", [q, width]),
-                                      ("ffn_gate", "mlp.gate_proj", [width, ff]),
-                                      ("ffn_up", "mlp.up_proj", [width, ff]),
-                                      ("ffn_down", "mlp.down_proj", [ff, width])):
-            add(name + tensor + ".weight", hf + mapped + ".weight", shape)
+        name = "blk.%d." % layer
+        for norm, size in (("attn_norm", width), ("ffn_norm", width), ("attn_q_norm", hd), ("attn_k_norm", hd)):
+            add(name + norm + ".weight", [size], True)
+        for tensor, shape in (("attn_q", [width, q]), ("attn_k", [width, kv]), ("attn_v", [width, kv]),
+                              ("attn_output", [q, width]), ("ffn_gate", [width, ff]), ("ffn_up", [width, ff]),
+                              ("ffn_down", [ff, width])):
+            add(name + tensor + ".weight", shape)
     if not tied:
-        add("output.weight", "lm_head.weight", [width, VOCAB])
+        add("output.weight", [width, VOCAB])
     return result
 
 

@@ -10,9 +10,10 @@ import shutil
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, run_process, write_bin, read_bin_floats, max_err
+import spec_decode as sd
 
 # Regression gate for quant/ + format/: build a random F32 model, quantize it to Q8_0 (and Q4_0) via the CLI, dequantize it back, and check the max error is within each type's quantization bound.
-# The Q8_0, Q4_0, Q4_1 and Q4_K decoders must also match a decode written from the format description, bit for bit.
+# The Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K decoders must also match the decoders of tests/spec_decode.py, written from the format descriptions, bit for bit.
 
 rng = random.Random(42)
 UNICODE_NAME = "layer.\u00e9.\u4e2d.\U0001f600.\"\\\n.weight"
@@ -140,47 +141,13 @@ def check_tensor_extents(d):
               "integral spellings and empty model [ok]" % (qtype, len(invalid)))
 
 
-# Values per block and bytes per block.
-BLOCKS = {"q8_0": (32, 34), "q4_0": (32, 18), "q4_1": (32, 20), "q4_k": (256, 144)}
+# The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
+TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K}
 
 
-# Decoding straight from the format description, so the check compares llmx against the spec rather than against itself.
-# Every layout starts with an f16 scale d.
-# Q8_0 then stores 32 signed bytes decoding as d*q.
-# Q4_0 packs 32 values in 16 bytes, byte j's low nibble value j and high nibble value j+16, each decoding as d*(nibble-8).
-# Q4_1 puts an f16 min m after d and packs its 16 bytes the same way, each nibble decoding as d*nibble + m.
-# Q4_K is a 256-value super-block: an f16 dmin after d, 12 bytes of eight 6-bit scales and eight 6-bit mins, then 128 bytes of nibbles.
-# Sub-block j < 4 takes scale byte[j] & 63 and min byte[j+4] & 63; j >= 4 takes scale (byte[j+4] & 15) | (byte[j-4] >> 6) << 4 and min (byte[j+4] >> 4) | (byte[j] >> 6) << 4.
-# The nibble bytes run in four groups of 32: group g's low nibbles are sub-block 2g and its high nibbles sub-block 2g+1, each decoding as d*scale*nibble - dmin*min.
-# The products are exact in f32 and the sums exact in a double, so packing the double as f32 rounds once, just where the format's f32 arithmetic does.
+# The decoders of tests/spec_decode.py are written from the format descriptions, so the check compares llmx against the spec rather than against itself.
 def decode_blocks(payload, qtype, count):
-    block, typesize = BLOCKS[qtype]
-    out = []
-    for b in range(count // block):
-        blk = payload[b * typesize:(b + 1) * typesize]
-        d = struct.unpack("<e", blk[0:2])[0]
-        if qtype == "q8_0":
-            out.extend(d * v for v in struct.unpack("<32b", blk[2:34]))
-        elif qtype == "q4_0":
-            lo = [d * ((blk[2 + j] & 0x0F) - 8) for j in range(16)]
-            hi = [d * ((blk[2 + j] >> 4) - 8) for j in range(16)]
-            out.extend(lo + hi)
-        elif qtype == "q4_1":
-            m = struct.unpack("<e", blk[2:4])[0]
-            out.extend([d * (q & 0x0F) + m for q in blk[4:20]] + [d * (q >> 4) + m for q in blk[4:20]])
-        else:
-            dmin = struct.unpack("<e", blk[2:4])[0]
-            sm, qs = blk[4:16], blk[16:144]
-            for j in range(8):
-                if j < 4:
-                    scale, low = sm[j] & 63, sm[j + 4] & 63
-                else:
-                    scale = (sm[j + 4] & 15) | (sm[j - 4] >> 6) << 4
-                    low = (sm[j + 4] >> 4) | (sm[j] >> 6) << 4
-                shift = 4 * (j % 2)
-                group = qs[32 * (j // 2):32 * (j // 2) + 32]
-                out.extend(d * scale * ((q >> shift) & 0x0F) - dmin * low for q in group)
-    return out
+    return sd.decode(TYPES[qtype], payload, count)
 
 
 def assert_decode_matches(qtype, reference, got):
@@ -207,7 +174,7 @@ def check_independent_decode(d):
         json.dump({"name": "one", "tensors": [{"name": "w", "shape": [count]}]}, f)
 
     for qtype in ("q8_0", "q4_0"):
-        block, typesize = BLOCKS[qtype]
+        _, block, typesize = sd.TYPES[TYPES[qtype]]
         mg = os.path.join(d, "one_%s.gguf" % qtype)
         oj = os.path.join(d, "one_%s.json" % qtype)
         ob = os.path.join(d, "one_%s.bin" % qtype)
@@ -240,35 +207,57 @@ def nibble_bytes(k, n):
                  for i in range(n))
 
 
+# Q8_0 blocks, eight for each scale, holding every signed byte between them; a zero byte under a negative scale decodes as -0.
+def q8_0_blocks():
+    return b"".join(struct.pack("<H", d) + bytes((32 * b + i + 5 * k) % 256 for i in range(32))
+                    for k, d in enumerate(HALVES) for b in range(8))
+
+
 # Q4_1 blocks pairing every scale with every min.
 def q4_1_blocks():
     return b"".join(struct.pack("<2H", d, m) + nibble_bytes(k, 16)
                     for k, (d, m) in enumerate(itertools.product(HALVES, HALVES)))
 
 
-# Q4_K super-blocks whose 12 scale and min bytes are all ones but for one cleared bit, one per bit, then all ones under every pairing of d and dmin.
+# Q4_K super-block heads whose 12 scale and min bytes are all ones but for one cleared bit, one per bit, then all ones under every pairing of d and dmin.
 # Every 6-bit field reads 63 except the one the cleared bit belongs to, so a bit read from the wrong place or into the wrong sub-block changes values.
 # The cleared-bit blocks take d 1 and dmin 13.33, where no scale or min bit is lost to rounding against the other product.
-def q4_k_blocks():
+def q4_k_heads():
     heads = []
     for bit in range(96):
         sm = bytearray(b"\xff" * 12)
         sm[bit // 8] &= ~(1 << (bit % 8))
         heads.append(struct.pack("<2H", 0x3C00, 0x4AAA) + sm)
     heads += [struct.pack("<2H", d, dmin) + b"\xff" * 12 for d, dmin in itertools.product(HALVES, HALVES)]
-    return b"".join(head + nibble_bytes(k, 128) for k, head in enumerate(heads))
+    return heads
 
 
-# The formats `quantize` does not write get their blocks from the test, written into a one-tensor GGUF with no metadata.
-# GGUF v3: magic, version, tensor count, metadata count, then the tensor's name, rank, dimensions, type (3 is Q4_1, 12 is Q4_K) and offset, and the data at the next 32-byte boundary.
+def q4_k_blocks():
+    return b"".join(head + nibble_bytes(k, 128) for k, head in enumerate(q4_k_heads()))
+
+
+# Q5_K super-blocks: Q4_K's scale and min patterns, with fifth-bit bytes from the nibble pattern shifted by seven blocks, so every fifth bit is set in some blocks and clear in others and neighbouring bytes differ.
+def q5_k_blocks():
+    return b"".join(head + nibble_bytes(k + 7, 32) + nibble_bytes(k, 128) for k, head in enumerate(q4_k_heads()))
+
+
+# Q6_K super-blocks: sixteen whose scales between them hold every signed byte, with d 1, then one per d in HALVES, with low and high bits from the nibble pattern.
+def q6_k_blocks():
+    blocks = [(bytes(range(16 * k, 16 * k + 16)), 0x3C00) for k in range(16)]
+    blocks += [(bytes(range(7, 256, 16)), d) for d in HALVES]
+    return b"".join(nibble_bytes(k, 128) + nibble_bytes(k + 3, 64) + scales + struct.pack("<H", d)
+                    for k, (scales, d) in enumerate(blocks))
+
+
+# The formats `quantize` does not write, and Q8_0 under negative scales, which its quantizer never writes, get their blocks from the test, written into a one-tensor GGUF with no metadata.
+# Q4_0 has no raw blocks here: under a negative scale llmx's decode writes +0 at nibble 8, where the format and the spec decoder give -0 (docs/ASSETS.md).
 def check_raw_decode(d):
-    for qtype, ggml_type, payload in (("q4_1", 3, q4_1_blocks()), ("q4_k", 12, q4_k_blocks())):
-        block, typesize = BLOCKS[qtype]
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_1", q4_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks())):
+        type_id = TYPES[qtype]
+        _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block
         mg, oj, ob = (os.path.join(d, "raw_%s.%s" % (qtype, ext)) for ext in ("gguf", "json", "bin"))
-        header = struct.pack("<IIQQQ", 0x46554747, 3, 1, 0, 1) + b"w" + struct.pack("<IQIQ", 1, count, ggml_type, 0)
-        with open(mg, "wb") as f:
-            f.write(header + b"\0" * (-len(header) % 32) + payload)
+        sd.write_gguf(mg, {}, [("w", [count], type_id, payload)])
         rc, out = cli(["dequantize", mg, oj, ob])
         assert rc == 0, "raw decode: dequantize (%s) failed: %s" % (qtype, out)
         assert_decode_matches(qtype, decode_blocks(payload, qtype, count), read_bin_floats(ob))

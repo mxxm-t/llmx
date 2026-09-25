@@ -3,7 +3,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import struct
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -36,6 +38,7 @@ class ReferenceGenerator(unittest.TestCase):
             ["tokenizer-qwen35", "--revision", "c" * 40], ["tokenizer-qwen35", "--threads", "2"],
             ["tokenizer-qwen35", "--repo", "Qwen/Qwen3.5-9B", "--revision", "c" * 40],
             ["tokenizer-qwen35", "--gguf-repo", "a/b", "--gguf-file", "c.gguf"],
+            ["file-exact"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
             for argv in invalid:
@@ -49,6 +52,91 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertTrue(Path(selected.output_dir).is_absolute())
             self.assertTrue(Path(selected.output_dir).samefile(directory))
             self.assertEqual(selected.gguf_file, "Qwen3-8B-Q8_0.gguf")
+
+    def test_file_exact_selection(self):
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_file_exact_") as directory:
+            pinned, local = (os.path.join(directory, name) for name in ("Qwen3-0.6B-IQ4_XS.gguf", "local.gguf"))
+            for path in (pinned, local):
+                Path(path).write_bytes(b"GGUF")
+            out = os.path.join(directory, "goldens")
+            invalid = [["file-exact", "--output-dir", out], ["logits", "--weights-gguf", pinned, "--output-dir", out],
+                       ["file-exact", "--weights-gguf", pinned],
+                       ["file-exact", "--weights-gguf", pinned, "--output-dir", generator.OUT_DIR],
+                       ["file-exact", "--weights-gguf", pinned, "--output-dir", out, "--gguf-repo", "a/b", "--gguf-file", "b.gguf"],
+                       ["file-exact", "--weights-gguf", pinned + ".missing", "--output-dir", out]]
+            with contextlib.redirect_stderr(io.StringIO()):
+                for argv in invalid:
+                    with self.subTest(argv=argv), self.assertRaises(SystemExit) as error:
+                        generator.parse_args(argv)
+                    self.assertEqual(error.exception.code, 2)
+            # A pinned file labels the goldens with its repository, and any other file with its name alone.
+            args = generator.parse_args(["file-exact", "--weights-gguf", pinned, "--output-dir", out, "--threads", "2"])
+            self.assertEqual((args.gguf_repo, args.gguf_file, args.threads), ("unsloth/Qwen3-0.6B-GGUF", "Qwen3-0.6B-IQ4_XS.gguf", 2))
+            self.assertTrue(Path(args.weights_gguf).samefile(pinned))
+            args = generator.parse_args(["file-exact", "--weights-gguf", local, "--output-dir", out])
+            self.assertEqual((args.gguf_repo, args.gguf_file), (None, "local.gguf"))
+
+    def test_file_exact_run_fails_when_the_device_checks_nothing(self):
+        import baseline
+        with tempfile.TemporaryDirectory(prefix="llmx_file_exact_run_") as directory:
+            model = os.path.join(directory, "model.gguf")
+            Path(model).write_bytes(b"GGUF")
+            weights = {"file": "model.gguf", "sha256": hashlib.sha256(b"GGUF").hexdigest()}
+            for name in ("baseline_logits.json", "baseline_perplexity.json"):
+                Path(directory, name).write_text(json.dumps({"weights": weights}), encoding="utf-8")
+            # A check returns None when the device has no kernel for the model, which fails a file-exact run.
+            cases = (((None, True), False), ((True, None), False), ((False, True), False), ((True, True), True))
+            with patch.dict(os.environ, {"LLMX_DEVICE": "vulkan:0"}), patch.object(baseline, "ppl_excerpt", return_value="excerpt.txt"):
+                for (logits, ppl), passed in cases:
+                    with self.subTest(logits=logits, ppl=ppl), contextlib.redirect_stdout(io.StringIO()):
+                        with patch.object(baseline, "check_model_logits", return_value=logits), patch.object(baseline, "check_model_ppl", return_value=ppl):
+                            self.assertIs(baseline.run_file_exact(directory, model), passed)
+
+    def test_gguf_tensors_take_their_hf_parameters(self):
+        import f32
+        import spec_decode
+        # One map names the tiny models' parameters and file-exact's; here it is spelled out once more for two block tensors, the embedding and the head.
+        self.assertEqual([f32.hf_name(name) for name in ("blk.12.attn_q.weight", "blk.0.ffn_down.weight", "token_embd.weight", "output.weight")],
+                         ["model.layers.12.self_attn.q_proj.weight", "model.layers.0.mlp.down_proj.weight", "model.embed_tokens.weight", "lm_head.weight"])
+        for name in ("blk.0.ffn_gate_exps.weight", "rope_freqs.weight", "blk.x.attn_q.weight"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                f32.hf_name(name)
+        weights = f32.tensors(False)
+        # The tiny F32 model as a GGUF: every tensor reaches its HF parameter with its dimensions reversed and its values unchanged.
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_state_") as directory:
+            path = os.path.join(directory, "tiny.gguf")
+            spec_decode.write_gguf(path, {"general.architecture": (8, "qwen3")},
+                                   [(name, shape, spec_decode.F32, struct.pack("<%df" % len(values), *values))
+                                    for name, _, shape, values in weights])
+            state, types = generator.gguf_state(path, numpy=False)
+            self.assertEqual(types, {"F32": len(weights)})
+            self.assertEqual(set(state), {hf for _, hf, _, _ in weights})
+            for _, hf, shape, values in weights:
+                self.assertEqual(state[hf], (list(reversed(shape)), values))
+            spec_decode.write_gguf(path, {"general.architecture": (8, "llama")}, [])
+            with self.assertRaises(SystemExit):
+                generator.gguf_state(path, numpy=False)
+
+    def test_fixtures_are_pinned_once(self):
+        import baseline
+        pinned = baseline.PINNED
+        self.assertEqual(len({spec["file"] for spec in pinned}), len(pinned))
+        for spec in pinned:
+            with self.subTest(file=spec["file"]):
+                self.assertEqual(set(spec), {"repo", "file", "revision", "sha256", "size", "gate", "hosted"})
+                self.assertRegex(spec["revision"], r"^[0-9a-f]{40}$")
+                self.assertRegex(spec["sha256"], r"^[0-9a-f]{64}$")
+                self.assertTrue(type(spec["size"]) is int and spec["size"] > 0)
+                self.assertTrue(type(spec["gate"]) is bool and type(spec["hosted"]) is bool)
+                self.assertEqual(baseline.pinned_fixture(spec["file"]), spec)
+        # The gate is the models with bounds, in the file's order.
+        self.assertEqual([spec["file"] for spec in baseline.BASELINE_MODELS], [spec["file"] for spec in pinned if spec["gate"]])
+        # The six pinned ahead of their types join the gate with them: the hosted HF job is to download UD-Q8_K_XL, IQ4_XS and Q2_K, and the other three are checked by hand.
+        later = [spec for spec in pinned if not spec["gate"]]
+        self.assertEqual(sorted(spec["file"] for spec in later if spec["hosted"]),
+                         ["Qwen3-0.6B-IQ4_XS.gguf", "Qwen3-0.6B-Q2_K.gguf", "Qwen3-0.6B-UD-Q8_K_XL.gguf"])
+        self.assertEqual(sorted(spec["file"] for spec in later if not spec["hosted"]),
+                         ["Qwen3-0.6B-BF16.gguf", "Qwen3-0.6B-IQ4_NL.gguf", "Qwen3-0.6B-Q3_K_S.gguf"])
 
     @unittest.skipUnless(sys.platform == "win32", "Windows short-path aliases")
     def test_short_windows_output_directory(self):

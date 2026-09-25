@@ -134,12 +134,10 @@ change, or it does not exist as far as a user is concerned.
 
 ## Verify
 
-The round-trip component (`tests/roundtrip.py`, under Tests below) checks
-the format and quantization paths: it builds a random F32 model, quantizes
-it to Q8_0 and Q4_0 through the CLI, dequantizes it back and bounds the
-error, and decodes the written blocks from the format description rather
-than with llmx's own reader.
-Q4_1 and Q4_K, which `quantize` does not write, are decoded the same way from raw blocks the test writes, chosen so every scale, min and nibble bit reaches a decoded value, and `dequantize` must match bit for bit.
+The round-trip component (`tests/roundtrip.py`, under Tests below) checks the format and quantization paths.
+It builds a random F32 model, quantizes it to Q8_0 and Q4_0 through the CLI, dequantizes it back and bounds the error, and decodes the written blocks with the spec decoders of `tests/spec_decode.py`, written from the format descriptions, rather than with llmx's own reader.
+Q4_1, Q4_K, Q5_K and Q6_K, which `quantize` does not write, and Q8_0 under negative scales, which its quantizer never writes, are decoded the same way from raw blocks the test writes, chosen so every scale, min, high bit and nibble reaches a decoded value, and `dequantize` must match bit for bit, the sign of zero included.
+Q4_0 has no raw blocks yet: under a negative scale llmx's decode writes +0 at nibble 8, where the format and the spec decoder give -0, and its raw blocks come with the fix that makes llmx decode d*(nibble - 8) (`docs/ASSETS.md`).
 Run it alone against the root `llmx.exe` that `build.bat` writes, or as part of the suite for a CMake build:
 ```
 python tests/roundtrip.py
@@ -300,7 +298,7 @@ python tests/run_tests.py
 
 For a CMake build, pass `--exe <path-to-built-llmx>`.
 `--only` runs just the components it names, comma separated (`--only baseline`, `--only split,server`), and refuses a name the suite does not have.
-CI uses `--no-perf-floor` for shared runners, `--require-tools` on every CMake build it runs the suite on so a tool missing beside the executable fails rather than skips (the `build.bat` binary has no tools beside it), and `--require-baseline` in its real-model job so missing fixtures fail.
+CI uses `--no-perf-floor` for shared runners, `--require-tools` on every CMake build it runs the suite on so a tool missing beside the executable, or numpy for raw-blocks, fails rather than skips (the `build.bat` binary has no tools beside it), and `--require-baseline` in its real-model job so missing fixtures fail.
 That job also runs `--only baseline` with `--cache-type f32`, `llmx-split-check` on the Q8_0 over two CPU backends and `tools/server_mix_check.py` on the Q8_0; the Vulkan job runs the suite with `--device cpu` on the Vulkan-enabled binary.
 Local performance floors remain enabled by default. See `docs/CI.md` for workflow coverage and reproduction commands.
 
@@ -321,8 +319,26 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   Also checks quantize's JSON tensor schema/dimension and binary-length rejection,
   output preservation on validation failure, and valid one-to-four-dimensional
   conversion for both writable types.
-  `dequantize` must match, bit for bit, a decode written from the format description: Q8_0 and Q4_0 on the blocks quantize writes, Q4_1 and Q4_K on raw blocks that reach every scale, min and nibble bit, so the Q8_0, Q4_0, Q4_1 and Q4_K references of `q8-dots` and `backend-group`, which take them from the same decoders, rest on an independent decode; their Q5_K and Q6_K references still rest on the real-model HF checks.
+  `dequantize` must match, bit for bit, the spec decoders of `tests/spec_decode.py`: Q8_0 and Q4_0 on the blocks quantize writes, and Q4_1, Q4_K, Q5_K, Q6_K and Q8_0 on raw blocks that reach every scale, min, high bit and nibble, Q8_0's under negative scales, which its quantizer never writes, so the references of `q8-dots` and `backend-group`, which take them from llmx's decoders, rest on an independent decode for all six types.
+  Q4_0 under a negative scale is not compared yet: there llmx writes +0 at nibble 8 where the format and the spec decoder give -0, until the fix that makes llmx decode d*(nibble - 8) brings those raw blocks (`docs/ASSETS.md`).
   Both types quantize and dequantize under a non-ASCII directory to the same bytes as under an ASCII one, and a type name quantize does not write is refused with exit status 2.
+- **Raw blocks** (`tests/raw_blocks.py`): the spec decoders of `tests/spec_decode.py`, one for each GGUF type the pinned fixtures hold (F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS and MXFP4), each in a pure form, the readable reference, and a numpy form for whole files.
+  They are written from the GGUF type layouts and, for MXFP4, the OCP Microscaling Formats (MX) v1.0 specification; the module also reads and writes GGUF files.
+  Blocks built from chosen fields must decode to the values those fields define, computed with exact fractions and rounded once to f32.
+  A value that is zero must carry the sign the format's own arithmetic gives it, the same expression evaluated in Python floats in the format's order: -0 where a negative scale meets a zero code or a scale of +0 meets a negative one.
+  F16 and BF16 run over all 65536 bit patterns.
+  Q4_0, Q8_0, IQ4_NL and IQ4_XS take every code, in both nibbles where there are two, under scales positive, negative, zero, subnormal and at the largest finite value, and each of IQ4_XS's 48 scale bits is cleared once.
+  MXFP4 takes every exponent from 0 to 255, each block holding every code and each position taking every code over each 16 blocks: exponents 0 and 1 give subnormal scales, 255 decodes as 2^127 times the doubled E2M1 value like any other exponent, a value of 2^128 or more is an infinity, and -0 decodes as +0.
+  Q3_K has each of its 96 scale bits cleared once and high bits keyed to each value's address, which catch a -4 subtracted on the wrong state of the bit; Q2_K takes every scale and min byte, with d and dmin paired over subnormals and negatives.
+  A few blocks of these types decode to values written out by hand.
+  The numpy form must give the pure form's bits, NaN as NaN, on all of these, on the round trip's Q4_1, Q4_K, Q5_K and Q6_K raw blocks and on random blocks of every type.
+  The pure form's F16 and BF16 NaNs are Python floats, which keep no signalling NaN and, for F16, no payload, so only the numpy form keeps a NaN's bits.
+  The MXFP4 writer's pure and numpy forms must write the same blocks, the E2M1 midpoints of both signs included, which decode to the values it intended.
+  It runs no llmx binary; without numpy the numpy checks and the writer's file are skipped and reported, and under `--require-tools`, as in CI, which installs numpy, they fail instead.
+- **MXFP4 writer** (`tools/write_mxfp4.py`): writes a GGUF with every matrix, the tied embedding included, in MXFP4, from one holding them as BF16, F16 or F32, by default the pinned Qwen3-0.6B BF16 file, verified by its SHA-256.
+  Each block takes the OCP scale rule, floor(log2(amax)) - 2 clamped at -127, and each value rounds to the nearest E2M1 value, a tie to the even code, saturating at 6 and never written as -0 (`docs/ASSETS.md`).
+  The output replaces nothing until the spec decoder has read every tensor back as exactly the values the writer intended.
+  It is a fixture tool that needs numpy, not a quantizer llmx offers.
 - **Perf** (`tests/perf.py`): time matmul / RMSNorm / RoPE hot paths and print
   throughput, so perf-first changes can be checked for regressions. Assert a
   generous floor so catastrophic slowdowns fail loudly without being flaky.
@@ -427,19 +443,26 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
 - **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
   Compares llmx against golden fixtures generated once from the HF reference by `tools/gen_baseline.py` and committed to `tests/data/`.
   Needs a real model, so it SKIPS when none is on disk; point it at one with `LLMX_BASELINE_GGUF`.
-  Otherwise each check, the tokenizer's included, reads its model from the HF cache at the revision `tests/data/fixtures.json` pins (repo, revision, file and SHA-256), read into `BASELINE_MODELS`, the path `tools/fetch_test_models.py` downloads to; their bounds sit in `tests/baseline.py`, which refuses to load unless each pinned file has bounds and each bounded file is pinned once.
+  Otherwise each check, the tokenizer's included, reads its model from the HF cache at the revision `tests/data/fixtures.json` pins (repo, revision, file, SHA-256 and size) for each entry marked `gate`, read into `BASELINE_MODELS`, the path `tools/fetch_test_models.py` downloads to.
+  Their bounds sit in `tests/baseline.py`, which refuses to load unless each file is pinned once, each gate model has bounds and each bounded file is a gate model, and each gate model is marked `hosted`, since the hosted HF job downloads and requires every one.
   Every perplexity cell is scored twice, in batched passes (the default) and with `--per-token`, so the prompt and decode kernels both meet the reference.
   Its logit and PPL outputs go through the validators the 8B check uses, `common.check_logits` and `common.check_ppl`, at each fixture model's bounds: the exact prompt token count, ten unique in-vocabulary IDs with finite logits sorted from the top, and exactly the PPL fields with every count exact.
   Regenerating tokenizer fixtures needs `tokenizers` and `huggingface_hub`; numerical fixtures also need `torch` and `transformers`.
   RUNNING the suite needs none of these packages.
+  `python -X utf8 tests/baseline.py --file-exact DIR --model FILE` holds one file to the goldens `tools/gen_baseline.py file-exact` made from it, HF run on that file's own weights as the numpy spec decoder reads them, at the Q8_0 fixture's bounds whatever the file's type (`FILE_EXACT_BOUNDS`); goldens made from another file are refused by SHA-256.
+  A device with no kernel for the file fails a file-exact run, where the gate's own checks skip.
+  Making those goldens also needs numpy.
+  The other entries of `tests/data/fixtures.json` pin the models of tensor types llmx does not read yet, each with `gate` false until its type has bounds, and `hosted` marks the ones the hosted HF job is to download then; `tools/fetch_test_models.py --all` fetches them with the gate's models.
 - **Reference generator** (`tests/reference_generator.py`): standard-library checks for pinned reference selection, separate alternate-model output and forwarding the revision/float32/eager settings to the HF loaders.
   Actual reference generation and model correctness remain separate checks.
+  For `file-exact` it checks the argument combinations it refuses, that `tests/baseline.py --file-exact` fails when the device has no kernel for the file, the HF parameters a few GGUF tensor names take under the one map `tests/f32.py` holds for the tiny models and file-exact alike, and a tiny GGUF's tensors reaching their parameters with reversed dimensions and unchanged values.
+  It also checks `tests/data/fixtures.json`: each file pinned once with every field, the gate's models those with bounds, and of the six pinned ahead of their types the hosted ones exactly UD-Q8_K_XL, IQ4_XS and Q2_K.
   The qwen35 tokenizer golden, on a made-up vocabulary, must keep a merge that joins across a cut HF makes and drop one no text reaches.
   It must give an added token the GGUF files' type, control for a special one or one written `<|name|>` and user-defined otherwise, and keep a token only the config adds apart.
   The generator must refuse a tokenizer file whose SHA-256 is not the pinned one, and the committed golden must hold the generator's texts, commit and digests, so neither changes without regenerating it.
 - **Reference consumer** (`tests/reference_consumer.py`): standard-library rejection tests for changed 8B fixtures, damaged logits/PPL, top-5 boundary swaps beyond those `common.top5_overlap` forgives, wrong model identity and failed launches, and a passing run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
   It is included in the ordinary suite; it does not load or download the 8B model.
-- **Fixture downloader** (`tests/fetch_models.py`): fifteen offline tests
+- **Fixture downloader** (`tests/fetch_models.py`): seventeen offline tests
   of `tools/fetch_test_models.py` against simulated responses: a verified
   download and its cached reuse, a corrupt cached file replaced, bounded
   retries with backoff on 429, transient server errors and network
@@ -447,8 +470,9 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   headers), no early retry when the server asks for too long a wait, no
   retry on permanent HTTP or local write errors, interrupted and short
   reads restarted from a clean temporary file, and a hash mismatch failing
-  with the existing file kept. It is not a `run_tests.py` component; CI
-  runs it as a step of its own (`docs/CI.md`).
+  with the existing file kept.
+  A run downloads the gate's models and `--all` every pinned model, and `--key` prints the HF job's cache key, a hash of the gate's pins that a model pinned ahead of the gate leaves as it is and a new pin of a gate model changes.
+  It is not a `run_tests.py` component; CI runs it as a step of its own (`docs/CI.md`).
 
 The optional real 8B check is separate from the ordinary suite and default CI:
 

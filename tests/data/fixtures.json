@@ -3,24 +3,90 @@
     "repo": "Qwen/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q8_0.gguf",
     "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
-    "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+    "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "size": 639446688,
+    "gate": true,
+    "hosted": true
   },
   {
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q4_0.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
-    "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"
+    "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+    "size": 382156480,
+    "gate": true,
+    "hosted": true
   },
   {
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q5_K_M.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
-    "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+    "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+    "size": 444415680,
+    "gate": true,
+    "hosted": true
   },
   {
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q4_K_M.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
-    "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+    "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+    "size": 396705472,
+    "gate": true,
+    "hosted": true
+  },
+  {
+    "repo": "unsloth/Qwen3-0.6B-GGUF",
+    "file": "Qwen3-0.6B-BF16.gguf",
+    "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+    "sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e",
+    "size": 1198182848,
+    "gate": false,
+    "hosted": false
+  },
+  {
+    "repo": "unsloth/Qwen3-0.6B-GGUF",
+    "file": "Qwen3-0.6B-UD-Q8_K_XL.gguf",
+    "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+    "sha256": "523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad",
+    "size": 844288704,
+    "gate": false,
+    "hosted": true
+  },
+  {
+    "repo": "unsloth/Qwen3-0.6B-GGUF",
+    "file": "Qwen3-0.6B-IQ4_NL.gguf",
+    "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+    "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+    "size": 381566656,
+    "gate": false,
+    "hosted": false
+  },
+  {
+    "repo": "unsloth/Qwen3-0.6B-GGUF",
+    "file": "Qwen3-0.6B-IQ4_XS.gguf",
+    "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+    "sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d",
+    "size": 367804096,
+    "gate": false,
+    "hosted": true
+  },
+  {
+    "repo": "unsloth/Qwen3-0.6B-GGUF",
+    "file": "Qwen3-0.6B-Q2_K.gguf",
+    "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+    "sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+    "size": 296238784,
+    "gate": false,
+    "hosted": true
+  },
+  {
+    "repo": "unsloth/Qwen3-0.6B-GGUF",
+    "file": "Qwen3-0.6B-Q3_K_S.gguf",
+    "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+    "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+    "size": 323075776,
+    "gate": false,
+    "hosted": false
   }
 ]

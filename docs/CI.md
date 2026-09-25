@@ -14,7 +14,7 @@ It contains six independent checks:
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | CPU (Linux UBSan) | GCC undefined-behavior checks, including mixed-tensor float alignment |
 | Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` and `vulkan-lifetime` skipping without a driver, while `vulkan-buffer`, whose fake device supplies every Vulkan call, needs no loader and runs; then the Python suite with `--require-tools` on the CPU path (`--device cpu`) of the Vulkan-enabled binary, the build Linux GPU users make |
-| HF reference (CPU) | Linux build plus all four pinned real models: tokenizer, logits, continuous/chunked PPL, and the real-model server checks on the Q8_0 (limits, uncapped requests pausing, a prompt paused while prefilling, prefix reuse over a conversation, clients leaving, a chat turn); the suite's HF chat and thread replies run here as in every CPU job. Then the `baseline` component again with f32 caches, `llmx-split-check` on the Q8_0 over two CPU backends, and many users through the server on the Q8_0. No CTest: the Ubuntu job runs it on the same build |
+| HF reference (CPU) | Linux build plus the four pinned gate models: tokenizer, logits, continuous/chunked PPL, and the real-model server checks on the Q8_0 (limits, uncapped requests pausing, a prompt paused while prefilling, prefix reuse over a conversation, clients leaving, a chat turn); the suite's HF chat and thread replies run here as in every CPU job. Then the `baseline` component again with f32 caches, `llmx-split-check` on the Q8_0 over two CPU backends, and many users through the server on the Q8_0. No CTest: the Ubuntu job runs it on the same build |
 
 Every CTest a CPU build registers runs in every job's "Backend tests" step but the HF job's, which builds what the Ubuntu job builds, so the KV cache, placement, HTTP layer, server UTF-8 repair and prefill-scope checks are covered on all three platforms and under UBSan.
 The three Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan` and `vulkan-lifetime` skip without a device.
@@ -54,9 +54,9 @@ logits/NLL in the Python suite. These require no internet access or real curl
 installation; the native transport test supplies a fake child executable.
 Live downloads still require curl 8.4+ and separate network integration checks.
 
-The HF job runs `tools/fetch_test_models.py`, a standard-library downloader using the revisions and SHA-256 digests in `tests/data/fixtures.json`.
+The HF job runs `tools/fetch_test_models.py`, a standard-library downloader that takes the entries of `tests/data/fixtures.json` marked `gate`, by their revisions and SHA-256 digests.
 Downloads are verified before entering the HF snapshot cache.
-The HF job caches those snapshots between runs, with a key derived from `tests/data/fixtures.json` alone, which holds only the pinned model specs, so a change to a check or a bound in `tests/baseline.py` keeps the cache.
+The HF job caches those snapshots between runs, with a key `tools/fetch_test_models.py --key` derives from the pins of the models it downloads alone, so a change to a check or a bound in `tests/baseline.py`, or a model pinned ahead of the gate, keeps the cache.
 The cache is restored before the fetch and, when the key missed, saved right after it, once every file is verified, so a run that fails later still keeps its downloads.
 Restored files are still SHA-256 checked on every run.
 Cold or invalid cache entries are downloaded from the pinned revision.
@@ -69,7 +69,7 @@ rather than retrying early. Permanent HTTP failures, local file errors and
 SHA-256 mismatches fail immediately. Failed attempts remove temporary files;
 only a complete verified download replaces the destination.
 
-Every job except the Vulkan build also runs `python -X utf8 tests/fetch_models.py`: fifteen offline tests cover throttling, reset headers, retry exhaustion, interrupted reads, cache reuse/replacement, checksum rejection and permanent failures.
+Every job except the Vulkan build also runs `python -X utf8 tests/fetch_models.py`: seventeen offline tests cover throttling, reset headers, retry exhaustion, interrupted reads, cache reuse/replacement, checksum rejection and permanent failures, and which pins a run downloads and hashes into the cache key.
 These tests use tiny independent bytes and simulated network responses; they do not download models or replace the real HF reference checks.
 At `b266650` all fifteen passed on Linux, including a real HTTP response parser test for premature EOF, and the downloader before it reproduced the single-request 429 failure.
 
@@ -83,9 +83,12 @@ The qwen35 pretokenizer is held to HF in every job all the same, with no model: 
 The Python suite also checks reference-generator argument safeguards and that the requested commit, float32 dtype and eager attention reach the HF loader.
 It checks that the qwen35 tokenizer golden keeps every merge its texts reach and gives the added tokens the files' types, that a tokenizer file with another SHA-256 is refused, and that the committed golden holds the generator's texts, commit and digests.
 These use standard-library test doubles; CI does not generate new HF goldens or download larger models.
-The ordinary suite now has 17 components, including `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
+The ordinary suite now has 18 components, including `raw-blocks`, the spec decoders' checks, `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
 These tests use small committed JSON fixtures and doubles, without 8B inference.
 Default real-model downloads are the four pinned 0.6B GGUFs: Q8_0, Q4_0, Q5_K_M and Q4_K_M.
+Six more models are pinned there ahead of their tensor types, with `gate` false, and no job downloads them yet.
+When their types join the gate, the three marked `hosted` (UD-Q8_K_XL, IQ4_XS and Q2_K, 1.51 GB) join the HF job's downloads and its cache key, and the other three (BF16, IQ4_NL and Q3_K_S) are checked by hand after `tools/fetch_test_models.py --all`.
+The job downloads and requires every gate model, so `tests/baseline.py` refuses a gate model not marked `hosted`, and one of those three joins the gate only with a change that lets the job leave it out.
 
 The separate 8B consumer requires an existing model and a new output directory:
 
@@ -113,7 +116,10 @@ It also checks that the CLI's usage errors exit with status 2 and the command's 
 It shows every help page without a model, and checks that each command takes every flag its page lists and refuses the flags its page does not.
 The UBSan job makes misaligned in-memory tensors a test failure.
 The three CPU jobs and the UBSan job also run CTest for JSON syntax/Unicode/numeric boundaries and string escaping, GGUF structure, custom alignment and loading failures, Qwen model configuration and required tensor/storage layouts, grouped kernels, worker failures, chat rendering, sampling and KV storage, plus the Python HF/Jinja2 follow-up fixtures and CLI thread-control checks.
-The Python suite's `roundtrip` component in these jobs checks the Q8_0, Q4_0, Q4_1 and Q4_K decoders bit for bit against a decode written from the format description, the last two on raw blocks that reach every scale, min and nibble bit, so those readers are covered without a real model.
+The Python suite's `roundtrip` component in these jobs checks the Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K decoders bit for bit against the spec decoders of `tests/spec_decode.py`, all but Q4_0 on raw blocks that reach every scale, min, high bit and nibble, so those readers are covered without a real model.
+Its `raw-blocks` component checks the spec decoders themselves, those of F16, BF16, IQ4_NL, IQ4_XS, MXFP4, Q2_K and Q3_K included, against values computed from each format's fields and the sign each zero takes.
+Every job that runs the suite with `--require-tools` installs numpy 2.4.3 first, so raw-blocks also holds the spec decoders' numpy form, which makes the file-exact references and the MXFP4 fixture, to the pure form, and fails rather than skips without numpy.
+The suite itself needs only the standard library, and without numpy and that flag raw-blocks skips those checks and says so.
 The combined five-job workflow first ran on published runtime `08351b0`.
 [Run 35512421834](https://github.com/mxxm-t/llmx/actions/runs/35512421834)
 passed ordinary Ubuntu and required HF, but exposed three portability issues:

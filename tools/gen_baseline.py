@@ -4,17 +4,20 @@ Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
     python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|tokenizer-qwen35]
+    python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
 Defaults use the pinned Qwen3-0.6B reference.
 Another model requires --repo, --revision (full commit SHA), --output-dir, --gguf-repo and --gguf-file.
 The GGUF arguments are labels, not proof of the converted model's provenance.
 Real-model logits/PPL use CPU float32 eager attention and --threads (default 6).
+file-exact writes the logit and PPL goldens of the reference model holding a qwen3 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py, so tests/baseline.py --file-exact can hold llmx on that file to Q8_0-class bounds.
 The independent synthetic f32 and moe fixtures use one thread; only --output-dir applies to those modes.
 all includes both regardless of --repo.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
 
 Requires: tokenizers, huggingface_hub (tokenizer goldens) and, for the logit/PPL goldens, torch + transformers.
 Those two segfault together in some environments (any `from transformers import Auto*` dies); an isolated venv with numpy<2.3, torch 2.5.1+cpu and transformers 4.55.2 is known to work.
+file-exact also needs numpy.
 The qwen35 goldens come from a second isolated venv, so the first stays as it is: Python 3.12.13 with torch 2.5.1+cpu, transformers 5.17.0, tokenizers 0.23.2, huggingface_hub 1.33.0, safetensors 0.8.0, numpy 2.2.6 and Jinja2 3.1.6.
 """
 
@@ -24,6 +27,7 @@ import io
 import json
 import math
 import os
+from pathlib import Path
 import re
 import sys
 
@@ -203,18 +207,65 @@ def load_reference(args):
         args.repo, revision=args.revision, torch_dtype=torch.float32,
         attn_implementation="eager")
     model.cpu().eval()
+    if args.weights_gguf:
+        load_gguf_weights(args, torch, model)
     return torch, transformers, tok, model
 
 
+def gguf_state(path, numpy=True):
+    """A qwen3 GGUF file's tensors as HF Qwen3 parameters, named by tests/f32.py's map and each decoded to f32 by tests/spec_decode.py: {HF name: (HF shape, flat values)}, and {type name: tensor count}.
+    GGUF lists a matrix's dimensions fastest first, so the HF shape is the reverse; qwen3 files store the projections unpermuted."""
+    from f32 import hf_name
+    import spec_decode
+    model = spec_decode.GGUF(path)
+    architecture = model.value("general.architecture")
+    if architecture != "qwen3":
+        raise SystemExit("%s holds a %s model; file-exact references map qwen3 tensors only" % (path, architecture))
+    state, types = {}, {}
+    for t in model.tensors:
+        state[hf_name(t.name)] = (list(reversed(t.shape)), model.decode(t, numpy=numpy))
+        types[spec_decode.type_name(t.type)] = types.get(spec_decode.type_name(t.type), 0) + 1
+    return state, types
+
+
+def load_gguf_weights(args, torch, model):
+    """Replace every parameter of `model` with the GGUF file's own weights, and record in args.weights which file they came from."""
+    from baseline import pinned_fixture
+    from baseline_8b import file_sha256
+    name = os.path.basename(args.weights_gguf)
+    sha256 = file_sha256(Path(args.weights_gguf))
+    pinned = pinned_fixture(name)
+    if pinned and pinned["sha256"] != sha256:
+        raise SystemExit("%s is named like a pinned fixture but does not match its SHA-256" % args.weights_gguf)
+    state, types = gguf_state(args.weights_gguf)
+    tensors = {key: torch.from_numpy(values).reshape(shape) for key, (shape, values) in state.items()}
+    # How many tensors are bit for bit the reference checkpoint's, as those of a file converted without rounding are.
+    reference = model.state_dict()
+    equal = sum(1 for key, tensor in tensors.items()
+                if key in reference and reference[key].shape == tensor.shape and torch.equal(reference[key], tensor))
+    if model.config.tie_word_embeddings:
+        if "lm_head.weight" in tensors:
+            raise SystemExit("%s has its own output projection, but the reference model ties it to the embedding" % name)
+        tensors["lm_head.weight"] = tensors["model.embed_tokens.weight"]
+    model.load_state_dict(tensors, strict=True)
+    args.weights = {"file": name, "sha256": sha256, "bytes": os.path.getsize(args.weights_gguf),
+                    "repo": pinned["repo"] if pinned else None, "revision": pinned["revision"] if pinned else None,
+                    "types": dict(sorted(types.items())), "decoder": "tests/spec_decode.py, numpy form",
+                    "tensors": len(state), "tensors_equal_to_reference": equal}
+
+
 def reference_metadata(args, torch, transformers):
-    return {"reference_repo": args.repo, "reference_revision": args.revision,
-            "reference_dtype": "float32", "attention": "eager", "device": "cpu",
-            "threads": args.threads, "torch_version": torch.__version__,
-            "transformers_version": transformers.__version__}
+    metadata = {"reference_repo": args.repo, "reference_revision": args.revision,
+                "reference_dtype": "float32", "attention": "eager", "device": "cpu",
+                "threads": args.threads, "torch_version": torch.__version__,
+                "transformers_version": transformers.__version__}
+    if args.weights_gguf:
+        metadata["weights"] = args.weights
+    return metadata
 
 
-def gen_logits(args):
-    torch, transformers, tok, model = load_reference(args)
+def gen_logits(args, loaded=None):
+    torch, transformers, tok, model = loaded or load_reference(args)
     cases = []
     for p in LOGIT_PROMPTS:
         ids = tok(p, add_special_tokens=False, return_tensors="pt").input_ids
@@ -228,7 +279,10 @@ def gen_logits(args):
                       "top_logits": [round(float(v), 4) for v in top.values]})
         print("  %-46s -> %s" % (repr(p)[:46], top.indices.tolist()[:3]))
     doc = {
-        "_comment": ("Generated by tools/gen_baseline.py from the FULL-PRECISION "
+        "_comment": ("Generated by tools/gen_baseline.py file-exact from the reference model holding "
+                     "the GGUF file's own weights as tests/spec_decode.py decodes them."
+                     if args.weights_gguf else
+                     "Generated by tools/gen_baseline.py from the FULL-PRECISION "
                      "reference. Quantized GGUF logits can differ; establish "
                      "model-specific rank and numerical bounds independently."),
         **reference_metadata(args, torch, transformers),
@@ -242,8 +296,8 @@ def gen_logits(args):
     print("wrote %s (%d prompts)" % (path, len(cases)))
 
 
-def gen_perplexity(args):
-    torch, transformers, tok, model = load_reference(args)
+def gen_perplexity(args, loaded=None):
+    torch, transformers, tok, model = loaded or load_reference(args)
     with open(os.path.join(ROOT, "tests", "data", "wiki.test.raw"), encoding="utf-8") as f:
         text = f.read(1024)
     ids = tok(text, add_special_tokens=False, return_tensors="pt").input_ids
@@ -272,7 +326,7 @@ def gen_perplexity(args):
                             "mean_nll": total_nll / scored,
                             "perplexity": math.exp(total_nll / scored)})
     doc = {
-        "_comment": "Generated by tools/gen_baseline.py perplexity. Do not hand-edit.",
+        "_comment": "Generated by tools/gen_baseline.py %s. Do not hand-edit." % ("file-exact" if args.weights_gguf else "perplexity"),
         **reference_metadata(args, torch, transformers),
         "source": "wiki.test.raw, first 1024 Unicode characters after CRLF/CR normalization to LF",
         "scoring": "One continuous sequence, no BOS/EOS added; score tokens 1..N-1 from preceding tokens; float64 log-softmax/reduction of fp32 logits.",
@@ -424,13 +478,14 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "tokenizer-qwen35"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "tokenizer-qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
     parser.add_argument("--gguf-repo", help="associated GGUF repository label; required with --gguf-file")
     parser.add_argument("--gguf-file", help="associated GGUF filename label; required for another model")
     parser.add_argument("--threads", type=int, help="HF CPU threads for real-model logits/PPL (default: 6)")
+    parser.add_argument("--weights-gguf", help="file-exact: the qwen3 GGUF whose weights the reference model takes, which labels the goldens")
     args = parser.parse_args(argv)
     if os.path.isdir(args.repo):
         parser.error("--repo must identify a Hub repository, not a local directory that bypasses revision pinning")
@@ -438,24 +493,38 @@ def parse_args(argv=None):
         parser.error("%s %s; only --output-dir applies" % (args.kind, FIXED_KINDS[args.kind]))
     if args.kind == "tokenizer" and args.threads is not None:
         parser.error("--threads applies to real-model logits/PPL, not tokenizer generation")
+    if (args.kind == "file-exact") != bool(args.weights_gguf):
+        parser.error("file-exact needs --weights-gguf, which no other mode takes")
+    if args.weights_gguf and (args.gguf_repo or args.gguf_file):
+        parser.error("file-exact labels its goldens with the GGUF it reads, not with --gguf-repo or --gguf-file")
+    if args.weights_gguf and not os.path.isfile(args.weights_gguf):
+        parser.error("--weights-gguf %s is not a file" % args.weights_gguf)
     if args.repo != TOKENIZER_REPO and not args.revision:
         parser.error("another repository requires --revision")
     args.revision = args.revision or REFERENCE_REVISION
     if not re.fullmatch(r"[0-9a-fA-F]{40}", args.revision):
         parser.error("--revision must be a full 40-character commit SHA")
     args.revision = args.revision.lower()
-    alternate = args.repo != TOKENIZER_REPO or args.revision != REFERENCE_REVISION
+    alternate = args.repo != TOKENIZER_REPO or args.revision != REFERENCE_REVISION or args.kind == "file-exact"
     if alternate and not args.output_dir:
-        parser.error("another model/revision requires --output-dir")
+        parser.error("another model/revision and file-exact require --output-dir")
     args.output_dir = os.path.abspath(args.output_dir or OUT_DIR)
     if alternate and os.path.normcase(os.path.realpath(args.output_dir)) == os.path.normcase(os.path.realpath(OUT_DIR)):
-        parser.error("another model/revision cannot overwrite the default fixture directory")
+        parser.error("another model/revision or file-exact cannot overwrite the default fixture directory")
     if bool(args.gguf_repo) != bool(args.gguf_file):
         parser.error("--gguf-repo and --gguf-file must be supplied together")
-    if args.repo != TOKENIZER_REPO and not args.gguf_repo:
-        parser.error("another model requires explicit --gguf-repo and --gguf-file labels")
-    args.gguf_repo = args.gguf_repo or GGUF_REPO
-    args.gguf_file = args.gguf_file or GGUF_FILE
+    if args.weights_gguf:
+        # The goldens name the file they were made from, with its pinned repository when it is a pinned fixture.
+        from baseline import pinned_fixture
+        args.weights_gguf = os.path.abspath(args.weights_gguf)
+        args.gguf_file = os.path.basename(args.weights_gguf)
+        pinned = pinned_fixture(args.gguf_file)
+        args.gguf_repo = pinned["repo"] if pinned else None
+    else:
+        if args.repo != TOKENIZER_REPO and not args.gguf_repo:
+            parser.error("another model requires explicit --gguf-repo and --gguf-file labels")
+        args.gguf_repo = args.gguf_repo or GGUF_REPO
+        args.gguf_file = args.gguf_file or GGUF_FILE
     args.threads = 6 if args.threads is None else args.threads
     if args.threads < 1:
         parser.error("--threads must be positive")
@@ -476,6 +545,10 @@ def main(argv=None):
         gen_moe(args.output_dir)
     if args.kind == "tokenizer-qwen35":
         gen_tokenizer_qwen35(args.output_dir)
+    if args.kind == "file-exact":
+        loaded = load_reference(args)
+        gen_logits(args, loaded)
+        gen_perplexity(args, loaded)
 
 
 if __name__ == "__main__":

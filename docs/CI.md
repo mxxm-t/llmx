@@ -76,7 +76,7 @@ absent; the separate HF job supplies that coverage.
 
 The Python suite also checks reference-generator argument safeguards and that the requested commit, float32 dtype and eager attention reach the HF loader.
 These use standard-library test doubles; CI does not generate new HF goldens or download larger models.
-The ordinary suite now has 16 components, including `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
+The ordinary suite now has 17 components, including `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
 These tests use small committed JSON fixtures and doubles, without 8B inference.
 Default real-model downloads are the three pinned 0.6B GGUFs: Q8_0, Q4_0 and Q5_K_M.
 

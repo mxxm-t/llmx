@@ -198,18 +198,11 @@ A stream whose pass fails has already sent its 200 head, so it ends with one `da
   alone. A forked prefix continues exactly as a fresh sequence fed the
   same history. A cancelled request returns its blocks and the others
   finish unchanged. All on the CPU and on the device.
-- **Serving performance.** The figures a serving runtime is judged by,
-  measured by `tools/server_load.py` through streaming requests at 1, 4,
-  8, 16 and more concurrent requests of the same shape: time to first
-  token and inter-token latency at the median and the 99th percentile,
-  decoded tokens per second and requests per second.
+- **Serving performance.** The figures a serving runtime is judged by, measured by `tools/server_load.py` through streaming requests at 1, 4, 8, 16 and more concurrent requests of the same shape: time to first token and inter-token latency at the median and the 99th percentile, decoded tokens per second and requests per second.
   The tool also runs a sweep of Poisson request rates, prompts of an exact token length and replies of a fixed one, and reports time per output token, end-to-end latency and total tokens per second, the load and figures a reference serving benchmark reports.
   Against the reference runtime's server under the same load, same model, same card, both in the same minutes.
-  The bar is not parity: the reference's server
-  is the weaker of the serving runtimes at concurrency and the one that
-  can run on this hardware, so llmx must beat it by a wide margin on every
-  figure, and the margin is what is reported. A batch of one must not
-  cost more than the CLI's decode.
+  The bar is not parity: the reference's server is the weaker of the serving runtimes at concurrency and the one that can run on this hardware, so llmx must beat it by a wide margin on every figure, and the margin is what is reported.
+  A batch of one must not cost more than the CLI's decode.
 - **Long prompts under load.** A 16k prompt admitted while eight requests
   decode: the decoders' per-token latency during its prefill is recorded,
   since chunked prefill is what bounds it.

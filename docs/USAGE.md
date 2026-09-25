@@ -536,33 +536,45 @@ Every request streams a greedy reply, so the arrival of each token is timed and 
 | `--api A` | `llmx` (`/v1/generate`), `openai` (`/v1/completions`) or `completion` (the reference server's `/completion`) | `llmx` |
 | `--model M` | the model id `--api openai` sends | the first id `/v1/models` lists |
 | `--concurrency C ...` | closed-loop levels: C users, each sending its next request when its reply ends | `1 2 4 8 16 32 64`, none when `--rate` is given alone |
-| `--rate R ...` | open-loop levels: requests arriving at R a second as a Poisson process, each sent whatever is still running; `inf` sends them all at once | none |
+| `--rate R ...` | open-loop levels: requests arriving at R a second as a Poisson process, each sent at its time whatever is still running; `inf` sends them all at once | none |
 | `--num-prompts N` | requests a level | one a user in the closed loop, 100 in the open loop |
-| `--rounds N` | repeats of each closed-loop level, the best by output tokens per second reported | 2 |
+| `--rounds N` | repeats of each closed-loop level; the table shows the round with the most output tokens per second among those in which no request failed | 2 |
 | `--tokens N` | tokens a request asks for, a reply ending at the end of text | 64 |
 | `--output-len N` | in place of `--tokens`: exactly N tokens a request, with `ignore_eos` sent | |
 | `--input-len N` | every request its own prompt of N tokens | the eight short fixed prompts |
 | `--input-len-range LO:HI` | prompt lengths uniform from LO to HI | |
-| `--seed S` | seeds the prompts, their lengths and the arrivals | 0 |
+| `--seed S` | seeds the prompt lengths, the prompts and the arrivals | 0 |
 | `--warmup N` | requests before any level, at the longest prompt and the full reply | 1 |
-| `--timeout S` | seconds a timed request may take before it counts as failed | 600 |
+| `--timeout S` | seconds a timed request may go with nothing arriving before it fails, the limit the tool always put on every read | 600 |
+| `--total-timeout S` | seconds a timed request may take in all before it fails | 21600 |
 | `--json PATH` | every request's record and every level's figures, rewritten after each level | |
-| `--self-test` | check the figures against an in-process server with known token times, and exit | |
+| `--self-test` | check the stream reading and the figures on made-up times and against an in-process server, and exit | |
 
-A prompt of `--input-len N` is the word "the" and random words from a fixed list after it, a different prompt for every request, so no two share a cached prefix.
-The same seed gives the same prompts, so a second run against a server that kept the first run's prefixes can reuse them; the hits column shows it, and another `--seed` avoids it.
-Its length counts every token the server reads, a start token it adds included.
-Where the server has a tokenize route (`POST /tokenize`) each prompt is counted there and trimmed or extended to its length; otherwise two one-token requests on the word list, once and twice, show whether every word is one token, and when it is a prompt's length is exact by construction.
+An open level sends its requests whatever the server is still running, and the server queues what it cannot run yet.
+`llmx serve` runs 16 requests and queues 64 more by default and refuses the rest with 503, which count as failures, so for an open level start it with `--max-queue` at least `--num-prompts`.
+
+A prompt of `--input-len N` is the word "the" and random words from a fixed list after it, a different prompt for every request, so requests share no prefix beyond the first word but by chance.
+The prompt lengths come from the seed alone, before any prompt is built, so the n-th request of every level and round has the same length, whatever the server under test counts; the words come from the seed and the level and round.
+The same seed gives the same prompts, so a second run against a server that kept the first run's prefixes can reuse them; the `reused` column shows it, and another `--seed` avoids it.
+A prompt's length counts every token the server reads, a start token it adds included.
+Where the server has a tokenize route (`POST /tokenize`) each prompt is counted there and trimmed or extended to its length, and a line below the table lists any prompt that cannot reach it; otherwise two one-token requests on the word list, once and twice, show whether every word is one token, and when it is a prompt's length is exact by construction.
 Where the replies report their prompt tokens (`usage` on `--api openai`, `tokens_evaluated` on `--api completion`) a line below the table lists any that miss their target.
 `--output-len` asks every route to ignore the end of text; llmx's routes do not read `ignore_eos` today, so a reply there can still end at the model's end of text, and the `short` column counts such replies.
 
-One row per level: the first eight columns are the tool's earlier table (output tokens per second, requests per second, time to first token and inter-token latency at the median and the 99th percentile), then prompt and output tokens per second (`all tok/s`), time to first token at the mean and the 90th percentile, time per output token after the first (`tpot`, per request (last token - first token) / (tokens - 1)) at the mean, median and 99th percentile, end-to-end latency at the median and 99th percentile, the mean prompt and output tokens, and the counts: completed, failed, short and prefix hits.
-Figures are over the completed requests, from a level's first send to its last reply's end.
-A request fails on an HTTP error, a refused or dropped connection, an error event, a stream that ends before its last event, or `--timeout`; each failure is counted and its reason listed below the table.
-Prefix hits are read from the replies (`timings.cache_n`) or, on the native route, from the difference of `/v1/health`'s `prefix_hits` around the level.
+One row per level: the first eight columns are the tool's earlier table (output tokens per second, requests per second, time to first token and inter-token latency at the median and the 99th percentile), then prompt and output tokens per second (`all tok/s`), time to first token at the mean and the 90th percentile, time per output token after the first (`tpot`, per request (end - first token) / (tokens - 1), the end being the reply's last event) at the mean, median and 99th percentile, end-to-end latency to the reply's last event at the median and 99th percentile, the mean prompt and output tokens, the counts (completed, failed and short) and the mean prompt tokens a request reused from the server's prefix cache.
+Figures are over the completed requests, from a level's first send to its last reply's end; time to first token counts from before the connection is opened.
+A reply's tokens are the count it reports where it reports one, so an event of several tokens counts them all and an event holding only the rest of a character split across tokens counts none.
+A request fails on an HTTP error, a refused or dropped connection, an error event, a stream that ends before its last event, or either timeout; each failure is counted and its reason listed below the table, for every round of a closed level, the ones the table does not show included.
+Reused tokens are read from the replies (`timings.cache_n`) or, on the native route, from the difference of `/v1/health`'s `prefix_tokens` around the level.
+Every prompt starts with "the", so a server that matches prompts token by token reuses that word and any start token, one or two tokens a request.
+`--api completion` sends `cache_prompt: false`, as the tool always has, so the reference server's `/completion` reuses nothing; `--api openai` leaves every server's prefix cache at its default.
+Below the table an open level also notes sends that fell behind their arrival times at the 99th percentile by over 10 ms or a twentieth of the mean gap between arrivals, whichever is longer, and any level the requests that took over 100 ms to connect, as a burst past the server's listen backlog does; every request's send lag and connect time are in `--json`.
+
+The tool exits 0 when every timed request completed and 3 when any failed, after printing the table and its notes and writing `--json`; it exits 1 when the server cannot be reached or the warm-up fails.
 
 ```
 python tools/server_load.py --input-len 128 --output-len 128 --concurrency 1 2 4 8 16 32 64 --num-prompts 128 --json closed.json
+llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256
 python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
 ```
 

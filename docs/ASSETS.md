@@ -355,9 +355,25 @@ when an override is set; unsupported filenames are rejected.
 | `Qwen/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q8_0.gguf` | Small enough to gate on, and the tokenizer golden's model |
 | `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q4_0.gguf` | **Load-bearing.** Mixed Q4_0/Q4_1/Q6_K/F32, and its Q6_K `token_embd` has a subnormal super-block scale. The Q8_0 fixture has almost no subnormal scales (0.0061% of blocks against 5.89% in Qwen3-8B), so without this model the logit gate is blind to the f16 subnormal bug class - it passed with that bug deliberately reintroduced until this was added. |
 | `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q5_K_M.gguf` | The K-quant path: 168 Q5_K, 29 Q6_K and 113 F32 tensors, so the fused Q5_K and Q6_K dots and the device K-quant kernels are under the HF gate. Same repo and revision as the Q4_0 file. Bounds set from the measured deltas plus margin: top-5 overlap 4, NLL delta 0.05 continuous, 0.16 per chunk |
+| `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q4_K_M.gguf` | The most common download's type: 168 Q4_K, 29 Q6_K and 113 F32 tensors, so Q4_K, which the suite otherwise checks only against a decode written from the format description, is under the HF gate end to end on every backend. Same repo and revision as the Q4_0 file (Qwen's own GGUF repo has no Q4_K_M). Bounds set by the Q5_K_M rule below: top-5 overlap 4, NLL delta 0.13 continuous, 0.25 per chunk |
+
+The K-quant fixtures' bounds are the CPU's measured HF deltas plus a margin.
+Q5_K_M measured 0.026 continuous and 0.130 per chunk (the four 64-token windows) and took 0.05 and 0.16, a margin of 0.024 and 0.030, with its top-5 overlap bound at its lowest measured overlap, 4.
+Q4_K_M takes the same margins over its own largest deltas, rounded up to a hundredth, and the same overlap rule.
+Measured on 2026-09-25 on the CPU (Windows, MSVC build of `ea3a255`), batched and `--per-token`:
+
+| Q4_K_M case | HF NLL | batched NLL | per-token NLL | largest delta | bound |
+|---|---:|---:|---:|---:|---:|
+| continuous, 247 tokens | 3.360286 | 3.465460 | 3.461910 | 0.105174 | 0.13 (0.105174 + 0.024) |
+| 64 / all four | 4.030360 | 4.245600 | 4.242460 | 0.215240 | 0.25 (0.215240 + 0.030) |
+| 64 / 2 | 3.710157 | 3.897280 | 3.897010 | 0.187123 | 0.25 |
+| 123 / 2 | 3.630794 | 3.804750 | 3.801350 | 0.173956 | 0.25 |
+
+Its logits give the HF top-1 on all six prompts, a top-5 overlap of 4, 4, 5, 4, 5 and 4 (bound 4, the lowest), and the exact top-5 order on one.
+The same build measured Q5_K_M at 0.026144 and 0.027534 continuous and 0.129440 at most per chunk, the values its bounds were set from.
 
 Fetch and SHA-256 verify the pinned snapshots with
-`python tools/fetch_test_models.py` (Python standard library only, about 1.4 GB
+`python tools/fetch_test_models.py` (Python standard library only, about 1.9 GB
 combined).
 Repos, revisions, files and digests are recorded in `tests/data/fixtures.json`, which the downloader and `tests/baseline.py` both read, and each model's bounds in `tests/baseline.py`.
 The numerical checks use those exact snapshots unless explicitly overridden.
@@ -529,7 +545,7 @@ feature, and these correctness runs are not throughput measurements.
 `tests/reference_consumer.py` checks fixture tampering, token mismatch, malformed/nonfinite/duplicate/unsorted logits, damaged PPL counters/bounds and failed launches using the standard library.
 It also runs the consumer over simulated passing outputs and requires 41 checks, each NLL case scored in both modes.
 It was the eleventh ordinary suite component when it was added.
-The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` still cover only the three pinned 0.6B models.
+The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` still cover only the four pinned 0.6B models.
 
 ### Fixed-excerpt HF perplexity gate
 

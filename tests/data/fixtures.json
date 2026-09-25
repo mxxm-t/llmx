@@ -16,5 +16,11 @@
     "file": "Qwen3-0.6B-Q5_K_M.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
     "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+  },
+  {
+    "repo": "unsloth/Qwen3-0.6B-GGUF",
+    "file": "Qwen3-0.6B-Q4_K_M.gguf",
+    "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+    "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
   }
 ]

@@ -31,6 +31,8 @@ BOUNDS = {
     "Qwen3-0.6B-Q4_0.gguf": {"top5_overlap": 4, "continuous_nll": 0.16, "window_nll": 0.20},
     # 168 Q5_K, 29 Q6_K and 113 F32 tensors: the K-quant path in every matmul and the Q6_K head, on both backends.
     "Qwen3-0.6B-Q5_K_M.gguf": {"top5_overlap": 4, "continuous_nll": 0.05, "window_nll": 0.16},
+    # 168 Q4_K, 29 Q6_K and 113 F32 tensors: the most common download's type in every matmul, from the Q4_0 file's repo and revision.
+    "Qwen3-0.6B-Q4_K_M.gguf": {"top5_overlap": 4, "continuous_nll": 0.13, "window_nll": 0.25},
 }
 
 with io.open(FIXTURES, encoding="utf-8") as f:

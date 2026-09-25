@@ -107,7 +107,7 @@ Every GGUF file is mapped, a sharded one shard by shard with the shards placed o
 
 ## Placement and balance
 
-- Layers go to stages by **measured cost**, not layer count: a stage's time sets the pipeline's pace. The head (0.6 to 1.3 GB and a large matmul at a 151936-row vocabulary) and the embedding are placed as roles with their own cost, not pinned to the last and first device. A head pinned to the last card capped a 10-card split before, and moving it to the CPU lost 31 to 43 percent.
+- Layers go to stages by **cost**: a stage's time sets the pipeline's pace. Every layer of a Qwen3 model has the same shape, so the fit balances layer counts first and bytes second (phase 2: on three MI50s it had given 12/13/11 by bytes, and equal counts prefilled 16k tokens 7 percent faster); measured cost per role is the refinement below. The head (0.6 to 1.3 GB and a large matmul at a 151936-row vocabulary) and the embedding are placed as roles with their own cost, not pinned to the last and first device. A head pinned to the last card capped a 10-card split before, and moving it to the CPU lost 31 to 43 percent.
 - Per-layer costs are not uniform. Attention grows with context, and MoE and dense layers differ, so the balance is set at a representative context and the chunk sizing absorbs the rest. Weights do not move after load.
 - A stage boundary never splits a layer's attention from its feed-forward block, except where the placement asks for it (CPU experts).
 - A second card beside another job halved layer-split prefill in earlier measurements, so gates run on cards with no neighbour.

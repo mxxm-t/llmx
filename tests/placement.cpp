@@ -193,7 +193,14 @@ void layer_split_fits() {
     auto thirds = infer::split_layers(three, {budget("a", GiB), budget("b", GiB), budget("c", GiB)}, 1);
     require(thirds.stages[0].count == 1 && thirds.stages[1].count == 1 && thirds.stages[2].count == 1,
             "three equal devices did not share three equal layers");
-    checked += 2;
+    // Every layer costs the same, so the busiest device runs as few as fit: six 10 MiB layers beside a 40 MiB embedding and a 40 MiB head go two a device, where balancing bytes would give the middle device four.
+    infer::Footprint ends;
+    ends.layers.assign(6, {infer::Matrix{8, 4096, 1, 10 * MiB, true}});
+    ends.embedding = ends.output = infer::Matrix{8, 4096, 1, 40 * MiB, true};
+    auto counted = infer::split_layers(ends, {budget("a", GiB), budget("b", GiB), budget("c", GiB)}, 1);
+    require(counted.stages[0].count == 2 && counted.stages[1].count == 2 && counted.stages[2].count == 2,
+            "the fit balanced bytes rather than layers");
+    checked += 3;
 
     // A tied head on the embedding's device is charged as the head keeps it: a backend's copy of a product matrix counts once, beside the shared buffer.
     infer::Footprint tied_f32;

@@ -173,9 +173,11 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         std::stable_sort(fraction.begin(), fraction.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
         for (size_t i = 0; given < L; ++i, ++given) ++count[fraction[i].second];
     } else {
-        // A plan is better with fewer layers on devices that read in place, then a lighter busiest device.
-        using Score = std::pair<size_t, size_t>;
-        const Score none{SIZE_MAX, SIZE_MAX};
+        // A plan is better with fewer layers on devices that read in place, then fewer layers on its busiest device, whose stage sets a pipeline's pace since every layer of the model costs the same, then fewer bytes there.
+        // A device's load is (layers, bytes), compared in that order; the busiest is the largest, a single maximum the program keeps exact.
+        using Load = std::pair<size_t, size_t>;
+        using Score = std::pair<size_t, Load>;
+        const Score none{SIZE_MAX, Load{SIZE_MAX, SIZE_MAX}};
         bool found = false;
         Score best = none;
         for (size_t mask = 1; mask < ((size_t)1 << N); ++mask) {
@@ -189,7 +191,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             // score[j][i]: the set's first j devices running layers [0, i), one at least each; from[j][i]: how many the last of them took.
             std::vector<std::vector<Score>> score(J + 1, std::vector<Score>(L + 1, none));
             std::vector<std::vector<size_t>> from(J + 1, std::vector<size_t>(L + 1, 0));
-            score[0][0] = Score{0, 0};
+            score[0][0] = Score{0, Load{0, 0}};
             for (size_t j = 0; j < J; ++j) {
                 const size_t d = used[j];
                 const bool first = j == 0, last = j + 1 == J;
@@ -201,7 +203,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
                         if (!fits(d, bytes)) break;
                         Score next = score[j][i];
                         if (devices[d].host) next.first += k;
-                        else next.second = std::max(next.second, bytes);
+                        else next.second = std::max(next.second, Load{k, bytes});
                         if (next < score[j + 1][i + k]) {
                             score[j + 1][i + k] = next;
                             from[j + 1][i + k] = k;

@@ -57,8 +57,8 @@ backends, and it is needed at **build time only**: `vulkan.h` for the
 declarations, and `glslc` to compile the shaders. The runtime needs the
 loader, `vulkan-1.dll` or `libvulkan.so.1`, which the driver installs.
 
-The workstation has the LunarG SDK 1.4.357 at `C:\VulkanSDK`, installed
-for this work; CMake finds it through `VULKAN_SDK`.
+The workstation has the LunarG SDK 1.4.357 at `C:\VulkanSDK`, installed for this work; CMake finds it through `VULKAN_SDK`.
+[BUILD](BUILD.md) gives the packages and commands that build the backend on Windows and Linux, and the Docker image that carries them.
 
 - **The loader is loaded at run time**, `LoadLibrary` or `dlopen`, and
   entry points are fetched through `vkGetInstanceProcAddr`. No import

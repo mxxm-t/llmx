@@ -12,33 +12,19 @@ serving can be added later without touching the core.
 
 ## Build
 
-Windows (MSVC):
-```
-build.bat
-```
-produces `llmx.exe` in the repo root.
+`docs/BUILD.md` is the one page on building: the prerequisites and commands on Windows, Linux and macOS, the Vulkan backend, the Docker image, where the binary lands, the build identifier and the test commands.
+In short, `build.bat` writes `llmx.exe` to the repo root, and `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release` followed by `cmake --build build --config Release` builds the binary and the native tests.
+The notes below are for working on llmx itself.
 
-Cross-platform (Windows / Linux / macOS), CMake:
-```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
-```
-For MSVC builds in temporary worktrees, use a fresh build directory or
-`cmake --build build --config Release --clean-first` after header changes.
-An incremental invocation here emitted MSB8029 and left the executable older
-than edited headers, despite exiting successfully. Preserve the compile log
-and verify that the changed source was actually rebuilt before claiming a gate.
+For MSVC builds in temporary worktrees, use a fresh build directory or `cmake --build build --config Release --clean-first` after header changes.
+An incremental invocation here emitted MSB8029 and left the executable older than edited headers, despite exiting successfully.
+Preserve the compile log and verify that the changed source was actually rebuilt before claiming a gate.
 
-The build dir's `generated/config.hpp` is produced from
-`cmake/llmx-config.hpp.in`; the checked-in `src/config.hpp` is the fallback used
-by the plain `build.bat` path. Keep the two in sync when you add build knobs.
+The build dir's `generated/config.hpp` is produced from `cmake/llmx-config.hpp.in`; the checked-in `src/config.hpp` is the fallback used by the plain `build.bat` path.
+Keep the two in sync when you add build knobs.
 
-A Linux machine with AMD cards but no Vulkan driver or SDK of its own
-builds and runs the Vulkan backend through `docker/Dockerfile`, which
-carries the loader, the Mesa driver, the headers and the shader compiler
-and takes the cards from the host through `/dev/dri`. The file itself
-gives the two commands. This is how the Linux MI50 machine runs the backend, and it
-leaves that shared machine's packages untouched.
+The Linux MI50 machine builds and runs the Vulkan backend in the image from `docker/Dockerfile` (`docs/BUILD.md`, Docker), which carries the loader, the Mesa driver, the headers and the shader compiler and takes the cards from the host through `/dev/dri`.
+That leaves the shared machine's packages untouched.
 
 ## Principles
 

@@ -11,7 +11,7 @@
 #     --group-add "$(getent group render | cut -d: -f3)" \
 #     -v "$PWD:/llmx" -w /llmx llmx-dev
 #
-# Inside, the ordinary build and test commands apply (AGENTS.md):
+# Inside, the ordinary build and test commands apply (docs/BUILD.md):
 #   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_VULKAN=ON
 #   cmake --build build --parallel
 #   ctest --test-dir build --output-on-failure

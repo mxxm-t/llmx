@@ -92,24 +92,23 @@ achieved universal claims. Current gaps and comparison tables are in
 
 ## Build
 
-Windows with Visual Studio's C++ tools:
+Windows, with Visual Studio 2022 or later and its Desktop development with C++ workload:
 
 ```bat
 build.bat
 ```
 
-This produces `llmx.exe` in the repository root. For Windows, Linux and Intel
-macOS through CMake:
+This builds the CPU backend into `llmx.exe` in the repository root.
+On Windows, Linux and Intel macOS, CMake builds the binary and the native tests:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
-Current builds require x86 AVX2/FMA/F16C. Git-enabled builds identify themselves
-as `0.1.0+g<commit>` (at least 12 revision characters), with `.dirty` for tracked
-changes. The identifier refreshes on rebuild. Source archives without
-Git metadata report `0.1.0+unknown`; no timestamp or automatic release bump is used.
+The binary is `build/llmx`, or `build\Release\llmx.exe` with Visual Studio.
+Every build needs an x86-64 CPU with AVX2, FMA and F16C.
+[BUILD](docs/BUILD.md) lists the prerequisites for each platform and covers the Vulkan backend, Docker, the build identifier and the tests.
 
 ## Use
 
@@ -129,7 +128,7 @@ options and examples. See the [command reference](docs/USAGE.md) for details.
 
 ```sh
 ctest --test-dir build -C Release --output-on-failure
-python tests/run_tests.py --exe build/llmx
+python tests/run_tests.py --exe build/llmx --no-perf-floor
 ```
 
 For MSVC CMake builds, use `--exe build/Release/llmx.exe`; the plain Windows
@@ -152,6 +151,7 @@ external performance floor.
 
 ## Project guide
 
+- [Build](docs/BUILD.md): prerequisites and commands for each platform.
 - [Architecture](docs/ARCHITECTURE.md): layer boundaries and execution design.
 - [Roadmap](docs/ROADMAP.md): planned features and prerequisites.
 - [Status](docs/STATUS.md): current checkpoints, validation and remaining work.

@@ -13,7 +13,7 @@ up to `ubatch()` tokens with logits for every position, the prompt path; with
 `per_token` (the CLI's `--per-token`) it is fed one token at a time through
 `step`, the decode path, and the final target needs no forward pass because
 its logits are unused. On a device the two paths use different kernels, and
-`tests/baseline.py` scores every HF perplexity cell both ways.
+`tests/baseline.py` and `tests/baseline_8b.py` score every HF perplexity cell both ways.
 
 `PerplexityResult` stores used input tokens, scored targets, chunks and total
 NLL. `mean_nll()` divides total NLL by scored targets. `docs/USAGE.md` documents

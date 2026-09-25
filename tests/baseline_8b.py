@@ -1,13 +1,14 @@
 import argparse
+import functools
 import hashlib
 import json
-import math
 from pathlib import Path
 import os
 import subprocess
 import sys
 
-from common import device_args, perplexity_fields, top5_overlap
+import common
+from common import device_args, require
 
 
 DATA = Path(__file__).resolve().parent / "data" / "qwen3-8b"
@@ -21,11 +22,6 @@ BOUNDS = {"top5_overlap": 5, "max_abs_logit": 100.0,
           "continuous_nll": 0.01, "window_nll": 0.02}
 VOCAB_SIZE = 151936
 MODEL_CONTEXT = 40960
-
-
-def require(condition, message):
-    if not condition:
-        raise ValueError(message)
 
 
 def file_sha256(path):
@@ -47,49 +43,10 @@ def load_goldens():
     return docs
 
 
-def check_ids(output, expected):
-    ids = [int(value) for value in output.strip().replace(",", " ").split()]
-    require(ids == expected, "token IDs differ from HF")
-    return {"tokens": len(ids)}
-
-
-def check_logits(output, case):
-    lines = output.strip().splitlines()
-    require(len(lines) == 11 and lines[0] == "tokens: " + str(case["n_tokens"]),
-            "wrong logit count or prompt token count")
-    pairs = [line.split() for line in lines[1:]]
-    require(all(len(pair) == 2 for pair in pairs), "malformed logits")
-    ids = [int(pair[0]) for pair in pairs]
-    values = [float(pair[1]) for pair in pairs]
-    require(len(set(ids)) == 10 and all(0 <= token < VOCAB_SIZE for token in ids),
-            "duplicate or invalid logit token IDs")
-    require(all(math.isfinite(value) and abs(value) <= BOUNDS["max_abs_logit"] for value in values),
-            "non-finite or implausible logits")
-    require(all(a >= b for a, b in zip(values, values[1:])), "logits not sorted")
-    require(ids[0] == case["top_ids"][0], "top-1 differs from HF")
-    overlap = top5_overlap(ids, case["top_ids"], case["top_logits"])
-    require(overlap >= BOUNDS["top5_overlap"], "top-5 overlap below frozen bound")
-    return {"top1": ids[0], "top5_overlap": overlap, "top_ids": ids, "top_logits": values}
-
-
-def check_ppl(output, case, total_tokens):
-    fields = perplexity_fields(output)
-    counts = {"tokens": total_tokens, "used tokens": case["used_tokens"],
-              "scored tokens": case["n_scored"], "chunks": case["chunks"],
-              "context size": case["context_size"] or MODEL_CONTEXT}
-    require(set(fields) == set(counts) | {"mean NLL", "perplexity"}, "missing or unexpected PPL fields")
-    for key, expected in counts.items():
-        require(int(fields[key]) == expected, "wrong PPL " + key)
-    nll, ppl = float(fields["mean NLL"]), float(fields["perplexity"])
-    require(math.isfinite(nll) and math.isfinite(ppl) and nll >= 0 and ppl >= 1,
-            "invalid NLL/PPL")
-    bound = BOUNDS["window_nll"] if case["context_size"] else BOUNDS["continuous_nll"]
-    delta = abs(nll - case["mean_nll"])
-    require(delta <= bound, "NLL difference %.9g exceeds frozen bound %.9g" % (delta, bound))
-    # The CLI prints six significant digits.
-    require(math.isclose(ppl, math.exp(nll), rel_tol=2e-5), "inconsistent NLL/PPL")
-    return dict(counts, mean_nll=nll, perplexity=ppl, hf_mean_nll=case["mean_nll"],
-                absolute_nll_delta=delta, bound=bound)
+# The shared validators at this model's vocabulary, context and bounds, as tests/reference_consumer.py checks them.
+check_ids = common.check_ids
+check_logits = functools.partial(common.check_logits, vocab=VOCAB_SIZE, bounds=BOUNDS)
+check_ppl = functools.partial(common.check_ppl, context=MODEL_CONTEXT, bounds=BOUNDS)
 
 
 def main(argv=None):
@@ -112,7 +69,7 @@ def main(argv=None):
     report = {"status": "running", "bounds": dict(BOUNDS), "threads": 6, "ubatch": 128,
               "model": str(model), "executable": str(exe), "device": args.device or "cpu", "layer_shares": args.layer_shares,
               "fixture_sha256_lf": FIXTURE_SHA256,
-              "scope": "20 tokenizer cases, six short prefill rankings and four serial-step NLL cases; not full-corpus or deep-context coverage",
+              "scope": "20 tokenizer cases, six short prefill rankings and four NLL cases, each scored in batched passes and per token; not full-corpus or deep-context coverage",
               "provenance_limit": "Official GGUF base model and file digest match; exact original conversion revision is undocumented.",
               "commands": [], "checks": []}
 
@@ -171,19 +128,16 @@ def main(argv=None):
         excerpt.write_bytes(doc["text"].encode("utf-8"))
         require(file_sha256(excerpt) == doc["text_sha256"], "PPL text hash differs")
         check("ppl-ids", check_ids, run("ppl-ids", ["tokenize", str(model), doc["text"]]), doc["token_ids"])
-        continuous = dict(doc, context_size=0, max_chunks=0, chunks=1, used_tokens=doc["n_tokens"])
-        for index, case in enumerate([continuous] + doc["chunk_cases"]):
-            label = "ppl-%02d" % index
-            command = ["perplexity", str(model), "--file", str(excerpt), "--threads", "6", "--ubatch", "128"]
-            if case["context_size"]:
-                command += ["--ctx-size", str(case["context_size"])]
-            if case["max_chunks"]:
-                command += ["--chunks", str(case["max_chunks"])]
-            check(label, check_ppl, run(label, command), case, doc["n_tokens"])
+        for index, case in enumerate(common.ppl_cases(doc)):
+            for mode in common.PPL_MODES:
+                label = "ppl-%02d" % index + ("-per-token" if mode == "per-token" else "")
+                command = common.ppl_command(str(model), str(excerpt), case, mode, ubatch=128)
+                check(label, check_ppl, run(label, command), case, doc["n_tokens"])
         failures = [item["label"] for item in report["checks"] if item["status"] == "fail"]
         require(not failures, "failed checks: " + ", ".join(failures))
         report["status"] = "pass"
-        print("8B HF check PASS: 20 tokenizer cases, six rankings, four NLL cases", flush=True)
+        print("8B HF check PASS: %d checks, 20 tokenizer cases, six rankings, four NLL cases batched and per token"
+              % len(report["checks"]), flush=True)
     except (OSError, ValueError, OverflowError) as error:
         report.update(status="fail", error=str(error))
         print("8B HF check FAIL: " + str(error), file=sys.stderr, flush=True)

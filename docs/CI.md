@@ -75,15 +75,11 @@ skips. Test execution does not install torch, transformers or HF packages.
 The ordinary CPU jobs can skip real-model checks because their fixtures are
 absent; the separate HF job supplies that coverage.
 
-The Python suite also checks reference-generator argument safeguards and that
-the requested commit, float32 dtype and eager attention reach the HF loader.
-These use standard-library test doubles; CI does not generate new HF goldens
-or download larger models. The ordinary suite now has 15 components, including
-`reference-consumer` rejection tests for 8B fixture tampering, malformed or
-out-of-bound numerical output, wrong model identity and failed launches. These
-tests use small committed JSON fixtures and doubles, without 8B inference.
-Default real-model downloads are the three pinned 0.6B GGUFs: Q8_0, Q4_0
-and Q5_K_M.
+The Python suite also checks reference-generator argument safeguards and that the requested commit, float32 dtype and eager attention reach the HF loader.
+These use standard-library test doubles; CI does not generate new HF goldens or download larger models.
+The ordinary suite now has 15 components, including `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
+These tests use small committed JSON fixtures and doubles, without 8B inference.
+Default real-model downloads are the three pinned 0.6B GGUFs: Q8_0, Q4_0 and Q5_K_M.
 
 The separate 8B consumer requires an existing model and a new output directory:
 
@@ -91,18 +87,15 @@ The separate 8B consumer requires an existing model and a new output directory:
 python -X utf8 tests/baseline_8b.py --exe build/llmx --model path/to/Qwen3-8B-Q8_0.gguf --output-dir hf-8b-review
 ```
 
-Use `--exe build/Release/llmx.exe` for MSVC. It verifies model/fixture hashes,
-records executable identity, commands and failures in `report.json`, saves raw
-output beside it, and never downloads or skips a missing model. Frozen bounds
-require exact token IDs, top-1 agreement and top-5 overlap 5/5, with absolute NLL deltas <= 0.01
-continuous and <= 0.02 windowed. Top-10 output must be finite, sorted, unique-ID
-and within absolute magnitude 100. This optional run is outside default CI;
-see [ASSETS](ASSETS.md#optional-qwen3-8b-hf-consumer) for reference provenance,
-the verified Linux cache path and the limits of short-excerpt coverage. Local
-Windows and Linux runs each pass 37/37 checks with identical printed NLLs and
-HF deltas. The Linux ordinary suite passes 11/11 with `--no-perf-floor`.
-These local results do not establish hosted 8B coverage; the optional consumer
-is not run by the workflow.
+Use `--exe build/Release/llmx.exe` for MSVC.
+It verifies model/fixture hashes, records executable identity, commands and failures in `report.json`, saves raw output beside it, and never downloads or skips a missing model.
+Frozen bounds require exact token IDs, top-1 agreement and top-5 overlap 5/5, with absolute NLL deltas <= 0.01 continuous and <= 0.02 windowed.
+Each NLL case is scored twice, in batched passes and with `--per-token`, as in `tests/baseline.py`, so a run has 41 checks.
+Top-10 output must be finite, sorted, unique-ID and within absolute magnitude 100; `tests/baseline.py` holds the 0.6B outputs to the same validators at its own bounds.
+This optional run is outside default CI; see [ASSETS](ASSETS.md#optional-qwen3-8b-hf-consumer) for reference provenance, the verified Linux cache path and the limits of short-excerpt coverage.
+Local Windows and Linux runs each passed the 37 checks the consumer had before the per-token half, with identical printed NLLs and HF deltas.
+The Linux ordinary suite passed 11/11 with `--no-perf-floor` at the time.
+These local results do not establish hosted 8B coverage; the optional consumer is not run by the workflow.
 
 Every job except the Vulkan build checks that `--version` and the usage
 banner agree with the release version, then runs the small F32 HF fixture

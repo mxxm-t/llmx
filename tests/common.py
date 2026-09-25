@@ -187,6 +187,93 @@ def hf_logit_error(name, got, expected):
     return error
 
 
+def parse_ids(out):
+    """The token IDs `llmx tokenize` prints."""
+    return [int(t) for t in out.replace(",", " ").split()]
+
+
+# The real-model HF gates, tests/baseline.py and tests/baseline_8b.py, check their outputs with these validators, each at its own model's vocabulary, context and bounds.
+# A validator raises ValueError on the first rule an output breaks and returns what it measured otherwise.
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def check_ids(output, expected):
+    ids = parse_ids(output)
+    require(ids == expected, "token IDs differ from HF")
+    return {"tokens": len(ids)}
+
+
+def check_logits(output, case, vocab, bounds):
+    """`llmx logits --top 10` for a reference case: the prompt's exact token count, then ten unique IDs below `vocab` with finite logits sorted from the top, none beyond `bounds["max_abs_logit"]`.
+    HF's top-1 must lead, and the top-5 overlap as top5_overlap counts it must reach `bounds["top5_overlap"]`."""
+    lines = output.strip().splitlines()
+    require(len(lines) == 11 and lines[0] == "tokens: " + str(case["n_tokens"]),
+            "wrong logit count or prompt token count")
+    pairs = [line.split() for line in lines[1:]]
+    require(all(len(pair) == 2 for pair in pairs), "malformed logits")
+    ids = [int(pair[0]) for pair in pairs]
+    values = [float(pair[1]) for pair in pairs]
+    require(len(set(ids)) == 10 and all(0 <= token < vocab for token in ids),
+            "duplicate or invalid logit token IDs")
+    require(all(math.isfinite(value) and abs(value) <= bounds["max_abs_logit"] for value in values),
+            "non-finite or implausible logits")
+    require(all(a >= b for a, b in zip(values, values[1:])), "logits not sorted")
+    require(ids[0] == case["top_ids"][0], "top-1 %d, HF %d" % (ids[0], case["top_ids"][0]))
+    overlap = top5_overlap(ids, case["top_ids"], case["top_logits"])
+    require(overlap >= bounds["top5_overlap"],
+            "top-5 overlap %d/5 below bound %d" % (overlap, bounds["top5_overlap"]))
+    return {"top1": ids[0], "top5_overlap": overlap, "top_ids": ids, "top_logits": values}
+
+
+def check_ppl(output, case, total_tokens, context, bounds):
+    """`llmx perplexity` for a reference case of a `total_tokens` text: exactly its fields, every count exact (the context size is `context` for the continuous case), and a finite mean NLL within `bounds["continuous_nll"]` of HF's, or `bounds["window_nll"]` in windows."""
+    fields = perplexity_fields(output)
+    counts = {"tokens": total_tokens, "used tokens": case["used_tokens"],
+              "scored tokens": case["n_scored"], "chunks": case["chunks"],
+              "context size": case["context_size"] or context}
+    require(set(fields) == set(counts) | {"mean NLL", "perplexity"}, "missing or unexpected PPL fields")
+    for key, expected in counts.items():
+        require(int(fields[key]) == expected, "PPL %s %s, expected %d" % (key, fields[key], expected))
+    nll, ppl = float(fields["mean NLL"]), float(fields["perplexity"])
+    require(math.isfinite(nll) and math.isfinite(ppl) and nll >= 0 and ppl >= 1,
+            "invalid NLL/PPL")
+    bound = bounds["window_nll"] if case["context_size"] else bounds["continuous_nll"]
+    delta = abs(nll - case["mean_nll"])
+    require(delta <= bound, "mean NLL %.6f vs HF %.6f: difference %.9g exceeds bound %.9g"
+            % (nll, case["mean_nll"], delta, bound))
+    # The CLI prints six significant digits.
+    require(math.isclose(ppl, math.exp(nll), rel_tol=2e-5), "inconsistent NLL/PPL")
+    return dict(counts, mean_nll=nll, perplexity=ppl, hf_mean_nll=case["mean_nll"],
+                absolute_nll_delta=delta, bound=bound)
+
+
+# Every perplexity case is scored both ways: in batched passes, the prompt path, and one token at a time, the decode path.
+# On a device they are different kernels, and scoring only one way once left one set of them without an HF check at all.
+PPL_MODES = ("batched", "per-token")
+
+
+def ppl_cases(doc):
+    """A perplexity fixture's cases: the whole text in one window, then its windowed cases."""
+    return [dict(doc, context_size=0, max_chunks=0, chunks=1, used_tokens=doc["n_tokens"])] + doc["chunk_cases"]
+
+
+def ppl_command(model, path, case, mode, ubatch=None):
+    """The `llmx perplexity` command scoring `case` of the text in the file `path` in `mode`, one of PPL_MODES."""
+    args = ["perplexity", model, "--file", path, "--threads", "6"]
+    if ubatch:
+        args += ["--ubatch", str(ubatch)]
+    if mode == "per-token":
+        args.append("--per-token")
+    if case["context_size"]:
+        args += ["--ctx-size", str(case["context_size"])]
+    if case["max_chunks"]:
+        args += ["--chunks", str(case["max_chunks"])]
+    return args
+
+
 def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=((),)):
     """A tiny F32 model against its HF fixture at 1 and 4 threads, with f32 caches.
     Every case's 257 logits at every ubatch and placement must be within the fixture bound (a placement other than the empty one runs at 4 threads only), then the windowed NLL of `text` for every perplexity case within 1e-5.

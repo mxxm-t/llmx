@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 import baseline_8b as consumer
+import common
 
 
 def logits_text(case):
@@ -75,8 +76,7 @@ class ReferenceConsumer(unittest.TestCase):
 
     def test_ppl_counters_and_bounds(self):
         doc = self.docs["baseline_perplexity.json"]
-        continuous = dict(doc, context_size=0, max_chunks=0, chunks=1, used_tokens=247)
-        for case in [continuous] + doc["chunk_cases"]:
+        for case in common.ppl_cases(doc):
             good = ppl_text(case)
             consumer.check_ppl(good, case, 247)
             invalid = [good + "chunks: 1\n", good.replace("tokens: 247", "tokens: 246"),
@@ -92,6 +92,45 @@ class ReferenceConsumer(unittest.TestCase):
             for output in invalid:
                 with self.subTest(output=output), self.assertRaises(ValueError):
                     consumer.check_ppl(output, case, 247)
+
+    def test_passing_run_scores_each_nll_case_both_ways(self):
+        doc = self.docs["baseline_perplexity.json"]
+        ids = {case["text"]: case["ids"] for case in self.docs["baseline_tokenizer.json"]["cases"]}
+        ids.update((case["text"], case["token_ids"]) for case in self.docs["baseline_logits.json"]["cases"])
+        ids[doc["text"]] = doc["token_ids"]
+        logits = {case["text"]: logits_text(case) for case in self.docs["baseline_logits.json"]["cases"]}
+
+        def flag(command, name):
+            return int(command[command.index(name) + 1]) if name in command else 0
+
+        def llmx(command, **kwargs):
+            if command[1] == "tokenize":
+                out = " ".join(map(str, ids[command[3]]))
+            elif command[1] == "logits":
+                out = logits[command[3]]
+            elif command[1] == "perplexity":
+                window = (flag(command, "--ctx-size"), flag(command, "--chunks"))
+                out = ppl_text(next(case for case in common.ppl_cases(doc)
+                                    if (case["context_size"], case["max_chunks"]) == window))
+            else:
+                out = "llmx 0\n"
+            return subprocess.CompletedProcess(command, 0, out.encode("utf-8"), b"")
+
+        sha256 = consumer.file_sha256
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = ["--exe", str(root / "llmx"), "--model", str(root / "model"), "--output-dir", str(root / "result")]
+            with patch.object(consumer, "file_sha256",
+                              side_effect=lambda path: sha256(path) if path.name == "excerpt.txt" else consumer.MODEL_SHA256), \
+                 patch.object(consumer.subprocess, "run", side_effect=llmx), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(consumer.main(args), 0)
+            report = json.loads((root / "result/report.json").read_text())
+        self.assertEqual(report["status"], "pass")
+        self.assertEqual(len(report["checks"]), 41)
+        scored = [(record["label"], "--per-token" in record["command"]) for record in report["commands"]
+                  if record["label"].startswith("ppl-0")]
+        self.assertEqual(scored, [("ppl-%02d" % index + ("-per-token" if per_token else ""), per_token)
+                                  for index in range(4) for per_token in (False, True)])
 
     def test_failed_launches_leave_failure_report(self):
         for scenario in ["wrong-model", "timeout", "nonzero", "launch-error"]:

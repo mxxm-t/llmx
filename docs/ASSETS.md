@@ -492,16 +492,18 @@ reusing the strict 0.6B Q8 budget, not calibrated from 8B results:
 | Tokenizer | All 20 cases, six logit prompt ID sequences and the PPL input IDs exact |
 | Six short-prompt rankings | Top-1 exact; top-5 set overlap 5/5 |
 | Each top-10 output | Ten unique valid IDs; finite, nonincreasing logits; absolute magnitude <= 100; exact prompt count |
-| Continuous 247-token mean NLL | Absolute HF delta <= 0.01 |
-| Each of three windowed mean NLL cases | Absolute HF delta <= 0.02 |
+| Continuous 247-token mean NLL, batched and per token | Absolute HF delta <= 0.01 |
+| Each of three windowed mean NLL cases, batched and per token | Absolute HF delta <= 0.02 |
 | PPL accounting | Exact input/used/target/window/context counts; finite consistent NLL/PPL |
 
-The context-123 case omits its singleton tail: 246 used tokens, 244 targets
-and two windows. PPL runs the serial-step path; rankings exercise short batched
-prefill. These checks do not bound all logits or establish full-corpus,
-deep-context, lossless or performance parity. The exact original revision used
-for the GGUF conversion remains undocumented. Keep failures and investigate
-them without relaxing these bounds to fit observations.
+The context-123 case omits its singleton tail: 246 used tokens, 244 targets and two windows.
+Each NLL case runs twice, in batched passes (`ppl-NN`), the prompt path, and one token at a time with `--per-token` (`ppl-NN-per-token`), the decode path, as `tests/baseline.py` does; rankings exercise short batched prefill.
+A run therefore has 41 checks: 20 tokenizer cases, six prompt-ID/ranking pairs, the PPL input IDs and eight NLL checks.
+The per-token half was added on 2026-09-25 with the bounds unchanged; the runs below predate it and have 37.
+A Windows CPU run of all 41 with the `e039b62` runtime passed that day, with NLL deltas per token of 0.003734 continuous and at most 0.002223 windowed, and batched of 0.001574 and at most 0.002255.
+These checks do not bound all logits or establish full-corpus, deep-context, lossless or performance parity.
+The exact original revision used for the GGUF conversion remains undocumented.
+Keep failures and investigate them without relaxing these bounds to fit observations.
 
 The Windows and Linux consumers each pass all 37 checks with the validated
 `bf122fd` runtime.
@@ -522,11 +524,10 @@ after checking its hash and unchanged runtime source; its version records the
 pre-checkpoint build (`ea1e727.dirty`). No runtime path changed in this consumer
 feature, and these correctness runs are not throughput measurements.
 
-`tests/reference_consumer.py` checks fixture tampering, token mismatch,
-malformed/nonfinite/duplicate/unsorted logits, damaged PPL counters/bounds and
-failed launches using the standard library. It is the eleventh ordinary suite
-component. The real 8B run is optional and separate; `--require-baseline` and
-`tools/fetch_test_models.py` still cover only the two pinned 0.6B models.
+`tests/reference_consumer.py` checks fixture tampering, token mismatch, malformed/nonfinite/duplicate/unsorted logits, damaged PPL counters/bounds and failed launches using the standard library.
+It also runs the consumer over simulated passing outputs and requires 41 checks, each NLL case scored in both modes.
+It was the eleventh ordinary suite component when it was added.
+The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` still cover only the three pinned 0.6B models.
 
 ### Fixed-excerpt HF perplexity gate
 
@@ -551,6 +552,7 @@ Q4_0 NLL **3.49184** / PPL **32.8463**. The absolute mean-NLL bounds are **0.01*
 and **0.16**, respectively (about 1.01% and 17.35% relative PPL). These bounds
 allow quantization error; they do not establish lossless inference. The gate
 also requires exact HF token IDs/count and finite, mutually consistent NLL/PPL.
+Since 2026-09-25 the logit and PPL outputs go through the validators the 8B consumer uses (`common.check_logits`, `common.check_ppl`) at each fixture model's bounds, which adds the exact prompt token count, ten unique in-vocabulary top IDs with finite logits sorted from the top, exactly the seven PPL fields, and the model's 40960-token context on the continuous case.
 
 The same pinned reference also scores disjoint 64-token windows (all four, or
 the first two) and 123-token windows (two, omitting the singleton tail).

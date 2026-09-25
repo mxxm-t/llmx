@@ -439,17 +439,16 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   real model, so it SKIPS when none is on disk; point it at one with
   `LLMX_BASELINE_GGUF`. Every perplexity cell is scored twice, in batched
   passes (the default) and with `--per-token`, so the prompt and decode
-  kernels both meet the reference. Regenerating tokenizer fixtures needs `tokenizers` and
-  `huggingface_hub`; numerical fixtures also need `torch` and `transformers`.
+  kernels both meet the reference.
+  Its logit and PPL outputs go through the validators the 8B check uses, `common.check_logits` and `common.check_ppl`, at each fixture model's bounds: the exact prompt token count, ten unique in-vocabulary IDs with finite logits sorted from the top, and exactly the PPL fields with every count exact.
+  Regenerating tokenizer fixtures needs `tokenizers` and `huggingface_hub`; numerical fixtures also need `torch` and `transformers`.
   RUNNING the suite needs none of these packages.
 - **Reference generator** (`tests/reference_generator.py`): standard-library
   checks for pinned reference selection, separate alternate-model output and
   forwarding the revision/float32/eager settings to the HF loaders. Actual
   reference generation and model correctness remain separate checks.
-- **Reference consumer** (`tests/reference_consumer.py`): standard-library
-  rejection tests for changed 8B fixtures, damaged logits/PPL, wrong model
-  identity and failed launches. It is included in the ordinary suite;
-  it does not load or download the 8B model.
+- **Reference consumer** (`tests/reference_consumer.py`): standard-library rejection tests for changed 8B fixtures, damaged logits/PPL, wrong model identity and failed launches, and a passing run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
+  It is included in the ordinary suite; it does not load or download the 8B model.
 - **Fixture downloader** (`tests/fetch_models.py`): fifteen offline tests
   of `tools/fetch_test_models.py` against simulated responses: a verified
   download and its cached reuse, a corrupt cached file replaced, bounded
@@ -467,17 +466,13 @@ The optional real 8B check is separate from the ordinary suite and default CI:
 python -X utf8 tests/baseline_8b.py --exe build/Release/llmx.exe --model path/to/Qwen3-8B-Q8_0.gguf --output-dir hf-8b-review
 ```
 
-Use a new output directory; on Linux use `--exe build/llmx`. The consumer
-verifies the model/fixture hashes and writes raw outputs plus `report.json`,
-including failures. It requires exact tokenizer/input IDs, six top-1 matches,
-top-5 overlap 5/5 and valid top-10 logits; absolute NLL bounds are 0.01 for the
-continuous excerpt and 0.02 per windowed case. These prospective Q8 bounds
-were frozen before the 8B comparison. Since 2026-09-25 the overlap, here and
-in `tests/baseline.py`, counts a swap at the 5th place as agreement when the
-reference puts both tokens within 0.1 logits of its 5th value
-(`common.top5_overlap`): such near ties reorder with any summation order. See `docs/ASSETS.md` for provenance and
-scope: short rankings/excerpts do not establish full-corpus or deep-context
-correctness, and the exact original GGUF conversion revision is undocumented.
+Use a new output directory; on Linux use `--exe build/llmx`.
+The consumer verifies the model/fixture hashes and writes raw outputs plus `report.json`, including failures.
+It requires exact tokenizer/input IDs, six top-1 matches, top-5 overlap 5/5 and valid top-10 logits; absolute NLL bounds are 0.01 for the continuous excerpt and 0.02 per windowed case.
+Each NLL case is scored twice, in batched passes (`ppl-NN`) and with `--per-token` (`ppl-NN-per-token`), as in `tests/baseline.py`, so a run has 41 checks.
+These prospective Q8 bounds were frozen before the 8B comparison.
+Since 2026-09-25 the overlap, here and in `tests/baseline.py`, counts a swap at the 5th place as agreement when the reference puts both tokens within 0.1 logits of its 5th value (`common.top5_overlap`): such near ties reorder with any summation order.
+See `docs/ASSETS.md` for provenance and scope: short rankings/excerpts do not establish full-corpus or deep-context correctness, and the exact original GGUF conversion revision is undocumented.
 
 The two project gates are external and are defined in `docs/ROADMAP.md` #8:
 **correctness is the HF reference**, and **performance must be at least

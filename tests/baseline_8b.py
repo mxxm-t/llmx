@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 
-from common import device_args, top5_overlap
+from common import device_args, perplexity_fields, top5_overlap
 
 
 DATA = Path(__file__).resolve().parent / "data" / "qwen3-8b"
@@ -73,12 +73,7 @@ def check_logits(output, case):
 
 
 def check_ppl(output, case, total_tokens):
-    fields = {}
-    for line in output.strip().splitlines():
-        require(":" in line, "malformed PPL line")
-        key, value = line.split(":", 1)
-        require(key not in fields, "duplicate PPL field: " + key)
-        fields[key] = value.strip()
+    fields = perplexity_fields(output)
     counts = {"tokens": total_tokens, "used tokens": case["used_tokens"],
               "scored tokens": case["n_scored"], "chunks": case["chunks"],
               "context size": case["context_size"] or MODEL_CONTEXT}

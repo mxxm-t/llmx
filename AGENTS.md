@@ -149,9 +149,9 @@ do not want while measuring.
   type; `LLMX_LAYER_SHARES`, set by `run_tests.py --layer-shares`,
   appends `--layer-shares` so a device list is tested at a split the fit
   would not choose. The runtime stores f16 by default, so the components that check
-  exact f32 arithmetic against independent fixtures (`f32`, `shards`,
-  `server`) ask for f32 sides themselves unless `--cache-type` overrides
-  them. That
+  exact f32 arithmetic against independent fixtures (`f32`, `moe`,
+  `shards`, `server`) ask for f32 sides themselves and skip when
+  `--cache-type` asks for another type (`common.f32_cache_skip`). That
   is test configuration, not runtime configuration, and it reaches the
   binary only as the flags.
 

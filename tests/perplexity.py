@@ -3,7 +3,7 @@ import os
 import struct
 import tempfile
 
-from common import run as cli
+from common import run as cli, perplexity_fields
 from tokenizer import build_byte_vocab, w_str
 
 
@@ -64,7 +64,7 @@ def run():
                 flags += ["--chunks", str(limit)]
             rc, out = cli(["perplexity", model, text] + flags)
             assert rc == 0, out
-            fields = dict(line.split(":", 1) for line in out.splitlines())
+            fields = perplexity_fields(out)
             windows = [text[i:i + context] for i in range(0, len(text), context)]
             windows = [w for w in windows if len(w) >= 2][:limit or None]
             targets = [ord(t) for w in windows for t in w[1:]]

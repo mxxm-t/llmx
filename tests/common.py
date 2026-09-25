@@ -1,3 +1,4 @@
+import math
 import os
 import subprocess
 import sys
@@ -100,3 +101,63 @@ def max_err(a, b):
 # The components that check exact f32 arithmetic against independently generated fixtures run the CLI through this, so they keep their f32 cache sides now that the runtime stores f16 by default.
 def run_f32_cache(args, cwd=None):
     return run(args, cwd, cache="f32")
+
+
+def f32_cache_skip(component):
+    """True, after reporting the skip, when LLMX_CACHE_TYPE asks for a cache other than f32.
+    The exact comparisons need f32 caches; an f16 cache rounds keys and values and is checked by the real-model gate."""
+    cache = os.environ.get("LLMX_CACHE_TYPE", "f32")
+    if cache == "f32":
+        return False
+    print("%s: SKIP - its exact comparisons are made with f32 caches (LLMX_CACHE_TYPE=%s)" % (component, cache))
+    return True
+
+
+def parse_logits(out):
+    """The `id logit` rows `llmx logits` prints, as a list of ids and a list of logits in its order."""
+    ids, values = [], []
+    for line in out.splitlines():
+        p = line.split()
+        if len(p) == 2 and p[0].isdigit():
+            ids.append(int(p[0]))
+            values.append(float(p[1]))
+    return ids, values
+
+
+def perplexity_fields(out):
+    """The `name: value` lines `llmx perplexity` prints; a line without a colon or a repeated name raises ValueError."""
+    fields = {}
+    for line in out.strip().splitlines():
+        if ":" not in line:
+            raise ValueError("malformed PPL line")
+        key, value = line.split(":", 1)
+        if key in fields:
+            raise ValueError("duplicate PPL field: " + key)
+        fields[key] = value.strip()
+    return fields
+
+
+def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=((),)):
+    """A tiny F32 model against its HF fixture at 1 and 4 threads, with f32 caches.
+    Every case's 257 logits at every ubatch and placement must be within 2e-5 (a placement other than the empty one runs at 4 threads only), then the windowed NLL of `text` for every perplexity case within 1e-5.
+    Returns the largest logit error and the number of logit comparisons."""
+    worst, count = 0.0, 0
+    for threads in (1, 4):
+        for ubatch in ubatches:
+            for case, placement in ((c, p) for c in cases for p in placements if threads == 4 or not p):
+                rc, out = run_f32_cache(["logits", model, case["text"], "--top", "257",
+                                         "--threads", str(threads), "--ubatch", str(ubatch)] + list(placement))
+                assert rc == 0, "%s logits failed: %s" % (name, out)
+                got = dict(zip(*parse_logits(out)))
+                assert set(got) == set(range(257)), "missing %s logits" % name
+                assert all(math.isfinite(v) for v in got.values()), "non-finite %s logits" % name
+                error = max(abs(got[i] - expected) for i, expected in enumerate(case["logits"]))
+                assert math.isfinite(error) and error < 2e-5, "%s/HF logit error: %.8f" % (name, error)
+                worst = max(worst, error)
+                count += 1
+        for case in perplexity:
+            rc, out = run_f32_cache(["perplexity", model, text, "--threads", str(threads), "-c", str(case["context"])])
+            assert rc == 0, "%s PPL failed: %s" % (name, out)
+            error = abs(float(perplexity_fields(out)["mean NLL"]) - case["mean_nll"])
+            assert math.isfinite(error) and error < 1e-5, "%s/HF NLL error: %.8f" % (name, error)
+    return worst, count

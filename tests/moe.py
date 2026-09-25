@@ -3,7 +3,7 @@ import math
 import os
 import tempfile
 
-from common import run_f32_cache as cli
+import common
 from f32 import TEXTS, weight_hash, write_model
 
 
@@ -65,16 +65,13 @@ def tensors():
 
 
 def run():
-    # Like f32.py, this compares exact f32 arithmetic against the HF fixture, which an f16 cache would round.
-    if os.environ.get("LLMX_CACHE_TYPE", "f32") != "f32":
-        print("moe: SKIP - the exact MoE gate needs f32 caches (LLMX_CACHE_TYPE=%s)" % os.environ["LLMX_CACHE_TYPE"])
+    if common.f32_cache_skip("moe"):
         return True
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_moe.json"), encoding="utf-8") as f:
         golden = json.load(f)
     assert golden["config"] == CONFIG and golden["dense_layers"] == list(DENSE_LAYERS), "MoE fixture config changed"
     weights = tensors()
     assert weight_hash(weights) == golden["weights_sha256"], "MoE fixture weights changed"
-    worst = 0.0
     # On a device the experts also run on the CPU beside it: the first routed layer's alone, and all of them.
     # Experts on the CPU are a placement of one device; with several listed the split places whole layers instead.
     # Streamed, the host's layers run on the device with their experts copied there: every prompt (from 1, which a generated token never reaches), and from 4 only the longer ones.
@@ -84,25 +81,8 @@ def run():
                          if device != "cpu" and "," not in device else [])
     with tempfile.TemporaryDirectory(prefix="llmx_moe_") as directory:
         model = write_model(os.path.join(directory, "tiny-moe.gguf"), weights, config=CONFIG, arch="qwen3moe")
-        for threads in (1, 4):
-            for ubatch in (1, 2, 3, 5, 16):
-                for case, placement in ((c, pl) for c in golden["cases"] for pl in placements if threads == 4 or not pl):
-                    rc, out = cli(["logits", model, case["text"], "--top", "257",
-                                   "--threads", str(threads), "--ubatch", str(ubatch)] + placement)
-                    assert rc == 0, "MoE logits failed: " + out
-                    got = {int(p[0]): float(p[1]) for line in out.splitlines()
-                           if len(p := line.split()) == 2 and p[0].isdigit()}
-                    assert set(got) == set(range(257)), "missing MoE logits"
-                    error = max(abs(got[i] - expected) for i, expected in enumerate(case["logits"]))
-                    assert math.isfinite(error) and error < 2e-5, "MoE/HF logit error: %.8f" % error
-                    worst = max(worst, error)
-            for case in golden["perplexity"]:
-                rc, out = cli(["perplexity", model, TEXTS[-1], "--threads", str(threads),
-                               "-c", str(case["context"])])
-                assert rc == 0, "MoE PPL failed: " + out
-                fields = dict(line.split(":", 1) for line in out.splitlines())
-                error = abs(float(fields["mean NLL"]) - case["mean_nll"])
-                assert math.isfinite(error) and error < 1e-5, "MoE/HF NLL error: %.8f" % error
+        worst, _ = common.check_hf_fixture("MoE", model, golden["cases"], golden["perplexity"], TEXTS[-1],
+                                           (1, 2, 3, 5, 16), placements)
     print("moe: all 257 logits vs HF over routed and dense layers, batch widths, threads, expert placement and PPL; max error %.8f  [ok]" % worst)
     return True
 

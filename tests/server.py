@@ -280,9 +280,7 @@ def check_uncapped(model):
 
 
 def run():
-    if os.environ.get("LLMX_CACHE_TYPE", "f32") != "f32":
-        print("server: SKIP - the greedy comparison with the CLI is made with f32 caches (LLMX_CACHE_TYPE=%s)"
-              % os.environ["LLMX_CACHE_TYPE"])
+    if common.f32_cache_skip("server"):
         return True
     with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
         model = os.path.join(directory, "tiny-f32.gguf")

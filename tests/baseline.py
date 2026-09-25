@@ -45,16 +45,6 @@ BASELINE_MODELS = [
 MAX_PLAUSIBLE_LOGIT = 100.0
 
 
-def parse_logits(out):
-    ids, vals = [], []
-    for ln in out.strip().split("\n"):
-        p = ln.split()
-        if len(p) == 2 and p[0].isdigit():
-            ids.append(int(p[0]))
-            vals.append(float(p[1]))
-    return ids, vals
-
-
 def run_logits():
     """Compare llmx's next-token ranking against a FULL-PRECISION reference.
 
@@ -91,7 +81,7 @@ def run_logits():
             if rc != 0:
                 failures.append((case["text"], "exit %d" % rc))
                 continue
-            ids, vals = parse_logits(out)
+            ids, vals = common.parse_logits(out)
             want = case["top_ids"]
             if not ids:
                 failures.append((case["text"], "no logits parsed"))
@@ -161,7 +151,7 @@ def run_perplexity():
                           % (spec["file"], os.environ["LLMX_DEVICE"]))
                     break
                 assert rc == 0, "perplexity failed (exit %d): %s" % (rc, out)
-                fields = dict(line.split(":", 1) for line in out.splitlines() if ":" in line)
+                fields = common.perplexity_fields(out)
                 required = {"tokens", "used tokens", "scored tokens", "chunks", "context size", "mean NLL", "perplexity"}
                 assert required <= fields.keys(), "missing PPL results: " + out
                 assert int(fields["tokens"]) == doc["n_tokens"], "PPL token count differs from HF"

@@ -43,8 +43,7 @@ def check_perplexity_threads(model, automatic, weights):
                     counts = re.findall(rb"^threads: (prefill|decode) (\d+)\r?$", err, re.M)
                     phase = b"decode" if per_token else b"prefill"
                     assert counts == [(phase, str(expected).encode())], (count, batch, alias, per_token, counts, expected)
-                    fields = dict(line.split(b":", 1) for line in out.splitlines())
-                    error = abs(float(fields[b"mean NLL"]) - case["mean_nll"])
+                    error = abs(float(common.perplexity_fields(out.decode("utf-8"))["mean NLL"]) - case["mean_nll"])
                     assert math.isfinite(error) and error < 1e-5, (count, batch, per_token, error)
                     worst = max(worst, error)
                     checked += 1

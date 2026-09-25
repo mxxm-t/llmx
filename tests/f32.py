@@ -5,6 +5,7 @@ import os
 import struct
 import tempfile
 
+import common
 from common import run_f32_cache as cli
 from tokenizer import build_byte_vocab, w_str
 
@@ -116,9 +117,7 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
 
 
 def run():
-    # This gate compares exact f32 arithmetic against the HF fixture; an f16 cache rounds keys and values and is checked by the real-model gate.
-    if os.environ.get("LLMX_CACHE_TYPE", "f32") != "f32":
-        print("f32: SKIP - the exact F32 gate needs f32 caches (LLMX_CACHE_TYPE=%s)" % os.environ["LLMX_CACHE_TYPE"])
+    if common.f32_cache_skip("f32"):
         return True
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_f32.json"), encoding="utf-8") as f:
         golden = json.load(f)
@@ -130,26 +129,9 @@ def run():
             assert weight_hash(weights) == fixture["weights_sha256"], "F32 fixture weights changed"
             model = os.path.join(directory, "tiny-f32.gguf")
             write_model(model, weights)
-            for threads in (1, 4):
-                for ubatch in (1, 2, 3, 5, 16):
-                    for case in fixture["cases"]:
-                        rc, out = cli(["logits", model, case["text"], "--top", "257",
-                                       "--threads", str(threads), "--ubatch", str(ubatch)])
-                        assert rc == 0, "F32 logits failed: " + out
-                        got = {int(p[0]): float(p[1]) for line in out.splitlines()
-                               if len(p := line.split()) == 2 and p[0].isdigit()}
-                        assert set(got) == set(range(257)), "missing F32 logits"
-                        assert all(math.isfinite(v) for v in got.values()), "non-finite F32 logits"
-                        error = max(abs(got[i] - expected) for i, expected in enumerate(case["logits"]))
-                        assert math.isfinite(error) and error < 2e-5, "F32/HF logit error: %.8f" % error
-                        worst = max(worst, error)
-                for case in fixture["perplexity"]:
-                    rc, out = cli(["perplexity", model, TEXTS[-1], "--threads", str(threads),
-                                   "-c", str(case["context"])])
-                    assert rc == 0, "F32 PPL failed: " + out
-                    fields = dict(line.split(":", 1) for line in out.splitlines())
-                    error = abs(float(fields["mean NLL"]) - case["mean_nll"])
-                    assert math.isfinite(error) and error < 1e-5, "F32/HF NLL error: %.8f" % error
+            error, _ = common.check_hf_fixture("F32", model, fixture["cases"], fixture["perplexity"], TEXTS[-1],
+                                               (1, 2, 3, 5, 16))
+            worst = max(worst, error)
         # The bench measures on top of a history when asked for a depth, and refuses one with batched decode.
         rc, out = cli(["bench", "--model", model, "--p", "4", "--n", "2", "--r", "1", "--depth", "6"])
         assert rc == 0 and "pp4 @ d6" in out and "tg2 @ d6" in out, "bench --depth failed: " + out

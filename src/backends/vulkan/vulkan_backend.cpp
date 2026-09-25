@@ -2037,7 +2037,7 @@ public:
             const VkDescriptorBufferInfo scratch = scratch_
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
             const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));
-            // Heads whose width is eight lanes' worth of eight values take the kernel that reads a token's row in one load a lane and several tokens a subgroup (shaders/attention_vec.comp).
+            // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup (shaders/attention_vec.comp).
             const bool vec = head_dim == 128 && dev_->caps.subgroup_size >= 16;
             const KernelId kernel = vec ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
                                         : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));

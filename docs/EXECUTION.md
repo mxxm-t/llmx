@@ -184,9 +184,9 @@ Sequence      one request's history: a KVSequence per storage, the
               committed length, the ticket of its last pass. A device may
               host several storages (one per attention kind), which is why
               the table is per storage and not per device.
-ExecContext   one pass in flight: an activation arena per device, the
-              host-visible logits buffer, a host staging vector for
-              transfers, and its tickets.
+ExecContext   where passes run: an activation arena per device, two
+              host-visible handoff buffers per device, the logits
+              buffer, the tickets, and the plan of each pass in flight.
 Batch         entries of (Sequence*, token ids, want_logits).
 ```
 
@@ -231,18 +231,19 @@ adopted by the backend that hosts them, which on the CPU is the mapped
 GGUF bytes and costs no RAM.
 
 Wherever two consecutive graph nodes sit on different devices the residual
-stream crosses: `read` from the source into the context's staging vector,
-`write` into the destination. With a layer split that is one crossing per
-pass, `n_embd * rows` floats: 16 KiB for a decode token on Qwen3-8B, 8 MiB
-for a 512-token microbatch, against matmuls that stream gigabytes. A direct
-device-to-device copy is a faster implementation of the same two calls and
-is not needed to make the split correct.
+stream crosses: the source `copy`s it into a host-visible handoff buffer
+inside its own submission, and the destination waits that submission's
+ticket and `write`s it. With a layer split that is one crossing per stage
+boundary per pass, `n_embd * rows` floats: 16 KiB for a decode token on
+Qwen3-8B, 8 MiB for a 512-token microbatch, against matmuls that stream
+gigabytes. A direct device-to-device copy is a faster implementation of the
+same two halves and is not needed to make the split correct.
 
 The pipeline overlap that makes a two-device split worth its transfer is a
-loop in the caller, not a feature of the interface: submit microbatch `i+1`
-on the first device before waiting for microbatch `i` on the second. The
-tickets express it and the CLI's prefill loop can use it once two devices
-exist.
+loop in the caller, not a feature of the interface: `prefill` submits the
+first stage of chunk `i+1` before it waits for chunk `i` to leave the first
+device, so no device waits on the host between chunks
+([MULTI-DEVICE](MULTI-DEVICE.md), phase 2).
 
 Flags are named for what fits best (AGENTS.md, Configuration). `--device`
 already selects `cpu` or `vulkan:N`; ROCm selection waits for that backend.
@@ -254,9 +255,9 @@ unless `--layer-shares` sets the proportions. The flags for tensor groups
 are sketched in [MULTI-DEVICE](MULTI-DEVICE.md) and land in
 `docs/USAGE.md` and `print_usage` with their phase.
 
-Two implementation notes for the crossing itself. A `read` whose
-destination is host-addressable lands directly in it, so a device-to-CPU
-crossing is one copy. And what the design does not do is stream weights
+Two implementation notes for the crossing itself. A handoff buffer is
+host memory the destination reads in place, so a device-to-CPU crossing is
+one copy out and one in. And what the design does not do is stream weights
 into the device per token: moving an expert's bytes across the bus every
 token is slower than running it where it is. A long prompt is the
 exception, since its tokens share each copy: from `--moe-stream-from`

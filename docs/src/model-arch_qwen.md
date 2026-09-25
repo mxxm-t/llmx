@@ -72,12 +72,16 @@ to a `backend::Backend`.
   length, and per device the ticket of the last pass that touched it, which
   a reset waits on. Movable, not copyable. The server keeps one per request;
   the CLI's model keeps one.
-- `ExecContext`: one pass in flight, plain data the model fills: the
-  activation arena (twelve slots at 64-byte offsets in one backend allocation),
-  the host-visible logits rows and the submission's ticket. Allocated by the
-  first forward that needs it and grown to the largest pass seen. Two
-  contexts let a scheduler keep one pass on the device while it reads
-  another's logits. `logits(i)` is row `i` of the last pass, in entry order.
+- `ExecContext`: where a context's passes run, plain data the model fills:
+  per device an activation arena (twelve slots at 64-byte offsets in one
+  backend allocation), which each device's passes use in turn, and two
+  host-visible handoff buffers a crossing goes through; the host-visible
+  logits rows; the tickets; and a `Pass` per pass in flight, the entries,
+  rows, positions, head rows and cache views its stages read as they are
+  recorded. Allocated by the first forward that needs it and grown to the
+  largest pass seen. Two contexts let a scheduler keep one pass on the device
+  while it reads another's logits. `logits(i)` is row `i` of the last pass,
+  in entry order.
 - `BatchEntry`: what one sequence contributes to a pass: tokens appended to
   it and whether the logits after its last token are wanted, or with
   `every_logits` the logits after every one of its tokens. A prefill
@@ -91,21 +95,36 @@ to a `backend::Backend`.
   hosts its role, which on the CPU aliases the loaded file bytes and costs no
   further RAM.
   Each device that runs attention gets a `KVStorage` for exactly its layers
-  with its own pool, block size and adopted RoPE tables. The residual
-  stream crosses devices wherever the placement changes, through the
-  context's staging vector: a `read` from the source, a `write` into the
-  destination, once per boundary per pass. One default sequence and context
-  serve the single-sequence entry points. Read-only after construction
-  apart from pool bookkeeping.
+  with its own pool, block size and adopted RoPE tables. Its stages are
+  runs of consecutive layers whose attention sits on one device, each
+  writing that device's storage; a model on one device has one. The
+  residual stream crosses devices wherever the placement changes, in two
+  halves: the source copies the rows into its handoff buffer inside its own
+  work (`send`), and the destination waits that submission's ticket and
+  writes them (`receive`); inside a stage both run at once (`cross`). One
+  default sequence and context serve the single-sequence entry points.
+  Read-only after construction apart from pool bookkeeping.
   - `forward(ctx, entries, n)`: one pass over every entry. Each sequence's
     tokens go through the graph at their own positions and attend through
     their own history via one view per entry and per storage; the rows that
     want logits are gathered, normed and projected once on the output
-    device; the pass is one submission per device, waited on only when
-    logits are wanted. It is one transaction: every sequence
-    commits only once the pass is submitted, and a failure anywhere drains the
-    backend and leaves every history as it was. A sequence listed twice is
-    refused.
+    device, and the pass is waited on only when logits are wanted. It runs
+    its stages in a row (`begin`, `run_stage`, `finish`): each reserves the
+    blocks of the storage it writes, submits the devices it recorded on and
+    commits. It is one transaction: a failure anywhere drains every device
+    and returns every history to where the pass found it, stages already
+    committed included. A sequence listed twice is refused.
+  - `prefill(ids)` over more than one stage runs the prompt's chunks as a
+    software pipeline on the calling thread: step t runs stage s of chunk
+    t-s, the first stage first, so every device has its next chunk queued
+    before it finishes the one it runs, and each takes its chunks in order,
+    which is what lets them share its arena. A prompt's positions follow the
+    first stage's storage, which a chunk commits first. That needs a stage
+    per device, with the embedding on the first, the head on the last and
+    every feed-forward block beside its attention, as every fitted split
+    has; any other placement runs its chunks one pass at a time. Chunks are
+    the ubatch either way, so a split computes what one device does, and a
+    failure returns the prompt's history to where it started.
   - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
     to the pool after waiting on its last ticket.
     `truncate(sequence, length)` rolls a history back the same way,

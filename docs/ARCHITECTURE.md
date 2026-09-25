@@ -128,9 +128,10 @@ submission support.
 
 `Model` holds the weights, the cache's pool and physical storage, and the
 backend, and is read-only after construction apart from pool bookkeeping. A
-`Sequence` is one request's history, an `ExecContext` is one pass in flight
-(activation arena, logits rows, ticket), and `Model::forward` runs one pass
-over a batch of entries, each a sequence with tokens to append. The CLI uses
+`Sequence` is one request's history, an `ExecContext` is where passes run
+(activation arenas, handoff buffers, logits rows, tickets, the plan of each
+pass in flight), and `Model::forward` runs one pass over a batch of entries,
+each a sequence with tokens to append, stage by stage. The CLI uses
 one sequence and one context through `step` and `prefill`. Parallel work
 inside a forward pass does not make concurrent calls to the same `Model`
 safe: a backend is driven by one thread at a time, and a server's scheduler

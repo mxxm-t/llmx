@@ -25,6 +25,9 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - pp4096 and pp16384 on one MI50 against the split, with the reference's split beside them at the same clocks.
   - tg on the split level with one card.
   - The 16k greedy check on the split.
+  - More than two devices: split-check and suites over three and four MI50s.
+  - Many users on the split through the server: prefills and decodes in the same passes, then skewed loads (long prompts beside short ones, staggered arrivals, cancellations). Every request's text must equal what it gives alone and through the CLI, so no case breaks the pipelined path or the stage commits.
+  - The server's vLLM-style metrics (TTFT, inter-token latency and throughput percentiles) against the reference's server on the same cards and split, which llmx must beat by a wide margin. That is phase 3's gate; phase 2 records where the split stands.
 
 ## Cleanup from the code audit (2026-09-25, branches refactor/split-tight and cleanup/audit)
 

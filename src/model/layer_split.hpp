@@ -34,7 +34,7 @@ struct Footprint {
     size_t tables = 0;                         // position tables: the host keeps them while the model lives, and every device that copies weights holds its own
     size_t activations_per_row = 0;            // one row of a pass's activations on each device
     size_t logits_per_row = 0;                 // one row of logits where the head runs
-    size_t handoff_per_row = 0;                // one row of the stream handed from one device to the next through host memory
+    size_t handoff_per_row = 0;                // one row of the stream handed from one device to the next through host memory, which each used device keeps two buffers of
 };
 
 // What a device offers a split: the bytes it reports free, or nothing when it cannot tell and is not checked; whether weights placed on it read the mapped file in place, as the CPU's do, rather than being copied into its memory; and what adopting a matrix keeps resident there, its bytes when empty.
@@ -97,7 +97,7 @@ struct LayerSplit {
 // The plan kept is the best of those sets by the same order; devices are a machine's few cards and its CPU, so trying every set stays small.
 // `shares`, when given, is each device's proportion of the layers and overrides the balance; the fit is still checked.
 // What a device must hold: its layers' weights as it keeps them resident and their caches; on the first and last devices the embedding and the head, once when a device holds both and they are tied; `rows` rows of activations; and where it copies weights its own tables and its kernels' scratch (DeviceBudget::scratch).
-// What the host must hold for a set: `rows` rows of logits, the position tables, the handoff when more than one device runs layers, and the host memory of each backend in the set; on the set's first host device, whose budget is the host's memory, else within the first host device listed or, with none listed, `host_free`.
+// What the host must hold for a set: `rows` rows of logits, the position tables, two handoff buffers of `rows` rows per device when more than one device runs layers, and the host memory of each backend in the set; on the set's first host device, whose budget is the host's memory, else within the first host device listed or, with none listed, `host_free`.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
                                std::optional<size_t> host_free = std::nullopt) {
     if (devices.empty()) throw std::runtime_error("split: no devices");
@@ -130,7 +130,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     auto host_for = [&](const std::vector<size_t>& used) {
         Host h;
-        h.need = rows * fp.logits_per_row + fp.tables + (used.size() > 1 ? rows * fp.handoff_per_row : 0);
+        h.need = rows * fp.logits_per_row + fp.tables + (used.size() > 1 ? 2 * used.size() * rows * fp.handoff_per_row : 0);
         for (size_t d : used) {
             h.need += devices[d].host_side;
             if (devices[d].host && h.carrier == SIZE_MAX) h.carrier = d;

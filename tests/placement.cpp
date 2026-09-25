@@ -19,10 +19,10 @@ void require(bool ok, const char* message) {
 gguf::GGUFModel fixture() { return tiny_qwen(2, 2 * 128, true); }
 
 struct CountingCpu : backend::CpuBackend {
-    int reads = 0, writes = 0, submits = 0;
-    void read(const backend::Buffer& src, size_t off, void* dst, size_t bytes) override {
-        ++reads;
-        backend::CpuBackend::read(src, off, dst, bytes);
+    int copies = 0, writes = 0, submits = 0;
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        ++copies;
+        backend::CpuBackend::copy(dst, dst_off, src, src_off, bytes);
     }
     void write(backend::Buffer& dst, size_t off, const void* src, size_t bytes) override {
         ++writes;
@@ -56,12 +56,13 @@ void split_matches_single() {
 
     const std::vector<uint32_t> prompt{3, 1, 4, 1, 5};
     exact(single.prefill(prompt), split.prefill(prompt), "split prefill differs from one device");
-    // Three passes for five tokens at ubatch 2, two crossings each, one in each direction.
-    // A and B each submit once per pass, as does the single device.
-    require(a->reads == 3 && b->writes == 3 && b->reads == 3 && a->writes == 3,
+    // Three passes for five tokens at ubatch 2, two crossings each, one in each direction, each a copy out of the source and a write into the destination.
+    // The residual ends layer 0 on B, where layer 1's attention runs, so the stage boundary crosses nothing.
+    // Each stage submits the devices it records on, both here, and a crossing its source: three submissions a pass on A and on B, one on the single device.
+    require(a->copies == 3 && b->writes == 3 && b->copies == 3 && a->writes == 3,
             "crossings are not where the placement changes");
-    require(a->submits == 3 && b->submits == 3 && one->submits == 3, "one submission per device per pass");
-    require(one->reads == 0 && one->writes == 0, "a single device crossed");
+    require(a->submits == 9 && b->submits == 9 && one->submits == 3, "submissions are not one per stage and crossing");
+    require(one->copies == 0 && one->writes == 0, "a single device crossed");
     for (int t : {9, 2, 6}) exact(single.step(t), split.step(t), "split step differs from one device");
     require(split.n_tokens() == 8 && split.kv_used_bytes() == single.kv_used_bytes(),
             "split history differs");
@@ -213,8 +214,8 @@ void layer_split_fits() {
     auto carried = infer::split_layers(logits, {budget("cpu", 2 * GiB, true), budget("a", GiB)}, 4, {1, 2}, 128 * MiB);
     require(refused && carried.host == 4 * 64 * MiB && carried.stages[0].other >= carried.host, "the host's logits not fitted to the host");
     checked += 2;
-    // The host keeps the position tables and the handoff between devices, and each used backend's staging, never an unused one's.
-    // Two devices staging 68 MiB each beside 64 MiB of tables need 200 MiB of the host: with 140 MiB free one device runs every layer, and with 100 MiB none can.
+    // The host keeps the position tables, two handoff buffers per used device, and each used backend's staging, never an unused one's.
+    // Two devices staging 68 MiB each beside 64 MiB of tables need 204 MiB of the host: with 140 MiB free one device runs every layer, and with 100 MiB none can.
     infer::Footprint staged = three;
     staged.tables = 64 * MiB;
     staged.handoff_per_row = MiB;
@@ -230,14 +231,14 @@ void layer_split_fits() {
     bool short_host = false;
     try { infer::split_layers(staged, {device("a"), device("b")}, 1, {}, 100 * MiB); } catch (const std::runtime_error&) { short_host = true; }
     auto both = infer::split_layers(staged, {device("a"), device("b")}, 1, {}, GiB);
-    require(short_host && both.stages[0].count && both.stages[1].count && both.host == 64 * MiB + 2 * 68 * MiB + MiB,
+    require(short_host && both.stages[0].count && both.stages[1].count && both.host == 64 * MiB + 2 * 68 * MiB + 4 * MiB,
             "the host's tables, handoff and staging not counted");
     // Shares that leave a device out do not charge its staging.
     auto first_only = infer::split_layers(staged, {device("a"), device("b")}, 1, {1, 0}, 140 * MiB);
     require(first_only.stages[0].count == 3 && first_only.host == 64 * MiB + 68 * MiB, "an unused device's staging charged to the host");
     // A CPU that runs layers reads the host's tables in place: counted once, in the host's needs it carries, not again as its own.
     auto on_cpu = infer::split_layers(staged, {budget("cpu", 2 * GiB, true), device("a")}, 1, {1, 2});
-    require(on_cpu.host == 64 * MiB + 68 * MiB + MiB && on_cpu.stages[0].other == staged.activations_per_row + on_cpu.host,
+    require(on_cpu.host == 64 * MiB + 68 * MiB + 4 * MiB && on_cpu.stages[0].other == staged.activations_per_row + on_cpu.host,
             "the CPU's alias of the host's tables counted twice");
     checked += 4;
 

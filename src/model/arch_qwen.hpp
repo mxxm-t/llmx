@@ -218,7 +218,42 @@ private:
     const Model* owner_ = nullptr;
 };
 
-// One pass in flight: an activation arena per device, the host-visible logits rows on the output device, the staging vector a crossing goes through, and the tickets of its submissions.
+// What one sequence contributes to a pass: `n` tokens appended to `seq`, and whether the logits after its last token are wanted.
+// A prefill microbatch is one entry with many tokens, a decode batch is many entries with one, and the two mix freely.
+// A sequence appears in a batch at most once.
+struct BatchEntry {
+    Sequence* seq;
+    const uint32_t* ids;
+    size_t n;
+    bool want_logits;
+    // The logits after every token of the entry rather than only its last, for scoring a text through the same batched passes a prompt takes; with want_logits.
+    bool every_logits = false;
+    // What a device chooses this entry's kernels by (backend::RowRun): for a prompt's rows the position one past the prompt's last token, for a generated token 1.
+    // Zero takes the entry's own row count.
+    // A prompt given its extent computes the same whether it arrives in one pass or in slices, alone or beside other sequences, with or without a reused prefix.
+    size_t extent = 0;
+    // The tokens the request prefills, its reused prefix excluded, the same for every slice of it: what a streamed layer follows (Placement::stream_from).
+    // Zero takes the entry's own row count. A prompt computes the same in one pass or in slices, alone or beside other sequences; with a reused prefix its new tokens may take the host where one pass over the whole would take the device.
+    size_t fresh = 0;
+};
+
+// What a pass's stages read as they are recorded: its entries, its rows and their positions, the rows the head reads, and each storage's cache views once its stage has reserved them.
+// A context keeps one per pass it has in flight: one for a pass run whole, one per stage while a prompt's chunks flow through the stages together.
+struct Pass {
+    std::vector<BatchEntry> entries;
+    std::vector<size_t> start;                         // per entry, the history the pass found, which a failed pass returns to
+    size_t rows = 0, want = 0;
+    bool long_runs = false;                            // some entry takes its streamed layers on the device
+    std::vector<uint32_t> ids, pos, pick;
+    std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
+    std::vector<backend::RowRun> runs, head_runs;      // the pass's rows and the head's, by entry
+    std::vector<size_t> fresh;                         // per entry, the tokens its request prefills
+    size_t parity = 0;                                 // which of each device's two handoff buffers its crossings use
+    size_t at = 0;                                     // the device its residual left the last stage from
+    backend::Ticket sent = 0;                          // the submission that copied it out
+};
+
+// Where a context's passes run: an activation arena per device, which each device's passes use in turn, two host-visible handoff buffers per device a crossing goes through, the host-visible logits rows on the output device, and the tickets of the submissions.
 // Storage is allocated by the first forward that needs it and grows to the largest pass seen.
 // Two contexts are what let a scheduler keep one pass on the device while it reads another's logits; the CLI has one.
 // Plain data that Model fills.
@@ -248,13 +283,11 @@ struct ExecContext {
     std::vector<Scratch> scratch;              // per device
     backend::BufferPtr logits_buf;
     size_t logit_rows = 0;
-    std::vector<uint32_t> ids, pos, pick;
-    std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
-    std::vector<backend::RowRun> runs, head_runs;      // the pass's rows and the head's, by entry
-    std::vector<backend::RowRun> part_runs;            // a streamed layer's group of entries, rebased
-    std::vector<size_t> fresh;                         // per entry, the tokens its request prefills
+    std::vector<std::array<backend::BufferPtr, 2>> handoff;   // per device
+    size_t handoff_rows = 0;
+    std::vector<Pass> passes;
+    std::vector<backend::RowRun> part_runs;    // a streamed layer's group of entries, rebased
     std::vector<backend::Ticket> tickets;      // per device
-    std::vector<float> staging;
 };
 
 // Prompt tokens a pass takes by default (Model::set_ubatch), and so the prompt rows a placement is fitted for.
@@ -416,25 +449,6 @@ inline Placement placement_for(const LayerSplit& split) {
     return p;
 }
 
-// What one sequence contributes to a pass: `n` tokens appended to `seq`, and whether the logits after its last token are wanted.
-// A prefill microbatch is one entry with many tokens, a decode batch is many entries with one, and the two mix freely.
-// A sequence appears in a batch at most once.
-struct BatchEntry {
-    Sequence* seq;
-    const uint32_t* ids;
-    size_t n;
-    bool want_logits;
-    // The logits after every token of the entry rather than only its last, for scoring a text through the same batched passes a prompt takes; with want_logits.
-    bool every_logits = false;
-    // What a device chooses this entry's kernels by (backend::RowRun): for a prompt's rows the position one past the prompt's last token, for a generated token 1.
-    // Zero takes the entry's own row count.
-    // A prompt given its extent computes the same whether it arrives in one pass or in slices, alone or beside other sequences, with or without a reused prefix.
-    size_t extent = 0;
-    // The tokens the request prefills, its reused prefix excluded, the same for every slice of it: what a streamed layer follows (Placement::stream_from).
-    // Zero takes the entry's own row count. A prompt computes the same in one pass or in slices, alone or beside other sequences; with a reused prefix its new tokens may take the host where one pass over the whole would take the device.
-    size_t fresh = 0;
-};
-
 class Model {
 public:
     // Construct the model over a GGUF model on one backend (defaults to the CPU backend).
@@ -484,6 +498,29 @@ public:
             a.local_layer[(size_t)l] = a.attn_layers++;
             a.used = true;
             devices_[device_index(place_.ffn_device[(size_t)l])]->used = true;
+        }
+        for (int l = 0; l < cfg.n_layer; ++l) {
+            const size_t a = (size_t)place_.attn_device[(size_t)l];
+            if (stages_.empty() || stages_.back().device != a) stages_.push_back(Stage{a, l, l + 1, {}});
+            else stages_.back().end = l + 1;
+        }
+        for (size_t s = 0; s < stages_.size(); ++s) {
+            Stage& st = stages_[s];
+            auto touch = [&](size_t d) {
+                if (std::find(st.touches.begin(), st.touches.end(), d) == st.touches.end()) st.touches.push_back(d);
+            };
+            touch(st.device);
+            for (int l = st.first; l < st.end; ++l) touch((size_t)place_.ffn_device[(size_t)l]);
+            if (s == 0) touch((size_t)place_.embed_device);
+            if (s + 1 == stages_.size()) touch((size_t)place_.output_device);
+        }
+        // A prompt's chunks flow through the stages together when each stage has a device of its own, so one stage writes each storage, and nothing crosses inside a stage: the embedding on the first stage's device, the head on the last's, every feed-forward block beside its attention.
+        pipelined_ = stages_.size() > 1 && place_.embed_device == (int)stages_.front().device &&
+                     place_.output_device == (int)stages_.back().device;
+        for (size_t s = 0; pipelined_ && s < stages_.size(); ++s) {
+            for (size_t r = 0; r < s; ++r) pipelined_ = pipelined_ && stages_[r].device != stages_[s].device;
+            for (int l = stages_[s].first; l < stages_[s].end; ++l)
+                pipelined_ = pipelined_ && place_.ffn_device[(size_t)l] == (int)stages_[s].device;
         }
 
         if (m.offsets.size() != m.tensors.size())
@@ -628,122 +665,18 @@ public:
     }
 
     // One pass over every entry: each sequence's tokens at their own positions through their own history, the logits after each wanting entry's last token landing in the context in entry order.
-    // One submission per device and one transaction: sequences commit only once the pass is submitted, and a failure before that leaves every history as it was.
+    // Its stages run in a row, each submitting its own work and committing the blocks of the storage it writes; a failure anywhere returns every history to where the pass found it.
     void forward(ExecContext& ctx, const BatchEntry* entries, size_t n_entries) {
-        if (!entries || !n_entries) throw std::runtime_error("inference: empty batch");
-        size_t rows = 0, want = 0;
-        for (size_t e = 0; e < n_entries; ++e) {
-            const BatchEntry& en = entries[e];
-            if (!en.seq || en.seq->owner_ != this)
-                throw std::runtime_error("inference: batch entry without a sequence of this model");
-            if (!en.ids || !en.n)
-                throw std::runtime_error("inference: batch entry without tokens");
-            // The RoPE table is precomputed for [0, context_length); a row past it would read off the end.
-            if (en.n > (size_t)cfg.context_length ||
-                en.seq->length() > (size_t)cfg.context_length - en.n)
-                throw std::runtime_error("inference: context length exceeded (" +
-                                         std::to_string(cfg.context_length) + " tokens)");
-            rows += en.n;
-            want += en.want_logits ? (en.every_logits ? en.n : 1) : 0;
-        }
-        ensure(ctx, rows, want);
-        ctx.ids.resize(rows);
-        ctx.pos.resize(rows);
-        ctx.pick.resize(want);
-        ctx.runs.resize(n_entries);
-        ctx.fresh.resize(n_entries);
-        ctx.head_runs.clear();
-        ctx.views.resize(storages_.size());
-        for (auto& v : ctx.views) v.resize(n_entries);
-
-        // Blocks are taken on every storage for every entry before anything runs.
-        // A sequence listed twice fails here, since its second prepare finds the first still pending.
-        size_t prepared = 0;
+        if (ctx.passes.empty()) ctx.passes.resize(1);
+        Pass& p = ctx.passes[0];
+        begin(ctx, p, entries, n_entries);
         try {
-            for (; prepared < n_entries * storages_.size(); ++prepared)
-                entries[prepared / storages_.size()].seq->kv_[prepared % storages_.size()]
-                    .prepare(entries[prepared / storages_.size()].n);
+            for (size_t s = 0; s < stages_.size(); ++s) run_stage(ctx, p, s);
         } catch (...) {
-            for (size_t i = 0; i < prepared; ++i)
-                entries[i / storages_.size()].seq->kv_[i % storages_.size()].abort();
+            roll_back(p);
             throw;
         }
-        size_t r = 0, w = 0;
-        for (size_t e = 0; e < n_entries; ++e) {
-            const BatchEntry& en = entries[e];
-            const size_t len = en.seq->length();
-            for (size_t b = 0; b < en.n; ++b) {
-                ctx.ids[r + b] = en.ids[b];
-                ctx.pos[r + b] = (uint32_t)(len + b);
-            }
-            const size_t extent = en.extent ? en.extent : en.n;
-            for (size_t s = 0; s < storages_.size(); ++s) {
-                ctx.views[s][e] = en.seq->kv_[s].view(storages_[s]->storage.get());
-                ctx.views[s][e].extent = extent;
-            }
-            ctx.runs[e] = backend::RowRun{r + en.n, extent};
-            ctx.fresh[e] = en.fresh ? en.fresh : en.n;
-            // The head reads one row per entry as a generated token's, or every row of a scored text as its prompt's.
-            if (en.want_logits && en.every_logits) {
-                for (size_t b = 0; b < en.n; ++b) ctx.pick[w++] = (uint32_t)(r + b);
-                ctx.head_runs.push_back(backend::RowRun{w, extent});
-            }
-            r += en.n;
-            if (en.want_logits && !en.every_logits) {
-                ctx.pick[w++] = (uint32_t)(r - 1);
-                ctx.head_runs.push_back(backend::RowRun{w, 1});
-            }
-        }
-
-        try {
-            const size_t E = (size_t)cfg.n_embd;
-            size_t cur = (size_t)place_.embed_device;
-            devices_[cur]->b->embed(slot(ctx, cur, 0), token_embd_.type, token_embd_.slice(),
-                                    token_embd_.nin, token_embd_.nout, ctx.ids.data(), rows);
-            bool long_runs = false;
-            for (size_t e = 0; e < n_entries; ++e) long_runs = long_runs || streams(ctx, e);
-            const backend::RowRuns all{ctx.runs.data(), ctx.runs.size()};
-            for (int l = 0; l < cfg.n_layer; l++) {
-                const size_t a = (size_t)place_.attn_device[(size_t)l];
-                if (a != cur) { cross(ctx, cur, a, 0, rows); cur = a; }
-                attention_half(ctx, cur, l, rows, n_entries);
-                if (long_runs && layers_[(size_t)l].stream_device == (int)cur) {
-                    ffn_split(ctx, cur, l);
-                    continue;
-                }
-                const size_t f = (size_t)place_.ffn_device[(size_t)l];
-                if (f != cur) { cross(ctx, cur, f, 0, rows); cur = f; }
-                ffn_half(ctx, cur, l, 0, rows, all, false);
-            }
-            const size_t o = (size_t)place_.output_device;
-            if (o != cur) { cross(ctx, cur, o, 0, rows); cur = o; }
-            if (want) {
-                // The rows that want logits are not contiguous once entries mix, so they are compacted first and the head runs once over exactly those rows.
-                backend::Backend& b = *devices_[cur]->b;
-                b.gather_rows(slot(ctx, cur, 1), slot(ctx, cur, 0), E, ctx.pick.data(), want);
-                b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), output_norm_.slice(),
-                                want, E, E, cfg.rms_eps);
-                b.matmul_logits(output_.type, output_.slice(), slot(ctx, cur, 1),
-                                {ctx.logits_buf.get(), 0}, output_.nin, output_.nout, want,
-                                backend::RowRuns{ctx.head_runs.data(), ctx.head_runs.size()});
-            }
-            for (size_t d = 0; d < devices_.size(); ++d)
-                if (devices_[d]->used) ctx.tickets[d] = devices_[d]->b->submit();
-        } catch (...) {
-            retire();
-            for (size_t e = 0; e < n_entries; ++e)
-                for (auto& kv : entries[e].seq->kv_) kv.abort();
-            throw;
-        }
-        ctx.n_logits = want;
-        ctx.backend = devices_[(size_t)place_.output_device]->b.get();
-        ctx.ticket = ctx.tickets[(size_t)place_.output_device];
-        ctx.pending = want > 0;
-        for (size_t e = 0; e < n_entries; ++e) {
-            for (auto& kv : entries[e].seq->kv_) kv.commit();
-            for (size_t d = 0; d < devices_.size(); ++d)
-                if (devices_[d]->used) entries[e].seq->last_[d] = ctx.tickets[d];
-        }
+        finish(ctx, p);
     }
 
     // Start a new history.
@@ -787,16 +720,39 @@ public:
         const size_t start = seq_.length();
         auto work = [&] {
             // Sized to the largest chunk this prompt will use, inside the scope, so a short prompt does not allocate scratch for a full ubatch (at n_ff 12288 a 512-wide gate/up/ffn is about 25 MB each).
+            // Sized before any chunk runs, so nothing in flight loses its storage.
             ensure(ctx_, std::min((size_t)ubatch(), ids.size()), 1);
-            size_t i = 0;
-            while (i < ids.size()) {
-                const size_t B = std::min((size_t)ubatch(), ids.size() - i);
-                BatchEntry entry{&seq_, ids.data() + i, B, i + B == ids.size()};
+            const size_t B = (size_t)ubatch(), chunks = (ids.size() + B - 1) / B;
+            auto chunk = [&](size_t c) {
+                const size_t i = c * B, n = std::min(B, ids.size() - i);
+                BatchEntry entry{&seq_, ids.data() + i, n, i + n == ids.size()};
                 entry.extent = start + ids.size();
                 entry.fresh = ids.size();
-                forward(ctx_, &entry, 1);
-                i += B;
+                return entry;
+            };
+            if (!pipelined_) {
+                for (size_t c = 0; c < chunks; ++c) {
+                    const BatchEntry entry = chunk(c);
+                    forward(ctx_, &entry, 1);
+                }
+                return;
             }
+            // Step t runs stage s of chunk t - s, the first stage first, so every device has its next chunk queued before it finishes the one it runs; each device takes its chunks in order, which is what lets them share its arena.
+            const size_t S = stages_.size();
+            if (ctx_.passes.size() < S) ctx_.passes.resize(S);
+            for (size_t t = 0; t + 1 < chunks + S; ++t)
+                for (size_t s = 0; s < S; ++s) {
+                    if (t < s || t - s >= chunks) continue;
+                    const size_t c = t - s;
+                    Pass& p = ctx_.passes[c % S];
+                    if (s == 0) {
+                        const BatchEntry entry = chunk(c);
+                        begin(ctx_, p, &entry, 1);
+                        p.parity = c % 2;
+                    }
+                    run_stage(ctx_, p, s);
+                }
+            finish(ctx_, ctx_.passes[(chunks - 1) % S]);
         };
         try {
             scoped(0, work);
@@ -869,12 +825,21 @@ private:
         backend::BufferPtr rope_cos, rope_sin;
     };
 
+    // Consecutive layers whose attention runs on one device, and every device a stage records work on, which it submits.
+    struct Stage {
+        size_t device;
+        int first, end;
+        std::vector<size_t> touches;
+    };
+
     const gguf::GGUFModel* m_;
     bool holds_payload_ = false;   // some weight reads the GGUF model's bytes in place
     std::vector<char> host_reads_, copied_;   // per tensor: a host reads it in place, a device copied it
     Placement place_;
     std::vector<std::unique_ptr<Device>> devices_;
     std::vector<Device*> storages_;              // the devices that run attention
+    std::vector<Stage> stages_;
+    bool pipelined_ = false;                     // a prompt's chunks flow through the stages together (prefill)
     QwenConfig cfg;
     int q_dim_ = 0;
     int ubatch_ = kDefaultUbatch;
@@ -1008,6 +973,145 @@ private:
     // Physical prompt microbatch size, used to bound matrix width and scratch storage.
     int ubatch() const { return ubatch_; }
 
+    // The history a pass continues: the committed length of the first stage's storage, which a pipelined prompt's chunk commits first; outside a prompt every storage agrees.
+    size_t history(const Sequence& s) const {
+        return s.kv_[(size_t)devices_[stages_.front().device]->storage_index].length();
+    }
+
+    // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads.
+    // Nothing is reserved yet; each stage reserves the blocks of the storage it writes.
+    void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries) {
+        if (!entries || !n_entries) throw std::runtime_error("inference: empty batch");
+        size_t rows = 0, want = 0;
+        for (size_t e = 0; e < n_entries; ++e) {
+            const BatchEntry& en = entries[e];
+            if (!en.seq || en.seq->owner_ != this)
+                throw std::runtime_error("inference: batch entry without a sequence of this model");
+            if (!en.ids || !en.n)
+                throw std::runtime_error("inference: batch entry without tokens");
+            // The RoPE table is precomputed for [0, context_length); a row past it would read off the end.
+            if (en.n > (size_t)cfg.context_length ||
+                history(*en.seq) > (size_t)cfg.context_length - en.n)
+                throw std::runtime_error("inference: context length exceeded (" +
+                                         std::to_string(cfg.context_length) + " tokens)");
+            rows += en.n;
+            want += en.want_logits ? (en.every_logits ? en.n : 1) : 0;
+        }
+        ensure(ctx, rows, want);
+        p.entries.assign(entries, entries + n_entries);
+        p.start.resize(n_entries);
+        p.rows = rows;
+        p.want = want;
+        p.parity = 0;
+        p.ids.resize(rows);
+        p.pos.resize(rows);
+        p.pick.resize(want);
+        p.runs.resize(n_entries);
+        p.fresh.resize(n_entries);
+        p.head_runs.clear();
+        p.views.resize(storages_.size());
+        for (auto& v : p.views) v.resize(n_entries);
+        size_t r = 0, w = 0;
+        for (size_t e = 0; e < n_entries; ++e) {
+            const BatchEntry& en = entries[e];
+            const size_t len = history(*en.seq);
+            p.start[e] = len;
+            for (size_t b = 0; b < en.n; ++b) {
+                p.ids[r + b] = en.ids[b];
+                p.pos[r + b] = (uint32_t)(len + b);
+            }
+            const size_t extent = en.extent ? en.extent : en.n;
+            p.runs[e] = backend::RowRun{r + en.n, extent};
+            p.fresh[e] = en.fresh ? en.fresh : en.n;
+            // The head reads one row per entry as a generated token's, or every row of a scored text as its prompt's.
+            if (en.want_logits && en.every_logits) {
+                for (size_t b = 0; b < en.n; ++b) p.pick[w++] = (uint32_t)(r + b);
+                p.head_runs.push_back(backend::RowRun{w, extent});
+            }
+            r += en.n;
+            if (en.want_logits && !en.every_logits) {
+                p.pick[w++] = (uint32_t)(r - 1);
+                p.head_runs.push_back(backend::RowRun{w, 1});
+            }
+        }
+        p.long_runs = false;
+        for (size_t e = 0; e < n_entries; ++e) p.long_runs = p.long_runs || streams(p, e);
+    }
+
+    // Stage s of a pass: its storage's blocks reserved, the residual embedded or received from the stage before, its layers, then the head after the last stage or the residual sent on, its submissions, and the storage's commit.
+    // A sequence listed twice fails at the first reservation, since its second finds the first still pending.
+    void run_stage(ExecContext& ctx, Pass& p, size_t s) {
+        const Stage& st = stages_[s];
+        Device& home = *devices_[st.device];
+        const size_t storage = (size_t)home.storage_index;
+        for (size_t e = 0; e < p.entries.size(); ++e) {
+            KVSequence& kv = p.entries[e].seq->kv_[storage];
+            kv.prepare(p.entries[e].n);
+            p.views[storage][e] = kv.view(home.storage.get());
+            p.views[storage][e].extent = p.runs[e].extent;
+        }
+        size_t cur = st.device;
+        if (s == 0) {
+            cur = (size_t)place_.embed_device;
+            devices_[cur]->b->embed(slot(ctx, cur, 0), token_embd_.type, token_embd_.slice(),
+                                    token_embd_.nin, token_embd_.nout, p.ids.data(), p.rows);
+        } else if (p.at != cur) {
+            receive(ctx, p.at, p.parity, p.sent, cur, 0, p.rows);
+        }
+        const backend::RowRuns all{p.runs.data(), p.runs.size()};
+        for (int l = st.first; l < st.end; l++) {
+            if (st.device != cur) { cross(ctx, cur, st.device, 0, p.rows); cur = st.device; }
+            attention_half(ctx, p, cur, l, p.rows, p.entries.size());
+            if (p.long_runs && layers_[(size_t)l].stream_device == (int)cur) {
+                ffn_split(ctx, p, cur, l);
+                continue;
+            }
+            const size_t f = (size_t)place_.ffn_device[(size_t)l];
+            if (f != cur) { cross(ctx, cur, f, 0, p.rows); cur = f; }
+            ffn_half(ctx, cur, l, 0, p.rows, all, false);
+        }
+        if (s + 1 < stages_.size()) {
+            // A residual already where the next stage runs stays there.
+            if (cur != stages_[s + 1].device) send(ctx, cur, p.parity, 0, p.rows);
+            p.at = cur;
+        } else {
+            const size_t o = (size_t)place_.output_device;
+            if (o != cur) { cross(ctx, cur, o, 0, p.rows); cur = o; }
+            if (p.want) {
+                // The rows that want logits are not contiguous once entries mix, so they are compacted first and the head runs once over exactly those rows.
+                const size_t E = (size_t)cfg.n_embd;
+                backend::Backend& b = *devices_[cur]->b;
+                b.gather_rows(slot(ctx, cur, 1), slot(ctx, cur, 0), E, p.pick.data(), p.want);
+                b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), output_norm_.slice(),
+                                p.want, E, E, cfg.rms_eps);
+                b.matmul_logits(output_.type, output_.slice(), slot(ctx, cur, 1),
+                                {ctx.logits_buf.get(), 0}, output_.nin, output_.nout, p.want,
+                                backend::RowRuns{p.head_runs.data(), p.head_runs.size()});
+            }
+        }
+        for (size_t d : st.touches) ctx.tickets[d] = devices_[d]->b->submit();
+        p.sent = ctx.tickets[cur];
+        for (const BatchEntry& en : p.entries) {
+            en.seq->kv_[storage].commit();
+            for (size_t d : st.touches) en.seq->last_[d] = ctx.tickets[d];
+        }
+    }
+
+    // After the last stage: where the logits are and the ticket that says they are ready.
+    void finish(ExecContext& ctx, const Pass& p) {
+        ctx.n_logits = p.want;
+        ctx.backend = devices_[(size_t)place_.output_device]->b.get();
+        ctx.ticket = ctx.tickets[(size_t)place_.output_device];
+        ctx.pending = p.want > 0;
+    }
+
+    // A failed pass: every device drained, then every entry's histories back to where the pass found them, the blocks its stages reserved or committed returned.
+    void roll_back(const Pass& p) noexcept {
+        retire();
+        for (size_t e = 0; e < p.entries.size(); ++e)
+            for (auto& kv : p.entries[e].seq->kv_) kv.truncate(p.start[e]);
+    }
+
     // The CPU prefill scope is per backend, so a prompt enters one on every device it runs on, nested.
     // A device backend's scope is the default and just runs the body.
     void scoped(size_t d, const std::function<void()>& work) {
@@ -1055,6 +1159,18 @@ private:
             std::copy(offsets, offsets + ExecContext::kSlots, sc.offset);
             sc.rows = rows;
         }
+        // Two host-visible buffers per used device, which a crossing leaves through: a pipelined prompt's chunk goes out through one while the chunk before it still waits in the other.
+        size_t used = 0;
+        for (const auto& d : devices_) used += d->used;
+        if (used > 1 && ctx.handoff_rows < rows) {
+            std::vector<std::array<backend::BufferPtr, 2>> handoff(devices_.size());
+            const size_t bytes = mul(mul(rows, (size_t)cfg.n_embd), sizeof(float));
+            for (size_t d = 0; d < devices_.size(); ++d)
+                for (size_t i = 0; devices_[d]->used && i < (pipelined_ ? 2u : 1u); ++i)
+                    handoff[d][i] = devices_[d]->b->alloc(bytes, backend::Memory::host_visible);
+            ctx.handoff = std::move(handoff);
+            ctx.handoff_rows = rows;
+        }
         if (want && (!ctx.logits_buf || ctx.logit_rows < want)) {
             // The head writes here and the host reads it in place once the pass has retired: the one point per pass that must be host visible, and the one wait per pass.
             backend::BufferPtr logits = devices_[(size_t)place_.output_device]->b->alloc(
@@ -1075,34 +1191,48 @@ private:
         return std::vector<float>(p, p + ctx.width);
     }
 
-    // The residual stream moves from one device's x slot to another's, through host memory: a read, which waits for the source, then a write, which is enqueued on the destination.
-    // Once per placement boundary per pass, `rows` rows from `base`; a few kilobytes on a decode token.
+    // The residual stream moves from one device's x slot to another's through host memory, `rows` rows from `base`; a few kilobytes on a decode token.
+    // `send` copies them into the source's host-visible handoff buffer inside the source's own work, so they outlast the source moving on to its next pass, and the submission that carries the copy says when they are there.
+    void send(ExecContext& ctx, size_t from, size_t parity, size_t base, size_t rows) {
+        const size_t E = (size_t)cfg.n_embd;
+        const backend::Slice x = slot(ctx, from, 0);
+        devices_[from]->b->copy(*ctx.handoff[from][parity], base * E * sizeof(float), *x.buffer,
+                                (x.offset + base * E) * sizeof(float), rows * E * sizeof(float));
+    }
+
+    // `receive` waits for that submission and writes the rows into the destination's residual, enqueued there.
+    void receive(ExecContext& ctx, size_t from, size_t parity, backend::Ticket sent, size_t to, size_t base, size_t rows) {
+        const size_t E = (size_t)cfg.n_embd;
+        devices_[from]->b->wait(sent);
+        const backend::Slice x = slot(ctx, to, 0);
+        const uint8_t* rows_out = (const uint8_t*)ctx.handoff[from][parity]->host_ptr() + base * E * sizeof(float);
+        devices_[to]->b->write(*x.buffer, (x.offset + base * E) * sizeof(float), rows_out, rows * E * sizeof(float));
+    }
+
+    // A crossing inside a stage, both halves at once.
     void cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows) {
-        const size_t E = (size_t)cfg.n_embd, floats = rows * E, bytes = floats * sizeof(float);
-        const backend::Slice src = slot(ctx, from, 0), dst = slot(ctx, to, 0);
-        ctx.staging.resize(floats);
-        devices_[from]->b->read(*src.buffer, (src.offset + base * E) * sizeof(float), ctx.staging.data(), bytes);
-        devices_[to]->b->write(*dst.buffer, (dst.offset + base * E) * sizeof(float), ctx.staging.data(), bytes);
+        send(ctx, from, 0, base, rows);
+        receive(ctx, from, 0, devices_[from]->b->submit(), to, base, rows);
     }
 
     // Whether entry e of a pass takes a streamed layer on the device (Placement::stream_from): a prompt of enough new tokens, never a generated token.
-    bool streams(const ExecContext& ctx, size_t e) const {
-        return place_.stream_from && ctx.runs[e].extent > 1 && ctx.fresh[e] >= std::max<size_t>(place_.stream_from, 2);
+    bool streams(const Pass& p, size_t e) const {
+        return place_.stream_from && p.runs[e].extent > 1 && p.fresh[e] >= std::max<size_t>(place_.stream_from, 2);
     }
 
     // A streamed layer in a pass with long runs: consecutive entries alike form a group, the long ones run where the residual is, with the experts copied into the window once, and the rest on the host through a crossing each way.
     // The residual ends where it started, on the layer's attention device.
-    void ffn_split(ExecContext& ctx, size_t dev, int l) {
+    void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l) {
         const LayerWeights& w = layers_[(size_t)l];
         const size_t host = (size_t)place_.ffn_device[(size_t)l];
         bool copied = false;
-        for (size_t e = 0, base = 0; e < ctx.runs.size();) {
-            const bool on_device = streams(ctx, e);
+        for (size_t e = 0, base = 0; e < p.runs.size();) {
+            const bool on_device = streams(p, e);
             ctx.part_runs.clear();
             size_t end = base;
-            for (; e < ctx.runs.size() && streams(ctx, e) == on_device; ++e) {
-                end = ctx.runs[e].end;
-                ctx.part_runs.push_back(backend::RowRun{end - base, ctx.runs[e].extent});
+            for (; e < p.runs.size() && streams(p, e) == on_device; ++e) {
+                end = p.runs[e].end;
+                ctx.part_runs.push_back(backend::RowRun{end - base, p.runs[e].extent});
             }
             const backend::RowRuns runs{ctx.part_runs.data(), ctx.part_runs.size()};
             if (on_device) {
@@ -1125,7 +1255,7 @@ private:
     }
 
     // The slots are those of slot_widths.
-    void attention_half(ExecContext& ctx, size_t dev, int l, size_t rows, size_t n_views) {
+    void attention_half(ExecContext& ctx, const Pass& p, size_t dev, int l, size_t rows, size_t n_views) {
         Device& d = *devices_[dev];
         backend::Backend& b = *d.b;
         const LayerWeights& w = layers_[(size_t)l];
@@ -1134,17 +1264,17 @@ private:
         const backend::Slice x = slot(ctx, dev, 0), h = slot(ctx, dev, 1), q = slot(ctx, dev, 2),
                              k = slot(ctx, dev, 3), v = slot(ctx, dev, 4), attn = slot(ctx, dev, 5);
         const size_t layer = (size_t)d.local_layer[(size_t)l];
-        const std::vector<backend::KVView>& views = ctx.views[(size_t)d.storage_index];
+        const std::vector<backend::KVView>& views = p.views[(size_t)d.storage_index];
 
         b.rms_norm_rows(h, x, w.attn_norm.slice(), rows, E, E, cfg.rms_eps);
 
-        const backend::RowRuns runs{ctx.runs.data(), ctx.runs.size()};
+        const backend::RowRuns runs{p.runs.data(), p.runs.size()};
         b.matmul_group({projection(w.attn_q, q),
                         projection(w.attn_k, k),
                         projection(w.attn_v, v)}, h, E, rows, runs);
 
         const backend::Backend::RopeArgs rope{{d.rope_cos.get(), 0}, {d.rope_sin.get(), 0},
-                                              half, ctx.pos.data(), cfg.rms_eps};
+                                              half, p.pos.data(), cfg.rms_eps};
         b.norm_rope_kv(q, (size_t)q_dim_, cfg.n_head, w.attn_q_norm.slice(),
                        k, v, KV, cfg.n_head_kv, w.attn_k_norm.slice(),
                        rope, rows, layer, views.data(), n_views);

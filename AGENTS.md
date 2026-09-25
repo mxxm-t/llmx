@@ -324,8 +324,7 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
 - **Perf** (`tests/perf.py`): time matmul / RMSNorm / RoPE hot paths and print
   throughput, so perf-first changes can be checked for regressions. Assert a
   generous floor so catastrophic slowdowns fail loudly without being flaky.
-- **Tokenizer** (`tests/tokenizer.py`): encode/decode round-trips incl. unicode
-  and special tokens.
+- **Tokenizer** (`tests/tokenizer.py`): encode/decode round-trips incl. unicode and special tokens, and refusal of a file naming another tokenizer or pretokenizer.
 - **Perplexity** (`tests/perplexity.py`): a synthetic model with an analytic
   scoring oracle checks window boundaries, chunk limits, target counts, file
   and inline input parity and invalid flags.

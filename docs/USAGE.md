@@ -29,6 +29,8 @@ change the release number, or embed timestamps.
 ## Global conventions
 
 - A model file is a GGUF v3 container (see `docs/src/format-gguf.md`).
+- Every command that reads a model's tokenizer refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2`, the byte-level BPE with Qwen2 pretokenization that llmx implements.
+  A key the file omits is not checked.
 - Text arguments containing spaces must be quoted so they arrive as one argv
   element (`"The capital of France is"`).
 - Token ids in `detokenize` are comma- or space-separated integers.

@@ -13,8 +13,10 @@ merge algorithm are GPT-2's; the pretokenizer is not.
   word that follows (`_snake`, `(x`), digits are emitted one at a time, and a
   whitespace run ending in newlines stays one piece. Using the GPT-2 regex here
   produces valid-looking but wrong ids, which the HF tokenizer fixtures catch.
-- `Tokenizer`: reads tokenizer metadata from a GGUF model
-  (`tokenizer.ggml.model/tokens/token_type/merges/bos/eos_token_id`).
+- `Tokenizer`: reads tokenizer metadata from a GGUF model (`tokenizer.ggml.tokens/token_type/merges/bos/eos_token_id`).
+  - Refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2`, and the error names the key.
+    Without the check, such a file would encode to valid-looking but wrong ids.
+    A key the file omits is not checked, so the synthetic test models, which name neither, are read as this tokenizer.
   - `encode(text) -> vector<uint32_t>`: pretokenize, byte-encode, BPE merge by
     rank, map to ids.
   - `decode(ids) -> string`: reverse; an id outside the vocabulary throws.

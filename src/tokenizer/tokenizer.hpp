@@ -11,7 +11,8 @@
 
 // GPT-2 style byte-level BPE tokenizer, implemented from scratch.
 // Reads tokenizer metadata from a GGUF model:
-//   tokenizer.ggml.model        = "gpt2"
+//   tokenizer.ggml.model        = "gpt2"          (refused when present with another value)
+//   tokenizer.ggml.pre          = "qwen2"         (refused when present with another value)
 //   tokenizer.ggml.tokens       = array<string>   (token id -> byte-mapped token)
 //   tokenizer.ggml.token_type   = array<u32>      (per-token type)
 //   tokenizer.ggml.merges       = array<string>   ("s1 s2", rank = index)
@@ -69,6 +70,18 @@ public:
     bool is_eos(uint32_t id) const { return eos_id >= 0 && id == (uint32_t)eos_id; }
 
     Tokenizer(const gguf::GGUFModel& m) {
+        // A file made for another tokenizer or pretokenizer would encode to valid-looking but wrong ids, so naming one is refused.
+        // A key the file omits is not checked, which the synthetic test models rely on.
+        auto require = [&](const std::string& key, const std::string& implemented) {
+            const gguf::MetaValue* v = m.find(key);
+            if (v && (v->vtype != gguf::V_STRING || v->s != implemented))
+                throw std::runtime_error("tokenizer: unsupported " + key +
+                                         (v->vtype == gguf::V_STRING ? " '" + v->s + "'" : std::string()) +
+                                         "; only '" + implemented + "' is implemented");
+        };
+        require("tokenizer.ggml.model", "gpt2");
+        require("tokenizer.ggml.pre", "qwen2");
+
         byte_to_char = build_byte_encoder();
         for (const auto& kv : byte_to_char) char_to_byte[kv.second] = kv.first;
 

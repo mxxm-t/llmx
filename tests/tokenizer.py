@@ -35,10 +35,15 @@ def build_byte_vocab():
     return [m[b] for b in range(256)]
 
 
-def build_tokenizer_gguf(path, tokens, merges, specials):
-    # Header with 0 tensors, 3 kv pairs.
+def build_tokenizer_gguf(path, tokens, merges, specials, strings=()):
+    # Header with 0 tensors and 3 kv pairs, plus one per (key, value) in `strings`.
     with open(path, "wb") as f:
-        f.write(struct.pack("<IIQQ", 0x46554747, 3, 0, 3))  # magic, ver, 0 tensors, 3 kv
+        f.write(struct.pack("<IIQQ", 0x46554747, 3, 0, 3 + len(strings)))  # magic, ver, 0 tensors, kv count
+
+        for key, value in strings:
+            w_str(f, key)
+            f.write(struct.pack("<I", 8))  # STRING
+            w_str(f, value)
 
         # tokenizer.ggml.tokens (array of string)
         w_str(f, "tokenizer.ggml.tokens")
@@ -114,8 +119,20 @@ def run():
         assert out6.strip() == "<|endoftext|>", \
             "special round-trip %r" % out6.strip()
 
+        # The tokenizer and pretokenizer the file names: the implemented ones give the same ids as a file naming neither, and any other is refused, since encoding would still succeed with wrong ids.
+        named = os.path.join(d, "named.gguf")
+        build_tokenizer_gguf(named, tokens, merges, specials,
+                             [("tokenizer.ggml.model", "gpt2"), ("tokenizer.ggml.pre", "qwen2")])
+        rc, out7 = cli(["tokenize", named, "hello"])
+        assert rc == 0 and out7 == out, "named gpt2/qwen2 tokenizer: %r, unnamed %r" % (out7, out)
+        for key, value in [("tokenizer.ggml.pre", "gpt-2"), ("tokenizer.ggml.model", "llama")]:
+            other = os.path.join(d, "other.gguf")
+            build_tokenizer_gguf(other, tokens, merges, specials, [(key, value)])
+            rc, out8 = cli(["tokenize", other, "hello"])
+            assert rc != 0 and key in out8, "%s = %s was not refused: %r" % (key, value, out8)
+
         print("tokenizer: encode->decode round-trip 'hello' -> %s, unicode and "
-              "special token  [ok]" % out2.strip())
+              "special token, other tokenizers refused  [ok]" % out2.strip())
         return True
     finally:
         import shutil

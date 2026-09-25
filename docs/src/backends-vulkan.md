@@ -89,7 +89,9 @@ kernel notes and measurements are `docs/VULKAN.md`.
   also depend on the dispatch's longest history while preserving each
   row's arithmetic, so batching must not change a sequence's output.
 - `rms_norm_rows` spreads a row over several workgroups when the output
-  does not overlap the input, with the same tree reduction as one.
+  does not overlap the input, with the same tree reduction as one, up to
+  four workgroups per compute unit over the pass: each reads the whole row
+  for its sum, so a decode row takes sixteen and a pass of many rows one.
 - Mixture of experts: `shaders/moe_route.comp` routes a row per workgroup
   through subgroup reductions. The row kernels and both tile kernels take a
   routed mode (push constant `per`): a row kernel runs one entry per

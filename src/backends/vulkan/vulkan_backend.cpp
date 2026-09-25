@@ -1286,10 +1286,11 @@ public:
                        size_t stride, float eps) override {
         if (!rows || !n) return;
         const bool quant = stride == n && n % 32 == 0;
-        // Several workgroups a row when the output does not overlap the input (shaders/rms_norm_rows.comp).
+        // Several workgroups a row when the output does not overlap the input (shaders/rms_norm_rows.comp), up to what fills the device: each reads the whole row for its sum, so a pass of many rows takes one a row.
         const bool overlap = dst.buffer == src.buffer &&
                              dst.offset < src.offset + rows * stride && src.offset < dst.offset + rows * stride;
-        const size_t chunks = overlap ? 1 : (n + 255) / 256;
+        const size_t fill = (4 * dev_->caps.compute_units + rows - 1) / rows;
+        const size_t chunks = overlap ? 1 : std::max<size_t>(1, std::min((n + 255) / 256, fill));
         struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks; }
             pc{u32(rows), u32(n), u32(stride), eps, quant ? 1u : 0u, u32(chunks)};
         dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? xq_for(rows * n) : bind(dst)}, &pc, sizeof(pc),

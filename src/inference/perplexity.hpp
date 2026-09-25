@@ -50,24 +50,15 @@ inline PerplexityResult perplexity(Model& model, const std::vector<uint32_t>& id
                 // The last position predicts past the window; its logits are unused.
                 if (pos + 1 < count) result.nll += token_nll(logits, model.n_vocab(), window[pos + 1]);
             });
-            result.used_tokens += count;
-            result.scored_tokens += count - 1;
-            result.chunks++;
-            begin += count;
-            continue;
-        }
-        model.reset();
-        std::vector<float> logits = model.step((int)ids[begin]);
-        for (size_t i = begin + 1; i < begin + count; i++) {
-            const uint32_t target = ids[i];
-            float maxv = -1e30f;
-            for (float l : logits) maxv = std::max(maxv, l);
-            double sum = 0.0;
-            for (float l : logits) sum += std::exp((double)l - maxv);
-            const double logsumexp = maxv + std::log(sum);
-            result.nll -= (double)logits[target] - logsumexp;
-            // The last token is a target only; its next-token logits are unused.
-            if (i + 1 < begin + count) logits = model.step((int)target);
+        } else {
+            model.reset();
+            std::vector<float> logits = model.step((int)ids[begin]);
+            for (size_t i = begin + 1; i < begin + count; i++) {
+                const uint32_t target = ids[i];
+                result.nll += token_nll(logits.data(), logits.size(), target);
+                // The last token is a target only; its next-token logits are unused.
+                if (i + 1 < begin + count) logits = model.step((int)target);
+            }
         }
         result.used_tokens += count;
         result.scored_tokens += count - 1;

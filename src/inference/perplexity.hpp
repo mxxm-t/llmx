@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "inference/logprobs.hpp"
 #include "model/arch_qwen.hpp"
 
 namespace infer {
@@ -24,13 +25,9 @@ struct PerplexityResult {
     double mean_nll() const { return nll / (double)scored_tokens; }
 };
 
-// The negative log-likelihood of `target` under one row of logits.
+// The negative log-likelihood of `target` under one row of logits, in double: the server's logprob of it before rounding, negated.
 inline double token_nll(const float* logits, size_t vocab, uint32_t target) {
-    float maxv = -1e30f;
-    for (size_t v = 0; v < vocab; ++v) maxv = std::max(maxv, logits[v]);
-    double sum = 0.0;
-    for (size_t v = 0; v < vocab; ++v) sum += std::exp((double)logits[v] - maxv);
-    return -((double)logits[target] - (maxv + std::log(sum)));
+    return -((double)logits[target] - log_sum_exp(logits, vocab));
 }
 
 // Windows of `context_size` tokens, each from an empty history. By default a window is scored through the batched passes a prompt takes, logits for every position of a microbatch at once, which is the path prompt processing uses and on a device a different set of kernels from decode's. `per_token` scores it one token at a time through step instead, the decode path; the HF gate runs both so each set of kernels meets the reference.

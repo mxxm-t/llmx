@@ -119,7 +119,8 @@ loop:
            its prompt wants logits, the others do not
   run:     Model::forward(ctx, entries, n); ctx.logits() waits
   sample:  per entry that wanted logits, the request's own sampler state;
-           push the id to its channel; commit the sequence; finish on EOS,
+           push the id to its channel, with its logits row when the
+           request asked for logprobs; commit the sequence; finish on EOS,
            a stop string or max_tokens, and keep the history as a donor
            when it holds a full block, else release
   repeat while any request is active; otherwise block on the queue
@@ -147,12 +148,38 @@ A request's `ignore_eos`, the CLI's `--ignore-eos`, is one rule of the sampler (
 The masked token does not exist for the draw, so the repetition penalty cannot bring it back and top-k and top-p count only the other tokens.
 The mask changes the draw, not the logits row: whatever reads the row reads the model's own distribution, the end token's share included.
 
+### Log-probabilities
+
+A request may ask for the log-probability of each token it is sent and for the most likely tokens at each position, at most 20.
+Each value is the log-softmax of the logits row the sampler reads for that token: the model's own distribution, before the repetition penalty, the temperature, top-k and top-p, which is what the compatible APIs report.
+So a token's value does not depend on how it was sampled, and a greedy token's is the largest at its position unless a repetition penalty moved it.
+For a request that asks, the scheduler sends that row with the id on the request's token channel (`Request::Token`), and `Request::next` computes the values in the thread that reads the channel, with `inference/logprobs.hpp`, the functions perplexity scores with, in double and rounded once to float.
+A row costs a pass of `exp` over the vocabulary, about a millisecond for Qwen3's 151936 tokens, so no pass of the batch waits for it, and the native tests read the values from the channel where the routes do.
+Once 8 tokens wait on a channel with their rows (`Request::kRowsWaiting`), as when a client stops reading its stream, the scheduler computes the next tokens' values itself and sends them in the row's place: the same values, and a request then holds at most ten rows however far its reader falls behind.
+A row the reader has finished with goes back to the request for a later pass to fill, and a cancelled request's rows are dropped unread.
+Every value is written as the shortest decimal that reads back as that float.
+In the native shape a value JSON has no number for, minus infinity for a token given no probability, is `null`; the compatible shapes type the field as a number, so they write -9999 for any value below it, minus infinity included, and for a NaN.
+A request that asks gets the ids and text it gets without them, and a request that does not gets no byte of them.
+
+- `/v1/generate` and `/v1/chat` take `"logprobs": true` and `"top_logprobs": k`.
+  A whole reply adds `"logprobs": [v, ...]` beside `ids` and, with `k` above 0, `"top_logprobs": [[{"id", "logprob"}, ...], ...]`, one list per token, most likely first.
+  A streamed token's event adds `"logprob"` and, with `k` above 0, `"top_logprobs"`.
+- `/v1/chat/completions` takes the same two fields.
+  The choice's `logprobs` is `{"content": [{"token", "logprob", "bytes", "top_logprobs": [{"token", "logprob", "bytes"}, ...]}, ...], "refusal": null}`, and a streamed chunk carries its token's entry, a chunk without a token `null`.
+- `/v1/completions` takes `"logprobs": k`, the count of most likely tokens to list.
+  The choice's `logprobs` is `{"tokens", "token_logprobs", "top_logprobs", "text_offset"}`: `top_logprobs` maps each listed token's text to its value and holds the sampled token too, and `text_offset` is the characters of the reply's text before the character a token starts in.
+- A token's text is its own when its bytes are whole UTF-8, and otherwise `bytes:` followed by each byte as `\xNN`, as the compatible APIs spell a token that splits a character; `bytes` carries them exactly.
+- A `top_logprobs` or completions `logprobs` above 20, a `top_logprobs` above 0 without `logprobs` true, and a `logprobs` of another type are refused with 400; a null field is taken as absent.
+
+They are what shows a difference in logits before a greedy token flips, which ids alone show only when a token changes.
+
 ### Protocol
 
 ```
 POST /v1/generate    {"prompt": "...", "max_tokens": 64, "temperature": 0.8,
                       "top_k": 40, "top_p": 0.95, "seed": 0, "stop": ["..."],
-                      "ignore_eos": false, "stream": true}
+                      "ignore_eos": false, "stream": true,
+                      "logprobs": false, "top_logprobs": 0}
 POST /v1/chat        {"messages": [{"role": "user", "content": "..."}], ...}
                      the model's chat template renders the prompt; an assistant message may carry "reasoning_content"
 POST /v1/tokenize    {"text": "..."} or {"messages": [...]}
@@ -206,6 +233,7 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
   alone. A forked prefix continues exactly as a fresh sequence fed the
   same history. A cancelled request returns its blocks and the others
   finish unchanged. All on the CPU and on the device.
+  With log-probabilities, a request's values repeat from run to run, and a request run alone gets the values it gets while three others run beside it.
 - **Serving performance.** The figures a serving runtime is judged by, measured by `tools/server_load.py` through streaming requests at 1, 4, 8, 16 and more concurrent requests of the same shape: time to first token and inter-token latency at the median and the 99th percentile, decoded tokens per second and requests per second.
   The tool also runs a sweep of Poisson request rates, prompts of an exact token length and replies of a fixed one, and reports time per output token, end-to-end latency and total tokens per second, the load and figures a reference serving benchmark reports.
   Against the reference runtime's server under the same load, same model, same card, both in the same minutes.
@@ -227,3 +255,4 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 5 | The second execution context, if measured to help (**measured, not added**) | The host gap between passes is 0.26 to 0.71 ms a row on the 8B, 7 to 14 percent of a greedy pass at 8 to 32 sequences on one MI50 (layer split phase 3's step 0), and the next pass's tokens come from this one; see the scheduler loop above |
 | 6 | The compatible routes: `/v1/chat/completions`, `/v1/completions`, `/v1/models` in the OpenAI clients' shape (**done**) | The `server` component: greedy equality with the CLI through `/v1/completions` whole and streamed, usage counts, the role in the first chat chunk and the finish reason in the last, text content parts, the refusals' shape; CPU and device |
 | 7 | `/v1/tokenize` and `/v1/detokenize`, and `messages` rendered by the chat template in place of a text (**done**) | The `server` component against `llmx tokenize` and `llmx detokenize` on the synthetic model and the Q8_0 fixture: text beyond ASCII, special tokens, an empty text, ids ending inside a character, a reply's ids giving back its text, the chat fixture's goldens under the file's template and a chat request reading the same count, the refusals |
+| 8 | Log-probabilities on every generating route, in the compatible shapes and a native one (**done**) | The `logprobs` CTest: the log-softmax against a double-precision reference and the scheduler's channel against a second model's logits, read at once or left to fall behind; the `server` component: each route's shape whole and streamed, the ids unchanged, the values repeating byte for byte and equal alone and four at a time, greedy's token the most likely, and a reply that does not ask byte-identical to one that never names them |

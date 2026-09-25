@@ -11,6 +11,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include "inference/logprobs.hpp"
 #include "inference/sampler.hpp"
 #include "model/arch_qwen.hpp"
 #include "tokenizer/tokenizer.hpp"
@@ -22,6 +23,10 @@ struct SampleParams : infer::Sampling {
     std::vector<std::string> stop;
     // No cap from the client: submit sets max_tokens to what the request may hold, and its blocks are reserved as it grows.
     bool until_limit = false;
+    // Each sampled token's log-probability, and the `top_logprobs` most likely tokens at its position, on its channel (Request::Token); computed only when asked.
+    // They come from the logits row the sampler reads, before the penalty, the temperature, top-k and top-p: the model's own distribution.
+    bool logprobs = false;
+    size_t top_logprobs = 0;
 };
 
 // One request from submission to completion.
@@ -35,15 +40,46 @@ public:
         : prompt_(std::move(prompt)), params_(std::move(params)), prompt_tokens_(prompt_.size()),
           submitted_(Clock::now()) {}
 
-    // What a wait on the channel found: a sampled id, the end of the request with `finish` set ("eos", "stop", "length", "cancel" or "error"), or neither by the deadline.
+    // A sampled token as the channel delivers it; with logprobs asked, its log-probability and the most likely tokens at its position, most likely first.
+    struct Token {
+        uint32_t id = 0;
+        float logprob = 0.0f;
+        std::vector<infer::TokenLogprob> top;
+        // With logprobs asked, the logits row the id was sampled from, which the channel carries to next and next turns into the values.
+        std::vector<float> row;
+    };
+    // The most tokens of a request that wait on its channel with their rows.
+    // A reader this far behind gets the next tokens' values computed by the scheduler instead, so however slowly a client reads, a request holds this many rows and two more.
+    static constexpr size_t kRowsWaiting = 8;
+    // What a wait on the channel found: a sampled token, the end of the request with `finish` set ("eos", "stop", "length", "cancel" or "error"), or neither by the deadline.
+    // A token that comes with its row gets its log-probabilities here, in the thread that reads the channel, so no pass waits for their walk over the vocabulary.
+    // The row then goes back to the request for a later pass to fill, and a cancelled request's rows are dropped unread.
     enum class Next { id, end, timeout };
-    Next next(uint32_t& id, Clock::time_point until) {
-        std::unique_lock<std::mutex> lk(m_);
-        if (!cv_.wait_until(lk, until, [&] { return !out_.empty() || done_; })) return Next::timeout;
-        if (out_.empty()) return Next::end;
-        id = out_.front();
-        out_.pop_front();
+    Next next(Token& t, Clock::time_point until) {
+        {
+            std::unique_lock<std::mutex> lk(m_);
+            if (!cv_.wait_until(lk, until, [&] { return !out_.empty() || done_; })) return Next::timeout;
+            if (out_.empty()) return Next::end;
+            t = std::move(out_.front());
+            out_.pop_front();
+            if (!t.row.empty()) --rows_;
+        }
+        if (!t.row.empty()) {
+            if (cancel_.load()) {
+                t.row = std::vector<float>();
+                return Next::id;
+            }
+            fill(t, t.row, params_.top_logprobs);
+            std::lock_guard<std::mutex> lk(m_);
+            spare_.push_back(std::move(t.row));
+            t.row = std::vector<float>();
+        }
         return Next::id;
+    }
+    // Tokens on the channel still carrying their rows, at most kRowsWaiting.
+    size_t rows_waiting() const {
+        std::lock_guard<std::mutex> lk(m_);
+        return rows_;
     }
     std::string finish() const {
         std::lock_guard<std::mutex> lk(m_);
@@ -78,10 +114,22 @@ public:
 
 private:
     friend class Scheduler;
-    void push(uint32_t id) {
+    // A token's log-probability and the `top` most likely tokens at its position, from the row it was sampled from.
+    static void fill(Token& t, const std::vector<float>& row, size_t top) {
+        const double lse = infer::log_sum_exp(row.data(), row.size());
+        t.logprob = infer::logprob(row.data(), lse, t.id);
+        t.top = infer::top_logprobs(row.data(), row.size(), lse, top);
+    }
+    // A token onto the channel; when `spare` is given, a row next has finished with comes back through it.
+    void push(Token t, std::vector<float>* spare = nullptr) {
         std::lock_guard<std::mutex> lk(m_);
         if (first_ == Clock::time_point{}) first_ = Clock::now();
-        out_.push_back(id);
+        if (!t.row.empty()) ++rows_;
+        if (spare && !spare_.empty()) {
+            *spare = std::move(spare_.back());
+            spare_.pop_back();
+        }
+        out_.push_back(std::move(t));
         cv_.notify_all();
     }
     void end(const std::string& why, const std::string& err = "") {
@@ -94,10 +142,12 @@ private:
     }
 
     std::vector<uint32_t> prompt_;
-    SampleParams params_;
+    SampleParams params_;   // never changed once made, since next reads it in the connection thread
     mutable std::mutex m_;
     std::condition_variable cv_;
-    std::deque<uint32_t> out_;
+    std::deque<Token> out_;
+    size_t rows_ = 0;                          // tokens in out_ carrying their rows
+    std::vector<std::vector<float>> spare_;    // rows next has finished with, for push to hand back
     bool done_ = false;
     std::string finish_, error_;
     std::atomic<bool> cancel_{false};
@@ -410,7 +460,20 @@ private:
         if (tok_.is_eos(id)) { r.finish_pending_ = "eos"; return; }
         r.gen_.push_back(id);
         r.last_id_ = id;
-        r.push(id);
+        Request::Token t;
+        t.id = id;
+        if (!r.params_.logprobs) {
+            r.push(std::move(t));
+        } else if (r.rows_waiting() < Request::kRowsWaiting) {
+            // The row the id was sampled from goes with it, and a row the reader has finished with comes back for the next pass to fill.
+            t.row = std::move(r.logits_);
+            r.logits_.clear();
+            r.push(std::move(t), &r.logits_);
+        } else {
+            // The reader has fallen behind: the values go in the row's place, the same values the reader would compute, and the row stays for the next pass.
+            Request::fill(t, r.logits_, r.params_.top_logprobs);
+            r.push(std::move(t));
+        }
         if (!r.params_.stop.empty()) {
             r.decoded_ += tok_.decode({id});
             for (const auto& s : r.params_.stop)

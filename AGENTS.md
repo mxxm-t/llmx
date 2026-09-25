@@ -156,8 +156,9 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 `json` checks syntax, numeric/locale boundaries, UTF-8 and escaped Unicode,
-malformed input, nesting limits and JSON output string escaping. The Q8/Q4 round-trip test also checks
-escaped Unicode tensor names through the actual CLI.
+malformed input, nesting limits and JSON output string escaping.
+A float written by `number` is its shortest decimal in the C locale's form under a comma locale too, reads back through `parse` as the same float for a million random bit patterns, and is `null` when JSON cannot hold it.
+The Q8/Q4 round-trip test also checks escaped Unicode tensor names through the actual CLI.
 
 `gguf-validation` checks independent binary fixtures for field lengths/counts, array depth, tensor arithmetic, byte counts that overflow although the element count fits, in one row or across rows, file extents, tensor types and quantized row widths, each refused as such when the element count also overflows, custom alignment and a tensor name repeated in one file.
 These are format checks; they do not establish model-schema safety.
@@ -250,6 +251,10 @@ Every draw is also held, with the generator's state after it, to a slow referenc
 The draws pin the ranking, the tie rule, the order a draw walks the tokens in and the generator's use; a sum in another order than id order differs only in its last bits, so no draw shows that order, and the reference only follows it.
 Its rows are random, 1000 scores on five or twelve levels so that ties fall across every cut, or spread as a model's are, at top-k 0, 1, 40 and 1000, top-p 0.1, 0.95 and 1, temperatures 0, 0.2, 0.8 and 1.5 and penalties 1 and 1.1, each cell twelve draws from the next seed of a fixed sequence with the history growing, and half the cells masking the row's leader, each top-k, temperature and top-p under one penalty.
 Rows of 40000 take a nucleus past the 512 tokens the sampler ranks a nucleus with by heap and through the selections that double it, and a top-k of 5000, past the 4096 of a top-k set, through its selection over every key.
+
+`logprobs` checks `inference/logprobs.hpp` against a double-precision reference that shifts by the row's maximum and sums with compensation: every value of 151936-token rows of three spreads, a row with one certain token, logits too large for `exp` unshifted, logits wholly below -1e30, equal and tied logits, within half a float step, the probabilities summing to one, `token_nll` the same quantity in double, and the top lists of 0, 1, 5, 20 and more tokens than the row in the order of a full sort by logit and then id.
+It then runs the scheduler over `tiny_qwen` with a tokenizer of its 16 tokens and no end token: a greedy request with `top_logprobs` 5, read from its token channel, must carry at every position the log-softmax and top five of the logits row a second model gives through the same passes (the prompt at its extent, then one decode entry a token), and the same request without logprobs the same ids and no values.
+The same request left unread until it ends must hold exactly `Request::kRowsWaiting` rows on its channel and then give the same values, those past the rows computed by the scheduler; cancelled before it is read, its waiting rows come without values and the rest with the scheduler's.
 
 `backend-errors` injects task and startup-allocation failures, checks completion
 before error propagation, and exercises pool reuse and thread reconfiguration.
@@ -437,6 +442,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   On a synthetic model whose vocabulary lacks the byte token `q`, `/v1/tokenize` refuses a text holding it, as a text and as messages, with the 400 and the message `/v1/generate` and `/v1/chat` give.
   With the Q8_0 fixture, seeded requests on each of the sampler's four paths, four at once with the other settings at their defaults, give the text `generate` gives alone with the same settings and seed, repaired as the server writes a character a reply ends partway through: the defaults, `top_k` 40 with `top_p` 1, `top_k` 0 with `top_p` 0.95, and `top_k` 0 with `top_p` 1.
   The synthetic model's file name holds a byte that is not UTF-8 on Linux, and elsewhere characters beyond ASCII whose UTF-8 bytes code pages 932, 936, 949, 950 and 1257 cannot map, so a name read in the system code page there fails; `/v1/health` and `/v1/models` must name it as UTF-8, with a U+FFFD for each byte that belongs to no UTF-8 character.
+  Log-probabilities on `/v1/generate` and `/v1/completions`, and with the Q8_0 fixture on `/v1/chat` and `/v1/chat/completions`, whole and streamed: a request asking for none by name gets the bytes of one that never names them, and one asking gets that reply's ids and text with its values in the route's shape, the same bytes on a second run, the stream carrying the whole reply's values, greedy's token first among the five listed and every list most likely first; the completions and chat routes give `/v1/generate`'s values for the same prompt, each of four prompts gets its values alone while the others run beside it, 20 tokens are listed when asked, and 21, a `top_logprobs` without `logprobs` and a `logprobs` of the wrong type are refused with 400.
   With the Q8_0 fixture, uncapped requests share a pool too small for all of them: a request is paused when it runs out and resumes from its history, and the check confirms each runs to its own end and the server counts a pause, though it does not yet compare a paused request's output with the same request run alone; a long prompt read one token a pass is paused while it is still prefilling and, resumed, gives the CLI's greedy text; a conversation of six turns on a 1024-token pool, its history growing past half the pool, reuses the last turn's history on every follow-up (its `reused_tokens` and the server's `prefix_tokens` grow each time) with each turn's greedy text equal to the CLI's; and a follow-up that fits the pool only once one donor goes, beside an unrelated donor, consumes the turn it repeats, so a later prompt repeating the unrelated request's history still reuses it with the CLI's greedy text.
   With the Q8_0 fixture too, a client that leaves a whole reply while it is generated, a streamed prompt while it is read one token a pass, or a request waiting for the one slot is noticed within seconds, though nothing written to it fails, and the server then holds nothing active or queued and starts a request reaching the whole pool at once; a client that shuts only its sending side during a whole reply gets no answer, the connection just closing; and each request left behind would run for thousands of passes, so a server that noticed nothing fails on any device.
   The synthetic MoE model's prompts must each give the same ids alone and four at a time, where a pass routes one request's prompt rows beside another's decode rows.
@@ -457,6 +463,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   requests must give the same text through `generate --temp 0`, whose
   prompt a split pipelines over its stages.
   The HF job runs it on the Q8_0 fixture on the CPU with `--requests 8 --cli 2`.
+  `--ids` writes every phase's ids, so two builds can be held byte-equal.
 - **Long context** (`tools/long_context_check.py`): one 16k-token
   summarization prompt from `tests/data/wiki.test.raw`, greedy, 512
   generated tokens by default, sent to `llmx serve` on the device under
@@ -567,7 +574,7 @@ matters: **each layer depends only on the layers below it** -
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
-| `inference/` | model loading, sampler, generate, perplexity, chat template renderer |
+| `inference/` | model loading, sampler, log-probabilities, generate, perplexity, chat template renderer |
 | `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler with prefix reuse, routes |
 | `cli/`       | thin argument parsing + dispatch               |
 

@@ -1,6 +1,7 @@
 #pragma once
 // The routes of docs/SERVER.md: native /v1/generate, /v1/chat, /v1/tokenize, /v1/detokenize and /v1/health, and the OpenAI-compatible /v1/chat/completions, /v1/completions and /v1/models.
 // Both families share one parse, one scheduler request and one drain loop; one thread per connection parses, tokenizes, submits and drains.
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -101,6 +102,10 @@ public:
 private:
     // How often a connection waiting on its request looks for a departed client.
     static constexpr std::chrono::milliseconds kProbe{100};
+    // The most tokens a request may list beside each sampled one, `top_logprobs` or the completions route's `logprobs`: the compatible chat API's limit, which the completions route takes too, though that API stops at 5.
+    static constexpr int kTopLogprobs = 20;
+    // The least value a compatible shape writes, since its fields are numbers: a lower one, minus infinity or a NaN is written as this, a probability of zero to any float.
+    static constexpr float kLogprobFloor = -9999.0f;
 
     enum class Route { generate, chat, chat_completions, completions };
     static std::optional<Route> route_of(const std::string& path) {
@@ -180,6 +185,11 @@ private:
         std::string json = "[";
         for (size_t i = 0; i < ids.size(); ++i) json += (i ? "," : "") + std::to_string(ids[i]);
         return json + "]";
+    }
+    // Whether a field is present with a value other than null, which the compatible APIs send for one not set.
+    static bool given(const jmini::Value& v, const char* key) {
+        const jmini::Value* f = v.get(key);
+        return f && f->t != jmini::Value::T::Null;
     }
     // A setting that is true or false, anything else refused rather than read as either.
     static bool boolean(const jmini::Value& v, const char* key, bool fallback) {
@@ -268,7 +278,90 @@ private:
                     if (s.isString()) params.stop.push_back(s.asString());
         }
         if (compat(route) && integer(body, "n", lo, hi, 1) != 1) throw BadRequest(400, "n must be 1");
+        // Log-probabilities in each route's shape: the completions route's `logprobs` is how many of the most likely tokens to list beside each sampled one, and the other routes take `logprobs` true with `top_logprobs` for that count.
+        if (route == Route::completions) {
+            params.logprobs = given(body, "logprobs");
+            if (params.logprobs) params.top_logprobs = (size_t)integer(body, "logprobs", 0, kTopLogprobs, 0);
+        } else {
+            params.logprobs = given(body, "logprobs") && boolean(body, "logprobs", false);
+            if (given(body, "top_logprobs")) params.top_logprobs = (size_t)integer(body, "top_logprobs", 0, kTopLogprobs, 0);
+            if (params.top_logprobs && !params.logprobs) throw BadRequest(400, "top_logprobs needs logprobs set to true");
+        }
         return params;
+    }
+
+    // A sampled token as a reply's logprobs read it: its log-probabilities, its bytes, and the characters of the reply text before the character it starts in.
+    struct Sampled {
+        Request::Token token;
+        std::string bytes;
+        size_t offset = 0;
+    };
+    // A token's text as the logprobs shapes carry it: its bytes when they are whole UTF-8, else "bytes:" and each byte as \xNN, as the compatible APIs spell a token that splits a character.
+    static std::string token_text(const std::string& bytes) {
+        if (utf8_sanitize(bytes) == bytes) return bytes;
+        static constexpr char hex[] = "0123456789abcdef";
+        std::string text = "bytes:";
+        for (unsigned char c : bytes) {
+            text += "\\x";
+            text += hex[c >> 4];
+            text += hex[c & 0x0f];
+        }
+        return text;
+    }
+    // A value in a compatible shape: the shortest decimal that reads back as the float, or kLogprobFloor for one below it or not a number.
+    static std::string compat_number(float logprob) {
+        return jmini::number(logprob >= kLogprobFloor ? logprob : kLogprobFloor);
+    }
+    // A token in the chat route's shape, {"token", "logprob", "bytes"}, its bytes as numbers so a split character is exact.
+    static std::string chat_token(const std::string& bytes, float logprob) {
+        std::string list;
+        for (unsigned char c : bytes) list += (list.empty() ? "" : ",") + std::to_string(c);
+        return "{\"token\":" + jmini::quote(token_text(bytes)) + ",\"logprob\":" + compat_number(logprob) + ",\"bytes\":[" + list + "]";
+    }
+    // The logprobs of sampled tokens in a compatible route's shape: the chat route's content list beside a null refusal, or the completions route's parallel lists, whose top_logprobs map each listed token's text to its log-probability and hold the sampled token too.
+    std::string compat_logprobs(Route route, const Sampled* sampled, size_t n) const {
+        if (route == Route::chat_completions) {
+            std::string content;
+            for (size_t i = 0; i < n; ++i) {
+                const Request::Token& t = sampled[i].token;
+                std::string top;
+                for (const auto& alt : t.top) top += (top.empty() ? "" : ",") + chat_token(tok_.decode({alt.id}), alt.logprob) + "}";
+                content += (i ? "," : "") + chat_token(sampled[i].bytes, t.logprob) + ",\"top_logprobs\":[" + top + "]}";
+            }
+            return "{\"content\":[" + content + "],\"refusal\":null}";
+        }
+        std::string tokens, values, tops, offsets;
+        for (size_t i = 0; i < n; ++i) {
+            const Request::Token& t = sampled[i].token;
+            const char* sep = i ? "," : "";
+            tokens += sep + jmini::quote(token_text(sampled[i].bytes));
+            values += sep + compat_number(t.logprob);
+            offsets += sep + std::to_string(sampled[i].offset);
+            // Two tokens with the same text keep the likelier one's entry, so no key repeats.
+            std::vector<std::string> keys;
+            std::string top;
+            const auto entry = [&](const std::string& key, float logprob) {
+                if (std::find(keys.begin(), keys.end(), key) != keys.end()) return;
+                top += (keys.empty() ? "" : ",") + jmini::quote(key) + ":" + compat_number(logprob);
+                keys.push_back(key);
+            };
+            bool listed = false;
+            for (const auto& alt : t.top) {
+                entry(token_text(tok_.decode({alt.id})), alt.logprob);
+                listed = listed || alt.id == t.id;
+            }
+            if (!listed) entry(token_text(sampled[i].bytes), t.logprob);
+            tops += sep + std::string("{") + top + "}";
+        }
+        return "{\"tokens\":[" + tokens + "],\"token_logprobs\":[" + values + "],\"top_logprobs\":[" + tops +
+               "],\"text_offset\":[" + offsets + "]}";
+    }
+    // A native route's most likely tokens at one position, [{"id", "logprob"}].
+    static std::string native_top(const Request::Token& t) {
+        std::string top;
+        for (const auto& alt : t.top)
+            top += (top.empty() ? "{\"id\":" : ",{\"id\":") + std::to_string(alt.id) + ",\"logprob\":" + jmini::number(alt.logprob) + "}";
+        return "[" + top + "]";
     }
 
     static std::string finish_reason(const std::string& finish) {
@@ -293,22 +386,24 @@ private:
         return "{\"id\":" + jmini::quote(id) + ",\"object\":\"" + object + "\",\"created\":" + std::to_string(started_) +
                ",\"model\":" + jmini::quote(cfg_.model_name);
     }
-    // One streamed chunk of a compatible route: a chat delta or a text piece, with the finish reason on the last.
+    // One streamed chunk of a compatible route: a chat delta or a text piece, with the finish reason on the last, and the chunk's logprobs when the request asked for them.
     std::string chunk(Route route, const std::string& id, const std::string& piece, bool first,
-                      const std::string* finish) const {
+                      const std::string* finish, const std::string& logprobs = "") const {
         const std::string fr = finish ? jmini::quote(finish_reason(*finish)) : "null";
+        const std::string lp = logprobs.empty() ? "" : ",\"logprobs\":" + logprobs;
         if (route == Route::chat_completions) {
             std::string delta = first ? "{\"role\":\"assistant\",\"content\":" + jmini::quote(piece) + "}"
                               : finish ? "{}" : "{\"content\":" + jmini::quote(piece) + "}";
-            return head(id, "chat.completion.chunk") + ",\"choices\":[{\"index\":0,\"delta\":" + delta +
+            return head(id, "chat.completion.chunk") + ",\"choices\":[{\"index\":0,\"delta\":" + delta + lp +
                    ",\"finish_reason\":" + fr + "}]}";
         }
-        return head(id, "text_completion") + ",\"choices\":[{\"index\":0,\"text\":" + jmini::quote(piece) +
+        return head(id, "text_completion") + ",\"choices\":[{\"index\":0,\"text\":" + jmini::quote(piece) + lp +
                ",\"finish_reason\":" + fr + "}]}";
     }
     // The same chunk with a request's timings, for the one that carries the finish reason.
-    std::string last_chunk(Route route, const std::string& id, const std::string& finish, const Request& r, size_t tokens) const {
-        std::string c = chunk(route, id, "", false, &finish);
+    std::string last_chunk(Route route, const std::string& id, const std::string& finish, const Request& r, size_t tokens,
+                           const std::string& logprobs) const {
+        std::string c = chunk(route, id, "", false, &finish, logprobs);
         c.pop_back();
         return c + ",\"timings\":" + timings_json(r, tokens) + "}";
     }
@@ -362,27 +457,46 @@ private:
         std::vector<uint32_t> gen;
         std::string text, pending;
         bool first = true;
+        // With logprobs, a whole reply's tokens, and the characters of the text so far, where the next token's offset is.
+        std::vector<Sampled> sampled;
+        size_t chars = 0;
+        // What a compatible chunk that carries no token holds for its logprobs when the request asked for them.
+        const std::string no_logprobs = params.logprobs ? "null" : "";
         try {
             if (stream) c.begin_stream(200, "text/event-stream");
-            uint32_t tid;
+            Request::Token tok;
             Request::Clock::time_point probe = Request::Clock::now() + kProbe;
             for (;;) {
-                const Request::Next got = r->next(tid, probe);
+                const Request::Next got = r->next(tok, probe);
                 if (got == Request::Next::end) break;
                 if (Request::Clock::now() >= probe) {
                     if (c.peer_closed()) throw http::ClientGone("http: the client closed the connection");
                     probe = Request::Clock::now() + kProbe;
                 }
                 if (got == Request::Next::timeout) continue;
-                gen.push_back(tid);
-                pending += tok_.decode({tid});
+                gen.push_back(tok.id);
+                std::string bytes = tok_.decode({tok.id});
+                pending += bytes;
                 const size_t whole = utf8_complete(pending);
                 const std::string piece = utf8_sanitize(pending.substr(0, whole));
                 pending.erase(0, whole);
                 text += piece;
-                if (!stream) continue;
-                if (compat(route)) c.write_chunk("data: " + chunk(route, id, piece, first, nullptr) + "\n\n");
-                else c.write_chunk("data: {\"id\":" + std::to_string(tid) + ",\"text\":" + jmini::quote(piece) + "}\n\n");
+                Sampled s;
+                if (params.logprobs) {
+                    s = Sampled{std::move(tok), std::move(bytes), chars};
+                    for (unsigned char b : piece) chars += (b & 0xC0) != 0x80;
+                }
+                if (!stream) {
+                    if (params.logprobs) sampled.push_back(std::move(s));
+                    continue;
+                }
+                if (compat(route)) {
+                    c.write_chunk("data: " + chunk(route, id, piece, first, nullptr, params.logprobs ? compat_logprobs(route, &s, 1) : "") + "\n\n");
+                } else {
+                    std::string lp;
+                    if (params.logprobs) lp = ",\"logprob\":" + jmini::number(s.token.logprob) + (params.top_logprobs ? ",\"top_logprobs\":" + native_top(s.token) : "");
+                    c.write_chunk("data: {\"id\":" + std::to_string(gen.back()) + ",\"text\":" + jmini::quote(piece) + lp + "}\n\n");
+                }
                 first = false;
             }
             // Whatever is left never completed a character.
@@ -398,8 +512,8 @@ private:
             }
             const size_t prompt_tokens = r->prompt_tokens();
             if (stream && compat(route)) {
-                if (!pending.empty() || first) c.write_chunk("data: " + chunk(route, id, pending, first, nullptr) + "\n\n");
-                c.write_chunk("data: " + last_chunk(route, id, finish, *r, gen.size()) + "\n\n");
+                if (!pending.empty() || first) c.write_chunk("data: " + chunk(route, id, pending, first, nullptr, no_logprobs) + "\n\n");
+                c.write_chunk("data: " + last_chunk(route, id, finish, *r, gen.size(), no_logprobs) + "\n\n");
                 if (include_usage)
                     c.write_chunk("data: " + head(id, route == Route::chat_completions ? "chat.completion.chunk" : "text_completion") +
                                   ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size()) + "}\n\n");
@@ -410,26 +524,35 @@ private:
                 c.write_chunk("data: {\"done\":true,\"finish\":" + jmini::quote(finish) +
                               ",\"tokens\":" + std::to_string(gen.size()) + "}\n\ndata: [DONE]\n\n");
                 c.end_stream();
-            } else if (route == Route::chat_completions) {
+            } else if (compat(route)) {
+                const std::string lp = params.logprobs ? ",\"logprobs\":" + compat_logprobs(route, sampled.data(), sampled.size()) : "";
+                const std::string choice = route == Route::chat_completions
+                    ? "{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":" + jmini::quote(text) + "}"
+                    : "{\"index\":0,\"text\":" + jmini::quote(text);
                 c.respond(200, "application/json",
-                          head(id, "chat.completion") + ",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":" +
-                          jmini::quote(text) + "},\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
-                          usage_json(prompt_tokens, gen.size()) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
-            } else if (route == Route::completions) {
-                c.respond(200, "application/json",
-                          head(id, "text_completion") + ",\"choices\":[{\"index\":0,\"text\":" + jmini::quote(text) +
+                          head(id, route == Route::chat_completions ? "chat.completion" : "text_completion") + ",\"choices\":[" + choice + lp +
                           ",\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
                           usage_json(prompt_tokens, gen.size()) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
             } else {
+                // With logprobs, a list beside the ids, and with top_logprobs a list of each position's most likely tokens.
+                std::string lp;
+                if (params.logprobs) {
+                    std::string values, tops;
+                    for (size_t i = 0; i < sampled.size(); ++i) {
+                        values += (i ? "," : "") + jmini::number(sampled[i].token.logprob);
+                        tops += (i ? "," : "") + native_top(sampled[i].token);
+                    }
+                    lp = ",\"logprobs\":[" + values + "]" + (params.top_logprobs ? ",\"top_logprobs\":[" + tops + "]" : "");
+                }
                 c.respond(200, "application/json",
-                          "{\"text\":" + jmini::quote(text) + ",\"ids\":" + ids_json(gen) +
+                          "{\"text\":" + jmini::quote(text) + ",\"ids\":" + ids_json(gen) + lp +
                           ",\"finish\":" + jmini::quote(finish) + ",\"prompt_tokens\":" +
                           std::to_string(prompt_tokens) + ",\"reused_tokens\":" + std::to_string(r->reused()) +
                           ",\"tokens\":" + std::to_string(gen.size()) + "}");
             }
         } catch (...) {
             r->cancel();
-            uint32_t drop;
+            Request::Token drop;
             while (r->next(drop, Request::Clock::now() + kProbe) != Request::Next::end) {}
             throw;
         }

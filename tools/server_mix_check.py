@@ -16,6 +16,7 @@ long prompts, cut from a text file, with short and long replies. Phases:
 
 Every request that runs to its end must give its ids alone, the CLI its
 text; a client that left must leave nothing active.
+--ids writes every phase's ids, so two builds can be compared byte for byte.
 
     python tools/server_mix_check.py --model M.gguf --text wiki.txt \\
         --device vulkan:0,vulkan:1,vulkan:2 --layer-shares 1,1,1
@@ -90,6 +91,7 @@ def main():
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--cli", type=int, default=4,
                    help="requests also checked against the CLI; the first four cover every prompt length, the last two several ubatch chunks")
+    p.add_argument("--ids", metavar="PATH", help="write the ids of every phase as JSON, the skewed phase's clients that left as null")
     args = p.parse_args()
     common.EXE = os.path.abspath(args.exe)
 
@@ -101,12 +103,14 @@ def main():
     proc, port, log = common.start_server([common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs)] + flags,
                                           wait=1800)
     failures = []
+    phases = {}
     try:
         replies = [post(port, r) for r in reqs]
         alone = [r["ids"] for r in replies]
         print("alone: %d requests, %d tokens" % (len(reqs), sum(len(a) for a in alone)), flush=True)
 
         got = run_together(port, reqs)
+        phases["alone"], phases["together"] = alone, [got.get(i) for i in range(len(reqs))]
         bad = [i for i in range(len(reqs)) if got.get(i) != alone[i]]
         print("together: %d of %d differ" % (len(bad), len(reqs)), flush=True)
         failures += ["together %d" % i for i in bad]
@@ -115,6 +119,7 @@ def main():
         delays = [0.0 if len(r["prompt"]) <= 1500 else 0.5 + rng.random() * 2 for r in reqs]
         leavers = set(range(3, len(reqs), 4))
         got = run_together(port, reqs, delays, leavers)
+        phases["skewed"] = [None if i in leavers else got.get(i) for i in range(len(reqs))]
         bad = [i for i in range(len(reqs)) if i not in leavers and got.get(i) != alone[i]]
         print("skewed: %d of %d differ, %d clients left early" % (len(bad), len(reqs) - len(leavers), len(leavers)), flush=True)
         failures += ["skewed %d" % i for i in bad]
@@ -140,6 +145,9 @@ def main():
         if not same:
             failures.append("cli %d" % i)
     print("cli: %d requests checked" % min(args.cli, len(reqs)), flush=True)
+    if args.ids:
+        with open(args.ids, "w", encoding="utf-8") as f:
+            json.dump(phases, f)
 
     print("FAIL: " + ", ".join(failures) if failures else "all requests match")
     return 1 if failures else 0

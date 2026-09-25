@@ -19,7 +19,7 @@ from tokenizer import build_byte_vocab
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 import server_load  # noqa: E402
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; on the real fixture, seeded requests on the sampler's four paths, four at a time, give the text `generate` gives alone with the same settings and seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; /v1/tokenize and /v1/detokenize give the ids and text `llmx tokenize` and `llmx detokenize` give, while the queue is full too, and a text the tokenizer cannot encode is refused there as the generating routes refuse it; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
+# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; logprobs come in each route's shape, whole and streamed, repeat byte for byte, leave the reply's ids and text as they were and change no byte of a reply that does not ask for them; on the real fixture, seeded requests on the sampler's four paths, four at a time, give the text `generate` gives alone with the same settings and seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; /v1/tokenize and /v1/detokenize give the ids and text `llmx tokenize` and `llmx detokenize` give, while the queue is full too, and a text the tokenizer cannot encode is refused there as the generating routes refuse it; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 # The synthetic model's file name holds a byte that is not UTF-8 on Linux and characters beyond ASCII that several Windows code pages cannot map elsewhere, and every reply naming the model must still be UTF-8.
 # The synthetic MoE model gives each prompt the same ids alone and four at a time, on the CPU as it is and on a device with its experts on the host.
@@ -50,17 +50,27 @@ class Server:
 
     def stream(self, path, body):
         """Every SSE data payload, parsed, in order; the end marker is None."""
+        return [None if payload == "[DONE]" else json.loads(payload) for payload in self.stream_raw(path, body)]
+
+    def raw(self, path, body):
+        """A whole reply's body as the server wrote it, for comparing bytes."""
+        req = urllib.request.Request("http://127.0.0.1:%d%s" % (self.port, path), data=json.dumps(body).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=300) as r:
+            return r.read().decode("utf-8")
+
+    def stream_raw(self, path, body):
+        """Every SSE data payload of a stream as the server wrote it, in order."""
         data = json.dumps(body).encode("utf-8")
         req = urllib.request.Request("http://127.0.0.1:%d%s" % (self.port, path), data=data,
                                      headers={"Content-Type": "application/json"})
-        events = []
+        payloads = []
         with urllib.request.urlopen(req, timeout=300) as r:
             for raw in r:
                 line = raw.decode("utf-8").rstrip("\n")
                 if line.startswith("data: "):
-                    payload = line[6:]
-                    events.append(None if payload == "[DONE]" else json.loads(payload))
-        return events
+                    payloads.append(line[6:])
+        return payloads
 
     def open(self, path, body):
         """A POST on a socket of its own, sent whole and left open, for a client that leaves when the test says."""
@@ -460,6 +470,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert sampled[0][1]["choices"][0]["text"] == sampled[1][1]["choices"][0]["text"], sampled
         status, err = srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": 2, "top_k": -2})
         assert status == 400 and "top_k" in err["error"]["message"], err
+        check_logprobs(srv, prompts, n, chat)
         # A body past the size limit is refused while it is read, still in the compatible route's error shape.
         head, err = srv.oversized("/v1/chat/completions")
         assert head.startswith(b"HTTP/1.1 413") and isinstance(err["error"], dict) and err["error"]["message"], (head, err)
@@ -610,6 +621,167 @@ def check_reasoning(model):
             assert status == 200 and got["count"] == counts[1], (messages, got)
     finally:
         srv.close()
+
+
+# The tokens each position of a logprobs request lists beside its sampled one.
+TOP = 5
+
+
+def volatile(text):
+    """A reply with its id and timings blanked, the only bytes in which two runs of one compatible request may differ."""
+    text = re.sub(r'"id":"(chat)?cmpl-[0-9]+"', '"id":""', text)
+    return re.sub(r'"timings":\{[^{}]*\}', '"timings":{}', text)
+
+
+def strip_logprobs(value):
+    """A parsed reply or event without the fields logprobs add."""
+    if isinstance(value, dict):
+        return {k: strip_logprobs(v) for k, v in value.items() if k not in ("logprobs", "top_logprobs", "logprob")}
+    if isinstance(value, list):
+        return [strip_logprobs(v) for v in value]
+    return value
+
+
+def check_top(chosen, top, what):
+    """A position's most likely tokens under greedy: TOP of them, most likely first, the first being the sampled token with its value."""
+    values = [t["logprob"] for t in top]
+    assert len(top) == TOP and values == sorted(values, reverse=True) and all(v <= 0 for v in values), (what, top)
+    assert chosen["logprob"] == max(values), (what, chosen, top)
+
+
+def logprob_cases(prompt, n, chat):
+    """Each logprobs route: its path, a greedy body that asks for none, the fields that ask for them and fields that ask for none by name."""
+    ask = {"logprobs": True, "top_logprobs": TOP}
+    cases = [("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0}, ask, {"logprobs": False, "top_logprobs": 0}),
+             ("/v1/completions", {"prompt": prompt, "max_tokens": n, "temperature": 0}, {"logprobs": TOP}, {"logprobs": None})]
+    if chat:
+        messages = [{"role": "user", "content": prompt}]
+        cases += [("/v1/chat", {"messages": messages, "max_tokens": n, "temperature": 0}, ask, {"logprobs": None}),
+                  ("/v1/chat/completions", {"messages": messages, "max_tokens": n, "temperature": 0}, ask, {"logprobs": False})]
+    return cases
+
+
+def logprob_values(path, reply):
+    """The sampled tokens' values of a whole reply, in order, whatever the route's shape."""
+    if path in ("/v1/generate", "/v1/chat"):
+        return reply["logprobs"]
+    if path == "/v1/completions":
+        return reply["choices"][0]["logprobs"]["token_logprobs"]
+    return [e["logprob"] for e in reply["choices"][0]["logprobs"]["content"]]
+
+
+def check_logprob_shape(path, reply, ids):
+    """A whole reply's logprobs in its route's shape, one entry per sampled token, greedy's token the most likely at each."""
+    if path in ("/v1/generate", "/v1/chat"):
+        assert len(reply["logprobs"]) == len(reply["top_logprobs"]) == len(ids), reply
+        for i, (value, top) in enumerate(zip(reply["logprobs"], reply["top_logprobs"])):
+            check_top({"logprob": value}, top, (path, i))
+            assert top[0]["id"] == ids[i], (path, i, top, ids[i])
+        return
+    choice = reply["choices"][0]
+    count = reply["usage"]["completion_tokens"]
+    if path == "/v1/completions":
+        lp = choice["logprobs"]
+        text = choice["text"]
+        assert len(lp["tokens"]) == len(lp["token_logprobs"]) == len(lp["top_logprobs"]) == len(lp["text_offset"]) == count, lp
+        for i, (value, top) in enumerate(zip(lp["token_logprobs"], lp["top_logprobs"])):
+            # The listed tokens and the sampled one, which greedy's always is.
+            assert len(top) <= TOP + 1 and lp["tokens"][i] in top and top[lp["tokens"][i]] == value == max(top.values()), (i, value, top)
+        offsets = lp["text_offset"]
+        assert offsets == sorted(offsets) and (not offsets or offsets[0] == 0) and all(o <= len(text) for o in offsets), offsets
+        if not any(t.startswith("bytes:") for t in lp["tokens"]):
+            assert "".join(lp["tokens"]) == text, (lp["tokens"], text)
+            assert all(text[o:].startswith(t) for o, t in zip(offsets, lp["tokens"])), (offsets, lp["tokens"])
+        return
+    assert set(choice["logprobs"]) == {"content", "refusal"} and choice["logprobs"]["refusal"] is None, choice["logprobs"]
+    content = choice["logprobs"]["content"]
+    assert len(content) == count, content
+    for i, entry in enumerate(content):
+        assert set(entry) == {"token", "logprob", "bytes", "top_logprobs"}, entry
+        assert all(set(t) == {"token", "logprob", "bytes"} for t in entry["top_logprobs"]), entry
+        check_top(entry, entry["top_logprobs"], (path, i))
+        assert entry["top_logprobs"][0]["bytes"] == entry["bytes"], entry
+    whole = b"".join(bytes(e["bytes"]) for e in content)
+    try:
+        assert whole.decode("utf-8") == choice["message"]["content"], (whole, choice["message"]["content"])
+    except UnicodeDecodeError:
+        pass  # a reply ending inside a character holds bytes its text replaced
+
+
+def stream_logprobs(path, events):
+    """A stream's logprobs gathered as a whole reply holds them: the native values and top lists, the completions route's lists, or the chat route's content."""
+    tokens = [e for e in events if e and "choices" not in e and "id" in e]
+    if path in ("/v1/generate", "/v1/chat"):
+        return {"logprobs": [e["logprob"] for e in tokens], "top_logprobs": [e["top_logprobs"] for e in tokens]}
+    chunks = [e for e in events if e and e.get("choices")]
+    lists = [c["choices"][0]["logprobs"] for c in chunks]
+    # A chunk that carries no token carries null.
+    carried = [lp for lp in lists if lp is not None]
+    if path == "/v1/completions":
+        assert all(len(lp["tokens"]) == 1 for lp in carried), carried
+        return {k: [v for lp in carried for v in lp[k]] for k in ("tokens", "token_logprobs", "top_logprobs", "text_offset")}
+    assert all(len(lp["content"]) == 1 and lp["refusal"] is None for lp in carried), carried
+    return {"content": [e for lp in carried for e in lp["content"]], "refusal": None}
+
+
+def check_logprobs(srv, prompts, n, chat):
+    """Logprobs on each route, whole and streamed.
+    A reply that does not ask for them, or asks for none by name, is byte-identical to the reply of the request that never names them, apart from a compatible reply's id and timings.
+    A reply that asks has that reply's ids and text, repeats byte for byte, lists each position's most likely tokens with greedy's token first, and the stream carries the whole reply's values.
+    Every route gives one prompt the same values, and each prompt the values it gets alone when four run at once."""
+    by_route = {}
+    for path, base, ask, off in logprob_cases(prompts[0], n, chat):
+        plain = volatile(srv.raw(path, base))
+        assert volatile(srv.raw(path, dict(base, **off))) == plain, (path, off)
+        first = volatile(srv.raw(path, dict(base, **ask)))
+        assert volatile(srv.raw(path, dict(base, **ask))) == first, (path, "values differ run to run")
+        reply = json.loads(first)
+        assert strip_logprobs(reply) == json.loads(plain), (path, reply)
+        check_logprob_shape(path, reply, reply.get("ids"))
+        by_route[path] = logprob_values(path, reply)
+
+        # Streamed, the same bytes without logprobs, and with them the whole reply's values chunk by chunk.
+        plain_events = [volatile(p) for p in srv.stream_raw(path, dict(base, stream=True))]
+        assert [volatile(p) for p in srv.stream_raw(path, dict(base, stream=True, **off))] == plain_events, (path, "stream", off)
+        events = [None if p == "[DONE]" else json.loads(volatile(p)) for p in srv.stream_raw(path, dict(base, stream=True, **ask))]
+        assert [strip_logprobs(e) for e in events] == [None if p == "[DONE]" else json.loads(p) for p in plain_events], (path, "stream")
+        gathered = stream_logprobs(path, events)
+        if path in ("/v1/generate", "/v1/chat"):
+            assert gathered == {"logprobs": reply["logprobs"], "top_logprobs": reply["top_logprobs"]}, (path, gathered)
+        else:
+            assert gathered == reply["choices"][0]["logprobs"], (path, gathered, reply["choices"][0]["logprobs"])
+    # The completions route reads the prompt /v1/generate reads and the chat routes render the same one, so their values are the same.
+    assert by_route["/v1/completions"] == by_route["/v1/generate"], by_route
+    if chat:
+        assert by_route["/v1/chat/completions"] == by_route["/v1/chat"], by_route
+
+    # The most a request may list, and the refusals, in each route's error shape.
+    status, reply = srv.post("/v1/generate", {"prompt": prompts[0], "max_tokens": 2, "temperature": 0, "logprobs": True, "top_logprobs": 20})
+    assert status == 200 and all(len(t) == 20 for t in reply["top_logprobs"]), (status, reply)
+    for body, field in (({"logprobs": True, "top_logprobs": 21}, "top_logprobs"), ({"logprobs": True, "top_logprobs": -1}, "top_logprobs"),
+                        ({"logprobs": "yes"}, "logprobs"), ({"top_logprobs": 3}, "top_logprobs")):
+        status, err = srv.post("/v1/generate", dict({"prompt": "a", "max_tokens": 2}, **body))
+        assert status == 400 and field in err["error"], (body, status, err)
+    for body in ({"logprobs": 21}, {"logprobs": True}, {"logprobs": 1.5}):
+        status, err = srv.post("/v1/completions", dict({"prompt": "a", "max_tokens": 2}, **body))
+        assert status == 400 and "logprobs" in err["error"]["message"], (body, status, err)
+    status, err = srv.post("/v1/chat/completions", {"messages": [{"role": "user", "content": "a"}], "max_tokens": 2, "top_logprobs": 2})
+    assert status == 400 and "top_logprobs" in err["error"]["message"], (status, err)
+
+    # Four at a time, where a pass holds one request's prompt rows beside another's decode rows, each request's values are the ones it gets alone.
+    ask = {"max_tokens": n, "temperature": 0, "logprobs": True, "top_logprobs": TOP}
+    alone = {p: srv.post("/v1/generate", dict(ask, prompt=p))[1] for p in prompts[:4]}
+    results = {}
+    def worker(p):
+        results[p] = srv.post("/v1/generate", dict(ask, prompt=p))
+    threads = [threading.Thread(target=worker, args=(p,)) for p in prompts[:4]]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    for p in prompts[:4]:
+        status, reply = results[p]
+        assert status == 200 and reply == alone[p], (p, reply, alone[p])
 
 
 # The ids each prompt gets alone, then four at a time, where a pass holds one request's prompt rows beside another's decode rows.
@@ -926,7 +1098,7 @@ def run():
         texts = ["a", "h\u00e9llo w\u00f6rld", "\u65e5\u672c\u8a9e", "\U0001f600", "<|endoftext|>", "<|im_start|>user\nhi<|im_end|>", ""]
         n = check_server(model, ["a", "ab", "abc", "abcdefg"], 6, 14, chat=False, texts=texts)
         print("server: synthetic F32 model, %d prompts greedy-equal to the CLI alone and four at a time, a stream, "
-              "a seeded repeat, refusals, the tokenize routes, a cancelled stream, the compatible completions, its file name as UTF-8 in every reply  [ok]" % n)
+              "a seeded repeat, refusals, the tokenize routes, a cancelled stream, the compatible completions, logprobs on the generate and completions routes, its file name as UTF-8 in every reply  [ok]" % n)
         check_unencodable(directory)
         print("server: synthetic F32 model without the byte token q, a text holding it refused alike by /v1/tokenize, /v1/generate and /v1/chat  [ok]")
         check_reasoning(os.path.join(directory, "reasoning.gguf"))
@@ -966,7 +1138,7 @@ def run():
         check_departed(real)
         k, n = check_ignore_eos_real(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
-              "seeded requests equal to the CLI on four sampler paths, refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
+              "seeded requests equal to the CLI on four sampler paths, refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, logprobs on every route, a reused prefix, the limits, uncapped requests sharing a pool, "
               "a prompt paused while prefilling, a %d-turn conversation past half the pool reusing its history on every follow-up, "
               "a follow-up consuming the turn it repeats while an unrelated donor stays, clients leaving a whole reply, a prefill and the queue, and one shutting its sending side  [ok]"
               % (os.path.basename(real), n, turns))

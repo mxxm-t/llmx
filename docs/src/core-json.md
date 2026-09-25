@@ -28,6 +28,9 @@ Recursive-descent JSON parser, written from scratch (no libs), in namespace
   backslashes and control bytes. Its input must already be valid UTF-8; it
   preserves other bytes without validating them. This is a string helper,
   not a serializer for `Value` trees.
+- `number(float)` returns the shortest decimal that reads back as the same float, through `parse` and a cast to float as through a direct read, in the form `printf` gives in the C locale (`0.1`, `-0`, `1e-07`), whatever the locale.
+  An infinity or a NaN, which JSON cannot hold, is `null`.
+  It is `std::to_chars` without a format, which the standard libraries of GCC 11, MSVC 2019 16.4 and libc++ 14 carry.
 
 The syntax reference is [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259.html).
 The depth, numeric-range and Unicode policies above define the supported input
@@ -45,7 +48,7 @@ The native Hub path also parses model/file metadata and curl response-header
 JSON. Those consumers impose their own document-size limits and validate the
 fields they consume, including duplicate manifest fields, sizes and identities.
 The server (`server/api.hpp`) parses request bodies with it and builds its
-JSON replies with `quote`.
+JSON replies with `quote`, and with `number` for log-probabilities.
 
 Some standard libraries set a range-error flag for representable subnormals,
 including values rounded up to minimum normal. The parser accepts that flag

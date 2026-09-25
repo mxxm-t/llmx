@@ -541,14 +541,14 @@ to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request
 
 | Route | Body | Reply |
 |---|---|---|
-| `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "ignore_eos": false, "stream": false}` | `{"text", "ids", "finish", "prompt_tokens", "reused_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length` |
+| `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "ignore_eos": false, "stream": false, "logprobs": false, "top_logprobs": 0}` | `{"text", "ids", "finish", "prompt_tokens", "reused_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length`, and with `logprobs` `"logprobs"` beside `ids` and `"top_logprobs"` |
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "...", "reasoning_content": "..."}], ...}` (the same sampling fields; `reasoning_content` is optional) | as above; the prompt is the model's chat template over the messages |
 | `POST /v1/tokenize` | `{"text": "..."}`, or `{"messages": [...]}` in place of the text | `{"tokens": [ids], "count": n}` |
 | `POST /v1/detokenize` | `{"tokens": [ids]}` | `{"text": "..."}` |
 | `GET /v1/health` | | `{"status": "ok", "model", "active", "queued", "donors", "prefix_hits", "prefix_tokens", "pauses"}` |
 | `GET /v1/models` | | `{"object": "list", "data": [{"id", "object": "model", "created", "owned_by", "context_length", "vocab"}]}` |
-| `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}}`, plus `top_k`, `penalty` or `repetition_penalty`, and `ignore_eos` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "content"}, "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}` |
-| `POST /v1/completions` | `{"prompt": "...", ...}` (the same fields) | as above with `"object": "text_completion"` and `choices[0].text` |
+| `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}, "logprobs", "top_logprobs"}`, plus `top_k`, `penalty` or `repetition_penalty`, and `ignore_eos` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "content"}, "logprobs", "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}`, `logprobs` only when asked |
+| `POST /v1/completions` | `{"prompt": "...", ...}` (the same fields, with `logprobs` a count) | as above with `"object": "text_completion"` and `choices[0].text` |
 
 On the last two an absent `max_tokens`, or `-1`, means no cap, as the standard has it: the reply runs to the model's end of text or to what the request may hold. Such a request reserves its prompt and grows its reservation as it generates, so uncapped requests run side by side; when the KV pool runs out, cached prefixes are dropped first, then the most recently admitted uncapped request is paused and resumes from its history once there is room. A capped request reserves its whole reach up front and is never paused. The compatible routes also return a `timings` object beside `usage`, in the fields clients that display speed read: `prompt_n` and `cache_n` (prompt tokens prefilled and reused), `prompt_ms`, `prompt_per_second`, `predicted_n`, `predicted_ms`, `predicted_per_second` and `queued_ms`. Each finished request logs one line on stderr. The native routes keep a default of 64. A `seed` of `-1`, which clients send for a random one, is taken on these two routes as no seed and sampled as a request without one is; the native routes refuse it as any other seed below 0.
 
@@ -569,6 +569,14 @@ The compatible routes also take a `top_k` of -1, which clients send for no top-k
 The token does not exist for the draw: the penalty cannot bring it back, and `top_k` and `top_p` count only the other tokens.
 It is `false` by default, a value other than `true` or `false` is refused with 400, and a request gives the ids `generate --ignore-eos` gives with the same settings.
 The compatible replies carry the reused-prefix count as `timings.cache_n`.
+
+Every generating route gives log-probabilities when asked, at most 20 of the most likely tokens a position: `"logprobs": true` with `"top_logprobs": k` on `/v1/generate`, `/v1/chat` and `/v1/chat/completions`, and `"logprobs": k` on `/v1/completions`, as the compatible APIs take them.
+Each value is the log-softmax of the model's logits for that position, before the penalty, the temperature, top-k and top-p, written as the shortest decimal that reads back as the same 32-bit float.
+The native routes add `"logprobs": [v, ...]` beside `ids` and `"top_logprobs": [[{"id", "logprob"}, ...], ...]`, and a streamed event its token's `logprob` and `top_logprobs`.
+`/v1/chat/completions` gives `choices[0].logprobs.content`, one `{"token", "logprob", "bytes", "top_logprobs"}` per token, beside a null `refusal`, and `/v1/completions` gives `choices[0].logprobs` as `tokens`, `token_logprobs`, `top_logprobs` (a map from text to value, the sampled token included) and `text_offset`; a streamed chunk carries its own token's.
+A token that splits a character is written `bytes:\xe2\x80` and so on.
+A value JSON has no number for, minus infinity for a token given no probability, is `null` on the native routes; the compatible routes, whose fields are numbers, write -9999 for it and for any value below -9999.
+The values cost a pass over the vocabulary per token, so they are computed only for a request that asks, and a reply that does not ask is unchanged.
 
 With `"stream": true` the reply is `text/event-stream`: one `data:` line per token holding its id and text (a character split across tokens is held until complete), then `data: {"done": true, "finish": ..., "tokens": N}` and `data: [DONE]`.
 A stream whose pass fails ends with one `data:` event holding the error in the native shape, `{"error": "..."}`, in place of the `done` event and without `data: [DONE]`.

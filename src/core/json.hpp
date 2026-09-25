@@ -1,4 +1,5 @@
 #pragma once
+#include <charconv>
 #include <string>
 #include <vector>
 #include <utility>
@@ -236,6 +237,13 @@ inline std::string quote(const std::string& text) {
     }
     out += '"';
     return out;
+}
+
+// A float as the shortest JSON number that reads back as the same float, in every locale; an infinity or a NaN, which JSON cannot hold, is null.
+inline std::string number(float v) {
+    if (!std::isfinite(v)) return "null";
+    char text[32];
+    return std::string(text, std::to_chars(text, text + sizeof text, v).ptr);
 }
 
 } // namespace jmini

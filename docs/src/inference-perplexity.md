@@ -15,6 +15,7 @@ up to `ubatch()` tokens with logits for every position, the prompt path; with
 its logits are unused. On a device the two paths use different kernels, and
 `tests/baseline.py` and `tests/baseline_8b.py` score every HF perplexity cell both ways.
 
+Each target's negative log-likelihood is `token_nll`: its logit less `log_sum_exp` of its row (`inference/logprobs.hpp`, which the server's logprobs read too), in double, negated.
 `PerplexityResult` stores the window size it scored with (`context`, the one given or the model's context), used input tokens, scored targets, chunks and total NLL.
 `mean_nll()` divides total NLL by scored targets.
 `docs/USAGE.md` documents the CLI counters and examples.

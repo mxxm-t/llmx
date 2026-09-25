@@ -1,6 +1,7 @@
 #include "core/json.hpp"
 #include <clocale>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <limits>
 #include <locale>
@@ -124,6 +125,29 @@ void quoting() {
     }
 }
 
+// number writes a float as the shortest decimal, as printf would in the C locale, that reads back through parse as the same float, sign of zero and subnormals included; an infinity or a NaN is null.
+void floats() {
+    for (const auto& entry : std::vector<std::pair<float, std::string>>{
+             {0.0f, "0"}, {-0.0f, "-0"}, {1.0f, "1"}, {0.1f, "0.1"}, {-2.5f, "-2.5"}, {100.0f, "100"},
+             {1e-7f, "1e-07"}, {1e10f, "1e+10"}, {16777216.0f, "16777216"}, {-0.6931472f, "-0.6931472"},
+             {std::numeric_limits<float>::max(), "3.4028235e+38"}, {std::numeric_limits<float>::denorm_min(), "1e-45"}})
+        require(jmini::number(entry.first) == entry.second, "number(float) wrote " + jmini::number(entry.first) + " for " + entry.second);
+    for (float v : {std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
+        require(jmini::number(v) == "null", "a float JSON cannot hold is not null");
+    uint32_t bits = 0x2545F491u;
+    for (int i = 0; i < 1000000; ++i) {
+        bits ^= bits << 13;
+        bits ^= bits >> 17;
+        bits ^= bits << 5;
+        float v;
+        std::memcpy(&v, &bits, sizeof v);
+        if (!std::isfinite(v)) continue;
+        const jmini::Value read = jmini::parse(jmini::number(v));
+        const float back = (float)read.asNumber();
+        require(std::memcmp(&back, &v, sizeof v) == 0, "a float does not read back: " + jmini::number(v));
+    }
+}
+
 void structure() {
     for (const char* input : {"", " ", "[", "{", "[1", "{\"a\"", "{\"a\":", "{\"a\":1",
                               "[1,]", "{\"a\":1,}", "[,1]", "[1,,2]", "{,}", "[1 2]",
@@ -201,6 +225,7 @@ void locales() {
         }
         number("1.25", 1.25);
         number("12e-1", 1.2);
+        require(jmini::number(1.25f) == "1.25", "number(float) followed the locale");
         rejects("1,25");
         rejects("1.234,5");
     }
@@ -215,6 +240,7 @@ int main() {
         numbers();
         strings();
         quoting();
+        floats();
         structure();
         nesting();
         locales();

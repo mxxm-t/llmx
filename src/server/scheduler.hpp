@@ -123,10 +123,15 @@ struct QueueFull : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
+// A request whose prompt and max_tokens pass what one request may hold (Scheduler::token_limit).
+struct TooLong : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 class Scheduler {
 public:
-    Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t ubatch, size_t max_queue)
-        : model_(model), tok_(tok), max_seqs_(max_seqs ? max_seqs : 1), ubatch_(ubatch ? ubatch : 512),
+    Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue)
+        : model_(model), tok_(tok), max_seqs_(max_seqs ? max_seqs : 1), ubatch_(model.prefill_batch()),
           max_queue_(max_queue ? max_queue : 1), reserved_(model.kv_pools(), 0) {}
 
     // Tokens one request may hold, prompt and reply together: the model context or the KV pool, whichever is smaller.
@@ -140,8 +145,7 @@ public:
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
         if (params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
         if (prompt.size() + (size_t)params.max_tokens > token_limit())
-            throw std::runtime_error("server: prompt plus max_tokens exceeds the " +
-                                     std::to_string(token_limit()) + " tokens a request may hold");
+            throw TooLong("prompt plus max_tokens exceeds the " + std::to_string(token_limit()) + " tokens a request may hold");
         auto r = std::make_shared<Request>(std::move(prompt), std::move(params));
         {
             std::lock_guard<std::mutex> lk(m_);

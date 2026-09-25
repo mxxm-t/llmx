@@ -19,7 +19,7 @@ scheduler are the runtime's own.
   step it grows by as it generates, pausing the latest admitted uncapped
   request when the pool runs out; a paused request's history stays as a
   donor and it resumes from it), assembles one pass of every
-  decoding request's next token plus prompt slices up to `ubatch`, each
+  decoding request's next token plus prompt slices up to the model's prompt batch (`Model::prefill_batch`), each
   slice carrying its whole prompt's extent so it takes the kernels one pass
   over the prompt would, samples per request with its own seeded state,
   and finishes on EOS, a stop string or the token limit. A finished

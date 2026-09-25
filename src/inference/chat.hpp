@@ -10,6 +10,7 @@
 #include <cmath>
 
 #include "format/gguf.hpp"
+#include "tokenizer/tokenizer.hpp"
 
 // Minimal Jinja2-subset renderer for GGUF `tokenizer.chat_template` strings.
 // Supports the control-flow and expressions used by common chat templates (Qwen2/3, Llama, Mistral, Gemma): {{ ... }} output, {% if/elif/else/for/set %}, dict/list/string access, .get()/.keys()/etc., and the `messages`, `add_generation_prompt`, `bos_token`, `eos_token` context variables.
@@ -876,6 +877,24 @@ inline std::string get_chat_template(const gguf::GGUFModel& m) {
             return kv.second.s;
     }
     return "";
+}
+
+// How a model's conversations are written: its own template, or ChatML when the file carries none, and the text of the start and end tokens a template may name.
+struct ChatFormat {
+    std::string tmpl, bos, eos;
+};
+
+inline ChatFormat chat_format(const gguf::GGUFModel& m, const bpe::Tokenizer& tok) {
+    ChatFormat f;
+    f.tmpl = get_chat_template(m);
+    if (f.tmpl.empty())
+        f.tmpl = "{% for message in messages %}<|im_start|>{{ message['role'] }}\n"
+                 "{{ message['content'] }}<|im_end|>\n{% endfor %}"
+                 "{% if add_generation_prompt %}<|im_start|>assistant\n{% endif %}";
+    auto text = [&](int32_t id) { return id >= 0 && (size_t)id < tok.vocab.size() ? tok.vocab[(size_t)id] : std::string(); };
+    f.bos = text(tok.bos_id);
+    f.eos = text(tok.eos_id);
+    return f;
 }
 
 } // namespace chat

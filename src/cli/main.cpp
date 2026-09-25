@@ -541,16 +541,10 @@ int cmd_chat(const std::string& model_path, const std::string& system,
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
-    std::string tpl = chat::get_chat_template(m);
-    if (tpl.empty()) {
-        tpl = "{% for message in messages %}<|im_start|>{{ message['role'] }}\n"
-              "{{ message['content'] }}<|im_end|>\n{% endfor %}"
-              "{% if add_generation_prompt %}<|im_start|>assistant\n{% endif %}";
-    }
-    std::string bos = (tok.bos_id >= 0 && (size_t)tok.bos_id < tok.vocab.size())
-                          ? tok.vocab[tok.bos_id] : "";
-    std::string eos = (tok.eos_id >= 0 && (size_t)tok.eos_id < tok.vocab.size())
-                          ? tok.vocab[tok.eos_id] : "";
+    const chat::ChatFormat format = chat::chat_format(m, tok);
+    const std::string& tpl = format.tmpl;
+    const std::string& bos = format.bos;
+    const std::string& eos = format.eos;
 
     std::vector<chat::Message> messages;
     messages.push_back({ "system", system });
@@ -852,7 +846,6 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const in
     infer::Model& model = *opened->model;
     server::Config c = cfg;
     c.model_name = std::filesystem::path(model_path).filename().string();
-    c.ubatch = model.prefill_batch();
     http::Listener listener(c.host, c.port);
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
               << " (device " << gp.device << ", up to " << c.max_seqs << " sequences over "

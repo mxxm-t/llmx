@@ -21,7 +21,6 @@ struct Config {
     uint16_t port = 8080;
     size_t max_seqs = 16;
     size_t max_queue = 64;   // requests waiting for admission; past it, 503
-    size_t ubatch = 512;
     std::string model_name;
 };
 
@@ -62,13 +61,10 @@ public:
     Api(infer::Model& model, const bpe::Tokenizer& tok, const gguf::GGUFModel& file, Scheduler& sched,
         const Config& cfg)
         : model_(model), tok_(tok), sched_(sched), cfg_(cfg), started_((int64_t)std::time(nullptr)) {
-        template_ = chat::get_chat_template(file);
-        if (template_.empty())
-            template_ = "{% for message in messages %}<|im_start|>{{ message['role'] }}\n"
-                        "{{ message['content'] }}<|im_end|>\n{% endfor %}"
-                        "{% if add_generation_prompt %}<|im_start|>assistant\n{% endif %}";
-        bos_ = tok.bos_id >= 0 && (size_t)tok.bos_id < tok.vocab.size() ? tok.vocab[(size_t)tok.bos_id] : "";
-        eos_ = tok.eos_id >= 0 && (size_t)tok.eos_id < tok.vocab.size() ? tok.vocab[(size_t)tok.eos_id] : "";
+        const chat::ChatFormat format = chat::chat_format(file, tok);
+        template_ = format.tmpl;
+        bos_ = format.bos;
+        eos_ = format.eos;
     }
 
     void handle(http::Connection& c) {
@@ -180,13 +176,14 @@ private:
     SampleParams params_of(const jmini::Value& body, Route route) {
         const bool compat = route == Route::chat_completions || route == Route::completions;
         SampleParams params;
-        // The compatible routes take an absent cap as the standard does, no cap: the reply runs to the model's end of text or to what the request may hold, set once the prompt is encoded (kUntilLimit). The native route keeps its 64.
-        params.max_tokens = (int)number(body, "max_tokens", compat ? number(body, "max_completion_tokens", kUntilLimit) : 64);
-        params.temp = (float)number(body, "temperature", 0.8);
-        params.top_k = (int)number(body, "top_k", 40);
-        params.top_p = (float)number(body, "top_p", 0.95);
-        params.penalty = (float)number(body, "penalty", compat ? number(body, "repetition_penalty", 1.0) : 1.0);
-        params.seed = (uint64_t)number(body, "seed", 0);
+        const SampleParams defaults;
+        // The compatible routes take an absent cap as the standard does, no cap: the reply runs to the model's end of text or to what the request may hold, set once the prompt is encoded (kUntilLimit). The native route keeps the default cap.
+        params.max_tokens = (int)number(body, "max_tokens", compat ? number(body, "max_completion_tokens", kUntilLimit) : defaults.max_tokens);
+        params.temp = (float)number(body, "temperature", defaults.temp);
+        params.top_k = (int)number(body, "top_k", defaults.top_k);
+        params.top_p = (float)number(body, "top_p", defaults.top_p);
+        params.penalty = (float)number(body, "penalty", compat ? number(body, "repetition_penalty", defaults.penalty) : defaults.penalty);
+        params.seed = (uint64_t)number(body, "seed", (double)defaults.seed);
         if (const jmini::Value* stop = body.get("stop")) {
             if (stop->isString()) params.stop.push_back(stop->asString());
             else if (stop->isArray())
@@ -262,11 +259,9 @@ private:
             params.max_tokens = (int)(sched_.token_limit() - ids.size());
             params.until_limit = true;
         }
-        if (ids.size() + (size_t)std::max(params.max_tokens, 0) > sched_.token_limit())
-            throw BadRequest(413, "prompt plus max_tokens exceeds the " + std::to_string(sched_.token_limit()) +
-                                      " tokens a request may hold");
         std::shared_ptr<Request> r;
         try { r = sched_.submit(std::move(ids), params); }
+        catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
         const std::string id = (route == Route::chat_completions ? "chatcmpl-" : "cmpl-") + std::to_string(next_id_.fetch_add(1));
@@ -350,7 +345,7 @@ private:
 // Serve until the listener is closed: the scheduler on its own thread, the accept loop here, one detached thread per connection.
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const gguf::GGUFModel& file,
                   const Config& cfg, http::Listener& listener) {
-    Scheduler sched(model, tok, cfg.max_seqs, cfg.ubatch, cfg.max_queue);
+    Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue);
     Api api(model, tok, file, sched, cfg);
     std::thread runner([&] { sched.run(); });
     std::atomic<int> open{0};

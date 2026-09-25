@@ -28,6 +28,10 @@ import common
 
 
 def main():
+    # A message can hold characters the console's code page cannot encode, as a non-ASCII path does on Windows, and printing it must not stop the run, so they print as escapes.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description="Run llmx tests against the selected binary.")
     parser.add_argument("--exe", default=common.EXE, help="path to the built llmx executable")
     parser.add_argument("--no-perf-floor", action="store_true", help="report timings without workstation-specific floors")

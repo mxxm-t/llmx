@@ -1,0 +1,9 @@
+# Independent CLI evidence audit
+
+Executed `independent_cli_audit.py` once on 2026-09-24 after the 72-row CLI matrix completed. Saved stdout as `independent-cli-audit.json`, normalized to UTF-8 without a byte-order mark. Result: 1,771 comparisons, zero mismatches.
+
+The audit reads the frozen plan, 72 retained result rows and their small stdout logs, 24 CSV matched blocks, JSON summary and Markdown table. It independently checks prospective row order, exact row/block counts, original printed rates, reconstructed durations, per-arm statistics, paired ratios, CSV activity/deltas and Markdown values. Raw monitor logs and binary/model hashes were not reread; monitor audit fields are retained from the supplied summary and checked against result-row activity where applicable.
+
+No runtime tests, builds, downloads or benchmarks were run. Correctness-session timings are outside this review. CLI output records throughput to two decimal places, so reconstructed milliseconds are derived values rather than separately measured full-precision durations.
+
+The Qwen3-0.6B Q8_0 decode screen is retained at -3.252571361443024 percent paired candidate/base, with three faster and three slower blocks. This matrix has no mx arm and cannot establish the external performance floor. All 72 rows retain unknown process accounting; 71 rows trigger the frozen CPU activity flag. Flags cover complete invocations, not individual timed phases.

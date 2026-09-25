@@ -1,0 +1,51 @@
+{
+  "checked_utc": "2026-09-25T02:31:51.052308+00:00",
+  "tested_runtime_commit": "356b7457398af98dcff211d611af808f0608e44e",
+  "working_tree": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925",
+  "command": [
+    "git",
+    "-c",
+    "safe.directory=C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925",
+    "-C",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925",
+    "diff",
+    "--exit-code",
+    "356b7457398af98dcff211d611af808f0608e44e",
+    "--",
+    "src",
+    "tests",
+    "CMakeLists.txt",
+    "cmake",
+    "build.bat"
+  ],
+  "exit": 0,
+  "runtime_test_build_diff_bytes": 0,
+  "scope": "Working source, tests and build configuration still match the validated and measured candidate. Documentation changes and a future build identifier are separate; no executable performance equivalence is inferred.",
+  "recipe_note": "Prepared argv only; not executed. Configuration matches the frozen CPU-only Release CLI. Use a fresh build directory, verify generated Git identity, and run focused checks after timing ends.",
+  "checkpoint_build_commands": [
+    [
+      "cmake",
+      "-S",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925",
+      "-B",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925\\build-checkpoint",
+      "-G",
+      "Visual Studio 18 2026",
+      "-A",
+      "x64",
+      "-DBUILD_TESTING=OFF",
+      "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+    ],
+    [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925\\build-checkpoint",
+      "--config",
+      "Release",
+      "--parallel",
+      "2",
+      "--target",
+      "llmx"
+    ]
+  ]
+}

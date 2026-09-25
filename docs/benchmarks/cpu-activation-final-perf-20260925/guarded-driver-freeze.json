@@ -1,0 +1,23 @@
+{
+  "original_freeze_sha256": "c0999f4f3df65a36d4ed86ac1de9561b7afe46c291210901bfa01d6676c87f66",
+  "driver_sha256": {
+    "run_matrix_guarded.py": "1b46d28254e87fe6e9b078bf50ae1e9ad842b47f40bb2e45dfe209e4ee8dfd11",
+    "run_cli_matrix_guarded.py": "27fe8d3df93fca64b64be10452559949bb006234a0703a264ed30c91e8539971"
+  },
+  "readiness_path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\guarded-readiness.json",
+  "readiness_schema": {
+    "guarded_freeze_sha256": "SHA-256 of this manifest",
+    "stage": "common or cli; update for the intended driver",
+    "reviewed": true,
+    "own_competing_work_stopped": true,
+    "checked_utc": "actual reviewed UTC timestamp"
+  },
+  "strict_chat_gate": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925",
+  "strict_chat_plan_sha256": "7b269b13a140398e97efbab605db555dc9f74177ac1e50aee8cded143c78c170",
+  "planned_calls": {
+    "common": 128,
+    "cli": 72
+  },
+  "state": "prepared; independent review and real readiness record required; not executed",
+  "scope": "Additional guarded drivers only; original freeze, plans, drivers and workload protocol remain unchanged."
+}

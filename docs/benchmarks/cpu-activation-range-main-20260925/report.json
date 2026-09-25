@@ -1,0 +1,279 @@
+{
+  "base": "e475c3f58c31944f397d96abd7b079fc90f5f082",
+  "reviewed_feature": "842f453ed22c517d023c0d7a68b72b492a80cfaa",
+  "native_passed": 21,
+  "required_hf_cpu_components": [
+    "version",
+    "reference-generator",
+    "reference-consumer",
+    "roundtrip",
+    "perf",
+    "tokenizer",
+    "perplexity",
+    "f32",
+    "moe",
+    "shards",
+    "server",
+    "chat",
+    "threads",
+    "baseline"
+  ],
+  "hf_top1_models": [
+    "Qwen3-0.6B-Q8_0.gguf",
+    "Qwen3-0.6B-Q4_0.gguf",
+    "Qwen3-0.6B-Q5_K_M.gguf"
+  ],
+  "hf_top1_matches_per_model": 6,
+  "hf_nll_cells": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.001184,
+      "hf_bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.007366,
+      "hf_bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.00676,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.00349,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.002443,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.001717,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.012356,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.002406,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.131554,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.131464,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.1676,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.16754,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.068883,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.068833,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.120396,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.120276,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.026144,
+      "hf_bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.027534,
+      "hf_bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.12944,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.11678,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.067543,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.071283,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.024116,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.019736,
+      "hf_bound": 0.16
+    }
+  ],
+  "binary": {
+    "version": "llmx 0.1.0+ge475c3f58c31.dirty",
+    "sha256": "2e11c72330e2108aa656b8411c56048390d99bbba47fc4e1777d1f4df97deeff"
+  },
+  "source_sha256": {
+    "src/backends/cpu/q8_dots.hpp": "550bd5d2b537869ffd066c72c997982c69e58a7af0b1981edafafcb724809a2f",
+    "tests/q8_dots.cpp": "f2a33426aa8276e62283f31efa472f971d92e472ec8966c0e286274b883b4b78"
+  },
+  "source_equivalence": "CPU activation header and regression source match reviewed842f453 byte-for-byte after checkout newline normalization. No other runtime source changes in this integration.",
+  "negative_control": "Original activation regression rejects the prior implementation; archived negative control and ordinary-range byte identity were not rerun here. Integration regression is rerun; source matches reviewed842f453.",
+  "scope": "Local Windows MSVC Release CPU integration. Native independent packing tests plus HF fixtures. Prior Linux/performance and ongoing frozen long-context checks have separate revisions; final integration performance and depth gates remain open. Overlapping correctness-run timings are diagnostic only.",
+  "artifacts": {
+    "binary.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\binary.json",
+      "sha256": "4d19bcfe13b1ebcf181a3c5c6988fc8037c9460f7828cf613f4d2aba537e800b"
+    },
+    "build.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\build.log",
+      "sha256": "4019b0e28d7c1791f5279edf3656fd7bd5bf5de6d4ba5e6b2b46ff3447e24471"
+    },
+    "collect.py": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\collect.py",
+      "sha256": "903dd6deec45d7f9f075b2a8dd0aab91d990bbedc5590ae87fe596e055a2842e"
+    },
+    "commands.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\commands.json",
+      "sha256": "3a905c878cbb897775dfbbdde85feb5470a7de132ad06fe6c016b07509c59f62"
+    },
+    "complete.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\complete.json",
+      "sha256": "464cbc09c51ccfc566ba9b7276bdc4c6a07171665d56af41147bf2b591d09604"
+    },
+    "configure.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\configure.log",
+      "sha256": "eca0888ea418760269324470c2ee32d9e42d0dfce3b189f5985594dffd1a0d4c"
+    },
+    "cpu-hf.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\cpu-hf.log",
+      "sha256": "ab34e82815893d98dd3a3fbade0577fc2100286783c56ae588bc4224566c203a"
+    },
+    "native-details.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\native-details.log",
+      "sha256": "7e2944c0f9d78d55135afa6a4fa7fe7d7af45ca3cea000c85c08d30f7794ffed"
+    },
+    "native.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\native.log",
+      "sha256": "be7f73d6bf7c8c51de5a354ae1c4daddfcfea7bd45e758afcade94e3026e8f06"
+    },
+    "run.py": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-main-evidence-20260925\\run.py",
+      "sha256": "78e191786e0bca42c9faa28f3fce4e8f014d257a9a5e2e7c59ecd80f4e53821e"
+    }
+  },
+  "saved_raw_sha256": {
+    "cpu-hf.txt": "ab34e82815893d98dd3a3fbade0577fc2100286783c56ae588bc4224566c203a",
+    "native-details.txt": "7e2944c0f9d78d55135afa6a4fa7fe7d7af45ca3cea000c85c08d30f7794ffed",
+    "native.txt": "be7f73d6bf7c8c51de5a354ae1c4daddfcfea7bd45e758afcade94e3026e8f06"
+  }
+}

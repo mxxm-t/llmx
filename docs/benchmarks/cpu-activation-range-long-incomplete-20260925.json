@@ -1,0 +1,81 @@
+{
+  "scope": "Frozen long-context gate incomplete on first baseline invocation. No candidate comparison and no EOS success. Existing timing and short HF results unchanged.",
+  "base_record": {
+    "tag": "Qwen3-0.6B-Q8_0.gguf-long-base",
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-base-20260924\\build\\Release\\llmx.exe",
+      "serve",
+      "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "58970",
+      "--ctx-size",
+      "32768",
+      "--threads",
+      "6",
+      "--ubatch",
+      "128",
+      "--device",
+      "cpu",
+      "--cache-type-k",
+      "f16",
+      "--cache-type-v",
+      "f16"
+    ],
+    "start_utc": "2026-09-24T20:43:15.232633+00:00",
+    "wall_seconds": 6093.875,
+    "observed": {
+      "finish": "length",
+      "prompt_tokens": 19812,
+      "reused_tokens": 0,
+      "tokens": 12956
+    },
+    "response_sha256": "9a861292db3baf5e09e2ad4b67b044a0eb3f48e7faa54e42ae516b22b6a28952",
+    "error": "AssertionError: Qwen3-0.6B-Q8_0.gguf-long-base: incomplete finish length"
+  },
+  "terminal_failure": {
+    "error": "AssertionError: Qwen3-0.6B-Q8_0.gguf-long-base: incomplete finish length",
+    "utc": "2026-09-24T22:24:49.875630+00:00",
+    "completed": false
+  },
+  "token_accounting": {
+    "prompt": 19812,
+    "generated": 12956,
+    "context_limit": 32768,
+    "sum_matches_limit": true
+  },
+  "observation": "The raw-prompt baseline continued repeated Answer paragraphs until context exhaustion; this alone does not identify the cause or establish a candidate failure.",
+  "raw_artifacts": {
+    "long-prompt.txt": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness\\long-prompt.txt",
+      "sha256": "c2f389e77838f5fd4bcad1b870af3658a2ca6bab71750a3047811fe820ba216a"
+    },
+    "Qwen3-0.6B-Q8_0.gguf-long-base.response.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness\\Qwen3-0.6B-Q8_0.gguf-long-base.response.json",
+      "sha256": "9a861292db3baf5e09e2ad4b67b044a0eb3f48e7faa54e42ae516b22b6a28952"
+    },
+    "Qwen3-0.6B-Q8_0.gguf-long-base.record.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness\\Qwen3-0.6B-Q8_0.gguf-long-base.record.json",
+      "sha256": "f84089f112df7784ba414cfe1ece5c883dcc27db181aebd1822c54eca87eb856"
+    },
+    "Qwen3-0.6B-Q8_0.gguf-long-base.server.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness\\Qwen3-0.6B-Q8_0.gguf-long-base.server.log",
+      "sha256": "01152f11c662abce9dea43fa6606f06f3838850f517a02d28853c4cc8321cb60"
+    },
+    "failure.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness\\failure.json",
+      "sha256": "324fff236cb67060872d1fe284aa040e72f9e7e3961831e441dca2d5e6f01b58"
+    }
+  },
+  "independent_review": {
+    "result": "Approved for documentation-only Gitea checkpoint; not runtime merge approval",
+    "raw_hashes_verified": 5,
+    "markdown_files": 39,
+    "relative_file_targets": 128,
+    "ascii_failures": 0,
+    "missing_targets": 0,
+    "runtime_test_build_diff": "empty",
+    "scope": "Original response/record/failure and evidence hashes verified. Updated published CPU/model/Vulkan statuses preserve branch source and historical scope."
+  }
+}

@@ -1,0 +1,55 @@
+version: release/build identifier and usage banner agree  [ok]
+..s
+----------------------------------------------------------------------
+Ran 3 tests in 0.020s
+
+OK (skipped=1)
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.028s
+
+OK
+roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]
+roundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]
+roundtrip: q8_0 decode matches the format description on 4096 values, format loss 0.016750  [ok]
+roundtrip: q4_0 decode matches the format description on 4096 values, format loss 0.304348  [ok]
+roundtrip: q8_0, 32 invalid extents preserve output; ranks 1..4, integral spellings and empty model [ok]
+roundtrip: q4_0, 32 invalid extents preserve output; ranks 1..4, integral spellings and empty model [ok]
+perf: matmul 30.24 GFLOPS (0.277 ms), prefill 5766 tok/s, decode 6103 tok/s, rms_norm 0.001 ms, norm_rope 0.001 ms  [ok]
+tokenizer: encode->decode round-trip 'hello' -> hello, unicode and special token  [ok]
+perplexity: analytic NLL, window boundaries, file parity and invalid flags  [ok]
+f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000064  [ok]
+moe: all 257 logits vs HF over routed and dense layers, batch widths, threads, expert placement and PPL; max error 0.00000063  [ok]
+shards: 20 full-logit HF cases, tied/untied, threads, PPL and missing-shard CLI; max error 0.00000064  [ok]
+server: synthetic F32 model, 4 prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, refusals, a cancelled stream, the compatible completions  [ok]
+server: Qwen3-0.6B-Q8_0.gguf, 4 prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool  [ok]
+chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]
+chat progress: completed loading percentages and per-turn phases stay on stderr  [ok]
+threads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]
+baseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]
+baseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1 batched]: PPL 28.8308 vs HF 28.7974, NLL delta 0.001154 <= 0.010  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1 per-token]: PPL 28.7233 vs HF 28.7974, NLL delta 0.002576 <= 0.010  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4 batched]: PPL 56.6607 vs HF 56.2812, NLL delta 0.006720 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4 per-token]: PPL 56.5493 vs HF 56.2812, NLL delta 0.004750 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2 batched]: PPL 40.9599 vs HF 40.8602, NLL delta 0.002433 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2 per-token]: PPL 40.8484 vs HF 40.8602, NLL delta 0.000287 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2 batched]: PPL 38.2115 vs HF 37.7428, NLL delta 0.012346 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2 per-token]: PPL 37.7230 vs HF 37.7428, NLL delta 0.000524 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf]: SKIP - fixture model not on disk
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf]: SKIP - fixture model not on disk
+
+  version    PASS
+  reference-generator PASS
+  reference-consumer PASS
+  roundtrip  PASS
+  perf       PASS
+  tokenizer  PASS
+  perplexity PASS
+  f32        PASS
+  moe        PASS
+  shards     PASS
+  server     PASS
+  chat       PASS
+  threads    PASS
+  baseline   PASS

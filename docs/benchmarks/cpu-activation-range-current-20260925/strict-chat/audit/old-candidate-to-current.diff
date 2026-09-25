@@ -1,0 +1,1188 @@
+diff --git a/src/backends/backend.hpp b/src/backends/backend.hpp
+index d54d107..2b35541 100644
+--- a/src/backends/backend.hpp
++++ b/src/backends/backend.hpp
+@@ -13,7 +13,7 @@
+ namespace backend {
+ 
+ // Storage owned by the backend that allocated it.
+-// The model layer holds handles and never dereferences them, so a device backend can keep weights resident instead of receiving a host pointer on every call.
++// Models pass buffer handles to compute ops; host-visible results can be read after retirement.
+ class Buffer {
+ public:
+     virtual ~Buffer() = default;
+@@ -32,7 +32,7 @@ enum class Memory { device, host_visible };
+ // `submit()` hands everything enqueued so far to the device and returns one; `wait()` blocks until that submission has retired.
+ using Ticket = uint64_t;
+ 
+-// An operand is a buffer and a float offset, keeping host addresses inside the backend.
++// An operand identifies backend storage with a buffer and a float offset.
+ struct Slice {
+     Buffer* buffer = nullptr;
+     size_t offset = 0;
+diff --git a/src/backends/cpu/cpu_backend.hpp b/src/backends/cpu/cpu_backend.hpp
+index 6f99991..d1f1acf 100644
+--- a/src/backends/cpu/cpu_backend.hpp
++++ b/src/backends/cpu/cpu_backend.hpp
+@@ -812,7 +812,7 @@ public:
+     }
+ 
+     // Blocks are walked in table order and every reduction keeps token order: one global softmax over the scores and per-lane value accumulation across block edges, so the arithmetic is that of a contiguous history.
+-        // Views are independent, so batching preserves each sequence's arithmetic.
++    // Views are independent, so batching preserves each sequence's arithmetic.
+     void attention(CSlice Q_s, size_t layer, const KVView* views, size_t n_views,
+                    Slice out_s, int n_head, int n_head_kv, int head_dim) override {
+         if (n_views && !views) throw std::runtime_error("backend: attention without views");
+diff --git a/src/backends/vulkan/vulkan_backend.cpp b/src/backends/vulkan/vulkan_backend.cpp
+index a117c2c..ac094a3 100644
+--- a/src/backends/vulkan/vulkan_backend.cpp
++++ b/src/backends/vulkan/vulkan_backend.cpp
+@@ -272,7 +272,7 @@ inline bool is_row_kernel(KernelId id) {
+ }
+ 
+ // Whether a row kernel has a one-column build for one-column chunks, which frees the registers of seven unused accumulators.
+-// Not the wide Q8_0 path: it already runs five waves per SIMD, and its one-column build measured slower on the 8B file (docs/VULKAN.md).
++// Q8_0 keeps the wide build; its variant selection is documented in docs/VULKAN.md.
+ inline bool row_kernel_builds_one_column(KernelId id) {
+     return is_row_kernel(id) && id != K_MATMUL_ROW_Q8W;
+ }
+@@ -557,37 +557,40 @@ public:
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+         bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+         check(dev_->fn.vkCreateBuffer(dev_->device, &bi, nullptr, &buffer_), "vkCreateBuffer");
+-        VkMemoryRequirements req{};
+-        dev_->fn.vkGetBufferMemoryRequirements(dev_->device, buffer_, &req);
+-        VkMemoryAllocateInfo ai{};
+-        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+-        ai.allocationSize = req.size;
+-        // Device memory prefers not to be host visible, so it comes from the device-local heap rather than the BAR window; host-visible memory prefers to be cached.
+-        ai.memoryTypeIndex = host_visible
+-            ? dev_->memory_type(req.memoryTypeBits,
+-                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+-                                VK_MEMORY_PROPERTY_HOST_CACHED_BIT, 0)
+-            : dev_->memory_type(req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0,
+-                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+-        const VkResult r = dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory_);
+-        if (r != VK_SUCCESS) {
+-            dev_->fn.vkDestroyBuffer(dev_->device, buffer_, nullptr);
+-            buffer_ = VK_NULL_HANDLE;
+-            if (r == VK_ERROR_OUT_OF_DEVICE_MEMORY || r == VK_ERROR_OUT_OF_HOST_MEMORY)
+-                throw std::bad_alloc();
+-            check(r, "vkAllocateMemory");
+-        }
+-        check(dev_->fn.vkBindBufferMemory(dev_->device, buffer_, memory_, 0), "vkBindBufferMemory");
+-        if (host_visible) {
+-            check(dev_->fn.vkMapMemory(dev_->device, memory_, 0, VK_WHOLE_SIZE, 0, &mapped_), "vkMapMemory");
+-            std::memset(mapped_, 0, bytes);
++        try {
++            VkMemoryRequirements req{};
++            dev_->fn.vkGetBufferMemoryRequirements(dev_->device, buffer_, &req);
++            VkMemoryAllocateInfo ai{};
++            ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
++            ai.allocationSize = req.size;
++            // Device memory prefers not to be host visible, so it comes from the device-local heap rather than the BAR window; host-visible memory prefers to be cached.
++            ai.memoryTypeIndex = host_visible
++                ? dev_->memory_type(req.memoryTypeBits,
++                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
++                                    VK_MEMORY_PROPERTY_HOST_CACHED_BIT, 0)
++                : dev_->memory_type(req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0,
++                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
++            VkDeviceMemory memory = VK_NULL_HANDLE;
++            const VkResult r = dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory);
++            if (r != VK_SUCCESS) {
++                if (r == VK_ERROR_OUT_OF_DEVICE_MEMORY || r == VK_ERROR_OUT_OF_HOST_MEMORY)
++                    throw std::bad_alloc();
++                check(r, "vkAllocateMemory");
++            }
++            memory_ = memory;
++            check(dev_->fn.vkBindBufferMemory(dev_->device, buffer_, memory_, 0), "vkBindBufferMemory");
++            if (host_visible) {
++                void* mapped = nullptr;
++                check(dev_->fn.vkMapMemory(dev_->device, memory_, 0, VK_WHOLE_SIZE, 0, &mapped), "vkMapMemory");
++                mapped_ = mapped;
++                std::memset(mapped_, 0, bytes);
++            }
++        } catch (...) {
++            release();
++            throw;
+         }
+     }
+-    ~VulkanBuffer() override {
+-        if (mapped_) dev_->fn.vkUnmapMemory(dev_->device, memory_);
+-        if (buffer_) dev_->fn.vkDestroyBuffer(dev_->device, buffer_, nullptr);
+-        if (memory_) dev_->fn.vkFreeMemory(dev_->device, memory_, nullptr);
+-    }
++    ~VulkanBuffer() override { release(); }
+     VulkanBuffer(const VulkanBuffer&) = delete;
+     VulkanBuffer& operator=(const VulkanBuffer&) = delete;
+ 
+@@ -605,6 +608,12 @@ public:
+     bool host_visible() const { return mapped_ != nullptr; }
+ 
+ private:
++    void release() noexcept {
++        if (mapped_) dev_->fn.vkUnmapMemory(dev_->device, memory_);
++        if (buffer_) dev_->fn.vkDestroyBuffer(dev_->device, buffer_, nullptr);
++        if (memory_) dev_->fn.vkFreeMemory(dev_->device, memory_, nullptr);
++    }
++
+     std::shared_ptr<Device> dev_;
+     size_t size_ = 0;
+     VkBuffer buffer_ = VK_NULL_HANDLE;
+@@ -629,6 +638,7 @@ void span(const Buffer& b, size_t off, size_t bytes) {
+ }
+ 
+ class VulkanBackend final : public Backend {
++    friend struct VulkanLifetimeTest;
+ public:
+     explicit VulkanBackend(int index, bool diagnostics = false) : dev_(std::make_shared<Device>()) {
+         Device& d = *dev_;
+@@ -885,12 +895,8 @@ public:
+         for (auto& p : pending_) p.clear();
+         for (auto& a : arena_) a.buffer.reset();
+         for (auto& variants : kernels_)
+-            for (Kernel& k : variants) {
+-                if (k.pipeline) d.fn.vkDestroyPipeline(d.device, k.pipeline, nullptr);
+-                if (k.layout) d.fn.vkDestroyPipelineLayout(d.device, k.layout, nullptr);
+-                if (k.set_layout) d.fn.vkDestroyDescriptorSetLayout(d.device, k.set_layout, nullptr);
+-                if (k.module) d.fn.vkDestroyShaderModule(d.device, k.module, nullptr);
+-            }
++            for (Kernel& k : variants) destroy_kernel(k);
++        if (queries_) d.fn.vkDestroyQueryPool(d.device, queries_, nullptr);
+         staging_.reset();
+         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
+         if (pool_) d.fn.vkDestroyCommandPool(d.device, pool_, nullptr);
+@@ -1443,7 +1449,7 @@ public:
+                 const size_t st = split_tiles ? split_tiles : gy;
+                 const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, pr->rows, st, nin);
+                 const size_t steps = (nin + 31) / 32;   // an F32 row's last step may be partial
+-                // Only a starved call splits, below a quarter of a workgroup per compute unit: above that the reduce dispatch cost more than it saved (Qwen3-0.6B Q4_0 at 64 prompt tokens on a Radeon VII).
++                // Split only below a quarter of a workgroup per compute unit to limit reduction overhead (docs/VULKAN.md).
+                 const size_t fwg = groups(pr->rows, hs) * st;
+                 const bool starved = fwg * 4 < dev_->caps.compute_units;
+                 const size_t kper = starved ? split_blocks(groups(pr->rows, kTileRowsSmall) * st, steps, dev_->profile.float_tile_split_per_cu) : steps;
+@@ -1599,7 +1605,7 @@ public:
+         default: break;
+         }
+         if (dev_->profile.prefer_integer_dot) kernel = row_dot_variant(kernel);
+-        // Q6_K, Q4_0 and Q4_1 rows on the 8-bit twin where the integer dot is native, except in the output head, where on 8 bits the HF gate's Q4_0 file fails its top-5 bound.
++        // Q6_K, Q4_0 and Q4_1 output heads retain the 16-bit twin for ranking precision (docs/VULKAN.md).
+         if (kernel == K_MATMUL_ROW_K_DOT && !logits_) kernel = K_MATMUL_ROW_K_DOT8;
+         if (kernel == K_MATMUL_ROW_Q4_DOT && !logits_) kernel = K_MATMUL_ROW_Q4_DOT8;
+         uint32_t cluster = lanes;
+@@ -1859,7 +1865,7 @@ public:
+ 
+     // Where the 8-bit twin starts after the 16-bit one, in bytes, rounded up to 256 so it is a valid binding offset (shaders/xquant.glsl).
+     static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 8 + 63) & ~size_t(63)) * 4; }
+-    // The row kernels that read the 8-bit twin: the Q4_0/Q4_1, Q4_K, Q5_K and Q6_K families built with LLMX_X8, and the Q8_0 kernel. An output head of those first three stays on the 16-bit twin, since on the 8-bit one the HF gate's Q4_0 fixture failed its top-5 bound (docs/STATUS.md).
++    // Kernels reading the 8-bit twin; Q4_0, Q4_1 and Q6_K output heads select 16-bit variants for ranking precision (docs/VULKAN.md).
+     static bool reads_x8(KernelId id) {
+         return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K_DOT8 || id == K_MATMUL_ROW_Q4_DOT8 ||
+                id == K_MATMUL_VEC_Q8;
+@@ -1871,9 +1877,7 @@ public:
+                type != gguf::GGML_TYPE_F32;
+     }
+ 
+-    // The quant blocks each part of a split integer-dot tile call sums, the whole inner dimension when unsplit: a call of fewer workgroups than tile_split_per_cu (tile_split_per_cu_narrow for narrow rows) per compute unit splits, keeping at least tile_split_min_blocks per part.
+-    // An adopted F32 matrix whose rows are a multiple of 256 floats wide, as a copy with kF32Pad floats after each row, made on first use and kept with the buffer.
+-    // Such rows sit a multiple of the memory's channel interleave apart, so every row of a float tile step read the same channel: a 4096 x 2048 F32 tile took 7 to 10 times as long as a 4096 x 2080 one. Other matrices are bound as they are.
++    // Cache adopted F32 matrices with kF32Pad floats after each row whose width is a multiple of 256, reducing channel conflicts (docs/VULKAN.md).
+     VkDescriptorBufferInfo padded_f32(CSlice data, size_t rows, size_t nin) {
+         VulkanBuffer& src = const_cast<VulkanBuffer&>(as_vulkan(*data.buffer));
+         if (!src.adopted || nin % 256 != 0 || !rows) return bind(data);
+@@ -1884,12 +1888,13 @@ public:
+             std::vector<VkBufferCopy> regions(rows);
+             for (size_t r = 0; r < rows; ++r)
+                 regions[r] = VkBufferCopy{off + r * nin * sizeof(float), r * (nin + kF32Pad) * sizeof(float), nin * sizeof(float)};
++            const uint32_t count = u32(regions.size());
+             VkCommandBuffer cmd = open();
++            if (it != src.padded.end()) pending_[ring_index_].push_back(it->second.copy);
++            it = src.padded.insert_or_assign(off, VulkanBuffer::Padded{rows, nin, copy}).first;
+             barrier(cmd);
+-            dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), copy->handle(), u32(regions.size()), regions.data());
++            dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), copy->handle(), count, regions.data());
+             barrier(cmd);
+-            if (it != src.padded.end()) pending_[ring_index_].push_back(std::move(it->second.copy));
+-            it = src.padded.insert_or_assign(off, VulkanBuffer::Padded{rows, nin, std::move(copy)}).first;
+         }
+         return VkDescriptorBufferInfo{it->second.copy->handle(), 0, VK_WHOLE_SIZE};
+     }
+@@ -1897,11 +1902,14 @@ public:
+     void drop_padded(VulkanBuffer& b) {
+         if (b.padded.empty()) return;
+         open();
+-        for (auto& e : b.padded) pending_[ring_index_].push_back(std::move(e.second.copy));
++        auto& pending = pending_[ring_index_];
++        // Reserve before moving any cache entry so allocation failure leaves the cache intact.
++        pending.reserve(pending.size() + b.padded.size());
++        for (auto& e : b.padded) pending.push_back(std::move(e.second.copy));
+         b.padded.clear();
+     }
+ 
+-    // `per_cu` overrides both targets, as the float tile's own does.
++    // Split below the profile's workgroup target, retaining at least tile_split_min_blocks per part; per_cu overrides the target.
+     size_t split_blocks(size_t workgroups, size_t nblk, uint32_t per_cu = 0) const {
+         const bool narrow = nblk * 32 < dev_->profile.tile_narrow_nin;
+         const size_t target = (size_t)(per_cu ? per_cu : narrow ? dev_->profile.tile_split_per_cu_narrow : dev_->profile.tile_split_per_cu) *
+@@ -2197,9 +2205,9 @@ private:
+         if (!a.buffer) a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
+         if (a.used + need > kArenaBytes) {
+             // The slot's arena is full before its command buffer retired: the overflow gets a second arena kept alongside.
+-            pending_[ring_index_].push_back(std::shared_ptr<VulkanBuffer>(std::move(a.buffer)));
+-            a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
++            pending_[ring_index_].emplace_back(std::move(a.buffer));
+             a.used = 0;
++            a.buffer = std::make_unique<VulkanBuffer>(dev_, kArenaBytes, true);
+         }
+         std::memcpy((uint8_t*)a.buffer->mapped() + a.used, data, bytes);
+         const VkDescriptorBufferInfo info{a.buffer->handle(), a.used, bytes};
+@@ -2207,69 +2215,91 @@ private:
+         return info;
+     }
+ 
+-    Kernel& kernel(KernelId id, int variant = 0) {
+-        Kernel& k = kernels_[id][variant];
+-        if (k.pipeline) return k;
++    void destroy_kernel(Kernel& k) noexcept {
+         Device& d = *dev_;
+-        const KernelSource& src = kKernels[id];
+-        VkShaderModuleCreateInfo mi{};
+-        mi.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+-        mi.codeSize = src.bytes;
+-        mi.pCode = src.words;
+-        check(d.fn.vkCreateShaderModule(d.device, &mi, nullptr, &k.module), "vkCreateShaderModule");
+-        std::vector<VkDescriptorSetLayoutBinding> bindings(src.bindings);
+-        k.buffers = 0;
+-        for (uint32_t i = 0; i < src.bindings; ++i) {
+-            bindings[i].binding = i;
+-            bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+-            bindings[i].descriptorCount = src.counts ? src.counts[i] : 1;
+-            bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+-            k.buffers += bindings[i].descriptorCount;
++        if (k.pipeline) d.fn.vkDestroyPipeline(d.device, k.pipeline, nullptr);
++        if (k.layout) d.fn.vkDestroyPipelineLayout(d.device, k.layout, nullptr);
++        if (k.set_layout) d.fn.vkDestroyDescriptorSetLayout(d.device, k.set_layout, nullptr);
++        if (k.module) d.fn.vkDestroyShaderModule(d.device, k.module, nullptr);
++        k = Kernel{};
++    }
++
++    Kernel& kernel(KernelId id, int variant = 0) {
++        Kernel& cached = kernels_[id][variant];
++        if (cached.pipeline) return cached;
++        Kernel k;
++        try {
++            Device& d = *dev_;
++            const KernelSource& src = kKernels[id];
++            VkShaderModuleCreateInfo mi{};
++            mi.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
++            mi.codeSize = src.bytes;
++            mi.pCode = src.words;
++            VkShaderModule module = VK_NULL_HANDLE;
++            check(d.fn.vkCreateShaderModule(d.device, &mi, nullptr, &module), "vkCreateShaderModule");
++            k.module = module;
++            std::vector<VkDescriptorSetLayoutBinding> bindings(src.bindings);
++            k.buffers = 0;
++            for (uint32_t i = 0; i < src.bindings; ++i) {
++                bindings[i].binding = i;
++                bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
++                bindings[i].descriptorCount = src.counts ? src.counts[i] : 1;
++                bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
++                k.buffers += bindings[i].descriptorCount;
++            }
++            VkDescriptorSetLayoutCreateInfo li{};
++            li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
++            li.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
++            li.bindingCount = src.bindings;
++            li.pBindings = bindings.data();
++            VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
++            check(d.fn.vkCreateDescriptorSetLayout(d.device, &li, nullptr, &set_layout),
++                  "vkCreateDescriptorSetLayout");
++            k.set_layout = set_layout;
++            VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, kPushBytes};
++            VkPipelineLayoutCreateInfo pi{};
++            pi.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
++            pi.setLayoutCount = 1;
++            pi.pSetLayouts = &k.set_layout;
++            pi.pushConstantRangeCount = 1;
++            pi.pPushConstantRanges = &range;
++            VkPipelineLayout layout = VK_NULL_HANDLE;
++            check(d.fn.vkCreatePipelineLayout(d.device, &pi, nullptr, &layout), "vkCreatePipelineLayout");
++            k.layout = layout;
++            VkComputePipelineCreateInfo ci{};
++            ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
++            ci.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
++            ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
++            ci.stage.module = k.module;
++            ci.stage.pName = "main";
++            // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
++            const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
++                              id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL;
++            const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
++            const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
++                                             : (variant == 1 ? kRowColsOne : kRowColsWide);
++            // Constant 7 selects a producer's build that also writes the 8-bit twin, and constant 8 a row kernel's grouped build; every pipeline gets all three entries, and a module that declares none ignores them.
++            const uint32_t spec_data[3] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u};
++            const VkSpecializationMapEntry entries[3] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)},
++                                                         {8, 2 * sizeof(uint32_t), sizeof(uint32_t)}};
++            VkSpecializationInfo spec{};
++            spec.mapEntryCount = 3;
++            spec.pMapEntries = entries;
++            spec.dataSize = sizeof(spec_data);
++            spec.pData = spec_data;
++            ci.stage.pSpecializationInfo = &spec;
++            ci.layout = k.layout;
++            if (d.exec_stats) ci.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
++            if (d.exec_ir) ci.flags |= VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR;
++            check(d.fn.vkCreateComputePipelines(d.device, VK_NULL_HANDLE, 1, &ci, nullptr, &k.pipeline),
++                  "vkCreateComputePipelines");
++            k.bindings = src.bindings;
++            cached = k;
++            return cached;
++        } catch (...) {
++            destroy_kernel(k);
++            throw;
+         }
+-        VkDescriptorSetLayoutCreateInfo li{};
+-        li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+-        li.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+-        li.bindingCount = src.bindings;
+-        li.pBindings = bindings.data();
+-        check(d.fn.vkCreateDescriptorSetLayout(d.device, &li, nullptr, &k.set_layout),
+-              "vkCreateDescriptorSetLayout");
+-        VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, kPushBytes};
+-        VkPipelineLayoutCreateInfo pi{};
+-        pi.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+-        pi.setLayoutCount = 1;
+-        pi.pSetLayouts = &k.set_layout;
+-        pi.pushConstantRangeCount = 1;
+-        pi.pPushConstantRanges = &range;
+-        check(d.fn.vkCreatePipelineLayout(d.device, &pi, nullptr, &k.layout), "vkCreatePipelineLayout");
+-        VkComputePipelineCreateInfo ci{};
+-        ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+-        ci.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+-        ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+-        ci.stage.module = k.module;
+-        ci.stage.pName = "main";
+-        // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
+-        const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
+-                          id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL;
+-        const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL;
+-        const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
+-                                         : (variant == 1 ? kRowColsOne : kRowColsWide);
+-        // Constant 7 selects a producer's build that also writes the 8-bit twin, and constant 8 a row kernel's grouped build; every pipeline gets all three entries, and a module that declares none ignores them.
+-        const uint32_t spec_data[3] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u};
+-        const VkSpecializationMapEntry entries[3] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)},
+-                                                     {8, 2 * sizeof(uint32_t), sizeof(uint32_t)}};
+-        VkSpecializationInfo spec{};
+-        spec.mapEntryCount = 3;
+-        spec.pMapEntries = entries;
+-        spec.dataSize = sizeof(spec_data);
+-        spec.pData = spec_data;
+-        ci.stage.pSpecializationInfo = &spec;
+-        ci.layout = k.layout;
+-        if (d.exec_stats) ci.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+-        if (d.exec_ir) ci.flags |= VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR;
+-        check(d.fn.vkCreateComputePipelines(d.device, VK_NULL_HANDLE, 1, &ci, nullptr, &k.pipeline),
+-              "vkCreateComputePipelines");
+-        k.bindings = src.bindings;
+-        return k;
+     }
+ 
+     // One dispatch: bind the pipeline, push the buffers and constants, launch the workgroups, and fence it off from the next command.
+@@ -2310,7 +2340,9 @@ private:
+                 qp.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+                 qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
+                 qp.queryCount = kQueries;
+-                check(dev_->fn.vkCreateQueryPool(dev_->device, &qp, nullptr, &queries_), "vkCreateQueryPool");
++                VkQueryPool queries = VK_NULL_HANDLE;
++                check(dev_->fn.vkCreateQueryPool(dev_->device, &qp, nullptr, &queries), "vkCreateQueryPool");
++                queries_ = queries;
+                 queries_stale_ = true;
+             }
+             if (queries_stale_) {
+@@ -2352,7 +2384,7 @@ private:
+         return cmd;
+     }
+ 
+-    // A pass is a chain, so one barrier between consecutive commands is correct. It names only the compute and transfer stages, since on this driver a barrier over all commands is a full flush.
++    // Order compute and transfer writes before subsequent compute and transfer accesses.
+     void barrier(VkCommandBuffer cmd) {
+         VkMemoryBarrier mb{};
+         mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+@@ -2440,21 +2472,28 @@ void VulkanKVStorage::ensure(size_t id) {
+     const size_t kbytes = mul(want, k_block_bytes()), vbytes = mul(want, v_block_bytes());
+     const size_t held = mul(add(kbytes, vbytes), k_.size());
+     std::vector<BufferPtr> nk(k_.size()), nv(v_.size());
+-    for (size_t l = 0; l < k_.size(); ++l) {
+-        nk[l] = owner_->alloc(kbytes, Memory::device);
+-        nv[l] = owner_->alloc(vbytes, Memory::device);
+-        if (k_[l]) {
+-            owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
+-            owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
++    const size_t peak = std::max(peak_, add(allocated_bytes(), held));
++    try {
++        for (size_t l = 0; l < k_.size(); ++l) {
++            nk[l] = owner_->alloc(kbytes, Memory::device);
++            nv[l] = owner_->alloc(vbytes, Memory::device);
++            if (k_[l]) {
++                owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
++                owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
++            }
+         }
+-    }
+-    peak_ = std::max(peak_, add(allocated_bytes(), held));
+-    for (size_t l = 0; l < k_.size(); ++l) {
+-        if (k_[l]) { owner_->keep_until_retired(k_[l]); owner_->keep_until_retired(v_[l]); }
++        for (size_t l = 0; l < k_.size(); ++l) {
++            if (k_[l]) { owner_->keep_until_retired(k_[l]); owner_->keep_until_retired(v_[l]); }
++        }
++    } catch (...) {
++        // New buffers can already be queued destinations; keep them alive until the stream drains.
++        owner_->sync();
++        throw;
+     }
+     k_.swap(nk);
+     v_.swap(nv);
+     backed_ = want;
++    peak_ = peak;
+ }
+ 
+ } // namespace
+diff --git a/src/cli/main.cpp b/src/cli/main.cpp
+index dc07406..ee1e337 100644
+--- a/src/cli/main.cpp
++++ b/src/cli/main.cpp
+@@ -46,9 +46,7 @@
+ #include "model/layer_split.hpp"
+ #include "server/api.hpp"
+ 
+-// llmx CLI.
+-// This file is intentionally a thin dispatcher: format logic lives in format/, quantization in quant/, inference in inference/, and the model in model/.
+-// The only code that belongs here is argument parsing and glue.
++// CLI argument parsing and dispatch; format, quantization, inference and model logic stay in their own layers.
+ 
+ namespace {
+ 
+@@ -349,10 +347,7 @@ int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
+     return 0;
+ }
+ 
+-// The backend a --device spec names.
+-// "cpu" is the default; "vulkan:N" is device N as the loader lists them, in a build with that backend.
+-// Any other spec, or a device the build lacks, is an error the user can act on rather than a silent fallback.
+-// A --device entry in one spelling: cpu, or a backend and its index, so vulkan and vulkan:00 are both vulkan:0 and one device cannot be listed twice under two names.
++// Canonical spelling keeps vulkan and vulkan:00 from naming the same device twice.
+ std::string canonical_device(const std::string& spec) {
+     if (spec == "cpu") return spec;
+     const size_t colon = spec.find(':');
+@@ -513,11 +508,8 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
+     return 0;
+ }
+ 
+-// Print the top-N next-token logits for a prompt.
+-// This exists for the correctness gate: it is the only way to compare llmx against a full-precision reference at the level where errors actually appear, rather than through sampled text.
+-// See docs/ROADMAP.md #8.
+-// With `then_ids` the text's tokens are followed by those token ids, so a generated reply is scored as the tokens it was, not as its text re-tokenized.
+-// With `last` above zero every one of the last `last` positions is printed as one line, its position and then its top-N ids and logits, through the batched passes a prompt takes.
++// `then_ids` appends exact generated IDs without re-tokenizing their text; `last` reports the final positions through batched passes.
++// These logits support the external correctness gate in docs/ROADMAP.md #8.
+ int cmd_logits(const std::string& model_path, const std::string& text,
+                int topn, const infer::GenParams& gp, const std::string& then_ids = "", size_t last = 0) {
+     gguf::GGUFModel m = gguf::read_gguf(model_path);
+@@ -584,7 +576,10 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
+     const auto owned = make_model(m, gp);
+     infer::Model& model = *owned;
+     if (!model.holds_payload()) m.release_payload();
+-    if (gp.threads > 0) model.set_threads(gp.threads);
++    const int threads = !per_token && gp.threads_batch > 0 ? gp.threads_batch : gp.threads;
++    if (threads > 0) model.set_threads(threads);
++    if (gp.show_prompt_tokens)
++        std::cerr << "threads: " << (per_token ? "decode " : "prefill ") << model.threads_available() << "\n";
+     model.set_ubatch(gp.ubatch);
+ 
+     std::vector<uint32_t> ids = tok.encode(text);
+@@ -813,12 +808,11 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
+     return 0;
+ }
+ 
+-// The matched real-model measurement: a warm-up of each test, then R repeats of prompt processing P tokens in one batch into an empty history and of generating G tokens one at a time from an empty history, model time only, token ids fixed and sampling excluded.
+-// Reported as mean and standard deviation of tokens per second, so a reference runtime's figures for the same P and G compare directly.
+-// With seqs above one the decode measured is a server's: that many sequences each prefilled with the prompt, then every pass one token of each.
++// Time model execution over fixed IDs after warm-up; history setup and sampling are outside the timer.
++// Multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth; see docs/USAGE.md.
+ int cmd_bench_model(const std::string& path, const std::string& device, int threads,
+                     int P, int G, int R, const infer::ModelOptions& options, bool profile, int cpu_moe, int stream_from,
+-                    int seqs = 1, const std::string& shares = "") {
++                    int seqs = 1, const std::string& shares = "", int D = 0) {
+     gguf::GGUFModel m = load_model(path, false);
+     const auto specs = device_specs(device);
+     const bool split = specs.size() > 1 || !shares.empty();
+@@ -830,19 +824,25 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
+     infer::Model& model = *owned;
+     if (!model.holds_payload()) m.release_payload();
+     if (threads > 0) model.set_threads(threads);
+-    // Ids below 1000 exist in every vocabulary the runtime loads.
+-    auto ids_from = [](uint32_t seed, size_t n) {
++    // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
++    const uint32_t vocab = (uint32_t)std::min<size_t>(1000, model.n_vocab());
++    auto ids_from = [vocab](uint32_t seed, size_t n) {
+         std::vector<uint32_t> ids(n);
+-        for (auto& t : ids) { seed = seed * 1664525u + 1013904223u; t = (seed >> 8) % 1000; }
++        for (auto& t : ids) { seed = seed * 1664525u + 1013904223u; t = (seed >> 8) % vocab; }
+         return ids;
+     };
+-    const std::vector<uint32_t> prompt = ids_from(12345u, (size_t)P), gen = ids_from(777u, (size_t)G);
++    const std::vector<uint32_t> prompt = ids_from(12345u, (size_t)P), gen = ids_from(777u, (size_t)G), history = ids_from(4242u, (size_t)D);
++    // A cleared history, then the depth's tokens if any, before a timed test starts.
++    auto fresh = [&] {
++        model.reset();
++        if (D > 0) model.prefill(history);
++    };
+     using clock = std::chrono::steady_clock;
+     auto ms_since = [](clock::time_point t0) {
+         return std::chrono::duration<double, std::milli>(clock::now() - t0).count();
+     };
+     auto pp = [&] {
+-        model.reset();
++        fresh();
+         const auto t0 = clock::now();
+         model.prefill(prompt);
+         return (double)P / (ms_since(t0) / 1e3);
+@@ -851,7 +851,7 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
+     // `start` runs once the decode is set up and before its first pass, so a profile of it leaves out the sequences' prompts.
+     auto tg = [&](const std::function<void()>& start) {
+         if (seqs <= 1) {
+-            model.reset();
++            fresh();
+             if (start) start();
+             const auto t0 = clock::now();
+             for (uint32_t t : gen) model.step((int)t);
+@@ -883,7 +883,8 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
+         mean /= (double)v.size();
+         for (double x : v) var += (x - mean) * (x - mean);
+         const double sd = v.size() > 1 ? std::sqrt(var / (double)(v.size() - 1)) : 0.0;
+-        printf("bench: %s%d  %8.2f +- %.2f tok/s  (%zu runs)\n", what, n, mean, sd, v.size());
++        const std::string at = D > 0 ? " @ d" + std::to_string(D) : "";
++        printf("bench: %s%d%s  %8.2f +- %.2f tok/s  (%zu runs)\n", what, n, at.c_str(), mean, sd, v.size());
+     };
+     pp();
+     tg({});
+@@ -1060,7 +1061,8 @@ bool print_usage(const std::string& command = {}) {
+             << "  --file PATH, -f         UTF-8 input file, immediately after the model\n"
+             << "  --ctx-size N, -c        Window tokens (default: model context)\n"
+             << "  --chunks N              Maximum windows (default: all)\n"
+-            << "  --per-token             Score through decode; default uses batched passes\n";
++            << "  --per-token             Score through decode; default uses batched passes\n"
++            << "  --verbose               Show scoring phase and actual worker count\n";
+         else std::cout << "\nOptions:\n  --top N                 Number of logits to print (default: 10)\n"
+             << "  --file                  Read the text from the file named in its place\n"
+             << "  --then-ids PATH         Append these whitespace-separated token IDs\n"
+@@ -1081,6 +1083,7 @@ bool print_usage(const std::string& command = {}) {
+             << "  --model PATH            Benchmark this model instead of synthetic weights\n"
+             << "  --r N                   Real-model repetitions (default: 3)\n"
+             << "  --seqs N                Sequences decoding together, a pass one token of each (default: 1)\n"
++            << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: 0)\n"
+             << "  --profile               Real-model device kernel timing and statistics\n";
+         model_options(false, false);
+         std::cout << "\nCache options apply only with --model.\n"
+@@ -1280,6 +1283,7 @@ int main(int argc, char** argv) {
+                     else context_size = (int)n;
+                 }
+                 else if (a == "--per-token") per_token = true;
++                else if (a == "--verbose") gp.show_prompt_tokens = true;
+                 else if (a == "--threads") gp.threads = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.threads;
+                 else if (a == "--ubatch") gp.ubatch = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.ubatch;
+                 else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
+@@ -1375,7 +1379,7 @@ int main(int argc, char** argv) {
+             return cmd_serve(argv[2], cfg, gp);
+         }
+         if (cmd == "bench") {
+-            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3, seqs = 1;
++            int size = 1024, iters = 5, threads = 0, prefill = 64, decode = 64, repeats = 3, seqs = 1, depth = 0;
+             bool profile = false;
+             std::string device = "cpu", model_path;
+             infer::GenParams gp;
+@@ -1393,6 +1397,7 @@ int main(int argc, char** argv) {
+                 else if (a == "--n") decode = (i + 1 < argc) ? std::atoi(argv[++i]) : decode;
+                 else if (a == "--r") repeats = (i + 1 < argc) ? std::atoi(argv[++i]) : repeats;
+                 else if (a == "--seqs") seqs = (i + 1 < argc) ? std::atoi(argv[++i]) : seqs;
++                else if (a == "--depth") depth = (i + 1 < argc) ? std::atoi(argv[++i]) : depth;
+                 else if (a == "--model") model_path = (i + 1 < argc) ? argv[++i] : model_path;
+                 else if (a == "--profile") profile = true;
+                 else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = (i + 1 < argc) ? argv[++i] : gp.cache_type_k;
+@@ -1404,9 +1409,14 @@ int main(int argc, char** argv) {
+             if (iters <= 0 || prefill <= 0 || decode <= 0 || repeats <= 0 || seqs <= 0) {
+                 std::cerr << "bench: --iters, --p, --n, --r and --seqs must be positive\n"; return 2;
+             }
++            if (depth < 0) { std::cerr << "bench: --depth must not be negative\n"; return 2; }
++            // Batched decode already starts after each sequence's prompt, and the synthetic bench has no history.
++            if (depth > 0 && (seqs > 1 || model_path.empty())) {
++                std::cerr << "bench: --depth takes --model and one sequence\n"; return 2;
++            }
+             if (!model_path.empty())
+                 return cmd_bench_model(model_path, device, threads, prefill, decode, repeats, model_options(gp),
+-                                       profile, gp.cpu_moe, gp.moe_stream_from, seqs, gp.layer_shares);
++                                       profile, gp.cpu_moe, gp.moe_stream_from, seqs, gp.layer_shares, depth);
+             return cmd_bench(size, iters, threads, prefill, decode, device);
+         }
+         print_usage();
+diff --git a/src/model/arch_qwen.hpp b/src/model/arch_qwen.hpp
+index d8d565c..af037c7 100644
+--- a/src/model/arch_qwen.hpp
++++ b/src/model/arch_qwen.hpp
+@@ -926,8 +926,7 @@ private:
+         }
+     }
+ 
+-    // Physical batch: how many tokens go through ONE forward pass of the graph.
+-    // This is the physical batch (-ub), not a logical one: it sets the GEMM width and the scratch buffer sizes. llmx has no logical batch, since there is one sequence and no queue; that distinction only starts to matter with the multi-user server in ROADMAP #7.
++    // Physical prompt microbatch size, used to bound matrix width and scratch storage.
+     int ubatch() const { return ubatch_; }
+ 
+     // The CPU prefill scope is per backend, so a prompt enters one on every device it runs on, nested.
+@@ -938,7 +937,7 @@ private:
+         devices_[d]->b->run_prefill([&] { scoped(d + 1, work); });
+     }
+ 
+-    // One backend allocation holding the nine activations of a pass, each at a 64-byte boundary so the AVX2 kernels see the alignment they saw when every vector was its own allocation.
++    // One backend allocation holds the activation slots of a pass, each aligned to 64 bytes.
+     // Device allocators handle a few large blocks far better than many small ones, and resizing is one call.
+     // The caller only publishes the result once this returns, so an allocation that throws leaves the previous arena intact.
+     backend::BufferPtr alloc_arena(backend::Backend& b,
+diff --git a/tests/f32.py b/tests/f32.py
+index 1d6ea16..db5cd4d 100644
+--- a/tests/f32.py
++++ b/tests/f32.py
+@@ -150,6 +150,11 @@ def run():
+                     fields = dict(line.split(":", 1) for line in out.splitlines())
+                     error = abs(float(fields["mean NLL"]) - case["mean_nll"])
+                     assert math.isfinite(error) and error < 1e-5, "F32/HF NLL error: %.8f" % error
++        # The bench measures on top of a history when asked for a depth, and refuses one with batched decode.
++        rc, out = cli(["bench", "--model", model, "--p", "4", "--n", "2", "--r", "1", "--depth", "6"])
++        assert rc == 0 and "pp4 @ d6" in out and "tg2 @ d6" in out, "bench --depth failed: " + out
++        rc, out = cli(["bench", "--model", model, "--depth", "6", "--seqs", "2"])
++        assert rc != 0, "bench --depth accepted batched decode"
+     print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error %.8f  [ok]" % worst)
+     return True
+ 
+diff --git a/tests/threads.py b/tests/threads.py
+index 9d90b26..1b21976 100644
+--- a/tests/threads.py
++++ b/tests/threads.py
+@@ -1,4 +1,5 @@
+ import json
++import math
+ from pathlib import Path
+ import re
+ import subprocess
+@@ -15,6 +16,42 @@ def invoke(args, data=None):
+     return p.stdout.replace(b"\r\n", b"\n"), p.stderr
+ 
+ 
++def check_perplexity_threads(model, automatic, weights):
++    golden = json.loads((Path(__file__).parent / "data/baseline_f32.json").read_text())
++    fixture = next(case for case in golden["fixtures"] if not case["tied"])
++    assert golden["config"] == f32.CONFIG
++    assert fixture["weights_sha256"] == f32.weight_hash(weights)
++    case = fixture["perplexity"][0]
++    worst = 0.0
++    checked = 0
++    for count in (None, 0, 1, 4):
++        for batch in (None, 0, 1, 3):
++            for alias in (("--threads-batch", "-tb") if batch is not None else ("--threads-batch",)):
++                for per_token in (False, True):
++                    flags = ["--verbose", "--ubatch", "3", "--device", "cpu",
++                             "--cache-type-k", "f32", "--cache-type-v", "f32",
++                             "-c", str(case["context"])]
++                    if count is not None:
++                        flags += ["--threads", str(count)]
++                    if batch is not None:
++                        flags += [alias, str(batch)]
++                    if per_token:
++                        flags += ["--per-token"]
++                    out, err = invoke(["perplexity", str(model), f32.TEXTS[-1]] + flags)
++                    expected = count or automatic
++                    if not per_token:
++                        expected = batch or expected
++                    counts = re.findall(rb"^threads: (prefill|decode) (\d+)\r?$", err, re.M)
++                    phase = b"decode" if per_token else b"prefill"
++                    assert counts == [(phase, str(expected).encode())], (count, batch, alias, per_token, counts, expected)
++                    fields = dict(line.split(b":", 1) for line in out.splitlines())
++                    error = abs(float(fields[b"mean NLL"]) - case["mean_nll"])
++                    assert math.isfinite(error) and error < 1e-5, (count, batch, per_token, error)
++                    worst = max(worst, error)
++                    checked += 1
++    print("threads: perplexity effective counts/aliases and HF NLL, %d cases, max error %.8f  [ok]" % (checked, worst))
++
++
+ def run():
+     bench = ["bench", "--size", "32", "--iters", "1", "--p", "1", "--n", "1"]
+     automatic = None
+@@ -40,6 +77,7 @@ def run():
+     with tempfile.TemporaryDirectory(prefix="llmx_threads_") as directory:
+         model = Path(directory) / "threads.gguf"
+         f32.write_model(model, weights, spec["template"])
++        check_perplexity_threads(model, automatic, weights)
+         for count in (None, 0, 1, 4):
+             for batch in (None, 0, 1, 3):
+                 flags = ["--temp", "0", "-n", "1", "--verbose", "--ubatch", "3"]
+diff --git a/tests/vulkan_buffer.cpp b/tests/vulkan_buffer.cpp
+new file mode 100644
+index 0000000..eb43915
+--- /dev/null
++++ b/tests/vulkan_buffer.cpp
+@@ -0,0 +1,454 @@
++// Include the implementation to exercise private resource ownership with fake Vulkan calls, without adding runtime test hooks.
++#include "backends/vulkan/vulkan_backend.cpp"
++#include <iostream>
++#include <stdexcept>
++#include <new>
++
++namespace {
++thread_local int allocation_countdown = -1;
++}
++void* operator new(std::size_t size) {
++    if (allocation_countdown > 0 && --allocation_countdown == 0) {
++        allocation_countdown = -1;
++        throw std::bad_alloc();
++    }
++    if (void* p = std::malloc(size ? size : 1)) return p;
++    throw std::bad_alloc();
++}
++void operator delete(void* p) noexcept { std::free(p); }
++void operator delete(void* p, std::size_t) noexcept { std::free(p); }
++
++namespace backend {
++namespace {
++struct VulkanLifetimeTest {
++    static std::shared_ptr<Device> device(VulkanBackend& b) { return b.dev_; }
++    static VkDescriptorBufferInfo padded(VulkanBackend& b, CSlice data, size_t rows) {
++        return b.padded_f32(data, rows, 256);
++    }
++    static VkDescriptorBufferInfo args(VulkanBackend& b, const void* data, size_t bytes) {
++        return b.args(data, bytes);
++    }
++    static VkPipeline kernel(VulkanBackend& b) { return b.kernel(K_ADD).pipeline; }
++    static bool query_empty(VulkanBackend& b) { return b.queries_ == VK_NULL_HANDLE; }
++    static void clear_query(VulkanBackend& b) { b.queries_ = VK_NULL_HANDLE; }
++    static void prepare_drop(VulkanBackend& b) {
++        b.open();
++        std::vector<std::shared_ptr<VulkanBuffer>> pending;
++        pending.reserve(1);
++        b.pending_[b.ring_index_].swap(pending);
++    }
++    static size_t retained(VulkanBackend& b) { return b.pending_[b.ring_index_].size(); }
++    static void drop(VulkanBackend& b, VulkanBuffer& buffer) { b.drop_padded(buffer); }
++};
++}
++}
++
++namespace {
++struct QueueCalls;
++QueueCalls* queue_calls = nullptr;
++struct QueueCalls {
++    backend::Fn original;
++    std::shared_ptr<backend::Device> device;
++    VkBuffer pending[128]{};
++    size_t count = 0;
++    int premature = 0, allocations = 0, fail_allocation = 0, copies = 0, fail_copy = 0;
++    bool fail_after_copy = false, copied = false;
++    explicit QueueCalls(backend::VulkanBackend& b) : device(backend::VulkanLifetimeTest::device(b)) {
++        original = device->fn;
++        queue_calls = this;
++        device->fn.vkAllocateMemory = allocate;
++        device->fn.vkDestroyBuffer = destroy;
++        device->fn.vkCmdFillBuffer = fill;
++        device->fn.vkCmdCopyBuffer = copy;
++        device->fn.vkWaitSemaphores = wait;
++        device->fn.vkDeviceWaitIdle = idle;
++    }
++    ~QueueCalls() {
++        allocation_countdown = -1;
++        original.vkDeviceWaitIdle(device->device);
++        device->fn = original;
++        queue_calls = nullptr;
++    }
++    void mark(VkBuffer b) {
++        for (size_t i = 0; i < count; ++i) if (pending[i] == b) return;
++        if (count == 128) std::abort();
++        pending[count++] = b;
++    }
++    // Replaced transfers record lifetimes without submitting references that a broken path could destroy.
++    static VKAPI_ATTR void VKAPI_CALL fill(VkCommandBuffer, VkBuffer b, VkDeviceSize, VkDeviceSize, uint32_t) {
++        queue_calls->mark(b);
++    }
++    static VKAPI_ATTR void VKAPI_CALL copy(VkCommandBuffer, VkBuffer src, VkBuffer dst, uint32_t, const VkBufferCopy*) {
++        auto& q = *queue_calls;
++        q.mark(src); q.mark(dst); q.copied = true;
++        if (q.fail_after_copy || ++q.copies == q.fail_copy) allocation_countdown = 1;
++    }
++    static VKAPI_ATTR VkResult VKAPI_CALL allocate(VkDevice d, const VkMemoryAllocateInfo* info,
++                                                  const VkAllocationCallbacks* alloc, VkDeviceMemory* out) {
++        auto& q = *queue_calls;
++        if (++q.allocations == q.fail_allocation) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
++        return q.original.vkAllocateMemory(d, info, alloc, out);
++    }
++    static VKAPI_ATTR void VKAPI_CALL destroy(VkDevice d, VkBuffer b, const VkAllocationCallbacks* alloc) {
++        auto& q = *queue_calls;
++        for (size_t i = 0; i < q.count; ++i) if (q.pending[i] == b) ++q.premature;
++        q.original.vkDestroyBuffer(d, b, alloc);
++    }
++    static VKAPI_ATTR VkResult VKAPI_CALL wait(VkDevice d, const VkSemaphoreWaitInfo* info, uint64_t timeout) {
++        auto& q = *queue_calls;
++        const VkResult result = q.original.vkWaitSemaphores(d, info, timeout);
++        if (result == VK_SUCCESS) q.count = 0;
++        return result;
++    }
++    static VKAPI_ATTR VkResult VKAPI_CALL idle(VkDevice d) {
++        auto& q = *queue_calls;
++        const VkResult result = q.original.vkDeviceWaitIdle(d);
++        if (result == VK_SUCCESS) q.count = 0;
++        return result;
++    }
++};
++
++struct KernelCalls;
++KernelCalls* kernel_calls = nullptr;
++struct KernelCalls {
++    backend::Fn original;
++    std::shared_ptr<backend::Device> device;
++    int failure, creates = 0, modules = 0, sets = 0, layouts = 0, pipelines = 0;
++    uintptr_t next = 1024;
++    explicit KernelCalls(backend::VulkanBackend& b, int fail)
++        : device(backend::VulkanLifetimeTest::device(b)), failure(fail) {
++        original = device->fn;
++        kernel_calls = this;
++        auto& fn = device->fn;
++        fn.vkCreateShaderModule = shader; fn.vkDestroyShaderModule = destroy_shader;
++        fn.vkCreateDescriptorSetLayout = set; fn.vkDestroyDescriptorSetLayout = destroy_set;
++        fn.vkCreatePipelineLayout = layout; fn.vkDestroyPipelineLayout = destroy_layout;
++        fn.vkCreateComputePipelines = pipeline; fn.vkDestroyPipeline = destroy_pipeline;
++    }
++    ~KernelCalls() { allocation_countdown = -1; device->fn = original; kernel_calls = nullptr; }
++    bool empty() const { return !modules && !sets && !layouts && !pipelines; }
++    template <typename T> static VkResult create(T* out, int stage, int& live) {
++        auto& q = *kernel_calls;
++        ++q.creates;
++        if (q.failure == stage) {
++            *out = stage == 4 ? VK_NULL_HANDLE : (T)(uintptr_t)0xdead;
++            return VK_ERROR_OUT_OF_HOST_MEMORY;
++        }
++        *out = (T)++q.next;
++        ++live;
++        if (stage == 1 && q.failure == 5) allocation_countdown = 1;
++        return VK_SUCCESS;
++    }
++    static VKAPI_ATTR VkResult VKAPI_CALL shader(VkDevice, const VkShaderModuleCreateInfo*, const VkAllocationCallbacks*, VkShaderModule* out) {
++        return create(out, 1, kernel_calls->modules);
++    }
++    static VKAPI_ATTR VkResult VKAPI_CALL set(VkDevice, const VkDescriptorSetLayoutCreateInfo*, const VkAllocationCallbacks*, VkDescriptorSetLayout* out) {
++        return create(out, 2, kernel_calls->sets);
++    }
++    static VKAPI_ATTR VkResult VKAPI_CALL layout(VkDevice, const VkPipelineLayoutCreateInfo*, const VkAllocationCallbacks*, VkPipelineLayout* out) {
++        return create(out, 3, kernel_calls->layouts);
++    }
++    static VKAPI_ATTR VkResult VKAPI_CALL pipeline(VkDevice, VkPipelineCache, uint32_t, const VkComputePipelineCreateInfo*, const VkAllocationCallbacks*, VkPipeline* out) {
++        return create(out, 4, kernel_calls->pipelines);
++    }
++    static VKAPI_ATTR void VKAPI_CALL destroy_shader(VkDevice, VkShaderModule, const VkAllocationCallbacks*) { --kernel_calls->modules; }
++    static VKAPI_ATTR void VKAPI_CALL destroy_set(VkDevice, VkDescriptorSetLayout, const VkAllocationCallbacks*) { --kernel_calls->sets; }
++    static VKAPI_ATTR void VKAPI_CALL destroy_layout(VkDevice, VkPipelineLayout, const VkAllocationCallbacks*) { --kernel_calls->layouts; }
++    static VKAPI_ATTR void VKAPI_CALL destroy_pipeline(VkDevice, VkPipeline, const VkAllocationCallbacks*) { --kernel_calls->pipelines; }
++};
++
++int kernel_checks() {
++    int failures = 0;
++    for (int kind = 1; kind <= 5; ++kind) {
++        auto base = backend::make_vulkan_backend(0);
++        auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
++        KernelCalls q(b, kind);
++        bool threw = false;
++        try { backend::VulkanLifetimeTest::kernel(b); }
++        catch (const std::exception&) { threw = true; }
++        allocation_countdown = -1;
++        const bool cleaned = q.empty();
++        q.failure = 0;
++        const VkPipeline first = backend::VulkanLifetimeTest::kernel(b);
++        const int creates = q.creates;
++        const VkPipeline reused = backend::VulkanLifetimeTest::kernel(b);
++        const bool cached = first && first == reused && creates == q.creates;
++        base.reset();
++        const bool ok = threw && cleaned && cached && q.empty();
++        std::cout << "kernel_case=" << kind << " cleaned=" << cleaned << " cached=" << cached
++                  << " empty_after_teardown=" << q.empty() << (ok ? " PASS\n" : " FAIL\n");
++        if (!ok) ++failures;
++    }
++    return failures;
++}
++
++struct QueryCalls;
++QueryCalls* query_calls = nullptr;
++struct QueryCalls {
++    backend::Fn original;
++    std::shared_ptr<backend::Device> device;
++    VkQueryPool pool = VK_NULL_HANDLE;
++    int creates = 0, destroys = 0;
++    bool idle = false, ordered = false, fail = false, bad_destroy = false;
++    explicit QueryCalls(backend::VulkanBackend& b) : device(backend::VulkanLifetimeTest::device(b)) {
++        original = device->fn;
++        query_calls = this;
++        device->fn.vkCreateQueryPool = create;
++        device->fn.vkDestroyQueryPool = destroy;
++        device->fn.vkDeviceWaitIdle = wait_idle;
++    }
++    ~QueryCalls() {
++        original.vkDeviceWaitIdle(device->device);
++        if (pool && !destroys) original.vkDestroyQueryPool(device->device, pool, nullptr);
++        device->fn = original;
++        query_calls = nullptr;
++    }
++    static VKAPI_ATTR VkResult VKAPI_CALL create(VkDevice d, const VkQueryPoolCreateInfo* info, const VkAllocationCallbacks* alloc, VkQueryPool* out) {
++        auto& q = *query_calls;
++        if (q.fail) { *out = (VkQueryPool)(uintptr_t)0xdead; return VK_ERROR_OUT_OF_HOST_MEMORY; }
++        const VkResult r = q.original.vkCreateQueryPool(d, info, alloc, out);
++        if (r == VK_SUCCESS) { ++q.creates; q.pool = *out; }
++        return r;
++    }
++    static VKAPI_ATTR void VKAPI_CALL destroy(VkDevice d, VkQueryPool pool, const VkAllocationCallbacks* alloc) {
++        auto& q = *query_calls;
++        if (pool != q.pool) { q.bad_destroy = true; return; }
++        ++q.destroys; q.ordered = q.idle;
++        q.original.vkDestroyQueryPool(d, pool, alloc);
++    }
++    static VKAPI_ATTR VkResult VKAPI_CALL wait_idle(VkDevice d) {
++        auto& q = *query_calls;
++        const VkResult r = q.original.vkDeviceWaitIdle(d);
++        q.idle = r == VK_SUCCESS;
++        return r;
++    }
++};
++
++int query_checks(bool fail) {
++    auto base = backend::make_vulkan_backend(0, true);
++    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
++    QueryCalls q(b);
++    if (!q.device->timestamps) {
++        std::cout << "query teardown: SKIP (device has no diagnostic timestamps)\n";
++        base.reset();
++        return 0;
++    }
++    auto dst = b.alloc(sizeof(float), backend::Memory::host_visible);
++    bool threw = false, clean_failure = true;
++    if (fail) {
++        q.fail = true;
++        try { b.add({dst.get(), 0}, {dst.get(), 0}, 1); }
++        catch (const std::runtime_error&) { threw = true; }
++        clean_failure = threw && backend::VulkanLifetimeTest::query_empty(b);
++        // An old implementation may have kept the poisoned output; do not let the control submit it.
++        if (!clean_failure) backend::VulkanLifetimeTest::clear_query(b);
++        q.fail = false;
++    }
++    b.add({dst.get(), 0}, {dst.get(), 0}, 1);
++    b.sync();
++    q.idle = false;
++    base.reset();
++    const bool ok = clean_failure && !q.bad_destroy && q.creates == 1 && q.destroys == 1 && q.ordered;
++    std::cout << "query_case=" << fail << " clean_failure=" << clean_failure
++              << " created=" << q.creates << " destroyed=" << q.destroys
++              << " after_idle=" << q.ordered << (ok ? " PASS\n" : " FAIL\n");
++    return ok ? 0 : 1;
++}
++
++int padded_drop_checks() {
++    auto base = backend::make_vulkan_backend(0);
++    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
++    QueueCalls q(b);
++    auto weights = b.alloc(512 * sizeof(float), backend::Memory::host_visible);
++    auto& w = backend::as_vulkan(*weights);
++    w.adopted = true;
++    const auto first = backend::VulkanLifetimeTest::padded(b, {weights.get(), 0}, 1);
++    const auto second = backend::VulkanLifetimeTest::padded(b, {weights.get(), 256}, 1);
++    b.sync();
++    backend::VulkanLifetimeTest::prepare_drop(b);
++    q.mark(first.buffer); q.mark(second.buffer);
++    allocation_countdown = 1;
++    bool threw = false;
++    try { backend::VulkanLifetimeTest::drop(b, w); }
++    catch (const std::bad_alloc&) { threw = true; }
++    allocation_countdown = -1;
++    bool intact = w.padded.size() == 2;
++    for (const auto& entry : w.padded) intact = intact && bool(entry.second.copy);
++    if (intact) {
++        intact = backend::VulkanLifetimeTest::padded(b, {weights.get(), 0}, 1).buffer == first.buffer &&
++                 backend::VulkanLifetimeTest::padded(b, {weights.get(), 256}, 1).buffer == second.buffer;
++    }
++    backend::VulkanLifetimeTest::drop(b, w);
++    const bool retained = backend::VulkanLifetimeTest::retained(b) == 2 && w.padded.empty();
++    b.sync();
++    const bool ok = threw && intact && retained && q.premature == 0;
++    std::cout << "padded_drop threw=" << threw << " intact=" << intact << " retained=" << retained
++              << " premature=" << q.premature << (ok ? " PASS\n" : " FAIL\n");
++    return ok ? 0 : 1;
++}
++
++int queue_checks() {
++    int failures = 0;
++    for (int kind = 0; kind < 7; ++kind) {
++        auto base = backend::make_vulkan_backend(0);
++        auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
++        QueueCalls q(b);
++        bool threw = false, exercised = false;
++        if (kind < 2 || kind == 4) {
++            auto kv = b.kv_alloc(2, 1, 4, 512, backend::KVType::f32, backend::KVType::f32);
++            auto& storage = dynamic_cast<backend::VulkanKVStorage&>(*kv);
++            if (kind != 0) { storage.ensure(0); b.sync(); }
++            const size_t held = kv->allocated_bytes(), peak = kv->peak_bytes();
++            if (kind == 4) q.fail_copy = 4;
++            else q.fail_allocation = q.allocations + 2;
++            try { storage.ensure(kind == 0 ? 0 : 1); }
++            catch (const std::bad_alloc&) { threw = true; }
++            exercised = threw && kv->allocated_bytes() == held && kv->peak_bytes() == peak;
++            q.fail_copy = q.fail_allocation = 0;
++            storage.ensure(kind == 0 ? 0 : 1);
++            exercised = exercised && kv->allocated_bytes() > held;
++            b.sync();
++        } else if (kind == 2 || kind == 5) {
++            auto weights = b.alloc(2 * 256 * sizeof(float), backend::Memory::device);
++            backend::as_vulkan(*weights).adopted = true;
++            b.sync();
++            if (kind == 5) {
++                auto old = backend::VulkanLifetimeTest::padded(b, {weights.get(), 0}, 1);
++                b.sync(); q.mark(old.buffer); q.copied = false;
++            }
++            q.fail_after_copy = true;
++            try { backend::VulkanLifetimeTest::padded(b, {weights.get(), 0}, 2); }
++            catch (const std::bad_alloc&) { threw = true; }
++            allocation_countdown = -1;
++            exercised = q.copied;
++            b.sync();
++        } else {
++            std::vector<unsigned char> bytes((1 << 20), 0);
++            const auto first = backend::VulkanLifetimeTest::args(b, bytes.data(), bytes.size() - 16);
++            q.mark(first.buffer);
++            if (kind == 6) q.fail_allocation = q.allocations + 1;
++            else allocation_countdown = 2;
++            try { backend::VulkanLifetimeTest::args(b, bytes.data(), 32); }
++            catch (const std::bad_alloc&) { threw = true; }
++            allocation_countdown = -1;
++            exercised = threw;
++            q.fail_allocation = 0;
++            const int before_retry = q.allocations;
++            const auto retry = backend::VulkanLifetimeTest::args(b, bytes.data(), 32);
++            exercised = exercised && retry.buffer != VK_NULL_HANDLE;
++            if (kind == 6) exercised = exercised && q.allocations == before_retry + 1;
++            q.mark(retry.buffer);
++            b.sync();
++        }
++        const bool ok = exercised && q.premature == 0;
++        std::cout << "queue_case=" << kind << " threw=" << threw << " premature=" << q.premature
++                  << (ok ? " PASS\n" : " FAIL\n");
++        if (!ok) ++failures;
++    }
++    std::cout << "vulkan queue ownership: 7 cases, " << failures << " failures (transfers intercepted)\n";
++    return failures ? 1 : 0;
++}
++}
++
++namespace {
++enum class Failure { none, create, memory_type, allocate_device, allocate_host, bind, map };
++struct Calls {
++    Failure failure = Failure::none;
++    int buffers = 0, memory = 0, maps = 0;
++    bool bad_release = false;
++    unsigned char bytes[64]{};
++} calls;
++
++VKAPI_ATTR VkResult VKAPI_CALL create_buffer(VkDevice, const VkBufferCreateInfo*, const VkAllocationCallbacks*, VkBuffer* out) {
++    if (calls.failure == Failure::create) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    *out = (VkBuffer)(uintptr_t)1;
++    ++calls.buffers;
++    return VK_SUCCESS;
++}
++VKAPI_ATTR void VKAPI_CALL destroy_buffer(VkDevice, VkBuffer, const VkAllocationCallbacks*) {
++    if (--calls.buffers != 0) calls.bad_release = true;
++}
++VKAPI_ATTR void VKAPI_CALL memory_requirements(VkDevice, VkBuffer, VkMemoryRequirements* out) {
++    *out = VkMemoryRequirements{64, 4, 1};
++}
++VKAPI_ATTR VkResult VKAPI_CALL allocate_memory(VkDevice, const VkMemoryAllocateInfo*, const VkAllocationCallbacks*, VkDeviceMemory* out) {
++    if (calls.failure == Failure::allocate_device) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
++    if (calls.failure == Failure::allocate_host) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    *out = (VkDeviceMemory)(uintptr_t)2;
++    ++calls.memory;
++    return VK_SUCCESS;
++}
++VKAPI_ATTR void VKAPI_CALL free_memory(VkDevice, VkDeviceMemory, const VkAllocationCallbacks*) {
++    if (calls.buffers || calls.maps || --calls.memory != 0) calls.bad_release = true;
++}
++VKAPI_ATTR VkResult VKAPI_CALL bind_memory(VkDevice, VkBuffer, VkDeviceMemory, VkDeviceSize) {
++    return calls.failure == Failure::bind ? VK_ERROR_OUT_OF_DEVICE_MEMORY : VK_SUCCESS;
++}
++VKAPI_ATTR VkResult VKAPI_CALL map_memory(VkDevice, VkDeviceMemory, VkDeviceSize, VkDeviceSize, VkMemoryMapFlags, void** out) {
++    if (calls.failure == Failure::map) return VK_ERROR_MEMORY_MAP_FAILED;
++    ++calls.maps; *out = calls.bytes;
++    return VK_SUCCESS;
++}
++VKAPI_ATTR void VKAPI_CALL unmap_memory(VkDevice, VkDeviceMemory) {
++    if (--calls.maps != 0) calls.bad_release = true;
++}
++
++std::shared_ptr<backend::Device> fake_device(Failure failure) {
++    auto dev = std::make_shared<backend::Device>();
++    dev->memory.memoryTypeCount = failure == Failure::memory_type ? 0 : 1;
++    dev->memory.memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
++        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
++    auto& fn = dev->fn;
++    fn.vkCreateBuffer = create_buffer;
++    fn.vkDestroyBuffer = destroy_buffer;
++    fn.vkGetBufferMemoryRequirements = memory_requirements;
++    fn.vkAllocateMemory = allocate_memory;
++    fn.vkFreeMemory = free_memory;
++    fn.vkBindBufferMemory = bind_memory;
++    fn.vkMapMemory = map_memory;
++    fn.vkUnmapMemory = unmap_memory;
++    return dev;
++}
++}
++
++int main(int argc, char** argv) {
++    try {
++        if (argc == 2 && std::string(argv[1]) == "--queue") {
++            const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks();
++            return failures ? 1 : 0;
++        }
++        if (argc != 1) return 2;
++        int failures = 0, cases = 0;
++        for (const Failure failure : {Failure::none, Failure::create, Failure::memory_type,
++                Failure::allocate_device, Failure::allocate_host, Failure::bind, Failure::map}) {
++            calls = Calls{}; calls.failure = failure;
++            auto dev = fake_device(failure);
++            bool threw = false;
++            try {
++                backend::VulkanBuffer buffer(dev, 64, true);
++                if (failure == Failure::none && (!buffer.host_ptr() || buffer.size() != 64))
++                    throw std::runtime_error("successful buffer has no mapped storage");
++            } catch (const std::exception&) { threw = true; }
++            const bool ok = threw == (failure != Failure::none) && !calls.buffers && !calls.memory &&
++                            !calls.maps && !calls.bad_release;
++            std::cout << "case=" << int(failure) << " threw=" << threw << " live_buffers=" << calls.buffers
++                      << " live_memory=" << calls.memory << " maps=" << calls.maps << (ok ? " PASS\n" : " FAIL\n");
++            ++cases; if (!ok) ++failures;
++        }
++        calls = Calls{};
++        {
++            backend::VulkanBuffer empty(fake_device(Failure::none), 0, true);
++            if (empty.size() || empty.host_ptr() || empty.handle()) ++failures;
++        }
++        ++cases;
++        if (calls.buffers || calls.memory || calls.maps || calls.bad_release) ++failures;
++        std::cout << "vulkan-buffer: " << cases << " cases, " << failures << " failures (fake API; no device)\n";
++        return failures ? 1 : 0;
++    } catch (const backend::VulkanUnavailable& e) {
++        std::cerr << e.what() << '\n';
++        return 77;
++    } catch (const std::exception& e) {
++        std::cerr << e.what() << '\n';
++        return 1;
++    }
++}

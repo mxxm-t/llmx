@@ -1,0 +1,1 @@
+{"exit": 0, "version": "llmx 0.1.0+unknown", "sha256": "83c4b82bada3e461fba887f620421f17a4fd403d0eac3bd208640f8c726ea0f0", "scope": "Full CPU suite with required-present hash-verified Q8 fixture, followed by Q4 and Q5 HF checks with each explicit test fixture. Other fixture SKIPs within an individual invocation are not missing aggregate coverage. No Vulkan/performance claim."}

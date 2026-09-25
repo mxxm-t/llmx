@@ -1,0 +1,95 @@
+{
+  "created": "2026-09-24T20:17:24.055605+00:00",
+  "scope": "Normal CLI translation-unit layout check: synthetic LCG prompt pp215, then independent decode32 from empty history. Default ubatch512 and model context; F16 KV, one sequence and six CPU threads. One warmup per phase followed by one measured run per invocation. This is distinct from the common harness and has no matched mx arm.",
+  "orders": [
+    [
+      "base",
+      "candidate",
+      "layout"
+    ],
+    [
+      "candidate",
+      "layout",
+      "base"
+    ],
+    [
+      "layout",
+      "base",
+      "candidate"
+    ],
+    [
+      "layout",
+      "candidate",
+      "base"
+    ],
+    [
+      "base",
+      "layout",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "base",
+      "layout"
+    ]
+  ],
+  "models": {
+    "Qwen3-0.6B-Q8_0.gguf": {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "bytes": 639446688
+    },
+    "Qwen3-0.6B-Q4_0.gguf": {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "bytes": 382156480
+    },
+    "Qwen3-0.6B-Q5_K_M.gguf": {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "bytes": 444415680
+    },
+    "Qwen3-8B-Q8_0.gguf": {
+      "path": "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+      "sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+      "bytes": 8709518112
+    }
+  },
+  "hardware": "AMD Ryzen 7 5800X, 8 cores,16 logical CPUs, Windows, MSVC19.50 Release",
+  "monitor": {
+    "script": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-range-20260924\\tools\\monitor_windows.py",
+    "sha256": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6",
+    "interval_seconds": 1,
+    "pre_seconds": 2,
+    "post_seconds": 1,
+    "activity_flags": {
+      "unrelated_process_cpu_percent_gt": 50,
+      "disk_bytes_per_second_gt": 104857600,
+      "gpu_engine_percent_gt": 20
+    },
+    "classification": "Process CPU 100% is one logical CPU. Separate benchmark PID, runner PID and monitor PID; other processes unrelated. Disk/GPU are whole-system activity, not proof of unrelated load. Unknown/inaccessible processes and missing counters remain unknown.",
+    "retention": "Retain all planned blocks, errors and slow samples. Do not stop or replace because activity flags fire."
+  },
+  "arms": {
+    "base": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-base-20260924\\build\\Release\\llmx.exe",
+      "sha256": "90d5dc81987e221365724837ea050c540c4bd331dce77bdaecbf0e9d74390142",
+      "version": "llmx 0.1.0+g5c8e89c346a5",
+      "revision": "5c8e89c346a5dcc939c423e2284edd87ea367b5e"
+    },
+    "candidate": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+      "sha256": "a7cd23052fa93df1ea5147713130dd26f3d8cab191f69c105d514379f892d6e5",
+      "version": "llmx 0.1.0+g842f453ed22c",
+      "revision": "842f453ed22c517d023c0d7a68b72b492a80cfaa"
+    },
+    "layout": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-layout-20260924\\build\\Release\\llmx.exe",
+      "sha256": "acc4e0a17008a4af17a4fbbc4554a0f62e038813a871050800844e505fc71c12",
+      "version": "llmx 0.1.0+gf069bd961d71",
+      "revision": "f069bd961d71e44d2e65614948ee0c5df1e23f71"
+    }
+  },
+  "retention": "Retain all planned blocks, errors and slow samples. Do not stop or replace because activity flags fire.",
+  "analysis": "Retain every planned block and report phase/model deltas with same-file unused-helper control and whole-invocation activity. No sample replacement based on activity or timing."
+}

@@ -1,0 +1,14 @@
+﻿[
+    {
+        "ProcessId":  12308,
+        "ParentProcessId":  29324,
+        "Name":  "python.exe",
+        "ExecutablePath":  "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe"
+    },
+    {
+        "ProcessId":  22796,
+        "ParentProcessId":  2848,
+        "Name":  "python.exe",
+        "ExecutablePath":  "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe"
+    }
+]

@@ -214,7 +214,14 @@ first and are bounded against the sum of magnitudes.
 `q8-dots` checks those decode dots (`backends/cpu/q8_dots.hpp`), 8-bit for
 Q8_0/Q4_K/Q5_K and 16-bit for Q4_0/Q4_1/Q6_K, against a double-precision
 reference fed the same quantized activations, and that a decode row computes
-the same alone, beside other rows and in a grouped call, bit for bit.
+the same alone, beside other rows and in a grouped call, bit for bit. It also
+checks activation quantization independently against the original inputs over
+float exponent boundaries, tiny/subnormal blocks and reciprocal-overflow
+thresholds: packed range/sign/zero, exact integer sums, nearest reconstruction,
+ties to even and partial-block guards. Fallback reconstruction checks are
+strict; ordinary SIMD controls allow its existing float-rounding error.
+These run under gradual underflow;
+they do not establish nonfinite-input handling or flush-to-zero behavior.
 
 `prefill-scope` uses self-generated model fixtures to check caller-once execution,
 nesting/thread guards, allocation and microbatch boundaries, error draining and

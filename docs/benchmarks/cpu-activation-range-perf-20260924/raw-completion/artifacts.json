@@ -1,0 +1,41 @@
+{
+  "copied_utc": "2026-09-25T01:59:00.446527+00:00",
+  "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness",
+  "files": [
+    {
+      "path": "plan.json",
+      "bytes": 2984,
+      "sha256": "850c8dfe7e64fbd8f4de3d604146650c72a43efbb18b569de218c555cfc51fd0"
+    },
+    {
+      "path": "failure.json",
+      "bytes": 162,
+      "sha256": "324fff236cb67060872d1fe284aa040e72f9e7e3961831e441dca2d5e6f01b58"
+    },
+    {
+      "path": "results.json",
+      "bytes": 41200,
+      "sha256": "8b4d923ca8759999a75dbbb5c3b7b64e0e7404867d1763fb3dc86d7afaa04c33"
+    },
+    {
+      "path": "long-prompt.txt",
+      "bytes": 80296,
+      "sha256": "c2f389e77838f5fd4bcad1b870af3658a2ca6bab71750a3047811fe820ba216a"
+    },
+    {
+      "path": "Qwen3-0.6B-Q8_0.gguf-long-base.record.json",
+      "bytes": 983,
+      "sha256": "f84089f112df7784ba414cfe1ece5c883dcc27db181aebd1822c54eca87eb856"
+    },
+    {
+      "path": "Qwen3-0.6B-Q8_0.gguf-long-base.response.json",
+      "bytes": 122311,
+      "sha256": "9a861292db3baf5e09e2ad4b67b044a0eb3f48e7faa54e42ae516b22b6a28952"
+    },
+    {
+      "path": "Qwen3-0.6B-Q8_0.gguf-long-base.server.log",
+      "bytes": 2657,
+      "sha256": "01152f11c662abce9dea43fa6606f06f3838850f517a02d28853c4cc8321cb60"
+    }
+  ]
+}

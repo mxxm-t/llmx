@@ -1,11 +1,11 @@
 #pragma once
-// Dots against activations quantized per block of 32 (docs/src/backends-cpu.md): the decode dots for a generated token's row, and the prompt dots for a block of rows against many columns.
-// A row's weights stay packed and meet the activations in integers, a block's sum then scaled once, where the float dots converted every weight and so were bound by arithmetic rather than by memory.
-// Q8_0, Q4_K and Q5_K read 8-bit activations through the unsigned-by-signed byte multiply; Q4_0, Q4_1 and Q6_K read 16-bit ones through the 16-bit multiply-add, since on 8 bits the HF gate's Q4_0 file, whose head is Q6_K, fails its top-5 bound, as the device's row kernels found.
+// CPU dots over activations quantized per block of 32; weights remain packed and integer sums are scaled once per block (docs/src/backends-cpu.md).
+// Q4_0, Q4_1 and Q6_K use 16-bit activations for ranking precision; Q8_0, Q4_K and Q5_K use 8-bit activations.
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <vector>
 #include <immintrin.h>
 
@@ -16,7 +16,7 @@
 namespace backend {
 namespace q8 {
 
-// Activation rows as the dots read them: per block of 32 the quants, the scale (the block's largest magnitude over 127) and the quants' sum, which the types with a minimum take.
+// Each block stores its integers, reconstruction scale and integer sum, which types with a minimum require.
 struct Rows {
     std::vector<int8_t> q;
     std::vector<float> d;
@@ -27,7 +27,7 @@ struct Rows {
     const int32_t* sums(size_t r) const { return sum.data() + r * (nin / 32); }
 };
 
-// The same rows on 16 bits, the scale the block's largest magnitude over 32767.
+// The same block representation with 16-bit integers.
 struct Rows16 {
     std::vector<int16_t> q;
     std::vector<float> d;
@@ -47,6 +47,27 @@ inline void size_rows(size_t rows, size_t nin, R& out) {
     out.sum.resize(rows * nin / 32);
 }
 
+// A tiny block can overflow the float reciprocal; round against a representable scale without losing zeros or signs.
+template <int Levels, class R>
+inline void quantize_small(const float* x, size_t b, float top, R& out) {
+    float d = top / float(Levels);
+    if (double(d) * Levels < double(top))
+        d = std::nextafter(d, std::numeric_limits<float>::max());
+    int32_t sum = 0;
+    using Quant = typename decltype(out.q)::value_type;
+    for (size_t i = 0; i < 32; ++i) {
+        const double value = double(x[i]) / double(d);
+        const double low = std::floor(value);
+        int32_t q = int32_t(low);
+        const double tail = value - low;
+        if (tail > 0.5 || (tail == 0.5 && q % 2 != 0)) ++q;
+        out.q[b * 32 + i] = Quant(q);
+        sum += q;
+    }
+    out.d[b] = d;
+    out.sum[b] = sum;
+}
+
 inline void quantize16(const float* x, size_t b0, size_t b1, Rows16& out) {
     const __m256 sign = _mm256_set1_ps(-0.0f);
     for (size_t b = b0; b < b1; ++b) {
@@ -61,7 +82,9 @@ inline void quantize16(const float* x, size_t b0, size_t b1, Rows16& out) {
         m = _mm_max_ps(m, _mm_movehl_ps(m, m));
         m = _mm_max_ss(m, _mm_movehdup_ps(m));
         const float top = _mm_cvtss_f32(m);
-        const __m256 scale = _mm256_set1_ps(top > 0.0f ? 32767.0f / top : 0.0f);
+        const float id = top > 0.0f ? 32767.0f / top : 0.0f;
+        if (!std::isfinite(id)) { quantize_small<32767>(p, b, top, out); continue; }
+        const __m256 scale = _mm256_set1_ps(id);
         __m256i q[4];
         for (int i = 0; i < 4; ++i)
             q[i] = _mm256_cvtps_epi32(_mm256_round_ps(_mm256_mul_ps(v[i], scale), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
@@ -93,6 +116,7 @@ inline void quantize(const float* x, size_t b0, size_t b1, Rows& out) {
         m = _mm_max_ss(m, _mm_movehdup_ps(m));
         const float top = _mm_cvtss_f32(m);
         const float d = top / 127.0f, id = top > 0.0f ? 127.0f / top : 0.0f;
+        if (!std::isfinite(id)) { quantize_small<127>(p, b, top, out); continue; }
         const __m256 scale = _mm256_set1_ps(id);
         __m256i q[4];
         for (int i = 0; i < 4; ++i)

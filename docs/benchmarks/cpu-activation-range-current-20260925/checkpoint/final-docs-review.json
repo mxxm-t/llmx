@@ -1,0 +1,285 @@
+{
+  "review_utc": "2026-09-25T02:49:52.871965+00:00",
+  "status": "pass",
+  "worktree": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925",
+  "scope": "Full project Markdown inventory and affected-claim review for the CPU activation repair checkpoint. Read current STATUS and new evidence READMEs/summary tables; compare affected implementation/test/build/CLI/architecture statements against current source and retained evidence. Historical dated experiments retain their original scope and were not rerun.",
+  "markdown_count": 45,
+  "relative_file_targets_checked": 153,
+  "non_ascii_files": [],
+  "missing_relative_file_targets": [],
+  "markdown_manifest": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "7a81158b234ea63ab0acefa095d12cccd01202db2508bd2b0d12628e6bc84143",
+      "bytes": 33801
+    },
+    {
+      "path": "README.md",
+      "sha256": "ecfdcb8b51202ee23d48ff3f188257965c23d44bac1ec1bd9ff18e391f8e0056",
+      "bytes": 9090
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "e25f8da926da386504fe0b98e91b8189f59b07371fadb224dc5d215ef51d6e48",
+      "bytes": 15348
+    },
+    {
+      "path": "docs/ASSETS.md",
+      "sha256": "37393cdade3e7e422ab1e329b33ec2192da288825076513051d1ce6d40f5a5af",
+      "bytes": 208750
+    },
+    {
+      "path": "docs/CI.md",
+      "sha256": "f3ad0235f23eea330237624a5e609f7b1be542c6a5f91a1105ec0ffc3426ee92",
+      "bytes": 13999
+    },
+    {
+      "path": "docs/DEVICE-EXECUTION.md",
+      "sha256": "4de9512e6e003e1935cce7be3db8ce2a59519246e3157c603e9d27d020510e63",
+      "bytes": 17478
+    },
+    {
+      "path": "docs/EXECUTION.md",
+      "sha256": "7d39267bd0fb6fd81aaa893b436d9c98184bc11126ad4400b1a6f4f6342a4df1",
+      "bytes": 20125
+    },
+    {
+      "path": "docs/KV-CACHE.md",
+      "sha256": "7d1d0d8acf52b3f7b9d12cf69de6df08ef902e83ec0d6f09dd6d8865e2de0003",
+      "bytes": 17424
+    },
+    {
+      "path": "docs/MULTI-DEVICE.md",
+      "sha256": "c12d7c3cc46aa04ea97f0bfae3cc5537ad8c639f1447cb038a4f781799f9605d",
+      "bytes": 46927
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "sha256": "0dbf58cb26efde08c44a70be40faa207eb8e2b1c40ff2a7686d64fb1ed67d3b7",
+      "bytes": 18095
+    },
+    {
+      "path": "docs/SERVER.md",
+      "sha256": "5feaa6dd4b9f200782f7f358de44ea2d517f44010db97c17c4428961b3113d9a",
+      "bytes": 13815
+    },
+    {
+      "path": "docs/STATUS.md",
+      "sha256": "0dab8d65c806381636a30d2a55a557157197d91df9ca9a185a54bed1b54e6836",
+      "bytes": 367815
+    },
+    {
+      "path": "docs/USAGE.md",
+      "sha256": "9627867a68fe48a574509e13dffbcaf58d144b7bdbf4d8458704b4bbeda9b36a",
+      "bytes": 33848
+    },
+    {
+      "path": "docs/VULKAN.md",
+      "sha256": "9739d40e1d48aaa4fe2ed1d2bba53672a1501359c8e87ae423601456ad41b859",
+      "bytes": 62301
+    },
+    {
+      "path": "docs/benchmarks/backend-audit-20260925/README.md",
+      "sha256": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+      "bytes": 6080
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+      "sha256": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+      "bytes": 9389
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+      "sha256": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+      "bytes": 3535
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+      "sha256": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+      "bytes": 4374
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+      "sha256": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+      "bytes": 3266
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+      "sha256": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+      "bytes": 1186
+    },
+    {
+      "path": "docs/src/backends-backend.md",
+      "sha256": "d4df0ef0533bfc9ff3b43a3ddd70d20a2a4481424838b7d2489ee59e7968c2ea",
+      "bytes": 9522
+    },
+    {
+      "path": "docs/src/backends-cpu-placement.md",
+      "sha256": "a3da38b542740129bf122ed7ecaf7f5b60571422b37ebb3fb3af986eedc4e3ab",
+      "bytes": 1372
+    },
+    {
+      "path": "docs/src/backends-cpu.md",
+      "sha256": "478673778fe216d26441a95f0bea405a441572e7dda18d3b29407bb917dc9cd0",
+      "bytes": 11228
+    },
+    {
+      "path": "docs/src/backends-vulkan.md",
+      "sha256": "dfde490191785b24949909dd72e378d3dab985decb46db4c335d8de7bff2f593",
+      "bytes": 7178
+    },
+    {
+      "path": "docs/src/cli-main.md",
+      "sha256": "a84186d2a4ee087bdb0d2aa18e8a34880fb34a15e1c35401e97395e26d8e97ad",
+      "bytes": 5863
+    },
+    {
+      "path": "docs/src/config.md",
+      "sha256": "9d63e71a3342a725f53d367d2d208fd7e30ee6eabc94864b86fde0baed68921b",
+      "bytes": 1830
+    },
+    {
+      "path": "docs/src/core-fp16.md",
+      "sha256": "2967c0db0e5dd115df1e08f88202a227d796707d7f3246f20a95bc9c02474253",
+      "bytes": 1137
+    },
+    {
+      "path": "docs/src/core-host_memory.md",
+      "sha256": "7a6d79ddb7271c9de260cc941841df76376152e5d736c87bfff0b4f376a24ecd",
+      "bytes": 831
+    },
+    {
+      "path": "docs/src/core-json.md",
+      "sha256": "ea6a957f2ad55a1f2624320f72b598056befa1b8a77991d0fbbbf71b819bca2b",
+      "bytes": 3069
+    },
+    {
+      "path": "docs/src/core-sha.md",
+      "sha256": "3cd6b7539ad1339e6509bc02c10300d3aa8d1ffd928fecd2a00bf03454289b32",
+      "bytes": 758
+    },
+    {
+      "path": "docs/src/format-format.md",
+      "sha256": "7448366de8de189ff82342a32f734dc9f1ce785e30710a02e274ac2b3ed8c9aa",
+      "bytes": 1150
+    },
+    {
+      "path": "docs/src/format-gguf.md",
+      "sha256": "a9265876a51530a589edef72f85011d9d38e4f6a8ae5481a6db5ae46254bfb36",
+      "bytes": 6572
+    },
+    {
+      "path": "docs/src/format-mapped_file.md",
+      "sha256": "e964439ec318bd97ea65d3fae23a7d37c6d9ba03b3e501cb2c08557efb41fe4c",
+      "bytes": 1322
+    },
+    {
+      "path": "docs/src/hub.md",
+      "sha256": "d68a3607d987500529ec65ee3b47326ac08550ecd523d95566c9457cee94d8bd",
+      "bytes": 3379
+    },
+    {
+      "path": "docs/src/inference-chat.md",
+      "sha256": "9c1e6ed2a251aae5790f05bf2f92f04039d581cc8b7b92a4da6c9327261d2a9c",
+      "bytes": 1431
+    },
+    {
+      "path": "docs/src/inference-generate.md",
+      "sha256": "fade2850d36e194437438dfab8572431d8cddb16f4becbe9d4e4ea34773f795e",
+      "bytes": 1546
+    },
+    {
+      "path": "docs/src/inference-perplexity.md",
+      "sha256": "781701904fdb6374dbf9400baf1f4b35c083cf54ad27537e5213481905de765c",
+      "bytes": 1361
+    },
+    {
+      "path": "docs/src/inference-sampler.md",
+      "sha256": "b2f25f62be3af52591755223eacef84569813552d0f935eedf63325168b34d14",
+      "bytes": 1172
+    },
+    {
+      "path": "docs/src/model-arch_qwen.md",
+      "sha256": "88b68ba2af25b13cc756f2f89da35b18d9c2dfce2e4f45c1f4d9f7ab24bea421",
+      "bytes": 12588
+    },
+    {
+      "path": "docs/src/model-kv_cache.md",
+      "sha256": "faec0a6f1ecf5f195a1645e1a55863281a4e2191963568dfdc75098919c37a30",
+      "bytes": 2829
+    },
+    {
+      "path": "docs/src/model-layer_split.md",
+      "sha256": "160cd73dae8d1eb589fbd5e61d57194aa09d835d8d9702c68277fcaad59a665b",
+      "bytes": 4775
+    },
+    {
+      "path": "docs/src/quant-k_quants.md",
+      "sha256": "5c24875ed3899638f40328564c76339b3d2b58c8165626cf851971a64115d713",
+      "bytes": 669
+    },
+    {
+      "path": "docs/src/quant-quant.md",
+      "sha256": "839d8bda3e2fa8a8ccf46ddd4d8db798a0d472b02119dbe6cccbb396ebff7193",
+      "bytes": 1827
+    },
+    {
+      "path": "docs/src/server.md",
+      "sha256": "dc3a2f5d6c26a17b9bb2925605818d5bc8dfbf33a4beded78e44c705a306f43e",
+      "bytes": 2529
+    },
+    {
+      "path": "docs/src/tokenizer-tokenizer.md",
+      "sha256": "2a4ef2496a5685c582071d712f32d578f42009237f747f218466dc33fe528f60",
+      "bytes": 1790
+    }
+  ],
+  "source_sha256": {
+    "src/backends/cpu/q8_dots.hpp": "e0e7317c78acfb2c24dc6ec04f76ba819410f6abbbf859ed85f5431d58bd2d36",
+    "tests/q8_dots.cpp": "d6e4cdbf0f3bfc5595650cc0933e0f5ee486272d27ae0eb149c8165135f6c454",
+    "src/backends/backend.hpp": "485f8e8ec92ee783e9abe0da068f711cf87366594f1d0e28959a2f5d8b5da070",
+    "src/backends/cpu/cpu_backend.hpp": "ff2494ae99d84deaae1eea729d98806832ef6e3709d55943d993204ea70d3d07",
+    "src/model/arch_qwen.hpp": "08a27d36156aea875f44591bb23d8f72d2bdacd0aef005db47c946326b3e01f3",
+    "src/cli/main.cpp": "0735b9b4bb9f49e12290f61b6eaed123686ca865cafdb68dd61d5385309eaf93",
+    "CMakeLists.txt": "0c3179a58dfda9742bd52077bbf4a7b84eeb7f0e54cc18d63dc3e2090cf9500b",
+    "tests/run_tests.py": "1cfc3db53ae4c8b21b6a8f44683a04d41208720abaabbf80461c038b4129c22f",
+    ".github/workflows/ci.yml": "dbe89b5a2184900c5e9703847669bbba9c4ea41d8c963130b4afdde8a7f4f9f7"
+  },
+  "source_tests_build_ci_equal_to_measured_356b745": true,
+  "source_diff_output_bytes": 0,
+  "evidence_sha256": {
+    "docs/benchmarks/cpu-activation-final-perf-20260925/README.md": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+    "docs/benchmarks/cpu-activation-final-perf-20260925/package-manifest.json": "0baddad50b8f4a85c12f66c3755a2b55de99e022eba00e8b1325a1ae71eca310",
+    "docs/benchmarks/cpu-activation-final-perf-20260925/package-verification.json": "7011afdbcee71cf16f01b7de7a7f72129085d99034b18f5f962415741ca7a80a",
+    "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+    "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63"
+  },
+  "findings": [],
+  "confirmed_claims": [
+    "CPU change is confined to activation packing and native q8-dots regression; no backend interface, model dependency, runtime flag or GPU shader change.",
+    "Exceptional tiny finite blocks use a covering representable float scale and nearest-even ratios; normal SIMD arithmetic remains unchanged. Gradual underflow, finite inputs and ordinary float-rounding limits are explicit.",
+    "Current integration records 21 native tests, 14 required-HF components and 24 bounded real-model NLL cells; current native log records 10004 activation blocks and320128 packed values. Prior ordinary control records2686976 exact values; this is not a new full-space proof.",
+    "Strict-chat raw archive checked in prior docs-depth-review: nine exact within-model responses,19820 prompt tokens,EOS244/302/229,zero reuse; old binaries and source-only bridge explicit. Original raw-completion length result remains incomplete and preserved.",
+    "Final performance summaries retain128 common and72 CLI invocations, Q5 CLI paired throughput -6.568 percent (six slower pairs), layout -4.110 percent, candidate/layout -2.563 percent. Different harness workloads cannot cancel that cost.",
+    "Common candidate/mx point estimates are positive in eight cells;8B decode +0.126 percent is explicitly effectively tied, not universal parity. CLI has no matched mx arm.",
+    "Activity flags126/128 common and70/72 CLI and unknown process CPU deltas for all200 calls are disclosed; whole-invocation telemetry is not phase-specific or causal proof.",
+    "Fresh dirty checkpoint build and focused F32/thread checks are recorded separately from measured detached356b745; source equality does not imply executable/performance equality.",
+    "Completed feature is represented by checkpoint plus Done table row. Current ownership is in shared log; old planning blocks and historical evidence are explicitly dated."
+  ],
+  "package_review": {
+    "readme_final_format": "USTAR+XZ preset6",
+    "raw_members": 1004,
+    "compressed_bytes": 5931608,
+    "original_bytes": 270697313,
+    "supporting_files": 84,
+    "validation": "Packaging agent independently decoded/hash-verified all members and copies; reviewed package-verification.json, manifest and final README. This docs review did not repeat archive decompression or execute package scripts.",
+    "readme_sha_matches_packaging_verification": true
+  },
+  "limitations": [
+    "No builds, tests, inference, benchmark or download executed by this review.",
+    "No model payload, executable or DLL read/hash; frozen identity rechecks are retained evidence, not rerun here.",
+    "External URLs and Markdown anchor targets were not revalidated; local file target existence was checked.",
+    "This report is a documentation/source-scope review, not an independent reexecution of numeric or performance gates or publication action.",
+    "All retained Markdown received affected-claim and ASCII/link review, not a new audit of every historical experiment."
+  ]
+}

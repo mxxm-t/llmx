@@ -1,0 +1,43 @@
+{
+  "tag": "Qwen3-0.6B-Q8_0.gguf-candidate",
+  "command": [
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+    "serve",
+    "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "64484",
+    "--ctx-size",
+    "32768",
+    "--threads",
+    "6",
+    "--ubatch",
+    "128",
+    "--device",
+    "cpu",
+    "--cache-type-k",
+    "f16",
+    "--cache-type-v",
+    "f16"
+  ],
+  "start_utc": "2026-09-24T23:37:43.468051+00:00",
+  "pid": 9388,
+  "request_utc": "2026-09-24T23:37:44.000381+00:00",
+  "wall_seconds": 1343.6720000000205,
+  "observed": {
+    "finish": "eos",
+    "prompt_tokens": 19820,
+    "reused_tokens": 0,
+    "tokens": 244
+  },
+  "response_sha256": "d2208a3a923b58bd7da130040a0bd680303a755fa43a7c1fcef224f9517cd17b",
+  "finish": "eos",
+  "prompt_tokens": 19820,
+  "reused_tokens": 0,
+  "tokens": 244,
+  "text_sha256": "b3cd875a4f9351834b8dc4404e0e8bc08f7acd0d15555935ec29658f7db5c21b",
+  "ids_sha256": "735ef0240d3bd4da52219d1b56daf0b0e0ac48e0b804615c5733ab0ebbe3d44d",
+  "server_exit": 1,
+  "terminal_utc": "2026-09-25T00:00:08.418278+00:00"
+}

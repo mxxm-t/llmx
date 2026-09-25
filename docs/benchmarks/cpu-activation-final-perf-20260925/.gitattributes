@@ -1,0 +1,6 @@
+* -text whitespace=cr-at-eol
+*.log -whitespace
+*.diff -whitespace
+*.patch -whitespace
+*.stderr -whitespace
+*.stdout -whitespace

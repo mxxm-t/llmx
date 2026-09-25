@@ -1,0 +1,167 @@
+MSBuild version 18.4.0+6e61e96ac for .NET Framework
+
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\ZERO_CHECK.vcxproj]
+  1>Checking Build System
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-build-info.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-backend-errors-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-backend-group-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-chat-template-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  chat_template.cpp
+  backend_group.cpp
+  backend_errors.cpp
+  llmx-backend-group-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-backend-group-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-cli-output-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  main.cpp
+  cli_output.cpp
+  llmx-chat-template-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-chat-template-test.exe
+  llmx-backend-errors-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-backend-errors-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-fp16-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  fp16.cpp
+  llmx-fp16-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-fp16-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-fused-dot-overflow-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  fused_dot_overflow.cpp
+  llmx-fused-dot-overflow-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-fused-dot-overflow-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-generation-stream-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  generation_stream.cpp
+  llmx-generation-stream-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-generation-stream-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-gguf-shards-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  gguf_shards.cpp
+  llmx.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-gguf-validation-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  gguf_validation.cpp
+  llmx-cli-output-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-cli-output-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-http-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  http.cpp
+  llmx-gguf-shards-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-gguf-shards-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-hub-manifest-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  hub_manifest.cpp
+  llmx-gguf-validation-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-gguf-validation-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-hub-pull-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  hub_pull.cpp
+  llmx-http-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-http-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-hub-transport-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  hub_transport.cpp
+C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\tests\hub_transport.cpp(39,34): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-hub-transport-test.vcxproj]
+C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\tests\hub_transport.cpp(46,14): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-hub-transport-test.vcxproj]
+C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\tests\hub_transport.cpp(47,14): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-hub-transport-test.vcxproj]
+C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\tests\hub_transport.cpp(49,36): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-hub-transport-test.vcxproj]
+  llmx-hub-manifest-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-hub-manifest-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-json-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  json.cpp
+  llmx-hub-pull-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-hub-pull-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-kv-cache-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  kv_cache.cpp
+  llmx-json-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-json-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-load-progress-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  load_progress.cpp
+  llmx-hub-transport-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-hub-transport-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-model-validation-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  model_validation.cpp
+  llmx-load-progress-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-load-progress-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-placement-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  placement.cpp
+  llmx-kv-cache-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-kv-cache-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-prefill-placement-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  prefill_placement.cpp
+  llmx-model-validation-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-model-validation-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-prefill-scope-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  prefill_scope.cpp
+  llmx-prefill-placement-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-prefill-placement-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt
+  q8_dots.cpp
+  llmx-placement-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-placement-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244: '=': conversion from 'const _Ty' to 'signed char', possible loss of data [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         with [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         [ [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:             _Ty=int [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         ] [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+  (compiling source file '../tests/q8_dots.cpp')
+      C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24):
+      the template instantiation context (the oldest one first) is
+          C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\tests\q8_dots.cpp(307,25):
+          see reference to function template instantiation '`anonymous-namespace'::ActivationChecks `anonymous-namespace'::check_activation_range<backend::q8::Rows,void(__cdecl *)(const float *,size_t,size_t,backend::q8::Rows &)>(int,Quantize)' being compiled
+          with
+          [
+              Quantize=void (__cdecl *)(const float *,size_t,size_t,backend::q8::Rows &)
+          ]
+          C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\tests\q8_dots.cpp(85,14):
+          see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled
+          with
+          [
+              _Ty=int8_t,
+              _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<int8_t>>>
+          ]
+  
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244: '=': conversion from 'const _Ty' to 'short', possible loss of data [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         with [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         [ [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:             _Ty=int [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         ] [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+  (compiling source file '../tests/q8_dots.cpp')
+      C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24):
+      the template instantiation context (the oldest one first) is
+          C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\tests\q8_dots.cpp(308,26):
+          see reference to function template instantiation '`anonymous-namespace'::ActivationChecks `anonymous-namespace'::check_activation_range<backend::q8::Rows16,void(__cdecl *)(const float *,size_t,size_t,backend::q8::Rows16 &)>(int,Quantize)' being compiled
+          with
+          [
+              Quantize=void (__cdecl *)(const float *,size_t,size_t,backend::q8::Rows16 &)
+          ]
+          C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\tests\q8_dots.cpp(85,14):
+          see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled
+          with
+          [
+              _Ty=int16_t,
+              _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<int16_t>>>
+          ]
+  
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244: 'initializing': conversion from 'const _Ty' to 'signed char', possible loss of data [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244:         with [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244:         [ [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244:             _Ty=int [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244:         ] [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\llmx-q8-dots-test.vcxproj]
+  (compiling source file '../tests/q8_dots.cpp')
+      C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37):
+      the template instantiation context (the oldest one first) is
+          C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\tests\q8_dots.cpp(85,14):
+          see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled
+          with
+          [
+              _Ty=int8_t,
+              _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<int8_t>>>
+          ]
+          C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5410,22):
+          see reference to function template instantiation 'void std::_Fill_memset<signed char*,_Ty>(_CtgIt,const _Ty,const size_t)' being compiled
+          with
+          [
+              _Ty=int,
+              _CtgIt=signed char *
+          ]
+  
+  llmx-prefill-scope-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-prefill-scope-test.exe
+  llmx-q8-dots-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\Release\llmx-q8-dots-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-cpu-activation-current-20260925\build\ALL_BUILD.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925/CMakeLists.txt

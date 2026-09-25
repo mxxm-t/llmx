@@ -1,0 +1,41 @@
+{
+  "base": {
+    "commit": "11f5859a4be509ace5516377d396e335494f7413",
+    "cli": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-base-20260925\\build\\Release\\llmx.exe",
+      "version": "llmx 0.1.0+g11f5859a4be5",
+      "sha256": "138fabc1f86f971dfe7b2da59fae4cdcddc128ad14c17cee371bc73cf2c0dfba"
+    },
+    "harness": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\base.exe",
+      "version": "llmx 0.1.0+g11f5859a4be5 harness-f16",
+      "sha256": "d13705a82fca89199f2747ccd1d03262a6f3ad9e18d44c3b6cb9dba21b409239"
+    }
+  },
+  "layout": {
+    "commit": "e149fc05aceec39f0f147234eb7957bd88659414",
+    "cli": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-layout-20260925\\build\\Release\\llmx.exe",
+      "version": "llmx 0.1.0+ge149fc05acee",
+      "sha256": "d3c096c7d0155b701cac73e7d2ac95c5c6dcaf8e8c0642723fe388fa57d5002b"
+    },
+    "harness": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\layout.exe",
+      "version": "llmx 0.1.0+ge149fc05acee harness-f16",
+      "sha256": "d83e5588f475537f5704e8007af2926ade4ac5e3b633495e4140bce506586d06"
+    }
+  },
+  "candidate": {
+    "commit": "356b7457398af98dcff211d611af808f0608e44e",
+    "cli": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925\\build\\Release\\llmx.exe",
+      "version": "llmx 0.1.0+g356b7457398a",
+      "sha256": "38a075f69cf679fee634f2d901e3ed63b36f462b9bae20f3054c1b77f378fab2"
+    },
+    "harness": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\candidate.exe",
+      "version": "llmx 0.1.0+g356b7457398a harness-f16",
+      "sha256": "be793c2d68bd3354c04c12b79a8af1ba4badb4ec1bc684c1c28bef4b8f11b573"
+    }
+  }
+}

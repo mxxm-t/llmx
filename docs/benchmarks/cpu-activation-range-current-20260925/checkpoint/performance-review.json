@@ -1,0 +1,22 @@
+{
+  "reviewer": "independent prefill_review agent",
+  "decision": "Accept as scoped correctness repair with explicitly documented performance cost; not performance-neutral or universal mx parity.",
+  "retained_common": 128,
+  "retained_cli": 72,
+  "cli_q5_decode": {
+    "candidate_base_paired_percent": -6.568,
+    "candidate_base_slower_pairs": 6,
+    "pairs": 6,
+    "paired_latency_percent": 7.03,
+    "layout_base_percent": -4.11,
+    "candidate_layout_percent": -2.563,
+    "candidate_layout_slower_pairs": 4
+  },
+  "limitations": [
+    "Common harness and CLI use different prompts, microbatching and decode history; common gains do not cancel CLI loss.",
+    "A single layout perturbation does not resolve the slowdown cause.",
+    "8B common decode candidate/mx +0.126%, four of eight pairs faster, is effectively tied.",
+    "Monitoring covers whole invocations and every invocation retains unknown process CPU deltas."
+  ],
+  "scope": "Independent arithmetic/tradeoff review of retained samples. No additional workload or modified adoption threshold."
+}

@@ -1,0 +1,40 @@
+diff --git a/src/backends/cpu/q8_dots.hpp b/src/backends/cpu/q8_dots.hpp
+index b2fe03e..cf7908a 100644
+--- a/src/backends/cpu/q8_dots.hpp
++++ b/src/backends/cpu/q8_dots.hpp
+@@ -6,6 +6,7 @@
+ #include <cmath>
+ #include <cstdint>
+ #include <cstring>
++#include <limits>
+ #include <vector>
+ #include <immintrin.h>
+ 
+@@ -47,6 +48,27 @@ inline void size_rows(size_t rows, size_t nin, R& out) {
+     out.sum.resize(rows * nin / 32);
+ }
+ 
++// A tiny block can overflow the float reciprocal; round against a representable scale without losing zeros or signs.
++template <int Levels, class R>
++inline void quantize_small(const float* x, size_t b, float top, R& out) {
++    float d = top / float(Levels);
++    if (double(d) * Levels < double(top))
++        d = std::nextafter(d, std::numeric_limits<float>::max());
++    int32_t sum = 0;
++    using Quant = typename decltype(out.q)::value_type;
++    for (size_t i = 0; i < 32; ++i) {
++        const double value = double(x[i]) / double(d);
++        const double low = std::floor(value);
++        int32_t q = int32_t(low);
++        const double tail = value - low;
++        if (tail > 0.5 || (tail == 0.5 && q % 2 != 0)) ++q;
++        out.q[b * 32 + i] = Quant(q);
++        sum += q;
++    }
++    out.d[b] = d;
++    out.sum[b] = sum;
++}
++
+ inline void quantize16(const float* x, size_t b0, size_t b1, Rows16& out) {
+     const __m256 sign = _mm256_set1_ps(-0.0f);
+     for (size_t b = b0; b < b1; ++b) {

@@ -1,0 +1,363 @@
+{
+  "source_commit": "1f778afefff1d5323042c8105d34166ceee5a2a4",
+  "source_files": 1095,
+  "compiler": "GCC 13.3, WSL Ubuntu, Release CPU only",
+  "native_passed": 20,
+  "python_components_passed": 14,
+  "real_model_ppl_cells": 24,
+  "models": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "top1_matches": 6,
+      "cases": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "path": "batched",
+          "absolute_nll_error": 0.001154,
+          "hf_bound": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "path": "per-token",
+          "absolute_nll_error": 0.002576,
+          "hf_bound": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "path": "batched",
+          "absolute_nll_error": 0.00672,
+          "hf_bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "path": "per-token",
+          "absolute_nll_error": 0.00475,
+          "hf_bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "path": "batched",
+          "absolute_nll_error": 0.002433,
+          "hf_bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "path": "per-token",
+          "absolute_nll_error": 0.000287,
+          "hf_bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "path": "batched",
+          "absolute_nll_error": 0.012346,
+          "hf_bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "path": "per-token",
+          "absolute_nll_error": 0.000524,
+          "hf_bound": 0.02
+        }
+      ],
+      "continuous_max": 0.002576,
+      "windowed_max": 0.012346
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "top1_matches": 6,
+      "cases": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "path": "batched",
+          "absolute_nll_error": 0.131544,
+          "hf_bound": 0.16
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "path": "per-token",
+          "absolute_nll_error": 0.131524,
+          "hf_bound": 0.16
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "path": "batched",
+          "absolute_nll_error": 0.16763,
+          "hf_bound": 0.2
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "path": "per-token",
+          "absolute_nll_error": 0.16754,
+          "hf_bound": 0.2
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "path": "batched",
+          "absolute_nll_error": 0.068973,
+          "hf_bound": 0.2
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "path": "per-token",
+          "absolute_nll_error": 0.068853,
+          "hf_bound": 0.2
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "path": "batched",
+          "absolute_nll_error": 0.120366,
+          "hf_bound": 0.2
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "path": "per-token",
+          "absolute_nll_error": 0.120296,
+          "hf_bound": 0.2
+        }
+      ],
+      "continuous_max": 0.131544,
+      "windowed_max": 0.16763
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "top1_matches": 6,
+      "cases": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "path": "batched",
+          "absolute_nll_error": 0.026154,
+          "hf_bound": 0.05
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "path": "per-token",
+          "absolute_nll_error": 0.028194,
+          "hf_bound": 0.05
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "path": "batched",
+          "absolute_nll_error": 0.12947,
+          "hf_bound": 0.16
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "path": "per-token",
+          "absolute_nll_error": 0.11712,
+          "hf_bound": 0.16
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "path": "batched",
+          "absolute_nll_error": 0.067613,
+          "hf_bound": 0.16
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "path": "per-token",
+          "absolute_nll_error": 0.076413,
+          "hf_bound": 0.16
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "path": "batched",
+          "absolute_nll_error": 0.024126,
+          "hf_bound": 0.16
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "path": "per-token",
+          "absolute_nll_error": 0.019256,
+          "hf_bound": 0.16
+        }
+      ],
+      "continuous_max": 0.028194,
+      "windowed_max": 0.12947
+    }
+  ],
+  "build": {
+    "exit": 0,
+    "version": "llmx 0.1.0+unknown",
+    "sha256": "83c4b82bada3e461fba887f620421f17a4fd403d0eac3bd208640f8c726ea0f0",
+    "scope": "Full CPU suite with required-present hash-verified Q8 fixture, followed by Q4 and Q5 HF checks with each explicit test fixture. Other fixture SKIPs within an individual invocation are not missing aggregate coverage. No Vulkan/performance claim."
+  },
+  "raw_artifacts": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-linux-20260925",
+  "artifact_sha256": {
+    "build.log": "7388c65aebfa5ad85d9dc5949f962249b77c6c1e7aa3d9b0d1616118dbc877a6",
+    "commands.json": "68d02972961a605f064ad5acfc44790080d76a353ed8c36529b54e164e52e652",
+    "complete.json": "a950d69c2594766244192691066d8bf6d151f685e12a1d5a7a89ee38981e91e4",
+    "configure.log": "30edec3bdec45efdefe1cd1d9841560db56c51f83ca5c09e2d1865ac95aab15f",
+    "full-cpu-q8.log": "115cc2822a4eb16115c5010c4db7eabe2d85010d49a17e969bdc111264183b91",
+    "hf-Qwen3-0.6B-Q4_0.gguf.log": "385d7024f6e2bea652a3cdb7042b052e9eefd6647d666d19fa93c438d2a56ed2",
+    "hf-Qwen3-0.6B-Q5_K_M.gguf.log": "2a99b8b230b57c4e353f56558659428ab8907bd552dc5eaa1f1bf702fa1d6310",
+    "native.log": "2ab9ecead4323d409c5245ccc82c9c0de5eae08c78d8fa2006b6c2fb35427a58",
+    "plan.json": "2cdb6a6fc0278e61857bd44a77abd96966605228a6584fb4c4691b4f3ef72bed",
+    "run.py": "a2c5b48f2827354a8eebddad1e2eac38ff7722047285280cdb8b4e13c1461df4",
+    "source.tar.gz": "cbdf62bef5988e43045799e34197c6dd583b2401171bc0e7cfc17fc9bb4dbe7a"
+  },
+  "source_hashes": {
+    "CMakeLists.txt": "1b3243e72254c74ce933f88024336f43d643d108d75cf43834df14d9ddd2bf57",
+    "build.bat": "a331a5402bd95aaa14d6ea6a7f292c071223e21b4c0bf72c38bfee199bbc333b",
+    "cmake/build-info.cmake": "fe5b8400d9a0c60164c477ffc72ce112c092b984ce5626b06663ba0c5ee542be",
+    "cmake/llmx-config.hpp.in": "5c7e1da4da3550554a36cf9ecd97b504c0adda7f76600a8398be78d65b469c2e",
+    "src/backends/backend.hpp": "805cada59ff6d978fc8c66926920c3c6e56bfabe7461cb97bdfed27f66856ec9",
+    "src/backends/cpu/cpu_backend.hpp": "abb1900fb4dd06440ca66948ca01fe33b1895272d936a6de90776cc79ebd24cc",
+    "src/backends/cpu/prefill_placement.hpp": "44e748c26e27f822b519c4fda55c86063761f594314a301df995cec4c88454e4",
+    "src/backends/cpu/q8_dots.hpp": "550bd5d2b537869ffd066c72c997982c69e58a7af0b1981edafafcb724809a2f",
+    "src/backends/device_profile.hpp": "498301a5f8551a4eecbc2f67d0c1082d68703da5b979382393d4f2e846a3629c",
+    "src/backends/vulkan/shaders/add.comp": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+    "src/backends/vulkan/shaders/attention.comp": "f1627bd86ca92a22e85f25019ea970e6663e7a6383c4f743614ee2679558e8aa",
+    "src/backends/vulkan/shaders/attention_merge.comp": "97ba9b091578763205051f7905eef32c1b90c9a30398a7ac27f94b098ecafb94",
+    "src/backends/vulkan/shaders/attention_tile.comp": "04698b75ebd8ba203268c4a92c28764234df4b92c945ee1506875db7efb51107",
+    "src/backends/vulkan/shaders/embed.comp": "93b083289c72b7c14034dca85a550a4c8f1997c146d454f6b3a748ece536ea6c",
+    "src/backends/vulkan/shaders/f16.glsl": "03706b6c90a6455a987f85aadcac9383c0e655d78a35a152534c71f82530445f",
+    "src/backends/vulkan/shaders/gather_rows.comp": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+    "src/backends/vulkan/shaders/kv_write.comp": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+    "src/backends/vulkan/shaders/matmul_reduce.comp": "97e6971a4e67694eb8e229e399e3ca0a02e136c4682baefca2a905aeebc6b035",
+    "src/backends/vulkan/shaders/matmul_row.comp": "e10f6ba75da78d349e5e727b2bdd0a5759e5847bdf794b02bb5ae5a2473bbc5a",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "7ffe4bc52ba87dd380d49f4d9dcc4e037c5f43abe6b61fec79de728cea1f1b5e",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "dfa8385cd9a76b1c445e150c60637c0586b5899bf77766ec8636e755f6a8668d",
+    "src/backends/vulkan/shaders/matmul_vec_q8.comp": "c97b70ad813398c9741c8032f2e1588d41505a2387ddfc543371a245701d0737",
+    "src/backends/vulkan/shaders/moe_combine.comp": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+    "src/backends/vulkan/shaders/moe_group.comp": "c062113a83c8fcd96bb3755c774f713a873b6ef482b3a46c019f529ab0d69202",
+    "src/backends/vulkan/shaders/moe_route.comp": "8223d4f052e086480aadcc44b5f34f4448cb4fcb5600a547802c7e69a413135c",
+    "src/backends/vulkan/shaders/norm_rope_kv.comp": "3569fdc75375f2f2f1679c0d8ba56cf63c1d792999a0fc03a9d620ccfbd587d6",
+    "src/backends/vulkan/shaders/norm_rope_rows.comp": "2901981f35f95b10138f36fb7dd2397069a6b4a6045f955c4b1ff5c7f27b1d14",
+    "src/backends/vulkan/shaders/q.glsl": "4662dca42677604cac978dcf1a43d519430831636e16a9fdf822c5a364eeffec",
+    "src/backends/vulkan/shaders/qdecode.glsl": "036e27bad37c73126d7b6b5db492aac09371d26664478277e157ac84bc453846",
+    "src/backends/vulkan/shaders/quantize_x.comp": "93ca1ebc76569642e1cbcdec2dc24ec0dad86a39d2cae7226fe0bcf4c54f57e9",
+    "src/backends/vulkan/shaders/quantize_x8.comp": "7b1b3ef753399096b15bfbe5777fdd0d084bcae2d95f4eaf5c3a135e3449aaf1",
+    "src/backends/vulkan/shaders/rms_norm_rows.comp": "840775261afabfb53eb1bf425fa7ca47e52fb0d16ccdf69c77e9e0cb6464e371",
+    "src/backends/vulkan/shaders/silu_mul.comp": "742f99a0c7dffb3fb24d07345c712a03a8c56462fa36807ad68d0abf92f2abad",
+    "src/backends/vulkan/shaders/views.glsl": "fb26c2e68fd4ee07de1958160fa626ca92b69a786ddf964dd3b157f9fbf8edd3",
+    "src/backends/vulkan/shaders/xquant.glsl": "9607d7f85176f2c811960b449612bdbb4c96e7429876d81f1f7d39c427828e41",
+    "src/backends/vulkan/vulkan_backend.cpp": "ba368e39423cec55d4ccadb5bcdf010d3b354fb4d810dc5aa7b57bef3cf5d3bd",
+    "src/backends/vulkan/vulkan_backend.hpp": "e931df42752ef2b4e7d1b56400c8b20928e9e128c958af1961f62fee7bb4fe4c",
+    "src/cli/main.cpp": "98cd20ea3bea1fb30c8404f4bb3e3b29e3eef9b43f51ab5c2f8fa5a3b9ba7c58",
+    "src/config.hpp": "7c6fd79d72987c4c041d4d2a055b93ede3e4a9c9355eea6f79bdefef6693be95",
+    "src/core/fp16.hpp": "b792551e5a8c5a45969edbf7236ce43f83a859c3d8fee761d4a02401bbf05928",
+    "src/core/host_memory.hpp": "e72e12b1349b54d7513fcb3abbf7ab7ac904b8ad6359a593ae0179dba459654a",
+    "src/core/json.hpp": "afe7eca7597548b1fdacf877a21a00959607d15d5033e646f90b60895981d873",
+    "src/core/sha.hpp": "288b428cbea4798e7f8a29e2b4735142fd51889e62d30a8423ff3f79a251f7a3",
+    "src/format/format.hpp": "0e9d4a25e936eda4aeef4f1aeafc474359609480b945387fd08e1417d5d1d9e9",
+    "src/format/gguf.hpp": "6c20cd5bdc054cc75a115528385016357b81bcbb02b507f3917f5be0e6c7ecf7",
+    "src/format/mapped_file.hpp": "1d7751862fc1bd75c1c33821ca8f5371b7a14ab0b166327f9cf456a6460828dd",
+    "src/hub/manifest.hpp": "06e327c14656ed05182be251e09113ba8b0a3b252dca9fa60985cb823c4930c0",
+    "src/hub/pull.hpp": "387d9857534e6ee7f6d44cbf97012de70990ca94baec1e95f8c1a2a0884580d5",
+    "src/hub/transport.hpp": "98d10eb3614079d4ef45cdfffb03f1cce794c49e3021487322118d860a89a231",
+    "src/inference/chat.hpp": "8e58290df18983d193f2cb62b01f165afd6f6daf0ff1acdd185baad6b524b2b5",
+    "src/inference/generate.hpp": "020dc85787ce33d97a7c0bf30e54f5db11b926bc1c547f1e98f4fa4b36925491",
+    "src/inference/perplexity.hpp": "067cd7df98b4e89913a69dfe4303ee28af3f92d740fc41c3fb2097989ab21705",
+    "src/inference/sampler.hpp": "afaf09171e824dee8a15b1e797910711e489e2ca4b888d28f0b2301bbe2fb0f8",
+    "src/model/arch_qwen.hpp": "892ccc0bfbd47ddf445178ec83f87b237d2b4f3f3e9fa2f17a96e9bde0aaae29",
+    "src/model/kv_cache.hpp": "d1738e8d2815fc74f257575884da5f49ef9f17ee67c0210845d22c27ec36a403",
+    "src/model/layer_split.hpp": "5c3e615b30fa232e3c9fcf75af1c9df083442b92c28bf7f03411050a4200db4f",
+    "src/quant/k_quants.hpp": "e4967b021a02fec2a9a210fd87b9c6a59df03429fcad2d6a2a0f96f9955800ee",
+    "src/quant/quant.hpp": "536fff70f8166914b8d9c94bfe3affa16027d13837cf2e3ac10981b5187ea690",
+    "src/server/api.hpp": "3ad70651aa3c2a876a897ecf893e640a29293e424681b1f2989ae7fffa1b0e26",
+    "src/server/http.hpp": "2da469f2b15144eccfa3619edce4f4322fe7c634f1d3a0f3bb8b3b1fad55b2b2",
+    "src/server/scheduler.hpp": "60b0a6b565aea37487a487bc02f292fa5b236c4a67602f7c879fa2df84ccb956",
+    "src/tokenizer/tokenizer.hpp": "5c3238acf7397963973af3633e00c216b7ad76e1cb8bb3c59a1a56f17c5a88e3",
+    "tests/backend_errors.cpp": "15600096b5900f5696031b27cc214b8ea961eb041b80c1a6906039dba6712be9",
+    "tests/backend_group.cpp": "fda6eded3755a8ec0d65cc83986a4ab8bea39363fae201c62f11f3723b847409",
+    "tests/backend_vulkan.cpp": "fc80128c5642339982b51652cc56e8133d0083888303b14eb6dddbc0eb759217",
+    "tests/baseline.py": "737d6db32ca6a1b882baae95a58d93f1da0bf8a563c25d9c6314f83519eb56df",
+    "tests/baseline_8b.py": "5a29cbaaa628494b7771d628f431b37a53265771dee0ce60b65df6fdae2ea676",
+    "tests/chat.py": "395e4cc7c8a55a560f1127e85e5db42746e85bcf05521abe2b458035c483e978",
+    "tests/chat_template.cpp": "c5a698cab5403bea596ef604d8a91ab994c9865049b91de0c897caaaf701fdb2",
+    "tests/cli_output.cpp": "16fbce493be92c298fcff74f05f046adf9462d6bc84bae04bf57c354939f18fa",
+    "tests/common.py": "449e929a59759500f6c595c8304a29684ecb562bbe214282aa174dd4142df62f",
+    "tests/data/baseline_chat.json": "80417fac731ee303d6aa24173f6e1dea27247cde27fd7ae1adfa742fb077b73f",
+    "tests/data/baseline_chat_template.json": "8bc6f08f352cc7acd8c0a07aebd4c03429be4d7fa5a9275c1959bb06d3b10cbd",
+    "tests/data/baseline_f32.json": "fa06417e1aed5d711ca402e9caae2bf1ed8c4d04ac927ff7787cc479e4f36600",
+    "tests/data/baseline_logits.json": "5927e583c7f7fed1bfd2e4b2e2dd466208341e2f9961ec789a50035a8601022b",
+    "tests/data/baseline_moe.json": "04b846514dd3cf6e78300c1b7f37cc05df4c941b2c07a47eeb57aa9ffecde040",
+    "tests/data/baseline_perplexity.json": "7a7a310054bbcd6e4a558adea4f06f007fc0cee80766b6edacd14542cecef15c",
+    "tests/data/baseline_tokenizer.json": "ff3732350004f244df10a1cbd66a6305319557c643f7bfc6a5ec08afb85878c6",
+    "tests/data/qwen3-8b/baseline_logits.json": "130edd44194f1023985de17864692ccff4c787bd80f3d8eeed0943885996de07",
+    "tests/data/qwen3-8b/baseline_perplexity.json": "6ac1a14b3117b51b076c1a9bab956d3735a99a73ef8295e598c2b052b5de0112",
+    "tests/data/qwen3-8b/baseline_tokenizer.json": "76f1dc73aad3823af2f6952f7d6d4a689a1745249fd7faf3cca0a81c856551b5",
+    "tests/data/wiki.test.raw": "4f3e427e4aff23acff917a8a51aeae21bf12832256e26914c8fc250dcef4103c",
+    "tests/f32.py": "5189709b1f8da9dbd0f8416198a3eef7cd90edc490544c7d8246296e60f3c276",
+    "tests/fetch_models.py": "198d8f2f101022399a8bbb7f170ae736c8ce5a96566a9aeede6c39a22cd1c47f",
+    "tests/fp16.cpp": "6da851c4c204cd12bc23e91477103f5e801f42b449297a151e5348ed6e6dd0de",
+    "tests/fused_dot_overflow.cpp": "b76fe413bcdbfb458842f7c57afc34fd7dd5a860e8e398a5f6d491fd3cd6f3e1",
+    "tests/generation_stream.cpp": "8ce696db4de6e4eef962f585609eff2fa64509f80b3d42e48f6b89b98c428a77",
+    "tests/gguf_shards.cpp": "aa236556d9623507e8ba3680d7ce80f9ec1ac27aa18b830106bacc6f39f4709f",
+    "tests/gguf_validation.cpp": "1f28830481046a8e18197209cb8a1e5ca2f6d3f7f673f94aaeb23377377ae021",
+    "tests/http.cpp": "b630349353495656a2f84daafee8855e9da0a38c8b54c9adc71eb93c35cc517b",
+    "tests/hub_manifest.cpp": "ad8bef3cc06c60b4d38b5df8ec3d401a4c7346ae42484b0f94a34662e8d28000",
+    "tests/hub_pull.cpp": "22d6858caf24734579d84fb1b224eb8c8b0d5e17b805627f3778a0eff25b3201",
+    "tests/hub_transport.cpp": "14a313d1ab3cda45f6e396cd0e79a4c957394c453649708282cd1957f94cbe46",
+    "tests/json.cpp": "29e62380771778a08c693e01dc090c47d30dd6c46466de4b8a22e5f08581edfa",
+    "tests/kv_cache.cpp": "3b296c6addf5124763db3391f5fe7b09dbed90c5822be44906314cbdf7257d1c",
+    "tests/load_progress.cpp": "bd6dccb39e9713d1ab2279ee1d60d4b808ec737df0fdb7df014d80d9e964de19",
+    "tests/model_validation.cpp": "942fddbd072559dde3e887658e13a92259683f773bf3e70efc7fca20bd67d301",
+    "tests/moe.py": "ee51cb09721880e1e8a6a9708cf14a381cfcb7f4bf8de823ed6e912e90f6eaeb",
+    "tests/perf.py": "bacddf118f5e405c035fba1a708081102f139835ed39b3d83307c64e01ea8544",
+    "tests/perplexity.py": "4812d0367ba798a965c33f751c89436652161e93b53607c5c8b9b6f62f8168cc",
+    "tests/placement.cpp": "8269ad74303ca5bcc10af1d2d52f0f5ef9931defd9799db75780a1a2a589f2a7",
+    "tests/prefill_placement.cpp": "01f0dc49e7e59e7d01ef4a223b64890c7b55a24ea7bf4414c79a3126d9f77c89",
+    "tests/prefill_scope.cpp": "20bacc2244d1ac524a40d07218a7f4fd7a6adc547cd08e2950252819551a8a42",
+    "tests/q8_dots.cpp": "b7ce0634998dd7e7b5bf9a4c12e4bbbc6e09117b82d88983926f4cc6ab2f5556",
+    "tests/reference_consumer.py": "3feb23fbde246872bc67230a613bc897eb906ca01fdebea4d40582b5bd6067f1",
+    "tests/reference_generator.py": "814284f570996c23d7318066b42dfa6bb087f3ded9bf53a31fcb5444eed20908",
+    "tests/roundtrip.py": "6bf6cd8892fc76780febdef169eb4550268c747b68c4802c9eba7f36ab1daf6e",
+    "tests/run_tests.py": "1cfc3db53ae4c8b21b6a8f44683a04d41208720abaabbf80461c038b4129c22f",
+    "tests/server.py": "332efd69b3a5990394f59f3a33249253c337be7d5217c5ebaa1771ff8990462a",
+    "tests/shards.py": "a0a5a10aee1298c2ce6e80d87e9b1625c36e68732d8b9ceb1d38321ca6e391ce",
+    "tests/threads.py": "8a7f6dc8a5c2468c7f92d15c6df138a63fcb6f33375ea6ed076765e70891bd5d",
+    "tests/tokenizer.py": "6c61616e145f8b978ee9b007fa7e4502e50303b0e6116e585c84d0f37e429467",
+    "tests/version.py": "2296cd3490b6ecbbcdaa3f0d7adb2df352872e7db4364ad0f81b33976b44a7fe"
+  },
+  "limits": [
+    "No Linux Vulkan, MI50, performance or long-context claim.",
+    "Each explicit model invocation skips other fixture names; all three fixtures are checked across the aggregate. --require-baseline was not used; the driver asserts each model hash, six top-1 matches and eight passing PPL rows.",
+    "WSL temporary build directory was absent on follow-up inspection; native.log remains but passing CTest detail output was not recovered. Source archive, hashes, commands and completion binary hash remain.",
+    "Existing compiler warnings remain; this is not a warning-free claim."
+  ],
+  "saved_log_names": {
+    "full-cpu-q8.txt": "full-cpu-q8.log",
+    "hf-Qwen3-0.6B-Q4_0.gguf.txt": "hf-Qwen3-0.6B-Q4_0.gguf.log",
+    "hf-Qwen3-0.6B-Q5_K_M.gguf.txt": "hf-Qwen3-0.6B-Q5_K_M.gguf.log",
+    "native.txt": "native.log"
+  },
+  "documentation_review": {
+    "markdown_files": 39,
+    "relative_file_targets": 127,
+    "non_ascii_lines": 0,
+    "missing_file_targets": 0,
+    "scope": "All files scanned for affected claims, with an independent backend-contract review. Historical measurements, external links and anchors not revalidated."
+  },
+  "encoded_log_names": {
+    "configure.json": {
+      "original": "configure.log",
+      "field": "text",
+      "encoding": "utf-8"
+    }
+  }
+}

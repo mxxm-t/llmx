@@ -1,0 +1,29 @@
+{
+  "status": "prepared_not_executed_on_performance_results",
+  "original_frozen_files_unchanged": {
+    "plan.json": true,
+    "cli-plan.json": true,
+    "run_matrix.py": true,
+    "run_cli_matrix.py": true,
+    "compare.cpp": true,
+    "ids.txt": true,
+    "monitor_windows.py": true
+  },
+  "files": {
+    "analyze_final.py": "61efb6222492457be699b2926b366fc696570a330b922a826e60770ff18ee5d1",
+    "test_analyze_final.py": "662172aa310cff9b093d3f3dd1d06b9fbd83aec2272801ca505121ffcb018b74"
+  },
+  "offline_checks": "offline-fixtures-20260925T015241378729Z/offline-checks.json",
+  "offline_passed": 51,
+  "usage": [
+    "python review/analyze_final.py",
+    "python review/analyze_final.py --cli",
+    "python review/analyze_final.py --partial",
+    "python review/analyze_final.py --cli --partial"
+  ],
+  "limits": [
+    "No model payloads, builds, inference or performance samples were read or executed.",
+    "Only new files under review were created; final analyzer requires exact order and terminal success but does not issue an adoption, parity or noise verdict.",
+    "Known activity and unknown telemetry are reported independently; every planned successful sample remains included."
+  ]
+}

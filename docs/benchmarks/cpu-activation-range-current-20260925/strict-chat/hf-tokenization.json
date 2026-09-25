@@ -1,0 +1,28 @@
+{
+  "scope": "Independent HF tokenizers full prompt-ID parity, not long-context numerical correctness. No model inference.",
+  "tokenizers_version": "0.22.2",
+  "hf_tokenizer": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B\\snapshots\\c1899de289a04d12100db370d81485cdf75e47ca\\tokenizer.json",
+  "hf_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "hf_tokenizer_sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+  "plan_sha256": "7b269b13a140398e97efbab605db555dc9f74177ac1e50aee8cded143c78c170",
+  "models": [
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "tokens": 19820,
+      "exact_hf_ids": true,
+      "ids_sha256": "ac4e3b0a47b61428e232dcbce92ab45b844977d55f78d96ac380a4ebedec6402"
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "tokens": 19820,
+      "exact_hf_ids": true,
+      "ids_sha256": "ac4e3b0a47b61428e232dcbce92ab45b844977d55f78d96ac380a4ebedec6402"
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "tokens": 19820,
+      "exact_hf_ids": true,
+      "ids_sha256": "ac4e3b0a47b61428e232dcbce92ab45b844977d55f78d96ac380a4ebedec6402"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+Qwen3-0.6B-Q8_0.gguf-base started
+Qwen3-0.6B-Q8_0.gguf-base: prompt 19820, generated 244, eos, exact match
+Qwen3-0.6B-Q8_0.gguf-repeat started
+Qwen3-0.6B-Q8_0.gguf-repeat: prompt 19820, generated 244, eos, exact match
+Qwen3-0.6B-Q8_0.gguf-candidate started
+Qwen3-0.6B-Q8_0.gguf-candidate: prompt 19820, generated 244, eos, exact match
+Qwen3-0.6B-Q4_0.gguf-base started
+Qwen3-0.6B-Q4_0.gguf-base: prompt 19820, generated 302, eos, exact match
+Qwen3-0.6B-Q4_0.gguf-repeat started
+Qwen3-0.6B-Q4_0.gguf-repeat: prompt 19820, generated 302, eos, exact match
+Qwen3-0.6B-Q4_0.gguf-candidate started
+Qwen3-0.6B-Q4_0.gguf-candidate: prompt 19820, generated 302, eos, exact match
+Qwen3-0.6B-Q5_K_M.gguf-base started
+Qwen3-0.6B-Q5_K_M.gguf-base: prompt 19820, generated 229, eos, exact match
+Qwen3-0.6B-Q5_K_M.gguf-repeat started
+Qwen3-0.6B-Q5_K_M.gguf-repeat: prompt 19820, generated 229, eos, exact match
+Qwen3-0.6B-Q5_K_M.gguf-candidate started
+Qwen3-0.6B-Q5_K_M.gguf-candidate: prompt 19820, generated 229, eos, exact match

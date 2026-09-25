@@ -1,0 +1,33 @@
+{
+  "checked_utc": "2026-09-25T01:43:33.436983+00:00",
+  "old_candidate": "842f453ed22c",
+  "current_candidate": "356b7457398af98dcff211d611af808f0608e44e",
+  "command": [
+    "git",
+    "-c",
+    "safe.directory=C:/Users/Marko/AppData/Local/Temp/llmx-cpu-activation-current-20260925",
+    "-C",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925",
+    "diff",
+    "842f453ed22c",
+    "356b7457398af98dcff211d611af808f0608e44e",
+    "--",
+    "src",
+    "tests"
+  ],
+  "diff_sha256": "da19d56b7bf0d1f6c4ce9932c7ea4337ee6e8163fdb0bb2f6fc5cff798f4d14d",
+  "review": {
+    "cpu_backend.hpp": "One comment indentation change; executable statements unchanged.",
+    "backend.hpp": "Comments only.",
+    "arch_qwen.hpp": "Comments only.",
+    "cli/main.cpp": "Comments, perplexity thread selection/diagnostic, benchmark depth/IDs/flags/help. No serve/chat path changes in diff.",
+    "vulkan_backend.cpp": "Resource ownership cleanup; outside CPU long-chat path.",
+    "tests": "f32, threads and Vulkan buffer regression coverage."
+  },
+  "limits": [
+    "This connects source scope only; it does not make current and old executable identities equal.",
+    "Long-context output equality is self-consistency, not independent HF deep-context numerical validation.",
+    "Current candidate has separate native/HF validation; final matched performance remains pending.",
+    "Code layout can change with comments/build identity and unrelated CLI edits; no performance equivalence inferred."
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "guarded_freeze_sha256": "23cf395e230a9057ab4dc655c5691cf22cecca926d0eb2420022b7dc22c38adf",
+  "stage": "common",
+  "reviewed": true,
+  "own_competing_work_stopped": true,
+  "checked_utc": "2026-09-25T01:53:46.412301+00:00",
+  "foreground_preflight": "foreground-preflight/report.json",
+  "strict_raw_audit": "../llmx-activation-chat-long-20260925/audit/final-9-20260925T015124456253Z.json"
+}

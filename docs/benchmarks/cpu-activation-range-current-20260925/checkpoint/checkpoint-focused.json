@@ -1,0 +1,20 @@
+{
+  "completed_utc": "2026-09-25T02:44:56.561939+00:00",
+  "argv": [
+    "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "-X",
+    "utf8",
+    "-c",
+    "import sys; sys.path.insert(0, sys.argv[1]); import common,version,f32,threads; common.EXE=sys.argv[2]; assert version.run(); assert f32.run(); assert threads.run()",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925\\tests",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925\\build-checkpoint\\Release\\llmx.exe"
+  ],
+  "exit": 0,
+  "binary": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925\\build-checkpoint\\Release\\llmx.exe",
+    "version": "llmx 0.1.0+g08335aeb8a63.dirty",
+    "sha256": "acdc99e7a0e42d29bda451f0c15d5a20830fa2233f46e7a05ffaead187db89bb"
+  },
+  "log_sha256": "7f817fcbc80a4d16c8f44336548f24183a19c2d0b65cedb0949d743d3ee8d8c7",
+  "scope": "Fresh documentation-checkpoint build; unchanged source/tests/build from356b745. Version/F32/HF/thread controls. Performance identities retained separately."
+}

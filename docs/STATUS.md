@@ -4,6 +4,72 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## CPU activation range checkpoint (2026-09-25)
+
+Tiny finite CPU activation blocks now retain a representable scale and
+nearest-even packed integers when the float reciprocal overflows. The ordinary
+SIMD arithmetic is unchanged. The change is confined to CPU activation packing;
+no backend interface, model dependency, runtime flag or GPU shader changes.
+This integrates the reviewed repair onto main `11f5859`.
+
+| Correctness check | Observed | Requirement |
+|---|---:|---:|
+| Current-main native tests | 21/21 | All |
+| Required-HF CPU components | 14/14 | All |
+| Real-model NLL, batched and per-token | 24/24 | Frozen HF bounds |
+| Independent activation checks | 10,004 blocks / 320,128 values | Range, reconstruction, signs, zeros, sums and guards |
+| Ordinary activation controls | 2,686,976 values unchanged | Exact packed bytes, scales and sums |
+| Strict native-chat depth comparisons | 9/9 | Baseline/repeat/candidate exact through EOS |
+
+[Integration evidence](benchmarks/cpu-activation-range-current-20260925/report.json)
+retains the fresh native/HF logs and exact source identities. The
+[strict chat gate](benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md)
+uses 19,820 prompt tokens on each of Q8, Q4 and Q5, with respectively 244, 302
+and 229 generated tokens, zero reuse and no manual generation cap. Its frozen
+older binaries and source-scope bridge remain explicit: this is scoped output
+equality at depth, not independent HF numerical correctness there. The original
+[raw-completion EOS gate](benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md)
+remains incomplete after the baseline filled its context; no candidate result
+is inferred from it. Gradual underflow is assumed; nonfinite inputs and
+flush-to-zero behavior are outside the activation repair's claim.
+
+The [final performance package](benchmarks/cpu-activation-final-perf-20260925/README.md)
+retains all 128 common-harness and 72 normal-CLI measurements, balanced orders,
+raw outputs and activity telemetry. All 15 model/executable/DLL hashes and
+seven versions match after timing. The common comparison measures detached
+candidate `356b745` against main `11f5859`, layout control `e149fc0` and mx
+`5542318`, built alike on the same Windows machine. All eight paired candidate/mx
+point estimates are positive; 8B decode is effectively tied (+0.126%, four of
+eight pairs faster), so universal performance parity is not established.
+
+| Normal CLI Q5 decode | Before | Candidate | Layout control |
+|---|---:|---:|---:|
+| Median throughput, tok/s | 77.38 | 71.24 | 73.23 |
+| Paired throughput change vs before | Reference | -6.568% | -4.110% |
+
+Accept this as a correctness repair with that measured cost. All six Q5 CLI
+pairs are slower; candidate/control remains -2.563%, so layout does not explain
+away the cost. The common harness uses a different prompt, microbatch and decode
+history and cannot cancel the CLI result. Ordinary packed values, external HF
+bounds and scoped depth equality support the repair; no cause for the slowdown
+or performance neutrality is claimed. All other gains and losses and the prior
+200 historical measurements remain available with their original scope.
+Observed activity flags affect 126/128 common and 70/72 CLI invocations; all
+retain unknown process CPU deltas. No competing own builds, tests or downloads
+overlap timing. Telemetry covers whole invocations, not precise phase activity.
+
+A [fresh CPU-only Release checkpoint build](benchmarks/cpu-activation-range-current-20260925/checkpoint/checkpoint-focused.json)
+passes version/banner, F32 HF (maximum error 0.00000069 against 0.00002) and 56
+thread-control cases (maximum NLL error 0.00000093 against 0.00001). Runtime,
+tests and build configuration match the measured candidate; this later dirty
+build identity is recorded separately, without a binary-performance equivalence
+claim. All 45 project Markdown files received an affected-claim, ASCII and
+relative-file-link review, including both analyzer summaries and the original
+failed depth attempt. Historical measurements retain their original scope;
+remote URLs and their anchors were not revalidated. The evidence archive
+preserves all 1,004 raw files byte for byte in 5.66 MiB of compressed data.
+CPU RowRuns validation and LDEV attention remain separate work.
+
 ## Vulkan cache cleanup checkpoint (2026-09-25)
 
 - **Goal:** close the three reproduced Vulkan ownership failures without
@@ -23,8 +89,11 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   The executable reports `llmx 0.1.0+gc0d02cc0b28e`; SHA-256 is recorded in
   `clean-commit.json` with commands and raw logs. Earlier pre-commit `unknown`
   binaries retain their original identity and evidence. Independent source,
-  test and evidence review passed; the implementation is ready for main.
-  Hosted CI is recorded after publication rather than claimed in advance.
+  test and evidence review passed. Published main `11f5859` contains this
+  runtime unchanged; all six hosted CI jobs passed in
+  [run 36074805315](https://github.com/mxxm-t/llmx/actions/runs/36074805315).
+  Hosted Vulkan coverage builds the backend; the local Radeon VII run
+  supplies numerical coverage.
 - **Gotchas:** CPU malformed RowRuns is a separate follow-up. No numerical
   shader, arithmetic, dispatch selection or successful queue-wait change.
   No performance claim is made while long-context correctness runs; suite
@@ -259,8 +328,8 @@ allocation lifetime `01010e1` is integrated in the checkpoint above.
 The separate activation long-context gate stopped on the Q8_0 base: a 19,812
 token prompt plus 12,956 generated tokens filled the 32,768 context, returning
 `length` rather than the required EOS after 6,093.875 seconds. No candidate
-long comparison was reached. The raw response is retained; this establishes
-an incomplete gate, not a candidate numerical result.
+long comparison was reached. The [raw response and failure record](benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md)
+are retained; this establishes an incomplete gate, not a candidate numerical result.
 
 ## Multi-device phase 1: layer split across devices (ROADMAP #5) (2026-09-24, branch feat/multi-device-phase1)
 
@@ -3149,6 +3218,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Test suite (roundtrip / perf / tokenizer)| Done     |
 | Perf `bench` command                     | Done     |
 | CPU backend optimization                 | Done     |
+| CPU tiny-activation range repair | Done; measured CLI Q5 decode cost retained in the checkpoint above |
 | Vulkan allocation failure ownership | Done |
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
 | More model architectures (Llama, ...)    | Planned  |
@@ -3212,6 +3282,30 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 
 ## Active feature blocks
 
+### Scoped correctness coverage and remaining HF work
+
+- **Goal:** keep independent HF ground truth and extend coverage where the roadmap requires it.
+- **Done:** exact tokenizer fixtures; tiny tied/untied F32 full logits and NLL; real Q8/Q4 ranking and excerpt PPL; HF/Jinja2 follow-up chat fixtures; pinned reference generation and strict consumers. The unchanged real 8B consumer previously passed 37/37 on Windows and Linux with frozen bounds. Real 0.6B F32/Q8 1,943-token plus 32-step continuation checks are archived in ASSETS.
+- **Left:** broader full-corpus, maximum-context and per-layer references, plus prospective numerical bounds for any new lossy kernels. Short 8B rankings/excerpts are not deep-context validation.
+- **Gotchas:** self-consistency is supplementary. Exact comparison against another llmx path cannot replace HF. Model construction validation does not establish finite weights, arbitrary token-ID safety, request budgets or failed-session recovery.
+
+## Working rules and ownership
+
+Current feature ownership and timing reservations are recorded in the shared
+collaboration log outside this repository. Confirm ownership there before
+starting work; historical branch names below are not active assignments. Builds and tests
+may run in parallel when no timing reservation is active. Keep every planned
+performance sample, record ordinary machine activity, and report missing
+telemetry honestly. GitHub receives main only; feature work stays on its branch until its gates pass.
+
+## Historical feature blocks (2026-09-19 to 2026-09-22)
+
+These dated blocks preserve the results, plans and open items from their
+checkpoints. Use the status table and current feature blocks above for the
+present state. Historical Left lines can refer to work that later shipped
+or was superseded. The overall HF correctness and mx performance requirements
+remain in progress; historical results establish only their recorded scope.
+
 ### Vulkan prefill through the 8-bit integer dot (2026-09-22)
 
 - **Goal:** prompt processing on the MI50 at least level with the reference, where it was 44 to 79 percent against a reference split across ten cards and is 24 to 73 percent against one (the thirty-fourth paragraph, measured after the tile below). Measured on that card within one environment at a 4096 x 14336 projection over 512 rows, our float tile reads 4.87 TFLOPS for Q8_0, 4.65 for Q4_K and 3.62 for Q6_K, level with the reference's own float tile at 4.77, while its 8-bit integer-dot tile reads 13.30, 11.42 and 7.03. So the gap is that path, not scheduling or tile shape (STATUS, thirty-third paragraph above).
@@ -3242,14 +3336,6 @@ The 1.02x is inside the range an A/A can produce and should not be leaned on;
 the 1.69x-1.82x margins and the 0.57x shortfall are not.
 Evidence: `benchmarks/main-external-floor-20260920.json`.
 
-
-### Scoped correctness coverage and remaining HF work
-
-- **Goal:** keep independent HF ground truth and extend coverage where the roadmap requires it.
-- **Done:** exact tokenizer fixtures; tiny tied/untied F32 full logits and NLL; real Q8/Q4 ranking and excerpt PPL; HF/Jinja2 follow-up chat fixtures; pinned reference generation and strict consumers. The unchanged real 8B consumer previously passed 37/37 on Windows and Linux with frozen bounds. Real 0.6B F32/Q8 1,943-token plus 32-step continuation checks are archived in ASSETS.
-- **Left:** broader full-corpus, maximum-context and per-layer references, plus prospective numerical bounds for any new lossy kernels. Short 8B rankings/excerpts are not deep-context validation.
-- **Gotchas:** self-consistency is supplementary. Exact comparison against another llmx path cannot replace HF. Model construction validation does not establish finite weights, arbitrary token-ID safety, request budgets or failed-session recovery.
-
 ### K-quant and device execution work (separate developer branch)
 
 - **Goal:** improve the remaining K-quant decode path and continue ROADMAP #4a without overlapping this release/placement work.
@@ -3257,24 +3343,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 - **Left:** prospective correctness/performance validation for any new quantized-activation path. The device execution model is complete on main (see the 2026-09-21 block above); K-quant decode remains. Coordinate rebases and announce timing reservations.
 - **Gotchas:** earlier grouped Q16 failed the unchanged native double-dot accuracy contract. Do not reuse it as a lossless baseline or weaken bounds after observing results. CPU Q8 results do not establish K-quant parity.
 
-## Working rules and ownership
-
-One developer owns native HF download/cache and sharded GGUF loading; the other owns its
-separate K-quant/device work. Coordination happens in a shared log outside
-this repository. Builds and tests
-may run in parallel when no timing reservation is active. Keep every planned
-performance sample, record ordinary machine activity, and report missing
-telemetry honestly. GitHub receives main only; feature work stays on its branch until its gates pass.
-
-## Historical feature blocks (2026-09-19 to 2026-09-21)
-
-The blocks from here to the end are checkpoints of features that have since
-shipped or been closed; the status table above is the current state. Their
-Left lines, such as merging with the runtime stack or closing an external
-floor, record what was open at the time and are not current work. The two
-exceptions are the blocks whose table rows are still `In Progress`,
-"Correctness baseline vs HF reference" and "Performance floor vs
-mx-llama.cpp".
 
 ### GGUF reader size and tensor extent validation
 

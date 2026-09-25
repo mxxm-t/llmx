@@ -1,0 +1,74 @@
+{
+  "checks": 2003,
+  "errors": [],
+  "cli_positions": {
+    "base": [2, 2, 2],
+    "candidate": [2, 2, 2],
+    "layout": [2, 2, 2]
+  },
+  "cli_rows": 72,
+  "monitor_error_totals": {
+    "parse_errors": 0,
+    "process_enumeration_errors": 0,
+    "counter_collection_errors": 0
+  },
+  "counter_missing_observations": 0,
+  "cells": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "phase": "pp",
+      "candidate_mx_paired_percent": 86.5359007939865,
+      "candidate_base_block_range": [-6.3687708950298845, 4.502177417464126],
+      "layout_base_block_range": [-3.8386391544704246, 6.808016433329556]
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "phase": "tg",
+      "candidate_mx_paired_percent": 7.102832425878525,
+      "candidate_base_block_range": [-4.80287912484706, 6.432620978808035],
+      "layout_base_block_range": [-4.977896948572658, 2.6329003723037925]
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "phase": "pp",
+      "candidate_mx_paired_percent": 9.999288532974514,
+      "candidate_base_block_range": [-5.284819764566495, 11.787366095061703],
+      "layout_base_block_range": [-19.09905609718261, 11.95305899300787]
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "phase": "tg",
+      "candidate_mx_paired_percent": 10.385256934558651,
+      "candidate_base_block_range": [0.48591196658291924, 22.070551490643386],
+      "layout_base_block_range": [-15.476895379464729, 20.645219245346325]
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "phase": "pp",
+      "candidate_mx_paired_percent": 75.70341475691795,
+      "candidate_base_block_range": [-4.7420667112882064, 21.08921395897385],
+      "layout_base_block_range": [-38.48145567273452, 18.358650321541138]
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "phase": "tg",
+      "candidate_mx_paired_percent": 3.390730657018981,
+      "candidate_base_block_range": [-12.690847788286186, 18.27352871766472],
+      "layout_base_block_range": [-3.754364829511636, 12.74439839664263]
+    },
+    {
+      "model": "Qwen3-8B-Q8_0.gguf",
+      "phase": "pp",
+      "candidate_mx_paired_percent": 82.46132645727752,
+      "candidate_base_block_range": [-4.0092971037861584, 7.507152749155543],
+      "layout_base_block_range": [-6.074520820301799, 6.1326366104648145]
+    },
+    {
+      "model": "Qwen3-8B-Q8_0.gguf",
+      "phase": "tg",
+      "candidate_mx_paired_percent": -1.7486827337408806,
+      "candidate_base_block_range": [-1.1194511572334753, 8.524856664667958],
+      "layout_base_block_range": [-3.0792486581855183, 10.928957080714042]
+    }
+  ]
+}

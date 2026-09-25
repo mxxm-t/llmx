@@ -1,0 +1,900 @@
+{
+  "status": "pass",
+  "bounds": {
+    "top5_overlap": 5,
+    "max_abs_logit": 100.0,
+    "continuous_nll": 0.01,
+    "window_nll": 0.02
+  },
+  "threads": 6,
+  "ubatch": 128,
+  "model": "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+  "executable": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+  "device": "cpu",
+  "layer_shares": null,
+  "fixture_sha256_lf": {
+    "baseline_tokenizer.json": "9f8cdedcd91e89e388ac6081c6e496ea7e2f95d2565664cc5117144e29b1fe2a",
+    "baseline_logits.json": "e3eb726e06ff3bd9d5ecd69712c324a9842ccd58ec33fda4bb19dc4476f9680e",
+    "baseline_perplexity.json": "c6e84d0d0661e07b285c7882ac0dd9d128dd45ad7215c2d83a345f3e84f71178"
+  },
+  "scope": "20 tokenizer cases, six short prefill rankings and four serial-step NLL cases; not full-corpus or deep-context coverage",
+  "provenance_limit": "Official GGUF base model and file digest match; exact original conversion revision is undocumented.",
+  "commands": [
+    {
+      "label": "version",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "--version"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-00",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "hello world"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-01",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "The capital of France is Paris."
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-02",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "  hello"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-03",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "   spaced   out   "
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-04",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "\ttabbed"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-05",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "trailing   "
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-06",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "a\n\nb"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-07",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "don't can't won't"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-08",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "Hello, World! 123 456"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-09",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "3.14159 and 1e-9"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-10",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "cafe naive jalapeno"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-11",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "\u00e9\u00e8\u00ea \u65e5\u672c\u8a9e \u0440\u0443\u0441\u0441\u043a\u0438\u0439"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-12",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "\ud83d\ude00 emoji \ud83d\ude80"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-13",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "def f(x):\n    if x > 0:\n        return x\n    return -x"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-14",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "<|im_start|>user\nhi<|im_end|>"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-15",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "MixedCASE_snake_case-kebab.dot"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-16",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "\u00ad"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-17",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "co\u00adoperate"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-18",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "\u4e2d\u6587"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "tokenizer-19",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "\u036d"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-00-ids",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "The capital of France is"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-00",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "The capital of France is",
+        "--top",
+        "10",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-01-ids",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "Machine learning is"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-01",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "Machine learning is",
+        "--top",
+        "10",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-02-ids",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "def add(a, b):"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-02",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "def add(a, b):",
+        "--top",
+        "10",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-03-ids",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "The three primary colors are red,"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-03",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "The three primary colors are red,",
+        "--top",
+        "10",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-04-ids",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "In 1969, humans first walked on the"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-04",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "In 1969, humans first walked on the",
+        "--top",
+        "10",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-05-ids",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "The capital of France is Paris. The capital of Italy is Rome. The capital of"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "logits-05",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+        "--top",
+        "10",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "ppl-ids",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "tokenize",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "ppl-00",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "perplexity",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "--file",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness\\hf-8b\\excerpt.txt",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "ppl-01",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "perplexity",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "--file",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness\\hf-8b\\excerpt.txt",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--ctx-size",
+        "64",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "ppl-02",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "perplexity",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "--file",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness\\hf-8b\\excerpt.txt",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--ctx-size",
+        "64",
+        "--chunks",
+        "2",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    },
+    {
+      "label": "ppl-03",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+        "perplexity",
+        "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "--file",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\correctness\\hf-8b\\excerpt.txt",
+        "--threads",
+        "6",
+        "--ubatch",
+        "128",
+        "--ctx-size",
+        "123",
+        "--device",
+        "cpu"
+      ],
+      "status": "exited",
+      "returncode": 0
+    }
+  ],
+  "checks": [
+    {
+      "label": "tokenizer-00",
+      "status": "pass",
+      "tokens": 2
+    },
+    {
+      "label": "tokenizer-01",
+      "status": "pass",
+      "tokens": 7
+    },
+    {
+      "label": "tokenizer-02",
+      "status": "pass",
+      "tokens": 2
+    },
+    {
+      "label": "tokenizer-03",
+      "status": "pass",
+      "tokens": 5
+    },
+    {
+      "label": "tokenizer-04",
+      "status": "pass",
+      "tokens": 2
+    },
+    {
+      "label": "tokenizer-05",
+      "status": "pass",
+      "tokens": 3
+    },
+    {
+      "label": "tokenizer-06",
+      "status": "pass",
+      "tokens": 3
+    },
+    {
+      "label": "tokenizer-07",
+      "status": "pass",
+      "tokens": 6
+    },
+    {
+      "label": "tokenizer-08",
+      "status": "pass",
+      "tokens": 12
+    },
+    {
+      "label": "tokenizer-09",
+      "status": "pass",
+      "tokens": 13
+    },
+    {
+      "label": "tokenizer-10",
+      "status": "pass",
+      "tokens": 6
+    },
+    {
+      "label": "tokenizer-11",
+      "status": "pass",
+      "tokens": 9
+    },
+    {
+      "label": "tokenizer-12",
+      "status": "pass",
+      "tokens": 5
+    },
+    {
+      "label": "tokenizer-13",
+      "status": "pass",
+      "tokens": 19
+    },
+    {
+      "label": "tokenizer-14",
+      "status": "pass",
+      "tokens": 5
+    },
+    {
+      "label": "tokenizer-15",
+      "status": "pass",
+      "tokens": 9
+    },
+    {
+      "label": "tokenizer-16",
+      "status": "pass",
+      "tokens": 1
+    },
+    {
+      "label": "tokenizer-17",
+      "status": "pass",
+      "tokens": 3
+    },
+    {
+      "label": "tokenizer-18",
+      "status": "pass",
+      "tokens": 1
+    },
+    {
+      "label": "tokenizer-19",
+      "status": "pass",
+      "tokens": 2
+    },
+    {
+      "label": "logits-00-ids",
+      "status": "pass",
+      "tokens": 5
+    },
+    {
+      "label": "logits-00",
+      "status": "pass",
+      "top1": 12095,
+      "top5_overlap": 5,
+      "top_ids": [
+        12095,
+        264,
+        304,
+        7407,
+        1304,
+        32671,
+        220,
+        279,
+        1112,
+        537
+      ],
+      "top_logits": [
+        21.998995,
+        20.482853,
+        19.401049,
+        19.125593,
+        18.74748,
+        18.641325,
+        18.438637,
+        18.434494,
+        18.183353,
+        17.929237
+      ]
+    },
+    {
+      "label": "logits-01-ids",
+      "status": "pass",
+      "tokens": 3
+    },
+    {
+      "label": "logits-01",
+      "status": "pass",
+      "top1": 264,
+      "top5_overlap": 5,
+      "top_ids": [
+        264,
+        279,
+        458,
+        13791,
+        1483,
+        1660,
+        10018,
+        45790,
+        10454,
+        14756
+      ],
+      "top_logits": [
+        25.278944,
+        23.42416,
+        22.564102,
+        22.14049,
+        21.669661,
+        21.622292,
+        21.533844,
+        21.404385,
+        21.391325,
+        21.327703
+      ]
+    },
+    {
+      "label": "logits-02-ids",
+      "status": "pass",
+      "tokens": 6
+    },
+    {
+      "label": "logits-02",
+      "status": "pass",
+      "top1": 198,
+      "top5_overlap": 5,
+      "top_ids": [
+        198,
+        671,
+        220,
+        715,
+        470,
+        2303,
+        201,
+        256,
+        2,
+        262
+      ],
+      "top_logits": [
+        33.103611,
+        28.992216,
+        28.161102,
+        28.090729,
+        26.974997,
+        26.475647,
+        26.465443,
+        26.110508,
+        25.905216,
+        25.166693
+      ]
+    },
+    {
+      "label": "logits-03-ids",
+      "status": "pass",
+      "tokens": 7
+    },
+    {
+      "label": "logits-03",
+      "status": "pass",
+      "top1": 13753,
+      "top5_overlap": 5,
+      "top_ids": [
+        13753,
+        6303,
+        6176,
+        320,
+        1304,
+        1154,
+        323,
+        481,
+        220,
+        32671
+      ],
+      "top_logits": [
+        27.583435,
+        26.886398,
+        25.436943,
+        21.237154,
+        21.016645,
+        20.7651,
+        19.360214,
+        19.282597,
+        19.05336,
+        18.902117
+      ]
+    },
+    {
+      "label": "logits-04-ids",
+      "status": "pass",
+      "tokens": 12
+    },
+    {
+      "label": "logits-04",
+      "status": "pass",
+      "top1": 17330,
+      "top5_overlap": 5,
+      "top_ids": [
+        17330,
+        17788,
+        7329,
+        56711,
+        9237,
+        17171,
+        1304,
+        80160,
+        32671,
+        76019
+      ],
+      "top_logits": [
+        26.513088,
+        25.96673,
+        23.852591,
+        21.190823,
+        18.852037,
+        17.476059,
+        17.059578,
+        17.00576,
+        16.706709,
+        16.323803
+      ]
+    },
+    {
+      "label": "logits-05-ids",
+      "status": "pass",
+      "tokens": 17
+    },
+    {
+      "label": "logits-05",
+      "status": "pass",
+      "top1": 17689,
+      "top5_overlap": 5,
+      "top_ids": [
+        17689,
+        9856,
+        279,
+        32961,
+        9448,
+        15948,
+        33311,
+        6323,
+        5616,
+        24427
+      ],
+      "top_logits": [
+        24.505383,
+        24.48242,
+        21.030815,
+        20.642117,
+        20.620213,
+        20.243378,
+        20.208008,
+        20.031279,
+        20.003382,
+        19.783596
+      ]
+    },
+    {
+      "label": "ppl-ids",
+      "status": "pass",
+      "tokens": 247
+    },
+    {
+      "label": "ppl-00",
+      "status": "pass",
+      "tokens": 247,
+      "used tokens": 247,
+      "scored tokens": 246,
+      "chunks": 1,
+      "context size": 40960,
+      "mean_nll": 2.40008,
+      "perplexity": 11.024,
+      "hf_mean_nll": 2.4016544126818724,
+      "absolute_nll_delta": 0.001574412681872417,
+      "bound": 0.01
+    },
+    {
+      "label": "ppl-01",
+      "status": "pass",
+      "tokens": 247,
+      "used tokens": 247,
+      "scored tokens": 243,
+      "chunks": 4,
+      "context size": 64,
+      "mean_nll": 3.09017,
+      "perplexity": 21.9807,
+      "hf_mean_nll": 3.0904173533589634,
+      "absolute_nll_delta": 0.00024735335896330923,
+      "bound": 0.02
+    },
+    {
+      "label": "ppl-02",
+      "status": "pass",
+      "tokens": 247,
+      "used tokens": 128,
+      "scored tokens": 126,
+      "chunks": 2,
+      "context size": 64,
+      "mean_nll": 2.82939,
+      "perplexity": 16.9352,
+      "hf_mean_nll": 2.829422961792663,
+      "absolute_nll_delta": 3.29617926628778e-05,
+      "bound": 0.02
+    },
+    {
+      "label": "ppl-03",
+      "status": "pass",
+      "tokens": 247,
+      "used tokens": 246,
+      "scored tokens": 244,
+      "chunks": 2,
+      "context size": 123,
+      "mean_nll": 2.66786,
+      "perplexity": 14.4091,
+      "hf_mean_nll": 2.6701153554742474,
+      "absolute_nll_delta": 0.002255355474247267,
+      "bound": 0.02
+    }
+  ],
+  "executable_sha256": "a7cd23052fa93df1ea5147713130dd26f3d8cab191f69c105d514379f892d6e5",
+  "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+  "version": "llmx 0.1.0+g842f453ed22c"
+}

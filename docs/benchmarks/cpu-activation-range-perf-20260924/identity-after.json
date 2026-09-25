@@ -1,0 +1,95 @@
+{
+  "utc": "2026-09-24T20:16:47.926250+00:00",
+  "records": [
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+      "expected": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "actual": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+      "expected": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "actual": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+      "expected": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "actual": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "matches": true
+    },
+    {
+      "path": "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+      "expected": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+      "actual": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\base.exe",
+      "expected": "75d79353d671169661388e943b31a33a0f8d03e3d01b45d174c9325df62f4fcd",
+      "actual": "75d79353d671169661388e943b31a33a0f8d03e3d01b45d174c9325df62f4fcd",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\candidate.exe",
+      "expected": "55f081498cdf2f0e51ac0d0afbfab17efe77049f0361d1b4d27008f3aade0b20",
+      "actual": "55f081498cdf2f0e51ac0d0afbfab17efe77049f0361d1b4d27008f3aade0b20",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\layout.exe",
+      "expected": "8ce95d19ab5412dc5ceb6d2c7ce12637e96cd327d954bc380608a17d506e05ac",
+      "actual": "8ce95d19ab5412dc5ceb6d2c7ce12637e96cd327d954bc380608a17d506e05ac",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\mx.exe",
+      "expected": "9321e6ab0b01acd857c24e17bec8d4efa07cfc8e023eeed100475eaa95742cc0",
+      "actual": "9321e6ab0b01acd857c24e17bec8d4efa07cfc8e023eeed100475eaa95742cc0",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\ggml-base.dll",
+      "expected": "fd1dbbe5e8da6da622ae231722a3408ba705084bb52c34ca1440a336b3acda28",
+      "actual": "fd1dbbe5e8da6da622ae231722a3408ba705084bb52c34ca1440a336b3acda28",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\ggml-cpu.dll",
+      "expected": "6af4b4ced5ece2dd3cd292f53550065fac4f2133f70164910fb7fda57ea43964",
+      "actual": "6af4b4ced5ece2dd3cd292f53550065fac4f2133f70164910fb7fda57ea43964",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\ggml.dll",
+      "expected": "2484a2153d51d9a8c22443481f2eb058cccc1836e45ad98124b53b4adbd158d6",
+      "actual": "2484a2153d51d9a8c22443481f2eb058cccc1836e45ad98124b53b4adbd158d6",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\llama.dll",
+      "expected": "fc7fba1e614d4cb53be16aa4b09f8e5cd3093427c6a498888fb6e6d984d51d9f",
+      "actual": "fc7fba1e614d4cb53be16aa4b09f8e5cd3093427c6a498888fb6e6d984d51d9f",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\compare.cpp",
+      "expected": "a37140b60a7c9896b40cadc258799dea8b370762e879249b7e9bf8de908139b7",
+      "actual": "a37140b60a7c9896b40cadc258799dea8b370762e879249b7e9bf8de908139b7",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\ids.txt",
+      "expected": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+      "actual": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+      "matches": true
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-range-20260924\\tools\\monitor_windows.py",
+      "expected": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6",
+      "actual": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6",
+      "matches": true
+    }
+  ]
+}

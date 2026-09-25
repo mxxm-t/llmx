@@ -1,0 +1,17 @@
+{
+  "reviewer": "Independent read-only agent",
+  "verdict": "No blocking findings",
+  "checks": {
+    "markdown_files": 39,
+    "relative_links": 127,
+    "non_ascii_lines": 0,
+    "broken_links": 0,
+    "runtime_test_build_hashes_matched": 113,
+    "snapshot_files_matched": 1095,
+    "artifact_hashes_matched": 11,
+    "saved_log_hashes_matched": 5,
+    "hf_ppl_rows_matched": 24
+  },
+  "scope": "Six architecture corrections match source. Runtime/tests/build unchanged. Linux CPU Release only; long-context and performance assessment pending. External URLs, hosted CI and model payload hashes were not independently rechecked.",
+  "post_review_archive_change": "configure.txt was encoded losslessly as configure.json text to preserve CMake trailing spaces without Git whitespace errors; decoded SHA256 was checked against the reviewed original."
+}

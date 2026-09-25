@@ -1,0 +1,25 @@
+{
+  "scope": "Root read review, raw-byte identity checks, syntax and command AST checks; no workloads or large model reads.",
+  "original_freeze_unchanged": true,
+  "original_frozen_payloads_verified": 7,
+  "drivers": [
+    {
+      "name": "run_matrix_guarded.py",
+      "sha256": "1b46d28254e87fe6e9b078bf50ae1e9ad842b47f40bb2e45dfe209e4ee8dfd11",
+      "syntax": "pass",
+      "command_ast_identical": true,
+      "gate_before_input_hashing": true
+    },
+    {
+      "name": "run_cli_matrix_guarded.py",
+      "sha256": "27fe8d3df93fca64b64be10452559949bb006234a0703a264ed30c91e8539971",
+      "syntax": "pass",
+      "command_ast_identical": true,
+      "gate_before_input_hashing": true
+    }
+  ],
+  "guarded_manifest_sha256": "23cf395e230a9057ab4dc655c5691cf22cecca926d0eb2420022b7dc22c38adf",
+  "readiness_exists": false,
+  "matrix_started": false,
+  "cli_started": false
+}

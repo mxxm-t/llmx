@@ -1,0 +1,135 @@
+{
+  "checked_utc": "2026-09-25T02:37:42.120445+00:00",
+  "frozen_files": {
+    "plan.json": "0ea55de59418a520b632c0c7974019c9ebe5b2223fa9c3d79af2d9cb9396856a",
+    "cli-plan.json": "03a69d4f44034f1c21cf037525da979efa013e3cc56a894263d9363f2475ae84",
+    "run_matrix.py": "40e8da03a0796bf49746dac2031cadb7d9fb49b1321b45b61f1b38ca5fbb7a36",
+    "run_cli_matrix.py": "c1b6505e57852f54060496324fea7b2920bde656fb0e11e172c1bb6b04066992",
+    "compare.cpp": "a37140b60a7c9896b40cadc258799dea8b370762e879249b7e9bf8de908139b7",
+    "ids.txt": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+    "monitor_windows.py": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6"
+  },
+  "inputs": [
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\base.exe",
+      "sha256": "d13705a82fca89199f2747ccd1d03262a6f3ad9e18d44c3b6cb9dba21b409239"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\candidate.exe",
+      "sha256": "be793c2d68bd3354c04c12b79a8af1ba4badb4ec1bc684c1c28bef4b8f11b573"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\layout.exe",
+      "sha256": "d83e5588f475537f5704e8007af2926ade4ac5e3b633495e4140bce506586d06"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\mx.exe",
+      "sha256": "4d79a333c1c25ffcbc4e7e20ff10de6ff6dd66b8c280b1b9bcfe6c67b6ffe571"
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+    },
+    {
+      "path": "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+      "sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ggml-base.dll",
+      "sha256": "fd1dbbe5e8da6da622ae231722a3408ba705084bb52c34ca1440a336b3acda28"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ggml-cpu.dll",
+      "sha256": "6af4b4ced5ece2dd3cd292f53550065fac4f2133f70164910fb7fda57ea43964"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ggml.dll",
+      "sha256": "2484a2153d51d9a8c22443481f2eb058cccc1836e45ad98124b53b4adbd158d6"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\llama.dll",
+      "sha256": "fc7fba1e614d4cb53be16aa4b09f8e5cd3093427c6a498888fb6e6d984d51d9f"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-base-20260925\\build\\Release\\llmx.exe",
+      "sha256": "138fabc1f86f971dfe7b2da59fae4cdcddc128ad14c17cee371bc73cf2c0dfba"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925\\build\\Release\\llmx.exe",
+      "sha256": "38a075f69cf679fee634f2d901e3ed63b36f462b9bae20f3054c1b77f378fab2"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-layout-20260925\\build\\Release\\llmx.exe",
+      "sha256": "d3c096c7d0155b701cac73e7d2ac95c5c6dcaf8e8c0642723fe388fa57d5002b"
+    }
+  ],
+  "versions": {
+    "common-base": "llmx 0.1.0+g11f5859a4be5 harness-f16",
+    "common-candidate": "llmx 0.1.0+g356b7457398a harness-f16",
+    "common-layout": "llmx 0.1.0+ge149fc05acee harness-f16",
+    "common-mx": "mx-llama.cpp 5542318e748c harness-f16",
+    "cli-base": "llmx 0.1.0+g11f5859a4be5",
+    "cli-candidate": "llmx 0.1.0+g356b7457398a",
+    "cli-layout": "llmx 0.1.0+ge149fc05acee"
+  },
+  "ordinary_output_witness": {
+    "Qwen3-0.6B-Q8_0.gguf": {
+      "unique_printed_final_witnesses": 1,
+      "values": [
+        [
+          4013,
+          -489070.8227
+        ]
+      ],
+      "scope": "Printed top1 and rounded final logit sum only; not a full-logit or independent HF oracle."
+    },
+    "Qwen3-0.6B-Q4_0.gguf": {
+      "unique_printed_final_witnesses": 1,
+      "values": [
+        [
+          4013,
+          -417340.5448
+        ]
+      ],
+      "scope": "Printed top1 and rounded final logit sum only; not a full-logit or independent HF oracle."
+    },
+    "Qwen3-0.6B-Q5_K_M.gguf": {
+      "unique_printed_final_witnesses": 1,
+      "values": [
+        [
+          4013,
+          -476686.3415
+        ]
+      ],
+      "scope": "Printed top1 and rounded final logit sum only; not a full-logit or independent HF oracle."
+    },
+    "Qwen3-8B-Q8_0.gguf": {
+      "unique_printed_final_witnesses": 1,
+      "values": [
+        [
+          4013,
+          -28919.07933
+        ]
+      ],
+      "scope": "Printed top1 and rounded final logit sum only; not a full-logit or independent HF oracle."
+    }
+  },
+  "raw_inventory": {
+    "matrix": {
+      "files": 642,
+      "bytes": 179610539
+    },
+    "cli-matrix": {
+      "files": 362,
+      "bytes": 91086774
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "error": "AssertionError: Qwen3-0.6B-Q8_0.gguf-long-base: incomplete finish length",
+  "utc": "2026-09-24T22:24:49.875630+00:00",
+  "completed": false
+}

@@ -1,0 +1,12 @@
+baseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]
+baseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf]: SKIP - fixture model not on disk
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1 batched]: PPL 32.8460 vs HF 28.7974, NLL delta 0.131544 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1 per-token]: PPL 32.8454 vs HF 28.7974, NLL delta 0.131524 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4 batched]: PPL 66.5524 vs HF 56.2812, NLL delta 0.167630 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4 per-token]: PPL 66.5463 vs HF 56.2812, NLL delta 0.167540 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2 batched]: PPL 43.7778 vs HF 40.8602, NLL delta 0.068973 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2 per-token]: PPL 43.7728 vs HF 40.8602, NLL delta 0.068853 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2 batched]: PPL 42.5703 vs HF 37.7428, NLL delta 0.120366 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2 per-token]: PPL 42.5673 vs HF 37.7428, NLL delta 0.120296 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf]: SKIP - fixture model not on disk

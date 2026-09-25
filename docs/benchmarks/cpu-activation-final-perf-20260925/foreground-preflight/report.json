@@ -1,0 +1,206 @@
+{
+  "started_utc": "2026-09-25T01:52:42.535955+00:00",
+  "scope": "Foreground launch/protocol smoke only; timings are not performance samples.",
+  "identities": [
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\base.exe",
+      "sha256": "d13705a82fca89199f2747ccd1d03262a6f3ad9e18d44c3b6cb9dba21b409239"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\candidate.exe",
+      "sha256": "be793c2d68bd3354c04c12b79a8af1ba4badb4ec1bc684c1c28bef4b8f11b573"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\layout.exe",
+      "sha256": "d83e5588f475537f5704e8007af2926ade4ac5e3b633495e4140bce506586d06"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\mx.exe",
+      "sha256": "4d79a333c1c25ffcbc4e7e20ff10de6ff6dd66b8c280b1b9bcfe6c67b6ffe571"
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+    },
+    {
+      "path": "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+      "sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ggml-base.dll",
+      "sha256": "fd1dbbe5e8da6da622ae231722a3408ba705084bb52c34ca1440a336b3acda28"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ggml-cpu.dll",
+      "sha256": "6af4b4ced5ece2dd3cd292f53550065fac4f2133f70164910fb7fda57ea43964"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ggml.dll",
+      "sha256": "2484a2153d51d9a8c22443481f2eb058cccc1836e45ad98124b53b4adbd158d6"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\llama.dll",
+      "sha256": "fc7fba1e614d4cb53be16aa4b09f8e5cd3093427c6a498888fb6e6d984d51d9f"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-base-20260925\\build\\Release\\llmx.exe",
+      "sha256": "138fabc1f86f971dfe7b2da59fae4cdcddc128ad14c17cee371bc73cf2c0dfba"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925\\build\\Release\\llmx.exe",
+      "sha256": "38a075f69cf679fee634f2d901e3ed63b36f462b9bae20f3054c1b77f378fab2"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-layout-20260925\\build\\Release\\llmx.exe",
+      "sha256": "d3c096c7d0155b701cac73e7d2ac95c5c6dcaf8e8c0642723fe388fa57d5002b"
+    }
+  ],
+  "calls": [
+    {
+      "tag": "common-base",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\base.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ids.txt",
+        "--threads",
+        "6"
+      ],
+      "start_utc": "2026-09-25T01:52:47.965199+00:00",
+      "exit": 0,
+      "end_utc": "2026-09-25T01:52:50.191002+00:00",
+      "protocol_pass": true
+    },
+    {
+      "tag": "common-candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\candidate.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ids.txt",
+        "--threads",
+        "6"
+      ],
+      "start_utc": "2026-09-25T01:52:50.204098+00:00",
+      "exit": 0,
+      "end_utc": "2026-09-25T01:52:52.544931+00:00",
+      "protocol_pass": true
+    },
+    {
+      "tag": "common-layout",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\layout.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ids.txt",
+        "--threads",
+        "6"
+      ],
+      "start_utc": "2026-09-25T01:52:52.556480+00:00",
+      "exit": 0,
+      "end_utc": "2026-09-25T01:52:54.827671+00:00",
+      "protocol_pass": true
+    },
+    {
+      "tag": "common-mx",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\mx.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\ids.txt",
+        "--threads",
+        "6"
+      ],
+      "start_utc": "2026-09-25T01:52:54.842253+00:00",
+      "exit": 0,
+      "end_utc": "2026-09-25T01:52:58.149090+00:00",
+      "protocol_pass": true
+    },
+    {
+      "tag": "cli-base",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-base-20260925\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "--threads",
+        "6",
+        "--device",
+        "cpu",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--p",
+        "215",
+        "--n",
+        "32",
+        "--r",
+        "1"
+      ],
+      "start_utc": "2026-09-25T01:52:58.164724+00:00",
+      "exit": 0,
+      "end_utc": "2026-09-25T01:53:00.415368+00:00",
+      "protocol_pass": true
+    },
+    {
+      "tag": "cli-candidate",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "--threads",
+        "6",
+        "--device",
+        "cpu",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--p",
+        "215",
+        "--n",
+        "32",
+        "--r",
+        "1"
+      ],
+      "start_utc": "2026-09-25T01:53:00.431162+00:00",
+      "exit": 0,
+      "end_utc": "2026-09-25T01:53:02.696988+00:00",
+      "protocol_pass": true
+    },
+    {
+      "tag": "cli-layout",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-layout-20260925\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "--threads",
+        "6",
+        "--device",
+        "cpu",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--p",
+        "215",
+        "--n",
+        "32",
+        "--r",
+        "1"
+      ],
+      "start_utc": "2026-09-25T01:53:02.713055+00:00",
+      "exit": 0,
+      "end_utc": "2026-09-25T01:53:04.879168+00:00",
+      "protocol_pass": true
+    }
+  ],
+  "status": "pass"
+}

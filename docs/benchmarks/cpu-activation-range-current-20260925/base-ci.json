@@ -1,0 +1,38 @@
+{
+  "head": "11f5859a4be509ace5516377d396e335494f7413",
+  "status": "completed",
+  "conclusion": "success",
+  "checked": "2026-09-24T23:59:32.319391+00:00",
+  "jobs": [
+    {
+      "name": "HF reference (CPU)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Vulkan backend (build, Linux)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (macos-15-intel)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (Linux UBSan)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (windows-2022)",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ]
+}

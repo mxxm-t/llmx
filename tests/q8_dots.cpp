@@ -1,8 +1,10 @@
 // The CPU decode dots over quantized activations (backends/cpu/q8_dots.hpp), 8-bit or 16-bit by type, against a double-precision reference fed the same quantized activations, for every type they take.
 // Also that a decode row computes the same alone and beside others, and grouped projections the same as separate ones, bit for bit.
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -13,6 +15,128 @@
 namespace {
 void require(bool ok, const std::string& what) {
     if (!ok) throw std::runtime_error(what);
+}
+
+struct ActivationChecks {
+    size_t blocks = 0, values = 0, tiny = 0, ties = 0;
+};
+
+// Compare the represented value with its integer neighbours, without computing the encoder's rounding formula.
+template <class Rows>
+void check_activation_block(const float* x, const Rows& out, size_t block, int levels,
+                            const std::array<int, 32>* exact, int sign, ActivationChecks& checks) {
+    double top = 0.0;
+    for (size_t i = 0; i < 32; ++i) top = std::max(top, std::fabs(double(x[i])));
+    const double d = out.d[block];
+    auto check = [&](bool ok, size_t lane, const char* what) {
+        if (ok) return;
+        char message[256];
+        std::snprintf(message, sizeof(message), "activation q%d block=%zu lane=%zu x=%a top=%a d=%a q=%d: %s",
+                      levels == 127 ? 8 : 16, block, lane, double(x[lane]), top, d,
+                      int(out.q[block * 32 + lane]), what);
+        throw std::runtime_error(message);
+    };
+    check(std::isfinite(d) && (top ? d > 0.0 : d == 0.0), 0, "invalid scale");
+    const bool tiny = top && !std::isfinite(static_cast<float>(double(levels) / top));
+    const double previous = std::nextafter(out.d[block], 0.0f);
+    if (tiny) {
+        check(double(levels) * d >= top && double(levels) * previous < top, 0,
+              "scale is not the smallest positive float covering the block");
+        ++checks.tiny;
+    }
+    // The unchanged SIMD path rounds both the reciprocal/product and its stored scale in float.
+    const double slack = tiny ? 0.0 : 4.0 * std::numeric_limits<float>::epsilon() * top +
+                                          double(levels) * (d - previous);
+    int32_t sum = 0;
+    for (size_t i = 0; i < 32; ++i) {
+        const int q = out.q[block * 32 + i];
+        check(q >= -levels && q <= levels, i, "packed value outside symmetric range");
+        check(x[i] == 0.0f ? q == 0 : (x[i] > 0.0f ? q >= 0 : q <= 0), i,
+              "zero or sign was not preserved");
+        const double error = std::fabs(double(x[i]) - double(q) * d);
+        check(error <= 0.5 * d + slack, i, "reconstruction exceeds nearest-step bound");
+        for (const int neighbour : {q - 1, q + 1}) {
+            if (neighbour < -levels || neighbour > levels) continue;
+            const double alternative = std::fabs(double(x[i]) - double(neighbour) * d);
+            check(error <= alternative + 2.0 * slack, i, "adjacent reconstruction is closer");
+            if (tiny && d && error == alternative) {
+                check(q % 2 == 0, i, "exact midpoint did not select even integer");
+                ++checks.ties;
+            }
+        }
+        if (exact) check(q == sign * (*exact)[i], i, "exact-scale control changed");
+        sum += q;
+        ++checks.values;
+    }
+    check(out.sum[block] == sum, 0, "sum differs from the packed integers");
+    ++checks.blocks;
+}
+
+template <class Rows, class Quantize>
+ActivationChecks check_activation_range(int levels, Quantize quantize) {
+    ActivationChecks checks;
+    Rows out;
+    backend::q8::size_rows(2, 64, out);
+    auto run = [&](const std::array<float, 32>& input, const std::array<int, 32>* exact = nullptr) {
+        std::vector<float> storage(129, 19.0f);
+        float* x = storage.data() + 1;
+        for (size_t i = 0; i < 32; ++i) { x[32 + i] = input[i]; x[64 + i] = -input[i]; }
+        const auto original = storage;
+        std::fill(out.q.begin(), out.q.end(), 25);
+        std::fill(out.d.begin(), out.d.end(), -77.0f);
+        std::fill(out.sum.begin(), out.sum.end(), -991);
+        // The selected blocks cross a row boundary; the neighbouring blocks must stay untouched.
+        quantize(x, 1, 3, out);
+        for (size_t b : {size_t(0), size_t(3)}) {
+            require(out.d[b] == -77.0f && out.sum[b] == -991, "activation metadata guard changed");
+            for (size_t i = 0; i < 32; ++i)
+                require(out.q[b * 32 + i] == 25, "activation packed guard changed");
+        }
+        require(std::memcmp(storage.data(), original.data(), storage.size() * sizeof(float)) == 0,
+                "activation quantization changed its input");
+        check_activation_block(x + 32, out, 1, levels, exact, 1, checks);
+        check_activation_block(x + 64, out, 2, levels, exact, -1, checks);
+    };
+
+    std::vector<float> tops;
+    auto add = [&](float top) { if (top > 0.0f && std::isfinite(top)) tops.push_back(top); };
+    for (int exponent = -149; exponent <= 127; ++exponent) {
+        const float top = std::ldexp(1.0f, exponent);
+        add(std::nextafter(top, 0.0f)); add(top);
+        add(std::nextafter(top, std::numeric_limits<float>::infinity()));
+    }
+    const float threshold = static_cast<float>(double(levels) / std::numeric_limits<float>::max());
+    add(std::nextafter(threshold, 0.0f)); add(threshold);
+    add(std::nextafter(threshold, std::numeric_limits<float>::infinity()));
+    add(std::numeric_limits<float>::max());
+    std::sort(tops.begin(), tops.end());
+    tops.erase(std::unique(tops.begin(), tops.end()), tops.end());
+    run({});
+    for (float top : tops) {
+        std::array<float, 32> input{};
+        input[0] = top;
+        run(input);
+        input.fill(top);
+        run(input);
+        input[0] = top; input[1] = -top; input[2] = 0.0f; input[3] = -0.0f;
+        for (size_t i = 4; i < input.size(); ++i)
+            input[i] = static_cast<float>(double(top) * (int((i * 19) % 63) - 31) / 32.0);
+        run(input);
+    }
+    for (int exponent : {-148, -140, -128, -120, -100, 0, 100}) {
+        const float step = std::ldexp(1.0f, exponent);
+        std::array<float, 32> input{};
+        std::array<int, 32> exact{};
+        input[0] = levels * step; input[1] = -input[0];
+        exact[0] = levels; exact[1] = -levels;
+        for (size_t i = 2; i < input.size(); ++i) {
+            const int lower = int((i - 2) / 2), sign = i % 2 ? -1 : 1;
+            input[i] = static_cast<float>(sign * (double(lower) + 0.5) * step);
+            exact[i] = sign * (lower + lower % 2);
+        }
+        run(input, &exact);
+    }
+    return checks;
 }
 
 // Packed rows of a type: the block quantizers from floats, the K-quants from a byte pattern with small half scales.
@@ -36,7 +160,7 @@ std::vector<uint8_t> packed(uint32_t type, size_t rows, size_t nin, std::mt19937
     return out;
 }
 
-// The activations as the dots round them: per block of 32 the largest magnitude over `levels` (127 or 32767), and each value to the nearest step, ties to even.
+// Reference for ordinary blocks with a finite float reciprocal; tiny blocks use the reconstruction checks above.
 void rounded(const float* x, size_t n, float levels, std::vector<double>& q, std::vector<double>& d) {
     q.assign(n, 0.0);
     d.assign(n / 32, 0.0);
@@ -180,6 +304,10 @@ size_t check_experts(uint32_t type, std::mt19937& rng) {
 int main() {
     try {
         quant::register_builtins();
+        const auto a8 = check_activation_range<backend::q8::Rows>(127, backend::q8::quantize);
+        const auto a16 = check_activation_range<backend::q8::Rows16>(32767, backend::q8::quantize16);
+        std::printf("activation range: %zu blocks, %zu packed values, %zu tiny blocks, %zu exact tiny ties; input and output guards passed\n",
+                    a8.blocks + a16.blocks, a8.values + a16.values, a8.tiny + a16.tiny, a8.ties + a16.ties);
         std::mt19937 rng(7);
         size_t n = 0;
         for (uint32_t type : {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,

@@ -1,0 +1,138 @@
+[
+  {
+    "label": "base-configure",
+    "command": [
+      "cmake",
+      "-S",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-base-20260925",
+      "-B",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-base-20260925\\build",
+      "-G",
+      "Visual Studio 18 2026",
+      "-A",
+      "x64",
+      "-DBUILD_TESTING=OFF",
+      "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+    ],
+    "exit": 0
+  },
+  {
+    "label": "base-build",
+    "command": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-base-20260925\\build",
+      "--config",
+      "Release",
+      "--parallel",
+      "2",
+      "--target",
+      "llmx"
+    ],
+    "exit": 0
+  },
+  {
+    "label": "base-harness",
+    "command": [
+      "cmd",
+      "/c",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\base-harness.cmd"
+    ],
+    "exit": 0
+  },
+  {
+    "label": "layout-configure",
+    "command": [
+      "cmake",
+      "-S",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-layout-20260925",
+      "-B",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-layout-20260925\\build",
+      "-G",
+      "Visual Studio 18 2026",
+      "-A",
+      "x64",
+      "-DBUILD_TESTING=OFF",
+      "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+    ],
+    "exit": 0
+  },
+  {
+    "label": "layout-build",
+    "command": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-layout-20260925\\build",
+      "--config",
+      "Release",
+      "--parallel",
+      "2",
+      "--target",
+      "llmx"
+    ],
+    "exit": 0
+  },
+  {
+    "label": "layout-harness",
+    "command": [
+      "cmd",
+      "/c",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\layout-harness.cmd"
+    ],
+    "exit": 0
+  },
+  {
+    "label": "candidate-configure",
+    "command": [
+      "cmake",
+      "-S",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925",
+      "-B",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925\\build",
+      "-G",
+      "Visual Studio 18 2026",
+      "-A",
+      "x64",
+      "-DBUILD_TESTING=OFF",
+      "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+    ],
+    "exit": 0
+  },
+  {
+    "label": "candidate-build",
+    "command": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925\\build",
+      "--config",
+      "Release",
+      "--parallel",
+      "2",
+      "--target",
+      "llmx"
+    ],
+    "exit": 0
+  },
+  {
+    "label": "candidate-harness",
+    "command": [
+      "cmd",
+      "/c",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\candidate-harness.cmd"
+    ],
+    "exit": 0
+  },
+  {
+    "label": "candidate-focused",
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "-X",
+      "utf8",
+      "-c",
+      "import sys;sys.path.insert(0,sys.argv[1]);import common,version,f32,threads;common.EXE=sys.argv[2];assert version.run();assert f32.run();assert threads.run()",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925\\tests",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925\\build\\Release\\llmx.exe"
+    ],
+    "exit": 0
+  }
+]

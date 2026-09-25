@@ -1,0 +1,18 @@
+{
+  "head": "5542318e748c154b634211def405ae95da3dfaa9",
+  "tree": "clean detached",
+  "reference_dlls": {
+    "ggml-base.dll": "fd1dbbe5e8da6da622ae231722a3408ba705084bb52c34ca1440a336b3acda28",
+    "ggml-cpu.dll": "6af4b4ced5ece2dd3cd292f53550065fac4f2133f70164910fb7fda57ea43964",
+    "ggml.dll": "2484a2153d51d9a8c22443481f2eb058cccc1836e45ad98124b53b4adbd158d6",
+    "llama.dll": "fc7fba1e614d4cb53be16aa4b09f8e5cd3093427c6a498888fb6e6d984d51d9f"
+  },
+  "import_library": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\mx-build\\src\\Release\\llama.lib",
+    "sha256": "9bbc997654a20e066261c7e9b6f2193930037086cd906964246d0749a4d1955b"
+  },
+  "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\mx.exe",
+  "version": "mx-llama.cpp 5542318e748c harness-f16",
+  "sha256": "4d79a333c1c25ffcbc4e7e20ff10de6ff6dd66b8c280b1b9bcfe6c67b6ffe571",
+  "scope": "Recompiled common harness; reference libraries are hash-verified artifacts of the pinned clean MSVC19.50 Release AVX2 build, no new timing."
+}

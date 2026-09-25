@@ -1,0 +1,178 @@
+{
+  "base": "5c8e89c346a5dcc939c423e2284edd87ea367b5e",
+  "branch": "fix/cpu-activation-range-20260924",
+  "scope": "CPU activation correctness checkpoint with completed matched common-harness and normal-CLI performance matrices, clean-build required HF and 8B HF checks, and exact two-window PPL through prompt/decode paths. Long-context hashing, performance tradeoff assessment and remaining platform/integration gates stay open. No real-model failure attributed to tiny inputs. Gradual underflow assumed; nonfinite inputs and FTZ excluded.",
+  "candidate": {
+    "version": "llmx 0.1.0+g5c8e89c346a5.dirty",
+    "sha256": "35c1d259e1656df865e76fafcc56aff12af375f2e7457d3b95e89f335ec67f84"
+  },
+  "build": "MSVC 19.50.35728.0, Visual Studio 18 2026 generator, Release /O2 /arch:AVX2, Vulkan OFF",
+  "native": {
+    "command": "ctest --test-dir build -C Release --output-on-failure",
+    "passed": 21,
+    "exit": 0,
+    "activation_blocks": 10004,
+    "packed_values": 320128,
+    "tiny_blocks": 1128,
+    "exact_tiny_ties": 560
+  },
+  "hf": {
+    "command": "python -u -X utf8 tests/run_tests.py --exe build/Release/llmx.exe --require-baseline",
+    "components": 14,
+    "exit": 0,
+    "bounds": {
+      "Qwen3-0.6B-Q8_0.gguf continuous NLL": {
+        "observed_max_abs_error": 0.007366,
+        "bound": 0.01
+      },
+      "Qwen3-0.6B-Q8_0.gguf windowed NLL": {
+        "observed_max_abs_error": 0.012356,
+        "bound": 0.02
+      },
+      "Qwen3-0.6B-Q4_0.gguf continuous NLL": {
+        "observed_max_abs_error": 0.131554,
+        "bound": 0.16
+      },
+      "Qwen3-0.6B-Q4_0.gguf windowed NLL": {
+        "observed_max_abs_error": 0.1676,
+        "bound": 0.2
+      },
+      "Qwen3-0.6B-Q5_K_M.gguf continuous NLL": {
+        "observed_max_abs_error": 0.027534,
+        "bound": 0.05
+      },
+      "Qwen3-0.6B-Q5_K_M.gguf windowed NLL": {
+        "observed_max_abs_error": 0.12944,
+        "bound": 0.16
+      }
+    },
+    "top1": "6/6 for each of three real fixture models"
+  },
+  "negative_control": {
+    "source": "5c8e89c q8_dots.hpp via first include directory; final regression test unchanged",
+    "exit": 1,
+    "first_failure": "FAIL: activation q8 block=1 lane=0 x=0x1.0000000000000p-149 top=0x1.0000000000000p-149 d=0x0.0000000000000p+0 q=-128: invalid scale",
+    "probe_note": "probe-before/after endpoint_expected is the ideal unlimited-scale endpoint, not a requirement when the stored scale must be rounded upward."
+  },
+  "ordinary_control": {
+    "packed_values": 2686976,
+    "output_bytes": 4702208,
+    "integers_scales_sums": "byte-identical",
+    "sha256": "cb31e9c31b74b4e464f558b882ebe4fbfbde6c6d88aad81c920248543e50d6a0",
+    "range": "Deterministic random blocks scaled over exponents -100..100 in steps of 5, both integer precisions"
+  },
+  "performance_smoke": {
+    "baseline": "perf: matmul 58.62 GFLOPS (0.143 ms), prefill 10245 tok/s, decode 9801 tok/s, rms_norm 0.001 ms, norm_rope 0.000 ms  [ok]",
+    "candidate": "perf: matmul 56.60 GFLOPS (0.148 ms), prefill 10384 tok/s, decode 9951 tok/s, rms_norm 0.001 ms, norm_rope 0.001 ms  [ok]\r",
+    "baseline_version": "llmx 0.1.0+g5c8e89c346a5",
+    "baseline_sha256": "d7da182f6f38a1583c1c9d2a3fcb0f066799e8885c98fedefe46f882b0499194",
+    "limitation": "Single standard smoke samples with no contention telemetry and different clean/dirty build identities. Not a measured regression/gain or matched mx gate."
+  },
+  "docs_review": {
+    "files": 39,
+    "relative_file_links": 125,
+    "non_ascii": 0,
+    "broken_relative_files": 0,
+    "scope": "Affected current claims; historical numbers, remote URLs and anchors not independently revalidated."
+  },
+  "source_sha256": {
+    "src/backends/cpu/q8_dots.hpp": "550bd5d2b537869ffd066c72c997982c69e58a7af0b1981edafafcb724809a2f",
+    "tests/q8_dots.cpp": "b7ce0634998dd7e7b5bf9a4c12e4bbbc6e09117b82d88983926f4cc6ab2f5556"
+  },
+  "artifacts": {
+    "native.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\native.log",
+      "sha256": "4a18c7e3320637628cb0d7985a98dcc90792a28ecd98d995ab349b977daa183c"
+    },
+    "native-details.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\native-details.log",
+      "sha256": "49864a3bcdb6563457562b05deaed537d202944dc8368c346b53cbdfa7672316"
+    },
+    "cpu-hf.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\cpu-hf.log",
+      "sha256": "b9cbf24706210f5b66cab306d573ed0c96f89f99012b82329682978a70081fe9"
+    },
+    "negative.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\negative.log",
+      "sha256": "f7a70169b495ba74d58d8906b293036156e6d7e91022106dbef22e49e57a5a35"
+    },
+    "probe-before.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\probe-before.log",
+      "sha256": "f2736b440e57c7fb20231dee03d87c348956c97057329c1096618c6909c7bb37"
+    },
+    "probe-after.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\probe-after.log",
+      "sha256": "130db856285361db6ee4f76d8618281425282e61b05b21eab1ca7d993d8c8b02"
+    },
+    "build-final.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\build-final.log",
+      "sha256": "bf2eb702febd92c284f83c96c81c8d87576b3df3b0fa342862f8ece7154418b0"
+    },
+    "build-negative.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\build-negative.log",
+      "sha256": "7e1d04ef464207649126130c87d5c519e945e50e0e0268c6c7c5399cc0327057"
+    },
+    "build-negative.cmd": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\build-negative.cmd",
+      "sha256": "bd730fef00598448e9f206b4a79ef19ec15a6138435c46cad34c0af1c7e24c6e"
+    },
+    "ordinary.cpp": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\ordinary.cpp",
+      "sha256": "b0ca5edb63cd884be990fed69781a773784943796761b2f9979f1ff49e7d2f2c"
+    },
+    "build-ordinary.cmd": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\build-ordinary.cmd",
+      "sha256": "f7ffd942fc9a60e2799620eae7f4d630cf9b662d6d533fef487584c70c1ea9be"
+    },
+    "build-ordinary.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\build-ordinary.log",
+      "sha256": "b181286faad79362b3502d93270decf940cd5468e6eb2d0d15117b86cbce2479"
+    },
+    "perf-baseline.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\perf-baseline.log",
+      "sha256": "23b9875a924e0282bd4aaef3e5e919db2f8009f84438265263dd3df05765146b"
+    },
+    "build-baseline-vs.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-range-evidence-20260924\\build-baseline-vs.log",
+      "sha256": "221c54314f6749f4f588f3c3cb0e59eed871c55a110ae360d7f1d9547403759d"
+    }
+  },
+  "common_performance": {
+    "candidate_commit": "842f453ed22c",
+    "path": "cpu-activation-range-perf-20260924",
+    "planned_rows": 128,
+    "completed_rows": 128,
+    "raw_directory": "TEMP/llmx-activation-perf-20260924/matrix",
+    "universal_mx_floor_passed": false,
+    "eight_b_decode_vs_mx_paired_percent": -1.7486827337408806,
+    "interpretation": "Small candidate effects unresolved under control/activity variation. The small pre-existing 8B decode shortfall accompanies much faster prefill; retain both in workload assessment."
+  },
+  "normal_cli_performance": {
+    "path": "cpu-activation-range-perf-20260924",
+    "planned_rows": 72,
+    "completed_rows": 72,
+    "raw_directory": "TEMP/llmx-activation-perf-20260924/cli-matrix",
+    "q8_decode_paired_candidate_vs_base_percent": -3.252571361443024,
+    "interpretation": "Preserve the Q8 decode cost screen, three faster and three slower blocks; its cause remains unresolved under activity/control variation. Distinct synthetic-IDs and empty-history decode workload, without a matched mx arm."
+  },
+  "clean_correctness": {
+    "candidate_version": "llmx 0.1.0+g842f453ed22c",
+    "candidate_sha256": "a7cd23052fa93df1ea5147713130dd26f3d8cab191f69c105d514379f892d6e5",
+    "required_hf_components": 14,
+    "hf_8b": "pass; 20 tokenizer cases, six rankings, four batched NLL cases",
+    "exact_ppl_invocations": 12,
+    "exact_ppl_scope": "Three 0.6B quants, base/repeated base/layout/candidate; two 512-token windows and both batched/per-token paths; each matches its base path exactly.",
+    "path": "cpu-activation-range-perf-20260924/correctness-checkpoint.json",
+    "long_context": "pending; not a completed gate"
+  },
+  "linux_correctness": {
+    "path": "cpu-activation-range-linux-20260925/report.json",
+    "source_commit": "1f778afefff1d5323042c8105d34166ceee5a2a4",
+    "native_passed": 20,
+    "python_components_passed": 14,
+    "real_model_ppl_cells": 24,
+    "version": "llmx 0.1.0+unknown",
+    "sha256": "83c4b82bada3e461fba887f620421f17a4fd403d0eac3bd208640f8c726ea0f0",
+    "scope": "Full CPU suite with required-present hash-verified Q8 fixture, followed by Q4 and Q5 HF checks with each explicit test fixture. Other fixture SKIPs within an individual invocation are not missing aggregate coverage. No Vulkan/performance claim."
+  }
+}

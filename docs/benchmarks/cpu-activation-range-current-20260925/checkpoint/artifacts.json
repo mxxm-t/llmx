@@ -1,0 +1,26 @@
+{
+  "pre-checkpoint-source-review.json": {
+    "bytes": 1817,
+    "sha256": "fd84d4ae801c0453c55789acf4c76291cfbe3adf0a59e8426437d4697cd47265"
+  },
+  "checkpoint-configure.log": {
+    "bytes": 919,
+    "sha256": "9adfd8bc999c41db772d932f033aac32fbd624885c3d3b10ff8ede0db6ba4ed9"
+  },
+  "checkpoint-build.log": {
+    "bytes": 1589,
+    "sha256": "a4320721f12943601e0f271eada8fe99fbdebe319a83258da35459ad0d724420"
+  },
+  "checkpoint-build.json": {
+    "bytes": 1273,
+    "sha256": "4770fb4f010f83c13a3d96d548584b8952b7de806da1dff50d9aecfca581f1bc"
+  },
+  "checkpoint-focused.log": {
+    "bytes": 353,
+    "sha256": "7f817fcbc80a4d16c8f44336548f24183a19c2d0b65cedb0949d743d3ee8d8c7"
+  },
+  "checkpoint-focused.json": {
+    "bytes": 1136,
+    "sha256": "b3583b6deab0283c7026a0f890c52f25a5282bcc0219cb243da6f99822f319a9"
+  }
+}

@@ -1,0 +1,217 @@
+{
+  "created_utc": "2026-09-24T22:52:50.623145+00:00",
+  "scope": "Prospective chat-format long-context check; raw-completion EOS gate remains incomplete and preserved. Same long text and frozen binaries/models. Only wrap unchanged text as one user message using each model template; no thinking override, stop strings or generation cap.",
+  "original_plan_sha256": "850c8dfe7e64fbd8f4de3d604146650c72a43efbb18b569de218c555cfc51fd0",
+  "original_failure_sha256": "324fff236cb67060872d1fe284aa040e72f9e7e3961831e441dca2d5e6f01b58",
+  "message_text_sha256": "c2f389e77838f5fd4bcad1b870af3658a2ca6bab71750a3047811fe820ba216a",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "content_source": "Unchanged raw prompt from TEMP/llmx-activation-perf-20260924/correctness/long-prompt.txt; corpus and instruction derivation remains in run_correctness.py.",
+        "content_utf8_bytes": 80296
+      }
+    ],
+    "temperature": 0,
+    "seed": 0,
+    "max_tokens": -1
+  },
+  "route": "/v1/chat",
+  "ctx_size": 32768,
+  "threads": 6,
+  "ubatch": 128,
+  "device": "cpu",
+  "cache_type_k": "f16",
+  "cache_type_v": "f16",
+  "request_timeout_seconds": 7200,
+  "models": {
+    "Qwen3-0.6B-Q8_0.gguf": {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "bytes": 639446688,
+      "prompt_tokens": 19820,
+      "prompt_ids_sha256": "ac4e3b0a47b61428e232dcbce92ab45b844977d55f78d96ac380a4ebedec6402",
+      "prompt_sha256": "4ed643f44ad9faba1f8022459714a9784da6c0b679aba5c8b8c8c9d6b5164409",
+      "template_sha256": "57f1fd00f0013a2be96aa79b857391f27e23df5b5f847072b524c897e24d0361",
+      "jinja2_matches": true
+    },
+    "Qwen3-0.6B-Q4_0.gguf": {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "bytes": 382156480,
+      "prompt_tokens": 19820,
+      "prompt_ids_sha256": "ac4e3b0a47b61428e232dcbce92ab45b844977d55f78d96ac380a4ebedec6402",
+      "prompt_sha256": "4ed643f44ad9faba1f8022459714a9784da6c0b679aba5c8b8c8c9d6b5164409",
+      "template_sha256": "5da44855ab7e0641774d5ed0ff0b4f89671d01df7d316e54d06557a962211cb4",
+      "jinja2_matches": true
+    },
+    "Qwen3-0.6B-Q5_K_M.gguf": {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "bytes": 444415680,
+      "prompt_tokens": 19820,
+      "prompt_ids_sha256": "ac4e3b0a47b61428e232dcbce92ab45b844977d55f78d96ac380a4ebedec6402",
+      "prompt_sha256": "4ed643f44ad9faba1f8022459714a9784da6c0b679aba5c8b8c8c9d6b5164409",
+      "template_sha256": "5da44855ab7e0641774d5ed0ff0b4f89671d01df7d316e54d06557a962211cb4",
+      "jinja2_matches": true
+    }
+  },
+  "arms": {
+    "base": {
+      "cli": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-base-20260924\\build\\Release\\llmx.exe",
+      "cli_sha256": "90d5dc81987e221365724837ea050c540c4bd331dce77bdaecbf0e9d74390142",
+      "version": "llmx 0.1.0+g5c8e89c346a5",
+      "ppl_exe_sha256": "cc6954cf424c8f1899c9d0d77d09d0c4d3e99d352a4d5f679e0fa45fae92fb50"
+    },
+    "candidate": {
+      "cli": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+      "cli_sha256": "a7cd23052fa93df1ea5147713130dd26f3d8cab191f69c105d514379f892d6e5",
+      "version": "llmx 0.1.0+g842f453ed22c",
+      "ppl_exe_sha256": "4ce88e07254a507148d5ffb12c2e8af8eac376f8919ec290eed267077db81bd2"
+    }
+  },
+  "order": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "tag": "base",
+      "arm": "base"
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "tag": "repeat",
+      "arm": "base"
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "tag": "candidate",
+      "arm": "candidate"
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "tag": "base",
+      "arm": "base"
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "tag": "repeat",
+      "arm": "base"
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "tag": "candidate",
+      "arm": "candidate"
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "tag": "base",
+      "arm": "base"
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "tag": "repeat",
+      "arm": "base"
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "tag": "candidate",
+      "arm": "candidate"
+    }
+  ],
+  "acceptance": [
+    "Every response finishes eos with nonempty ids and exact token accounting.",
+    "Every prompt token count equals independently prepared chat-format IDs and remains at least16384.",
+    "Fresh server for every call; reused_tokens0.",
+    "Base/repeat/candidate match ids,text,finish,prompt_tokens,tokens,reused_tokens exactly within each model.",
+    "No outcomes discarded or substituted. Failure stops dependent calls and is recorded; never shortens prompt/caps completion/relaxes equality."
+  ],
+  "jinja2_version": "3.1.6",
+  "helper_source_sha256": "fa0ed462dfd08933f7529e1d1f9aafe0489dd4520a9634b74416c68a481a10bb",
+  "helper_binary_sha256": "543781a72e7fd464b971f79aed1b06ff9ecc21210006b382fa27f3e263a7ca0a",
+  "frozen_plan_sha256": "7b269b13a140398e97efbab605db555dc9f74177ac1e50aee8cded143c78c170",
+  "hf_tokenization": {
+    "scope": "Independent HF tokenizers full prompt-ID parity, not long-context numerical correctness. No model inference.",
+    "tokenizers_version": "0.22.2",
+    "hf_tokenizer": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B\\snapshots\\c1899de289a04d12100db370d81485cdf75e47ca\\tokenizer.json",
+    "hf_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "hf_tokenizer_sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+    "plan_sha256": "7b269b13a140398e97efbab605db555dc9f74177ac1e50aee8cded143c78c170",
+    "models": [
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "tokens": 19820,
+        "exact_hf_ids": true,
+        "ids_sha256": "ac4e3b0a47b61428e232dcbce92ab45b844977d55f78d96ac380a4ebedec6402"
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "tokens": 19820,
+        "exact_hf_ids": true,
+        "ids_sha256": "ac4e3b0a47b61428e232dcbce92ab45b844977d55f78d96ac380a4ebedec6402"
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "tokens": 19820,
+        "exact_hf_ids": true,
+        "ids_sha256": "ac4e3b0a47b61428e232dcbce92ab45b844977d55f78d96ac380a4ebedec6402"
+      }
+    ]
+  },
+  "independent_review": {
+    "plan_helper": "Plan, original text identity, Jinja2 rendering and allHF IDs independently reproduced for3models. No inference by reviewer.",
+    "driver": "EOS, fresh-server and exactcomparison checks reviewed; hash failure recording and model preflight added before launch.",
+    "scope": "Prospective validation plan, not a passing generation result."
+  },
+  "artifacts": {
+    "build-helper.cmd": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\build-helper.cmd",
+      "sha256": "862e83c4a7bd4fd8d486d01e3ac00f07e50363960a9192d9a415ca538b89f717"
+    },
+    "build-helper.log": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\build-helper.log",
+      "sha256": "8d3ffd3728e9bb85fb9639d8f091ebbe4cd9d1b5881b53eedf48061e9823bd0e"
+    },
+    "chat_prompt.cpp": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\chat_prompt.cpp",
+      "sha256": "fa0ed462dfd08933f7529e1d1f9aafe0489dd4520a9634b74416c68a481a10bb"
+    },
+    "chat_prompt.exe": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\chat_prompt.exe",
+      "sha256": "543781a72e7fd464b971f79aed1b06ff9ecc21210006b382fa27f3e263a7ca0a"
+    },
+    "hf-tokenization.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\hf-tokenization.json",
+      "sha256": "d907a7827b1de796351c63d5ccaa5eaa613d635e9621d0131cd53d827a63267c"
+    },
+    "plan.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\plan.json",
+      "sha256": "7b269b13a140398e97efbab605db555dc9f74177ac1e50aee8cded143c78c170"
+    },
+    "preflight.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\preflight.json",
+      "sha256": "eb1534b8c81c6f80147041a650293c258605218c9a58e04aac614d6c0edfa205"
+    },
+    "Qwen3-0.6B-Q4_0.gguf-prompt.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\Qwen3-0.6B-Q4_0.gguf-prompt.json",
+      "sha256": "d1824fd557e7796a736a42a9c5f00ae34f155bf7485c2b51dcb0c259d4729915"
+    },
+    "Qwen3-0.6B-Q5_K_M.gguf-prompt.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\Qwen3-0.6B-Q5_K_M.gguf-prompt.json",
+      "sha256": "d1824fd557e7796a736a42a9c5f00ae34f155bf7485c2b51dcb0c259d4729915"
+    },
+    "Qwen3-0.6B-Q8_0.gguf-prompt.json": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\Qwen3-0.6B-Q8_0.gguf-prompt.json",
+      "sha256": "55c79c93493dea3a155b9a74abc8c64c68d67a1ca4c6628f03c1f8720a43d58f"
+    },
+    "run.py": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-chat-long-20260925\\run.py",
+      "sha256": "5cb8748b20fb8f2f0e2ea001a1715dfbfad89b89c391ba88e2e8d9383a864d64"
+    }
+  },
+  "running_at_checkpoint": {
+    "session": 31254,
+    "driver_pid": 36988,
+    "first_server_pid": 32044,
+    "start_utc": "2026-09-24T22:56:05.598553+00:00",
+    "result": "pending"
+  }
+}

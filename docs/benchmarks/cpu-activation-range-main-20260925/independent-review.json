@@ -1,0 +1,22 @@
+{
+  "result": "Approved for feature checkpoint only; strict EOS and final performance gates remain open, not merge approval.",
+  "source_test_identity": {
+    "reviewed": "842f453",
+    "matching_files": 2,
+    "normalization": "checkout line endings"
+  },
+  "raw_artifact_hashes": 10,
+  "saved_log_hashes": 3,
+  "binary_hash": "matches",
+  "historical_evidence_blobs": 58,
+  "historical_source": "e8bdb86",
+  "native_passed": 21,
+  "required_hf_components": 14,
+  "nll_cases": 24,
+  "top1_per_model": "6/6",
+  "markdown_files": 39,
+  "relative_file_links": 135,
+  "non_ascii": 0,
+  "missing_targets": 0,
+  "scope": "Source/architecture, result/log/hash consistency and current documentation; no edits/builds/tests by reviewer. Historical numerical claims and external URLs not revalidated."
+}

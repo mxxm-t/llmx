@@ -1,0 +1,39 @@
+{
+  "completed_utc": "2026-09-25T02:43:38.154614+00:00",
+  "records": [
+    {
+      "argv": [
+        "cmake",
+        "-S",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925",
+        "-B",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925\\build-checkpoint",
+        "-G",
+        "Visual Studio 18 2026",
+        "-A",
+        "x64",
+        "-DBUILD_TESTING=OFF",
+        "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+      ],
+      "exit": 0,
+      "log": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-current-evidence-20260925\\checkpoint-configure.log",
+      "sha256": "9adfd8bc999c41db772d932f033aac32fbd624885c3d3b10ff8ede0db6ba4ed9"
+    },
+    {
+      "argv": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-current-20260925\\build-checkpoint",
+        "--config",
+        "Release",
+        "--parallel",
+        "2",
+        "--target",
+        "llmx"
+      ],
+      "exit": 0,
+      "log": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-current-evidence-20260925\\checkpoint-build.log",
+      "sha256": "a4320721f12943601e0f271eada8fe99fbdebe319a83258da35459ad0d724420"
+    }
+  ]
+}

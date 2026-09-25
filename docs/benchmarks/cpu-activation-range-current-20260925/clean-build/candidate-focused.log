@@ -1,0 +1,4 @@
+version: release/build identifier and usage banner agree  [ok]
+f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error 0.00000069  [ok]
+threads: perplexity effective counts/aliases and HF NLL, 56 cases, max error 0.00000093  [ok]
+threads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]

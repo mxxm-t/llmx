@@ -1,0 +1,54 @@
+{
+  "utc": "2026-09-24T20:32:53.832342+00:00",
+  "records": [
+    {
+      "name": "base",
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-base-20260924\\build\\Release\\llmx.exe",
+      "expected": "90d5dc81987e221365724837ea050c540c4bd331dce77bdaecbf0e9d74390142",
+      "actual": "90d5dc81987e221365724837ea050c540c4bd331dce77bdaecbf0e9d74390142",
+      "matches": true
+    },
+    {
+      "name": "candidate",
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build\\Release\\llmx.exe",
+      "expected": "a7cd23052fa93df1ea5147713130dd26f3d8cab191f69c105d514379f892d6e5",
+      "actual": "a7cd23052fa93df1ea5147713130dd26f3d8cab191f69c105d514379f892d6e5",
+      "matches": true
+    },
+    {
+      "name": "layout",
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-layout-20260924\\build\\Release\\llmx.exe",
+      "expected": "acc4e0a17008a4af17a4fbbc4554a0f62e038813a871050800844e505fc71c12",
+      "actual": "acc4e0a17008a4af17a4fbbc4554a0f62e038813a871050800844e505fc71c12",
+      "matches": true
+    },
+    {
+      "name": "Qwen3-0.6B-Q8_0.gguf",
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+      "expected": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "actual": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "matches": true
+    },
+    {
+      "name": "Qwen3-0.6B-Q4_0.gguf",
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+      "expected": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "actual": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "matches": true
+    },
+    {
+      "name": "Qwen3-0.6B-Q5_K_M.gguf",
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+      "expected": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "actual": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "matches": true
+    },
+    {
+      "name": "Qwen3-8B-Q8_0.gguf",
+      "path": "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+      "expected": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+      "actual": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+      "matches": true
+    }
+  ]
+}

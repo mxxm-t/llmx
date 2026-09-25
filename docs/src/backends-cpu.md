@@ -107,6 +107,18 @@ the compiled binary portable to older CPUs.
   and Q6_K, and meet the packed
   weights in integers (`maddubs` and `madd`), one scale per block; the float
   dots they replaced converted every weight and were bound by arithmetic.
+  If a tiny finite block overflows the float reciprocal, an exceptional scalar
+  path uses the smallest positive representable scale covering its magnitude
+  range, then rounds double-precision ratios to nearest, ties to even. This
+  preserves zeros, signs and the sum of the packed integers even when the
+  ordinary scale would round to zero; tiny endpoints need not reach the integer
+  limit when a finer covering scale cannot be represented. Normal-range SIMD
+  arithmetic is unchanged. The fallback is checked strictly for nearest
+  reconstruction; ordinary controls allow the existing float-rounding error.
+  The range tests compare reconstructed values against the original inputs and
+  neighbouring integer representations; they do not reuse the encoder formula.
+  Gradual underflow is assumed; flush-to-zero and nonfinite input handling are
+  not established by this check.
   `set_decode_activations8(false)` keeps the float dots, which the device
   comparison test's reference and the float-kernel checks use.
 - `route_experts`, `matmul_experts`, `matmul_experts_add`: routing in

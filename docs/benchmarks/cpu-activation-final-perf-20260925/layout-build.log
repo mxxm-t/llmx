@@ -1,0 +1,10 @@
+MSBuild version 18.4.0+6e61e96ac for .NET Framework
+
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-activation-final-perf-layout-20260925\build\ZERO_CHECK.vcxproj]
+  1>Checking Build System
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-activation-final-perf-layout-20260925\build\llmx-build-info.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-activation-final-perf-layout-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-activation-final-perf-layout-20260925\build\llmx.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-activation-final-perf-layout-20260925/CMakeLists.txt
+  main.cpp
+  llmx.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-activation-final-perf-layout-20260925\build\Release\llmx.exe

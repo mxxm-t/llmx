@@ -1,0 +1,16 @@
+{
+  "exit": 0,
+  "identity": {
+    "commit": "356b7457398af98dcff211d611af808f0608e44e",
+    "cli": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925\\build\\Release\\llmx.exe",
+      "version": "llmx 0.1.0+g356b7457398a",
+      "sha256": "38a075f69cf679fee634f2d901e3ed63b36f462b9bae20f3054c1b77f378fab2"
+    },
+    "harness": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\candidate.exe",
+      "version": "llmx 0.1.0+g356b7457398a harness-f16",
+      "sha256": "be793c2d68bd3354c04c12b79a8af1ba4badb4ec1bc684c1c28bef4b8f11b573"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "drivers": {
+    "common": {
+      "old_driver": "run_matrix.py",
+      "old_sha256": "40e8da03a0796bf49746dac2031cadb7d9fb49b1321b45b61f1b38ca5fbb7a36",
+      "new_driver": "run_matrix_guarded.py",
+      "new_sha256": "1b46d28254e87fe6e9b078bf50ae1e9ad842b47f40bb2e45dfe209e4ee8dfd11",
+      "planned_calls": 128,
+      "command_ast_identical": true,
+      "command_source": "command=[plan['arms'][arm]['exe'],plan['models'][model]['path'],plan['harness']['tokens'],'--threads','6']",
+      "cell_order_equal": true,
+      "cell_order_sha256": "efaad0d6ec3627ae704678afe8f950a1a0630c0d2175ba303a45e52bb057443a",
+      "monitor_activity_ast_identical_to": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-row-runs-perf-20260925\\run_matrix.py",
+      "reference_runner_sha256": "1ccdab449929a5e1dd9cd18bdb04ea95df0bdbc01c286a4fb34f733e285670e4",
+      "syntax": "ast.parse passed",
+      "sleep_calls_identical": true,
+      "timeouts_seconds": {
+        "benchmark": 600,
+        "monitor_duration": 620,
+        "monitor_wait": 10
+      },
+      "scope": "Static syntax/AST/order inspection only. Drivers and workloads not executed. No model payloads read."
+    },
+    "cli": {
+      "old_driver": "run_cli_matrix.py",
+      "old_sha256": "c1b6505e57852f54060496324fea7b2920bde656fb0e11e172c1bb6b04066992",
+      "new_driver": "run_cli_matrix_guarded.py",
+      "new_sha256": "27fe8d3df93fca64b64be10452559949bb006234a0703a264ed30c91e8539971",
+      "planned_calls": 72,
+      "command_ast_identical": true,
+      "command_source": "command=[plan['arms'][arm]['exe'],'bench','--model',plan['models'][model]['path'],'--threads','6','--device','cpu','--cache-type-k','f16','--cache-type-v','f16','--p','215','--n','32','--r','1']",
+      "cell_order_equal": true,
+      "cell_order_sha256": "067caf93ddcb24ea1f6a1ec82b6ccd6a06d0ebfa1b430052d958f6921a596f0a",
+      "monitor_activity_ast_identical_to": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-row-runs-perf-20260925\\run_cli_matrix.py",
+      "reference_runner_sha256": "89741fd5ec12ea539cf9f17d7cae193533e3a7bffcdbf2ec0f229b7fe762dc37",
+      "syntax": "ast.parse passed",
+      "sleep_calls_identical": true,
+      "timeouts_seconds": {
+        "benchmark": 600,
+        "monitor_duration": 620,
+        "monitor_wait": 10
+      },
+      "scope": "Static syntax/AST/order inspection only. Drivers and workloads not executed. No model payloads read."
+    }
+  },
+  "original_frozen_files_unchanged": true,
+  "original_inventory_entries": 43,
+  "execution": "None; syntax/AST/order inspection only"
+}

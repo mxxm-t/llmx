@@ -1,0 +1,45 @@
+{
+  "verified_utc": "2026-09-25T02:48:19.137645+00:00",
+  "status": "passed",
+  "archives": {
+    "matrix.tar.xz": {
+      "bytes": 3937284,
+      "sha256": "458c89353e6099661bf8f1f68dc58bf1745863f9c58abe212d649633404fc9fc",
+      "uncompressed_bytes": 179610539,
+      "verified_members": 642
+    },
+    "cli-matrix.tar.xz": {
+      "bytes": 1994324,
+      "sha256": "b48eb75541ba666dc5be6a500afd8490c75e4fb9a30478202207abb610a2a181",
+      "uncompressed_bytes": 91086774,
+      "verified_members": 362
+    }
+  },
+  "copied_supporting_files": 84,
+  "copied_supporting_bytes": 2394685,
+  "verified_archive_members": 1004,
+  "raw_calls": {
+    "common": 128,
+    "cli": 72
+  },
+  "generated_file_sha256": {
+    "README.md": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+    "verify_package.py": "b132687cf9ea7673dc7c31f6c61790740d7df8f1f62044b89308a0bed2808ee9",
+    "package-manifest.json": "0baddad50b8f4a85c12f66c3755a2b55de99e022eba00e8b1325a1ae71eca310",
+    ".gitattributes": "8b9c3028d6467ff3be7c793141927841d70f47f52d0590677438f488ca154992"
+  },
+  "readme_ascii": true,
+  "readme_missing_links": [],
+  "frozen_files_match": 7,
+  "inventory_before_this_report": {
+    "files": 90,
+    "bytes": 8535031
+  },
+  "verification_command": "python verify_package.py",
+  "verification_exit": 0,
+  "limits": [
+    "Packaging integrity verification only. Final performance audits were preserved, not re-executed by packaging.",
+    "No binaries, objects, DLLs, model payloads, inference, build or git operations.",
+    "The observed CLI Q5 decode -6.568% remains a cost; no performance-neutral, universal parity or merge claim."
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "heads": {
+    "base": "11f5859a4be509ace5516377d396e335494f7413",
+    "layout": "e149fc05aceec39f0f147234eb7957bd88659414",
+    "candidate": "356b7457398af98dcff211d611af808f0608e44e"
+  },
+  "trees": {
+    "base": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-base-20260925",
+    "layout": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-layout-20260925",
+    "candidate": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-candidate-20260925"
+  },
+  "candidate": "validated source checkpoint; clean build pending",
+  "scope": "Build preparation only, no timing while correctness is active. Earlier e475/91/c156 tree preparation remains unchanged and was never timed."
+}

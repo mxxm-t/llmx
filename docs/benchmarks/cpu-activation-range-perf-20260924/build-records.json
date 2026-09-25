@@ -1,0 +1,119 @@
+[
+  {
+    "arm": "base",
+    "command": [
+      "cmake",
+      "-S",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-base-20260924",
+      "-B",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-base-20260924\\build",
+      "-G",
+      "Visual Studio 18 2026",
+      "-A",
+      "x64"
+    ],
+    "exit": 0
+  },
+  {
+    "arm": "base",
+    "command": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-base-20260924\\build",
+      "--config",
+      "Release",
+      "--target",
+      "llmx",
+      "--parallel",
+      "3"
+    ],
+    "exit": 0
+  },
+  {
+    "arm": "base",
+    "command": [
+      "cmd",
+      "/c",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\build-harness-base.cmd"
+    ],
+    "exit": 0
+  },
+  {
+    "arm": "candidate",
+    "command": [
+      "cmake",
+      "-S",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924",
+      "-B",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build",
+      "-G",
+      "Visual Studio 18 2026",
+      "-A",
+      "x64"
+    ],
+    "exit": 0
+  },
+  {
+    "arm": "candidate",
+    "command": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-candidate-20260924\\build",
+      "--config",
+      "Release",
+      "--target",
+      "llmx",
+      "--parallel",
+      "3"
+    ],
+    "exit": 0
+  },
+  {
+    "arm": "candidate",
+    "command": [
+      "cmd",
+      "/c",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\build-harness-candidate.cmd"
+    ],
+    "exit": 0
+  },
+  {
+    "arm": "layout",
+    "command": [
+      "cmake",
+      "-S",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-layout-20260924",
+      "-B",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-layout-20260924\\build",
+      "-G",
+      "Visual Studio 18 2026",
+      "-A",
+      "x64"
+    ],
+    "exit": 0
+  },
+  {
+    "arm": "layout",
+    "command": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-layout-20260924\\build",
+      "--config",
+      "Release",
+      "--target",
+      "llmx",
+      "--parallel",
+      "3"
+    ],
+    "exit": 0
+  },
+  {
+    "arm": "layout",
+    "command": [
+      "cmd",
+      "/c",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\build-harness-layout.cmd"
+    ],
+    "exit": 0
+  }
+]

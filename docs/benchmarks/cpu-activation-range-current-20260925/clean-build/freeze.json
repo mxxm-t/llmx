@@ -1,0 +1,17 @@
+{
+  "created": "2026-09-25T00:09:55.838683+00:00",
+  "planned_rows": {
+    "common": 128,
+    "cli": 72
+  },
+  "sha256": {
+    "plan.json": "0ea55de59418a520b632c0c7974019c9ebe5b2223fa9c3d79af2d9cb9396856a",
+    "cli-plan.json": "03a69d4f44034f1c21cf037525da979efa013e3cc56a894263d9363f2475ae84",
+    "run_matrix.py": "40e8da03a0796bf49746dac2031cadb7d9fb49b1321b45b61f1b38ca5fbb7a36",
+    "run_cli_matrix.py": "c1b6505e57852f54060496324fea7b2920bde656fb0e11e172c1bb6b04066992",
+    "compare.cpp": "a37140b60a7c9896b40cadc258799dea8b370762e879249b7e9bf8de908139b7",
+    "ids.txt": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+    "monitor_windows.py": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6"
+  },
+  "executed": false
+}

@@ -1,0 +1,491 @@
+{
+  "scope": "Partial observed activity only; no timing/adoption verdict. Derived from already retained runner records, not an independent telemetry recollection.",
+  "checked_utc": "2026-09-25T02:02:42.960987+00:00",
+  "completed_rows": 38,
+  "results_snapshot_sha256": "3b77b2c27404a3a26d274541f40e6780bcdd86f78e799ce07bbc7cef3577cb1c",
+  "cpu_percent_unit": "100 is one logical CPU",
+  "peak_process_activity": [
+    {
+      "process": "40216:Code.exe",
+      "peak_percent": 124.39583430941241,
+      "cells_above_50": 10
+    },
+    {
+      "process": "37748:Code.exe",
+      "peak_percent": 124.13522686441625,
+      "cells_above_50": 2
+    },
+    {
+      "process": "26124:firefox.exe",
+      "peak_percent": 101.55094699244837,
+      "cells_above_50": 5
+    },
+    {
+      "process": "5760:firefox.exe",
+      "peak_percent": 78.3974782739561,
+      "cells_above_50": 1
+    },
+    {
+      "process": "10308:Code.exe",
+      "peak_percent": 77.17105551220304,
+      "cells_above_50": 10
+    },
+    {
+      "process": "23816:codex.exe",
+      "peak_percent": 61.56773519747923,
+      "cells_above_50": 3
+    },
+    {
+      "process": "10344:Code.exe",
+      "peak_percent": 57.79512100934502,
+      "cells_above_50": 2
+    },
+    {
+      "process": "16192:RuneLite.exe",
+      "peak_percent": 36.12967373419324,
+      "cells_above_50": 0
+    },
+    {
+      "process": "5992:RuneLite.exe",
+      "peak_percent": 36.00524025926946,
+      "cells_above_50": 0
+    },
+    {
+      "process": "23540:Code.exe",
+      "peak_percent": 29.65482334989847,
+      "cells_above_50": 0
+    },
+    {
+      "process": "9608:firefox.exe",
+      "peak_percent": 23.79332682378823,
+      "cells_above_50": 0
+    },
+    {
+      "process": "23936:firefox.exe",
+      "peak_percent": 23.6532149551088,
+      "cells_above_50": 0
+    },
+    {
+      "process": "7860:explorer.exe",
+      "peak_percent": 23.082577669966035,
+      "cells_above_50": 0
+    },
+    {
+      "process": "9576:Code.exe",
+      "peak_percent": 22.063813287913263,
+      "cells_above_50": 0
+    },
+    {
+      "process": "34052:claude.exe",
+      "peak_percent": 18.40564691089762,
+      "cells_above_50": 0
+    },
+    {
+      "process": "24348:claude.exe",
+      "peak_percent": 11.000634843351571,
+      "cells_above_50": 0
+    },
+    {
+      "process": "23260:claude.exe",
+      "peak_percent": 10.880753785552288,
+      "cells_above_50": 0
+    },
+    {
+      "process": "19712:firefox.exe",
+      "peak_percent": 10.761827161709126,
+      "cells_above_50": 0
+    },
+    {
+      "process": "33232:firefox.exe",
+      "peak_percent": 9.393515558435992,
+      "cells_above_50": 0
+    },
+    {
+      "process": "19968:firefox.exe",
+      "peak_percent": 9.126183726577176,
+      "cells_above_50": 0
+    },
+    {
+      "process": "10980:Code.exe",
+      "peak_percent": 7.81586238366855,
+      "cells_above_50": 0
+    },
+    {
+      "process": "2364:SteelSeriesEngine.exe",
+      "peak_percent": 7.699906576161152,
+      "cells_above_50": 0
+    },
+    {
+      "process": "40892:firefox.exe",
+      "peak_percent": 6.300400685498156,
+      "cells_above_50": 0
+    },
+    {
+      "process": "27764:firefox.exe",
+      "peak_percent": 6.257223965077542,
+      "cells_above_50": 0
+    },
+    {
+      "process": "10212:Code.exe",
+      "peak_percent": 6.248244243091539,
+      "cells_above_50": 0
+    },
+    {
+      "process": "24304:conhost.exe",
+      "peak_percent": 4.7903463406359545,
+      "cells_above_50": 0
+    },
+    {
+      "process": "7904:Core Temp.exe",
+      "peak_percent": 4.730225287043053,
+      "cells_above_50": 0
+    },
+    {
+      "process": "17436:SteelSeriesSonar.exe",
+      "peak_percent": 4.722908114629798,
+      "cells_above_50": 0
+    },
+    {
+      "process": "3600:Taskmgr.exe",
+      "peak_percent": 4.703495176008357,
+      "cells_above_50": 0
+    },
+    {
+      "process": "31132:codex-code-mode-host.exe",
+      "peak_percent": 4.68884616761389,
+      "cells_above_50": 0
+    },
+    {
+      "process": "22932:JagexLauncher.exe",
+      "peak_percent": 4.6668779994823755,
+      "cells_above_50": 0
+    },
+    {
+      "process": "22796:python.exe",
+      "peak_percent": 4.59455446071291,
+      "cells_above_50": 0
+    },
+    {
+      "process": "40352:firefox.exe",
+      "peak_percent": 3.1810151315743953,
+      "cells_above_50": 0
+    },
+    {
+      "process": "29276:conhost.exe",
+      "peak_percent": 3.1778466362871582,
+      "cells_above_50": 0
+    },
+    {
+      "process": "32648:Code.exe",
+      "peak_percent": 3.1492133566999096,
+      "cells_above_50": 0
+    },
+    {
+      "process": "36452:ssh.exe",
+      "peak_percent": 3.1437151650793607,
+      "cells_above_50": 0
+    },
+    {
+      "process": "6524:MSIAfterburner.exe",
+      "peak_percent": 3.141984310413789,
+      "cells_above_50": 0
+    },
+    {
+      "process": "14740:firefox.exe",
+      "peak_percent": 3.138923006934771,
+      "cells_above_50": 0
+    },
+    {
+      "process": "4028:taskhostw.exe",
+      "peak_percent": 3.137858945975946,
+      "cells_above_50": 0
+    },
+    {
+      "process": "19532:codex.exe",
+      "peak_percent": 3.135544208046034,
+      "cells_above_50": 0
+    },
+    {
+      "process": "2308:firefox.exe",
+      "peak_percent": 3.1349594527931224,
+      "cells_above_50": 0
+    },
+    {
+      "process": "27960:OneDrive.Sync.Service.exe",
+      "peak_percent": 3.130658038167372,
+      "cells_above_50": 0
+    },
+    {
+      "process": "16260:steam.exe",
+      "peak_percent": 3.1282746781038737,
+      "cells_above_50": 0
+    },
+    {
+      "process": "7960:ssh.exe",
+      "peak_percent": 3.1281744714084425,
+      "cells_above_50": 0
+    },
+    {
+      "process": "16548:steamwebhelper.exe",
+      "peak_percent": 3.127243484447965,
+      "cells_above_50": 0
+    },
+    {
+      "process": "9240:RazerAppEngine.exe",
+      "peak_percent": 3.125302529223521,
+      "cells_above_50": 0
+    },
+    {
+      "process": "4208:JagexLauncher.exe",
+      "peak_percent": 3.12504187551619,
+      "cells_above_50": 0
+    },
+    {
+      "process": "6160:JagexLauncher.exe",
+      "peak_percent": 3.123717401505292,
+      "cells_above_50": 0
+    },
+    {
+      "process": "11512:Code.exe",
+      "peak_percent": 3.0875632950219787,
+      "cells_above_50": 0
+    },
+    {
+      "process": "15188:SteelSeriesGGEZ.exe",
+      "peak_percent": 1.8189312972875122,
+      "cells_above_50": 0
+    },
+    {
+      "process": "4420:JagexLauncher.exe",
+      "peak_percent": 1.6234273924314904,
+      "cells_above_50": 0
+    },
+    {
+      "process": "16056:LM Studio.exe",
+      "peak_percent": 1.6221112923406815,
+      "cells_above_50": 0
+    },
+    {
+      "process": "15968:RazerAppEngine.exe",
+      "peak_percent": 1.599272226211982,
+      "cells_above_50": 0
+    },
+    {
+      "process": "10988:firefox.exe",
+      "peak_percent": 1.583759757482539,
+      "cells_above_50": 0
+    },
+    {
+      "process": "37376:firefox.exe",
+      "peak_percent": 1.5777685394821417,
+      "cells_above_50": 0
+    },
+    {
+      "process": "37040:firefox.exe",
+      "peak_percent": 1.5775071409775094,
+      "cells_above_50": 0
+    },
+    {
+      "process": "31128:firefox.exe",
+      "peak_percent": 1.576797612366107,
+      "cells_above_50": 0
+    },
+    {
+      "process": "4500:tail.exe",
+      "peak_percent": 1.576516651907045,
+      "cells_above_50": 0
+    },
+    {
+      "process": "25672:Code.exe",
+      "peak_percent": 1.5764487336378208,
+      "cells_above_50": 0
+    },
+    {
+      "process": "12900:Code.exe",
+      "peak_percent": 1.5764455526686174,
+      "cells_above_50": 0
+    },
+    {
+      "process": "19948:CodeSetup-stable-2242ebbb54efeeb0129e08e919e7e8d43033cd83.tmp",
+      "peak_percent": 1.5763922721624029,
+      "cells_above_50": 0
+    },
+    {
+      "process": "22464:Code.exe",
+      "peak_percent": 1.5746815792268616,
+      "cells_above_50": 0
+    },
+    {
+      "process": "14800:remoting_host.exe",
+      "peak_percent": 1.5729771287916026,
+      "cells_above_50": 0
+    },
+    {
+      "process": "38840:firefox.exe",
+      "peak_percent": 1.5712476068281929,
+      "cells_above_50": 0
+    },
+    {
+      "process": "15548:firefox.exe",
+      "peak_percent": 1.5706812072390064,
+      "cells_above_50": 0
+    },
+    {
+      "process": "37420:Code.exe",
+      "peak_percent": 1.570187007552819,
+      "cells_above_50": 0
+    },
+    {
+      "process": "38312:cpptools.exe",
+      "peak_percent": 1.5691735381722203,
+      "cells_above_50": 0
+    },
+    {
+      "process": "11316:Code.exe",
+      "peak_percent": 1.5691574643752964,
+      "cells_above_50": 0
+    },
+    {
+      "process": "34960:powershell.exe",
+      "peak_percent": 1.5691103480836905,
+      "cells_above_50": 0
+    },
+    {
+      "process": "36292:powershell.exe",
+      "peak_percent": 1.5688039248713908,
+      "cells_above_50": 0
+    },
+    {
+      "process": "31208:SteelSeriesGG.exe",
+      "peak_percent": 1.568796206697506,
+      "cells_above_50": 0
+    },
+    {
+      "process": "20896:firefox.exe",
+      "peak_percent": 1.5686524116303604,
+      "cells_above_50": 0
+    },
+    {
+      "process": "23072:powershell.exe",
+      "peak_percent": 1.5686431201232596,
+      "cells_above_50": 0
+    },
+    {
+      "process": "32828:firefox.exe",
+      "peak_percent": 1.5662481885450916,
+      "cells_above_50": 0
+    },
+    {
+      "process": "6516:vctip.exe",
+      "peak_percent": 1.566041446110492,
+      "cells_above_50": 0
+    },
+    {
+      "process": "32324:powershell.exe",
+      "peak_percent": 1.5646089364151643,
+      "cells_above_50": 0
+    },
+    {
+      "process": "18492:LM Studio.exe",
+      "peak_percent": 1.5642016950527031,
+      "cells_above_50": 0
+    },
+    {
+      "process": "17756:RazerAppEngine.exe",
+      "peak_percent": 1.5640906802254193,
+      "cells_above_50": 0
+    },
+    {
+      "process": "10796:Code.exe",
+      "peak_percent": 1.5638477239445758,
+      "cells_above_50": 0
+    },
+    {
+      "process": "15776:powershell.exe",
+      "peak_percent": 1.5637456798274856,
+      "cells_above_50": 0
+    },
+    {
+      "process": "41124:firefox.exe",
+      "peak_percent": 1.5635153468618754,
+      "cells_above_50": 0
+    },
+    {
+      "process": "16556:RazerAppEngine.exe",
+      "peak_percent": 1.5634269558931844,
+      "cells_above_50": 0
+    },
+    {
+      "process": "21960:RazerAppEngine.exe",
+      "peak_percent": 1.5632086024867038,
+      "cells_above_50": 0
+    },
+    {
+      "process": "22004:RazerAppEngine.exe",
+      "peak_percent": 1.5631890537042723,
+      "cells_above_50": 0
+    },
+    {
+      "process": "20028:RazerAppEngine.exe",
+      "peak_percent": 1.563141513248548,
+      "cells_above_50": 0
+    },
+    {
+      "process": "23156:Code.exe",
+      "peak_percent": 1.5629649820746854,
+      "cells_above_50": 0
+    },
+    {
+      "process": "19004:LM Studio.exe",
+      "peak_percent": 1.5619286464236328,
+      "cells_above_50": 0
+    },
+    {
+      "process": "11540:Code.exe",
+      "peak_percent": 1.5617278817647604,
+      "cells_above_50": 0
+    },
+    {
+      "process": "32880:SteelSeriesMoments.exe",
+      "peak_percent": 1.561519365824406,
+      "cells_above_50": 0
+    },
+    {
+      "process": "9544:Code.exe",
+      "peak_percent": 1.5609470138024446,
+      "cells_above_50": 0
+    },
+    {
+      "process": "17316:steamwebhelper.exe",
+      "peak_percent": 1.5605432348350987,
+      "cells_above_50": 0
+    },
+    {
+      "process": "28688:cpptools.exe",
+      "peak_percent": 1.5597705575091394,
+      "cells_above_50": 0
+    },
+    {
+      "process": "27676:conhost.exe",
+      "peak_percent": 1.5486478099246623,
+      "cells_above_50": 0
+    },
+    {
+      "process": "32220:firefox.exe",
+      "peak_percent": 1.5047774879478792,
+      "cells_above_50": 0
+    }
+  ],
+  "flagged_cells": {
+    "cpu": 38,
+    "disk": 9,
+    "gpu": 0
+  },
+  "unknown_monitor_cells": 38,
+  "limits": [
+    "All planned measurements continue; no flagged or slow sample is discarded.",
+    "Invocation activity includes loading/warmup as well as timed sections; these peaks do not establish causation for individual timings.",
+    "The orchestration editor/agent processes are included as workload-unrelated activity. No competing own build/test/download is running.",
+    "Unknown process CPU deltas remain unknown."
+  ]
+}

@@ -1,0 +1,236 @@
+{
+  "base": "11f5859a4be509ace5516377d396e335494f7413",
+  "reviewed_feature": "842f453ed22c517d023c0d7a68b72b492a80cfaa",
+  "native_passed": 21,
+  "required_hf_cpu_components": [
+    "version",
+    "reference-generator",
+    "reference-consumer",
+    "roundtrip",
+    "perf",
+    "tokenizer",
+    "perplexity",
+    "f32",
+    "moe",
+    "shards",
+    "server",
+    "chat",
+    "threads",
+    "baseline"
+  ],
+  "hf_nll_cells": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.001184,
+      "hf_bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.007366,
+      "hf_bound": 0.01
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.00676,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.00349,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.002443,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.001717,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.012356,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.002406,
+      "hf_bound": 0.02
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.131554,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.131464,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.1676,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.16754,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.068883,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.068833,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.120396,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.120276,
+      "hf_bound": 0.2
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "batched",
+      "absolute_nll_error": 0.026144,
+      "hf_bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 0,
+      "chunks": 1,
+      "path": "per-token",
+      "absolute_nll_error": 0.027534,
+      "hf_bound": 0.05
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "batched",
+      "absolute_nll_error": 0.12944,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 4,
+      "path": "per-token",
+      "absolute_nll_error": 0.11678,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.067543,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 64,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.071283,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "batched",
+      "absolute_nll_error": 0.024116,
+      "hf_bound": 0.16
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "context": 123,
+      "chunks": 2,
+      "path": "per-token",
+      "absolute_nll_error": 0.019736,
+      "hf_bound": 0.16
+    }
+  ],
+  "binary": {
+    "version": "llmx 0.1.0+g11f5859a4be5.dirty",
+    "sha256": "432861474ea278a76111382313c8fada6ca887ac1269df53332090ee56855b01"
+  },
+  "source_sha256": {
+    "src/backends/cpu/q8_dots.hpp": "e0e7317c78acfb2c24dc6ec04f76ba819410f6abbbf859ed85f5431d58bd2d36",
+    "tests/q8_dots.cpp": "d6e4cdbf0f3bfc5595650cc0933e0f5ee486272d27ae0eb149c8165135f6c454"
+  },
+  "artifact_sha256": {
+    "run.py": "6a41cbdde6c493f3bdecf85a376168e2f7506be84b5efec98090ee4ae7977deb",
+    "binary.json": "f11c2d5d21355cf16e27686045dc582b282c25b731efe4e83f46e980fadf48cb",
+    "commands.json": "0f531d6905b2bfc4e1c637dbebb8ec8f83622a49419851c8bf1d468a34a9fb81",
+    "complete.json": "8f01df23ef663adaf77cb65beb7b753478b39c9dd2311ac5132b2230d5de70ee",
+    "configure.log": "2fdc50ea16650e3e0ac9e606756097d499eca0e5a942b0ac123a93ac1ea6637b",
+    "build.log": "47ff9b6c1a24e0e4a03d46f3653995509808950185703b3f65a8be4d10947440",
+    "native.log": "4f9f6c47920cb307470603a686fa81f2571720b9c7aad2a4f7c14ebf4bcf79e2",
+    "cpu-hf.log": "8c5ddc1875599f5a0c8ef9bff00f491aff4d5524bbef63e92e8f186991dab335",
+    "native-details.log": "6b8c57e31f251f9b3df389db4939aa95917c5a331415f4a0758f96f50c2f9e99",
+    "base-ci.json": "f7a15ddd4eec7b16a73718fbb79093aab0275e87930fb191ac2260e9202b3aa1"
+  },
+  "scope": "Windows MSVC Release CPU integration on published main. Exact reviewed activation header and test after checkout newline normalization. Prior Linux, 8B, performance and frozen long-context evidence retain their original revisions. Diagnostic timings overlap long-context correctness and are not performance claims. Final current-main performance and complete depth gates remain open."
+}

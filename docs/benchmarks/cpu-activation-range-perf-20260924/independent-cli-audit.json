@@ -1,0 +1,210 @@
+{
+  "checks": 1771,
+  "errors": [],
+  "cells": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "phase": "pp215",
+      "median_tok_s": {
+        "base": 541.065,
+        "candidate": 535.39,
+        "layout": 546.635
+      },
+      "candidate_base_paired_percent": 4.366421624218653,
+      "layout_base_paired_percent": 10.215589177181862,
+      "candidate_faster_blocks": 3,
+      "candidate_slower_blocks": 3,
+      "candidate_base_block_percent": [
+        -5.285468984760689,
+        -16.809557535318888,
+        34.55308938212356,
+        24.637124991534787,
+        1.121721439175949,
+        -3.286041026374098
+      ]
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "phase": "tg32",
+      "median_tok_s": {
+        "base": 57.095,
+        "candidate": 54.980000000000004,
+        "layout": 56.955
+      },
+      "candidate_base_paired_percent": -3.252571361443024,
+      "layout_base_paired_percent": 0.16338088328387013,
+      "candidate_faster_blocks": 3,
+      "candidate_slower_blocks": 3,
+      "candidate_base_block_percent": [
+        2.726602800294753,
+        -16.73125526537489,
+        -3.5930273923870493,
+        7.582417582417578,
+        -8.028193226749181,
+        0.5002587545281934
+      ]
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "phase": "pp215",
+      "median_tok_s": {
+        "base": 497.62,
+        "candidate": 524.585,
+        "layout": 516.165
+      },
+      "candidate_base_paired_percent": 3.7896163144214734,
+      "layout_base_paired_percent": -9.900867395211488,
+      "candidate_faster_blocks": 6,
+      "candidate_slower_blocks": 0,
+      "candidate_base_block_percent": [
+        6.508050456363446,
+        6.851332828706447,
+        2.5188079305041855,
+        0.6841330810831492,
+        5.098434136998198,
+        1.2512122306946427
+      ]
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "phase": "tg32",
+      "median_tok_s": {
+        "base": 88.265,
+        "candidate": 86.515,
+        "layout": 80.07
+      },
+      "candidate_base_paired_percent": 0.09814797605007808,
+      "layout_base_paired_percent": -7.571362216439592,
+      "candidate_faster_blocks": 3,
+      "candidate_slower_blocks": 3,
+      "candidate_base_block_percent": [
+        -7.776049766718507,
+        7.675771370763784,
+        2.5455758114717675,
+        -4.2177650429799485,
+        -1.5681003584229414,
+        4.774785369869461
+      ]
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "phase": "pp215",
+      "median_tok_s": {
+        "base": 491.58,
+        "candidate": 498.54,
+        "layout": 486.48
+      },
+      "candidate_base_paired_percent": 5.563649042913621,
+      "layout_base_paired_percent": 1.3319959046037555,
+      "candidate_faster_blocks": 4,
+      "candidate_slower_blocks": 2,
+      "candidate_base_block_percent": [
+        0.46802185441106037,
+        -1.4576305836655368,
+        -2.3886156150685234,
+        28.41378953897045,
+        7.062488080859453,
+        4.156420560187124
+      ]
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "phase": "tg32",
+      "median_tok_s": {
+        "base": 72.03,
+        "candidate": 73.31,
+        "layout": 76.37
+      },
+      "candidate_base_paired_percent": 1.8683352595922909,
+      "layout_base_paired_percent": 3.315656316233828,
+      "candidate_faster_blocks": 4,
+      "candidate_slower_blocks": 2,
+      "candidate_base_block_percent": [
+        0.2471508993546756,
+        -3.9321192052980236,
+        0.3543855208201441,
+        -2.7242246437552464,
+        9.96414699731103,
+        8.091822094691526
+      ]
+    },
+    {
+      "model": "Qwen3-8B-Q8_0.gguf",
+      "phase": "pp215",
+      "median_tok_s": {
+        "base": 40.879999999999995,
+        "candidate": 41.11,
+        "layout": 41.455
+      },
+      "candidate_base_paired_percent": 0.6187944401649936,
+      "layout_base_paired_percent": 0.32043862679547175,
+      "candidate_faster_blocks": 5,
+      "candidate_slower_blocks": 1,
+      "candidate_base_block_percent": [
+        -3.9515151515151614,
+        3.6706349206349076,
+        0.0738188976378007,
+        1.045719844357973,
+        1.4846502264720618,
+        1.5522677661896633
+      ]
+    },
+    {
+      "model": "Qwen3-8B-Q8_0.gguf",
+      "phase": "tg32",
+      "median_tok_s": {
+        "base": 4.640000000000001,
+        "candidate": 4.68,
+        "layout": 4.67
+      },
+      "candidate_base_paired_percent": 0.6031439268371797,
+      "layout_base_paired_percent": 0.8605805379670706,
+      "candidate_faster_blocks": 5,
+      "candidate_slower_blocks": 1,
+      "candidate_base_block_percent": [
+        1.0799136069114423,
+        0.2132196162046851,
+        1.0752688172043001,
+        -1.7699115044247593,
+        0.6451612903225712,
+        2.422907488986792
+      ]
+    }
+  ],
+  "activity": {
+    "base": {
+      "flag_cpu": 23,
+      "flag_disk": 2,
+      "flag_gpu": 0,
+      "unknown_process_samples": 278,
+      "missing_counter_samples": 0
+    },
+    "candidate": {
+      "flag_cpu": 24,
+      "flag_disk": 0,
+      "flag_gpu": 0,
+      "unknown_process_samples": 277,
+      "missing_counter_samples": 0
+    },
+    "layout": {
+      "flag_cpu": 24,
+      "flag_disk": 0,
+      "flag_gpu": 0,
+      "unknown_process_samples": 278,
+      "missing_counter_samples": 0
+    }
+  },
+  "monitor_summary": {
+    "structurally_complete": 72,
+    "covers_invocation": 72,
+    "parse_errors": 0,
+    "process_enumeration_errors": 0,
+    "counter_collection_errors": 0
+  },
+  "limits": [
+    "Read-only arithmetic and evidence-consistency audit, not inference or performance rerun.",
+    "CLI rates are printed to two decimal places; reconstructed milliseconds are derived values.",
+    "Raw monitor logs and frozen binaries/models were not rehashed in this review.",
+    "All flags describe whole invocations; inaccessible processes remain unknown."
+  ]
+}

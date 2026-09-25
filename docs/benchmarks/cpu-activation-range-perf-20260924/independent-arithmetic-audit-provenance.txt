@@ -1,0 +1,7 @@
+# Independent arithmetic review
+
+The Python source is the lightweight read-only audit previously executed through a PowerShell here-string piped to `python -` on 2026-09-24. It reads the retained 128-row common matrix, summary, block CSV and frozen CLI plan; it performs no inference, builds, downloads or file mutations.
+
+`independent-arithmetic-audit.json` preserves the already obtained stdout values, with JSON whitespace compacted for arrays. Result: 2,003 comparisons and zero mismatches; CLI orders give each arm twice in every position and 72 planned rows. Source and output were saved after that execution without rerunning the audit while the CLI matrix was active.
+
+This checks summary arithmetic and retained-row consistency. It does not independently rehash model payloads or binaries, reread every raw monitor log, prove complete background-process accounting, or validate runtime correctness. The 8B Q8 decode candidate/mx paired delta remains -1.7486827337408806 percent. Small before/after differences remain unresolved amid control variation and activity.

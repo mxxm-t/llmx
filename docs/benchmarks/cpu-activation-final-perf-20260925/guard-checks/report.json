@@ -1,0 +1,31 @@
+{
+  "scope": "Actual guarded Python driver launches while strict chat completion and readiness are absent. Both refuse at the completion guard before model payload hashes or workload launches. No inference/benchmark run.",
+  "passed": 2,
+  "total": 2,
+  "results": [
+    {
+      "driver": "run_matrix_guarded.py",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\run_matrix_guarded.py"
+      ],
+      "exit": 1,
+      "refused_before_model_hashing": true,
+      "log_sha256": "5397aad775d8c612310efe202420f9072abf1b47db9000dd426b576eba03ec11"
+    },
+    {
+      "driver": "run_cli_matrix_guarded.py",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-final-perf-20260925\\run_cli_matrix_guarded.py"
+      ],
+      "exit": 1,
+      "refused_before_model_hashing": true,
+      "log_sha256": "b1d9f624a58305e2f0e5526c4720e83f18e01f0d56e0fbd27952af9811476823"
+    }
+  ]
+}

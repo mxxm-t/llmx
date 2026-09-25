@@ -1,0 +1,137 @@
+{
+  "created": "2026-09-24T22:46:44.699140",
+  "scope": "Warmed pp215 plus 32 teacher-forced continuation tokens; loading/tokenization/sampling excluded. This harness is separate from normal CLI layout and does not establish every workload or default serving performance.",
+  "hardware": "AMD Ryzen 7 5800X, 8 cores,16 logical CPUs, Windows, MSVC19.50 Release",
+  "rounds": 8,
+  "orders": [
+    [
+      "base",
+      "candidate",
+      "layout",
+      "mx"
+    ],
+    [
+      "candidate",
+      "layout",
+      "mx",
+      "base"
+    ],
+    [
+      "layout",
+      "mx",
+      "base",
+      "candidate"
+    ],
+    [
+      "mx",
+      "base",
+      "candidate",
+      "layout"
+    ],
+    [
+      "mx",
+      "layout",
+      "candidate",
+      "base"
+    ],
+    [
+      "base",
+      "mx",
+      "layout",
+      "candidate"
+    ],
+    [
+      "candidate",
+      "base",
+      "mx",
+      "layout"
+    ],
+    [
+      "layout",
+      "candidate",
+      "base",
+      "mx"
+    ]
+  ],
+  "models": {
+    "Qwen3-0.6B-Q8_0.gguf": {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "bytes": 639446688
+    },
+    "Qwen3-0.6B-Q4_0.gguf": {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "bytes": 382156480
+    },
+    "Qwen3-0.6B-Q5_K_M.gguf": {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "bytes": 444415680
+    },
+    "Qwen3-8B-Q8_0.gguf": {
+      "path": "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+      "sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+      "bytes": 8709518112
+    }
+  },
+  "arms": {
+    "base": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\base.exe",
+      "version": "llmx 0.1.0+g5c8e89c346a5 harness-f16",
+      "sha256": "75d79353d671169661388e943b31a33a0f8d03e3d01b45d174c9325df62f4fcd"
+    },
+    "candidate": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\candidate.exe",
+      "version": "llmx 0.1.0+g842f453ed22c harness-f16",
+      "sha256": "55f081498cdf2f0e51ac0d0afbfab17efe77049f0361d1b4d27008f3aade0b20"
+    },
+    "layout": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\layout.exe",
+      "version": "llmx 0.1.0+gf069bd961d71 harness-f16",
+      "sha256": "8ce95d19ab5412dc5ceb6d2c7ce12637e96cd327d954bc380608a17d506e05ac"
+    },
+    "mx": {
+      "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\mx.exe",
+      "version": "mx-llama.cpp 5542318e748c harness-f16",
+      "sha256": "9321e6ab0b01acd857c24e17bec8d4efa07cfc8e023eeed100475eaa95742cc0"
+    }
+  },
+  "reference_dlls": {
+    "ggml-base.dll": "fd1dbbe5e8da6da622ae231722a3408ba705084bb52c34ca1440a336b3acda28",
+    "ggml-cpu.dll": "6af4b4ced5ece2dd3cd292f53550065fac4f2133f70164910fb7fda57ea43964",
+    "ggml.dll": "2484a2153d51d9a8c22443481f2eb058cccc1836e45ad98124b53b4adbd158d6",
+    "llama.dll": "fc7fba1e614d4cb53be16aa4b09f8e5cd3093427c6a498888fb6e6d984d51d9f"
+  },
+  "harness": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\compare.cpp",
+    "sha256": "a37140b60a7c9896b40cadc258799dea8b370762e879249b7e9bf8de908139b7",
+    "tokens": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-perf-20260924\\ids.txt",
+    "tokens_sha256": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+    "threads": 6,
+    "ubatch": 128,
+    "context": 512,
+    "cache_k": "f16",
+    "cache_v": "f16",
+    "flash_attention": false,
+    "reset": "logical without clearing backing",
+    "logits": "materialized inside timing in both runtimes",
+    "warmup": "run0 retained but excluded prospectively; run1 measured"
+  },
+  "monitor": {
+    "script": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-activation-range-20260924\\tools\\monitor_windows.py",
+    "sha256": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6",
+    "interval_seconds": 1,
+    "pre_seconds": 2,
+    "post_seconds": 1,
+    "activity_flags": {
+      "unrelated_process_cpu_percent_gt": 50,
+      "disk_bytes_per_second_gt": 104857600,
+      "gpu_engine_percent_gt": 20
+    },
+    "classification": "Process CPU 100% is one logical CPU. Separate benchmark PID, runner PID and monitor PID; other processes unrelated. Disk/GPU are whole-system activity, not proof of unrelated load. Unknown/inaccessible processes and missing counters remain unknown.",
+    "retention": "Retain all planned blocks, errors and slow samples. Do not stop or replace because activity flags fire."
+  },
+  "analysis": "Report per-model/phase paired candidate/base and layout/base ratios and all arms in tables, complete and activity-flagged. Small changes inside control spread are unresolved layout/noise, not proven regressions or gains. Assess workload tradeoffs; no isolated cutoff automatically rejects a change.",
+  "additional_gates": "Normal CLI before/after/layout timings and real-model path-controlled accuracy plus long-context hashes remain separate."
+}

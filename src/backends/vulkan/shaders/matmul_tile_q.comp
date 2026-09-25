@@ -259,6 +259,31 @@ void main() {
         }
         barrier();
       for (uint s = 0u; s < STEP; ++s) {
+#ifndef LLMX_Q6
+        // Word w of every row of the thread against word w of its four columns, so all 4 * MROWS dot sums of the block stay live and a column word is read once.
+        // Each sum still takes the block's eight words in order, so it is the integer a row at a time gave.
+        vec2 c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
+        vec2 c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
+        int t[MROWS][4];
+        for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) t[i][j] = 0;
+        for (uint w = 0u; w < 8u; ++w) {
+            uvec4 b = uvec4(xw[s * 8u + w][tc * 4u], xw[s * 8u + w][tc * 4u + 1u], xw[s * 8u + w][tc * 4u + 2u], xw[s * 8u + w][tc * 4u + 3u]);
+            for (uint i = 0u; i < MROWS; ++i) {
+                uint a = wq[s * 8u + w][tr * MROWS + i];
+                t[i][0] += dotPacked4x8EXT(int(a), int(b.x));
+                t[i][1] += dotPacked4x8EXT(int(a), int(b.y));
+                t[i][2] += dotPacked4x8EXT(int(a), int(b.z));
+                t[i][3] += dotPacked4x8EXT(int(a), int(b.w));
+            }
+        }
+        for (uint i = 0u; i < MROWS; ++i) {
+            vec4 ws = wsc[s * TILE_ROWS + tr * MROWS + i];
+            acc[i][0] += ws.x * c0.x * float(t[i][0]) - ws.z * c0.y;
+            acc[i][1] += ws.x * c1.x * float(t[i][1]) - ws.z * c1.y;
+            acc[i][2] += ws.x * c2.x * float(t[i][2]) - ws.z * c2.y;
+            acc[i][3] += ws.x * c3.x * float(t[i][3]) - ws.z * c3.y;
+        }
+#else
         // A thread's four columns for the whole block, then each of its rows against them.
         uint b0[8], b1[8], b2[8], b3[8];
         for (uint w = 0u; w < 8u; ++w) {
@@ -270,7 +295,6 @@ void main() {
         for (uint i = 0u; i < MROWS; ++i) {
             uint r = tr * MROWS + i;
             vec4 ws = wsc[s * TILE_ROWS + r];
-#ifdef LLMX_Q6
             // The block's two halves of 16 summed apart, since Q6_K scales them apart.
             int l0 = 0, l1 = 0, l2 = 0, l3 = 0, h0 = 0, h1 = 0, h2 = 0, h3 = 0;
             for (uint w = 0u; w < 4u; ++w) {
@@ -284,21 +308,8 @@ void main() {
             acc[i][1] += c1.x * (ws.x * float(l1) + ws.y * float(h1));
             acc[i][2] += c2.x * (ws.x * float(l2) + ws.y * float(h2));
             acc[i][3] += c3.x * (ws.x * float(l3) + ws.y * float(h3));
-#else
-            int s0 = 0, s1 = 0, s2 = 0, s3 = 0;
-            for (uint w = 0u; w < 8u; ++w) {
-                uint a = wq[s * 8u + w][r];
-                s0 += dotPacked4x8EXT(int(a), int(b0[w]));
-                s1 += dotPacked4x8EXT(int(a), int(b1[w]));
-                s2 += dotPacked4x8EXT(int(a), int(b2[w]));
-                s3 += dotPacked4x8EXT(int(a), int(b3[w]));
-            }
-            acc[i][0] += ws.x * c0.x * float(s0) - ws.z * c0.y;
-            acc[i][1] += ws.x * c1.x * float(s1) - ws.z * c1.y;
-            acc[i][2] += ws.x * c2.x * float(s2) - ws.z * c2.y;
-            acc[i][3] += ws.x * c3.x * float(s3) - ws.z * c3.y;
-#endif
         }
+#endif
       }
         barrier();
     }

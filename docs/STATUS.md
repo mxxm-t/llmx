@@ -4,6 +4,28 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Layer split phase 2: a prompt pipelined over the stages (2026-09-25, branch feat/split-pipeline)
+
+- **Goal:** phase 2's targets (`docs/MULTI-DEVICE.md`, Order of work): prefill on a layer split about one device's times the stage count, single-stream decode about one device's, and pipelined output exact against the same placement run serialized, so still exact against one device.
+- **Measured before any code** (main 5ef32e5, Qwen3-8B Q8_0, clocks held high on two MI50s, two rounds, tok/s): pp4096 on one card 738, 730 and on a 1:1 split 1101, 1103, 1.50 times; tg16 68.2, 68.4 and 67.2, 68.1. Decode meets its target already. Prefill stops at 1.5 times because a stage's work is submitted only when the crossing reads its output, and the host waits there: the first card idles while the host writes the handoff into the second and records the next chunk. Chunks of one prompt overlap only by that accident.
+- **Plan**, in order, each step with outputs byte-identical to main before the next:
+  1. Stages: the model derives them once from the placement, runs of consecutive layers whose attention sits on one device, each with the cache storage it writes. A placement without a layer split has one stage.
+  2. `forward` becomes `begin` (the checks, rows and positions of a pass, in a plan per pass), `run_stage` (the stage's cache blocks prepared and committed, the embedding before the first stage, its layers, the head after the last, and its submission) and `finish`. `forward` runs them in a row, so the server, decode and every test are unchanged. A pass that fails rolls every storage back to where it started, committed stages included.
+  3. One crossing in two halves: the source copies the residual rows into a host-visible buffer inside its own submission and keeps the ticket (`send`); the destination waits that ticket and writes the rows (`receive`). Today's `cross` becomes the two back to back. It uses existing backend calls only (`copy`, `submit`, `wait`, `write`). There are two such buffers per stage boundary, which the fit counts in host memory.
+  4. `prefill` over more than one stage runs as a software pipeline on the calling thread: step t submits stage 0 of chunk t, then receives and submits stage 1 of chunk t-1, and so on down the stages. Each device runs its chunks in order, so the activation arenas are shared and only the pass plan is kept per chunk in flight. Chunks stay the ubatch, so a split computes exactly what one device computes. Over K chunks and S stages the gain is K·S/(K+S-1): 1.78 for pp4096 over two, 1.94 for pp16384. The handoff subtracts 2.1 to 2.7 ms per 512-row chunk (phase 0) from stage times near 350 ms.
+- **Not in this phase:**
+  - A thread per stage. One thread keeps every device fed while recording and the relay stay small against a stage's time. A CPU stage computes on the host thread after its GPU peers were submitted, so they still overlap.
+  - Passes of different sequences in flight (phase 3).
+  - Per-storage progress visible to the scheduler, and cancelling dependent chunks (phase 4). Here partial progress stays inside the prompt's transaction.
+  - Pipelined scoring for perplexity.
+- **Gates:**
+  - `tests/placement.cpp`'s CPU+CPU split prefill against one device, now pipelined.
+  - `llmx-split-check` bit-identical to one device over prefill and greedy steps (0.6B, 8B, 30B-A3B).
+  - Suites, one card and split, on the Radeon VII and on two MI50s.
+  - pp4096 and pp16384 on one MI50 against the split, with the reference's split beside them at the same clocks.
+  - tg on the split level with one card.
+  - The 16k greedy check on the split.
+
 ## Cleanup from the code audit (2026-09-25, branches refactor/split-tight and cleanup/audit)
 
 - **Goal:** every finding of a read-only audit of `src/`, `tests/`, `tools/` and the docs fixed under the one-owner rule (`docs/ARCHITECTURE.md`, Each concern has one owner): dead code removed, a concern implemented once where it belongs, docs matching the code. Behaviour and output unchanged unless a finding is a bug; each branch passes the suites on both machines and, where it touches kernels or placement, byte-identical outputs against main.

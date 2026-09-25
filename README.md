@@ -46,8 +46,9 @@ architectures are planned.
   connect unchanged (`docs/SERVER.md`).
 
 See [usage](docs/USAGE.md#llmx-pull-ownerrepoquant) for the download/cache
-interface. Local layer splitting is implemented; its recorded coverage and
-open MI50 8B HF check are in [multi-device status](docs/STATUS.md). ARM,
+interface. Local layer splitting is implemented; its recorded coverage is in
+[multi-device status](docs/STATUS.md), where the pinned Qwen3-8B HF check,
+once open on the MI50, now passes 37 of 37 on one card. ARM,
 tensor groups, execution across machines, other vendor backends and additional
 model architectures are not implemented yet; see
 [development status](docs/STATUS.md) for the current state.
@@ -60,7 +61,7 @@ model architectures are not implemented yet; see
 | Hugging Face | `llmx pull` today; safetensors, BF16/F16 tensors and the HF tokenizer/config files planned |
 | Execution model | Done: tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
 | Server | Done: `llmx serve` with continuous batching, streaming HTTP without dependencies, prefix reuse and the OpenAI-compatible routes (`docs/SERVER.md`, `docs/USAGE.md`) |
-| GPU backends | Vulkan done, running on a Radeon VII under Windows and on MI50s under Linux. Against the reference's own Vulkan build on the same card, decode is 102 to 115 percent and prefill 109 to 455 percent on every file on the Radeon VII, and decode 102 to 115 percent and prefill 102 to 267 percent on one MI50; ROCm first-class on Linux, CUDA and SYCL planned |
+| GPU backends | Vulkan done, running on a Radeon VII under Windows and on MI50s under Linux. Against the reference's own Vulkan build on the same card, over the dense-model device gate (five Qwen3 files, prompts of 64 to 512 tokens and 32 tokens decoded after a short prompt), decode is 102 to 115 percent and prefill 109 to 455 percent on the Radeon VII, and decode 102 to 115 percent and prefill 102 to 267 percent on one MI50; decode after a 16k-token history, behind the reference on the MI50, is recorded in `docs/STATUS.md`; ROCm first-class on Linux, CUDA and SYCL planned |
 | Multiple devices/nodes | Local layer splits with memory fitting and manual layer shares implemented; pipelining, tensor groups and cluster nodes planned |
 | Hub kernels | Optional later work: port suitable kernel source or distribute llmx kernels through the Hub |
 

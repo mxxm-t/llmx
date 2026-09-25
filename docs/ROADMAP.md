@@ -143,9 +143,9 @@ backend. Branch on what a device reports, never on who made it.
   ships inside it; gfx906 has no matrix cores, so no such case is expected
   on the hardware here.
 
-## 5. Multi-device split **[design]**
+## 5. Multi-device split: layer split [implemented], the rest **[design]**
 Split a single model across several devices on one machine, designed in `docs/MULTI-DEVICE.md` for many users first: layer split with passes in flight, then tensor groups, staged tensor groups and replicas, on one placement of stages and groups.
-- **Layer split**: consecutive layers on different devices, bit-identical to one device; the server keeps a pass in flight per stage.
+- **Layer split** [implemented]: consecutive layers on different devices, bit-identical to one device, fitted to each device's free memory or set by `--layer-shares`. Pipelined stages and a pass in flight per stage in the server are phases 2 and 3 of `docs/MULTI-DEVICE.md`.
 - **Tensor group**: every layer on 2 to 4 devices at once, for per-request decode speed; built after the layer split.
 - **Staged tensor**: stages of tensor groups.
 - **Replicas**: several copies of a model that fits one card or group, behind one scheduler.
@@ -208,7 +208,11 @@ and implemented HF coverage are recorded in STATUS.
   not proof of idleness; small differences may remain unresolved.
 - Path-controlled perplexity on real text as the lossless gate (see
   `correctness-gate` skill)
-- Large-context output hashing to prove KV cache + RoPE correctness at depth
+- A long-context check of KV cache and RoPE correctness at depth
+  (`tools/long_context_check.py`): a 16k-token prompt's greedy reply
+  repeats on the same device from two fresh servers, and each generated
+  token is within a margin of the CPU's top choice over the same tokens. A
+  hash across backends is not the gate, since a near-tie can part them.
 - Every GPU kernel claim gated by a CPU-vs-GPU A/B on identical inputs; the CPU
   backend is the reference implementation (see #4a)
 - Micro-benchmarks per backend/quant, stored for regression comparison
@@ -252,7 +256,7 @@ make a model usable: its architecture and tokenizer must also be implemented.
 - **`tokenizer.json`**: the HF tokenizer format. `bpe::Tokenizer` reads only
   GGUF-embedded `tokenizer.ggml.*`, so safetensors repos have no tokenizer path
 - **`config.json`**: architecture config. `infer::load_config` reads only
-  `qwen3.*` GGUF metadata keys
+  `qwen3.*` and `qwen3moe.*` GGUF metadata keys
 
 ### 9c. Hub kernels (additional, not a primary target) **[design]**
 Gated on #4a: a kernel registry with no device execution model behind it is

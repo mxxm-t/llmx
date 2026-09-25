@@ -1,10 +1,15 @@
-// Placement across backends (docs/EXECUTION.md step 6): a model split over two or three CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
+// Placement across backends (docs/EXECUTION.md step 6): a model split over two, three or four CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
 // Crossings are counted so they happen exactly where the placement changes and nowhere on a single device; bad placements are refused at load.
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 #include "model/arch_qwen.hpp"
 #include "model/layer_split.hpp"
@@ -245,6 +250,10 @@ void layer_split_fits() {
     auto both = infer::split_layers(staged, {device("a"), device("b")}, 1, {}, GiB);
     require(short_host && both.stages[0].count && both.stages[1].count && both.host == 64 * MiB + 2 * 68 * MiB + 4 * MiB,
             "the host's tables, handoff and staging not counted");
+    // A handoff buffer per pass slot and device, two at least: four slots over two devices hold eight rows, one slot four.
+    auto four_slots = infer::split_layers(staged, {device("a"), device("b")}, 1, {}, GiB, 4);
+    auto one_slot = infer::split_layers(staged, {device("a"), device("b")}, 1, {}, GiB, 1);
+    require(four_slots.host == 64 * MiB + 2 * 68 * MiB + 8 * MiB && one_slot.host == both.host, "the handoff buffers of the pass slots not counted");
     // Shares that leave a device out do not charge its staging.
     auto first_only = infer::split_layers(staged, {device("a"), device("b")}, 1, {1, 0}, 140 * MiB);
     require(first_only.stages[0].count == 3 && first_only.host == 64 * MiB + 68 * MiB, "an unused device's staging charged to the host");
@@ -252,7 +261,7 @@ void layer_split_fits() {
     auto on_cpu = infer::split_layers(staged, {budget("cpu", 2 * GiB, true), device("a")}, 1, {1, 2});
     require(on_cpu.host == 64 * MiB + 68 * MiB + 4 * MiB && on_cpu.stages[0].other == staged.activations_per_row + on_cpu.host,
             "the CPU's alias of the host's tables counted twice");
-    checked += 4;
+    checked += 5;
 
     // A projection with a trailing singleton axis is the same product weight: the footprint follows the tensor's role, not its rank.
     auto singleton = weights;
@@ -322,6 +331,22 @@ void layer_split_fits() {
         require(refusal(moe, cpus(), request).rfind(flag + ": not with several devices", 0) == 0,
                 "experts on the CPU accepted beside several devices, or refused by another flag's name");
     }
+    // The request's pass slots reach the fit: two CPUs reporting 1 GiB free hold two slots' handoff buffers and not 2^30 slots'.
+    struct SmallCpu : backend::CpuBackend {
+        std::optional<size_t> memory_available() const override { return size_t(1) << 30; }
+    };
+    auto small = [] {
+        std::vector<backend::BackendPtr> v{std::make_shared<SmallCpu>(), std::make_shared<SmallCpu>()};
+        for (auto& c : v) c->set_threads(1);
+        return v;
+    };
+    request.cpu_moe = 0;
+    request.slots = 2;
+    require(infer::place_model(infer::gguf_weights(weights), small(), request, options).model->pipelined(), "two pass slots do not fit two CPUs");
+    request.slots = size_t(1) << 30;
+    bool slots_refused = false;
+    try { infer::place_model(infer::gguf_weights(weights), small(), request, options); } catch (const std::runtime_error&) { slots_refused = true; }
+    require(slots_refused, "the handoff buffers of the request's pass slots not counted by place_model");
     // A stream point has nothing to stream without experts on the CPU, so place_model refuses it for every caller, whatever the caller checked first.
     infer::PlacementRequest stream_alone;
     stream_alone.names = {"cpu"};
@@ -355,7 +380,7 @@ void layer_split_fits() {
     const infer::PlacedModel experts_beside = infer::place_model(infer::gguf_weights(moe), {host_device}, experts_on_cpu, options);
     exact(routed, experts_beside.model->prefill(prompt), "experts on a CPU beside a device differ from the model on one CPU");
     require(host_device->copies > 0 && host_device->writes > 0, "experts on the CPU stayed on a device that reads in place");
-    checked += 7;
+    checked += 9;
 }
 
 // Three layers placed by place_model over two CPU backends at shares 1:2 and over three at 1:1:1, prompts chunked at ubatch 3.
@@ -616,6 +641,356 @@ void bad_placements_refused() {
     require(s.length() == 1, "the owning model refused its sequence");
     ++checked;
 }
+
+// Passes in flight through the pass API (Model::reserve_passes and the calls after it): five requests, the second a fork of the first's first block, each prompt sliced at random and each generated token given.
+// Passes of random groups of ready requests are formed, advanced a stage and retired in random order, so they queue between stages, hand off through their own buffers and take logits rows anywhere in the reserved range.
+struct PassRequest {
+    std::vector<uint32_t> prompt;            // the tokens it prefills after the prefix it forks
+    std::vector<uint32_t> gen;               // the tokens it is given after its prompt, one a pass
+    size_t prefix = 0;                       // the first request's tokens it forks
+    infer::Sequence seq;
+    bool made = false;
+    size_t done = 0;                         // its own tokens committed
+    std::vector<std::vector<float>> alone;   // its rows run alone: after its prompt, then after each generated token
+    size_t seen = 0;                         // rows checked
+    bool finished() const { return done == prompt.size() + gen.size(); }
+};
+
+struct FormedPass {
+    std::vector<size_t> reqs, tokens;   // per entry
+    std::vector<char> wants;
+    size_t base = 0, want = 0, ran = 0;
+    bool live = false;
+};
+
+constexpr size_t kPassUbatch = 16, kPassSeqs = 5, kPassLogitRows = 2 * kPassSeqs;
+
+// One run over S CPU stages with P pass slots.
+// Every logits row must be the bytes of its request run alone through prefill and step on one CPU backend.
+// Once in the run, a backend fails a pass of several sequences at its next stage: that pass's histories go back to where it found them in every storage, the other passes go on, and its requests, formed again, still give their rows alone.
+void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t seed) {
+    std::mt19937 rng(seed);
+    auto below = [&](size_t n) { return (size_t)(rng() % (uint32_t)n); };
+    auto tokens = [&](size_t n) {
+        std::vector<uint32_t> v(n);
+        for (auto& t : v) t = (uint32_t)below(16);
+        return v;
+    };
+    infer::ModelOptions options;
+    options.kv_tokens = 16 * 128;
+    std::vector<std::shared_ptr<FailingCpu>> stages;
+    for (size_t s = 0; s < S; ++s) {
+        stages.push_back(std::make_shared<FailingCpu>());
+        stages.back()->set_threads(1);
+    }
+    infer::PlacementRequest request;
+    request.names.assign(S, "cpu");
+    request.shares.assign(S, 1);
+    request.ubatch = (int)kPassUbatch;
+    request.slots = P;
+    infer::PlacedModel placed = infer::place_model(infer::gguf_weights(weights), std::vector<backend::BackendPtr>(stages.begin(), stages.end()), request, options);
+    infer::Model& split = *placed.model;
+    require(split.pipelined() && split.stage_count() == S, "the passes' split is not pipelined over every device");
+    infer::ExecContext ctx;
+    split.reserve_passes(ctx, P, kPassUbatch + kPassSeqs, kPassLogitRows);
+
+    // Declared after the model, so their sequences return their blocks before it goes.
+    std::vector<PassRequest> reqs(kPassSeqs);
+    reqs[0].prompt = tokens(129 + below(40));
+    reqs[1].prefix = 128;
+    reqs[1].prompt = tokens(2 + below(30));
+    for (size_t r = 2; r < kPassSeqs; ++r) reqs[r].prompt = tokens(2 + below(60));
+    for (auto& q : reqs) q.gen = tokens(1 + below(6));
+    auto one = std::make_shared<backend::CpuBackend>();
+    one->set_threads(1);
+    infer::Model single(weights, one, options);
+    single.set_ubatch((int)kPassUbatch);
+    for (auto& q : reqs) {
+        std::vector<uint32_t> all(reqs[0].prompt.begin(), reqs[0].prompt.begin() + (std::ptrdiff_t)q.prefix);
+        all.insert(all.end(), q.prompt.begin(), q.prompt.end());
+        single.reset();
+        q.alone.push_back(single.prefill(all));
+        for (uint32_t t : q.gen) q.alone.push_back(single.step((int)t));
+    }
+    const size_t V = single.n_vocab();
+    for (auto& q : reqs)
+        if (!q.prefix) {
+            q.seq = split.make_sequence();
+            q.made = true;
+        }
+
+    std::vector<FormedPass> slots(P);
+    std::vector<char> rows_used(kPassLogitRows, 0), flying(kPassSeqs, 0);
+    std::vector<infer::BatchEntry> entries;
+    const size_t fail_after = below(4);
+    size_t formed = 0, most_between = 0;
+    bool failed = false;
+    // A request not in flight with tokens left; the fork once the first request has committed its prefix.
+    auto ready = [&](size_t r) {
+        const PassRequest& q = reqs[r];
+        return !flying[r] && !q.finished() && (q.made || (!flying[0] && reqs[0].done >= q.prefix));
+    };
+    auto free_rows = [&](const FormedPass& f) {
+        for (size_t i = f.base; i < f.base + f.want; ++i) rows_used[i] = 0;
+    };
+
+    // Every ready request or a random group of them, each a prompt slice within the ubatch or its next generated token, in random order, at a free run of logits rows.
+    auto form = [&](size_t k) {
+        std::vector<size_t> pick;
+        const bool all = below(2);
+        for (size_t r = 0; r < kPassSeqs; ++r)
+            if (ready(r) && (all || below(2))) pick.push_back(r);
+        if (pick.empty()) {
+            std::vector<size_t> any;
+            for (size_t r = 0; r < kPassSeqs; ++r)
+                if (ready(r)) any.push_back(r);
+            pick.push_back(any[below(any.size())]);
+        }
+        for (size_t i = pick.size(); i > 1; --i) std::swap(pick[i - 1], pick[below(i)]);
+        FormedPass f;
+        entries.clear();
+        size_t budget = kPassUbatch;
+        for (size_t r : pick) {
+            PassRequest& q = reqs[r];
+            if (!ready(r)) continue;
+            const bool prompt = q.done < q.prompt.size();
+            if (prompt && !budget) continue;
+            if (!q.made) {
+                q.seq = split.fork(reqs[0].seq, q.prefix);
+                q.made = true;
+            }
+            infer::BatchEntry e{&q.seq, q.gen.data() + (prompt ? 0 : q.done - q.prompt.size()), 1, true};
+            if (prompt) {
+                e.n = 1 + below(std::min(budget, q.prompt.size() - q.done));
+                e.ids = q.prompt.data() + q.done;
+                e.want_logits = q.done + e.n == q.prompt.size();
+                e.extent = q.prefix + q.prompt.size();
+                budget -= e.n;
+            }
+            entries.push_back(e);
+            f.reqs.push_back(r);
+            f.tokens.push_back(e.n);
+            f.wants.push_back(e.want_logits);
+            f.want += e.want_logits;
+        }
+        std::vector<size_t> starts;
+        for (size_t b = 0; b + f.want <= kPassLogitRows; ++b) {
+            bool open = true;
+            for (size_t i = b; i < b + f.want; ++i) open = open && !rows_used[i];
+            if (open) starts.push_back(b);
+        }
+        if (entries.empty() || starts.empty()) return;
+        f.base = starts[below(starts.size())];
+        split.begin_pass(ctx, k, entries.data(), entries.size(), f.base);
+        for (size_t i = f.base; i < f.base + f.want; ++i) rows_used[i] = 1;
+        for (size_t r : f.reqs) {
+            require(reqs[r].seq.in_flight(), "begin_pass did not put a sequence in flight");
+            flying[r] = 1;
+        }
+        f.live = true;
+        slots[k] = f;
+        ++formed;
+    };
+
+    // The pass's next stage; once in the run, on a pass of several sequences, its backend fails first.
+    auto advance = [&](size_t k) {
+        FormedPass& f = slots[k];
+        const size_t s = f.ran;
+        const bool arm = !failed && formed > fail_after && f.reqs.size() > 1;
+        if (arm) {
+            if (s + 1 == S && f.want && below(2)) stages[s]->fail_output = true;
+            else stages[s]->fail_attention = 1;
+        }
+        try {
+            split.run_pass_stage(ctx, k, s);
+        } catch (const std::runtime_error& e) {
+            require(arm && !std::strcmp(e.what(), "injected") && !stages[s]->fail_output && !stages[s]->fail_attention,
+                    "a pass failed where no failure was injected");
+            for (size_t r : f.reqs) {
+                require(!reqs[r].seq.in_flight() && reqs[r].seq.length() == reqs[r].prefix + reqs[r].done,
+                        "a failed pass left a sequence in flight or changed its history");
+                flying[r] = 0;
+            }
+            free_rows(f);
+            f.live = false;
+            failed = true;
+            ++checked;
+            return;
+        }
+        require(!arm, "the injected failure did not fire");
+        ++f.ran;
+    };
+
+    // Every wanting row against the request's row alone, then the pass ends and its tokens count.
+    auto retire = [&](size_t k) {
+        FormedPass& f = slots[k];
+        for (size_t e = 0, row = 0; e < f.reqs.size(); ++e) {
+            if (!f.wants[e]) continue;
+            PassRequest& q = reqs[f.reqs[e]];
+            const size_t expect = q.done < q.prompt.size() ? 0 : q.done - q.prompt.size() + 1;
+            require(q.seen == expect && expect < q.alone.size(), "a request's rows out of order");
+            require(!std::memcmp(split.pass_logits(ctx, k, row++), q.alone[expect].data(), V * sizeof(float)),
+                    "a row of a pass in flight differs from its sequence run alone");
+            ++q.seen;
+            ++checked;
+        }
+        split.end_pass(ctx, k);
+        for (size_t e = 0; e < f.reqs.size(); ++e) {
+            PassRequest& q = reqs[f.reqs[e]];
+            q.done += f.tokens[e];
+            flying[f.reqs[e]] = 0;
+            require(!q.seq.in_flight() && q.seq.length() == q.prefix + q.done, "end_pass left a sequence in flight or short of its tokens");
+        }
+        free_rows(f);
+        f.live = false;
+    };
+
+    for (size_t step = 0;; ++step) {
+        require(step < 100000, "the passes did not finish");
+        bool any_ready = false;
+        for (size_t r = 0; r < kPassSeqs; ++r) any_ready = any_ready || ready(r);
+        // A kind of action first, forming, advancing or retiring, then a slot it can take, so free slots do not crowd out the passes in flight.
+        std::vector<size_t> can[3];
+        size_t between = 0;
+        for (size_t k = 0; k < P; ++k) {
+            if (!slots[k].live) {
+                if (any_ready) can[0].push_back(k);
+                continue;
+            }
+            can[slots[k].ran < S ? 1 : 2].push_back(k);
+            between += slots[k].ran > 0 && slots[k].ran < S;
+        }
+        most_between = std::max(most_between, between);
+        std::vector<int> kinds;
+        for (int i = 0; i < 3; ++i)
+            if (!can[i].empty()) kinds.push_back(i);
+        if (kinds.empty()) break;
+        const int kind = kinds[below(kinds.size())];
+        const size_t k = can[kind][below(can[kind].size())];
+        if (kind == 0) form(k);
+        else if (kind == 1) advance(k);
+        else retire(k);
+    }
+    require(failed, "the failure was never injected");
+    require(most_between >= 2, "no two passes waited between stages at once");
+    for (const auto& q : reqs)
+        require(q.finished() && q.seen == q.alone.size() && !q.seq.in_flight() && q.seq.length() == q.prefix + q.done,
+                "a request did not run to its end");
+    checked += 2;
+}
+
+// Over 2, 3 and 4 stages of a four-layer model, tied and untied, at P = S, S + 1 and 2S.
+void passes_match_alone() {
+    for (bool tied : {true, false}) {
+        const auto weights = tiny_qwen(4, 2 * 128, tied);
+        for (size_t S : {2, 3, 4})
+            for (size_t P : {S, S + 1, 2 * S}) passes_run(weights, S, P, (uint32_t)(1000 * tied + 100 * S + P));
+    }
+}
+
+// What the pass API refuses, each before any work and with nothing changed: a context not reserved, reserved twice, used before or on a placement that is not pipelined for more than one slot; forward through a reserved context; a slot beyond the reservation or in use; more rows or logits rows than reserved; a sequence listed twice or already in flight, and reset, fork and forward of one; stages out of order or twice, and logits or an end before the last stage.
+// A pass ended, one aborted after its first stage, and the aborted one run again must each leave the histories and rows of the sequences run alone.
+void passes_refused() {
+    const auto weights = tiny_qwen(4, 2 * 128, true);
+    auto cpus = [] {
+        std::vector<backend::BackendPtr> v{std::make_shared<backend::CpuBackend>(), std::make_shared<backend::CpuBackend>()};
+        for (auto& c : v) c->set_threads(1);
+        return v;
+    };
+    infer::PlacementRequest request;
+    request.names = {"cpu", "cpu"};
+    request.shares = {1, 1};
+    request.ubatch = 4;
+    infer::ModelOptions options;
+    options.kv_tokens = 8 * 128;
+    infer::PlacedModel placed = infer::place_model(infer::gguf_weights(weights), cpus(), request, options);
+    infer::Model& m = *placed.model;
+    auto cpu = std::make_shared<backend::CpuBackend>();
+    cpu->set_threads(1);
+    infer::Model single(weights, cpu);
+    single.set_ubatch(4);
+    const size_t V = single.n_vocab();
+    auto refused = [&](const std::function<void()>& call, const char* what) {
+        bool caught = false;
+        try { call(); } catch (const std::logic_error&) { caught = true; }
+        require(caught, what);
+        ++checked;
+    };
+
+    infer::Sequence a = m.make_sequence(), b = m.make_sequence();
+    const std::vector<uint32_t> ids{3, 1, 4, 1, 5};
+    const infer::BatchEntry ea{&a, ids.data(), 3, true}, eb{&b, ids.data(), 1, true}, five{&a, ids.data(), 5, true};
+    infer::ExecContext ctx;
+    refused([&] { m.begin_pass(ctx, 0, &ea, 1, 0); }, "a pass began in a context not reserved for passes");
+    auto own = std::make_shared<backend::CpuBackend>();
+    own->set_threads(1);
+    infer::Model alone(weights, own);
+    infer::ExecContext one;
+    refused([&] { alone.reserve_passes(one, 2, 4, 2); }, "two passes in flight reserved on one device");
+    refused([&] { m.reserve_passes(ctx, 0, 4, 2); }, "a reservation without a slot");
+    infer::ExecContext used;
+    infer::Sequence c = m.make_sequence();
+    const infer::BatchEntry ec{&c, ids.data(), 1, true};
+    m.forward(used, &ec, 1);
+    refused([&] { m.reserve_passes(used, 2, 4, 2); }, "a context a forward used reserved for passes");
+    m.reserve_passes(ctx, 2, 4, 2);
+    refused([&] { m.reserve_passes(ctx, 2, 4, 2); }, "a context reserved twice");
+    refused([&] { m.forward(ctx, &ea, 1); }, "forward through a context reserved for passes");
+    refused([&] { m.begin_pass(ctx, 2, &ea, 1, 0); }, "a pass beyond the reserved slots");
+    refused([&] { m.begin_pass(ctx, 0, &five, 1, 0); }, "a pass of more rows than reserved");
+    refused([&] { m.begin_pass(ctx, 0, &ea, 1, 2); }, "a pass's logits rows beyond the reservation");
+    const infer::BatchEntry twice[2] = {ea, ea};
+    refused([&] { m.begin_pass(ctx, 0, twice, 2, 0); }, "a sequence listed twice in a pass");
+    require(!a.in_flight(), "a refused pass left its sequence in flight");
+    refused([&] { m.run_pass_stage(ctx, 0, 0); }, "a stage ran in a slot a refused pass left");
+
+    m.begin_pass(ctx, 0, &ea, 1, 1);
+    require(a.in_flight() && !b.in_flight(), "begin_pass did not put exactly its sequence in flight");
+    refused([&] { m.begin_pass(ctx, 0, &eb, 1, 0); }, "a slot in flight took a second pass");
+    const infer::BatchEntry both[2] = {eb, ea};
+    refused([&] { m.begin_pass(ctx, 1, both, 2, 0); }, "a sequence in flight joined a second pass");
+    require(!b.in_flight(), "a refused pass left a sequence in flight");
+    refused([&] { m.reset(a); }, "a sequence in flight reset");
+    refused([&] { m.fork(a, 0); }, "a sequence in flight forked");
+    infer::ExecContext other;
+    refused([&] { m.forward(other, &ea, 1); }, "forward took a sequence in flight");
+    refused([&] { m.run_pass_stage(ctx, 0, 1); }, "a pass's second stage ran before its first");
+    refused([&] { m.run_pass_stage(ctx, 1, 0); }, "a stage ran in a slot with no pass");
+    refused([&] { m.pass_logits(ctx, 0, 0); }, "logits read before a pass's last stage");
+    refused([&] { m.end_pass(ctx, 0); }, "a pass ended before its last stage");
+    require(a.in_flight(), "a refused call took its sequence out of flight");
+
+    // A second pass's first stage between the first pass's two, through the other slot's handoff buffers.
+    m.run_pass_stage(ctx, 0, 0);
+    m.begin_pass(ctx, 1, &eb, 1, 0);
+    m.run_pass_stage(ctx, 1, 0);
+    m.run_pass_stage(ctx, 0, 1);
+    refused([&] { m.run_pass_stage(ctx, 0, 1); }, "a stage ran twice");
+    bool beyond = false;
+    try { m.pass_logits(ctx, 0, 1); } catch (const std::out_of_range&) { beyond = true; }
+    require(beyond, "a logits row beyond the pass was served");
+    const std::vector<float> first = single.prefill({3, 1, 4});
+    require(!std::memcmp(m.pass_logits(ctx, 0, 0), first.data(), V * sizeof(float)), "a pass's row differs from its sequence alone");
+    m.end_pass(ctx, 0);
+    require(!a.in_flight() && a.length() == 3, "end_pass left its sequence in flight or short of its tokens");
+    refused([&] { m.end_pass(ctx, 0); }, "a pass ended twice");
+
+    // The second pass aborted after its first stage: its sequence out of flight and back at an empty history in both storages, then run again whole.
+    m.abort_pass(ctx, 1);
+    require(!b.in_flight() && b.length() == 0, "abort_pass left its sequence in flight or its history changed");
+    refused([&] { m.abort_pass(ctx, 1); }, "a pass aborted twice");
+    m.begin_pass(ctx, 1, &eb, 1, 0);
+    m.run_pass_stage(ctx, 1, 0);
+    m.run_pass_stage(ctx, 1, 1);
+    single.reset();
+    const std::vector<float> retried = single.step(3);
+    require(!std::memcmp(m.pass_logits(ctx, 1, 0), retried.data(), V * sizeof(float)), "an aborted pass run again differs from its sequence alone");
+    m.end_pass(ctx, 1);
+    require(b.length() == 1, "the pass run again did not commit");
+    m.reset(a);
+    m.reset(b);
+    checked += 6;
+}
 }
 
 int main() {
@@ -627,7 +1002,9 @@ int main() {
         pipelined_matches_single();
         pipelined_failure_rolls_back();
         replay_over_stages();
-        std::cout << "placement: " << checked << " checks across two and three CPU backends\n";
+        passes_refused();
+        passes_match_alone();
+        std::cout << "placement: " << checked << " checks across two, three and four CPU backends\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

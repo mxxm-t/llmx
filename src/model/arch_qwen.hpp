@@ -251,15 +251,20 @@ struct ModelOptions {
 // One request's history in a model's cache: a block table per storage and the committed length, and per device the ticket of the last pass that touched it, which is what a release waits on rather than draining the device (docs/EXECUTION.md).
 // Made by Model::make_sequence so it is bound to that model's pools and block sizes.
 // Movable, not copyable; the server keeps one per request.
+// From Model::begin_pass until its end_pass or abort_pass a sequence is in flight: no other pass, reset or fork takes it, and it must not move, since the pass holds its address.
 class Sequence {
 public:
     Sequence() = default;
+    // Storage 0's committed length.
+    // The storages can disagree while a pass is part way through its stages, and the model continues a history from the first stage's storage (Model::history).
     size_t length() const { return kv_.empty() ? 0 : kv_[0].length(); }
+    bool in_flight() const { return in_flight_; }
 private:
     friend class Model;
     std::vector<KVSequence> kv_;
     std::vector<backend::Ticket> last_;
     const Model* owner_ = nullptr;
+    bool in_flight_ = false;
 };
 
 // What one sequence contributes to a pass: `n` tokens appended to `seq`, and whether the logits after its last token are wanted.
@@ -279,7 +284,7 @@ struct BatchEntry {
 };
 
 // What a pass's stages read as they are recorded: its entries, its rows and their positions, the rows the head reads, and each storage's cache views once its stage has reserved them.
-// A context keeps one per pass it has in flight: one for a pass run whole, one per stage while a prompt's chunks flow through the stages together.
+// A context keeps one per pass it has in flight: one for a pass run whole, one per stage while a prompt's chunks flow through the stages together, one per slot of a context reserved for passes (Model::reserve_passes).
 struct Pass {
     std::vector<BatchEntry> entries;
     std::vector<size_t> start;                         // per entry, the history the pass found, which a failed pass returns to
@@ -288,14 +293,17 @@ struct Pass {
     std::vector<uint32_t> ids, pos, pick;
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
     std::vector<backend::RowRun> runs, head_runs;      // the pass's rows and the head's, by entry
-    size_t parity = 0;                                 // which of each device's two handoff buffers its crossings use
+    size_t handoff = 0;                                // which of each device's handoff buffers its crossings use: a prompt chunk's parity, a reserved pass's slot
+    size_t logits_base = 0;                            // the context's logits row its head writes first
     size_t at = 0;                                     // the device its residual left the last stage from
-    backend::Ticket sent = 0;                          // the submission that copied it out
+    backend::Ticket sent = 0;                          // the submission that copied it out, after the last stage the head's
+    bool in_flight = false;                            // a slot's pass between begin_pass and end_pass or abort_pass
+    size_t ran = 0;                                    // the stages run_pass_stage has recorded
 };
 
-// Where a context's passes run: an activation arena per device, which each device's passes use in turn, a host-visible handoff buffer per device a crossing goes through (two on a pipelined split), the host-visible logits rows on the output device, and the tickets of the submissions.
-// Storage is allocated by the first forward that needs it and grows to the largest pass seen.
-// Two contexts are what let a scheduler keep one pass on the device while it reads another's logits; the CLI has one.
+// Where a context's passes run: an activation arena per device, which each device's passes use in turn, host-visible handoff buffers per device a crossing goes through, the host-visible logits rows on the output device, and the tickets of the submissions.
+// A forward grows it to the largest pass seen; Model::reserve_passes instead sizes it once for passes in flight, each slot with its own handoff buffers and logits rows, and replaces nothing after that.
+// The CLI has one context, and a scheduler that keeps passes in flight reserves one.
 // Plain data that Model fills.
 struct ExecContext {
     // Row i of the logits the last forward produced, in entry order, valid until the next forward through this context.
@@ -323,9 +331,10 @@ struct ExecContext {
     std::vector<Scratch> scratch;              // per device
     backend::BufferPtr logits_buf;
     size_t logit_rows = 0;
-    std::vector<std::array<backend::BufferPtr, 2>> handoff;   // per device
+    std::vector<std::vector<backend::BufferPtr>> handoff;   // per device
     size_t handoff_rows = 0;
     std::vector<Pass> passes;
+    size_t slots = 0, pass_rows = 0;           // what reserve_passes froze it for: its pass slots and the rows a pass may take; zero slots while it grows
     std::vector<backend::RowRun> part_runs;    // a streamed layer's group of entries, rebased
     std::vector<backend::RowRun> entry_runs;   // a routed layer's runs over its entries, k a token row
     std::vector<backend::Ticket> tickets;      // per device
@@ -665,6 +674,7 @@ public:
     // The fork inherits the tickets of the passes that wrote what it shares.
     Sequence fork(const Sequence& src, size_t length) {
         if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
+        if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
         Sequence f;
         f.kv_.reserve(storages_.size());
         for (const KVSequence& kv : src.kv_) f.kv_.push_back(kv.fork(length));
@@ -687,6 +697,7 @@ public:
     // One pass over every entry: each sequence's tokens at their own positions through their own history, the logits after each wanting entry's last token landing in the context in entry order.
     // Its stages run in a row, each submitting its own work and committing the blocks of the storage it writes; a failure anywhere returns every history to where the pass found it.
     void forward(ExecContext& ctx, const BatchEntry* entries, size_t n_entries) {
+        if (ctx.slots) throw std::logic_error("inference: a context reserved for passes runs them through begin_pass");
         if (ctx.passes.empty()) ctx.passes.resize(1);
         Pass& p = ctx.passes[0];
         begin(ctx, p, entries, n_entries);
@@ -699,12 +710,90 @@ public:
         finish(ctx, p);
     }
 
+    // Passes in flight: a caller keeps several passes of different sequences in one context and runs their stages itself, so on a pipelined split every stage works on some pass while the host samples another (docs/MULTI-DEVICE.md, passes in flight).
+    // Each pass's stages run in order, and passes interleave as the caller likes: each device runs the stages recorded on it in that order, and a pass keeps its own handoff buffer, logits rows and ticket.
+    size_t stage_count() const { return stages_.size(); }
+    // Whether passes may be in flight together: several stages, the embedding on the first stage's device, the head on the last's and every feed-forward block beside its attention.
+    bool pipelined() const { return pipelined_; }
+
+    // Size a fresh context once, before any pass, for `slots` passes in flight of up to `rows` rows each and `logit_rows` rows of logits that the caller hands out to them (begin_pass's logits_base), with the handoff buffers of `slots` passes (handoffs).
+    // The context is frozen from then on: begin_pass refuses a pass that needs more before any work, nothing is replaced while passes are in flight, and forward refuses it.
+    // More than one slot needs a pipelined placement.
+    void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows) {
+        if (ctx.slots || !ctx.scratch.empty()) throw std::logic_error("inference: reserve_passes takes a fresh context, once");
+        if (!slots || !rows) throw std::logic_error("inference: reserve_passes needs a slot and a row");
+        if (slots > 1 && !pipelined_) throw std::logic_error("inference: passes in flight need a pipelined placement");
+        ensure(ctx, rows, logit_rows, handoffs(slots));
+        ctx.passes.assign(slots, Pass{});
+        ctx.slots = slots;
+        ctx.pass_rows = rows;
+    }
+
+    // Plan a pass in `slot` of a reserved context: its entries' tokens are copied here, and the head writes its wanting rows from logits row `logits_base` on.
+    // Its sequences are in flight until end_pass or abort_pass.
+    // A sequence in flight or listed twice, a slot in use or beyond the reservation, and more rows or logits rows than reserved are refused, with nothing changed.
+    void begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base) {
+        if (!ctx.slots) throw std::logic_error("inference: begin_pass needs a context reserved for passes");
+        if (slot >= ctx.slots) throw std::logic_error("inference: a pass slot beyond the reservation");
+        Pass& p = ctx.passes[slot];
+        if (p.in_flight) throw std::logic_error("inference: a pass slot already in flight");
+        begin(ctx, p, entries, n_entries, logits_base);
+        for (size_t e = 0; e < n_entries; ++e) {
+            if (!entries[e].seq->in_flight_) { entries[e].seq->in_flight_ = true; continue; }
+            while (e--) entries[e].seq->in_flight_ = false;
+            throw std::logic_error("inference: a sequence listed twice in a pass");
+        }
+        p.handoff = slot;
+        p.in_flight = true;
+    }
+
+    // Stage s of the pass in `slot`, which must be the stage after the last one run: its storage reserved, the residual embedded or received, its layers, the head or the handoff out, its submissions and the storage's commit.
+    // A failure aborts the pass, as abort_pass does, before it is rethrown; other passes in flight go on.
+    void run_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
+        Pass& p = in_flight(ctx, slot);
+        if (s != p.ran || s >= stages_.size()) throw std::logic_error("inference: a pass's stages run in order, each once");
+        try {
+            run_stage(ctx, p, s);
+        } catch (...) {
+            roll_back(p);
+            release(p);
+            throw;
+        }
+        ++p.ran;
+    }
+
+    // Row i of the pass's wanting rows, in entry order, once its last stage has run; this waits on the pass's own ticket, never on a later pass's.
+    const float* pass_logits(ExecContext& ctx, size_t slot, size_t i) {
+        const Pass& p = in_flight(ctx, slot);
+        if (p.ran < stages_.size()) throw std::logic_error("inference: the logits of a pass before its last stage");
+        if (i >= p.want) throw std::out_of_range("inference: no such logits row");
+        devices_[(size_t)place_.output_device]->b->wait(p.sent);
+        const void* host = ctx.logits_buf->host_ptr();
+        if (!host) throw std::runtime_error("inference: logits are not host visible");
+        return (const float*)host + (p.logits_base + i) * ctx.width;
+    }
+
+    // The pass in `slot` is done once its last stage has run: its sequences leave flight with the tokens committed, and the slot, its handoff buffers and the logits rows it was given are free for the next pass.
+    void end_pass(ExecContext& ctx, size_t slot) {
+        Pass& p = in_flight(ctx, slot);
+        if (p.ran < stages_.size()) throw std::logic_error("inference: a pass ends after its last stage, and abort_pass abandons one before");
+        release(p);
+    }
+
+    // Abandon the pass in `slot`, run or not: every device drained, then only its entries' histories back to where it found them in every storage, and its sequences out of flight.
+    void abort_pass(ExecContext& ctx, size_t slot) {
+        Pass& p = in_flight(ctx, slot);
+        roll_back(p);
+        release(p);
+    }
+
     // Start a new history.
     // Blocks return to every pool; their storage is retained.
     // Every pass ends in a submit or, on failure, a sync, so the sequence's last tickets cover everything that could still be touching a block: this waits for those and no more.
     void reset(Sequence& s) {
         if (s.owner_ != this)
             throw std::runtime_error("inference: sequence of another model");
+        if (s.in_flight_) throw std::logic_error("inference: a reset of a sequence in flight");
         for (size_t d = 0; d < devices_.size(); ++d)
             if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
         for (auto& kv : s.kv_) kv.reset();
@@ -731,7 +820,7 @@ public:
         auto work = [&] {
             // Sized to the largest chunk this prompt will use, inside the scope, so a short prompt does not allocate scratch for a full ubatch (at n_ff 12288 a 512-wide gate/up/ffn is about 25 MB each).
             // Sized before any chunk runs, so nothing in flight loses its storage.
-            ensure(ctx_, std::min((size_t)ubatch(), ids.size()), 1);
+            ensure(ctx_, std::min((size_t)ubatch(), ids.size()), 1, handoffs(1));
             const size_t B = (size_t)ubatch(), chunks = (ids.size() + B - 1) / B;
             auto chunk = [&](size_t c) {
                 const size_t i = c * B, n = std::min(B, ids.size() - i);
@@ -757,7 +846,7 @@ public:
                     if (s == 0) {
                         const BatchEntry entry = chunk(c);
                         begin(ctx_, p, &entry, 1);
-                        p.parity = c % 2;
+                        p.handoff = c % 2;
                     }
                     run_stage(ctx_, p, s);
                 }
@@ -779,7 +868,7 @@ public:
         if (ids.empty()) throw std::runtime_error("inference: empty text");
         reset();
         auto work = [&] {
-            ensure(ctx_, std::min((size_t)ubatch(), ids.size()), std::min((size_t)ubatch(), ids.size()));
+            ensure(ctx_, std::min((size_t)ubatch(), ids.size()), std::min((size_t)ubatch(), ids.size()), handoffs(1));
             for (size_t i = 0; i < ids.size();) {
                 const size_t B = std::min((size_t)ubatch(), ids.size() - i);
                 BatchEntry entry{&seq_, ids.data() + i, B, true};
@@ -972,15 +1061,17 @@ private:
         return s.kv_[(size_t)devices_[stages_.front().device]->storage_index].length();
     }
 
-    // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads.
+    // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads, from logits row `logits_base` on.
     // Nothing is reserved yet; each stage reserves the blocks of the storage it writes.
-    void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries) {
+    // A context reserved for passes is not grown: a pass that needs more rows or logits rows than it holds is refused here.
+    void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base = 0) {
         if (!entries || !n_entries) throw std::runtime_error("inference: empty batch");
         size_t rows = 0, want = 0;
         for (size_t e = 0; e < n_entries; ++e) {
             const BatchEntry& en = entries[e];
             if (!en.seq || en.seq->owner_ != this)
                 throw std::runtime_error("inference: batch entry without a sequence of this model");
+            if (en.seq->in_flight_) throw std::logic_error("inference: a sequence already in flight");
             if (!en.ids || !en.n)
                 throw std::runtime_error("inference: batch entry without tokens");
             // The RoPE table is precomputed for [0, context_length); a row past it would read off the end.
@@ -991,12 +1082,17 @@ private:
             rows += en.n;
             want += en.want_logits ? (en.every_logits ? en.n : 1) : 0;
         }
-        ensure(ctx, rows, want);
+        if (!ctx.slots)
+            ensure(ctx, rows, want, handoffs(1));
+        else if (rows > ctx.pass_rows || want > ctx.logit_rows || logits_base > ctx.logit_rows - want)
+            throw std::logic_error("inference: a pass beyond the rows or logits rows reserve_passes reserved");
         p.entries.assign(entries, entries + n_entries);
         p.start.resize(n_entries);
         p.rows = rows;
         p.want = want;
-        p.parity = 0;
+        p.handoff = 0;
+        p.logits_base = logits_base;
+        p.ran = 0;
         p.ids.resize(rows);
         p.pos.resize(rows);
         p.pick.resize(want);
@@ -1048,7 +1144,7 @@ private:
             devices_[cur]->b->embed(slot(ctx, cur, 0), token_embd_.type, token_embd_.slice(),
                                     token_embd_.nin, token_embd_.nout, p.ids.data(), p.rows);
         } else if (p.at != cur) {
-            receive(ctx, p.at, p.parity, p.sent, cur, 0, p.rows);
+            receive(ctx, p.at, p.handoff, p.sent, cur, 0, p.rows);
         }
         const backend::RowRuns all{p.runs.data(), p.runs.size()};
         for (int l = st.first; l < st.end; l++) {
@@ -1064,7 +1160,7 @@ private:
         }
         if (s + 1 < stages_.size()) {
             // A residual already where the next stage runs stays there.
-            if (cur != stages_[s + 1].device) send(ctx, cur, p.parity, 0, p.rows);
+            if (cur != stages_[s + 1].device) send(ctx, cur, p.handoff, 0, p.rows);
             p.at = cur;
         } else {
             const size_t o = (size_t)place_.output_device;
@@ -1077,7 +1173,7 @@ private:
                 b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), output_norm_.slice(),
                                 p.want, E, E, cfg.rms_eps);
                 b.matmul_logits(output_.type, output_.slice(), slot(ctx, cur, 1),
-                                {ctx.logits_buf.get(), 0}, output_.nin, output_.nout, p.want,
+                                {ctx.logits_buf.get(), p.logits_base * output_.nout}, output_.nin, output_.nout, p.want,
                                 backend::RowRuns{p.head_runs.data(), p.head_runs.size()});
             }
         }
@@ -1089,11 +1185,11 @@ private:
         }
     }
 
-    // After the last stage: where the logits are and the ticket that says they are ready.
+    // After the last stage: where the logits are and the ticket that says they are ready, the pass's own head's.
     void finish(ExecContext& ctx, const Pass& p) {
         ctx.n_logits = p.want;
         ctx.backend = devices_[(size_t)place_.output_device]->b.get();
-        ctx.ticket = ctx.tickets[(size_t)place_.output_device];
+        ctx.ticket = p.sent;
         ctx.pending = p.want > 0;
     }
 
@@ -1103,6 +1199,21 @@ private:
         for (size_t e = 0; e < p.entries.size(); ++e)
             for (auto& kv : p.entries[e].seq->kv_) kv.truncate(p.start[e]);
     }
+
+    // The pass in a reserved context's slot, which must be in flight.
+    static Pass& in_flight(ExecContext& ctx, size_t slot) {
+        if (slot >= ctx.slots || !ctx.passes[slot].in_flight) throw std::logic_error("inference: no pass in flight in that slot");
+        return ctx.passes[slot];
+    }
+
+    // A slot's pass leaves flight, and its sequences with it.
+    static void release(Pass& p) noexcept {
+        for (const BatchEntry& en : p.entries) en.seq->in_flight_ = false;
+        p.in_flight = false;
+    }
+
+    // Handoff buffers per device for `slots` passes in flight: one where crossings run inside a stage, and on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the chunk before it still waits in the other.
+    size_t handoffs(size_t slots) const { return pipelined_ ? std::max<size_t>(2, slots) : 1; }
 
     // The CPU prefill scope is per backend, so a prompt enters one on every device it runs on, nested.
     // A device backend's scope is the default and just runs the body.
@@ -1129,9 +1240,9 @@ private:
         return b.alloc(total);
     }
 
-    // Storage for a pass of `rows` rows with `want` logits rows, on every device the placement uses: grown when a pass needs more than the context holds, never shrunk.
+    // Storage for a pass of `rows` rows with `want` logits rows, on every device the placement uses, with `buffers` handoff buffers per device (handoffs): grown when a pass needs more rows than the context holds, never shrunk.
     // Each is allocated whole before it replaces what the context had.
-    void ensure(ExecContext& ctx, size_t rows, size_t want) {
+    void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers) {
         auto mul = [](size_t a, size_t b) {
             if (b && a > (size_t)-1 / b)
                 throw std::runtime_error("inference: activation arena size overflows");
@@ -1153,15 +1264,15 @@ private:
             std::copy(offsets, offsets + ExecContext::kSlots, sc.offset);
             sc.rows = rows;
         }
-        // A host-visible buffer per used device, which a crossing leaves through, when more than one device is used: two on a pipelined split, so a chunk goes out through one while the chunk before it still waits in the other.
+        // The host-visible buffers per used device a crossing leaves through, when more than one device is used.
         size_t used = 0;
         for (const auto& d : devices_) used += d->used;
         if (used > 1 && ctx.handoff_rows < rows) {
-            std::vector<std::array<backend::BufferPtr, 2>> handoff(devices_.size());
+            std::vector<std::vector<backend::BufferPtr>> handoff(devices_.size());
             const size_t bytes = mul(mul(rows, (size_t)cfg.n_embd), sizeof(float));
             for (size_t d = 0; d < devices_.size(); ++d)
-                for (size_t i = 0; devices_[d]->used && i < (pipelined_ ? 2u : 1u); ++i)
-                    handoff[d][i] = devices_[d]->b->alloc(bytes, backend::Memory::host_visible);
+                for (size_t i = 0; devices_[d]->used && i < buffers; ++i)
+                    handoff[d].push_back(devices_[d]->b->alloc(bytes, backend::Memory::host_visible));
             for (size_t d = 0; d < ctx.handoff.size(); ++d)
                 if (devices_[d]->used) devices_[d]->b->wait(ctx.tickets[d]);
             ctx.handoff = std::move(handoff);
@@ -1190,19 +1301,19 @@ private:
 
     // The residual stream moves from one device's x slot to another's through host memory, `rows` rows from `base`; a few kilobytes on a decode token.
     // `send` copies them into the source's host-visible handoff buffer inside the source's own work, so they outlast the source moving on to its next pass, and the submission that carries the copy says when they are there.
-    void send(ExecContext& ctx, size_t from, size_t parity, size_t base, size_t rows) {
+    void send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows) {
         const size_t E = (size_t)cfg.n_embd;
         const backend::Slice x = slot(ctx, from, 0);
-        devices_[from]->b->copy(*ctx.handoff[from][parity], base * E * sizeof(float), *x.buffer,
+        devices_[from]->b->copy(*ctx.handoff[from][handoff], base * E * sizeof(float), *x.buffer,
                                 (x.offset + base * E) * sizeof(float), rows * E * sizeof(float));
     }
 
     // `receive` waits for that submission and writes the rows into the destination's residual, enqueued there.
-    void receive(ExecContext& ctx, size_t from, size_t parity, backend::Ticket sent, size_t to, size_t base, size_t rows) {
+    void receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows) {
         const size_t E = (size_t)cfg.n_embd;
         devices_[from]->b->wait(sent);
         const backend::Slice x = slot(ctx, to, 0);
-        const uint8_t* rows_out = (const uint8_t*)ctx.handoff[from][parity]->host_ptr() + base * E * sizeof(float);
+        const uint8_t* rows_out = (const uint8_t*)ctx.handoff[from][handoff]->host_ptr() + base * E * sizeof(float);
         devices_[to]->b->write(*x.buffer, (x.offset + base * E) * sizeof(float), rows_out, rows * E * sizeof(float));
     }
 
@@ -1338,6 +1449,7 @@ struct PlacementRequest {
     size_t stream_from = 0;           // with experts on the CPU, the prompt length from which they are copied to the device (Placement::stream_from)
     int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
+    size_t slots = 0;                 // passes the caller keeps in flight (Model::reserve_passes), each with a handoff buffer per device that a split's fit counts, two at least on the pipelined split it fits
     // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
     // Each history takes whole blocks, up to the model's context, so the budget grows to hold them all where it would not.
     size_t histories = 0, history_tokens = 0;
@@ -1397,7 +1509,7 @@ inline PlacedModel place_model(const QwenWeights& weights, std::vector<backend::
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
         const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
         const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
-        const LayerSplit split = split_layers(footprint(weights, options), budgets, rows, request.shares, core::host_memory_available());
+        const LayerSplit split = split_layers(footprint(weights, options), budgets, rows, request.shares, core::host_memory_available(), request.slots);
         placed = {std::make_unique<Model>(weights, std::move(backends), placement_for(split), options, adopt), split.describe(budgets)};
     } else if (!adds_host_for_experts(backends, request)) {
         placed.model = std::make_unique<Model>(weights, std::move(backends), Placement{}, options, adopt);

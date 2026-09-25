@@ -148,10 +148,10 @@ iteration while the prompt goes through in slices. That is the reason the
 prompt slice comes after the decode entries and is bounded by what is left
 of `ubatch`.
 
-Two execution contexts would be the overlap of host sampling with the device's next pass.
+Passes in flight in one context reserved for them (`Model::reserve_passes`, `docs/EXECUTION.md`) would be the overlap of host sampling with the devices' next pass, and phase 3 of `docs/MULTI-DEVICE.md` brings them to the server.
 Layer split phase 3's step 0 (`docs/STATUS.md`) timed the host time between a pass's logits and the next `forward` on Qwen3-8B-Q8_0 on one MI50: 0.26 to 0.71 ms a row greedy and at the defaults at 1 to 32 sequences, nearly all of it sampling and about half of a greedy row the copy out of the mapped logits, which is 7 to 14 percent of a greedy pass at 8 to 32 sequences; the 25 microseconds an earlier timing build recorded did not hold.
-A second context would not hide that time, because the next pass's tokens come from this one, so the server runs one context.
-The host also spends the recording of each pass, 0.7 milliseconds at one sequence and 1.7 at eight on Qwen3-0.6B-Q8_0 and 2.6 to 5.2 at one to 32 on the 8B, which no second context hides for the same reason; only a recorded pass replayed with new inputs would, and that is a backend change noted in STATUS, not a scheduler one.
+For the same requests a second pass in flight would not hide that time, because the next pass's tokens come from this one, so the server runs one pass at a time.
+The host also spends the recording of each pass, 0.7 milliseconds at one sequence and 1.7 at eight on Qwen3-0.6B-Q8_0 and 2.6 to 5.2 at one to 32 on the 8B, which no second pass in flight hides for the same reason; only a recorded pass replayed with new inputs would, and that is a backend change noted in STATUS, not a scheduler one.
 
 ### Sampling
 

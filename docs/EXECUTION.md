@@ -186,8 +186,9 @@ Sequence      one request's history: a KVSequence per storage, the
               the table is per storage and not per device.
 ExecContext   where passes run: an activation arena per device, a
               host-visible handoff buffer per device (two on a pipelined
-              split), the logits buffer, the tickets, and the plan of
-              each pass in flight.
+              split, or one per pass slot where a context reserved for
+              passes in flight has more), the logits buffer, the
+              tickets, and the plan of each pass in flight.
 Batch         entries of (Sequence*, token ids, want_logits).
 ```
 
@@ -200,8 +201,8 @@ with one token each; the two mix freely.
 The CLI keeps one `Sequence` and one `ExecContext`, and `step` and
 `prefill` become wrappers over `forward`, so `generate`, `chat` and
 `perplexity` do not change.
-Two contexts would let the server keep a device busy: a prefill of new requests in one while the host samples the decode batch of the other.
-The server runs one context ([SERVER](SERVER.md), step 5), and the host's sampling between its passes measured 7 to 14 percent of a greedy Qwen3-8B-Q8_0 pass on one MI50 at 8 to 32 sequences (layer split phase 3's step 0 in [STATUS](STATUS.md)).
+What keeps the devices busy is one context reserved for several passes in flight (`Model::reserve_passes`), not a context per pass, whose arenas would grow with the passes: on a pipelined split each stage works on one pass while the host samples another, which phase 3 of `docs/MULTI-DEVICE.md` brings to the server.
+The server runs one pass at a time today ([SERVER](SERVER.md), step 5), and the host's sampling between its passes measured 7 to 14 percent of a greedy Qwen3-8B-Q8_0 pass on one MI50 at 8 to 32 sequences (layer split phase 3's step 0 in [STATUS](STATUS.md)).
 
 ### Placement
 

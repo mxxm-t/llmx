@@ -72,7 +72,7 @@ to a `backend::Backend`.
   weight across calls. See `docs/DEVICE-EXECUTION.md` step 1.
 - `footprint(weights, options)`: what this architecture asks of memory, for a split fitted to devices (`model/layer_split.hpp`): each layer's matrices from its `blk.N.` tensors, those a product reads marked by their role (the attention and feed-forward projections and the router, whatever their rank), the embedding, the head's matrix and norm and whether it is tied, one layer's cache for the budgeted positions at the options' cache types, the RoPE tables, a row of the arena and a row of the residual stream handed between devices. The arena's feed-forward slots are as wide as a dense layer's when some layer is not routed (`routed_layers`), as the model resolves it. `placement_for(split)` turns a `LayerSplit` into a `Placement`. `synthetic_model(...)`: a model of this architecture with a given shape and random weights, Q8_0 matrices and F32 norms, which `bench` times without a file.
 - `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(cfg, options)` and `kv_bytes_per_position(cfg, options)`: the positions the caches are budgeted for, which the fit and the cache allocation take, and one position's key and value bytes at the options' cache types, which only the fit and `kv_used_bytes` take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`). `routed_layers(weights)`: the layers whose router tensor (`blk.N.ffn_gate_inp.weight`) is present.
-- `place_model(weights, backends, request, options, adopt = {})`: the one place a model is placed over the backends its caller made, returning the model with the request's ubatch set and, for a split, its plan (`LayerSplit::describe`). A request that names `histories` of `history_tokens` each, as `bench --model` does its sequences, has them counted in whole blocks of each backend, each up to the model's context, which no run passes: where the options' budget would leave any storage short, the budget becomes what they take in the largest blocks, which the fit and every storage then use, and otherwise it is unchanged. With several backends or layer shares it fits the split for `request.ubatch` (default `kDefaultUbatch`) plus `request.decode_rows` rows (`budgets_for`, `split_layers`, `placement_for`); with one backend that is not the CPU (`Backend::is_cpu`) and `PlacementRequest::cpu_moe`, the CPU becomes device 0 beside it and the first `cpu_moe` routed layers' feed-forward blocks (every one at -1) run there, with `stream_from` as the placement's; otherwise the model is on the one backend, the CPU with its experts on it included. Experts on the CPU on a model without routed layers are refused whatever the backends, the CPU included, and so are experts on the CPU with several devices, each refusal naming the flag the request stands for (`--cpu-moe` at -1, `--n-cpu-moe` otherwise); so is a nonzero `stream_from` without experts on the CPU, which would have nothing to stream. `adds_host_for_experts(backends, request)` is the rule for when it adds the CPU for experts, which asks whether the backend is the CPU and not whether it reads its weights in place, since a device may read host memory in place, and `host_reads_in_place(backends, request)` says whether any backend of the placement reads weights in place, one of `backends` or that CPU, which the loader asks before it decides what to map. The CLI, `bench --model`, the server and `llmx-split-check` all build their model through it by way of `infer::load_model` ([load](inference-load.md)), as does `compare_cpu`. A routed layer's experts are streamed to the device only where attention runs on a backend that copies its weights and the experts on one that reads them in place (`Backend::reads_in_place`). A tied head on the embedding's device reads the buffer adopted for the embedding rather than a second copy.
+- `place_model(weights, backends, request, options, adopt = {})`: the one place a model is placed over the backends its caller made, returning the model with the request's ubatch set and, for a split, its plan (`LayerSplit::describe`). A request that names `histories` of `history_tokens` each, as `bench --model` does its sequences, has them counted in whole blocks of each backend, each up to the model's context, which no run passes: where the options' budget would leave any storage short, the budget becomes what they take in the largest blocks, which the fit and every storage then use, and otherwise it is unchanged. With several backends or layer shares it fits the split for `request.ubatch` (default `kDefaultUbatch`) plus `request.decode_rows` rows and `request.slots` pass slots, whose handoff buffers the host holds (`budgets_for`, `split_layers`, `placement_for`); with one backend that is not the CPU (`Backend::is_cpu`) and `PlacementRequest::cpu_moe`, the CPU becomes device 0 beside it and the first `cpu_moe` routed layers' feed-forward blocks (every one at -1) run there, with `stream_from` as the placement's; otherwise the model is on the one backend, the CPU with its experts on it included. Experts on the CPU on a model without routed layers are refused whatever the backends, the CPU included, and so are experts on the CPU with several devices, each refusal naming the flag the request stands for (`--cpu-moe` at -1, `--n-cpu-moe` otherwise); so is a nonzero `stream_from` without experts on the CPU, which would have nothing to stream. `adds_host_for_experts(backends, request)` is the rule for when it adds the CPU for experts, which asks whether the backend is the CPU and not whether it reads its weights in place, since a device may read host memory in place, and `host_reads_in_place(backends, request)` says whether any backend of the placement reads weights in place, one of `backends` or that CPU, which the loader asks before it decides what to map. The CLI, `bench --model`, the server and `llmx-split-check` all build their model through it by way of `infer::load_model` ([load](inference-load.md)), as does `compare_cpu`. A routed layer's experts are streamed to the device only where attention runs on a backend that copies its weights and the experts on one that reads them in place (`Backend::reads_in_place`). A tied head on the embedding's device reads the buffer adopted for the embedding rather than a second copy.
 - `slot_widths(config, dense)`: the floats one row takes in each of the arena's twelve slots, which `ensure` allocates and `footprint` counts.
 - `Placement`: a device index per tensor role: each layer's attention and
   feed-forward block, the embedding table and the output head. Empty means
@@ -98,17 +98,24 @@ to a `backend::Backend`.
   `Model::make_sequence`: a block table per storage and the committed
   length, and per device the ticket of the last pass that touched it, which
   a reset waits on. Movable, not copyable. The server keeps one per request;
-  the CLI's model keeps one.
+  the CLI's model keeps one. `length()` is storage 0's committed length;
+  the storages can disagree while a pass is part way through its stages,
+  and the model continues a history from the first stage's storage.
+  `in_flight()` holds from `begin_pass` until `end_pass` or `abort_pass`,
+  when no other pass, reset or fork may take the sequence and it must not
+  move.
 - `ExecContext`: where a context's passes run, plain data the model fills:
   per device an activation arena (twelve slots at 64-byte offsets in one
-  backend allocation), which each device's passes use in turn, and a
-  host-visible handoff buffer a crossing goes through, two when a prompt's
-  chunks are pipelined; the host-visible
+  backend allocation), which each device's passes use in turn, and the
+  host-visible handoff buffers a crossing goes through, per device one, two
+  when a prompt's chunks are pipelined, and in a context reserved for
+  passes those of its slots (`reserve_passes`); the host-visible
   logits rows; the tickets; and a `Pass` per pass in flight, the entries,
   rows, positions, head rows and cache views its stages read as they are
-  recorded. Allocated by the first forward that needs it and grown to the
-  largest pass seen. Two contexts let a scheduler keep one pass on the device
-  while it reads another's logits. `logits(i)` is row `i` of the last pass,
+  recorded, the handoff buffer its crossings use, its first logits row and
+  its ticket. Allocated by the first forward that needs it and grown to the
+  largest pass seen, or sized once by `reserve_passes` (below), after which
+  nothing in it is replaced. `logits(i)` is row `i` of the last pass,
   in entry order.
 - `BatchEntry`: what one sequence contributes to a pass: tokens appended to
   it and whether the logits after its last token are wanted, or with
@@ -147,9 +154,38 @@ to a `backend::Backend`.
     blocks of the storage it writes, submits the devices it recorded on and
     commits. It is one transaction: a failure anywhere drains every device
     and returns every history to where the pass found it, stages already
-    committed included. A sequence listed twice is refused.
+    committed included. A sequence listed twice or in flight is refused, and
+    so is a context reserved for passes.
+  - The pass API, for a scheduler that keeps passes of different sequences
+    in flight so that every stage of a pipelined split works on one while
+    the host samples another (`docs/MULTI-DEVICE.md`). `stage_count()` and
+    `pipelined()` say whether that can pay: several stages, the embedding on
+    the first stage's device, the head on the last's and every feed-forward
+    block beside its attention. `reserve_passes(ctx, slots, rows,
+    logit_rows)` sizes a fresh context once: the arena for `rows` rows,
+    which every pass shares, a handoff buffer per slot and device, two at
+    least on a pipelined split and one for the single slot of a placement
+    that is not pipelined, and `logit_rows` rows of logits the caller hands
+    out. The context
+    is frozen from then on. More than one slot needs a pipelined placement.
+    `begin_pass(ctx, slot, entries, n, logits_base)` plans a pass in a free
+    slot, copying its tokens, and puts its sequences in flight; a sequence
+    in flight or listed twice, a slot in use or beyond the reservation, and
+    more rows or logits rows than reserved are refused before any work.
+    `run_pass_stage(ctx, slot, s)` records the pass's next stage, which must
+    be `s`; a failure aborts the pass before it is rethrown, and the other
+    passes go on. `pass_logits(ctx, slot, i)` waits on the pass's own head
+    and returns its wanting row `i`, written from row `logits_base` on.
+    `end_pass` takes a pass whose last stage has run out of flight, and
+    `abort_pass` abandons one at any point: every device drained, then only
+    its entries truncated in every storage to where it found them. Each
+    pass's stages run in order; passes interleave as the caller likes, since
+    each device runs the stages recorded on it in that order and a pass
+    keeps its own handoff buffer, logits rows and ticket. `forward`,
+    `prefill`, `step` and `score` do not use it.
   - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
-    to the pool after waiting on its last ticket.
+    to the pool after waiting on its last ticket; a sequence in flight is
+    refused.
   - `kv_pools()`, `kv_pool_block_tokens(s)`, `kv_pool_blocks(s)`: the
     cache pools a scheduler admits against, one per device that runs
     attention, each in its own blocks; `kv_tokens_total()` is the tokens
@@ -160,6 +196,7 @@ to a `backend::Backend`.
     below `length` on every storage and allocating and copying nothing; the
     server forks a donor at the blocks a prompt shares with it.
     A forked sequence continues exactly as a fresh one fed the same tokens at the same extents would; rows another extent computed can differ from them by rounding (`docs/SERVER.md`, Open gaps).
+    A sequence in flight is not forked.
   - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.
   - `n_tokens()`, `context_length()`. The thread getter reports the resolved backend count,
     allowing the CLI to restore automatic decode settings after prefill.

@@ -29,6 +29,7 @@ On that machine, `docker/Dockerfile` carries the driver and the compiler and tak
 
 The layer split is covered on the CPU.
 The `placement` CTest, in every job, splits a model over two and three CPU backends, among them a pipelined prompt of five chunks, which reuses pass slots and handoff buffers, its rollback when a backend on the last stage fails, and a history recomputed by class as a paused request's resume recomputes it.
+It also runs passes of different sequences in flight through the pass API over two, three and four CPU backends at 2 to 8 pass slots, in random order and with a failed pass, against each sequence run alone.
 The Python suite's `split` component, in every job that runs the suite, runs `llmx-split-check` on the tiny F32 and MoE models over two and three CPU backends against one, and on a synthetic Q8_0 model over two, with f16 and f32 caches, its decode steps also recomputed by class, the Q8_0 model's histories long enough that each run also recomputes from a fork at a block, which the component requires.
 CMake builds that tool in every configuration with tests (the default), and those jobs pass `--require-tools`, so a tool missing beside the executable fails the job rather than skipping.
 The Windows job's second run, on the `build.bat` binary, which has no tools beside it, leaves the flag off.

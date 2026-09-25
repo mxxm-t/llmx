@@ -79,11 +79,16 @@ placement contracts in `docs/EXECUTION.md`.
   Device arithmetic uses these handles; host-visible results and transfer
   staging may expose host addresses. An empty allocation resolves to no address and is
   read by nothing, which is how a zero-length batch passes through.
+- `span(buffer, off, bytes)`, `size_mul`, `size_add`, `blocks_for(tokens,
+  block_tokens)`: the checks every backend makes, a byte range inside a
+  buffer and size arithmetic that throws rather than wraps, and the whole
+  KV blocks a number of positions needs.
 - `embed(dst, type, table, nin, nrows, ids, count)`: gather `count` embedding
   rows into `dst`, row-major. An op rather than a model-side read because the
   table is a buffer the model cannot address on a device backend. Rejects a
   token id at or beyond `nrows`.
-- `rms_norm(dst, src, w, n, eps)`: RMS norm of one row.
+- `rms_norm(dst, src, w, n, eps)`: RMS norm of one row, not virtual:
+  `rms_norm_rows` over that one row.
 - `rms_norm_rows(dst, src, w, rows, n, stride, eps)`: RMS norm of `rows` rows
   against a shared weight.
 - `norm_rope_rows(x, rows, stride, heads, w, eps, cos, sin, half, pos)`:

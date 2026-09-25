@@ -5,6 +5,7 @@
 #include <memory>
 #include <functional>
 #include <initializer_list>
+#include <limits>
 #include <optional>
 
 // Backends own storage and parallelize primitive ops; models use buffer handles and own multi-device placement.
@@ -23,6 +24,24 @@ public:
     virtual const void* host_ptr() const = 0;
 };
 using BufferPtr = std::shared_ptr<Buffer>;
+
+// Throws unless `bytes` bytes from byte `off` lie inside the buffer.
+inline void span(const Buffer& b, size_t off, size_t bytes) {
+    if (off > b.size() || bytes > b.size() - off)
+        throw std::runtime_error("backend: buffer range outside the allocation");
+}
+
+// Size arithmetic for storage and operands: a product or sum that would wrap throws instead.
+inline size_t size_mul(size_t a, size_t b) {
+    if (a && b > std::numeric_limits<size_t>::max() / a)
+        throw std::runtime_error("backend: size overflows");
+    return a * b;
+}
+inline size_t size_add(size_t a, size_t b) {
+    if (b > std::numeric_limits<size_t>::max() - a)
+        throw std::runtime_error("backend: size overflows");
+    return a + b;
+}
 
 // device memory may be unreachable from the host; host_visible permits host_ptr() access after retirement.
 // Both use the same storage on a host backend.
@@ -69,6 +88,11 @@ struct RowRuns {
 struct KVLayout {
     size_t block_tokens;
 };
+
+// Whole blocks of `block_tokens` for `tokens` positions, without the usual +bt-1 overflow.
+inline size_t blocks_for(size_t tokens, size_t block_tokens) {
+    return tokens / block_tokens + (tokens % block_tokens != 0);
+}
 
 // How a cache side is stored; the CLI's --cache-type-k and --cache-type-v.
 enum class KVType { f32, f16 };
@@ -211,9 +235,10 @@ public:
                            size_t n_views, Slice out,
                            int n_head, int n_head_kv, int head_dim) = 0;
 
-    // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm).
-    virtual void rms_norm(Slice dst, CSlice src, CSlice w,
-                          size_t n, float eps) = 0;
+    // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm), the one-row case of rms_norm_rows.
+    void rms_norm(Slice dst, CSlice src, CSlice w, size_t n, float eps) {
+        rms_norm_rows(dst, src, w, 1, n, n, eps);
+    }
 
     // The batched forms below exist so the model layer holds no elementwise loops and needs no host parallelism of its own.
     // Each is one call per layer instead of one per row (or per head, per row), which is what makes the graph expressible on a device: see docs/ROADMAP.md #4a.

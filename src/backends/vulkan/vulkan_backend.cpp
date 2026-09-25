@@ -431,20 +431,7 @@ public:
     VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_blocks,
                     KVType kt, KVType vt)
         : owner_(&owner), heads_(heads), dim_(dim), max_(max_blocks), kt_(kt), vt_(vt), k_(layers), v_(layers) {
-        mul(mul(heads, kVkBlockTokens), dim);
-    }
-    static size_t mul(size_t a, size_t b) {
-        if (a && b > std::numeric_limits<size_t>::max() / a)
-            throw std::runtime_error("vulkan: KV storage size overflows");
-        return a * b;
-    }
-    static size_t add(size_t a, size_t b) {
-        if (b > std::numeric_limits<size_t>::max() - a)
-            throw std::runtime_error("vulkan: KV storage size overflows");
-        return a + b;
-    }
-    static size_t blocks_for(size_t tokens) {
-        return tokens / kVkBlockTokens + (tokens % kVkBlockTokens != 0);
+        size_mul(size_mul(heads, kVkBlockTokens), dim);
     }
     size_t max_blocks() const override { return max_; }
     size_t allocated_bytes() const override {
@@ -677,11 +664,6 @@ VulkanBuffer& as_vulkan(Buffer& b) {
     auto* v = dynamic_cast<VulkanBuffer*>(&b);
     if (!v) throw std::runtime_error("vulkan: buffer of another backend");
     return *v;
-}
-
-void span(const Buffer& b, size_t off, size_t bytes) {
-    if (off > b.size() || bytes > b.size() - off)
-        throw std::runtime_error("vulkan: buffer range outside the allocation");
 }
 
 class VulkanBackend final : public Backend {
@@ -1284,10 +1266,6 @@ public:
     }
 
     // Row kernels: one workgroup per row, or per (row, head).
-    void rms_norm(Slice dst, CSlice src, CSlice w, size_t n, float eps) override {
-        rms_norm_rows(dst, src, w, 1, n, n, eps);
-    }
-
     void rms_norm_rows(Slice dst, CSlice src, CSlice w, size_t rows, size_t n,
                        size_t stride, float eps) override {
         if (!rows || !n) return;
@@ -1982,7 +1960,7 @@ public:
             throw std::runtime_error("vulkan: KV storage without layers, heads or width");
         if (head_dim > 256) throw std::runtime_error("vulkan: head width above 256 is not supported");
         return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim,
-                                                 VulkanKVStorage::blocks_for(max_tokens), k_type, v_type);
+                                                 blocks_for(max_tokens, kVkBlockTokens), k_type, v_type);
     }
 
     void kv_copy(KVStorage& storage, int32_t src, int32_t dst) override {
@@ -2060,7 +2038,7 @@ public:
             // The dispatch has as many splits as its longest row can need; a row's extra splits are empty.
             size_t longest = 0;
             for (const Placed& pv : narrow)
-                longest = std::max(longest, VulkanKVStorage::add(pv.view->length, pv.view->nq));
+                longest = std::max(longest, size_add(pv.view->length, pv.view->nq));
             const size_t pairs = t.rows * (size_t)n_head;
             const DeviceProfile& prof = dev_->profile;
             const size_t chunk = prof.attention_split_chunk;
@@ -2127,8 +2105,8 @@ public:
             VulkanKVStorage& s = storage_of(*view.storage);
             if (t.storage && t.storage != &s) throw std::runtime_error("vulkan: views of two storages in one call");
             t.storage = &s;
-            const size_t sequence = VulkanKVStorage::add(view.length, view.nq);
-            const size_t used = VulkanKVStorage::blocks_for(sequence);
+            const size_t sequence = size_add(view.length, view.nq);
+            const size_t used = blocks_for(sequence, kVkBlockTokens);
             if (layer >= s.layers() || used > view.n_blocks)
                 throw std::runtime_error(writing ? "vulkan: KV write outside the view" : "vulkan: attention outside the KV view");
             if (writing) {
@@ -2515,10 +2493,10 @@ void VulkanKVStorage::ensure(size_t id) {
     if (id < backed_) return;
     if (id >= max_) throw std::runtime_error("vulkan: KV block outside the budget");
     const size_t want = std::max(id + 1, std::min(max_, backed_ * 2));
-    const size_t kbytes = mul(want, k_block_bytes()), vbytes = mul(want, v_block_bytes());
-    const size_t held = mul(add(kbytes, vbytes), k_.size());
+    const size_t kbytes = size_mul(want, k_block_bytes()), vbytes = size_mul(want, v_block_bytes());
+    const size_t held = size_mul(size_add(kbytes, vbytes), k_.size());
     std::vector<BufferPtr> nk(k_.size()), nv(v_.size());
-    const size_t peak = std::max(peak_, add(allocated_bytes(), held));
+    const size_t peak = std::max(peak_, size_add(allocated_bytes(), held));
     try {
         for (size_t l = 0; l < k_.size(); ++l) {
             nk[l] = owner_->alloc(kbytes, Memory::device);

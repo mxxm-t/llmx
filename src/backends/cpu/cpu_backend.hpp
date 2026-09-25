@@ -9,7 +9,6 @@
 #include <limits>
 #include <vector>
 #include <atomic>
-#include <cstdlib>
 
 #include "backends/backend.hpp"
 #include "backends/cpu/prefill_placement.hpp"
@@ -59,22 +58,7 @@ public:
           kb_(kv_elem_bytes(kt)), vb_(kv_elem_bytes(vt)),
           k_(layers), v_(layers), kp_(layers, nullptr), vp_(layers, nullptr) {
         // Called for its overflow throw, not its value: block_floats() recomputes this on every access and must not wrap.
-        mul(mul(heads, KV_BLOCK_TOKENS), dim);
-    }
-
-    static size_t mul(size_t a, size_t b) {
-        if (a && b > std::numeric_limits<size_t>::max() / a)
-            throw std::runtime_error("backend: KV storage size overflows");
-        return a * b;
-    }
-    static size_t add(size_t a, size_t b) {
-        if (b > std::numeric_limits<size_t>::max() - a)
-            throw std::runtime_error("backend: KV storage size overflows");
-        return a + b;
-    }
-    // Whole blocks for `tokens` positions, without the usual +bt-1 overflow.
-    static size_t blocks_for(size_t tokens) {
-        return tokens / KV_BLOCK_TOKENS + (tokens % KV_BLOCK_TOKENS != 0);
+        size_mul(size_mul(heads, KV_BLOCK_TOKENS), dim);
     }
 
     size_t max_blocks() const override { return max_; }
@@ -100,8 +84,8 @@ public:
         if (id < backed_) return;
         if (id >= max_) throw std::runtime_error("backend: KV block outside the budget");
         const size_t want = std::max(id + 1, std::min(max_, backed_ * 2));
-        const size_t kbytes = mul(want, k_block_bytes()), vbytes = mul(want, v_block_bytes());
-        const size_t held = mul(add(kbytes, vbytes), k_.size());
+        const size_t kbytes = size_mul(want, k_block_bytes()), vbytes = size_mul(want, v_block_bytes());
+        const size_t held = size_mul(size_add(kbytes, vbytes), k_.size());
         std::vector<BufferPtr> nk(k_.size()), nv(v_.size());
         std::vector<uint8_t*> nkp(k_.size()), nvp(v_.size());
         for (size_t l = 0; l < k_.size(); ++l) {
@@ -114,7 +98,7 @@ public:
             nkp[l] = host_bytes(*nk[l]);
             nvp[l] = host_bytes(*nv[l]);
         }
-        peak_ = std::max(peak_, add(allocated_bytes(), held));
+        peak_ = std::max(peak_, size_add(allocated_bytes(), held));
         k_.swap(nk);
         v_.swap(nv);
         kp_.swap(nkp);
@@ -736,11 +720,10 @@ public:
                                         KVType v_type = KVType::f32) override {
         if (layers == 0 || n_head_kv == 0 || head_dim == 0)
             throw std::runtime_error("backend: invalid KV storage shape");
-        const size_t blocks = CpuKVStorage::blocks_for(max_tokens);
+        const size_t blocks = blocks_for(max_tokens, KV_BLOCK_TOKENS);
         // Every factor uses checked multiplication so the whole budget is addressable even before it is backed.
-        using S = CpuKVStorage;
-        S::mul(S::mul(S::mul(S::mul(blocks, layers), 2), n_head_kv),
-               S::mul(S::mul(KV_BLOCK_TOKENS, head_dim), sizeof(float)));
+        size_mul(size_mul(size_mul(size_mul(blocks, layers), 2), n_head_kv),
+                 size_mul(size_mul(KV_BLOCK_TOKENS, head_dim), sizeof(float)));
         return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, blocks, k_type, v_type);
     }
 
@@ -795,7 +778,7 @@ public:
             const size_t bt = KV_BLOCK_TOKENS, heads = s.heads(), dim = s.dim();
             const size_t pos = view.length, batch = view.nq;
             if (layer >= s.layers() ||
-                CpuKVStorage::blocks_for(CpuKVStorage::add(pos, batch)) > view.n_blocks)
+                blocks_for(size_add(pos, batch), bt) > view.n_blocks)
                 throw std::runtime_error("backend: KV write outside the view");
             for (size_t b = 0; b < batch; ++b) {
                 const size_t t = pos + b;
@@ -835,8 +818,8 @@ public:
             float* out = out_all + row0 * q_stride;
             const CpuKVStorage& s = storage_of(view);
             const size_t bt = KV_BLOCK_TOKENS;
-            const size_t sequence = CpuKVStorage::add(view.length, view.nq);
-            const size_t blocks = CpuKVStorage::blocks_for(sequence);
+            const size_t sequence = size_add(view.length, view.nq);
+            const size_t blocks = blocks_for(sequence, bt);
             if (layer >= s.layers() || (size_t)head_dim != s.dim() ||
                 (size_t)n_head_kv != s.heads() || blocks > view.n_blocks)
                 throw std::runtime_error("backend: attention outside the KV view");
@@ -957,10 +940,6 @@ public:
             });
             row0 += view.nq;
         }
-    }
-
-    void rms_norm(Slice dst_s, CSlice src_s, CSlice w_s, size_t n, float eps) override {
-        rms_norm_raw(at(dst_s), at(src_s), at(w_s), n, eps);
     }
 
     void rms_norm_raw(float* dst, const float* src, const float* w, size_t n, float eps) {
@@ -1324,12 +1303,6 @@ private:
         }
     }
 
-    static size_t size_mul(size_t a, size_t b) {
-        if (a && b > std::numeric_limits<size_t>::max() / a)
-            throw std::runtime_error("backend: expert operand size overflows");
-        return a * b;
-    }
-
     static size_t row_bytes_of(uint32_t type, size_t nin) {
         if (type == gguf::GGML_TYPE_F32) return size_mul(nin, sizeof(float));
         const quant::QuantType* qt = quant::Registry::instance().get(type);
@@ -1373,10 +1346,6 @@ private:
         void* p = dynamic_cast<const CpuBuffer&>(b).host_address();
         if (!p) throw std::runtime_error("backend: buffer is not host addressable");
         return p;
-    }
-    static void span(const Buffer& b, size_t off, size_t bytes) {
-        if (off > b.size() || bytes > b.size() - off)
-            throw std::runtime_error("backend: buffer range outside the allocation");
     }
 
     static CpuKVStorage& storage_of(const KVView& view) {

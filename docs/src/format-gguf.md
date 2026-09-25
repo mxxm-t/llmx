@@ -34,9 +34,11 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   hold the weights twice. On Windows a mapped model keeps its file handles open,
   preventing another writer from rewriting or removing the files while loaded.
   POSIX closes each descriptor after mapping; the files must still remain unchanged.
-- Both `read_gguf` and `add_tensor_data` preserve `alignof(float)` between
-  in-memory tensors. A 34-byte quantized tensor must not misalign a following
-  F32 tensor when the loader removes on-disk padding.
+- `add_tensor_data` keeps `alignof(float)` between in-memory tensors, so a
+  34-byte quantized tensor does not misalign a following F32 tensor.
+  `read_gguf` maps the files in place, padding included, and refuses a
+  tensor offset that is not float-aligned; each shard's data starts at a
+  float-aligned offset.
 - `read_gguf(path, progress = {})` / `write_gguf(m, path)` with the on-disk layout:
   header, metadata KVs, contiguous tensor infos, then an aligned data section
   with each tensor payload aligned to `general.alignment` (default `ALIGNMENT`).
@@ -55,10 +57,10 @@ needs a valid element type. Rank-zero F32 and zero-sized tensors are accepted
 as file objects; model execution imposes separate shape requirements.
 
 Before mapping payloads or reporting progress, the reader checks
-all tensor byte counts, aligned in-memory totals and on-disk ranges, including
-zero-sized tensor offsets. Unordered or overlapping ranges are accepted if
-each lies within the data section. Reads cannot use wrapped offsets or an
-allocation total smaller than the validated payload. Overlap can amplify memory
+all tensor byte counts and on-disk ranges, including zero-sized tensor
+offsets. Unordered or overlapping ranges are accepted if each lies within
+the data section. Offsets into the mapped shards use checked arithmetic, and
+each range is checked again against its mapping. Overlap can amplify memory
 use, and this is not a resource quota or complete metadata/model-schema validator.
 String encoding, tensor-name semantics and general writer hardening remain separate.
 

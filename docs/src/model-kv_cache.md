@@ -14,7 +14,9 @@ computes an offset into them.
   `length`. `prepare(n)` takes the blocks positions `length .. length+n` need;
   `commit()` advances `length`; `abort()` returns the attempt's blocks and
   keeps the committed history. A failed `prepare` leaves the sequence as it
-  was. `reset()` returns every block; the backend keeps the storage they used.
+  was. `truncate(length)` rolls the committed history back to `length`,
+  returning the blocks past it; `reset()` is `truncate(0)` and returns every
+  block. The backend keeps the storage they used.
 - `view(storage)` produces the `backend::KVView` that `kv_write` and
   `attention` consume: storage handle, block table, committed length and
   the rows prepared for this pass.

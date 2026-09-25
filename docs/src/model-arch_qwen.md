@@ -21,7 +21,8 @@ to a `backend::Backend`.
 - `QwenConfig` + `load_config(GGUFModel)`: reads Qwen3 metadata
   (`block_count`, `embedding_length`, `feed_forward_length`,
   `attention.head_count[_kv]`, `attention.key_length`, `context_length`,
-  `rope.freq_base`, `attention.layer_norm_rms_epsilon`, with the `qwen3.` prefix).
+  `rope.freq_base`, `attention.layer_norm_rms_epsilon`, under the
+  architecture's prefix, `qwen3.` or `qwen3moe.`).
   Consumed integer fields accept positive INT32/UINT32/INT64/UINT64 values up
   to `INT_MAX`. Consumed float fields accept finite positive F32/F64 values
   representable as nonzero F32. Duplicate consumed keys and wrong types fail.
@@ -30,19 +31,21 @@ to a `backend::Backend`.
   10000 and RMS epsilon is 1e-6. Explicit key width can differ from that quotient.
   Head width must be even; GQA head counts must divide and projection widths
   fit the runtime's integer indices. Context storage must fit float vectors.
-  Declared value/rotary widths must equal key width. Declared architecture and
-  tensor layout must be `qwen3` and `reference`; absence remains accepted for
-  existing synthetic models. RoPE scaling is unsupported: type must be absent
-  or `none`, and current/legacy factors absent or exactly one. These keys use
-  the [GGUF metadata vocabulary](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
+  Declared value/rotary widths must equal key width. Declared architecture
+  must be `qwen3` or `qwen3moe` and tensor layout `reference`; absence
+  remains accepted for existing synthetic models. RoPE scaling is
+  unsupported: type must be absent or `none`, and current/legacy factors
+  absent or exactly one. These keys use the [GGUF metadata vocabulary](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
 - `Weight` / `LayerWeights`: a tensor resolved once at load - type, a buffer
-  handle from the backend that hosts it and the two dimensions - and the
-  eleven per-layer weights grouped together. `Weight::slice()` names the
-  weight's location; the model never dereferences it. The forward pass
-  indexes `layers_[l]` instead of rebuilding `"blk.N."` and hashing a tensor
-  name for every projection of every layer of every token, and a device
-  backend recognizes the same weight across calls. See
-  `docs/DEVICE-EXECUTION.md` step 1.
+  handle from the backend that hosts it and the two dimensions - and a
+  layer's weights grouped together: eleven for a dense layer, the router
+  and three stacked expert tensors in place of the three feed-forward
+  matrices for a routed one, and a streamed layer's copies of its norm and
+  router. `Weight::slice()` names the weight's location; the model never
+  dereferences it. The forward pass indexes `layers_[l]` instead of
+  rebuilding `"blk.N."` and hashing a tensor name for every projection of
+  every layer of every token, and a device backend recognizes the same
+  weight across calls. See `docs/DEVICE-EXECUTION.md` step 1.
 - `footprint(model, options)`: what this architecture asks of memory, for a split fitted to devices (`model/layer_split.hpp`): each layer's matrices from its `blk.N.` tensors, those a product reads marked by their role (the attention and feed-forward projections and the router, whatever their rank), the embedding, the head's matrix and norm and whether it is tied, one layer's cache for the budgeted positions at the options' cache types, the RoPE tables, a row of the arena and a row of the residual stream handed between devices. `placement_for(split)` turns a `LayerSplit` into a `Placement`.
 - `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(cfg, options)` and `kv_bytes_per_position(cfg, options)`: the positions the caches are budgeted for and one position's key and value bytes at the options' cache types, which the fit, the cache allocation and `kv_used_bytes` all take. `routed_layers(m, n_layer)`: the layers whose router tensor (`blk.N.ffn_gate_inp.weight`) is present.
 - `place_model(model, backends, request, options)`: the one place a model is placed over the backends its caller made, returning the model with the request's ubatch set and, for a split, its plan (`LayerSplit::describe`). With several backends or layer shares it fits the split for `request.ubatch` (default `kDefaultUbatch`) plus `request.decode_rows` rows (`budgets_for`, `split_layers`, `placement_for`); with one backend and `PlacementRequest::cpu_moe`, the CPU becomes device 0 beside it and the first `cpu_moe` routed layers' feed-forward blocks (every one at -1) run there, with `stream_from` as the placement's; otherwise the model is on the one backend. Experts on the CPU with several devices are refused. The CLI, `bench --model`, the server and `llmx-split-check` all build their model through it. A routed layer's experts are streamed to the device only where attention runs on a backend that copies its weights and the experts on one that reads them in place (`Backend::reads_in_place`). A tied head on the embedding's device reads the buffer adopted for the embedding rather than a second copy.
@@ -60,6 +63,10 @@ to a `backend::Backend`.
   through a crossing each way. A host backend aliases what it adopts and a
   device copies it, which is how the model tells which side a weight is
   on.
+- `ModelOptions`: what is fixed at construction, before the caches are
+  allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
+  `--cache-type-k` and `--cache-type-v`) and `kv_tokens`, the positions
+  every pool holds, zero for one model context.
 - `Sequence`: one request's history over a model's cache, made by
   `Model::make_sequence`: a block table per storage and the committed
   length, and per device the ticket of the last pass that touched it, which
@@ -101,6 +108,14 @@ to a `backend::Backend`.
     refused.
   - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
     to the pool after waiting on its last ticket.
+    `truncate(sequence, length)` rolls a history back the same way,
+    returning the blocks past `length`; the server truncates a donor's fork
+    to the blocks it shares.
+  - `kv_pools()`, `kv_pool_block_tokens(s)`, `kv_pool_blocks(s)`: the
+    cache pools a scheduler admits against, one per device that runs
+    attention, each in its own blocks; `kv_tokens_total()` is the tokens
+    every pool can hold, and `kv_block_tokens()` the largest block, which a
+    reusable prefix ends on.
   - `fork(sequence)`: a second history with the same committed tokens,
     sharing every full block on every storage and copying the partial tail
     through the backend's `kv_copy`. A forked sequence continues exactly as
@@ -118,8 +133,9 @@ to a `backend::Backend`.
   - `score(ids, each)`: the ids in chunks of `ubatch()` tokens from an empty
     history, each chunk an `every_logits` entry, calling `each(pos, logits)`
     for every position. This is the batched path perplexity scores through.
-  - `set_ubatch(n)` / `ubatch()`: physical batch, set by `--ubatch`. llmx
-    has no logical batch; see `docs/USAGE.md`.
+  - `set_ubatch(n)` / `prefill_batch()`: physical batch, set by `--ubatch`
+    through `place_model`; `ubatch()` is the private getter the passes
+    use. llmx has no logical batch; see `docs/USAGE.md`.
   - `reset()`: the default sequence's history returns to the pool while
     allocated KV capacity is retained.
   - Both forward paths call `Backend::attention` over the paged KV cache;

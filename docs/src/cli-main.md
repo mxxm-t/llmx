@@ -44,16 +44,19 @@ Commands and their entry points:
   prompts to obtain valid next-token logits. A returned stop token may not yet
   be cached, and EOS is supplied by the next rendered transcript rather than
   appended unconditionally. These are single-sequence semantics.
-- `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS), `--seqs N` for decode passes carrying one token of each of N sequences, `--depth N` for tests run on top of an N-token history filled outside the timer,
+- `bench`: `cmd_bench` (hot-path micro-benchmark + synthetic end-to-end TPS),
   or with `--model` the matched real-model measurement: warm-up, then `--r`
-  repeats of `pp N` and `tg N`, model time only, `--profile` for device time
-  per kernel and the driver's statistics of each kernel (registers,
-  occupancy) where it reports them.
+  repeats of `pp N` and `tg N`, model time only, `--seqs N` for decode
+  passes carrying one token of each of N sequences, `--depth N` for tests
+  run on top of an N-token history filled outside the timer, `--profile`
+  for device time per kernel and the driver's statistics of each kernel
+  (registers, occupancy) where it reports them.
 - `layer_shares`: `--layer-shares` as one whole-number proportion per device (`core::comma_list`).
 - `open_model`: how every model-building command opens its model (`Opened`: the file, its tokenizer and the model, built in place since the model keeps the file's address): read the file, with progress for `generate`, `chat` and `serve`; place the model over the backends `--device` names (`backend::device_specs`, `backend::make_backends`) through `infer::place_model`, with the flags' shares, experts on the CPU, `--moe-stream-from` and `--ubatch`, and `serve`'s `--max-seqs` or `bench`'s `--seqs` as the generated rows a pass carries beside a prompt; print a split's plan with `--verbose` (always for `bench`); release the host's copy of the weights when no weight reads it in place; and set the thread count.
 - `serve`: parses host, port, sequence and queue limits, the KV budget
-  (`--ctx-size`), `--ubatch`, `--threads`, `--device` and the cache types,
-  then runs `server::serve` (see [server](server.md)).
+  (`--ctx-size`), `--ubatch`, `--threads`, `--device`, `--layer-shares`,
+  the experts' placement (`--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`)
+  and the cache types, then runs `server::serve` (see [server](server.md)).
 
 `generate` and each `chat` turn apply the prefill worker count and restore the
 resolved decode count, including automatic selection. Existing `--verbose`

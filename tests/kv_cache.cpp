@@ -14,6 +14,7 @@
 #include "backends/cpu/cpu_backend.hpp"
 #include "model/arch_qwen.hpp"
 #include "model/kv_cache.hpp"
+#include "tiny_qwen.hpp"
 
 // Fails the Nth allocation of at least `min_bytes` after arming, once.
 // Used to fail the prefill activation arena, which is one allocation large enough that no other allocation on the path reaches the threshold.
@@ -441,44 +442,8 @@ void batched_views() {
             "two views in one call differ from the sequences taken separately");
 }
 
-// A one-layer Qwen3-shaped F32 model, deterministic weights, for the transaction check below.
-// Mirrors the prefill-scope fixture, with a context of four CPU blocks so a step can cross a block boundary.
-gguf::GGUFModel fixture() {
-    gguf::GGUFModel m;
-    for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{
-            {"block_count", 1}, {"embedding_length", 8}, {"feed_forward_length", 12},
-            {"attention.head_count", 2}, {"attention.head_count_kv", 1},
-            {"attention.key_length", 4}, {"context_length", 4 * 128}}) {
-        gguf::MetaValue v; v.vtype = gguf::V_UINT32; v.u = kv.second;
-        m.kv.push_back({"qwen3." + kv.first, v});
-    }
-    auto add = [&](const std::string& name, std::vector<uint64_t> shape, bool norm = false) {
-        size_t count = 1;
-        for (uint64_t d : shape) count *= size_t(d);
-        const size_t offset = m.blob.size();
-        m.blob.resize(offset + count * sizeof(float));
-        for (size_t i = 0; i < count; ++i) {
-            const float v = norm ? 1.0f : float(int((i * 17 + m.tensors.size() * 3) % 29) - 14) / 64.0f;
-            std::memcpy(m.blob.data() + offset + i * sizeof(float), &v, sizeof(v));
-        }
-        m.tensors.push_back({name, std::move(shape), gguf::GGML_TYPE_F32, 0});
-        m.offsets.push_back(offset);
-    };
-    add("token_embd.weight", {8, 16});
-    add("output_norm.weight", {8}, true);
-    for (const char* name : {"attn_norm", "ffn_norm"})
-        add(std::string("blk.0.") + name + ".weight", {8}, true);
-    for (const char* name : {"attn_q_norm", "attn_k_norm"})
-        add(std::string("blk.0.") + name + ".weight", {4}, true);
-    add("blk.0.attn_q.weight", {8, 8});
-    add("blk.0.attn_k.weight", {8, 4});
-    add("blk.0.attn_v.weight", {8, 4});
-    add("blk.0.attn_output.weight", {8, 8});
-    add("blk.0.ffn_gate.weight", {8, 12});
-    add("blk.0.ffn_up.weight", {8, 12});
-    add("blk.0.ffn_down.weight", {12, 8});
-    return m;
-}
+// One layer and a context of four CPU blocks, so a step can cross a block boundary, for the transaction check below.
+gguf::GGUFModel fixture() { return tiny_qwen(1, 4 * 128, true); }
 
 // Fails the output projection (the only 16-row matmul) once, after every layer's KV has been written for the step.
 struct FailingCpu : backend::CpuBackend {

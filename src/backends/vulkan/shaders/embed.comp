@@ -2,7 +2,7 @@
 // One workgroup per gathered row: dst row i = table row ids[i], decoded.
 #include "q.glsl"
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint nin; uint count; uint type; } p;
+layout(push_constant) uniform P { uint nin; uint type; } p;
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer TF { float table_f[]; };
 layout(set = 0, binding = 2) readonly buffer TB { uint8_t table_b[]; };

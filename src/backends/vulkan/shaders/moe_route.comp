@@ -4,7 +4,7 @@
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 layout(local_size_x = 64) in;
-layout(push_constant) uniform P { uint rows; uint n_expert; uint k; uint normalize; } p;
+layout(push_constant) uniform P { uint n_expert; uint k; uint normalize; } p;
 layout(set = 0, binding = 0) readonly buffer S { float scores[]; };
 layout(set = 0, binding = 1) buffer I { uint ids[]; };
 layout(set = 0, binding = 2) buffer W { float weights[]; };

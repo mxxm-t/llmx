@@ -10,7 +10,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
-    uint rows; uint n_head; uint n_head_kv; uint bt; float scale;
+    uint n_head; uint n_head_kv; uint bt; float scale;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };

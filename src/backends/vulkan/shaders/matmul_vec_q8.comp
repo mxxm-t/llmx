@@ -9,6 +9,7 @@
 #extension GL_EXT_integer_dot_product : require
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint MAX_COLS = 8;
+// The row kernel's push layout, which row_dispatch fills for every row kernel; cluster, rows_per_sg, the types and the wide flags go unread here.
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
     uint nout0; uint type0; uint wide0; uint start0;
@@ -30,9 +31,7 @@ layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 
-#ifndef ROWS
-#define ROWS 2u
-#endif
+const uint ROWS = 2u;
 
 void main() {
     uint wg = gl_WorkGroupID.x;

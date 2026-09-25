@@ -5,7 +5,7 @@
 #include "f16.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
-    uint rows; uint q_stride; uint n_head; uint kv_stride; uint n_head_kv; uint half_dim;
+    uint q_stride; uint n_head; uint kv_stride; uint n_head_kv; uint half_dim;
     float eps; uint bt;
 } p;
 layout(set = 0, binding = 0) buffer Q { float q[]; };

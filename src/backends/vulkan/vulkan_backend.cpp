@@ -1290,8 +1290,8 @@ public:
         const size_t table = floats_from(cos) / half;
         for (size_t r = 0; r < rows; ++r)
             if (pos[r] >= table) throw std::runtime_error("vulkan: position outside the RoPE table");
-        struct { uint32_t rows, stride, heads, half; float eps; }
-            pc{u32(rows), u32(stride), u32(heads), u32(half), eps};
+        struct { uint32_t stride, heads, half; float eps; }
+            pc{u32(stride), u32(heads), u32(half), eps};
         dispatch(K_NORM_ROPE_ROWS,
                  {bind(x), bind(w), bind(cos), bind(sin), args(pos, rows * sizeof(uint32_t))},
                  &pc, sizeof(pc), u32(rows * heads));
@@ -1321,8 +1321,8 @@ public:
         if (floats_from(q) < rows * q_stride || floats_from(k) < rows * kv_stride ||
             floats_from(v) < rows * kv_stride || q_stride < n_head * dim || kv_stride < hd)
             throw std::runtime_error("vulkan: attention rows outside their allocation");
-        struct { uint32_t rows, q_stride, n_head, kv_stride, n_head_kv, half; float eps; uint32_t bt; }
-            pc{u32(rows), u32(q_stride), u32(n_head), u32(kv_stride), u32(n_head_kv), u32(rope.half),
+        struct { uint32_t q_stride, n_head, kv_stride, n_head_kv, half; float eps; uint32_t bt; }
+            pc{u32(q_stride), u32(n_head), u32(kv_stride), u32(n_head_kv), u32(rope.half),
                rope.eps, u32(kVkBlockTokens)};
         dispatch(kv_variant(K_NORM_ROPE_KV, K_NORM_ROPE_KV_K16, s),
                  {bind(q), bind(k), bind(v), bind(q_w), bind(k_w), bind(rope.cos), bind(rope.sin),
@@ -1341,7 +1341,7 @@ public:
             throw std::runtime_error("vulkan: embedding width is not whole blocks");
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
-        const uint32_t pc[3] = {u32(nin), u32(count), type};
+        const uint32_t pc[2] = {u32(nin), type};
         // The table is bound twice, as floats for F32 rows and as bytes for block formats.
         dispatch(K_EMBED, {bind(dst), bind(table), bind(table), args(ids, count * sizeof(uint32_t))},
                  pc, sizeof(pc), u32(count));
@@ -1674,7 +1674,7 @@ public:
         if (!rows) return;
         if (floats_from(scores) < rows * n_expert || floats_from(ids) < rows * k || floats_from(weights) < rows * k)
             throw std::runtime_error("vulkan: routing operand outside its allocation");
-        const uint32_t pc[4] = {u32(rows), u32(n_expert), u32(k), normalize ? 1u : 0u};
+        const uint32_t pc[3] = {u32(n_expert), u32(k), normalize ? 1u : 0u};
         dispatch(K_MOE_ROUTE, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows));
         group_tag_ = GroupTag{};
         if (overlaps_twin(bind(ids), rows * k) || overlaps_twin(bind(weights), rows * k)) xq_tag_ = XqTag{};
@@ -2000,8 +2000,8 @@ public:
             size_t tiles = 0;
             const size_t atr = dev_->profile.attention_tile_rows;
             for (const Placed& pv : wide) tiles += (pv.view->nq + atr - 1) / atr;
-            struct { uint32_t rows, n_head, n_head_kv, bt; float scale; }
-                tc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale};
+            struct { uint32_t n_head, n_head_kv, bt; float scale; }
+                tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale};
             dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
                       args(t.words.data(), t.words.size() * sizeof(uint32_t))},

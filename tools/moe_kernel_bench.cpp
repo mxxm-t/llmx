@@ -12,24 +12,10 @@
 #include <string>
 #include <vector>
 #include "backends/vulkan/vulkan_backend.hpp"
+#include "bench_weights.hpp"
 #include "format/gguf.hpp"
 
 namespace {
-
-size_t row_bytes(uint32_t type, size_t n) {
-    gguf::TensorInfo t;
-    t.type = type;
-    t.ne = {n};
-    return (size_t)t.data_size();
-}
-
-// Bytes whose every half is a finite fp16, so whatever a block reads as a scale stays finite.
-std::vector<uint8_t> weights(size_t bytes, uint32_t seed) {
-    std::mt19937 rng(seed);
-    std::vector<uint8_t> v(bytes);
-    for (auto& b : v) b = (uint8_t)(rng() % 0x3c);
-    return v;
-}
 
 struct Case {
     std::string name;

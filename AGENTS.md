@@ -333,6 +333,8 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   CTest also runs `chat-template`, comparing the real Qwen template against
   Jinja2-rendered conversation fixtures. Regenerate these with
   `python tools/gen_chat_baseline.py`; running them needs no external libraries.
+  The same test holds `is defined` and `is not defined` cases inline, each
+  beside the text Jinja2 renders for it.
 - **Thread controls** (`tests/threads.py`): actual auto/explicit phase counts,
   restoration after prefill, follow-up chat and HF-golden replies.
   Perplexity also checks batched/per-token counts, both batch-thread aliases

@@ -13,8 +13,8 @@
 #include "tokenizer/tokenizer.hpp"
 
 // Minimal Jinja2-subset renderer for GGUF `tokenizer.chat_template` strings.
-// Supports the control-flow and expressions used by common chat templates (Qwen2/3, Llama, Mistral, Gemma): {{ ... }} output, {% if/elif/else/for/set %}, dict/list/string access, .get()/.keys()/etc., and the `messages`, `add_generation_prompt`, `bos_token`, `eos_token` context variables.
-// Undefined variables evaluate to none (empty) so unknown templates degrade gracefully rather than throwing.
+// Supports the control-flow and expressions used by common chat templates (Qwen2/3, Llama, Mistral, Gemma): {{ ... }} output, {% if/elif/else/for/set %}, dict/list/string access, .get()/.keys()/etc., and the `messages`, `add_generation_prompt`, `bos_token`, `eos_token` and `tools` context variables.
+// Undefined variables evaluate to none (empty) so unknown templates degrade gracefully rather than throwing, and `is defined` still tells them from a none value.
 
 namespace chat {
 
@@ -358,10 +358,10 @@ struct Call : Expr { std::shared_ptr<Expr> callee; std::vector<std::shared_ptr<E
 struct Test : Expr { std::string name; bool neg; std::shared_ptr<Expr> e;
     Test(const std::string& n, bool g, const std::shared_ptr<Expr>& x) : name(n), neg(g), e(x) {}
     Value eval(const Ctx& c) const {
+        if (name == "defined") return Value::boolean(defined(c) != neg);
         Value v = e->eval(c);
         bool r;
-        if (name == "defined") r = true;
-        else if (name == "none") r = v.t == Value::NONE;
+        if (name == "none") r = v.t == Value::NONE;
         else if (name == "string") r = v.t == Value::STR;
         else if (name == "number") r = v.t == Value::NUM || v.t == Value::BOOL;
         else if (name == "boolean") r = v.t == Value::BOOL;
@@ -370,6 +370,19 @@ struct Test : Expr { std::string name; bool neg; std::shared_ptr<Expr> e;
         else if (name == "sequence") r = v.t == Value::LIST || v.t == Value::STR;
         else r = false;
         return Value::boolean(neg ? !r : r);
+    }
+    // Undefined is an absent name or key, which a none value is not: `tools` is passed as none and is defined.
+    bool defined(const Ctx& c) const {
+        if (auto var = dynamic_cast<const Var*>(e.get())) return c.vars.count(var->name) > 0;
+        std::shared_ptr<Expr> base;
+        Value key;
+        if (auto attr = dynamic_cast<const Attr*>(e.get())) { base = attr->base; key = Value::str(attr->key); }
+        else if (auto index = dynamic_cast<const Index*>(e.get())) { base = index->base; key = index->idx->eval(c); }
+        if (base && key.t == Value::STR) {
+            Value holder = base->eval(c);
+            if (holder.t == Value::DICT) return holder.dict.count(key.s) > 0;
+        }
+        return e->eval(c).t != Value::NONE;
     }
 };
 
@@ -860,9 +873,8 @@ inline std::string render(const std::string& tpl,
     ctx.vars["add_generation_prompt"] = jj::Value::boolean(add_generation_prompt);
     ctx.vars["bos_token"] = jj::Value::str(bos_token);
     ctx.vars["eos_token"] = jj::Value::str(eos_token);
+    // A request without tools passes `tools` as none, so a template finds it defined and none.
     ctx.vars["tools"] = jj::Value::none();
-    ctx.vars["tool_calls"] = jj::Value::none();
-    ctx.vars["system"] = jj::Value::none();
 
     std::string out;
     for (auto& nd : nodes) out += nd->render(ctx);

@@ -257,16 +257,12 @@ It exits 77, which CTest reports as skipped, when there is no loader, no
 device or a driverless loader.
 
 `vulkan-buffer` checks constructor cleanup on a fake device that supplies every Vulkan call it makes, so it needs no loader and runs wherever the backend builds.
-`vulkan-lifetime` opens a device, intercepts transfers
-and injects allocation failures to check queued storage ownership during KV
-growth, padded-copy creation/replacement/invalidation and argument-arena
-overflow. It checks retry and unchanged KV accounting after failed growth.
-Five kernel-construction cases substitute calls to check cleanup, poisoned
-failure outputs, retry and cache reuse. Two query cases use a real diagnostic
-add dispatch to check creation failure/retry and destruction after device idle;
-these cases skip if diagnostic timestamps are unavailable. Transfer ownership
-cases intercept copies so old failures cannot submit references to freed
-memory. Broad device arithmetic remains covered by `backend-vulkan` and HF.
+`vulkan-lifetime` opens a device, intercepts transfers and injects allocation failures to check queued storage ownership during KV growth, padded-copy creation/replacement/invalidation and argument-arena overflow.
+It checks retry and unchanged KV accounting after failed growth.
+Five kernel-construction cases substitute calls to check cleanup, poisoned failure outputs, retry and cache reuse.
+Two query cases use a real diagnostic add dispatch to check creation failure/retry and destruction after device idle; these cases skip if diagnostic timestamps are unavailable.
+Transfer ownership cases intercept copies so old failures cannot submit references to freed memory.
+Broad device arithmetic remains covered by `backend-vulkan` and HF.
 
 `http` starts the server's HTTP layer (`src/server/http.hpp`) on a system-chosen port from a thread and drives it with the layer's own client: a whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, a client seen by `peer_closed` as open while it waits for its answer, also after one urgent (out-of-band) byte, and as closed once it leaves, a write to it then throwing `ClientGone`, and the listener closed from the main thread ending the accept loop.
 It runs on Linux, Windows and macOS.
@@ -414,21 +410,14 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   `logits --file` must print what the same prompt inline does.
   The `--last` rows of the prompt, in one pass and in several, and of its first three tokens continued by `--then-ids`, are held to the HF bound at their positions.
   Each row is printed once, and the rows over several passes and after `--then-ids` are the bytes of the one-pass rows at the same positions.
-- **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF
-  `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and
-  one dense, across batch widths and threads and, on a device, with the
-  experts of one or every routed layer on the CPU (`--n-cpu-moe`, `--cpu-moe`).
+- **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and one dense, across batch widths and threads and, on a device, with the experts of one or every routed layer on the CPU (`--n-cpu-moe`, `--cpu-moe`).
   On a device it also streams those layers to the device for prompts from a length on (`--moe-stream-from`): from 0, from 1, which a generated token never reaches, and from 4, which only the longer prompts reach.
 - **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
-  Compares llmx against golden fixtures generated once from the HF
-  reference by `tools/gen_baseline.py` and committed to `tests/data/`. Needs a
-  real model, so it SKIPS when none is on disk; point it at one with
-  `LLMX_BASELINE_GGUF`.
+  Compares llmx against golden fixtures generated once from the HF reference by `tools/gen_baseline.py` and committed to `tests/data/`.
+  Needs a real model, so it SKIPS when none is on disk; point it at one with `LLMX_BASELINE_GGUF`.
   Otherwise each check, the tokenizer's included, reads its model from the HF cache at the revision `BASELINE_MODELS` pins, the path `tools/fetch_test_models.py` downloads to.
   Its models are pinned in `tests/data/fixtures.json` (repo, revision, file and SHA-256), which `tools/fetch_test_models.py` downloads, and their bounds sit in `tests/baseline.py`, which refuses to load unless each pinned file has bounds and each bounded file is pinned once.
-  Every perplexity cell is scored twice, in batched
-  passes (the default) and with `--per-token`, so the prompt and decode
-  kernels both meet the reference.
+  Every perplexity cell is scored twice, in batched passes (the default) and with `--per-token`, so the prompt and decode kernels both meet the reference.
   Its logit and PPL outputs go through the validators the 8B check uses, `common.check_logits` and `common.check_ppl`, at each fixture model's bounds: the exact prompt token count, ten unique in-vocabulary IDs with finite logits sorted from the top, and exactly the PPL fields with every count exact.
   Regenerating tokenizer fixtures needs `tokenizers` and `huggingface_hub`; numerical fixtures also need `torch` and `transformers`.
   RUNNING the suite needs none of these packages.

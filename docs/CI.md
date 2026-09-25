@@ -21,8 +21,8 @@ The three Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan`
 That job then runs the Python suite on the CPU through the Vulkan-enabled binary, where the `cli` component finds no device and checks that a Vulkan device is refused rather than run on the CPU.
 The Python suite's `server` component starts `llmx serve` on the synthetic dense and MoE models in every CPU job, the MoE model's prompts alone against four at a time, and on the real Q8_0 fixture in the HF job.
 What no hosted job establishes is device behaviour: the Vulkan job proves the tree compiles, and the kernel comparisons, the HF gate on the device and the matched floors are run on the Radeon VII and the Linux machine's MI50s by hand and recorded in `docs/STATUS.md`.
-A self-hosted runner on that machine would close that.
-It needs no packages of its own for it: `docker/Dockerfile` carries the driver and the compiler and takes the cards through `/dev/dri`, and inside it the whole CTest suite, `backend-vulkan` included, passes on an MI50.
+No self-hosted runner is planned: the Linux machine runs other work, and the gates on the cards stay by hand on both platforms.
+On that machine, `docker/Dockerfile` carries the driver and the compiler and takes the cards through `/dev/dri`, and inside it the whole CTest suite, `backend-vulkan` included, passes on an MI50.
 
 The layer split is covered on the CPU.
 The `placement` CTest, in every job, splits a model over two and three CPU backends, among them a pipelined prompt of five chunks, which reuses pass slots and handoff buffers, and its rollback when a backend on the last stage fails.
@@ -35,8 +35,7 @@ Splits over GPUs are run by hand on the Radeon VII and the MI50s.
 The HF job ends with `tools/server_mix_check.py` on the Q8_0 on the CPU, `--requests 8 --cli 2`, prompts cut from `tests/data/wiki.test.raw`: eight requests of 120 to 12000 characters each give their ids alone, then all at once, then skewed, the long prompts landing while others decode and every fourth client leaving mid-stream, and the first two give the same text through `generate --temp 0`.
 It is the only hosted check of long prompts landing while others decode and of clients leaving a real model's server.
 
-The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
-at `ec74308`.
+The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448) at `ec74308`.
 Local Windows MSVC and WSL Linux GCC CMake builds of `ec74308` also passed the suite with both HF fixtures it then had required.
 Workflow lint and negative checks for corrupt downloads, missing fixtures and invalid throughput passed at that commit.
 
@@ -55,13 +54,12 @@ logits/NLL in the Python suite. These require no internet access or real curl
 installation; the native transport test supplies a fake child executable.
 Live downloads still require curl 8.4+ and separate network integration checks.
 
-The HF job runs `tools/fetch_test_models.py`, a standard-library downloader
-using the revisions and SHA-256 digests in `tests/data/fixtures.json`. Downloads are
-verified before entering the HF snapshot cache.
+The HF job runs `tools/fetch_test_models.py`, a standard-library downloader using the revisions and SHA-256 digests in `tests/data/fixtures.json`.
+Downloads are verified before entering the HF snapshot cache.
 The HF job caches those snapshots between runs, with a key derived from `tests/data/fixtures.json` alone, which holds only the pinned model specs, so a change to a check or a bound in `tests/baseline.py` keeps the cache.
 The cache is restored before the fetch and, when the key missed, saved right after it, once every file is verified, so a run that fails later still keeps its downloads.
-Restored files are still SHA-256 checked on every run. Cold or invalid cache entries
-are downloaded from the pinned revision.
+Restored files are still SHA-256 checked on every run.
+Cold or invalid cache entries are downloaded from the pinned revision.
 
 The downloader makes at most five attempts for HTTP 408/429/500/502/503/504
 and transient connection/read failures. Backoff is 30/60/120/240 seconds;
@@ -71,12 +69,8 @@ rather than retrying early. Permanent HTTP failures, local file errors and
 SHA-256 mismatches fail immediately. Failed attempts remove temporary files;
 only a complete verified download replaces the destination.
 
-Every job except the Vulkan build also runs
-`python -X utf8 tests/fetch_models.py`: fifteen offline tests cover
-throttling, reset headers, retry exhaustion, interrupted reads,
-cache reuse/replacement, checksum rejection and permanent failures. These
-tests use tiny independent bytes and simulated network responses; they do
-not download models or replace the real HF reference checks.
+Every job except the Vulkan build also runs `python -X utf8 tests/fetch_models.py`: fifteen offline tests cover throttling, reset headers, retry exhaustion, interrupted reads, cache reuse/replacement, checksum rejection and permanent failures.
+These tests use tiny independent bytes and simulated network responses; they do not download models or replace the real HF reference checks.
 At `b266650` all fifteen passed on Linux, including a real HTTP response parser test for premature EOF, and the downloader before it reproduced the single-request 429 failure.
 
 `--require-baseline` makes
@@ -107,11 +101,8 @@ At `dacf18c` local Windows and Linux runs each passed the 37 checks the consumer
 The Linux ordinary suite passed its 11 components with `--no-perf-floor` at that commit.
 These local results do not establish hosted 8B coverage; the optional consumer is not run by the workflow.
 
-Every job checks that `--version` and the usage
-banner agree with the release version, then runs the small F32 HF fixture
-without downloads. Its deterministic weights are generated locally;
-committed HF float32 logits/NLL cover tied and untied embeddings, matrix
-tails, multiple physical batches and thread counts.
+Every job checks that `--version` and the usage banner agree with the release version, then runs the small F32 HF fixture without downloads.
+Its deterministic weights are generated locally; committed HF float32 logits/NLL cover tied and untied embeddings, matrix tails, multiple physical batches and thread counts.
 The same fixture checks that `logits --file` prints what the inline prompt does, and holds the rows `logits --last` and `--then-ids` print to its HF bound at their positions.
 Those rows are printed once each, and the ones printed over passes of five tokens or after a head continued by `--then-ids` are the bytes the same positions print in one pass.
 `bench --model` with `--seqs 2` runs on it and reports the token counts of its prompt and batched decode tests: two sequences need two cache blocks where the model's context fills one.
@@ -119,12 +110,7 @@ The `cli` component checks that the builds without the Vulkan backend, and the V
 It also checks that the CLI's usage errors exit with status 2 and the command's page on stderr, before any model file is opened.
 It shows every help page without a model, and checks that each command takes every flag its page lists and refuses the flags its page does not.
 The UBSan job makes misaligned in-memory tensors a test failure.
-The three CPU jobs and the UBSan job also run CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
-GGUF structure, custom alignment and loading failures, Qwen model configuration
-and required tensor/storage layouts,
-grouped kernels, worker
-failures, chat rendering, sampling and KV storage,
-plus the Python HF/Jinja2 follow-up fixtures and CLI thread-control checks.
+The three CPU jobs and the UBSan job also run CTest for JSON syntax/Unicode/numeric boundaries and string escaping, GGUF structure, custom alignment and loading failures, Qwen model configuration and required tensor/storage layouts, grouped kernels, worker failures, chat rendering, sampling and KV storage, plus the Python HF/Jinja2 follow-up fixtures and CLI thread-control checks.
 The Python suite's `roundtrip` component in these jobs checks the Q8_0, Q4_0, Q4_1 and Q4_K decoders bit for bit against a decode written from the format description, the last two on raw blocks that reach every scale, min and nibble bit, so those readers are covered without a real model.
 The combined five-job workflow first ran on published runtime `08351b0`.
 [Run 35512421834](https://github.com/mxxm-t/llmx/actions/runs/35512421834)
@@ -145,7 +131,7 @@ Hosted timings are diagnostic. The performance gate against mx-llama.cpp
 still requires matched hardware, model, quant and workload; see ROADMAP #8.
 
 The last hosted run before the Vulkan job's suite and the HF job's added steps, at `a2b732f`, took 7 min 33 s for the HF job, 3 min 34 s for macOS, 3 min 7 s for Windows, 2 min 9 s for the Vulkan build, 2 min 6 s for UBSan and 1 min 40 s for Linux.
-Those additions are estimates until a hosted run measures them: about 3 minutes for the Vulkan job's suite, and for the HF job 1 to 2 for the Q4_K_M fixture, 3 to 4 for the f32 pass, 1 for the split check and 4 to 6 for many users, less the minute its CTest step took.
+Those additions are estimates until a hosted run measures them: about 3 minutes for the Vulkan job's suite, and for the HF job 1 to 2 for the Q4_K_M fixture, 5 to 7 for the f32 pass, 1 for the split check and 4 to 6 for many users, less the minute its CTest step took, which puts the HF job at about 18 to 23 minutes.
 The HF job keeps its 30-minute limit until then, and the first such run's job times are recorded here.
 
 To reproduce locally:
@@ -168,9 +154,9 @@ The Ubuntu job also runs each `tools/*.py` with `--help`.
 The Vulkan job runs the suite with `--device cpu` on its build, `-DLLMX_HAS_BACKEND_VULKAN=ON`.
 The Q8_0 fixture is `baseline.find_fixture(baseline.BASELINE_MODELS[0])`, under `~/.cache/huggingface/hub`, and the excerpt is the `text` of `tests/data/baseline_perplexity.json` written to a file as it is, which the HF job's "Q8_0 fixture path and perplexity excerpt" step does.
 
-For MSVC, use `--exe build/Release/llmx.exe` and `build/Release/llmx-split-check.exe`. Omitting `--no-perf-floor`
-preserves the existing local timing floors. `build.bat` still builds the root
-`llmx.exe`, which remains the Windows test runner's default.
+For MSVC, use `--exe build/Release/llmx.exe` and `build/Release/llmx-split-check.exe`.
+Omitting `--no-perf-floor` preserves the existing local timing floors.
+`build.bat` still builds the root `llmx.exe`, which remains the Windows test runner's default.
 
 Actions are pinned to commit SHAs, checkout credentials are not persisted,
 and workflow permissions are read-only. Jobs run on hosted machines; this
@@ -180,13 +166,10 @@ After the hosted runs succeed, the stable check names above can be
 required for `main`. Branch protection is a separate repository setting;
 adding this workflow does not enable it automatically.
 
-CTest also covers synchronous text delivery before the next model step
-and split UTF-8 bytes, plus loader progress, truncated reads and
-consumer exceptions. `cli-output` observes flushing through the actual CLI
-emitter with a controlled stream buffer, without wall-clock timing assertions.
+CTest also covers synchronous text delivery before the next model step and split UTF-8 bytes, plus loader progress, truncated reads and consumer exceptions.
+`cli-output` observes flushing through the actual CLI emitter with a controlled stream buffer, without wall-clock timing assertions.
 It also runs the CLI's number readers and token id lists over every malformed form they refuse.
-Python chat checks keep progress on stderr and compare
-follow-up replies to the HF goldens with progress enabled and disabled.
+Python chat checks keep progress on stderr and compare follow-up replies to the HF goldens with progress enabled and disabled.
 
 The reported [run at d6e00e0](https://github.com/mxxm-t/llmx/actions/runs/35498190148)
 failed while fetching the Q8_0 fixture with HTTP 429, before HF tests ran.
@@ -229,18 +212,11 @@ runs `prefill-placement`: active real topology when available, real fallback
 otherwise, and synthetic topology/failure cases even on small hosted runners.
 These checks do not require a real model or establish performance.
 
-Native counts are 22 on Windows and 21 on Linux/macOS; the Windows-only
-`prefill-placement` target accounts for the difference, and a build with
-`LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and
-`vulkan-lifetime`: 25 native tests on Windows and 24 on Linux/macOS.
-The buffer test substitutes Vulkan allocation calls and needs only a loader;
-the lifetime test opens a device and intercepts transfers for ownership checks,
-including failed padded-cache invalidation. It also substitutes five kernel
-creation failures to check cleanup/retry, and runs two real diagnostic-query
-cases for failed creation and idle-before-destruction. Query cases skip on a
-device without diagnostic timestamps. None replaces the kernel or HF gate.
+Native counts are 22 on Windows and 21 on Linux/macOS; the Windows-only `prefill-placement` target accounts for the difference, and a build with `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and `vulkan-lifetime`: 25 native tests on Windows and 24 on Linux/macOS.
+The buffer test runs on a fake device that supplies every Vulkan call, so it needs no loader; the lifetime test opens a device and intercepts transfers for ownership checks, including failed padded-cache invalidation.
+It also substitutes five kernel creation failures to check cleanup/retry, and runs two real diagnostic-query cases for failed creation and idle-before-destruction.
+Query cases skip on a device without diagnostic timestamps.
+None replaces the kernel or HF gate.
 At placement release `3c5d4b9`, Windows 12/12 and Linux 11/11 passed locally.
-That release also passed all five hosted jobs in
-[run 35516912422](https://github.com/mxxm-t/llmx/actions/runs/35516912422), including
-the new native targets on Windows, macOS Intel, Linux and Linux UBSan, plus the
-required HF job. The earlier `851d375` pass predates these added tests.
+That release also passed all five hosted jobs in [run 35516912422](https://github.com/mxxm-t/llmx/actions/runs/35516912422), including the new native targets on Windows, macOS Intel, Linux and Linux UBSan, plus the required HF job.
+The earlier `851d375` pass predates these added tests.

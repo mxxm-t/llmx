@@ -379,7 +379,7 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   shape, a prompt repeating a finished request's tokens reuses its
   blocks with the CLI's greedy text, and the limits: a KV budget below the
   context bounds a request and a full queue answers 503.
-  With the Q8_0 fixture, uncapped requests share a pool too small for all of them: a request is paused when it runs out, resumes from its history, and each runs to its own end; a long prompt read one token a pass is paused while it is still prefilling and, resumed, gives the CLI's greedy text; and a conversation of six turns on a 1024-token pool, its history growing past half the pool, reuses the last turn's history on every follow-up (`prefix_tokens` grows each time) with each turn's greedy text equal to the CLI's.
+  With the Q8_0 fixture, uncapped requests share a pool too small for all of them: a request is paused when it runs out, resumes from its history, and each runs to its own end; a long prompt read one token a pass is paused while it is still prefilling and, resumed, gives the CLI's greedy text; and a conversation of six turns on a 1024-token pool, its history growing past half the pool, reuses the last turn's history on every follow-up (its `reused_tokens` and the server's `prefix_tokens` grow each time) with each turn's greedy text equal to the CLI's.
   On a single device other than the CPU, the
   synthetic MoE model runs with its experts on the host and prompts from
   three tokens streamed, and each prompt's ids alone must equal its ids

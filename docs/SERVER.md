@@ -42,19 +42,12 @@ is measured against the single-sequence path and the reference.
   `max_tokens`, an uncapped one (a compatible route without `max_tokens`)
   when it can hold its prompt and a growth step, reserving more as it
   generates; otherwise it waits in the queue, and past `--max-queue`
-  waiting requests a new one is refused with 503. A request's donor is
-  chosen before room is made for it, and the other donors are evicted,
-  oldest first, when it needs their blocks. If the pool is still short,
-  its donor is consumed: the request forks it and the donor goes, so the
-  blocks they share are reserved once rather than for each, and a
-  follow-up turn keeps the history it repeats however full the pool is. A
-  donor is consumed only then, so while there is room it stays for other
-  requests sharing its prefix. When an uncapped request cannot grow even
-  with every donor evicted, the latest admitted uncapped request is
-  paused: its history becomes a donor and it is queued again at the front,
-  resuming from those blocks unless another request needed them. A capped
-  request is never paused, and a request that cannot be admitted is not
-  started.
+  waiting requests a new one is refused with 503.
+  A request's donor is chosen before room is made for it, and the other donors are evicted, oldest first, when it needs their blocks.
+  If the pool is still short, its donor is consumed: the request forks it and the donor goes, so the blocks they share are reserved once rather than for each, and a follow-up turn keeps the history it repeats however many donors fill the pool.
+  A donor is consumed only then, so while there is room it stays for other requests sharing its prefix.
+  When an uncapped request cannot grow even with every donor evicted, the latest admitted uncapped request is paused: its history becomes a donor and it is queued again at the front, resuming from those blocks unless another request needed them.
+  A capped request is never paused, and a request that cannot be admitted is not started.
 - **Dependency-free transport.** HTTP/1.1 over BSD sockets and Winsock,
   request parsing, chunked responses, JSON in and out through
   `core/json.hpp`. No TLS: the server sits behind a reverse proxy when it

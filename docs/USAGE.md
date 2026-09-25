@@ -504,7 +504,7 @@ A stream whose pass fails ends with one `data:` event holding the error in the n
 A request is admitted when the KV pool can hold its prompt plus `max_tokens`, otherwise it waits in the queue; a prompt that cannot fit the context at all is refused with 413.
 A greedy request gives the ids `generate --temp 0` gives for the same prompt, alone or beside other requests, and a seeded request is reproducible whatever it is batched with.
 A finished request's cache stays a while as a donor: a new prompt that repeats its tokens shares those KV blocks read-only and prefills only what follows, `reused_tokens` in the reply, whole blocks only and never the last prompt token.
-Donors give their blocks up, oldest first, when a request needs them.
+Donors give their blocks up, oldest first, when a request needs them, except that the donor a request forks is kept and, if the pool is still short, consumed by it: the blocks it shares pass to the request and the rest are freed.
 
 ```
 llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080

@@ -325,21 +325,21 @@ def check_paused_prefill(model):
 
 
 def check_conversation(model, text):
-    """A conversation whose history grows past half of a small pool: each follow-up repeats the last turn's prompt and reply and adds half of `text`, forks that turn's history however full the pool is, so `prefix_tokens` grows on every follow-up, and gives the CLI's greedy text for its whole prompt."""
+    """A conversation whose history grows past half of a small pool: each follow-up repeats the last turn's prompt and reply and adds half of `text`, forks that turn's history however full the pool is, so its `reused_tokens` is larger than the last turn's and the server's `prefix_tokens` grows on every follow-up, and gives the CLI's greedy text for its whole prompt."""
     pool, n, turns = 1024, 16, 6
     srv = Server(model, "--ctx-size", str(pool))
     try:
         words = text.split(" ")
         halves = [" ".join(words[:len(words) // 2]), " ".join(words[len(words) // 2:])]
-        prompt, reused = halves[0], 0
+        prompt, reused, prefix = halves[0], 0, 0
         for turn in range(turns):
             status, reply = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
             assert status == 200, reply
             assert reply["text"] == cli_greedy_text(model, prompt, n), (turn, reply["text"])
             health = srv.get("/v1/health")
             if turn:
-                assert health["prefix_tokens"] > reused, (turn, reply["prompt_tokens"], reply["reused_tokens"], health)
-            reused = health["prefix_tokens"]
+                assert reply["reused_tokens"] > reused and health["prefix_tokens"] > prefix, (turn, reply["prompt_tokens"], reply["reused_tokens"], reused, health)
+            reused, prefix = reply["reused_tokens"], health["prefix_tokens"]
             prompt += reply["text"] + " " + halves[(turn + 1) % 2]
         assert reply["prompt_tokens"] > pool // 2, reply
         return turns

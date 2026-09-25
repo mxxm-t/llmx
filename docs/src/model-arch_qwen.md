@@ -121,8 +121,7 @@ to a `backend::Backend`.
     through the backend's `kv_copy`. A forked sequence continues exactly as
     a fresh one fed the same tokens would.
   - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.
-  - `n_tokens()`, `head_dim()`,
-    `context_length()`. The thread getter reports the resolved backend count,
+  - `n_tokens()`, `context_length()`. The thread getter reports the resolved backend count,
     allowing the CLI to restore automatic decode settings after prefill.
   - `step(token_id) -> logits`: one entry of one token through `forward` on
     the model's own sequence and context. This is the decode path.

@@ -1000,7 +1000,7 @@ public:
     }
 
     void rms_norm_rows(Slice dst_s, CSlice src_s, CSlice w_s,
-                       size_t rows, size_t n, size_t stride, float eps) override {
+                       size_t rows, size_t n, size_t stride, float eps, RowRuns = {}) override {
         float* dst = at(dst_s);
         const float* src = at(src_s);
         const float* w = at(w_s);
@@ -1046,7 +1046,7 @@ public:
         }
     }
 
-    void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n) override {
+    void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n, RowRuns = {}) override {
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
         const float* up = at(up_s);

@@ -288,6 +288,7 @@ struct ExecContext {
     size_t handoff_rows = 0;
     std::vector<Pass> passes;
     std::vector<backend::RowRun> part_runs;    // a streamed layer's group of entries, rebased
+    std::vector<backend::RowRun> entry_runs;   // a routed layer's runs over its entries, k a token row
     std::vector<backend::Ticket> tickets;      // per device
 };
 
@@ -1257,9 +1258,9 @@ private:
         const size_t layer = (size_t)d.local_layer[(size_t)l];
         const std::vector<backend::KVView>& views = p.views[(size_t)d.storage_index];
 
-        b.rms_norm_rows(h, x, w.attn_norm.slice(), rows, E, E, cfg.rms_eps);
-
         const backend::RowRuns runs{p.runs.data(), p.runs.size()};
+        b.rms_norm_rows(h, x, w.attn_norm.slice(), rows, E, E, cfg.rms_eps, runs);
+
         b.matmul_group({projection(w.attn_q, q),
                         projection(w.attn_k, k),
                         projection(w.attn_v, v)}, h, E, rows, runs);
@@ -1285,7 +1286,7 @@ private:
         x.offset += base * E;
         const backend::Slice h = slot(ctx, dev, 1), gate = slot(ctx, dev, 6), up = slot(ctx, dev, 7), ffn = slot(ctx, dev, 8);
 
-        b.rms_norm_rows(h, x, (streamed ? w.stream_norm : w.ffn_norm).slice(), rows, E, E, cfg.rms_eps);
+        b.rms_norm_rows(h, x, (streamed ? w.stream_norm : w.ffn_norm).slice(), rows, E, E, cfg.rms_eps, runs);
 
         if (w.moe) {
             const backend::Slice scores = slot(ctx, dev, 9), ids = slot(ctx, dev, 10), weights = slot(ctx, dev, 11);
@@ -1297,14 +1298,17 @@ private:
             const backend::Backend::Routing routing{ids, weights, k, n_expert};
             b.matmul_experts({projection(w.ffn_gate_exps, gate, win ? win->gate.get() : nullptr),
                               projection(w.ffn_up_exps, up, win ? win->up.get() : nullptr)}, h, E, rows, routing, runs);
-            b.silu_mul(ffn, gate, up, rows * k * ff);
+            // The routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt.
+            ctx.entry_runs.clear();
+            for (size_t i = 0; i < runs.n; ++i) ctx.entry_runs.push_back(backend::RowRun{runs.runs[i].end * k, runs.runs[i].extent});
+            b.silu_mul(ffn, gate, up, rows * k * ff, {ctx.entry_runs.data(), ctx.entry_runs.size()});
             b.matmul_experts_add(w.ffn_down_exps.type, {win ? win->down.get() : w.ffn_down_exps.data.get(), 0}, ffn, x,
                                  ff, E, rows, routing, runs);
             return;
         }
         b.matmul_group({projection(w.ffn_gate, gate),
                         projection(w.ffn_up, up)}, h, E, rows, runs);
-        b.silu_mul(ffn, gate, up, rows * (size_t)cfg.n_ff);
+        b.silu_mul(ffn, gate, up, rows * (size_t)cfg.n_ff, runs);
         b.matmul_add(w.ffn_down.type, w.ffn_down.slice(), ffn, x,
                      w.ffn_down.nin, w.ffn_down.nout, rows, runs);
     }

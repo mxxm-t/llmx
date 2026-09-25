@@ -2,8 +2,8 @@
 // The 8-bit twin of a batch of activation rows for the integer-dot prefill tile (matmul_tile_q.comp): a lane per four values over the batch as one flat run, since a row is whole blocks of 32.
 // Per block, 8 words of signed bytes in position order scaled so the largest magnitude is 127, then after every block's quants the scale and scaled sum per block.
 // Blocks are ordered by block of the inner dimension, then column, so a tile step reads its 64 columns as one run.
-// A lane loads its four values at once and packs its word itself, so a block is eight consecutive lanes and its maximum and sum take three shuffles each.
-// The arithmetic per value is that of xquant8_block_at (xquant.glsl), and a maximum and an integer sum do not depend on the order they are taken in, so the twin is the one a lane per value writes, bit for bit.
+// A lane loads its four values at once and packs its word itself (xquant8_word), so a block is eight consecutive lanes and its maximum and sum take three shuffles each.
+// Where the batch's producer knows the tile reads it, the producer writes this copy itself and this pass does not run (vulkan_backend.cpp, tile_reads).
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
@@ -11,31 +11,11 @@ layout(push_constant) uniform P { uint n; uint nin; uint nbatch; } p;
 layout(set = 0, binding = 0) readonly buffer X { vec4 x[]; };
 layout(set = 0, binding = 1) writeonly buffer Q { uint xq[]; };
 
+#include "xquant.glsl"
+
 void main() {
     uint t = gl_GlobalInvocationID.x;
     // Every lane takes part in the shuffles, a lane past the end with zeros; n is whole blocks, so a block is live or not as a whole.
     bool live = t < p.n / 4u;
-    vec4 v = live ? x[t] : vec4(0.0);
-    vec4 a = abs(v);
-    float amax = max(max(a.x, a.y), max(a.z, a.w));
-    amax = max(amax, subgroupShuffleXor(amax, 4u));
-    amax = max(amax, subgroupShuffleXor(amax, 2u));
-    amax = max(amax, subgroupShuffleXor(amax, 1u));
-    float d = amax / 127.0;
-    float id = amax > 0.0 ? 127.0 / amax : 0.0;
-    vec4 r = v * id;
-    ivec4 q = clamp(ivec4(sign(r) * floor(abs(r) + 0.5)), -127, 127);
-    int s = q.x + q.y + q.z + q.w;
-    s += subgroupShuffleXor(s, 4u);
-    s += subgroupShuffleXor(s, 2u);
-    s += subgroupShuffleXor(s, 1u);
-    if (!live) return;
-    uvec4 b = uvec4(q) & 255u;
-    uint nblk = p.nin / 32u, run = t / 8u, col = run / nblk, blk = (run - col * nblk) * p.nbatch + col;
-    xq[blk * 8u + (t & 7u)] = b.x | (b.y << 8u) | (b.z << 16u) | (b.w << 24u);
-    if ((t & 7u) == 0u) {
-        uint e = p.n / 4u + 2u * blk;
-        xq[e] = floatBitsToUint(d);
-        xq[e + 1u] = floatBitsToUint(d * float(s));
-    }
+    xquant8_word(live ? x[t] : vec4(0.0), live, t & 7u, xquant8_tile_block(t, p.nin, p.nbatch), p.n);
 }

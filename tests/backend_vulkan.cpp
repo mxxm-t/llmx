@@ -698,6 +698,120 @@ size_t check_kernels(backend::Backend& vk) {
                 throw;
             }
         }
+        // The integer-dot tile's 8-bit copy that a norm, a SiLU and a wide attention write when told the tile reads their output next is the one the tile's own pass makes, bit for bit: each producer with runs into a buffer and a matmul with those runs from it, against the producer without them.
+        // A write from the host or a kernel between the producer and the matmul drops the copy, so the matmul reads what the buffer holds then.
+        if (nin == 1024) {
+            const size_t n_in = 1024, n_out = 96, rows = 128;
+            const std::vector<backend::RowRun> one{{rows, rows}};
+            const backend::RowRuns rr{one.data(), one.size()};
+            const auto wf = uniform(n_out * n_in, 90);
+            std::vector<uint8_t> w8(n_out * (n_in / 32) * gguf::Q8_0_TYPESIZE);
+            for (size_t r = 0; r < n_out; ++r)
+                quant::quantize_row_q8_0(wf.data() + r * n_in, w8.data() + r * (n_in / 32) * gguf::Q8_0_TYPESIZE, n_in / 32);
+            const auto wb = vk.adopt(w8.data(), w8.size());
+            const auto src = uniform(rows * n_in, 91), wn = uniform(n_in, 92, 0.5f, 1.5f);
+            const auto g = uniform(rows * n_in, 93, -6.0f, 6.0f), u = uniform(rows * n_in, 94), other = uniform(rows * n_in, 95);
+            const size_t bytes = rows * n_in * sizeof(float);
+            const auto srcb = vk.adopt(src.data(), bytes), gb = vk.adopt(g.data(), bytes), ub = vk.adopt(u.data(), bytes);
+            const auto wnb = vk.adopt(wn.data(), n_in * sizeof(float)), otherb = vk.adopt(other.data(), bytes);
+            auto floats = [&](const backend::BufferPtr& b) {
+                std::vector<float> v(rows * n_in);
+                vk.read(*b, 0, v.data(), bytes);
+                return v;
+            };
+            auto matmul_of = [&](const backend::BufferPtr& x) {
+                const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
+                vk.matmul(gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, {x.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, rr);
+                std::vector<float> y(rows * n_out);
+                vk.read(*yb, 0, y.data(), y.size() * sizeof(float));
+                return y;
+            };
+            auto norm = [&](bool told) {
+                auto h = vk.alloc(bytes, backend::Memory::device);
+                vk.rms_norm_rows({h.get(), 0}, {srcb.get(), 0}, {wnb.get(), 0}, rows, n_in, n_in, 1e-6f, told ? rr : backend::RowRuns{});
+                return h;
+            };
+            auto silu = [&](bool told) {
+                auto f = vk.alloc(bytes, backend::Memory::device);
+                vk.silu_mul({f.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, rows * n_in, told ? rr : backend::RowRuns{});
+                return f;
+            };
+            // Eight heads of 128 over two KV heads, n_in wide, one prompt of `rows` rows, which takes the tiled kernel with or without its extent.
+            const int n_head = 8, n_head_kv = 2, head_dim = 128;
+            const size_t kvw = (size_t)n_head_kv * head_dim;
+            const auto K = uniform(rows * kvw, 96), V = uniform(rows * kvw, 97), Q = uniform(rows * n_in, 98, -6.0f, 6.0f);
+            const auto Kb = vk.adopt(K.data(), K.size() * sizeof(float)), Vb = vk.adopt(V.data(), V.size() * sizeof(float));
+            const auto Qb = vk.adopt(Q.data(), bytes);
+            auto st = vk.kv_alloc(1, n_head_kv, head_dim, 512);
+            infer::BlockPool pool(st->max_blocks());
+            auto attend = [&](bool told) {
+                infer::KVSequence seq(&pool, vk.kv_layout().block_tokens);
+                seq.prepare(rows);
+                backend::KVView view = seq.view(st.get());
+                view.extent = told ? rows : 0;
+                vk.kv_write(0, &view, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                auto o = vk.alloc(bytes, backend::Memory::device);
+                vk.attention({Qb.get(), 0}, 0, &view, 1, {o.get(), 0}, n_head, n_head_kv, head_dim);
+                vk.sync();
+                seq.abort();
+                return o;
+            };
+            try {
+                const auto h1 = norm(true), h0 = norm(false);
+                values += exact(floats(h1), floats(h0), "the norm's output differs with and without its runs");
+                values += exact(matmul_of(norm(true)), matmul_of(norm(false)), "a matmul from the norm's 8-bit copy differs from its own pass");
+                const auto f1 = silu(true), f0 = silu(false);
+                values += exact(floats(f1), floats(f0), "the SiLU's output differs with and without its runs");
+                values += exact(matmul_of(silu(true)), matmul_of(silu(false)), "a matmul from the SiLU's 8-bit copy differs from its own pass");
+                // A routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt, so the SiLU given those runs writes the copy the routed tile reads (model/arch_qwen.hpp).
+                {
+                    const size_t k = 2, n_expert = 4, entries = rows * k, ebytes = entries * n_in * sizeof(float);
+                    const std::vector<backend::RowRun> eruns{{entries, rows}};
+                    const auto ef = uniform(n_expert * n_out * n_in, 99);
+                    std::vector<uint8_t> e8(n_expert * n_out * (n_in / 32) * gguf::Q8_0_TYPESIZE);
+                    for (size_t r = 0; r < n_expert * n_out; ++r)
+                        quant::quantize_row_q8_0(ef.data() + r * n_in, e8.data() + r * (n_in / 32) * gguf::Q8_0_TYPESIZE, n_in / 32);
+                    const auto eb = vk.adopt(e8.data(), e8.size());
+                    const auto scores = uniform(rows * n_expert, 100, -3.0f, 3.0f);
+                    const auto scoresb = vk.adopt(scores.data(), scores.size() * sizeof(float));
+                    const auto idsb = vk.alloc(entries * sizeof(float), backend::Memory::device);
+                    const auto wtsb = vk.alloc(entries * sizeof(float), backend::Memory::device);
+                    vk.route_experts({scoresb.get(), 0}, rows, n_expert, k, true, {idsb.get(), 0}, {wtsb.get(), 0});
+                    const backend::Backend::Routing routing{{idsb.get(), 0}, {wtsb.get(), 0}, k, n_expert};
+                    const auto ge = uniform(entries * n_in, 101, -6.0f, 6.0f), ue = uniform(entries * n_in, 102);
+                    const auto geb = vk.adopt(ge.data(), ebytes), ueb = vk.adopt(ue.data(), ebytes);
+                    auto routed = [&](bool told) {
+                        const auto f = vk.alloc(ebytes, backend::Memory::device);
+                        const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
+                        vk.silu_mul({f.get(), 0}, {geb.get(), 0}, {ueb.get(), 0}, entries * n_in,
+                                    told ? backend::RowRuns{eruns.data(), eruns.size()} : backend::RowRuns{});
+                        vk.matmul_experts_add(gguf::GGML_TYPE_Q8_0, {eb.get(), 0}, {f.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, routing, rr);
+                        std::vector<float> y(rows * n_out);
+                        vk.read(*yb, 0, y.data(), y.size() * sizeof(float));
+                        return y;
+                    };
+                    values += exact(routed(true), routed(false), "a routed down projection from the SiLU's 8-bit copy differs from its own pass");
+                }
+                const auto o1 = attend(true), o0 = attend(false);
+                values += exact(floats(o1), floats(o0), "the attention's output differs with and without its runs");
+                const auto y1 = matmul_of(attend(true)), y0 = matmul_of(attend(false));
+                values += exact(y1, y0, "a matmul from the attention's 8-bit copy differs from its own pass");
+                const auto reference = matmul_of(otherb);
+                const auto hw = norm(true);
+                vk.write(*hw, 0, other.data(), bytes);
+                values += exact(matmul_of(hw), reference, "a matmul read a norm's 8-bit copy after the host wrote its output");
+                std::vector<float> sum(rows * n_in);
+                const auto plain = floats(norm(false));
+                for (size_t i = 0; i < sum.size(); ++i) sum[i] = plain[i] + other[i];
+                const auto sumb = vk.adopt(sum.data(), bytes);
+                const auto ha = norm(true);
+                vk.add({ha.get(), 0}, {otherb.get(), 0}, rows * n_in);
+                values += exact(matmul_of(ha), matmul_of(sumb), "a matmul read a norm's 8-bit copy after a kernel wrote its output");
+            } catch (const std::runtime_error&) {
+                std::fprintf(stderr, "  producers' 8-bit copy for the tile\n");
+                throw;
+            }
+        }
         // The twin the per-row attention kernel, or its merge after a split history, writes beside its output for the row matmul that follows: attention then a matmul from its output on the device, against the CPU's attention, quantized, into the CPU's matmul.
         for (size_t hist : {size_t(0), size_t(70)}) {
             for (size_t nq : {size_t(1), size_t(3)}) {

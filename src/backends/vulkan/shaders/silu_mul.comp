@@ -1,17 +1,34 @@
 #version 450
 // dst[i] = silu(gate[i]) * up[i], in the form the CPU uses: g / (1 + exp(-g)).
-// With `quant` set, n is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl).
+// With `quant` 1, n is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl).
+// With `quant` 2, dst is an nbatch x nin batch the integer-dot prefill tile reads, and a lane takes four values and writes the tile's 8-bit copy of them (xquant8_word) in place of the twin.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint n; uint quant; } p;
+layout(push_constant) uniform P { uint n; uint quant; uint nin; uint nbatch; } p;
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer G { float gate[]; };
 layout(set = 0, binding = 2) readonly buffer U { float up[]; };
 layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
+// The same buffers four floats a load, for `quant` 2.
+layout(set = 0, binding = 0) writeonly buffer D4 { vec4 dst4[]; };
+layout(set = 0, binding = 1) readonly buffer G4 { vec4 gate4[]; };
+layout(set = 0, binding = 2) readonly buffer U4 { vec4 up4[]; };
 #include "xquant.glsl"
 void main() {
     uint i = gl_GlobalInvocationID.x;
+    if (p.quant == 2u) {
+        // Every lane takes part in the shuffles; n is whole blocks, so a block is live or not as a whole.
+        bool live = i < p.n / 4u;
+        vec4 v = vec4(0.0);
+        if (live) {
+            vec4 g = gate4[i];
+            v = g / (1.0 + exp(-g)) * up4[i];
+            dst4[i] = v;
+        }
+        xquant8_word(v, live, i & 7u, xquant8_tile_block(i, p.nin, p.nbatch), p.n);
+        return;
+    }
     if (i < p.n) {
         float g = gate[i];
         float v = g / (1.0 + exp(-g)) * up[i];

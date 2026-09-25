@@ -249,8 +249,9 @@ public:
 
     // RMS norm of `rows` rows of `n` floats against a shared weight.
     // Row r is at src/dst + r*stride. src and dst may alias only if identical.
+    // `runs`, when given, are those of the matmul that reads dst next, so a device can write dst's activations in the form that matmul's kernel reads.
     virtual void rms_norm_rows(Slice dst, CSlice src, CSlice w,
-                               size_t rows, size_t n, size_t stride, float eps) = 0;
+                               size_t rows, size_t n, size_t stride, float eps, RowRuns runs = {}) = 0;
 
     // Per-head RMS norm followed by RoPE over a batch of rows: row r starts at x + r*stride with `heads` contiguous heads of `2*half` floats, at position pos[r] in the `cos`/`sin` tables.
     // Positions are per row because a batch may carry several sequences; norm and RoPE are one op so a device gets one launch per layer.
@@ -277,7 +278,8 @@ public:
     }
 
     // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage.
-    virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n) = 0;
+    // `runs`, when given, group dst's rows of n / rows floats, `rows` being the last run's end, by prompt as matmul's runs do, for the matmul that reads dst next, as for rms_norm_rows.
+    virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs = {}) = 0;
 
     // dst[i] += src[i], the residual add.
     virtual void add(Slice dst, CSlice src, size_t n) = 0;

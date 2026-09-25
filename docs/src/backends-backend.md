@@ -91,8 +91,10 @@ placement contracts in `docs/EXECUTION.md`.
   token id at or beyond `nrows`.
 - `rms_norm(dst, src, w, n, eps)`: RMS norm of one row, not virtual:
   `rms_norm_rows` over that one row.
-- `rms_norm_rows(dst, src, w, rows, n, stride, eps)`: RMS norm of `rows` rows
-  against a shared weight.
+- `rms_norm_rows(dst, src, w, rows, n, stride, eps, runs)`: RMS norm of `rows` rows
+  against a shared weight. `runs`, when given, are the row runs of the matmul
+  that reads `dst` next, so a device can also write `dst` in the form that
+  matmul's kernel reads.
 - `norm_rope_rows(x, rows, stride, heads, w, eps, cos, sin, half, pos)`:
   per-head RMS norm followed by RoPE over a batch of rows. `cos`/`sin` are
   buffers holding the per-position tables; row `r` reads entry `pos[r]` of
@@ -102,7 +104,9 @@ placement contracts in `docs/EXECUTION.md`.
   rotated in place, k normed and rotated into its KV block and v copied
   into its block. The default runs the three ops; the Vulkan backend fuses
   them.
-- `silu_mul(dst, gate, up, n)`: the SwiGLU elementwise stage.
+- `silu_mul(dst, gate, up, n, runs)`: the SwiGLU elementwise stage. `runs`,
+  when given, group `dst`'s rows by prompt for the matmul that reads it next,
+  as for `rms_norm_rows`; a routed layer passes its entries' runs.
 - `add(dst, src, n)`: the residual add.
 - `gather_rows(dst, src, width, rows, count)`: row `i` of `dst` is row
   `rows[i]` of `src`. Compacts the rows of a pass that want logits, which a

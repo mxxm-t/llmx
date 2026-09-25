@@ -73,8 +73,12 @@ kernel notes and measurements are `docs/VULKAN.md`.
 - Wide batches take a tile kernel. Where the profile sets
   `prefer_integer_dot`, every quantized type goes through the 8-bit
   integer-dot tile (`shaders/matmul_tile_q.comp`, Q6_K in its own module
-  `matmul_tile_q6` and Q8_0 in `matmul_tile_q8`) over block-major activations from
-  `shaders/quantize_x8.comp`. A layer's projections of one type share one
+  `matmul_tile_q6` and Q8_0 in `matmul_tile_q8`) over block-major 8-bit
+  activations. When one tile call reads a whole batch next (`tile_reads`),
+  the norm, the SiLU or the wide attention that wrote the batch writes
+  that copy in place of the row kernels' twin (`xquant8_word` in
+  `shaders/xquant.glsl`); otherwise `shaders/quantize_x8.comp` makes it
+  before the call. A layer's projections of one type share one
   dispatch, and a call too small to fill the device splits its inner
   dimension into parts that `shaders/matmul_reduce.comp` adds in order.
   F32, and every type on other devices, take the float tile

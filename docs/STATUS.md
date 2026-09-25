@@ -4,6 +4,144 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Prefill kernels on the MI50 (2026-09-25, branch perf/prefill-kernels)
+
+- **Goal:** single-card prefill on the MI50, where the integer-dot tile was 89.4 percent of an 8B Q8_0 512-row pass. Three changes measured apart earlier the same day (branches `perf/tile-staging-loads`, `perf/q8-tile-step4`, and `feat/quantize-x8-vec4` to `feat/x8-row-pad`) are combined on main 34bebc3 in that order, each re-applied on top of the one before and gated again as a layer. After review the branch was rebased onto main aea6e34 and gated again there (Rebased, below).
+- **Commits:**
+  1. Every staging load of a step goes out before the first wait. The disassembly had every load under a branch the compiler could not prove uniform, each followed by a wait for everything in flight, so a step of two blocks waited for ten memory round trips in a row. A load out of range now reads a valid address and its zero is selected at the store.
+  2. The math takes word w of all of a thread's rows against word w of its four columns, so the block's dot sums stay live and a column word is read once: 91 registers before scheduling where holding four columns' words took 115.
+  3. Q4_K, Q5_K, Q6_K, Q4_0 and Q4_1 stage the same way, the K-quants' sub-scales unpacked from the 16-byte head of the 256-value block held in registers; each module carries only its own types.
+  4. Q6_K takes the math of 2 in groups of four rows, since eight rows' two half sums would take 64 registers.
+  5. Q8_0 gets its own module (`LLMX_Q8`): one float scale per row and per column, no minimum term, no type branch; the general module no longer compiles a Q8_0 path.
+  6. The Q8_0 module stages four blocks a step and unrolls their math.
+  7. `quantize_x8` takes four values a lane.
+  8. The RMS norm splits a row only until the pass has four workgroups a compute unit.
+  9. The norm, the SiLU and the wide attention write the tile's 8-bit copy in place of the twin when one tile call reads the whole batch next, and `quantize_x8` does not run.
+  10. Rows of the copy are padded to an odd number of 128-byte runs.
+  11. `alloc` and `adopt` drop the tags of the twin, the 8-bit copy and the routed grouping, as a write from the host does: a tag names a buffer by its handle, which a buffer made after one is freed can take over, and a matmul of the same shape over the new buffer with no dispatch before it read the freed buffer's copy. The model never met this (its buffers outlive its passes and every pass dispatches first); main's twin tag had the same gap.
+- **Changed from the separate branches:** 1 to 4 are that branch's code with its `first` in the Q4_0/Q4_1 staging renamed `qoff`, since it shadowed the routed call's first column, and the `store_scales` comment saying that a step of two divides the threads per row at every tile height. 5 and 6 are rewritten onto 1's staging rather than applied: the Q8_0 staging is its own block with no type branch; a row's first thread takes the half scale from words it already loads (the extra word of a run is the one after the thread's share where a block straddles a word boundary and the one before where it does not, which for the first thread holds the scale), so the module has no scale load and never uses `store_scales`, whose step must divide the row's threads and a step of four on the 128-row tile would not; each of a column's four threads loads one activation scale and the column's scale array always has four slots, so a step of two stores without a branch. 9 and 10 are that branch's code with the tile's activation addressing moved onto 1's loads, the measurements in two code comments moved here, and `docs/src/backends-vulkan.md` updated.
+- **Exact:** no result changes, by argument and by the gate below.
+  - Staging (1, 3): only data movement; a thread stages the same words and scales as main, and an out-of-range value is zero as it was.
+  - Math (2, 4): each dot sum adds a block's eight words (Q6_K: four per half) in the same order, so it is the same int32 (the largest Q8_0 sum is about 520k), and each output's float expression is main's operand for operand, blocks in the same order within the same parts.
+  - Q8_0 module (5, 6): main computes `acc + (ws.x*c.x*float(s) - ws.z*c.y)` with `ws.z` zero for Q8_0; whichever contraction a compiler makes there the result is `acc + round(round(d*c)*s)`, since the subtraction stands between the product and the add. The module computes exactly that with `precise` products; in its SPIR-V all eight float multiplies carry NoContraction and none of its five float adds, the four accumulations and the output's, does, while the integer adds, multiplies and divisions `precise` also marks are exact either way. Blocks past a part's end in a step of four add +0 to an accumulator that starts at +0 and cannot become -0.
+  - `quantize_x8` (7) and the producers (9): the per-value arithmetic is unchanged and neither a block's maximum nor its integer sum depends on the order it is taken in; the norm's vec4 form is `(src*r)*w`, only correctly rounded multiplies. The SiLU's vec4 and scalar forms use `exp` and a division, whose precision Vulkan leaves to the driver, so their equality rests on RADV lowering both alike, which the backend test checks.
+  - Norm split (8): every chunk sums the whole row in the same tree order. Padding (10): addresses only.
+  - Batch invariance: the tile height, which producer writes the copy and the norm's chunk count follow the batch, and none changes an output's arithmetic; `backend-vulkan`'s invariance checks pass.
+- **Gates** (one MI50, rocm-smi GPU[1]): after each layer, all 151,936 logits at the last 32 positions of the 248-token excerpt (`logits --file --last 32 --top 151936`, printed to six decimals) and 64 greedy tokens byte-identical to main on Qwen3-8B Q8_0, 0.6B Q8_0, 8B Q4_K_M, 30B-A3B Q4_K_M, 0.6B Q5_K_M and 0.6B Q4_0; 32 greedy tokens after the 6823-token prompt on 8B Q8_0 identical as well. `llmx-backend-vulkan-test` passes on every layer, on the Q8_0 module at a step of two, and on each of the six other commits built alone. No gated file has Q4_1 weights, so commit 3's Q4_1 staging is checked only by `backend-vulkan`, against the CPU within its tolerance. The binaries measured were built on 34bebc3: layer 1 from the branch's 61268ea, the other arms from f325b99, ae84e69 and d323a09 and the per-commit backend tests from f38cc18, 68e8412 and 76b0fae, each of which differs from the branch's commit for the same step by one comment line. The tip's 58 SPIR-V modules are byte-identical to the measured final build's, before the rebase and after it.
+
+  | layer (tip measured) | llmx binary sha256 | logits and 64 tokens, six files | 32 tokens after 6823 | backend-vulkan |
+  |---|---|---|---|---|
+  | main 34bebc3 | 989dce63d6e25623 | reference | reference | pass, 25,373,118 outputs |
+  | 1 (commits 1-4) | 3c88479a3a3712a4 | identical | identical | pass, 25,373,118 |
+  | Q8_0 module at a step of two | 08464d5541c6d068 | identical | identical | pass, 25,373,118 |
+  | 1+2 (commits 1-6) | 4d388fe83bbc21b3 | identical | identical | pass, 25,373,118 |
+  | 1+2+3 (commits 1-10) | 2e9b16334fc8b535 | identical | identical | pass, 25,827,774 |
+
+  Windows, before the rebase: the CPU and Vulkan trees build with MSVC, CPU CTest 22/22 and the CPU suite pass (no GPU used).
+- **Rebased** onto main aea6e34 after review. The one conflict, the wide attention's tile count, keeps main's `kAttentionTileRows` beside the branch's `tile_reads` flag and push constants. The review's fixes: the comments on `kper` (a multiple of two only when a call is split) and on the Q8_0 staging's extra word, a comment broken mid-sentence, commit 11, and a `backend-vulkan` check of a routed down projection over the MoE SiLU's per-entry copy against its own pass, with every output in those checks allocated before its producer runs, since a new buffer now drops the copy. A check of a matmul over a new buffer after a freed buffer's copy was tried and dropped: a diagnostic build showed RADV giving the new buffer another handle, so it passed without commit 11 as well.
+  - Identity, one MI50 (rocm-smi GPU[1]), with `logits --file PATH` as main's CLI now takes it: the code tip 2b0b1d1 against main aea6e34 gives byte-identical logits and 64 greedy tokens on the six files, the same bytes as before the rebase, and identical 32 tokens after the 6823-token prompt; the tip's 58 SPIR-V modules equal the measured final build's.
+
+    | build | llmx binary sha256 | logits and 64 tokens, six files | 32 tokens after 6823 | backend-vulkan |
+    |---|---|---|---|---|
+    | main aea6e34 | 42cb84082de4dc6c | reference | reference | pass, 25,401,660 outputs |
+    | code tip 2b0b1d1 | d57cf12017b9573b | identical | identical | pass, 25,868,604 |
+
+  - Mixed batches: `tools/server_mix_check.py` on 1124b91 (the tip's sources but for the dropped check) over the 6823-token prompt's text, 16 requests of about 30 to 2700 tokens alone, all at once, and staggered with four clients leaving, then four through the CLI, on 8B Q8_0 and 30B-A3B: every request gives its tokens alone. So a batch in which a decode row or a short prompt sends the copy through `quantize_x8` gives what the prompt gives alone, where its producers write the copy.
+  - Main against 1124b91 on rocm-smi GPU[0] at high clocks, two interleaved rounds, tok/s: 8B Q8_0 pp512 935.6 / 934.3 against 1330.1 / 1326.7 (+42 percent), pp4096 751.9 / 761.8 against 987.4 / 1002.3 (+31); 8B Q4_K_M pp512 877.6 / 877.7 against 1229.9 / 1233.4 (+40); 30B-A3B pp512 1245.1 / 1243.9 against 1625.7 / 1628.9 (+31); 0.6B Q8_0 pp512 9324 / 9294 against 13251 / 13236 (+42). Decode moved within the noise of a host other runs loaded (load average 8 to 23): 30B-A3B tg128 read 136.4 and 132.4 on main against 132.6 and 131.4, where the two layer binaries below, whose decode kernels are the same, read 130.2 to 134.7. The tip reads within 2 percent of the final arm's means in the session below (8B Q8_0 pp512 1328 against 1318), so neither the rebase nor commit 11 costs anything.
+- **Measured** (one session on rocm-smi GPU[0] at high clocks, the four arms interleaved with their order rotating each round, three rounds since two differed by more than 1 percent in several cells, `bench --model M --p P --n 128 --r 3`, 32 generated tokens at 64 rows; tok/s per round; the reference is mx-llama.cpp's gfx906 image, its ROCm build, on the same card, `llama-bench -ngl 99 -fa 1 -p 64,512,4096 -n 128 -r 3 -lm dio`, once between rounds 2 and 3):
+
+  | cell | main | layer 1 | 1+2 | 1+2+3 | reference |
+  |---|---|---|---|---|---:|
+  | 8B Q8_0 pp512 | 935.7 / 915.3 / 910.9 | 1134.1 / 1118.0 / 1109.4 | 1270.2 / 1260.6 / 1224.5 | 1324.6 / 1323.2 / 1307.1 | 1323.1 |
+  | 8B Q8_0 pp4096 | 761.4 / 734.1 / 729.6 | 885.3 / 855.3 / 862.6 | 968.0 / 934.7 / 926.6 | 992.3 / 970.1 / 965.5 | 1167.0 |
+  | 8B Q8_0 pp64 | 810.6 / 810.2 / 810.0 | 1025.7 / 1031.2 / 1032.8 | 1156.0 / 1136.4 / 1156.2 | 1168.7 / 1118.6 / 1168.5 | 859.7 |
+  | 8B Q8_0 tg128 | 67.5 / 68.5 / 68.4 | 67.3 / 68.3 / 68.3 | 67.3 / 68.4 / 68.4 | 67.4 / 68.4 / 68.3 | 71.3 |
+  | 8B Q4_K_M pp512 | 872.6 / 858.8 / 853.0 | 1181.2 / 1151.0 / 1140.2 | 1179.3 / 1162.6 / 1150.5 | 1230.3 / 1218.8 / 1215.7 | 813.5 |
+  | 8B Q4_K_M pp4096 | 710.3 / 695.9 / 699.2 | 891.2 / 880.2 / 877.7 | 892.9 / 877.1 / 877.0 | 935.8 / 913.8 / 912.4 | 752.0 |
+  | 8B Q4_K_M pp64 | 739.5 / 723.5 / 719.4 | 1039.7 / 1034.0 / 1014.4 | 1040.5 / 1024.3 / 1020.8 | 1056.1 / 1041.4 / 1055.7 | 255.8 |
+  | 8B Q4_K_M tg128 | 100.2 / 100.2 / 99.8 | 100.5 / 100.2 / 100.1 | 100.3 / 100.0 / 100.5 | 100.1 / 99.8 / 99.9 | 87.5 |
+  | 30B-A3B Q4_K_M pp512 | 1211.9 / 1207.2 / 1200.5 | 1586.8 / 1547.9 / 1546.7 | 1586.6 / 1506.5 / 1549.7 | 1631.7 / 1589.8 / 1585.9 | 1155.3 |
+  | 30B-A3B Q4_K_M pp4096 | 890.9 / 917.3 / 902.1 | 1041.0 / 1027.0 / 1078.7 | 1031.3 / 1022.7 / 1025.0 | 1067.8 / 1099.1 / 1057.3 | 1015.5 |
+  | 30B-A3B Q4_K_M pp64 | 431.1 / 440.4 / 439.6 | 579.8 / 582.4 / 582.5 | 572.4 / 584.7 / 584.5 | 575.1 / 585.1 / 580.7 | 403.3 |
+  | 30B-A3B Q4_K_M tg128 | 137.0 / 136.8 / 136.3 | 137.3 / 136.9 / 136.4 | 137.2 / 136.6 / 136.7 | 136.5 / 136.9 / 137.0 | 114.5 |
+  | 0.6B Q8_0 pp512 | 9369 / 9357 / 9370 | 11509 / 11509 / 11464 | 12482 / 12424 / 12423 | 13378 / 13394 / 13368 | 7200 |
+  | 0.6B Q8_0 pp4096 | 4508 / 4630 / 4631 | 4929 / 5099 / 5099 | 5150 / 5281 / 5281 | 5184 / 5436 / 5436 | 5948 |
+  | 0.6B Q8_0 pp64 | 5408 / 5349 / 5362 | 6444 / 6462 / 6447 | 7135 / 7098 / 7109 | 7090 / 7070 / 7099 | 5013 |
+  | 0.6B Q8_0 tg128 | 353.8 / 353.6 / 353.7 | 356.3 / 353.5 / 356.0 | 355.0 / 352.3 / 343.6 | 354.2 / 354.6 / 352.6 | 323.4 |
+  | 0.6B Q5_K_M pp512 | 8460 / 8442 / 8448 | 11144 / 11140 / 11150 | 11178 / 11165 / 11167 | 11869 / 11871 / 11843 | - |
+  | 0.6B Q4_0 pp512 | 9282 / 9277 / 9285 | 11588 / 11583 / 11574 | 11598 / 11591 / 11588 | 12315 / 12327 / 12329 | - |
+
+  - Most 8B cells at 512 and 4096 rows read 1 to 4 percent lower in rounds 2 and 3 than in round 1, on every arm, least on the final arm at 512 rows (its 8B Q8_0 pp512 by 0.1 and 1.3 percent), while 8B Q8_0 at 64 rows held on main and layer 1, so the steps are read per round. Layer 1 gives 8B Q8_0 pp512 +21.2, +22.1, +21.8 percent, 8B Q4_K_M +35.4, +34.0, +33.7, 30B-A3B +30.9, +28.2, +28.8. Layer 2 gives 8B Q8_0 +12.0, +12.8, +10.4 at 512 rows, +9.3, +9.3, +7.4 at 4096 and +12.7, +10.2, +11.9 at 64, and 0.6B Q8_0 +8.5, +8.0, +8.4 at 512; files without Q8_0 matrices are level (30B-A3B has none: no Q8_0 module runs in its profile). Its pp4096 read -0.9, -0.4 and -5.0 percent from layer 1 to 1+2 here, round 3 of layer 1 reading high, and four interleaved rounds of the same two binaries after the review read 1078.3 to 1078.7 tok/s on layer 1 against 1079.5 to 1080.1 on 1+2. Layer 3 gives +4.3, +5.0, +6.7 at 8B Q8_0 pp512, +4.3, +4.8, +5.7 at 8B Q4_K_M, +2.8, +5.5, +2.3 at 30B-A3B, +7.2, +7.8, +7.6 at 0.6B Q8_0 and about +6.2 at 0.6B Q5_K_M and Q4_0; at 64 rows, where the producers do not write the copy since `tile_reads` takes the highest of every type's thresholds, 96 rows for routed Q4_0, it is level (8B Q8_0 +1.1, -1.6, +1.1; 0.6B Q8_0 -0.6, -0.4, -0.1).
+  - No layer loses its gain combined: layer 1 gives what it measured alone on main (8B Q8_0 pp512 +21 percent, 8B Q4_K_M +35), and layers 2 and 3 give more than they did alone on main (Q8_0 module and step of four +8 to +10 percent there, the 8-bit copy +2.9 to +3.2 percent at 512 rows), since the tile they now sit beside is faster. The norm's row split (8) alone on main took the norm from 8.8 to 5.9 ms and pp512 up about 0.5 percent. All ten measured commits are kept.
+  - Decode is level on every file (tg128 within 1 percent of main in every round, apart from single 0.6B runs).
+  - Against the ROCm reference on this card, 8B Q8_0 is now level at 512 rows (1318 against 1323 by the mean of rounds) and at 84 percent at 4096 (976 against 1167), from 70 and 64 percent on main; 8B Q4_K_M leads by 50 and 22 percent, 30B-A3B by 39 and 6 percent, 0.6B Q8_0 by 86 percent at 512 rows and trails at 4096 (5352 against 5948).
+- **Device time of a 512-row pass** (`bench --profile`, one run per arm between rounds 2 and 3, ms):
+
+  | file, arm | pass | tile | quantize_x8 | norm | SiLU | attention |
+  |---|---:|---:|---:|---:|---:|---:|
+  | 8B Q8_0, main | 547.6 | 489.6 | 11.22 | 8.71 | 5.47 | 20.80 |
+  | 8B Q8_0, 1 | 452.2 | 392.8 | 11.47 | 8.74 | 5.52 | 21.73 |
+  | 8B Q8_0, 1+2 | 402.5 | 343.5 | 11.42 | 8.93 | 5.49 | 21.39 |
+  | 8B Q8_0, 1+2+3 | 386.0 | 344.1 | - | 3.59 | 4.67 | 21.79 |
+  | 8B Q4_K_M, main | 583.3 | 525.1 | 11.23 | 8.72 | 5.46 | 20.79 |
+  | 8B Q4_K_M, 1 | 431.7 | 372.7 | 11.35 | 8.83 | 5.47 | 21.26 |
+  | 8B Q4_K_M, 1+2 | 430.6 | 371.5 | 11.36 | 8.82 | 5.47 | 21.32 |
+  | 8B Q4_K_M, 1+2+3 | 414.4 | 372.9 | - | 3.54 | 4.65 | 21.26 |
+  | 30B-A3B, main | 411.6 | 340.6 | 7.23 | 4.73 | 3.71 | 27.73 |
+  | 30B-A3B, 1 | 324.7 | 252.4 | 7.56 | 4.87 | 3.71 | 27.73 |
+  | 30B-A3B, 1+2 | 323.1 | 251.9 | 7.28 | 4.76 | 3.71 | 27.73 |
+  | 30B-A3B, 1+2+3 | 314.1 | 252.6 | - | 2.63 | 3.29 | 28.03 |
+  | 0.6B Q8_0, main | 55.3 | 37.0 | 2.46 | 1.54 | 1.24 | 9.28 |
+  | 0.6B Q8_0, 1 | 45.1 | 26.8 | 2.46 | 1.54 | 1.23 | 9.28 |
+  | 0.6B Q8_0, 1+2 | 41.6 | 23.4 | 2.47 | 1.54 | 1.24 | 9.27 |
+  | 0.6B Q8_0, 1+2+3 | 38.7 | 23.4 | - | 1.04 | 1.12 | 9.40 |
+
+  The tile is the sum of the integer-dot tile modules (on Q4_K_M the Q4_K and Q6_K ones, on 30B-A3B the routed and dense ones), the norm and SiLU the builds that write a copy or a twin.
+- **Kernel statistics** (driver, from `backend-vulkan`: registers, registers before scheduling, shared memory, waves per SIMD):
+
+  | module | main | layers 1+2+3 |
+  |---|---|---|
+  | `matmul_tile_q_tall` (128 rows) | 128, 115, 17,408 B, 2 | 128, 99, 17,408 B, 2 |
+  | `matmul_tile_q` (64 rows) | 84, 82, 11,264 B, 3 | 64, 60, 11,264 B, 4 |
+  | `matmul_tile_q_small` (32 rows) | 84, 76, 8,192 B, 3 | 48, 45, 8,192 B, 5 |
+  | `matmul_tile_q6_tall` | 128, 119, 17,408 B, 2 | 128, 120, 17,408 B, 2 |
+  | `matmul_tile_q6` | 128, 86, 11,264 B, 2 | 84, 76, 11,264 B, 3 |
+  | `matmul_tile_q6_small` | 84, 81, 8,192 B, 3 | 64, 52, 8,192 B, 4 |
+  | `matmul_tile_q8_tall` | - | 128, 86, 27,648 B, 2 (a step of two: 128, 86, 14,336 B, 2) |
+  | `matmul_tile_q8` | - | 84, 52, 18,432 B, 3 (64, 52, 9,728 B, 4) |
+  | `matmul_tile_q8_small` | - | 64, 38, 13,824 B, 4 (48, 38, 7,680 B, 5) |
+  | `quantize_x8`, `silu_mul_x8`, `rms_norm_rows_x8` | 12, 16, 20; 10 waves | 24, 24, 24; 10 waves |
+  | `attention_tile_kv16` | 128, 125, 18,432 B, 2 | unchanged |
+
+  Layer 2 leaves the general module's statistics as layer 1 had them, without its Q8_0 path.
+- **The step of four, re-derived on layer 1** (the same card, two interleaved rounds, tok/s; the 8B Q8_0 pass's Q8_0 tile from one profile run):
+
+  | cell | layer 1 | Q8_0 module, step of two | step of four, unrolled |
+  |---|---|---|---|
+  | 8B Q8_0 pp512 | 1134.4 / 1130.8 | 1230.3 / 1221.4 | 1277.2 / 1269.5 |
+  | 8B Q8_0 pp4096 | 888.8 / 885.8 | 943.0 / 930.3 | 969.7 / 958.6 |
+  | 8B Q8_0 pp64 | 1029.8 / 1031.7 | 1131.8 / 1128.1 | 1156.3 / 1153.4 |
+  | 0.6B Q8_0 pp512 | 11465 / 11460 | 12428 / 12354 | 12467 / 12406 |
+  | 0.6B Q8_0 pp4096 | 5098 / 5098 | 5278 / 5277 | 5281 / 5280 |
+  | 8B Q8_0 tile, 512-row pass | 393.5 ms | 360.1 | 344.2 |
+
+  The step of four still pays after the word-major math (+3.9 percent at 8B Q8_0 pp512, +2.9 at 4096, +2.2 at 64, the 0.6B file level) and still fits the 128-row tile in 128 registers and two waves; the 64-row and 32-row Q8_0 tiles go from 64 and 48 registers to 84 and 64 (four and five waves to three and four) without a loss on the 0.6B file.
+- **Measured and not taken** (on the three separate branches, on main 1a0d4be or a2b732f, one MI50 at high clocks, two interleaved rounds unless stated):
+  - Staging diagnostic, 8B Q8_0 pp512 tile (`research/tile-d2-diagnostic`): main 490.0 and 490.9 ms, math alone (staged once, the math every step) 301.5 and 302.6, staging alone 362.4 and 362.0 at 28 registers; after commits 1 to 3 the full tile 393.1 and 392.1, math alone 264.8 and 266.0, staging alone 283.2 and 283.2.
+  - Loading a step ahead of the math (`research/tile-prefetch-rejected`): all loads with row-at-a-time math 651 ms, 133 registers before scheduling and one wave per SIMD; activations only 439 to 441 ms against 424 to 426; on the word-major math 422.7 and 424.5 against 391.0 and 392.4, with the Q6_K 128-row tile at 224 registers.
+  - Two shared-memory buffers and one barrier a step (`research/tile-double-buffer-rejected`): 428.4 and 429.6 ms against 423.6 and 426.0; it fits in 30 KB with the row scales trimmed to pairs but is no faster.
+  - A row tile's column tiles started together, to share weights through L2 (`research/tile-column-order-rejected`): 8B Q8_0 tile 433.4 and 435.1 ms against 391.7 and 394.3; Q4_K tile 365.7 and 366.4 against 312.5 and 312.7; Q6_K 57.1 and 57.2 against 55.0 and 55.1.
+  - The word-major math in groups of four rows for the general types: 394.0 and 394.3 ms against 391 to 392.
+  - Q6_K's word-major math over all eight rows at once: its 128-row tile 59.0 ms against 55.0 in groups of four.
+  - The Q8_0 module's step of four left a loop (`research/q8-tile-step4-rolled-rejected`): 8B Q8_0 pp512 964 and 972 tok/s against 949 to 983 at a step of two, tile 467.6 ms against 468.0; 0.6B Q8_0 pp512 9780 and 9782 against 10007 to 10030 (-2.3 percent), 8B pp64 842 and 843 against 866 and 869 (-3 percent).
+  - Skipping the zero-filled blocks of a part's last step of four: not measured; it matters only where a part's block count is not a multiple of four, on 8B only for q, k and v at 64 rows, estimated under 1 percent there.
+  - `quantize_x8` at eight values a lane: 8.3 to 8.4 ms, the same as four.
+  - A workgroup over 32 columns of one block, writing one run (`research/quantize-x8-column-run-rejected`): 9.0 ms against 8.2 to 8.3.
+  - The SiLU writing nothing and `quantize_x8` after it: 3.81 plus 4.80 ms against 8.75 for the SiLU writing the copy (8B Q4_K_M), a tie; the fused form is kept since it removes a pass.
+  - Four scalar loads a lane in the producers in place of vec4 buffer views: level, so the views are kept for clarity.
+  - Padding the copy's rows by 1, 4, 8, 16, 32 and 64 blocks: `quantize_x8` 4.50, 4.05, 4.21, 4.19, 4.25 and 4.51 ms against 8.28 unpadded; four blocks, an odd number of 128-byte runs, is kept.
+  - Ruled out by the tile's disassembly, not measured: fusing the dot's accumulate, since the 256 `v_dot4` of a thread's block already chain their accumulator, and wider weight loads, since a thread's weights already load as a `dwordx4` and a `dword`.
+- **Left before merge:** the Radeon VII gate (its profile has no `prefer_integer_dot`, so the tile modules, `quantize_x8` and the producers' copy never run there, but the norm's split and the attention epilogue's sixth binding and push constants do), and the merge-gate cells against the pinned Vulkan reference build on both cards (pp247, tg32). `backend-vulkan` checks each producer's copy against the pass's, the routed down projection's too, and a copy dropped by a host write or a kernel; it does not yet assert that the producer path ran (a diagnostic build printed the copy in use in the dense norm, SiLU and attention checks) or cover the overlap checks after the float tile and routing. The Windows build is to be repeated on the rebased branch with that gate.
 ## The bench's KV pool holds its sequences (2026-09-25, branch fix/bench-seqs)
 
 - **Why:** `bench --model tiny-f32.gguf --p 4 --n 2 --r 2 --seqs 2` exited with `KV cache: block budget exhausted`, and `--seqs 1` ran. The pool was one model context, the budget `generate` gets, since only `serve` reads `--ctx-size`; the tiny model's 16-token context fills one block, and each sequence takes whole blocks. Batched decode also made its sequences without clearing the one sequence, so the last prompt's blocks stayed beside them.

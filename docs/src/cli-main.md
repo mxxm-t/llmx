@@ -70,6 +70,7 @@ Commands and their entry points:
   the experts' placement (`--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`)
   and the cache types, then runs `server::serve` (see [server](server.md)).
   The sequence and queue limits are refused below 1 here, the one place they are checked.
+  The model's name is its file name, read as UTF-8 as the loader reads the path (`u8path`, `u8string`), so on Windows it does not pass through the system code page.
 
 `generate` and each `chat` turn apply the prefill worker count and restore the
 resolved decode count, including automatic selection. Existing `--verbose`

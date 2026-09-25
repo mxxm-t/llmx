@@ -94,25 +94,30 @@ def start_server(command, wait=120):
     """Start `command`, an `llmx serve` command line, on a free loopback port and return (process, port, log) once /v1/health answers ok.
     The server logs a line per request, so its output goes to a temporary file: a pipe nobody reads would fill and block it."""
     port = free_port()
-    log = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+    # The log names the model by its file name, which on Linux can hold bytes that are not UTF-8, so reading it back replaces them rather than raising in place of the real error.
+    log = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
     proc = subprocess.Popen(list(command) + ["--host", "127.0.0.1", "--port", str(port)],
                             stdout=log, stderr=subprocess.STDOUT)
-    deadline = time.time() + wait
-    while time.time() < deadline:
-        if proc.poll() is not None:
-            log.seek(0)
-            raise RuntimeError("server exited early: " + log.read())
-        try:
-            with urllib.request.urlopen("http://127.0.0.1:%d/v1/health" % port, timeout=30) as r:
-                if json.load(r).get("status") == "ok":
-                    return proc, port, log
-        except OSError:
-            pass  # not listening yet
-        time.sleep(0.1)
-    proc.kill()
-    proc.wait()
-    log.close()
-    raise RuntimeError("server did not come up")
+    # Anything that ends the wait without a healthy server, a health reply that is not UTF-8 or not JSON included, stops the server before it goes up to the caller.
+    try:
+        deadline = time.time() + wait
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                log.seek(0)
+                raise RuntimeError("server exited early: " + log.read())
+            try:
+                with urllib.request.urlopen("http://127.0.0.1:%d/v1/health" % port, timeout=30) as r:
+                    if json.load(r).get("status") == "ok":
+                        return proc, port, log
+            except OSError:
+                pass  # not listening yet
+            time.sleep(0.1)
+        raise RuntimeError("server did not come up")
+    except BaseException:
+        proc.kill()
+        proc.wait()
+        log.close()
+        raise
 
 
 def device_lacks_kernel(rc, out):

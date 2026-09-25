@@ -54,11 +54,21 @@ inline std::string utf8_sanitize(const std::string& s) {
     return out;
 }
 
+// An error reply's body in the native shape, or in the compatible routes' shape when `compat` is set.
+// The message is repaired as generated text is, since it can carry bytes from outside the request: a chat template's text from the model file, or a backend's failure.
+inline std::string error_json(const std::string& message, bool compat) {
+    const std::string text = jmini::quote(utf8_sanitize(message));
+    if (!compat) return "{\"error\":" + text + "}";
+    return "{\"error\":{\"message\":" + text + ",\"type\":\"invalid_request_error\"}}";
+}
+
 class Api {
 public:
     Api(infer::Model& model, const bpe::Tokenizer& tok, const gguf::GGUFModel& file, Scheduler& sched,
         const Config& cfg)
         : model_(model), tok_(tok), sched_(sched), cfg_(cfg), started_((int64_t)std::time(nullptr)) {
+        // The model's name is its file's, which on Linux can hold bytes that are not UTF-8, and every reply that names the model carries it.
+        cfg_.model_name = utf8_sanitize(cfg_.model_name);
         const chat::ChatFormat format = chat::chat_format(file, tok);
         template_ = format.tmpl;
         bos_ = format.bos;
@@ -110,10 +120,6 @@ private:
         int status;
         BadRequest(int s, const std::string& m) : std::runtime_error(m), status(s) {}
     };
-    static std::string error_json(const std::string& message, bool compat) {
-        if (!compat) return "{\"error\":" + jmini::quote(message) + "}";
-        return "{\"error\":{\"message\":" + jmini::quote(message) + ",\"type\":\"invalid_request_error\"}}";
-    }
 
     void health(http::Connection& c) {
         const Scheduler::Stats s = sched_.stats();

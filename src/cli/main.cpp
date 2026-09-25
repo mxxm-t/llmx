@@ -693,7 +693,8 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const in
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
     server::Config c = cfg;
-    c.model_name = std::filesystem::path(model_path).filename().string();
+    // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
+    c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     http::Listener listener(c.host, c.port);
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
               << " (device " << gp.device << ", up to " << c.max_seqs << " sequences over "

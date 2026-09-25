@@ -17,6 +17,7 @@ from common import run as cli
 
 # The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
+# The synthetic model's file name holds a byte that is not UTF-8 on Linux and characters beyond ASCII that several Windows code pages cannot map elsewhere, and every reply naming the model must still be UTF-8.
 
 
 class Server:
@@ -93,7 +94,11 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
         assert health["status"] == "ok" and health["active"] == 0, health
         models = srv.get("/v1/models")
         assert models["object"] == "list" and models["data"][0]["object"] == "model", models
-        assert models["data"][0]["id"] and models["data"][0]["context_length"] > 0, models
+        assert models["data"][0]["context_length"] > 0, models
+        # The model's name is its file name, with each byte that belongs to no UTF-8 character replaced by its own U+FFFD; every reply decodes as UTF-8 only if it is.
+        # Python reads such a byte of a file name as a lone surrogate from U+DC80 to U+DCFF.
+        name = "".join("\ufffd" if "\udc80" <= ch <= "\udcff" else ch for ch in os.path.basename(model))
+        assert models["data"][0]["id"] == name and health["model"] == name, (models, health, name)
 
         # Greedy through the server gives the CLI's text, and the ids are kept for the checks that follow.
         expected = {}
@@ -491,12 +496,15 @@ def run():
     if common.f32_cache_skip("server"):
         return True
     with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
-        model = os.path.join(directory, "tiny-f32.gguf")
+        # Every reply that names the model carries its file name, so the synthetic model's holds a byte that is not UTF-8 where the file system takes one (Linux), and characters beyond ASCII elsewhere.
+        # On Windows a name read in the system code page instead of as UTF-8 fails only where one of its UTF-8 bytes has no mapping there, so U+00E1 brings 0xA1 for code page 1257, U+00E0 brings 0xA0 for 932, and U+4E2D breaks 936, 949 and 950.
+        name = "tiny-f32-\udcff.gguf" if sys.platform.startswith("linux") else "tiny-f32-\u00e1\u00e9\u00e0\u4e2d.gguf"
+        model = os.path.join(directory, name)
         f32.write_model(model, f32.tensors(True))
         # The synthetic model's context is 16 tokens: prompt plus tokens stay inside it.
         n = check_server(model, ["a", "ab", "abc", "abcdefg"], 6, 14, chat=False)
         print("server: synthetic F32 model, %d prompts greedy-equal to the CLI alone and four at a time, a stream, "
-              "a seeded repeat, refusals, a cancelled stream, the compatible completions  [ok]" % n)
+              "a seeded repeat, refusals, a cancelled stream, the compatible completions, its file name as UTF-8 in every reply  [ok]" % n)
         # On a device, the synthetic mixture of experts with its routed layers on the host and prompts from extent 3 streamed: four at a time, a pass holds streamed prompt rows beside host decode rows.
         # Experts on the host are a placement of one device, so a list of several skips this.
         if os.environ.get("LLMX_DEVICE", "cpu") != "cpu" and "," not in os.environ.get("LLMX_DEVICE", ""):

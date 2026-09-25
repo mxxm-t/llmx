@@ -1943,18 +1943,6 @@ public:
                                                  blocks_for(max_tokens, kVkBlockTokens), k_type, v_type);
     }
 
-    void kv_copy(KVStorage& storage, int32_t src, int32_t dst) override {
-        VulkanKVStorage& s = storage_of(storage);
-        if (src < 0 || dst < 0 || !s.backed((size_t)src) || (size_t)dst >= s.max_blocks())
-            throw std::runtime_error("vulkan: KV copy outside the storage");
-        s.ensure((size_t)dst);
-        const size_t kb = s.k_block_bytes(), vb = s.v_block_bytes();
-        for (size_t l = 0; l < s.layers(); ++l) {
-            copy(*s.k(l), (size_t)dst * kb, *s.k(l), (size_t)src * kb, kb);
-            copy(*s.v(l), (size_t)dst * vb, *s.v(l), (size_t)src * vb, vb);
-        }
-    }
-
     // One dispatch per view: its rows scatter into its blocks.
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k,
                   CSlice v) override {

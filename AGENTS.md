@@ -364,8 +364,8 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   and release contract (one submission per pass, waits and syncs counted on
   every release path), the model transaction on failure, a two-entry
   `forward` against the entries run alone, and forks: a whole-block length
-  sharing its blocks without allocating one, a length past the history
-  refused, a copied tail, refused appends into shared blocks, refcounted
+  sharing its blocks without allocating one, a length inside a block or
+  past the history refused, refused appends into shared blocks, refcounted
   release, and a sequence forked at a block boundary continuing exactly as
   a fresh one fed the same history. This oracle supplements the
   independent HF gate.

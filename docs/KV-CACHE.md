@@ -98,8 +98,8 @@ BlockPool     free list (O(1) alloc/release), refcount per block,
               on demand up to it, so a short chat does not allocate the budget
 KVSequence    ordered physical block ids, valid length;
               append allocates a block when length % block_tokens == 0;
-              fork at a length shares the full blocks below it (refcount+1)
-              and copies a partial tail
+              fork at a whole-block length shares the blocks below it
+              (refcount+1) and copies nothing
 ```
 
 Both own what they hold: neither is copyable, the pool is not movable either
@@ -136,7 +136,6 @@ KVView     { storage, blocks, n_blocks, length, nq, extent }
            their extent, which a device chooses its kernels by
 kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type, v_type)
            -> KVStorage                          grows on demand
-kv_copy(storage, src, dst)                       block to block, a fork's tail
 kv_write(layer, views, n_views, k, v)            model -> storage, rows in view order
 attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)
 ```
@@ -171,17 +170,19 @@ A physical block returns to the free list when its refcount reaches zero
 **and** the backend has retired every submission that read it. On the eager
 CPU backend the second condition is always already true. Under the async
 contract of DEVICE-EXECUTION it is a wait on the ticket of the last pass
-that touched the sequence, which `Model::reset` and `Model::truncate` take
-before returning blocks; refcounts alone must never free device memory a
+that touched the sequence, which `Model::reset` takes before returning
+blocks; refcounts alone must never free device memory a
 kernel may still be reading. The same rule holds the view's block table
 and its `KVStorage` alive until retirement, not only the blocks.
 
-A fork copies only the partial tail block; full blocks are shared read-only.
-A write to a shared full block is a design error and is checked, not handled:
-`prepare` refuses to append into a block another sequence holds, which is
-what a history truncated into a shared block would do, and the answer is to
-fork it instead. The tail copy is a backend op, `kv_copy`, because only the
-backend knows a block's layout.
+A fork takes a whole number of blocks and shares them read-only; it
+allocates and copies nothing, and appends into fresh blocks. A write to a
+shared block is a design error and is checked, not handled: `prepare`
+refuses to append into a block another sequence holds, which is what a
+history truncated into a shared block would do. A fork that ended inside a
+block would need that block copied, a backend op since only the backend
+knows a block's layout; nothing forks there, since prefix reuse shares
+whole blocks only.
 
 ### Prefix sharing
 
@@ -189,8 +190,7 @@ Sharing is by full immutable blocks only. The server (`docs/SERVER.md`
 step 4) keeps finished requests' histories as donors, at most `max_seqs`
 of them for the one model it serves, and finds the one sharing the
 longest run of full blocks with a new prompt by comparing token ids;
-it forks the donor at those blocks, which copies nothing, and appends into
-fresh ones.
+it forks the donor at those blocks and appends into fresh ones.
 At that scale a hash buys nothing. An index that outlives a process,
 spans models or holds many more entries would key a block on the hash of
 (model identity including revision and the effective RoPE and position

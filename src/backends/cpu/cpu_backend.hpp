@@ -727,18 +727,6 @@ public:
         return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, blocks, k_type, v_type);
     }
 
-    void kv_copy(KVStorage& storage, int32_t src, int32_t dst) override {
-        auto* s = dynamic_cast<CpuKVStorage*>(&storage);
-        if (!s) throw std::runtime_error("backend: KV storage of another backend");
-        if (src < 0 || dst < 0 || !s->backed((size_t)src) || (size_t)dst >= s->max_blocks())
-            throw std::runtime_error("backend: KV copy outside the storage");
-        s->ensure((size_t)dst);
-        for (size_t l = 0; l < s->layers(); ++l) {
-            std::copy_n(s->kraw(l, src), s->k_block_bytes(), s->kraw(l, dst));
-            std::copy_n(s->vraw(l, src), s->v_block_bytes(), s->vraw(l, dst));
-        }
-    }
-
     // A row of floats into a cache side of either type; f16 rounds to nearest, eight at a time where F16C is present.
     void kv_store(uint8_t* dst, KVType type, const float* src, size_t n) const {
         if (type == KVType::f32) { std::copy_n(src, n, (float*)dst); return; }

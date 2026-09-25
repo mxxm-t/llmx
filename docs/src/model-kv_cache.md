@@ -20,10 +20,9 @@ computes an offset into them.
 - `view(storage)` produces the `backend::KVView` that `kv_write` and
   `attention` consume: storage handle, block table, committed length and
   the rows prepared for this pass.
-- `fork(length, tail)` is a second sequence holding the first `length`
-  committed tokens: every full block below `length` shared by refcount and,
-  when `length` ends inside a block, a fresh block for that partial tail,
-  whose ids come back in `tail` for the backend's `kv_copy`. A length past
+- `fork(length)` is a second sequence holding the first `length` committed
+  tokens, a whole number of blocks: every block below `length` shared by
+  refcount, nothing allocated or copied. A length inside a block or past
   the history is refused. Shared blocks are read-only: `prepare` refuses to
   append into one, which a history truncated into a shared block would do.
 - Ownership: neither class is copyable and the pool is not movable, since
@@ -36,16 +35,15 @@ computes an offset into them.
 
 `Model` owns one pool per device that runs attention, and one default
 sequence; a `Sequence` holds a table per storage and `Model::fork` forks
-every table at one length and copies every tail. The server keeps one
-sequence per request over a shared pool, finds prefix donors by comparing
-tokens in `server/scheduler.hpp` and forks a donor at the whole blocks it
-shares, so it never takes a tail; nothing here indexes prefixes.
+every table at one length. The server keeps one sequence per request over
+a shared pool, finds prefix donors by comparing tokens in
+`server/scheduler.hpp` and forks a donor at the whole blocks it shares;
+nothing here indexes prefixes.
 
 CTest's `kv-cache` test covers pool reuse and exhaustion, sequence
 prepare/commit/abort/reset, on-demand CPU storage growth and retained reset
 across block boundaries, paged attention over two different block tables
 against a double-precision reference, and forks: a whole-block length
-shares its blocks and allocates none, a length past the history is refused,
-a length inside a block copies its tail, appends into shared blocks are
-refused and release follows the refcounts. HF/model history checks remain
-separate.
+shares its blocks and allocates none, a length inside a block or past the
+history is refused, appends into shared blocks are refused and release
+follows the refcounts. HF/model history checks remain separate.

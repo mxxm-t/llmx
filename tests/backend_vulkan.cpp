@@ -750,7 +750,7 @@ size_t check_kernels(backend::Backend& vk) {
                 values += close(yc, yv, twin_tol, "matmul from the attention twin differs beyond its bound");
             }
         }
-        // f16 cache sides: each combination of K and V types on both backends, through kv_write, the fused norm_rope_kv, kv_copy and attention on the per-row and the tiled kernel.
+        // f16 cache sides: each combination of K and V types on both backends, through kv_write, the fused norm_rope_kv and attention on the per-row and the tiled kernel.
         // The device is compared with the CPU at the same types at 1e-4, and every f16 combination with the CPU's f32 result at a looser 2e-2, which is what rounding keys and values to half precision costs here.
         for (int combo = 1; combo < 4; ++combo) {
             const backend::KVType kt = combo & 1 ? backend::KVType::f16 : backend::KVType::f32;
@@ -784,12 +784,6 @@ size_t check_kernels(backend::Backend& vk) {
                         b.kv_write(0, &h, 1, {Kh.get(), 0}, {Vh.get(), 0});
                     }
                     seq.commit();
-                    // The history's last block copied over itself through kv_copy, which must move the stored bytes whatever the type.
-                    {
-                        const backend::KVView h = seq.view(st.get());
-                        const int32_t last = h.blocks[(hist - 1) / bt];
-                        b.kv_copy(*st, last, last);
-                    }
                     seq.prepare(nq);
                     const backend::KVView view = seq.view(st.get());
                     const auto Qb = b.alloc(q0.size() * sizeof(float), backend::Memory::device);
@@ -913,7 +907,7 @@ size_t check_kernels(backend::Backend& vk) {
         }
     }
     // The KV cache: the same token-major rows written through each backend's own storage and block size, then attention over each backend's own view.
-    // Histories straddle the device's 64-token blocks and the CPU's 128; two views in one call; a block copied with kv_copy attends like the original.
+    // Histories straddle the device's 64-token blocks and the CPU's 128; two views in one call.
     // The online softmax orders the arithmetic differently from the CPU's global softmax, so a tolerance.
     {
         const int n_head = 4, n_head_kv = 2, head_dim = 40;
@@ -971,21 +965,6 @@ size_t check_kernels(backend::Backend& vk) {
                     b.read(*ob, 0, got.data(), got.size() * sizeof(float));
                     std::copy(got.begin(), got.end(), out.begin());
                     seq.commit();
-                    // A copied block attends like the block it came from.
-                    if (n_past >= 128) {   // both backends have a full first block
-                        const backend::KVView v0 = seq.view(st.get());
-                        const int32_t spare = pool.alloc();
-                        b.kv_copy(*st, v0.blocks[0], spare);
-                        std::vector<int32_t> table(v0.blocks, v0.blocks + v0.n_blocks);
-                        table[0] = spare;
-                        backend::KVView copied{st.get(), table.data(), table.size(), n_past, nq};
-                        std::vector<float> again(nq * qw, 0.0f);
-                        const auto ab = b.alloc(again.size() * sizeof(float), backend::Memory::device);
-                        b.attention({Qb.get(), 0}, 0, &copied, 1, {ab.get(), 0}, n_head, n_head_kv, head_dim);
-                        b.read(*ab, 0, again.data(), again.size() * sizeof(float));
-                        out.insert(out.end(), again.begin(), again.end());
-                        pool.release(spare);
-                    }
                 };
                 const size_t seq_len = n_past + nq;
                 const auto K = uniform(layers * seq_len * kvw, 20 + (uint32_t)n_past);

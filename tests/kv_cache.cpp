@@ -229,7 +229,7 @@ void storage_growth_and_reset() {
 }
 
 // A fork at a whole-block length shares every block below it, read-only, and allocates and copies nothing, so the two histories agree up to the fork and then diverge without touching each other.
-// A length inside a block copies its partial tail into a private block, and a length past the history is refused.
+// A length inside a block or past the history is refused.
 // A history truncated into a shared block cannot be appended to.
 // Releases follow the refcounts.
 void fork_shares_blocks() {
@@ -242,29 +242,16 @@ void fork_shares_blocks() {
     append(cpu, *st, seq, heads, width, 2 * bt + 2, 1);
     const size_t before = pool.in_use();
 
-    infer::KVSequence::Tail tail;
-    infer::KVSequence fork = seq.fork(bt, tail);
+    infer::KVSequence fork = seq.fork(bt);
     require(fork.length() == bt && fork.n_blocks() == 1, "fork length or table");
-    require(tail.from == -1 && tail.to == -1 && pool.in_use() == before, "a whole-block fork allocated a block");
+    require(pool.in_use() == before, "a fork allocated a block");
     const backend::KVView vs = seq.view(st.get()), vf = fork.view(st.get());
     require(vf.blocks[0] == vs.blocks[0] && pool.refs(vs.blocks[0]) == 2 && pool.refs(vs.blocks[1]) == 1 &&
             pool.refs(vs.blocks[2]) == 1, "shared blocks miscounted");
     check(*st, fork, bt, heads, width, 1);
-    rejects([&] { infer::KVSequence::Tail t; seq.fork(2 * bt + 3, t); }, "fork past the history accepted");
+    rejects([&] { seq.fork(bt + 2); }, "fork inside a block accepted");
+    rejects([&] { seq.fork(3 * bt); }, "fork past the history accepted");
     require(pool.in_use() == before && pool.refs(vs.blocks[0]) == 2, "refused fork changed the pool");
-
-    // A fork inside a block takes a private tail for the backend to fill.
-    {
-        infer::KVSequence::Tail part_tail;
-        infer::KVSequence part = seq.fork(bt + 2, part_tail);
-        const backend::KVView vp = part.view(st.get());
-        require(part.length() == bt + 2 && part.n_blocks() == 2 && vp.blocks[0] == vs.blocks[0] &&
-                part_tail.from == vs.blocks[1] && part_tail.to == vp.blocks[1] && pool.refs(vp.blocks[1]) == 1,
-                "tail not private");
-        cpu.kv_copy(*st, part_tail.from, part_tail.to);
-        check(*st, part, bt, heads, width, 1);
-    }
-    require(pool.in_use() == before && pool.refs(vs.blocks[0]) == 2, "a released fork kept its blocks");
 
     // Each history grows on its own; the shared block stays as it was.
     append(cpu, *st, seq, heads, width, 3, 2);
@@ -591,6 +578,7 @@ void model_fork() {
     run(model, a, history.data() + bt, 3, false);
     infer::Sequence b = model.fork(a, bt);
     require(b.length() == bt, "fork length");
+    rejects([&] { model.fork(a, bt + 1); }, "fork inside a block accepted");
     const std::vector<float> la = run(model, a, &six, 1, true), lb = run(model, b, &seven, 1, true);
 
     infer::Sequence c = fresh.make_sequence(), d = fresh.make_sequence();

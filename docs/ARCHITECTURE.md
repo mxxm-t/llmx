@@ -141,7 +141,7 @@ The KV cache is paged (`docs/KV-CACHE.md`). `model/kv_cache.hpp` owns the
 logical side, a block pool and one sequence's block table and committed
 length; the backend owns the physical blocks, their size and layout, and
 backs them on demand. The model hands the backend a view and never computes
-an offset into KV storage. A fork shares full blocks and copies the tail,
+an offset into KV storage. A fork shares whole blocks and copies nothing,
 and a block returns to the pool only after the backend has retired the work
 that read it; the server reuses a finished request's blocks for a prompt
 that repeats its tokens (`docs/SERVER.md`).

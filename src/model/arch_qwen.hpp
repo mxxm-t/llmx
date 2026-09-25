@@ -637,19 +637,13 @@ public:
     int n_tokens() const { return (int)seq_.length(); }
     int context_length() const { return cfg.context_length; }
 
-    // A second history holding the first `length` tokens of `src`, sharing every full block below `length` and copying a partial tail on each storage.
+    // A second history holding the first `length` tokens of `src`, which must be whole blocks in every storage: every block below `length` is shared, read-only from now on, and the fork appends into fresh ones, so nothing is allocated or copied here.
     // The fork inherits the tickets of the passes that wrote what it shares.
-    // Shared blocks are read-only from now on: a sequence truncated into one cannot append and has to be forked instead.
     Sequence fork(const Sequence& src, size_t length) {
         if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
         Sequence f;
         f.kv_.reserve(storages_.size());
-        for (size_t s = 0; s < storages_.size(); ++s) {
-            KVSequence::Tail tail;
-            f.kv_.push_back(src.kv_[s].fork(length, tail));
-            if (tail.to >= 0)
-                storages_[s]->b->kv_copy(*storages_[s]->storage, tail.from, tail.to);
-        }
+        for (const KVSequence& kv : src.kv_) f.kv_.push_back(kv.fork(length));
         f.last_ = src.last_;
         f.owner_ = this;
         return f;
@@ -690,15 +684,6 @@ public:
         for (size_t d = 0; d < devices_.size(); ++d)
             if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
         for (auto& kv : s.kv_) kv.reset();
-    }
-
-    // Roll a history back to `length` tokens, returning the blocks beyond it.
-    void truncate(Sequence& s, size_t length) {
-        if (s.owner_ != this)
-            throw std::runtime_error("inference: sequence of another model");
-        for (size_t d = 0; d < devices_.size(); ++d)
-            if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
-        for (auto& kv : s.kv_) kv.truncate(length);
     }
 
     // The single-sequence entry points the CLI uses: one sequence and one context owned here, and one entry per pass.

@@ -96,7 +96,7 @@ public:
     size_t n_blocks() const { return blocks_.size(); }
 
     // Make positions [length, length + n) addressable.
-    // A block another sequence shares is read-only, so a history that was truncated into a shared block cannot be appended to; fork it instead.
+    // A block another sequence shares is read-only, so a history that was truncated into a shared block cannot be appended to.
     void prepare(size_t n) {
         if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");
         if (pending_) throw std::logic_error("KV cache: step already in progress");
@@ -138,32 +138,18 @@ public:
     // Blocks return to the pool; the backend keeps the physical storage they occupied, so a reused sequence does not reallocate.
     void reset() noexcept { truncate(0); }
 
-    // The block a fork's partial tail must be filled from, and the private block it goes to; -1 when the fork ends on a block boundary.
-    struct Tail { int32_t from = -1, to = -1; };
-
-    // A second history holding our first `length` committed tokens: every full block below `length` is shared, read-only from now on, and a partial tail gets a fresh block the caller fills from ours before either sequence appends.
-    // The tail is taken first, so a failure part way leaves nothing retained.
-    KVSequence fork(size_t length, Tail& tail) const {
+    // A second history holding our first `length` committed tokens, a whole number of blocks: every block below `length` is shared, read-only from now on, and nothing is allocated or copied.
+    // A failure part way leaves nothing retained, since the fork releases what it holds as it unwinds.
+    KVSequence fork(size_t length) const {
         if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");
         if (pending_) throw std::logic_error("KV cache: fork during a step");
-        if (length > length_) throw std::logic_error("KV cache: fork past the history");
+        if (length > length_ || length % block_tokens_)
+            throw std::logic_error("KV cache: a fork takes whole blocks of the history");
         KVSequence f(pool_, block_tokens_);
-        const size_t full = length / block_tokens_;
-        tail = Tail{};
-        if (length % block_tokens_) {
-            tail.from = blocks_[full];
-            tail.to = pool_->alloc();
+        for (size_t i = 0; i < length / block_tokens_; ++i) {
+            pool_->retain(blocks_[i]);
+            f.blocks_.push_back(blocks_[i]);
         }
-        try {
-            for (size_t i = 0; i < full; ++i) {
-                pool_->retain(blocks_[i]);
-                f.blocks_.push_back(blocks_[i]);
-            }
-        } catch (...) {
-            if (tail.to >= 0) pool_->release(tail.to);
-            throw;
-        }
-        if (tail.to >= 0) f.blocks_.push_back(tail.to);
         f.length_ = length;
         return f;
     }

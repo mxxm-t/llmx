@@ -119,19 +119,16 @@ to a `backend::Backend`.
     committed included. A sequence listed twice is refused.
   - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
     to the pool after waiting on its last ticket.
-    `truncate(sequence, length)` rolls a history back the same way,
-    returning the blocks past `length`.
   - `kv_pools()`, `kv_pool_block_tokens(s)`, `kv_pool_blocks(s)`: the
     cache pools a scheduler admits against, one per device that runs
     attention, each in its own blocks; `kv_tokens_total()` is the tokens
     every pool can hold, and `kv_block_tokens()` the largest block, which a
     reusable prefix ends on.
   - `fork(sequence, length)`: a second history holding the first `length`
-    tokens, sharing every full block below `length` on every storage and
-    copying a partial tail through the backend's `kv_copy`. The server
-    forks a donor at the whole blocks a prompt shares with it, which copies
-    nothing. A forked sequence continues exactly as a fresh one fed the
-    same tokens would.
+    tokens, which must be whole blocks in every storage, sharing every block
+    below `length` on every storage and allocating and copying nothing; the
+    server forks a donor at the blocks a prompt shares with it. A forked
+    sequence continues exactly as a fresh one fed the same tokens would.
   - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.
   - `n_tokens()`, `context_length()`. The thread getter reports the resolved backend count,
     allowing the CLI to restore automatic decode settings after prefill.

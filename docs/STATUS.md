@@ -150,7 +150,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - The merge gate on both platforms, the Linux MI50s and the Windows Radeon VII, stays by hand whatever the workflow runs.
 - **Decided (2026-09-25):**
   - No self-hosted runner on the Linux MI50 machine: it runs other work, and the gates on the cards stay by hand on both platforms.
-  - Branches are not pushed to GitHub before their merge; each branch's local gate runs the same commands.
+  - Branches are not pushed to GitHub before their merge; each branch's local gate runs the same commands. Changed later that day: a stack about to merge is pushed as `gate/<name>` so the hosted workflow runs on it first, and the branch is deleted after the merge.
   - A pinned Qwen3-0.6B Q4_K_M fixture joins the HF job with HF bounds, so K-quant decoding meets the reference in CI.
   - `test/reference-8b-per-token` goes ahead: the 8B HF check scores batched and per-token with its bounds unchanged, and the 0.6B check takes the 8B check's stricter validators.
   - The hosted Windows job also builds with `build.bat`, which now finds Visual Studio itself, requires its binary to report the CMake build's version, and runs the suite on it, so the first Windows route in the build docs has an automated check.

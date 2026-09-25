@@ -1,7 +1,8 @@
 # Continuous integration
 
-`.github/workflows/ci.yml` runs on pull requests, pushes to `main`, and manual
-dispatch. It contains six independent checks:
+`.github/workflows/ci.yml` runs on pull requests, pushes to `main`, pushes to `gate/<name>` branches, and manual dispatch.
+A stack of branches about to merge is pushed as `gate/<name>` so these checks run before the merge, and that branch is deleted after it.
+It contains six independent checks:
 
 | Check | Coverage |
 |---|---|

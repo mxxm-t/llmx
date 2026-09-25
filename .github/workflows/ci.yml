@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # A stack pushed as gate/<name> runs the whole workflow before it merges; main runs it as the record of each merge.
+    branches: [main, 'gate/**']
   pull_request:
   workflow_dispatch:
 

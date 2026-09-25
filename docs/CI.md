@@ -2,6 +2,7 @@
 
 `.github/workflows/ci.yml` runs on pull requests, pushes to `main`, pushes to `gate/<name>` branches, and manual dispatch.
 A stack of branches about to merge is pushed as `gate/<name>` so these checks run before the merge, and that branch is deleted after it.
+Branches are merged locally, so no pull request reaches the workflow, and the gates a branch passes before it merges are run locally and recorded in `docs/STATUS.md`.
 It contains six independent checks:
 
 | Check | Coverage |
@@ -10,10 +11,12 @@ It contains six independent checks:
 | CPU (windows-2022) | MSVC, CMake Release and `build.bat`, synthetic tests and benchmark smoke on both binaries, and the `build.bat` binary reporting the same version as the CMake one |
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | CPU (Linux UBSan) | GCC undefined-behavior checks, including mixed-tensor float alignment |
-| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` and `vulkan-lifetime` skipping without a driver, while `vulkan-buffer` exercises fake API cleanup with only the loader |
-| HF reference (CPU) | Linux build plus all three pinned real models: tokenizer, logits, continuous/chunked PPL |
+| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` and `vulkan-lifetime` skipping without a driver, while `vulkan-buffer`, whose fake device supplies every Vulkan call, needs no loader and runs; no Python |
+| HF reference (CPU) | Linux build plus all three pinned real models: tokenizer, logits, continuous/chunked PPL, and the real-model server checks on the Q8_0 (limits, uncapped requests pausing, a prompt paused while prefilling, prefix reuse over a conversation, clients leaving, a chat turn); the suite's HF chat and thread replies run here as in every CPU job |
 
-Every CTest in `CMakeLists.txt` runs in every job's "Backend tests" step, so the KV cache, placement, HTTP layer, server UTF-8 repair and prefill-scope checks are covered on all three platforms and under UBSan, and the Python suite's `server` component starts `llmx serve` on the synthetic model in every CPU job and on the real Q8_0 fixture in the HF job.
+Every CTest a CPU build registers runs in every job's "Backend tests" step, so the KV cache, placement, HTTP layer, server UTF-8 repair and prefill-scope checks are covered on all three platforms and under UBSan.
+The three Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan` and `vulkan-lifetime` skip without a device, and that job runs no Python.
+The Python suite's `server` component starts `llmx serve` on the synthetic model in every CPU job and on the real Q8_0 fixture in the HF job.
 What no hosted job establishes is device behaviour: the Vulkan job proves the tree compiles, and the kernel comparisons, the HF gate on the device and the matched floors are run on the Radeon VII and the Linux machine's MI50s by hand and recorded in `docs/STATUS.md`.
 A self-hosted runner on that machine would close that.
 It needs no packages of its own for it: `docker/Dockerfile` carries the driver and the compiler and takes the cards through `/dev/dri`, and inside it the whole CTest suite, `backend-vulkan` included, passes on an MI50.
@@ -25,9 +28,9 @@ CMake builds that tool in every configuration with tests (the default), and thos
 Splits over GPUs are run by hand on the Radeon VII and the MI50s.
 
 The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
-at `ec74308`. Local Windows MSVC and WSL Linux GCC CMake builds also passed
-the suite with both HF fixtures required. Workflow lint and negative checks
-for corrupt downloads, missing fixtures and invalid throughput passed.
+at `ec74308`.
+Local Windows MSVC and WSL Linux GCC CMake builds of `ec74308` also passed the suite with both HF fixtures it then had required.
+Workflow lint and negative checks for corrupt downloads, missing fixtures and invalid throughput passed at that commit.
 
 The CPU backend currently uses x86 intrinsics, and CMake enables AVX2/FMA/F16C.
 Runtime checks inside some kernels do not make that binary safe on older CPUs.
@@ -64,9 +67,8 @@ Every job except the Vulkan build also runs
 throttling, reset headers, retry exhaustion, interrupted reads,
 cache reuse/replacement, checksum rejection and permanent failures. These
 tests use tiny independent bytes and simulated network responses; they do
-not download models or replace the real HF reference checks. All fifteen pass
-on Linux, including a real HTTP response parser test for premature EOF; the
-previous downloader reproduces the single-request 429 failure.
+not download models or replace the real HF reference checks.
+At `b266650` all fifteen passed on Linux, including a real HTTP response parser test for premature EOF, and the downloader before it reproduced the single-request 429 failure.
 
 `--require-baseline` makes
 missing fixtures fatal, preventing a green numerical job made entirely of
@@ -92,8 +94,8 @@ Frozen bounds require exact token IDs, top-1 agreement and top-5 overlap 5/5, wi
 Each NLL case is scored twice, in batched passes and with `--per-token`, as in `tests/baseline.py`, so a run has 41 checks.
 Top-10 output must be finite, sorted, unique-ID and within absolute magnitude 100; `tests/baseline.py` holds the 0.6B outputs to the same validators at its own bounds.
 This optional run is outside default CI; see [ASSETS](ASSETS.md#optional-qwen3-8b-hf-consumer) for reference provenance, the verified Linux cache path and the limits of short-excerpt coverage.
-Local Windows and Linux runs each passed the 37 checks the consumer had before the per-token half, with identical printed NLLs and HF deltas.
-The Linux ordinary suite passed 11/11 with `--no-perf-floor` at the time.
+At `dacf18c` local Windows and Linux runs each passed the 37 checks the consumer had before the per-token half, with identical printed NLLs and HF deltas.
+The Linux ordinary suite passed its 11 components with `--no-perf-floor` at that commit.
 These local results do not establish hosted 8B coverage; the optional consumer is not run by the workflow.
 
 Every job except the Vulkan build checks that `--version` and the usage
@@ -157,8 +159,8 @@ After the hosted runs succeed, the stable check names above can be
 required for `main`. Branch protection is a separate repository setting;
 adding this workflow does not enable it automatically.
 
-CTest also covers synchronous text delivery before the next model step, legacy
-filtering and split UTF-8 bytes, plus loader progress, truncated reads and
+CTest also covers synchronous text delivery before the next model step
+and split UTF-8 bytes, plus loader progress, truncated reads and
 consumer exceptions. `cli-output` observes flushing through the actual CLI
 emitter with a controlled stream buffer, without wall-clock timing assertions.
 It also runs the CLI's number readers and token id lists over every malformed form they refuse.

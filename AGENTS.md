@@ -256,8 +256,8 @@ A group of a Q8_0 and a Q4_0 projection whose batch reaches the 8-bit tile cross
 It exits 77, which CTest reports as skipped, when there is no loader, no
 device or a driverless loader.
 
-`vulkan-buffer` checks constructor cleanup with substituted Vulkan calls and
-needs only the loader. `vulkan-lifetime` opens a device, intercepts transfers
+`vulkan-buffer` checks constructor cleanup on a fake device that supplies every Vulkan call it makes, so it needs no loader and runs wherever the backend builds.
+`vulkan-lifetime` opens a device, intercepts transfers
 and injects allocation failures to check queued storage ownership during KV
 growth, padded-copy creation/replacement/invalidation and argument-arena
 overflow. It checks retry and unchanged KV accounting after failed growth.
@@ -269,7 +269,7 @@ cases intercept copies so old failures cannot submit references to freed
 memory. Broad device arithmetic remains covered by `backend-vulkan` and HF.
 
 `http` starts the server's HTTP layer (`src/server/http.hpp`) on a system-chosen port from a thread and drives it with the layer's own client: a whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, a client seen by `peer_closed` as open while it waits for its answer, also after one urgent (out-of-band) byte, and as closed once it leaves, a write to it then throwing `ClientGone`, and the listener closed from the main thread ending the accept loop.
-Windows and Linux.
+It runs on Linux, Windows and macOS.
 
 `server-utf8` checks that the server's `utf8_sanitize` (`src/server/api.hpp`) turns a surrogate (ED A0 80), an overlong form (E0 80 80) and a value above U+10FFFF (F4 90 80 80) into U+FFFD, one per byte, as it does truncated and stray bytes, while valid text of every length stays unchanged, and that `utf8_complete` holds back a character whose bytes have not all arrived and lets a whole one or a stray continuation byte through; `error_json` repairs a stray byte in an error message in both reply shapes.
 
@@ -281,6 +281,8 @@ the residual stream crosses exactly where the placement changes and never on
 one device, and each stage and crossing submits the devices it records on. It
 refuses malformed placements, among them a device whose attention layers are
 not one run, and sequences of another model.
+It checks the fit to device budgets (`model/layer_split.hpp`): even shares where room allows, a device without room left out, a host device given only what the others cannot hold, layers placed by their own sizes, the busiest device given as few layers as fit, tied weights counted once, the host's tables, handoff buffers and staging counted where they sit, shares honored or refused, and the fitted placement exact against one device.
+`place_model`, the one placement entry, asks the backends for their budgets, applies the request's ubatch, and splits by shares exactly as one device computes.
 A three-layer model placed by `place_model` over two and three CPU backends at ubatch 3 takes a 13-token prompt in five chunks, more than the stages, so the pipelined prefill reuses its pass slots and both handoff buffers; the prompt, three decode steps, a second prompt continuing the history, every row of `score()` and a two-sequence pass must be exact against one backend, with the same `n_tokens` and `kv_used_bytes`.
 A backend on the last stage then fails while the first stage is chunks ahead, on top of a history, once at an attention mid-prompt and once at the head on the last chunk (`FailingCpu` in `tests/tiny_qwen.hpp`, which `kv-cache` also uses): every storage's length and `kv_used_bytes` must be back at the history, and the same prompt again must be exact.
 `place_model` refuses experts on the CPU beside several devices, and a stream point without experts on the CPU.
@@ -308,7 +310,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   Every flag a page lists, in each spelling, is taken by its command: the line is read in full and fails only on a missing input file, or pull on its empty quant, or with `--size` and `--iters` runs the synthetic bench.
   Every flag another page lists, and one no page lists, is refused by a command whose page does not list it, as a usage error.
   It needs no device, so it runs in every job.
-- **Round-trip** (`tests/roundtrip.py`): build a random F32 model and quantize it to Q8_0 and Q4_0, each dequantized and checked against its own bound.
+- **Round-trip** (`tests/roundtrip.py`): build a random F32 model and quantize it to Q8_0 and Q4_0 through the CLI, each dequantized and checked against its own bound.
   Regression gate for `quant/` + `format/`.
   Also checks quantize's JSON tensor schema/dimension and binary-length rejection,
   output preservation on validation failure, and valid one-to-four-dimensional
@@ -366,7 +368,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   context bounds a request and a full queue answers 503.
   A sampling field outside the range the CLI's flag takes is refused with 400 on every route, `repetition_penalty` on the compatible routes included, and a `top_k` of -1 is refused on the native route and sampled as `top_k` 0 on the compatible one.
   The synthetic model's file name holds a byte that is not UTF-8 on Linux, and elsewhere characters beyond ASCII whose UTF-8 bytes code pages 932, 936, 949, 950 and 1257 cannot map, so a name read in the system code page there fails; `/v1/health` and `/v1/models` must name it as UTF-8, with a U+FFFD for each byte that belongs to no UTF-8 character.
-  With the Q8_0 fixture, uncapped requests share a pool too small for all of them: a request is paused when it runs out, resumes from its history, and each runs to its own end; a long prompt read one token a pass is paused while it is still prefilling and, resumed, gives the CLI's greedy text; a conversation of six turns on a 1024-token pool, its history growing past half the pool, reuses the last turn's history on every follow-up (its `reused_tokens` and the server's `prefix_tokens` grow each time) with each turn's greedy text equal to the CLI's; and a follow-up that fits the pool only once one donor goes, beside an unrelated donor, consumes the turn it repeats, so a later prompt repeating the unrelated request's history still reuses it with the CLI's greedy text.
+  With the Q8_0 fixture, uncapped requests share a pool too small for all of them: a request is paused when it runs out and resumes from its history, and the check confirms each runs to its own end and the server counts a pause, though it does not yet compare a paused request's output with the same request run alone; a long prompt read one token a pass is paused while it is still prefilling and, resumed, gives the CLI's greedy text; a conversation of six turns on a 1024-token pool, its history growing past half the pool, reuses the last turn's history on every follow-up (its `reused_tokens` and the server's `prefix_tokens` grow each time) with each turn's greedy text equal to the CLI's; and a follow-up that fits the pool only once one donor goes, beside an unrelated donor, consumes the turn it repeats, so a later prompt repeating the unrelated request's history still reuses it with the CLI's greedy text.
   With the Q8_0 fixture too, a client that leaves a whole reply while it is generated, a streamed prompt while it is read one token a pass, or a request waiting for the one slot is noticed within seconds, though nothing written to it fails, and the server then holds nothing active or queued and starts a request reaching the whole pool at once; a client that shuts only its sending side during a whole reply gets no answer, the connection just closing; and each request left behind would run for thousands of passes, so a server that noticed nothing fails on any device.
   On a single device other than the CPU, the
   synthetic MoE model runs with its experts on the host and prompts from
@@ -414,7 +416,8 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
 - **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF
   `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and
   one dense, across batch widths and threads and, on a device, with the
-  experts of one or every routed layer on the CPU (`--n-cpu-moe`).
+  experts of one or every routed layer on the CPU (`--n-cpu-moe`, `--cpu-moe`).
+  On a device it also streams those layers to the device for prompts from a length on (`--moe-stream-from`): from 0, from 1, which a generated token never reaches, and from 4, which only the longer prompts reach.
 - **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
   Compares llmx against golden fixtures generated once from the HF
   reference by `tools/gen_baseline.py` and committed to `tests/data/`. Needs a
@@ -513,6 +516,8 @@ When you start (or pick up) a feature:
   **before** writing code: **Goal / Done / Left / Gotchas**. That block is what
   lets the next agent pick the feature back up with a "continue feature X"
   prompt, so keep it current.
+- A feature lands with a test the hosted workflow runs, or its STATUS block names the hand check that covers it and says why no hosted runner can run it.
+- A bug fix lands its failing test first: a commit that adds the test, failing on the unfixed code, then the fix that makes it pass.
 - Don't invent new directions - follow the roadmap. When the feature ships,
   delete its block and mark the row `Done` in the STATUS table.
 

@@ -12,6 +12,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <limits>
+#include <random>
 
 #include "format/gguf.hpp"
 #include "quant/quant.hpp"
@@ -301,6 +302,72 @@ inline std::array<size_t, ExecContext::kSlots> slot_widths(const QwenConfig& cfg
     const size_t ff = std::max(dense ? (size_t)cfg.n_ff : 0, (size_t)cfg.n_expert_used * (size_t)cfg.n_ff_exp);
     const size_t e = (size_t)cfg.n_embd, k = (size_t)cfg.n_expert_used;
     return {e, e, q, kv, kv, q, ff, ff, ff, (size_t)cfg.n_expert, k, k};
+}
+
+// A model of this architecture with the given shape and random weights, Q8_0 matrices and F32 norms, for timing the backend without a file (bench without --model).
+inline gguf::GGUFModel synthetic_model(int n_layer, int n_embd, int n_ff, int n_head, int n_head_kv, int head_dim, int n_vocab, uint32_t seed) {
+    gguf::GGUFModel m;
+    auto u32 = [&](const std::string& k, uint64_t v) {
+        gguf::MetaValue mv; mv.vtype = gguf::V_UINT32; mv.u = v;
+        m.kv.emplace_back(k, mv);
+    };
+    u32("qwen3.block_count", (uint64_t)n_layer);
+    u32("qwen3.embedding_length", (uint64_t)n_embd);
+    u32("qwen3.feed_forward_length", (uint64_t)n_ff);
+    u32("qwen3.attention.head_count", (uint64_t)n_head);
+    u32("qwen3.attention.head_count_kv", (uint64_t)n_head_kv);
+    u32("qwen3.attention.key_length", (uint64_t)head_dim);
+    u32("qwen3.context_length", 2048);
+
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+
+    // ne = [nin, nout]; f32 tensors are stored raw, others quantized to Q8_0.
+    auto add_tensor = [&](const std::string& name, size_t nin, size_t nout, bool f32) {
+        gguf::TensorInfo t;
+        t.name = name;
+        t.ne = { (uint64_t)nin, (uint64_t)nout };
+        t.type = f32 ? gguf::GGML_TYPE_F32 : gguf::GGML_TYPE_Q8_0;
+        t.offset = 0;
+        if (f32) {
+            std::vector<uint8_t> buf(nin * nout * 4);
+            float* p = (float*)buf.data();
+            for (size_t o = 0; o < nout; o++)
+                for (size_t i = 0; i < nin; i++) *p++ = dist(rng);
+            m.tensors.push_back(std::move(t));
+            m.add_tensor_data(buf);
+        } else {
+            size_t nblocks = nin / gguf::Q8_0_BLOCK;
+            std::vector<uint8_t> buf(nout * nblocks * gguf::Q8_0_TYPESIZE);
+            std::vector<float> row(nin);
+            for (size_t o = 0; o < nout; o++) {
+                for (size_t i = 0; i < nin; i++) row[i] = dist(rng);
+                quant::quantize_row_q8_0(row.data(), buf.data() + o * nblocks * gguf::Q8_0_TYPESIZE, nblocks);
+            }
+            m.tensors.push_back(std::move(t));
+            m.add_tensor_data(buf);
+        }
+    };
+
+    size_t kv_dim = (size_t)n_head_kv * head_dim;
+    add_tensor("token_embd.weight", n_embd, n_vocab, false);
+    add_tensor("output.weight", n_embd, n_vocab, false);
+    add_tensor("output_norm.weight", n_embd, 1, true);
+    for (int l = 0; l < n_layer; l++) {
+        std::string pre = "blk." + std::to_string(l) + ".";
+        add_tensor(pre + "attn_norm.weight", n_embd, 1, true);
+        add_tensor(pre + "attn_q.weight", n_embd, n_embd, false);
+        add_tensor(pre + "attn_k.weight", n_embd, kv_dim, false);
+        add_tensor(pre + "attn_v.weight", n_embd, kv_dim, false);
+        add_tensor(pre + "attn_output.weight", n_embd, n_embd, false);
+        add_tensor(pre + "attn_q_norm.weight", head_dim, 1, true);
+        add_tensor(pre + "attn_k_norm.weight", head_dim, 1, true);
+        add_tensor(pre + "ffn_norm.weight", n_embd, 1, true);
+        add_tensor(pre + "ffn_gate.weight", n_embd, n_ff, false);
+        add_tensor(pre + "ffn_up.weight", n_embd, n_ff, false);
+        add_tensor(pre + "ffn_down.weight", n_ff, n_embd, false);
+    }
+    return m;
 }
 
 // What this architecture asks of the memory of the devices it runs on, for a split fitted to them (model/layer_split.hpp).

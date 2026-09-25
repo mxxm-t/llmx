@@ -1751,7 +1751,7 @@ private:
             const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
             uint16_t d16 = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
             float d = f16_to_f32(d16);
-            for (int j = 0; j < gguf::Q8_0_BLOCK; j++)
+            for (size_t j = 0; j < gguf::Q8_0_BLOCK; j++)
                 acc += (float)(int8_t)y[2 + j] * d * x[b * gguf::Q8_0_BLOCK + j];
         }
         return acc;

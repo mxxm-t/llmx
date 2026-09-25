@@ -15,8 +15,16 @@ void* operator new(std::size_t size) {
     if (void* p = std::malloc(size ? size : 1)) return p;
     throw std::bad_alloc();
 }
+#if defined(__GNUC__) && !defined(__clang__)
+// GCC takes the free below for a mismatch with operator new, though the replaced new above allocates with malloc.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
 void operator delete(void* p) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t) noexcept { std::free(p); }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 namespace backend {
 namespace {

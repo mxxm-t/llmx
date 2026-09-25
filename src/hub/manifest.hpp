@@ -80,25 +80,26 @@ inline std::string url_encode(const std::string& text, bool keep_slashes = false
     return out;
 }
 
-inline const jmini::Value* optional_member(const jmini::Value& value, const std::string& key) {
+// Keys are string literals, so no temporary string reaches a caller that keeps the returned reference.
+inline const jmini::Value* optional_member(const jmini::Value& value, const char* key) {
     if (!value.isObject()) throw std::runtime_error("pull: metadata object required");
     const jmini::Value* result = nullptr;
     for (const auto& item : value.obj) if (item.first == key) {
-        if (result) throw std::runtime_error("pull: duplicate metadata field: " + key);
+        if (result) throw std::runtime_error(std::string("pull: duplicate metadata field: ") + key);
         result = &item.second;
     }
     return result;
 }
 
-inline const jmini::Value& member(const jmini::Value& value, const std::string& key) {
+inline const jmini::Value& member(const jmini::Value& value, const char* key) {
     const auto* result = optional_member(value, key);
-    if (!result) throw std::runtime_error("pull: missing metadata field: " + key);
+    if (!result) throw std::runtime_error(std::string("pull: missing metadata field: ") + key);
     return *result;
 }
 
-inline std::string string_member(const jmini::Value& value, const std::string& key) {
+inline std::string string_member(const jmini::Value& value, const char* key) {
     const auto& result = member(value, key);
-    if (!result.isString()) throw std::runtime_error("pull: metadata string required: " + key);
+    if (!result.isString()) throw std::runtime_error(std::string("pull: metadata string required: ") + key);
     return result.str;
 }
 

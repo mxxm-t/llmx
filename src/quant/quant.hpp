@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <cstddef>
 #include <cmath>
@@ -72,8 +73,8 @@ inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
         for (size_t j = 0; j < gguf::Q4_0_BLOCK / 2; j++) {
             int lo = (int)std::round(x[j] * id) + 8;
             int hi = (int)std::round(x[j + gguf::Q4_0_BLOCK / 2] * id) + 8;
-            if (lo > 15) lo = 15; if (lo < 0) lo = 0;
-            if (hi > 15) hi = 15; if (hi < 0) hi = 0;
+            lo = std::min(15, std::max(0, lo));
+            hi = std::min(15, std::max(0, hi));
             y[2 + j] = (uint8_t)(lo | (hi << 4));
         }
     }
@@ -113,8 +114,8 @@ inline void quantize_row_q4_1(const float* src, uint8_t* dst, size_t nblocks) {
         for (size_t j = 0; j < gguf::Q4_1_BLOCK / 2; j++) {
             int lo = (int)std::round((x[j] - mn) * id);
             int hi = (int)std::round((x[j + gguf::Q4_1_BLOCK / 2] - mn) * id);
-            if (lo > 15) lo = 15; if (lo < 0) lo = 0;
-            if (hi > 15) hi = 15; if (hi < 0) hi = 0;
+            lo = std::min(15, std::max(0, lo));
+            hi = std::min(15, std::max(0, hi));
             y[4 + j] = (uint8_t)(lo | (hi << 4));
         }
     }

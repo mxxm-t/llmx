@@ -51,22 +51,29 @@ def device_args(args, cache=None):
 
 
 # How far from the reference's 5th logit two tokens may sit and still trade places at the top-5 boundary: near ties there reorder with the rounding of any backend that sums in another order.
+# It also bounds llmx's own gap between the reference's 5th and 6th tokens when those two trade places.
 TOP5_TIE_MARGIN = 0.1
 
 
-def top5_overlap(ids, ref_ids, ref_logits, margin=TOP5_TIE_MARGIN):
+def top5_overlap(ids, ref_ids, ref_logits, logits=(), margin=TOP5_TIE_MARGIN):
     """The reference's top-5 tokens found in `ids[:5]`, a boundary swap counting as agreement.
 
-    A reference top-5 token missing from `ids[:5]` is forgiven only when the reference puts it within `margin` of its own 5th logit,
-    and only against a token `ids[:5]` holds instead that the reference puts within `margin` below that logit; a strong token that
-    vanishes, or one pulled in from further down, still counts as a miss.
+    A reference top-5 token missing from `ids[:5]` is forgiven only when the reference puts it within `margin` of its own 5th logit, and only against a token `ids[:5]` holds instead that the reference puts within `margin` below that logit; a strong token that vanishes, or one pulled in from further down, still counts as a miss.
+    A swap of the reference's 5th and 6th tokens is also forgiven when `logits`, llmx's values for `ids`, puts the two within `margin`.
+    Quantized weights can bring two tokens the reference keeps apart that close, and then any change of arithmetic reorders them.
     """
     top, fifth = set(ref_ids[:5]), ref_logits[4]
     ref = dict(zip(ref_ids, ref_logits))
     got = set(ids[:5])
     missing = [t for t in top - got if ref[t] - fifth <= margin]
     extra = [t for t in got - top if t in ref and fifth - ref[t] <= margin]
-    return len(got & top) + min(len(missing), len(extra))
+    forgiven = min(len(missing), len(extra))
+    own = dict(zip(ids, logits))
+    out, into = ref_ids[4], ref_ids[5]
+    if (out not in got and into in got and not (out in missing and into in extra)
+            and out in own and abs(own[into] - own[out]) <= margin):
+        forgiven = min(len(top - got), forgiven + 1)
+    return len(got & top) + forgiven
 
 
 def run_process(args, input=None, cache=None, text=False, timeout=None):
@@ -265,7 +272,7 @@ def check_logits(output, case, vocab, bounds):
             "non-finite or implausible logits")
     require(all(a >= b for a, b in zip(values, values[1:])), "logits not sorted")
     require(ids[0] == case["top_ids"][0], "top-1 %d, HF %d" % (ids[0], case["top_ids"][0]))
-    overlap = top5_overlap(ids, case["top_ids"], case["top_logits"])
+    overlap = top5_overlap(ids, case["top_ids"], case["top_logits"], values)
     require(overlap >= bounds["top5_overlap"],
             "top-5 overlap %d/5 below bound %d" % (overlap, bounds["top5_overlap"]))
     return {"top1": ids[0], "top5_overlap": overlap, "top_ids": ids, "top_logits": values}

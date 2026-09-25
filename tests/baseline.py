@@ -53,17 +53,13 @@ MODEL_CONTEXT = 40960
 def run_logits():
     """Compare llmx's next-token ranking against a FULL-PRECISION reference.
 
-    llmx runs a quantized GGUF while the golden comes from the fp32 model, so
-    logit VALUES differ by quantization error and comparing them directly is
-    meaningless. What is stable is the ranking, plus a magnitude sanity bound:
+    llmx runs a quantized GGUF while the golden comes from the fp32 model, so logit VALUES differ by quantization error and comparing them directly is meaningless.
+    What is stable is the ranking, plus a magnitude sanity bound:
 
       - top-1 must match, on every model.
-      - top-5 SET overlap must reach the per-model bound above; a swap at the
-        5th place counts as agreement when the reference puts both tokens
-        within 0.1 logits of its 5th value (common.top5_overlap).
-      - exact top-5 ORDER is deliberately NOT required: it legitimately differs
-        when two tokens sit within about 0.01 logits of each other, far below
-        quantization noise. Requiring it would flag correct behaviour.
+      - top-5 SET overlap must reach the per-model bound above; a swap at the 5th place counts as agreement when the reference puts both tokens within 0.1 logits of its 5th value, or when the reference's 5th and 6th trade places and llmx's own logits for them are within 0.1 (common.top5_overlap).
+      - exact top-5 ORDER is deliberately NOT required: it legitimately differs when two tokens sit within about 0.01 logits of each other, far below quantization noise.
+        Requiring it would flag correct behaviour.
 
     The output must also be well formed, as common.check_logits defines it for this gate and the 8B one.
     """

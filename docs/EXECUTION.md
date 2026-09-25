@@ -105,7 +105,7 @@ is the right trade; on HIP it is pinned host memory.
 
 `write` returns to the interface with its first caller, the transfer at a
 placement boundary (below). It is enqueued like every op and consumes
-`src` before returning, so the caller's staging vector may be reused.
+`src` before returning, so the caller may reuse that host memory at once, as a prompt's handoff buffers are reused two chunks later.
 
 ### 3. Rows carry positions
 
@@ -184,9 +184,10 @@ Sequence      one request's history: a KVSequence per storage, the
               committed length, the ticket of its last pass. A device may
               host several storages (one per attention kind), which is why
               the table is per storage and not per device.
-ExecContext   where passes run: an activation arena per device, two
-              host-visible handoff buffers per device, the logits
-              buffer, the tickets, and the plan of each pass in flight.
+ExecContext   where passes run: an activation arena per device, a
+              host-visible handoff buffer per device (two on a pipelined
+              split), the logits buffer, the tickets, and the plan of
+              each pass in flight.
 Batch         entries of (Sequence*, token ids, want_logits).
 ```
 
@@ -226,7 +227,9 @@ placement that expresses it is the same struct with a different value.
 
 Each device hosts the storages for the layers placed on it, with its own
 block size and its own pool; a `Sequence` therefore holds one block table
-per storage and prepares, commits and aborts them together. Weights are
+per storage; each stage prepares and commits the table of the storage it
+writes, and a failed pass or prompt truncates every table back to where it
+began. Weights are
 adopted by the backend that hosts them, which on the CPU is the mapped
 GGUF bytes and costs no RAM.
 

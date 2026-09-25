@@ -68,7 +68,9 @@ def requests_from(text, count, rng):
     for i in range(count):
         chars = [120, 1500, 6000, 12000][i % 4]
         start = rng.randrange(0, max(1, len(text) - chars))
-        out.append({"prompt": text[start:start + chars], "max_tokens": [128, 32, 64, 8][(i // 4) % 4], "temperature": 0})
+        # A leading '-' would read as a flag to `llmx generate`.
+        prompt = text[start:start + chars].lstrip("-")
+        out.append({"prompt": prompt, "max_tokens": [128, 32, 64, 8][(i // 4) % 4], "temperature": 0})
     return out
 
 
@@ -102,7 +104,8 @@ def main():
     p.add_argument("--requests", type=int, default=16)
     p.add_argument("--max-seqs", type=int, default=8)
     p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--cli", type=int, default=2, help="requests also checked against the CLI")
+    p.add_argument("--cli", type=int, default=4,
+                   help="requests also checked against the CLI; the first four cover every prompt length, the last two several ubatch chunks")
     args = p.parse_args()
     common.EXE = os.path.abspath(args.exe)
 

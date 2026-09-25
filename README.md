@@ -62,7 +62,7 @@ model architectures are not implemented yet; see
 | Execution model | Done: tickets, batched sequence views and device placement (`docs/EXECUTION.md`) |
 | Server | Done: `llmx serve` with continuous batching, streaming HTTP without dependencies, prefix reuse and the OpenAI-compatible routes (`docs/SERVER.md`, `docs/USAGE.md`) |
 | GPU backends | Vulkan done, running on a Radeon VII under Windows and on MI50s under Linux. Against the reference's own Vulkan build on the same card, over the dense-model device gate (five Qwen3 files, prompts of 64 to 512 tokens and 32 tokens decoded after a short prompt), decode is 102 to 115 percent and prefill 109 to 455 percent on the Radeon VII, and decode 102 to 115 percent and prefill 102 to 267 percent on one MI50; decode after a 16k-token history, behind the reference on the MI50, is recorded in `docs/STATUS.md`; ROCm first-class on Linux, CUDA and SYCL planned |
-| Multiple devices/nodes | Local layer splits with memory fitting and manual layer shares implemented; pipelining, tensor groups and cluster nodes planned |
+| Multiple devices/nodes | Local layer splits with memory fitting, manual layer shares and a prompt pipelined over the stages implemented; server passes in flight, tensor groups and cluster nodes planned |
 | Hub kernels | Optional later work: port suitable kernel source or distribute llmx kernels through the Hub |
 
 The device execution model is complete and the Vulkan backend is written

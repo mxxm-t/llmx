@@ -74,8 +74,9 @@ to a `backend::Backend`.
   the CLI's model keeps one.
 - `ExecContext`: where a context's passes run, plain data the model fills:
   per device an activation arena (twelve slots at 64-byte offsets in one
-  backend allocation), which each device's passes use in turn, and two
-  host-visible handoff buffers a crossing goes through; the host-visible
+  backend allocation), which each device's passes use in turn, and a
+  host-visible handoff buffer a crossing goes through, two when a prompt's
+  chunks are pipelined; the host-visible
   logits rows; the tickets; and a `Pass` per pass in flight, the entries,
   rows, positions, head rows and cache views its stages read as they are
   recorded. Allocated by the first forward that needs it and grown to the
@@ -97,7 +98,8 @@ to a `backend::Backend`.
   Each device that runs attention gets a `KVStorage` for exactly its layers
   with its own pool, block size and adopted RoPE tables. Its stages are
   runs of consecutive layers whose attention sits on one device, each
-  writing that device's storage; a model on one device has one. The
+  writing that device's storage. A device's attention layers must form one
+  run, or the placement is refused; a model on one device has one stage. The
   residual stream crosses devices wherever the placement changes, in two
   halves: the source copies the rows into its handoff buffer inside its own
   work (`send`), and the destination waits that submission's ticket and
@@ -108,23 +110,13 @@ to a `backend::Backend`.
     tokens go through the graph at their own positions and attend through
     their own history via one view per entry and per storage; the rows that
     want logits are gathered, normed and projected once on the output
-    device, and the pass is waited on only when logits are wanted. It runs
+    device. The head's submission is waited on only when logits are wanted;
+    a crossing waits on the host for its source's submission. It runs
     its stages in a row (`begin`, `run_stage`, `finish`): each reserves the
     blocks of the storage it writes, submits the devices it recorded on and
     commits. It is one transaction: a failure anywhere drains every device
     and returns every history to where the pass found it, stages already
     committed included. A sequence listed twice is refused.
-  - `prefill(ids)` over more than one stage runs the prompt's chunks as a
-    software pipeline on the calling thread: step t runs stage s of chunk
-    t-s, the first stage first, so every device has its next chunk queued
-    before it finishes the one it runs, and each takes its chunks in order,
-    which is what lets them share its arena. A prompt's positions follow the
-    first stage's storage, which a chunk commits first. That needs a stage
-    per device, with the embedding on the first, the head on the last and
-    every feed-forward block beside its attention, as every fitted split
-    has; any other placement runs its chunks one pass at a time. Chunks are
-    the ubatch either way, so a split computes what one device does, and a
-    failure returns the prompt's history to where it started.
   - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
     to the pool after waiting on its last ticket.
     `truncate(sequence, length)` rolls a history back the same way,
@@ -147,7 +139,17 @@ to a `backend::Backend`.
   - `prefill(ids) -> logits`: the prompt in chunks of `ubatch()` tokens, one
     entry per chunk, inside one backend prefill scope, so each weight row is
     read once per chunk instead of once per token. Only the last chunk asks
-    for logits. The prompt is one transaction across its chunks.
+    for logits. The prompt is one transaction across its chunks. Over more
+    than one stage the chunks run as a software pipeline on the calling
+    thread: step t runs stage s of chunk t-s, the first stage first, so
+    every device has its next chunk queued before it finishes the one it
+    runs, and each takes its chunks in order, which is what lets them share
+    its arena. A prompt's positions follow the first stage's storage, which
+    a chunk commits first. That needs the embedding on the first stage's
+    device, the head on the last's and every feed-forward block beside its
+    attention, as every fitted split has; any other placement runs its
+    chunks one pass at a time. Chunks are the ubatch either way, so a split
+    computes what one device does.
   - `score(ids, each)`: the ids in chunks of `ubatch()` tokens from an empty
     history, each chunk an `every_logits` entry, calling `each(pos, logits)`
     for every position. This is the batched path perplexity scores through.

@@ -253,7 +253,7 @@ struct Pass {
     backend::Ticket sent = 0;                          // the submission that copied it out
 };
 
-// Where a context's passes run: an activation arena per device, which each device's passes use in turn, two host-visible handoff buffers per device a crossing goes through, the host-visible logits rows on the output device, and the tickets of the submissions.
+// Where a context's passes run: an activation arena per device, which each device's passes use in turn, a host-visible handoff buffer per device a crossing goes through (two on a pipelined split), the host-visible logits rows on the output device, and the tickets of the submissions.
 // Storage is allocated by the first forward that needs it and grows to the largest pass seen.
 // Two contexts are what let a scheduler keep one pass on the device while it reads another's logits; the CLI has one.
 // Plain data that Model fills.
@@ -499,10 +499,13 @@ public:
             a.used = true;
             devices_[device_index(place_.ffn_device[(size_t)l])]->used = true;
         }
+        // A device's attention layers are one run, so each storage is written by one stage, which reserves and commits it once a pass.
         for (int l = 0; l < cfg.n_layer; ++l) {
             const size_t a = (size_t)place_.attn_device[(size_t)l];
-            if (stages_.empty() || stages_.back().device != a) stages_.push_back(Stage{a, l, l + 1, {}});
-            else stages_.back().end = l + 1;
+            if (!stages_.empty() && stages_.back().device == a) { stages_.back().end = l + 1; continue; }
+            for (const Stage& st : stages_)
+                if (st.device == a) throw std::runtime_error("inference: a device's attention layers must be consecutive");
+            stages_.push_back(Stage{a, l, l + 1, {}});
         }
         for (size_t s = 0; s < stages_.size(); ++s) {
             Stage& st = stages_[s];
@@ -514,11 +517,10 @@ public:
             if (s == 0) touch((size_t)place_.embed_device);
             if (s + 1 == stages_.size()) touch((size_t)place_.output_device);
         }
-        // A prompt's chunks flow through the stages together when each stage has a device of its own, so one stage writes each storage, and nothing crosses inside a stage: the embedding on the first stage's device, the head on the last's, every feed-forward block beside its attention.
+        // A prompt's chunks flow through the stages together when nothing crosses inside a stage: the embedding on the first stage's device, the head on the last's, every feed-forward block beside its attention.
         pipelined_ = stages_.size() > 1 && place_.embed_device == (int)stages_.front().device &&
                      place_.output_device == (int)stages_.back().device;
         for (size_t s = 0; pipelined_ && s < stages_.size(); ++s) {
-            for (size_t r = 0; r < s; ++r) pipelined_ = pipelined_ && stages_[r].device != stages_[s].device;
             for (int l = stages_[s].first; l < stages_[s].end; ++l)
                 pipelined_ = pipelined_ && place_.ffn_device[(size_t)l] == (int)stages_[s].device;
         }
@@ -1155,11 +1157,13 @@ private:
             for (size_t i = 0; i < ExecContext::kSlots; ++i) counts[i] = mul(rows, widths[i]);
             size_t offsets[ExecContext::kSlots];
             backend::BufferPtr arena = alloc_arena(*devices_[d]->b, counts, offsets);
+            // A pass through this context may still run on the arena being replaced: nothing else waits for a pass that wanted no logits.
+            if (sc.arena) devices_[d]->b->wait(ctx.tickets[d]);
             sc.arena = std::move(arena);
             std::copy(offsets, offsets + ExecContext::kSlots, sc.offset);
             sc.rows = rows;
         }
-        // Two host-visible buffers per used device, which a crossing leaves through: a pipelined prompt's chunk goes out through one while the chunk before it still waits in the other.
+        // A host-visible buffer per used device, which a crossing leaves through, when more than one device is used: two on a pipelined split, so a chunk goes out through one while the chunk before it still waits in the other.
         size_t used = 0;
         for (const auto& d : devices_) used += d->used;
         if (used > 1 && ctx.handoff_rows < rows) {
@@ -1168,6 +1172,8 @@ private:
             for (size_t d = 0; d < devices_.size(); ++d)
                 for (size_t i = 0; devices_[d]->used && i < (pipelined_ ? 2u : 1u); ++i)
                     handoff[d][i] = devices_[d]->b->alloc(bytes, backend::Memory::host_visible);
+            for (size_t d = 0; d < ctx.handoff.size(); ++d)
+                if (devices_[d]->used) devices_[d]->b->wait(ctx.tickets[d]);
             ctx.handoff = std::move(handoff);
             ctx.handoff_rows = rows;
         }
@@ -1175,6 +1181,7 @@ private:
             // The head writes here and the host reads it in place once the pass has retired: the one point per pass that must be host visible, and the one wait per pass.
             backend::BufferPtr logits = devices_[(size_t)place_.output_device]->b->alloc(
                 mul(mul(want, output_.nout), sizeof(float)), backend::Memory::host_visible);
+            if (ctx.logits_buf) devices_[(size_t)place_.output_device]->b->wait(ctx.tickets[(size_t)place_.output_device]);
             ctx.logits_buf = std::move(logits);
             ctx.logit_rows = want;
             ctx.width = output_.nout;

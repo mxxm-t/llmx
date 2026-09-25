@@ -296,9 +296,11 @@ main thread ending the accept loop. Windows and Linux.
 `placement` splits a two-layer model over two CPU backends with a device per
 tensor role (`docs/EXECUTION.md`) and requires the bytes of the same model on
 one backend for a prompt, decode steps, a history across a block edge, a
-reset and a two-sequence pass. It counts reads and writes so the residual
-stream crosses exactly where the placement changes and never on one device,
-and refuses malformed placements and sequences of another model.
+reset and a two-sequence pass. It counts copies, writes and submissions so
+the residual stream crosses exactly where the placement changes and never on
+one device, and each stage and crossing submits the devices it records on. It
+refuses malformed placements, among them a device whose attention layers are
+not one run, and sequences of another model.
 
 Run the Python suite (synthetic fixtures are generated locally; real-model HF
 checks skip when their models are absent):
@@ -393,10 +395,12 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   required of one backend against itself. It needs a real model and is run
   by hand, not by `run_tests.py`.
 - **Layer split** (`tools/split_check.cpp`, target `llmx-split-check`): a
-  model on one device against the same model split 1:1 over two of the
-  same kind (a device is `cpu` or a Vulkan index), as raw float logits
-  compared with `memcmp`: every position of a scored text through the
-  prompt path, the prefill and greedy decode steps, then three passes of a
+  model on one device against the same model split in equal shares over a
+  comma-separated list of devices of the same kind (default `0,1`; a device
+  is `cpu` or a Vulkan index), with optional decode steps and ubatch, as raw
+  float logits compared with `memcmp`: every position of a scored text
+  through the prompt path, the prefill in chunks of the ubatch, which a split
+  pipelines over its stages, and greedy decode steps, then three passes of a
   decoding sequence beside a fresh prompt, every row's logits. The split must be
   bit-identical, since each layer runs the same kernels on the same rows
   wherever it sits; a split over different backends is held to the HF

@@ -258,18 +258,20 @@ names a vendor - and, since the device execution migration
 KV blocks are `Buffer` handles, every op takes a buffer and an offset, ops
 enqueue on one implicit stream with ticket submission per backend. Results and
 resource lifetimes determine when to wait. Backends own device arithmetic and
-storage layout; model contexts retain host-visible logits and transfer staging.
+storage layout; model contexts retain host-visible logits and handoff buffers.
 
 A model is split across several Backends by a `Placement` at the model
 layer: a device per tensor role, so per-layer and per-tensor splits are the
 same mechanism and the CPU is one of the devices. The residual stream
-crosses at a boundary through `read` and `write`. Per-row split is not
+crosses at a boundary as a `copy` into the source's host-visible handoff
+buffer inside its own submission, then a wait on that ticket and a `write`
+into the destination. Per-row split is not
 planned. This, the tickets, the batched views and the `Model` /
 `Sequence` / `ExecContext` split are designed in `EXECUTION.md` and
 implemented, as are the Vulkan backend (#4b) and the multi-user server (#7).
 A layer split over the devices `--device` lists is fitted by
 `model/layer_split.hpp` from the architecture's `footprint` and each
 backend's `memory_available()`; the split knows no architecture and the
-architecture knows no device. Pipelined stages, tensor groups and a second
-vendor backend are what `MULTI-DEVICE.md` and `ROADMAP.md` #4b and #5 still
-carry.
+architecture knows no device. A prompt's chunks pipeline over the stages;
+the server's passes in flight, tensor groups and a second vendor backend are
+what `MULTI-DEVICE.md` and `ROADMAP.md` #4b and #5 still carry.

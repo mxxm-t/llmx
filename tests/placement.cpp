@@ -328,6 +328,14 @@ void bad_placements_refused() {
     p.attn_device = {0, 0};
     p.output_device = -1;
     rejects(p, "negative device accepted");
+    // A device whose attention layers come back after another's would own a storage two stages write.
+    const auto three = tiny_qwen(3, 2 * 128, true);
+    infer::Placement split;
+    split.attn_device = split.ffn_device = {0, 1, 0};
+    bool split_refused = false;
+    try { infer::Model m(three, {a, b}, split); } catch (const std::runtime_error&) { split_refused = true; }
+    require(split_refused, "a device's attention layers split in two accepted");
+    ++checked;
     bool caught = false;
     try { infer::Model m(weights, {a, nullptr}, infer::Placement{}); }
     catch (const std::runtime_error&) { caught = true; }

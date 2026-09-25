@@ -360,40 +360,48 @@ std::vector<int> layer_shares(const std::string& value) {
     return shares;
 }
 
-// What the placement flags ask of the model's placement over the devices `specs` names (infer::place_model); `rows` is the most rows one pass carries.
-infer::PlacementRequest placement_request(const std::vector<std::string>& specs, const std::string& shares, int cpu_moe, int stream_from,
-                                          size_t rows) {
+// A model file opened for a command: the file, which the model reads while it lives, its tokenizer, and the model placed over the devices --device lists.
+// Built in place and never moved, since the model keeps the file's address.
+struct Opened {
+    gguf::GGUFModel file;
+    std::optional<bpe::Tokenizer> tok;
+    std::unique_ptr<infer::Model> model;
+    backend::Backend* first = nullptr;   // the first device listed, which bench --profile times
+};
+
+// Open a model file as the flags ask: read it, showing progress when `progress`, place the model over the listed devices for its ubatch plus `decode_rows` generated tokens a pass (a server's sequences), print a split's plan when `show_plan`, and release the host's copy of the weights when no weight reads it in place.
+// `threads` is the worker count to set, 0 to keep the backend's own; `profile` times the one device's kernels.
+std::unique_ptr<Opened> open_model(const std::string& path, const infer::GenParams& gp, bool progress, int threads, size_t decode_rows = 0,
+                                   bool show_plan = false, bool profile = false) {
+    auto opened = std::make_unique<Opened>();
+    opened->file = load_model(path, progress);
+    opened->tok.emplace(opened->file);
+    const auto specs = backend::device_specs(gp.device);
+    if (profile && (specs.size() > 1 || !gp.layer_shares.empty())) throw std::runtime_error("bench: --profile times one device; not with several");
+    auto backends = backend::make_backends(specs, profile);
+    opened->first = backends.front().get();
     infer::PlacementRequest request;
     request.names = specs;
-    request.shares = layer_shares(shares);
-    request.cpu_moe = cpu_moe;
-    request.stream_from = stream_from > 0 ? (size_t)stream_from : 0;
-    request.rows = rows;
-    return request;
-}
-
-// The model over the devices --device lists, placed as the flags ask; `decode_rows` is how many generated tokens a pass may carry beside a prompt's ubatch: a server's sequences.
-std::unique_ptr<infer::Model> make_model(const gguf::GGUFModel& m, const infer::GenParams& gp, size_t decode_rows = 0) {
-    const auto specs = backend::device_specs(gp.device);
-    const size_t rows = (gp.ubatch > 0 ? (size_t)gp.ubatch : 512) + decode_rows;
-    infer::PlacedModel placed = infer::place_model(m, backend::make_backends(specs),
-                                                   placement_request(specs, gp.layer_shares, gp.cpu_moe, gp.moe_stream_from, rows),
-                                                   model_options(gp));
-    if (gp.show_prompt_tokens) std::cerr << placed.plan;
-    return std::move(placed.model);
+    request.shares = layer_shares(gp.layer_shares);
+    request.cpu_moe = gp.cpu_moe;
+    request.stream_from = gp.moe_stream_from > 0 ? (size_t)gp.moe_stream_from : 0;
+    request.ubatch = gp.ubatch;
+    request.decode_rows = decode_rows;
+    infer::PlacedModel placed = infer::place_model(opened->file, std::move(backends), request, model_options(gp));
+    if (show_plan) std::cerr << placed.plan;
+    opened->model = std::move(placed.model);
+    if (!opened->model->holds_payload()) opened->file.release_payload();
+    if (threads > 0) opened->model->set_threads(threads);
+    return opened;
 }
 
 int cmd_generate(const std::string& model_path, const std::string& prompt,
                  const infer::GenParams& gp) {
     const bool progress = show_progress(gp);
-    gguf::GGUFModel m = load_model(model_path, progress);
-    bpe::Tokenizer tok(m);
-    const auto owned = make_model(m, gp);
-    infer::Model& model = *owned;
-    if (!model.holds_payload()) m.release_payload();
-    if (gp.threads > 0) model.set_threads(gp.threads);
+    const auto opened = open_model(model_path, gp, progress, gp.threads, 0, gp.show_prompt_tokens);
+    bpe::Tokenizer& tok = *opened->tok;
+    infer::Model& model = *opened->model;
     const int decode_threads = model.threads_available();
-    model.set_ubatch(gp.ubatch);
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
@@ -432,13 +440,9 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text,
                int topn, const infer::GenParams& gp, const std::string& then_ids = "", size_t last = 0) {
-    gguf::GGUFModel m = gguf::read_gguf(model_path);
-    bpe::Tokenizer tok(m);
-    const auto owned = make_model(m, gp);
-    infer::Model& model = *owned;
-    if (!model.holds_payload()) m.release_payload();
-    if (gp.threads > 0) model.set_threads(gp.threads);
-    model.set_ubatch(gp.ubatch);
+    const auto opened = open_model(model_path, gp, false, gp.threads, 0, gp.show_prompt_tokens);
+    bpe::Tokenizer& tok = *opened->tok;
+    infer::Model& model = *opened->model;
 
     std::vector<uint32_t> ids = tok.encode(text);
     if (!then_ids.empty()) {
@@ -491,16 +495,12 @@ std::string read_perplexity_file(const std::string& path) {
 
 int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const infer::GenParams& gp, int context_size, int chunks, bool per_token) {
-    gguf::GGUFModel m = gguf::read_gguf(model_path);
-    bpe::Tokenizer tok(m);
-    const auto owned = make_model(m, gp);
-    infer::Model& model = *owned;
-    if (!model.holds_payload()) m.release_payload();
     const int threads = !per_token && gp.threads_batch > 0 ? gp.threads_batch : gp.threads;
-    if (threads > 0) model.set_threads(threads);
+    const auto opened = open_model(model_path, gp, false, threads, 0, gp.show_prompt_tokens);
+    bpe::Tokenizer& tok = *opened->tok;
+    infer::Model& model = *opened->model;
     if (gp.show_prompt_tokens)
         std::cerr << "threads: " << (per_token ? "decode " : "prefill ") << model.threads_available() << "\n";
-    model.set_ubatch(gp.ubatch);
 
     std::vector<uint32_t> ids = tok.encode(text);
     const auto result = infer::perplexity(model, ids, context_size, chunks, per_token);
@@ -519,14 +519,11 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
 int cmd_chat(const std::string& model_path, const std::string& system,
              const infer::GenParams& gp) {
     const bool progress = show_progress(gp);
-    gguf::GGUFModel m = load_model(model_path, progress);
-    bpe::Tokenizer tok(m);
-    const auto owned = make_model(m, gp);
-    infer::Model& model = *owned;
-    if (!model.holds_payload()) m.release_payload();
-    if (gp.threads > 0) model.set_threads(gp.threads);
+    const auto opened = open_model(model_path, gp, progress, gp.threads, 0, gp.show_prompt_tokens);
+    const gguf::GGUFModel& m = opened->file;
+    bpe::Tokenizer& tok = *opened->tok;
+    infer::Model& model = *opened->model;
     const int decode_threads = model.threads_available();
-    model.set_ubatch(gp.ubatch);
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
@@ -730,20 +727,10 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 
 // Time model execution over fixed IDs after warm-up; history setup and sampling are outside the timer.
 // Multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth; see docs/USAGE.md.
-int cmd_bench_model(const std::string& path, const std::string& device, int threads,
-                    int P, int G, int R, const infer::ModelOptions& options, bool profile, int cpu_moe, int stream_from,
-                    int seqs = 1, const std::string& shares = "", int D = 0) {
-    gguf::GGUFModel m = load_model(path, false);
-    const auto specs = backend::device_specs(device);
-    if ((specs.size() > 1 || !shares.empty()) && profile) throw std::runtime_error("bench: --profile times one device; not with several");
-    auto backends = backend::make_backends(specs, profile);
-    backend::Backend* b = backends.front().get();
-    infer::PlacedModel placed = infer::place_model(m, std::move(backends),
-                                                   placement_request(specs, shares, cpu_moe, stream_from, 512 + (size_t)seqs), options);
-    std::cerr << placed.plan;
-    infer::Model& model = *placed.model;
-    if (!model.holds_payload()) m.release_payload();
-    if (threads > 0) model.set_threads(threads);
+int cmd_bench_model(const std::string& path, const infer::GenParams& gp, int P, int G, int R, bool profile, int seqs = 1, int D = 0) {
+    const auto opened = open_model(path, gp, false, gp.threads, (size_t)seqs, true, profile);
+    backend::Backend* b = opened->first;
+    infer::Model& model = *opened->model;
     // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
     const uint32_t vocab = (uint32_t)std::min<size_t>(1000, model.n_vocab());
     auto ids_from = [vocab](uint32_t seed, size_t n) {
@@ -845,13 +832,10 @@ int cmd_bench_model(const std::string& path, const std::string& device, int thre
 
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const infer::GenParams& gp) {
-    gguf::GGUFModel m = load_model(model_path, true);
-    bpe::Tokenizer tok(m);
-    const auto owned = make_model(m, gp, cfg.max_seqs);
-    infer::Model& model = *owned;
-    if (!model.holds_payload()) m.release_payload();
-    if (gp.threads > 0) model.set_threads(gp.threads);
-    if (gp.ubatch > 0) model.set_ubatch(gp.ubatch);
+    const auto opened = open_model(model_path, gp, true, gp.threads, cfg.max_seqs, gp.show_prompt_tokens);
+    const gguf::GGUFModel& m = opened->file;
+    bpe::Tokenizer& tok = *opened->tok;
+    infer::Model& model = *opened->model;
     server::Config c = cfg;
     c.model_name = std::filesystem::path(model_path).filename().string();
     c.ubatch = model.prefill_batch();
@@ -1334,9 +1318,11 @@ int main(int argc, char** argv) {
             if (depth > 0 && (seqs > 1 || model_path.empty())) {
                 std::cerr << "bench: --depth takes --model and one sequence\n"; return 2;
             }
-            if (!model_path.empty())
-                return cmd_bench_model(model_path, device, threads, prefill, decode, repeats, model_options(gp),
-                                       profile, gp.cpu_moe, gp.moe_stream_from, seqs, gp.layer_shares, depth);
+            if (!model_path.empty()) {
+                gp.device = device;
+                gp.threads = threads;
+                return cmd_bench_model(model_path, gp, prefill, decode, repeats, profile, seqs, depth);
+            }
             return cmd_bench(size, iters, threads, prefill, decode, device);
         }
         print_usage();

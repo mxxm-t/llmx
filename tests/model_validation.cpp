@@ -143,6 +143,8 @@ struct LoadingBackend : backend::CpuBackend {
     std::shared_ptr<LoadingState> state = std::make_shared<LoadingState>();
     int fail_adopt = 0, fail_alloc = 0;
     bool fail_cache = false;
+    // It plays a device, whose buffers hide their host bytes, so it copies what it adopts.
+    bool reads_in_place() const override { return false; }
     backend::BufferPtr adopt(const void* src, size_t bytes) override {
         if (++state->adoptions == fail_adopt) throw std::runtime_error("injected adoption failure");
         auto buffer = std::make_shared<LoadingBuffer>(backend::CpuBackend::adopt(src, bytes), state);

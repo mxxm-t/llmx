@@ -124,6 +124,9 @@ public:
     // Whether adopt() reads the caller's memory in place rather than copying it into the backend's own, so weights placed here cost no memory of this backend.
     virtual bool reads_in_place() const { return false; }
 
+    // Memory the backend's kernels take for themselves beside weights, caches and activations, such as split partials and merge state, out of `free` bytes; a fit keeps it back.
+    virtual size_t scratch_reserve(size_t free) const { (void)free; return 0; }
+
     // Invoke once on the caller and complete all cleanup before returning.
     virtual void run_prefill(const std::function<void()>& work) { work(); }
 

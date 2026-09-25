@@ -267,6 +267,33 @@ struct ExecContext {
     std::vector<float> staging;
 };
 
+// Prompt tokens a pass takes by default (Model::set_ubatch), and so the prompt rows a placement is fitted for.
+inline constexpr int kDefaultUbatch = 512;
+
+// The positions a model's caches are budgeted for: the options' tokens, else the whole context.
+inline size_t kv_tokens(const QwenConfig& cfg, const ModelOptions& options) {
+    return options.kv_tokens ? options.kv_tokens : (size_t)cfg.context_length;
+}
+
+// The bytes one position of one layer's cache takes, key and value, at the options' cache types.
+inline size_t kv_bytes_per_position(const QwenConfig& cfg, const ModelOptions& options) {
+    return (size_t)cfg.n_head_kv * (size_t)cfg.head_dim * (backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v));
+}
+
+// Which layers route their feed-forward block through experts, found by their router tensor.
+inline std::vector<bool> routed_layers(const gguf::GGUFModel& m, int n_layer) {
+    std::vector<bool> routed((size_t)n_layer, false);
+    const std::string suffix = ".ffn_gate_inp.weight";
+    for (const auto& t : m.tensors) {
+        if (t.name.compare(0, 4, "blk.") != 0 || t.name.size() <= suffix.size() ||
+            t.name.compare(t.name.size() - suffix.size(), suffix.size(), suffix) != 0)
+            continue;
+        const size_t l = (size_t)std::strtoull(t.name.c_str() + 4, nullptr, 10);
+        if (l < routed.size()) routed[l] = true;
+    }
+    return routed;
+}
+
 // The floats one row of a pass takes in each slot of an activation arena (ExecContext::Scratch), for the arena itself and for a split's fit.
 // Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights.
 // The feed-forward slots hold a dense layer's hidden rows or a routed layer's k expert rows per token, whichever is wider.
@@ -313,9 +340,7 @@ inline Footprint footprint(const gguf::GGUFModel& m, const ModelOptions& options
         fp.output.product = true;
     }
     fp.logits_per_row = fp.output.rows * sizeof(float);
-    const size_t tokens = options.kv_tokens ? options.kv_tokens : (size_t)cfg.context_length;
-    fp.cache_per_layer = tokens * (size_t)cfg.n_head_kv * (size_t)cfg.head_dim *
-                         (backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v));
+    fp.cache_per_layer = kv_tokens(cfg, options) * kv_bytes_per_position(cfg, options);
     fp.tables = (size_t)cfg.context_length * (size_t)cfg.head_dim * sizeof(float);
     fp.handoff_per_row = (size_t)cfg.n_embd * sizeof(float);
     for (size_t w : slot_widths(cfg, dense)) fp.activations_per_row += w * sizeof(float);
@@ -432,7 +457,7 @@ public:
 
             // Each device that runs attention gets a storage for exactly its layers, with its own block size and pool.
             // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
-            const size_t kv_tokens = options_.kv_tokens ? options_.kv_tokens : (size_t)cfg.context_length;
+            const size_t budget = kv_tokens(cfg, options_);
             for (auto& dp : devices_) {
                 Device& d = *dp;
                 if (!d.attn_layers) continue;
@@ -444,7 +469,7 @@ public:
                                                  " tokens in one model; a split needs one size to divide the other");
                 }
                 d.storage = d.b->kv_alloc((size_t)d.attn_layers, cfg.n_head_kv, cfg.head_dim,
-                                          kv_tokens, options_.kv_k, options_.kv_v);
+                                          budget, options_.kv_k, options_.kv_v);
                 d.pool.configure(d.storage->max_blocks());
                 d.storage_index = (int)storages_.size();
                 storages_.push_back(&d);
@@ -770,7 +795,7 @@ public:
         return n;
     }
     size_t kv_used_bytes() const {
-        return seq_.length() * cfg.n_layer * 2 * cfg.n_head_kv * cfg.head_dim * sizeof(float);
+        return seq_.length() * (size_t)cfg.n_layer * kv_bytes_per_position(cfg, options_);
     }
 
     // Whether any weight still reads the GGUF model's tensor bytes in place. A host backend adopts by aliasing them; a device backend copies them into its own memory, and a model on device backends alone then holds every weight twice unless its owner releases the host copy (GGUFModel::release_payload).
@@ -798,7 +823,7 @@ private:
     std::vector<Device*> storages_;              // the devices that run attention
     QwenConfig cfg;
     int q_dim_ = 0;
-    int ubatch_ = 512;   // the conventional default
+    int ubatch_ = kDefaultUbatch;
     ModelOptions options_;
     bool any_dense_ = false;   // some layer has a dense feed-forward block
     // Per device, what a streamed layer's experts are copied into: one buffer per projection, sized to the largest streamed layer's.
@@ -870,9 +895,8 @@ private:
                 w.ffn_gate_exps = experts(f, pre + "ffn_gate_exps.weight", cfg.n_embd, cfg.n_ff_exp);
                 w.ffn_up_exps   = experts(f, pre + "ffn_up_exps.weight", cfg.n_embd, cfg.n_ff_exp);
                 w.ffn_down_exps = experts(f, pre + "ffn_down_exps.weight", cfg.n_ff_exp, cfg.n_embd);
-                // A host aliases the bytes it adopts and a device copies them, which is what tells the two apart here.
-                if (place_.stream_from && a != f && !w.attn_q.data->host_ptr() && w.ffn_gate_exps.data->host_ptr() &&
-                    w.ffn_up_exps.data->host_ptr() && w.ffn_down_exps.data->host_ptr()) {
+                // Experts read in place on the host beside attention on a device that copies its weights.
+                if (place_.stream_from && a != f && !devices_[a]->b->reads_in_place() && devices_[f]->b->reads_in_place()) {
                     w.stream_device = (int)a;
                     w.stream_norm = check(a, pre + "ffn_norm.weight", cfg.n_embd, 1, true);
                     w.stream_router = check(a, pre + "ffn_gate_inp.weight", cfg.n_embd, cfg.n_expert);
@@ -1128,7 +1152,8 @@ struct PlacementRequest {
     std::vector<int> shares;          // each backend's proportion of the layers; empty to fit them to the devices' free memory
     int cpu_moe = 0;                  // with one backend, the routed layers whose experts run on the CPU beside it, -1 for every one
     size_t stream_from = 0;           // with experts on the CPU, the prompt length from which they are copied to the device (Placement::stream_from)
-    size_t rows = 512;                // the most rows one pass carries: a prompt's ubatch, and on a server its decoding requests beside it
+    int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
+    size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
 };
 
 // A placed model and, when it was split, what each device was given (LayerSplit::describe).
@@ -1137,37 +1162,41 @@ struct PlacedModel {
     std::string plan;
 };
 
-// The model over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several.
+// The model over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, with the request's ubatch set.
 // The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; attention, the dense blocks, the embedding and the head stay on the device.
 inline PlacedModel place_model(const gguf::GGUFModel& m, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
                                const ModelOptions& options) {
     if (backends.empty()) throw std::runtime_error("placement: no device");
+    PlacedModel placed;
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
             throw std::runtime_error("--n-cpu-moe and --cpu-moe: not with several devices; list the CPU as a device to give it layers");
         const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
-        const LayerSplit split = split_layers(footprint(m, options), budgets, request.rows, request.shares, core::host_memory_available());
-        return {std::make_unique<Model>(m, std::move(backends), placement_for(split), options), split.describe(budgets)};
+        const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
+        const LayerSplit split = split_layers(footprint(m, options), budgets, rows, request.shares, core::host_memory_available());
+        placed = {std::make_unique<Model>(m, std::move(backends), placement_for(split), options), split.describe(budgets)};
+    } else if (!request.cpu_moe || backends[0]->reads_in_place()) {
+        placed.model = std::make_unique<Model>(m, std::move(backends[0]), options);
+    } else {
+        const QwenConfig cfg = load_config(m);
+        Placement place;
+        place.attn_device.assign((size_t)cfg.n_layer, 1);
+        place.ffn_device.assign((size_t)cfg.n_layer, 1);
+        place.embed_device = place.output_device = 1;
+        place.stream_from = request.stream_from;
+        const std::vector<bool> routed = routed_layers(m, cfg.n_layer);
+        int seen = 0;
+        for (int l = 0; l < cfg.n_layer; ++l) {
+            if (!routed[(size_t)l]) continue;
+            if (request.cpu_moe < 0 || seen < request.cpu_moe) place.ffn_device[(size_t)l] = 0;
+            ++seen;
+        }
+        if (!seen) throw std::runtime_error("--n-cpu-moe: the model has no expert layers");
+        std::vector<backend::BackendPtr> both{backend::make_cpu_backend(), std::move(backends[0])};
+        placed.model = std::make_unique<Model>(m, std::move(both), place, options);
     }
-    if (!request.cpu_moe || backends[0]->reads_in_place()) return {std::make_unique<Model>(m, std::move(backends[0]), options), {}};
-    const QwenConfig cfg = load_config(m);
-    Placement place;
-    place.attn_device.assign((size_t)cfg.n_layer, 1);
-    place.ffn_device.assign((size_t)cfg.n_layer, 1);
-    place.embed_device = place.output_device = 1;
-    place.stream_from = request.stream_from;
-    int routed = 0;
-    for (int l = 0; l < cfg.n_layer; ++l) {
-        const std::string router = "blk." + std::to_string(l) + ".ffn_gate_inp.weight";
-        bool present = false;
-        for (const auto& t : m.tensors) present = present || t.name == router;
-        if (!present) continue;
-        if (request.cpu_moe < 0 || routed < request.cpu_moe) place.ffn_device[(size_t)l] = 0;
-        ++routed;
-    }
-    if (!routed) throw std::runtime_error("--n-cpu-moe: the model has no expert layers");
-    std::vector<backend::BackendPtr> both{backend::make_cpu_backend(), std::move(backends[0])};
-    return {std::make_unique<Model>(m, std::move(both), place, options), {}};
+    placed.model->set_ubatch(request.ubatch);
+    return placed;
 }
 
 } // namespace infer

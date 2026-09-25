@@ -1090,6 +1090,8 @@ public:
 
     // The upload staging and each ring slot's argument arena, host-visible memory held for the backend's life.
     size_t host_resident() const override { return kStagingBytes + kRing * kArenaBytes; }
+    // Tile split partials and attention merge state grow with the device; 256 MiB and a twentieth of what is free covers them.
+    size_t scratch_reserve(size_t free) const override { return ((size_t)256 << 20) + free / 20; }
 
     // An adopted F32 matrix a product reads, whose rows are a multiple of 256 floats wide, keeps a padded copy beside it once a float tile has read it (padded_f32); routed stacks bind their data as it is.
     size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const override {

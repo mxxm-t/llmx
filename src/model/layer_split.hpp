@@ -45,6 +45,7 @@ struct DeviceBudget {
     bool host = false;
     std::function<size_t(const Matrix&)> resident;
     size_t host_side = 0;
+    size_t scratch = 0;   // what the backend's kernels keep for themselves (Backend::scratch_reserve)
 };
 
 // A budget for each backend, named as its caller names it: what the backend reports free, whether it reads weights in place, what adopting a matrix keeps on it, and its own host memory.
@@ -53,9 +54,10 @@ inline std::vector<DeviceBudget> budgets_for(const std::vector<backend::BackendP
     std::vector<DeviceBudget> budgets;
     for (size_t d = 0; d < backends.size(); ++d) {
         const backend::Backend* b = backends[d].get();
-        budgets.push_back(DeviceBudget{names[d], b->memory_available(), b->reads_in_place(),
+        const std::optional<size_t> free = b->memory_available();
+        budgets.push_back(DeviceBudget{names[d], free, b->reads_in_place(),
                                        [b](const Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes, w.product); },
-                                       b->host_resident()});
+                                       b->host_resident(), b->scratch_reserve(free.value_or(0))});
     }
     return budgets;
 }
@@ -94,7 +96,7 @@ struct LayerSplit {
 // Every set of devices that could run layers is tried, each of its devices running at least one: the first carries the embedding and the last the head, and a small dynamic program assigns the layers by their actual sizes, the fewest layers on devices that read the mapped file in place, then the lightest busiest device, every device within its budget.
 // The plan kept is the best of those sets by the same order; devices are a machine's few cards and its CPU, so trying every set stays small.
 // `shares`, when given, is each device's proportion of the layers and overrides the balance; the fit is still checked.
-// What a device must hold: its layers' weights as it keeps them resident and their caches; on the first and last devices the embedding and the head, once when a device holds both and they are tied; `rows` rows of activations; and where it copies weights its own tables and a reserve for kernel scratch.
+// What a device must hold: its layers' weights as it keeps them resident and their caches; on the first and last devices the embedding and the head, once when a device holds both and they are tied; `rows` rows of activations; and where it copies weights its own tables and its kernels' scratch (DeviceBudget::scratch).
 // What the host must hold for a set: `rows` rows of logits, the position tables, the handoff when more than one device runs layers, and the host memory of each backend in the set; on the set's first host device, whose budget is the host's memory, else within the first host device listed or, with none listed, `host_free`.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
                                std::optional<size_t> host_free = std::nullopt) {
@@ -140,9 +142,9 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     // A carrier's budget checks the host's needs with its own; without one they must fit the host's room.
     auto host_fits = [&](const Host& h) { return h.carrier != SIZE_MAX || !host_room || h.need <= *host_room; };
 
-    // Besides weights and caches: a pass's activations and, where weights are copied, the device's own tables and a reserve for tile split partials and attention merge state; the carrier also holds the host's needs, since its budget is the host's memory.
+    // Besides weights and caches: a pass's activations and, where weights are copied, the device's own tables and its kernels' scratch; the carrier also holds the host's needs, since its budget is the host's memory.
     auto overhead = [&](size_t d, const Host& h) {
-        const size_t copies = devices[d].host ? 0 : fp.tables + ((size_t)256 << 20) + devices[d].bytes.value_or(0) / 20;
+        const size_t copies = devices[d].host ? 0 : fp.tables + devices[d].scratch;
         return rows * fp.activations_per_row + copies + (d == h.carrier ? h.need : 0);
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.

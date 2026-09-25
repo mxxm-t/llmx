@@ -50,8 +50,7 @@ Commands and their entry points:
   per kernel and the driver's statistics of each kernel (registers,
   occupancy) where it reports them.
 - `layer_shares`: `--layer-shares` as one whole-number proportion per device (`core::comma_list`).
-- `placement_request`: what the placement flags ask (`infer::PlacementRequest`): the devices' names, their shares, `--n-cpu-moe` / `--cpu-moe`, `--moe-stream-from`, and the most rows a pass carries.
-- `make_model`: the model every model-building command runs, over the backends `--device` names (`backend::device_specs`, `backend::make_backends`), placed by `infer::place_model` for a prompt's ubatch plus `serve`'s `--max-seqs` rows; `--verbose` prints a split's plan. `bench --model` places its model the same way for 512 rows plus its sequences.
+- `open_model`: how every model-building command opens its model (`Opened`: the file, its tokenizer and the model, built in place since the model keeps the file's address): read the file, with progress for `generate`, `chat` and `serve`; place the model over the backends `--device` names (`backend::device_specs`, `backend::make_backends`) through `infer::place_model`, with the flags' shares, experts on the CPU, `--moe-stream-from` and `--ubatch`, and `serve`'s `--max-seqs` or `bench`'s `--seqs` as the generated rows a pass carries beside a prompt; print a split's plan with `--verbose` (always for `bench`); release the host's copy of the weights when no weight reads it in place; and set the thread count.
 - `serve`: parses host, port, sequence and queue limits, the KV budget
   (`--ctx-size`), `--ubatch`, `--threads`, `--device` and the cache types,
   then runs `server::serve` (see [server](server.md)).

@@ -149,7 +149,11 @@ void layer_split_fits() {
                 fp.output_norm.bytes == 8 * sizeof(float) && fp.cache_per_layer > 0,
             "footprint does not describe the model");
     ++checked;
-    auto budget = [](const char* name, std::optional<size_t> bytes, bool host = false) { return infer::DeviceBudget{name, bytes, host, {}}; };
+    // A device that copies weights keeps back the scratch a Vulkan device reports (Backend::scratch_reserve); a host keeps none.
+    auto budget = [](const char* name, std::optional<size_t> bytes, bool host = false) {
+        const size_t scratch = host ? 0 : ((size_t)256 << 20) + bytes.value_or(0) / 20;
+        return infer::DeviceBudget{name, bytes, host, {}, 0, scratch};
+    };
     auto split = [&](std::vector<infer::DeviceBudget> d, std::vector<int> shares = {}) {
         return infer::split_layers(fp, d, 2, shares);
     };
@@ -310,6 +314,35 @@ void layer_split_fits() {
     exact(single.prefill(prompt), fitted.prefill(prompt), "fitted split prefill differs from one device");
     for (int t : {3, 14, 1}) exact(single.step(t), fitted.step(t), "fitted split step differs from one device");
     ++checked;
+
+    // The one placement entry (infer::place_model): budgets asked of the backends, a split by shares exact against one device, the request's ubatch applied, and experts on the CPU refused beside several devices.
+    auto cpus = [] {
+        std::vector<backend::BackendPtr> v{std::make_shared<backend::CpuBackend>(), std::make_shared<backend::CpuBackend>()};
+        for (auto& c : v) c->set_threads(1);
+        return v;
+    };
+    const auto asked = infer::budgets_for(cpus(), {"cpu", "cpu"});
+    require(asked.size() == 2 && asked[0].host && asked[0].scratch == 0 && asked[0].resident, "a CPU's budget not asked of the backend");
+    infer::PlacementRequest request;
+    request.names = {"cpu", "cpu"};
+    request.shares = {1, 1};
+    request.ubatch = 3;
+    infer::PlacedModel placed_split = infer::place_model(weights, cpus(), request, options);
+    single.reset();
+    exact(single.prefill(prompt), placed_split.model->prefill(prompt), "place_model split prefill differs from one device");
+    require(placed_split.model->prefill_batch() == 3 && !placed_split.plan.empty(), "place_model did not apply the ubatch or describe the split");
+    request.cpu_moe = 1;
+    bool experts_refused = false;
+    try { infer::place_model(weights, cpus(), request, options); } catch (const std::runtime_error&) { experts_refused = true; }
+    require(experts_refused, "experts on the CPU accepted beside several devices");
+    // A CPU reads its weights in place, so experts on the CPU beside it are the one device alone.
+    infer::PlacementRequest experts_on_cpu;
+    experts_on_cpu.names = {"cpu"};
+    experts_on_cpu.cpu_moe = -1;
+    require(infer::place_model(weights, {std::make_shared<backend::CpuBackend>()}, experts_on_cpu, options).model->prefill_batch() ==
+                (size_t)infer::kDefaultUbatch,
+            "experts on the CPU beside a CPU not taken as one device");
+    checked += 4;
 }
 
 void bad_placements_refused() {

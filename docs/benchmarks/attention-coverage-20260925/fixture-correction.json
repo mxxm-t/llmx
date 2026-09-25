@@ -1,0 +1,6 @@
+{
+  "finding": "Two host-visible buffer checks requested1000 bytes from a777-byte fixture.",
+  "scope": "Test-only. Correct both counts to patch.size(); identical fix already present on the separate unmerged RowRuns branch.",
+  "previous_run": "24/24 passed, but retained as pre-correction evidence, not final acceptance.",
+  "test_sha256": "748e0fa131d5cbd1d386249e4765194715d860d31cbb877d3ec1626d84b980dd"
+}

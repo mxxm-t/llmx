@@ -255,6 +255,11 @@ prints the matvec bandwidth per type and, when the device reports them,
 the driver's per-kernel statistics (registers, shared memory, scratch);
 `--isa DIR` additionally writes the driver's disassembly of each kernel
 to that directory.
+Attention additionally covers 80 combinations of head widths 32/40/64/128/256,
+query/KV head ratios 1/2/4/8 and all four F32/F16 cache-side pairs, with nonzero
+inputs at long histories. Both rows of a mixed short/long pass must equal the
+same rows taken separately, bit for bit; CPU comparisons retain the bound
+`1e-4 * (1 + abs(reference))`.
 It exits 77, which CTest reports as skipped, when there is no loader, no
 device or a driverless loader.
 

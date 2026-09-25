@@ -528,8 +528,9 @@ HF gate measures the cost of it.
   the thresholds of 32 and 64 follow. What made the 16 visible was the
   server: a decode pass that a new prompt's chunk joined at 16 rows and
   up took the tile kernel and stalled every decoder for one tile.
-- **attention**: one workgroup per (query row, head).
-  subgroups take the history's tokens round robin; inside a subgroup each
+- **attention**: one workgroup per (query row, head block, history split).
+  In the non-vector kernel, subgroups take the history's tokens round robin;
+  inside a subgroup each
   lane owns `head_dim / subgroup_size` elements, a token's score is one
   `subgroupAdd`, and the softmax is online, a running maximum and sum with
   the value accumulation rescaled as the maximum moves, so a 40k-token
@@ -542,8 +543,8 @@ HF gate measures the cost of it.
   row's own length, so a row computes the same in every dispatch (Batch
   invariance, below). Keys are walked
   through the block table, a small buffer uploaded per call. GQA maps
-  `n_head / n_head_kv` query heads to one KV head. Several views in one
-  call are one dispatch through the view table below. Head widths up to
+  `n_head / n_head_kv` query heads to one KV head. Each attention kernel
+  processes its selected views through a view table. Head widths up to
   256.
   Once the dispatch's longest row fills every split (2048 tokens at the
   defaults), a workgroup takes up to four query heads of one KV head and

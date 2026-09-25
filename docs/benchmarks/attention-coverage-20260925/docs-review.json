@@ -1,0 +1,336 @@
+{
+  "review_utc": "2026-09-25T05:05:17.536485+00:00",
+  "status": "pass",
+  "scope": "Full46-file Markdown affected-claim audit using the exact prior content-review manifest for unchanged files, reading changed feature/attention/main documentation against source and retained native evidence. Source-only inspection and small evidence hashes; no builds, tests, models, benchmarks, remote queries, or binary/model hashing.",
+  "base": "c602ace35a06597d832b9d559458d39fd4a872ad",
+  "prior_review": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-row-runs-current-perf-20260925\\review\\docs-common-checkpoint.json",
+    "sha256": "14eaf0c1107ba2826d9f13b5f030d7f948787050d37dc29677f9841fdad01518"
+  },
+  "markdown_count": 46,
+  "relative_file_targets": 158,
+  "ascii": "pass",
+  "missing_local_targets": [],
+  "markdown_manifest": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "36f5d6d13ff974fa5138f31971d56f9d906ce136f141bc900793e55000ee1445",
+      "bytes": 33854,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "README.md",
+      "sha256": "ecfdcb8b51202ee23d48ff3f188257965c23d44bac1ec1bd9ff18e391f8e0056",
+      "bytes": 9090,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "e25f8da926da386504fe0b98e91b8189f59b07371fadb224dc5d215ef51d6e48",
+      "bytes": 15348,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "docs/ASSETS.md",
+      "sha256": "37393cdade3e7e422ab1e329b33ec2192da288825076513051d1ce6d40f5a5af",
+      "bytes": 208750,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/CI.md",
+      "sha256": "f3ad0235f23eea330237624a5e609f7b1be542c6a5f91a1105ec0ffc3426ee92",
+      "bytes": 13999,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/DEVICE-EXECUTION.md",
+      "sha256": "4de9512e6e003e1935cce7be3db8ce2a59519246e3157c603e9d27d020510e63",
+      "bytes": 17478,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/EXECUTION.md",
+      "sha256": "7d39267bd0fb6fd81aaa893b436d9c98184bc11126ad4400b1a6f4f6342a4df1",
+      "bytes": 20125,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/KV-CACHE.md",
+      "sha256": "7d1d0d8acf52b3f7b9d12cf69de6df08ef902e83ec0d6f09dd6d8865e2de0003",
+      "bytes": 17424,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/MULTI-DEVICE.md",
+      "sha256": "1915bb399bbfabf2a07b9f1cd3c0ad89c59cfc6877019adb4d52ed2057b66aca",
+      "bytes": 47384,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "sha256": "0dbf58cb26efde08c44a70be40faa207eb8e2b1c40ff2a7686d64fb1ed67d3b7",
+      "bytes": 18095,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/SERVER.md",
+      "sha256": "5feaa6dd4b9f200782f7f358de44ea2d517f44010db97c17c4428961b3113d9a",
+      "bytes": 13815,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/STATUS.md",
+      "sha256": "c874c5596eb3bce5fbda8625e2b0f6a6b63535dcea120309d8b26364a8ee46a4",
+      "bytes": 367915,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "docs/USAGE.md",
+      "sha256": "61856457b88624f98f653c511710ce27f097d641336448932397bc82046c6b52",
+      "bytes": 34429,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "docs/VULKAN.md",
+      "sha256": "81123c75f1d22a5568a132452fe429f794bb2c379bf634ec1535426320b30f48",
+      "bytes": 64053,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+      "sha256": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+      "bytes": 2222,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "docs/benchmarks/backend-audit-20260925/README.md",
+      "sha256": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+      "bytes": 6080,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+      "sha256": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+      "bytes": 9389,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+      "sha256": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+      "bytes": 3535,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+      "sha256": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+      "bytes": 4374,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+      "sha256": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+      "bytes": 3266,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+      "sha256": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+      "bytes": 1186,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/backends-backend.md",
+      "sha256": "d4df0ef0533bfc9ff3b43a3ddd70d20a2a4481424838b7d2489ee59e7968c2ea",
+      "bytes": 9522,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "docs/src/backends-cpu-placement.md",
+      "sha256": "a3da38b542740129bf122ed7ecaf7f5b60571422b37ebb3fb3af986eedc4e3ab",
+      "bytes": 1372,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/backends-cpu.md",
+      "sha256": "478673778fe216d26441a95f0bea405a441572e7dda18d3b29407bb917dc9cd0",
+      "bytes": 11228,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "docs/src/backends-vulkan.md",
+      "sha256": "edd16048d449f7029fcadc83376fdef13496874f87301fdcfb09cc392df56ce6",
+      "bytes": 7667,
+      "unchanged_from_prior_review": false
+    },
+    {
+      "path": "docs/src/cli-main.md",
+      "sha256": "a84186d2a4ee087bdb0d2aa18e8a34880fb34a15e1c35401e97395e26d8e97ad",
+      "bytes": 5863,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/config.md",
+      "sha256": "9d63e71a3342a725f53d367d2d208fd7e30ee6eabc94864b86fde0baed68921b",
+      "bytes": 1830,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/core-fp16.md",
+      "sha256": "2967c0db0e5dd115df1e08f88202a227d796707d7f3246f20a95bc9c02474253",
+      "bytes": 1137,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/core-host_memory.md",
+      "sha256": "7a6d79ddb7271c9de260cc941841df76376152e5d736c87bfff0b4f376a24ecd",
+      "bytes": 831,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/core-json.md",
+      "sha256": "ea6a957f2ad55a1f2624320f72b598056befa1b8a77991d0fbbbf71b819bca2b",
+      "bytes": 3069,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/core-sha.md",
+      "sha256": "3cd6b7539ad1339e6509bc02c10300d3aa8d1ffd928fecd2a00bf03454289b32",
+      "bytes": 758,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/format-format.md",
+      "sha256": "7448366de8de189ff82342a32f734dc9f1ce785e30710a02e274ac2b3ed8c9aa",
+      "bytes": 1150,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/format-gguf.md",
+      "sha256": "a9265876a51530a589edef72f85011d9d38e4f6a8ae5481a6db5ae46254bfb36",
+      "bytes": 6572,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/format-mapped_file.md",
+      "sha256": "e964439ec318bd97ea65d3fae23a7d37c6d9ba03b3e501cb2c08557efb41fe4c",
+      "bytes": 1322,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/hub.md",
+      "sha256": "d68a3607d987500529ec65ee3b47326ac08550ecd523d95566c9457cee94d8bd",
+      "bytes": 3379,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/inference-chat.md",
+      "sha256": "9c1e6ed2a251aae5790f05bf2f92f04039d581cc8b7b92a4da6c9327261d2a9c",
+      "bytes": 1431,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/inference-generate.md",
+      "sha256": "fade2850d36e194437438dfab8572431d8cddb16f4becbe9d4e4ea34773f795e",
+      "bytes": 1546,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/inference-perplexity.md",
+      "sha256": "781701904fdb6374dbf9400baf1f4b35c083cf54ad27537e5213481905de765c",
+      "bytes": 1361,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/inference-sampler.md",
+      "sha256": "b2f25f62be3af52591755223eacef84569813552d0f935eedf63325168b34d14",
+      "bytes": 1172,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/model-arch_qwen.md",
+      "sha256": "88b68ba2af25b13cc756f2f89da35b18d9c2dfce2e4f45c1f4d9f7ab24bea421",
+      "bytes": 12588,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/model-kv_cache.md",
+      "sha256": "faec0a6f1ecf5f195a1645e1a55863281a4e2191963568dfdc75098919c37a30",
+      "bytes": 2829,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/model-layer_split.md",
+      "sha256": "160cd73dae8d1eb589fbd5e61d57194aa09d835d8d9702c68277fcaad59a665b",
+      "bytes": 4775,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/quant-k_quants.md",
+      "sha256": "5c24875ed3899638f40328564c76339b3d2b58c8165626cf851971a64115d713",
+      "bytes": 669,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/quant-quant.md",
+      "sha256": "839d8bda3e2fa8a8ccf46ddd4d8db798a0d472b02119dbe6cccbb396ebff7193",
+      "bytes": 1827,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/server.md",
+      "sha256": "dc3a2f5d6c26a17b9bb2925605818d5bc8dfbf33a4beded78e44c705a306f43e",
+      "bytes": 2529,
+      "unchanged_from_prior_review": true
+    },
+    {
+      "path": "docs/src/tokenizer-tokenizer.md",
+      "sha256": "2a4ef2496a5685c582071d712f32d578f42009237f747f218466dc33fe528f60",
+      "bytes": 1790,
+      "unchanged_from_prior_review": true
+    }
+  ],
+  "changed_from_prior_markdown": [
+    "AGENTS.md",
+    "docs/ARCHITECTURE.md",
+    "docs/MULTI-DEVICE.md",
+    "docs/STATUS.md",
+    "docs/USAGE.md",
+    "docs/VULKAN.md",
+    "docs/benchmarks/attention-coverage-20260925/README.md",
+    "docs/src/backends-backend.md",
+    "docs/src/backends-cpu.md",
+    "docs/src/backends-vulkan.md"
+  ],
+  "source_scope": {
+    "runtime_build_ci_diff_against_base": [],
+    "test_source_sha256": "748e0fa131d5cbd1d386249e4765194715d860d31cbb877d3ec1626d84b980dd",
+    "test_changes": "Expanded attention loop only plus two777-byte fixture size corrections; no RowRuns repair imported. New/changed comments areASCII and complete sentences per line.",
+    "isolation": "ARCHITECTURE/backend/CPU docs omit pendingRowRuns claims appropriately; this is independent test-only work on publishedmain."
+  },
+  "validation": {
+    "fresh_configure_build_native_exits": [
+      0,
+      0,
+      0
+    ],
+    "native_passed": 24,
+    "native_skipped": 0,
+    "device": "AMD Radeon VII",
+    "distinct_attention_combinations": 80,
+    "predicate_review": "widths32/64/128/256 vector;40 non-vector. Ratios2/4/8 group after2100/3000 histories,ratio1 staysungrouped. All4K/Vsidepairs. Single-queryextent avoids tile. Mixedshort/long check includesbothrows.",
+    "oracle": "Unchanged1e-4*(1+abs(cpu)); exactfullmixedoutput versusseparateGPUcalls;finitechecked. CPUcachetypesmatchGPU. Inputs/storage/views retainedthroughsynchronousread.",
+    "limitations": "NativeWindowsRadeonVII coverage only; nofreshHF,MI50,cross-vendororperformanceclaim. Nativebandwidth diagnostic overlapscompression."
+  },
+  "evidence_hashes": {
+    "report.json": "3bbee6b27b0b0730ff9b356151a94f71e24ddd4ba83edbf9bf929c647cac1f70",
+    "final/commands.json": "42fff25b9adc70dcdab78960d0f36a968f8d7a2a693cc9dcd4fa24c5cce5b044",
+    "final/complete.json": "31a0db80a14cfdabb0b857bc050c856cd58f846c50cd50f32f1d2e0894ec6954",
+    "final/LastTest.log": "7e43081bf4b26edac9f0816829b23e70abcb1bec4476d7cc008fc4da4d55243c",
+    "final/configure.log": "ba1dbc9b1b9ee376fc7b8172e5f9d7db2e7def029942e3a0aaf3294f561fff9b",
+    "final/build.log": "be3718ad04674e2a3018dafa25491e15b415b570a23bfeabc57de4d580d60cc8",
+    "final/native.log": "7f1f22df70e684121656bf93c949be8399a7b0f289481617464b22dcd9992896"
+  },
+  "findings": [],
+  "pending_administrative_update": [],
+  "historical_scope": "Earlierattentionperformance/HF/clockclaims remain publishedbasehistory,notnewmeasurements of this test-onlycheckpoint. Initialpassing run remains pre-fixture-correction; final corrected run is the gate."
+}

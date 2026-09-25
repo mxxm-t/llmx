@@ -1,0 +1,9 @@
+{
+  "base": "c602ace35a06597d832b9d559458d39fd4a872ad",
+  "draft_base": "da325cb70c6a5508510638d38ae3f69d7501b528",
+  "runtime_scope": "No runtime or CMake source changes. Only native test and documentation changes.",
+  "test_sha256": "a6d91cf59ac9bc854328fbd18393e61d7ab1d4f718c3853ab54c68419749c0a7",
+  "unique_combinations": 80,
+  "status": "prepared, not built or executed",
+  "prepared_utc": "2026-09-25T04:55:48.893836+00:00"
+}

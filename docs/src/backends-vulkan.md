@@ -70,10 +70,11 @@ kernel notes and measurements are `docs/VULKAN.md`.
   least 4096 wide), and `tile_rows_for` picks a height of 128, 64 or 32
   rows from the device's compute units and the projection's width.
 - Batch invariance: with row runs (`backend.hpp` `RowRuns`) a row's
-  matmul kernel and split, and its attention kernel and history split,
-  follow its prompt's extent rather than the call's width, so a prompt
-  computes the same whether it arrives alone, in slices or beside other
-  sequences, and the server gives the CLI's text.
+  matmul kernel and split follow its prompt's extent rather than the
+  call's width. Attention uses that extent for tiled versus row dispatch
+  and each row's length for its history splits. Grouped-head variants
+  also depend on the dispatch's longest history while preserving each
+  row's arithmetic, so batching must not change a sequence's output.
 - `rms_norm_rows` spreads a row over several workgroups when the output
   does not overlap the input, with the same tree reduction as one.
 - Mixture of experts: `shaders/moe_route.comp` routes a row per workgroup
@@ -89,8 +90,8 @@ kernel notes and measurements are `docs/VULKAN.md`.
   their weighted sum to the residual; the grouping and the activation
   twin made for gate and up are reused by it.
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16,
-  written and read through a view table so every cache kernel runs once
-  per layer over every view of a batch. Attention gives views of 128-wide
+  written and read through view tables. Attention can dispatch tiled and
+  row kernels plus a history-split merge in one layer. It gives views of 128-wide
   heads whose prompt reaches 32 tokens to the tiled kernel
   (`shaders/attention_tile.comp`) and the rest to the per-row kernel, which
   splits a row's history into parts from the row's own length and merges

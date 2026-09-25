@@ -1,0 +1,266 @@
+MSBuild version 18.4.0+6e61e96ac for .NET Framework
+
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\ZERO_CHECK.vcxproj]
+  1>Checking Build System
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-build-info.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-backend-errors-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-backend-group-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-vulkan-shaders.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  glslc add
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-chat-template-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  glslc attention
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-cli-output-test.vcxproj]
+  chat_template.cpp
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  cli_output.cpp
+  glslc attention_g4
+  glslc attention_k16
+  glslc attention_k16_g4
+  glslc attention_kv16
+  glslc attention_kv16_g4
+  glslc attention_merge
+  glslc attention_tile
+  glslc attention_tile_k16
+  glslc attention_tile_kv16
+  glslc attention_tile_v16
+  glslc attention_v16
+  glslc attention_v16_g4
+  glslc attention_vec
+  glslc attention_vec_g4
+  glslc attention_vec_k16
+  llmx-chat-template-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-chat-template-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-fp16-test.vcxproj]
+  glslc attention_vec_k16_g4
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  fp16.cpp
+  glslc attention_vec_kv16
+  glslc attention_vec_kv16_g4
+  glslc attention_vec_v16
+  llmx-fp16-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-fp16-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-fused-dot-overflow-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  glslc attention_vec_v16_g4
+  fused_dot_overflow.cpp
+  glslc embed
+  glslc gather_rows
+  glslc kv_write
+  glslc kv_write_k16
+  glslc kv_write_kv16
+  glslc kv_write_v16
+  glslc matmul_reduce
+  glslc matmul_row
+  glslc matmul_row_k
+  glslc matmul_row_k4
+  glslc matmul_row_k4_dot
+  glslc matmul_row_k5
+  glslc matmul_row_k5_dot
+  glslc matmul_row_k_dot
+  llmx-fused-dot-overflow-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-fused-dot-overflow-test.exe
+  glslc matmul_row_k_dot8
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-generation-stream-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  generation_stream.cpp
+  glslc matmul_row_q4
+  glslc matmul_row_q4_dot
+  glslc matmul_row_q4_dot8
+  glslc matmul_row_q8w
+  glslc matmul_tile
+  glslc matmul_tile_q
+  glslc matmul_tile_q6
+  glslc matmul_vec_q8
+  glslc moe_combine
+  glslc moe_group
+  glslc moe_route
+  glslc norm_rope_kv
+  llmx-cli-output-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-cli-output-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-gguf-shards-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  glslc norm_rope_kv_k16
+  gguf_shards.cpp
+  glslc norm_rope_kv_kv16
+  glslc norm_rope_kv_v16
+  glslc norm_rope_rows
+  glslc quantize_x
+  glslc quantize_x8
+  glslc rms_norm_rows
+  glslc silu_mul
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  backend_group.cpp
+  llmx-generation-stream-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-generation-stream-test.exe
+  backend_errors.cpp
+  llmx-gguf-shards-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-gguf-shards-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-vulkan.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  vulkan_backend.cpp
+  llmx-backend-group-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-backend-group-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-gguf-validation-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  gguf_validation.cpp
+  llmx-backend-errors-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-backend-errors-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-http-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  http.cpp
+  llmx-vulkan.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-vulkan.lib
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-backend-vulkan-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  backend_vulkan.cpp
+  llmx-http-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-http-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-hub-manifest-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  hub_manifest.cpp
+  llmx-gguf-validation-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-gguf-validation-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-hub-pull-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  hub_pull.cpp
+C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\backend_vulkan.cpp(706,98): warning C4456: declaration of 'nout' hides previous local declaration [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-backend-vulkan-test.vcxproj]
+      C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\backend_vulkan.cpp(322,22):
+      see declaration of 'nout'
+  
+C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\backend_vulkan.cpp(709,28): warning C4456: declaration of 'wf' hides previous local declaration [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-backend-vulkan-test.vcxproj]
+      C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\backend_vulkan.cpp(323,20):
+      see declaration of 'wf'
+  
+C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\backend_vulkan.cpp(710,38): warning C4456: declaration of 'wq' hides previous local declaration [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-backend-vulkan-test.vcxproj]
+      C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\backend_vulkan.cpp(324,30):
+      see declaration of 'wq'
+  
+  llmx-hub-manifest-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-hub-manifest-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-hub-transport-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  hub_transport.cpp
+C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\hub_transport.cpp(39,34): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-hub-transport-test.vcxproj]
+C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\hub_transport.cpp(46,14): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-hub-transport-test.vcxproj]
+C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\hub_transport.cpp(47,14): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-hub-transport-test.vcxproj]
+C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\hub_transport.cpp(49,36): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-hub-transport-test.vcxproj]
+  llmx-hub-pull-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-hub-pull-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  main.cpp
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-json-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  llmx-hub-transport-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-hub-transport-test.exe
+  json.cpp
+  llmx-backend-vulkan-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-backend-vulkan-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-kv-cache-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  kv_cache.cpp
+  llmx-json-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-json-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-load-progress-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  load_progress.cpp
+  llmx-load-progress-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-load-progress-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-model-validation-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  model_validation.cpp
+  llmx-kv-cache-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-kv-cache-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-moe-kernel-bench.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  moe_kernel_bench.cpp
+  llmx-moe-kernel-bench.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-moe-kernel-bench.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-multi-device-bench.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  multi_device_bench.cpp
+  llmx.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-placement-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  placement.cpp
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-prefill-placement-test.vcxproj]
+  llmx-multi-device-bench.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-multi-device-bench.exe
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  prefill_placement.cpp
+  llmx-model-validation-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-model-validation-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-prefill-scope-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  prefill_scope.cpp
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  llmx-placement-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-placement-test.exe
+  q8_dots.cpp
+  llmx-prefill-placement-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-prefill-placement-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-split-check.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  split_check.cpp
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244: '=': conversion from 'const _Ty' to 'signed char', possible loss of data [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         with [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         [ [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:             _Ty=int [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         ] [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+  (compiling source file '../tests/q8_dots.cpp')
+      C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24):
+      the template instantiation context (the oldest one first) is
+          C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\q8_dots.cpp(307,25):
+          see reference to function template instantiation '`anonymous-namespace'::ActivationChecks `anonymous-namespace'::check_activation_range<backend::q8::Rows,void(__cdecl *)(const float *,size_t,size_t,backend::q8::Rows &)>(int,Quantize)' being compiled
+          with
+          [
+              Quantize=void (__cdecl *)(const float *,size_t,size_t,backend::q8::Rows &)
+          ]
+          C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\q8_dots.cpp(85,14):
+          see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled
+          with
+          [
+              _Ty=int8_t,
+              _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<int8_t>>>
+          ]
+  
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244: '=': conversion from 'const _Ty' to 'short', possible loss of data [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         with [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         [ [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:             _Ty=int [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24): warning C4244:         ] [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+  (compiling source file '../tests/q8_dots.cpp')
+      C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5421,24):
+      the template instantiation context (the oldest one first) is
+          C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\q8_dots.cpp(308,26):
+          see reference to function template instantiation '`anonymous-namespace'::ActivationChecks `anonymous-namespace'::check_activation_range<backend::q8::Rows16,void(__cdecl *)(const float *,size_t,size_t,backend::q8::Rows16 &)>(int,Quantize)' being compiled
+          with
+          [
+              Quantize=void (__cdecl *)(const float *,size_t,size_t,backend::q8::Rows16 &)
+          ]
+          C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\q8_dots.cpp(85,14):
+          see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled
+          with
+          [
+              _Ty=int16_t,
+              _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<int16_t>>>
+          ]
+  
+  llmx-prefill-scope-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-prefill-scope-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244: 'initializing': conversion from 'const _Ty' to 'signed char', possible loss of data [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244:         with [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244:         [ [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244:             _Ty=int [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37): warning C4244:         ] [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-q8-dots-test.vcxproj]
+  (compiling source file '../tests/q8_dots.cpp')
+      C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5375,37):
+      the template instantiation context (the oldest one first) is
+          C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\tests\q8_dots.cpp(85,14):
+          see reference to function template instantiation 'void std::fill<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,int>(const _FwdIt,const _FwdIt,const int &)' being compiled
+          with
+          [
+              _Ty=int8_t,
+              _FwdIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<int8_t>>>
+          ]
+          C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility(5410,22):
+          see reference to function template instantiation 'void std::_Fill_memset<signed char*,_Ty>(_CtgIt,const _Ty,const size_t)' being compiled
+          with
+          [
+              _Ty=int,
+              _CtgIt=signed char *
+          ]
+  
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-vk-handoff.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  vulkan_handoff.cpp
+  llmx-vk-handoff.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-vk-handoff.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\llmx-vulkan-lifetime-test.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt
+  vulkan_buffer.cpp
+  llmx-q8-dots-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-q8-dots-test.exe
+  llmx-split-check.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-split-check.exe
+  llmx-vulkan-lifetime-test.vcxproj -> C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\Release\llmx-vulkan-lifetime-test.exe
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(561,5): warning MSB8029: The Intermediate directory or Output directory cannot reside under the Temporary directory as it could lead to issues with incremental build. [C:\Users\Marko\AppData\Local\Temp\llmx-attention-coverage-20260925\build-attention\ALL_BUILD.vcxproj]
+  Building Custom Rule C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/CMakeLists.txt

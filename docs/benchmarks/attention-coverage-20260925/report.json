@@ -1,0 +1,54 @@
+{
+  "base": "c602ace35a06597d832b9d559458d39fd4a872ad",
+  "scope": "Native test coverage and documentation only. Runtime and build configuration diff against base is empty.",
+  "native_tests": {
+    "passed": 24,
+    "total": 24,
+    "failed": 0,
+    "skipped": 0
+  },
+  "device": "AMD Radeon VII",
+  "environment": "Windows, MSVC19.50 Release, Vulkan SDK1.4.357.0",
+  "attention_cases": 80,
+  "widths": [
+    32,
+    40,
+    64,
+    128,
+    256
+  ],
+  "head_ratios": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "cache_types": [
+    "f32/f32",
+    "f32/f16",
+    "f16/f32",
+    "f16/f16"
+  ],
+  "long_histories": [
+    2100,
+    3000
+  ],
+  "mixed_histories": [
+    40,
+    3000
+  ],
+  "numerical_bound": "abs(cpu-gpu) <=1e-4*(1+abs(cpu)); unchanged",
+  "batch_invariance": "Every float of both mixed-history rows bit-identical to separate GPU calls; all outputs finite",
+  "test_binary": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-attention-coverage-20260925\\build-attention-final\\Release\\llmx-backend-vulkan-test.exe",
+    "sha256": "542729405c394779ae70d15097af72bd958e51726d3ea17db157984e76b27a67"
+  },
+  "test_source_sha256": "748e0fa131d5cbd1d386249e4765194715d860d31cbb877d3ec1626d84b980dd",
+  "fixture_correction": "Both host-visible write/comparison sizes now use the777-byte fixture size; initial passing run retained separately.",
+  "limitations": [
+    "No fresh external HF or performance claim: runtime source and build configuration are unchanged.",
+    "Kernel bandwidth lines in LastTest.log are diagnostics, with evidence compression running concurrently; not controlled performance measurements.",
+    "This executes Windows Radeon VII paths, not MI50 or all Vulkan devices."
+  ],
+  "runtime_paths_changed": []
+}

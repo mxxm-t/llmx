@@ -1,0 +1,561 @@
+Start testing: Sep 25 07:59 FLE Daylight Time
+----------------------------------------------------------
+1/24 Testing: hub-manifest
+1/24 Test: hub-manifest
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-hub-manifest-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"hub-manifest" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+hub: SHA vectors, quant selection, shards, metadata and paths pass
+<end of output>
+Test time =   0.05 sec
+----------------------------------------------------------
+Test Passed.
+"hub-manifest" end time: Sep 25 07:59 FLE Daylight Time
+"hub-manifest" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/24 Testing: hub-pull
+2/24 Test: hub-pull
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-hub-pull-test.exe" "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"hub-pull" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+hub: four overlapping ranges, exact assembly, cache repair, failure cleanup, serial retry and Git digest pass
+<end of output>
+Test time =   2.45 sec
+----------------------------------------------------------
+Test Passed.
+"hub-pull" end time: Sep 25 07:59 FLE Daylight Time
+"hub-pull" time elapsed: 00:00:02
+----------------------------------------------------------
+
+3/24 Testing: hub-transport
+3/24 Test: hub-transport
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-hub-transport-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"hub-transport" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+hub-transport: 58 checks passed (fake child; no network)
+<end of output>
+Test time =   1.05 sec
+----------------------------------------------------------
+Test Passed.
+"hub-transport" end time: Sep 25 07:59 FLE Daylight Time
+"hub-transport" time elapsed: 00:00:01
+----------------------------------------------------------
+
+4/24 Testing: gguf-shards
+4/24 Test: gguf-shards
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-gguf-shards-test.exe" "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/gguf-shards-fixtures"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"gguf-shards" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+GGUF shards: 66 cases pass
+<end of output>
+Test time =   0.19 sec
+----------------------------------------------------------
+Test Passed.
+"gguf-shards" end time: Sep 25 07:59 FLE Daylight Time
+"gguf-shards" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/24 Testing: model-validation
+5/24 Test: model-validation
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-model-validation-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"model-validation" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+model-validation: 380 checks passed
+<end of output>
+Test time =   0.13 sec
+----------------------------------------------------------
+Test Passed.
+"model-validation" end time: Sep 25 07:59 FLE Daylight Time
+"model-validation" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/24 Testing: gguf-validation
+6/24 Test: gguf-validation
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-gguf-validation-test.exe" "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/gguf-validation-fixture.gguf"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"gguf-validation" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+GGUF validation: 122 independent file cases pass
+<end of output>
+Test time =   0.17 sec
+----------------------------------------------------------
+Test Passed.
+"gguf-validation" end time: Sep 25 07:59 FLE Daylight Time
+"gguf-validation" time elapsed: 00:00:00
+----------------------------------------------------------
+
+7/24 Testing: json
+7/24 Test: json
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-json-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"json" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+JSON locale: custom C++ comma facet; installed C comma locale checked
+JSON: 1051 independent checks pass
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"json" end time: Sep 25 07:59 FLE Daylight Time
+"json" time elapsed: 00:00:00
+----------------------------------------------------------
+
+8/24 Testing: cli-output
+8/24 Test: cli-output
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-cli-output-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"cli-output" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+CLI output: each byte chunk flushed immediately; device lists canonical
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"cli-output" end time: Sep 25 07:59 FLE Daylight Time
+"cli-output" time elapsed: 00:00:00
+----------------------------------------------------------
+
+9/24 Testing: load-progress
+9/24 Test: load-progress
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-load-progress-test.exe" "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/load-progress-fixture.gguf"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"load-progress" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+load progress: payload bytes, chunks, adapter, truncation and consumer failures pass
+<end of output>
+Test time =   0.05 sec
+----------------------------------------------------------
+Test Passed.
+"load-progress" end time: Sep 25 07:59 FLE Daylight Time
+"load-progress" time elapsed: 00:00:00
+----------------------------------------------------------
+
+10/24 Testing: generation-stream
+10/24 Test: generation-stream
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-generation-stream-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"generation-stream" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+generation stream: early delivery, UTF-8, filters, stop/EOS and consumer failures pass
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"generation-stream" end time: Sep 25 07:59 FLE Daylight Time
+"generation-stream" time elapsed: 00:00:00
+----------------------------------------------------------
+
+11/24 Testing: backend-group
+11/24 Test: backend-group
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-backend-group-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"backend-group" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+grouped projections: 540 cases, 141750 outputs checked against separate calls and double dots; 253952 exact finite Q8 scale/weight cases; 1824 ordered prefill reductions; 694 magnitude-sweep outputs; 48 per-position norm+RoPE outputs; 28 gathered values
+<end of output>
+Test time =   0.13 sec
+----------------------------------------------------------
+Test Passed.
+"backend-group" end time: Sep 25 07:59 FLE Daylight Time
+"backend-group" time elapsed: 00:00:00
+----------------------------------------------------------
+
+12/24 Testing: fused-dot-overflow
+12/24 Test: fused-dot-overflow
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-fused-dot-overflow-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"fused-dot-overflow" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+fused dot overflow: 32 cases finite and exact
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"fused-dot-overflow" end time: Sep 25 07:59 FLE Daylight Time
+"fused-dot-overflow" time elapsed: 00:00:00
+----------------------------------------------------------
+
+13/24 Testing: q8-dots
+13/24 Test: q8-dots
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-q8-dots-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"q8-dots" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+activation range: 10004 blocks, 320128 packed values, 1128 tiny blocks, 560 exact tiny ties; input and output guards passed
+q8 dots: 1998 rows against the reference, alone, beside others and grouped; 72 routed entries against their experts
+<end of output>
+Test time =   0.07 sec
+----------------------------------------------------------
+Test Passed.
+"q8-dots" end time: Sep 25 07:59 FLE Daylight Time
+"q8-dots" time elapsed: 00:00:00
+----------------------------------------------------------
+
+14/24 Testing: backend-errors
+14/24 Test: backend-errors
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-backend-errors-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"backend-errors" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+startup allocation failures: constructor=24 resize=3
+CPU interface: 15 empty transfers, 13 rejected ranges/sources, 3 thread-hint checks passed
+backend errors: passed
+<end of output>
+Test time =   1.02 sec
+----------------------------------------------------------
+Test Passed.
+"backend-errors" end time: Sep 25 07:59 FLE Daylight Time
+"backend-errors" time elapsed: 00:00:01
+----------------------------------------------------------
+
+15/24 Testing: prefill-scope
+15/24 Test: prefill-scope
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-prefill-scope-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"prefill-scope" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+prefill scope: 17 contracts, 12 model scopes, 288 exact finite logits
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"prefill-scope" end time: Sep 25 07:59 FLE Daylight Time
+"prefill-scope" time elapsed: 00:00:00
+----------------------------------------------------------
+
+16/24 Testing: prefill-placement
+16/24 Test: prefill-placement
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-prefill-placement-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"prefill-placement" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+synthetic: insufficient-cores-2 [ok]
+synthetic: insufficient-cores-4 [ok]
+synthetic: whole-phase-six-participants [ok]
+synthetic: q8-1 [ok]
+synthetic: f32-1 [ok]
+synthetic: q8-6 [ok]
+synthetic: f32-6 [ok]
+synthetic: q8-4 [ok]
+synthetic: f32-4 [ok]
+synthetic: q8-6 [ok]
+synthetic: f32-6 [ok]
+synthetic: clean-fallback-1 [ok]
+synthetic: clean-fallback-2 [ok]
+synthetic: clean-fallback-3 [ok]
+synthetic: clean-fallback-5 [ok]
+synthetic: clean-fallback-6 [ok]
+synthetic: restricted-mask-all-or-clean-fallback [ok]
+synthetic: setup-throw-before-mutation [ok]
+synthetic: body-error--1 [ok]
+synthetic: body-error-0 [ok]
+synthetic: body-error-3 [ok]
+synthetic: restore-error-7 [ok]
+synthetic: reuse-after-verified-restore-or-test-rescue [ok]
+synthetic: restore-error-8 [ok]
+synthetic: reuse-after-verified-restore-or-test-rescue [ok]
+synthetic: restore-error-9 [ok]
+synthetic: reuse-after-verified-restore-or-test-rescue [ok]
+synthetic: dual-body-and-cleanup-failure [ok]
+synthetic: final-reuse [ok]
+native: whole-phase-six-participants [ok]
+native: q8-1 [ok]
+native: f32-1 [ok]
+native: q8-6 [ok]
+native: f32-6 [ok]
+native: q8-4 [ok]
+native: f32-4 [ok]
+native: q8-6 [ok]
+native: f32-6 [ok]
+native: clean-fallback-1 [ok]
+native: clean-fallback-2 [ok]
+native: clean-fallback-3 [ok]
+native: clean-fallback-5 [ok]
+native: clean-fallback-6 [ok]
+native: restricted-mask-all-or-clean-fallback [ok]
+native: setup-throw-before-mutation [ok]
+native: body-error--1 [ok]
+native: body-error-0 [ok]
+native: body-error-3 [ok]
+native: restore-error-7 [ok]
+native: reuse-after-verified-restore-or-test-rescue [ok]
+native: restore-error-8 [ok]
+native: reuse-after-verified-restore-or-test-rescue [ok]
+native: restore-error-9 [ok]
+native: reuse-after-verified-restore-or-test-rescue [ok]
+native: dual-body-and-cleanup-failure [ok]
+native: final-reuse [ok]
+Windows prefill placement: 56 cases, 2352 exact values; persistent injected failures use test-only rescue
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"prefill-placement" end time: Sep 25 07:59 FLE Daylight Time
+"prefill-placement" time elapsed: 00:00:00
+----------------------------------------------------------
+
+17/24 Testing: chat-template
+17/24 Test: chat-template
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-chat-template-test.exe" "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/tests/data/baseline_chat_template.json"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"chat-template" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+12 Qwen chat-template cases match Jinja2
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"chat-template" end time: Sep 25 07:59 FLE Daylight Time
+"chat-template" time elapsed: 00:00:00
+----------------------------------------------------------
+
+18/24 Testing: fp16
+18/24 Test: fp16
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-fp16-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"fp16" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+fp16: 63793 conversion checks pass
+<end of output>
+Test time =   0.05 sec
+----------------------------------------------------------
+Test Passed.
+"fp16" end time: Sep 25 07:59 FLE Daylight Time
+"fp16" time elapsed: 00:00:00
+----------------------------------------------------------
+
+19/24 Testing: kv-cache
+19/24 Test: kv-cache
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-kv-cache-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"kv-cache" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+KV cache: pool, sequence, ownership, on-demand storage, reset, paged attention, failed-step transactions and retire-before-release pass
+<end of output>
+Test time =   0.04 sec
+----------------------------------------------------------
+Test Passed.
+"kv-cache" end time: Sep 25 07:59 FLE Daylight Time
+"kv-cache" time elapsed: 00:00:00
+----------------------------------------------------------
+
+20/24 Testing: placement
+20/24 Test: placement
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-placement-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"placement" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+placement: 37 checks across two CPU backends
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"placement" end time: Sep 25 07:59 FLE Daylight Time
+"placement" time elapsed: 00:00:00
+----------------------------------------------------------
+
+21/24 Testing: http
+21/24 Test: http
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-http-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"http" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+http: listener, whole responses, a 3-chunk stream, 413, 400 and 404 over 6 connections
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"http" end time: Sep 25 07:59 FLE Daylight Time
+"http" time elapsed: 00:00:00
+----------------------------------------------------------
+
+22/24 Testing: backend-vulkan
+22/24 Test: backend-vulkan
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-backend-vulkan-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"backend-vulkan" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+backend-vulkan: AMD Radeon VII
+backend-vulkan: tiny dispatch with barrier 4.50585 us each over 2000
+backend-vulkan: Q8_0 matvec 1024x1024 13.13 us, 84.8524 GB/s
+backend-vulkan: Q8_0 matvec 1024x2048 18.286 us, 121.854 GB/s
+backend-vulkan: Q8_0 matvec 1024x3072 22.686 us, 147.33 GB/s
+backend-vulkan: Q8_0 matvec 3072x1024 19.809 us, 168.728 GB/s
+backend-vulkan: Q8_0 matvec 4096x4096 58.184 us, 306.369 GB/s
+backend-vulkan: Q8_0 matvec 4096x12288 141.845 us, 377.013 GB/s
+backend-vulkan: Q8_0 matvec 12288x4096 134.456 us, 397.731 GB/s
+backend-vulkan: Q4_0 matvec 1024x3072 17.728 us, 99.8123 GB/s
+backend-vulkan: Q4_0 matvec 4096x12288 97.115 us, 291.526 GB/s
+backend-vulkan: Q4_1 matvec 3072x1024 16.569 us, 118.66 GB/s
+backend-vulkan: Q4_1 matvec 12288x4096 97.001 us, 324.299 GB/s
+backend-vulkan: Q6_K matvec 1024x3072 19.126 us, 134.92 GB/s
+backend-vulkan: Q6_K matvec 4096x12288 148.219 us, 278.559 GB/s
+backend-vulkan: Q6_K matvec 1024x151936 469.07 us, 272.084 GB/s
+backend-vulkan: Q4_K matvec 1024x3072 15.097 us, 117.207 GB/s
+backend-vulkan: Q4_K matvec 4096x12288 80.685 us, 350.89 GB/s
+backend-vulkan: Q5_K matvec 1024x3072 17.364 us, 124.55 GB/s
+backend-vulkan: Q5_K matvec 4096x12288 99.368 us, 348.231 GB/s
+backend-vulkan: Q8_0 matvec 14336x4096 154.407 us, 404.064 GB/s
+backend-vulkan: Q4_K matvec 14336x4096 92.207 us, 358.217 GB/s
+backend-vulkan: Q6_K matvec 14336x4096 162.482 us, 296.457 GB/s
+backend-vulkan: Q8_0 prefill 4096x14336 over 512 rows 11983.1 us, 5.01786 TFLOPS
+backend-vulkan: Q4_K prefill 4096x14336 over 512 rows 13016 us, 4.61966 TFLOPS
+backend-vulkan: Q6_K prefill 4096x14336 over 512 rows 21438.3 us, 2.80478 TFLOPS
+backend-vulkan: attention 16 heads over 250 tokens 35.8705 us
+backend-vulkan: rms_norm_rows 1x1024 11.3775 us
+backend-vulkan: norm_rope_rows 1 row 16 heads 7.102 us
+backend-vulkan: silu_mul 3072 5.3265 us
+backend-vulkan: kv_write 1 row 7.4155 us
+backend-vulkan: Q8_0 matvec 4096x4096 0.059988 ms, 297.156 GB/s
+backend-vulkan: 13 storage and submission checks; 25373758 kernel outputs against the CPU backend
+add: numUsedVgprs=3 numUsedSgprs=18 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+silu_mul: numUsedVgprs=9 numUsedSgprs=18 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+gather_rows: numUsedVgprs=4 numUsedSgprs=18 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+rms_norm_rows: numUsedVgprs=35 numUsedSgprs=28 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0
+norm_rope_rows: numUsedVgprs=10 numUsedSgprs=24 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0
+embed: numUsedVgprs=14 numUsedSgprs=24 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row: numUsedVgprs=62 numUsedSgprs=42 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_1col: numUsedVgprs=54 numUsedSgprs=35 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_grouped: numUsedVgprs=62 numUsedSgprs=47 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+kv_write: numUsedVgprs=9 numUsedSgprs=30 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+attention: numUsedVgprs=32 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0
+attention_merge: numUsedVgprs=9 numUsedSgprs=28 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_tile: numUsedVgprs=72 numUsedSgprs=53 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=16384 scratchMemUsageInBytes=0
+matmul_tile_small: numUsedVgprs=64 numUsedSgprs=45 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12288 scratchMemUsageInBytes=0
+matmul_row_q4: numUsedVgprs=69 numUsedSgprs=42 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_q4_1col: numUsedVgprs=57 numUsedSgprs=39 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_q4_grouped: numUsedVgprs=69 numUsedSgprs=49 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_k4: numUsedVgprs=73 numUsedSgprs=40 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_k4_1col: numUsedVgprs=63 numUsedSgprs=37 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_k4_grouped: numUsedVgprs=74 numUsedSgprs=47 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_k5: numUsedVgprs=83 numUsedSgprs=40 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_k5_1col: numUsedVgprs=69 numUsedSgprs=37 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_k5_grouped: numUsedVgprs=84 numUsedSgprs=47 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_k: numUsedVgprs=72 numUsedSgprs=45 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_k_1col: numUsedVgprs=63 numUsedSgprs=41 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_k_grouped: numUsedVgprs=74 numUsedSgprs=48 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+norm_rope_kv: numUsedVgprs=14 numUsedSgprs=40 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0
+attention_tile: numUsedVgprs=127 numUsedSgprs=38 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=18432 scratchMemUsageInBytes=176
+kv_write_k16: numUsedVgprs=9 numUsedSgprs=26 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+kv_write_v16: numUsedVgprs=9 numUsedSgprs=30 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+kv_write_kv16: numUsedVgprs=9 numUsedSgprs=26 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+attention_k16: numUsedVgprs=31 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0
+attention_v16: numUsedVgprs=30 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0
+attention_kv16: numUsedVgprs=32 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0
+attention_tile_k16: numUsedVgprs=127 numUsedSgprs=38 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=18432 scratchMemUsageInBytes=176
+attention_tile_v16: numUsedVgprs=127 numUsedSgprs=38 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=18432 scratchMemUsageInBytes=176
+attention_tile_kv16: numUsedVgprs=127 numUsedSgprs=38 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=18432 scratchMemUsageInBytes=176
+norm_rope_kv_k16: numUsedVgprs=14 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0
+norm_rope_kv_v16: numUsedVgprs=14 numUsedSgprs=40 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0
+norm_rope_kv_kv16: numUsedVgprs=14 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0
+quantize_x: numUsedVgprs=9 numUsedSgprs=18 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_q8w: numUsedVgprs=42 numUsedSgprs=52 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_row_q8w_grouped: numUsedVgprs=41 numUsedSgprs=55 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+matmul_tile_tall: numUsedVgprs=103 numUsedSgprs=57 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=24576 scratchMemUsageInBytes=0
+matmul_reduce: numUsedVgprs=3 numUsedSgprs=18 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+moe_route: numUsedVgprs=16 numUsedSgprs=20 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=5632 scratchMemUsageInBytes=0
+moe_combine: numUsedVgprs=20 numUsedSgprs=22 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0
+moe_group: numUsedVgprs=16 numUsedSgprs=36 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=6144 scratchMemUsageInBytes=0
+attention_g4: numUsedVgprs=61 numUsedSgprs=56 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12800 scratchMemUsageInBytes=0
+attention_k16_g4: numUsedVgprs=60 numUsedSgprs=56 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12800 scratchMemUsageInBytes=0
+attention_v16_g4: numUsedVgprs=59 numUsedSgprs=56 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12800 scratchMemUsageInBytes=0
+attention_kv16_g4: numUsedVgprs=61 numUsedSgprs=56 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12800 scratchMemUsageInBytes=0
+attention_vec: numUsedVgprs=47 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0
+attention_vec_k16: numUsedVgprs=47 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0
+attention_vec_v16: numUsedVgprs=41 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0
+attention_vec_kv16: numUsedVgprs=37 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0
+attention_vec_g4: numUsedVgprs=117 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=14336 scratchMemUsageInBytes=0
+attention_vec_k16_g4: numUsedVgprs=113 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=14336 scratchMemUsageInBytes=0
+attention_vec_v16_g4: numUsedVgprs=101 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=14336 scratchMemUsageInBytes=0
+attention_vec_kv16_g4: numUsedVgprs=97 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=14336 scratchMemUsageInBytes=0
+<end of output>
+Test time =  11.90 sec
+----------------------------------------------------------
+Test Passed.
+"backend-vulkan" end time: Sep 25 07:59 FLE Daylight Time
+"backend-vulkan" time elapsed: 00:00:11
+----------------------------------------------------------
+
+23/24 Testing: vulkan-buffer
+23/24 Test: vulkan-buffer
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-vulkan-lifetime-test.exe"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"vulkan-buffer" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+case=0 threw=0 live_buffers=0 live_memory=0 maps=0 PASS
+case=1 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=2 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=3 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=4 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=5 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+case=6 threw=1 live_buffers=0 live_memory=0 maps=0 PASS
+vulkan-buffer: 8 cases, 0 failures (fake API; no device)
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"vulkan-buffer" end time: Sep 25 07:59 FLE Daylight Time
+"vulkan-buffer" time elapsed: 00:00:00
+----------------------------------------------------------
+
+24/24 Testing: vulkan-lifetime
+24/24 Test: vulkan-lifetime
+Command: "C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final/Release/llmx-vulkan-lifetime-test.exe" "--queue"
+Directory: C:/Users/Marko/AppData/Local/Temp/llmx-attention-coverage-20260925/build-attention-final
+"vulkan-lifetime" start time: Sep 25 07:59 FLE Daylight Time
+Output:
+----------------------------------------------------------
+queue_case=0 threw=1 premature=0 PASS
+queue_case=1 threw=1 premature=0 PASS
+queue_case=2 threw=0 premature=0 PASS
+queue_case=3 threw=1 premature=0 PASS
+queue_case=4 threw=1 premature=0 PASS
+queue_case=5 threw=0 premature=0 PASS
+queue_case=6 threw=1 premature=0 PASS
+vulkan queue ownership: 7 cases, 0 failures (transfers intercepted)
+kernel_case=1 cleaned=1 cached=1 empty_after_teardown=1 PASS
+kernel_case=2 cleaned=1 cached=1 empty_after_teardown=1 PASS
+kernel_case=3 cleaned=1 cached=1 empty_after_teardown=1 PASS
+kernel_case=4 cleaned=1 cached=1 empty_after_teardown=1 PASS
+kernel_case=5 cleaned=1 cached=1 empty_after_teardown=1 PASS
+query_case=0 clean_failure=1 created=1 destroyed=1 after_idle=1 PASS
+query_case=1 clean_failure=1 created=1 destroyed=1 after_idle=1 PASS
+padded_drop threw=1 intact=1 retained=1 premature=0 PASS
+<end of output>
+Test time =   1.84 sec
+----------------------------------------------------------
+Test Passed.
+"vulkan-lifetime" end time: Sep 25 07:59 FLE Daylight Time
+"vulkan-lifetime" time elapsed: 00:00:01
+----------------------------------------------------------
+
+End testing: Sep 25 07:59 FLE Daylight Time

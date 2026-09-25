@@ -1,0 +1,55 @@
+[
+  {
+    "stage": "configure",
+    "argv": [
+      "cmake",
+      "-S",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-attention-coverage-20260925",
+      "-B",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-attention-coverage-20260925\\build-attention",
+      "-G",
+      "Visual Studio 18 2026",
+      "-A",
+      "x64",
+      "-DBUILD_TESTING=ON",
+      "-DLLMX_HAS_BACKEND_VULKAN=ON",
+      "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+      "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe"
+    ],
+    "exit": 0,
+    "started": "2026-09-25T04:56:34.931341+00:00",
+    "finished": "2026-09-25T04:56:38.208282+00:00",
+    "log_sha256": "e78da8cbe2dada10853b8257752c0f5bb026e2e8255aa01e009b79e99bca1d7a"
+  },
+  {
+    "stage": "build",
+    "argv": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-attention-coverage-20260925\\build-attention",
+      "--config",
+      "Release",
+      "--parallel",
+      "2"
+    ],
+    "exit": 0,
+    "started": "2026-09-25T04:56:38.213792+00:00",
+    "finished": "2026-09-25T04:57:17.266695+00:00",
+    "log_sha256": "2c87a59efef85b3a577c4670bc4c9c55fa1b5c51af6c0869c23ef6938b340ed3"
+  },
+  {
+    "stage": "native",
+    "argv": [
+      "ctest",
+      "--test-dir",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-attention-coverage-20260925\\build-attention",
+      "-C",
+      "Release",
+      "--output-on-failure"
+    ],
+    "exit": 0,
+    "started": "2026-09-25T04:57:17.274269+00:00",
+    "finished": "2026-09-25T04:57:37.991208+00:00",
+    "log_sha256": "a860ed4e968c0ca67a33536706d6d183d5e773391a0e016479d5c4ebab680b0e"
+  }
+]

@@ -4,6 +4,22 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Vulkan attention coverage checkpoint (2026-09-25)
+
+The native attention oracle covers 80 head-width, head-ratio and K/V-type
+combinations, including all implemented vector widths and a non-vector width.
+Both rows of mixed short/long histories must match separate calls exactly.
+The existing numerical bound is unchanged. The host-visible test now uses
+its 777-byte fixture's size instead of two invalid 1000-byte requests.
+
+A fresh Windows Release build on base `c602ace` passed all 24 native tests on
+the Radeon VII, with no skips. Runtime source and build configuration are
+unchanged. No new external HF or performance result is claimed. The
+[evidence](benchmarks/attention-coverage-20260925/README.md) retains both the
+initial run and final corrected run. The checkpoint review covered all 46
+project Markdown files and 158 relative file targets: all ASCII, all targets
+resolved, and changed claims match source and retained validation evidence.
+
 ## Long-context decode and the 16k check (2026-09-25)
 
 - **Goal:** the pp16384 / tg512 case and the long-context greedy check asked for once decode reached its floor, on one card and on a layer split, beside the reference's Vulkan build on the same cards and file.
@@ -19,7 +35,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   | tg @ d16384, now | 30.4, 28.5 | | 21.4, 20.9 | |
 
   Both runtimes process a 16k prompt faster split than on one card; one card alone over a long prefill is likely held back by its power or thermal limit, not checked.
-- **Done, decode attention on a long history, two steps** (`docs/VULKAN.md`, attention): a workgroup takes up to four query heads of one KV head once the history fills every split, so the history is read once for them, bit-identical to before (merged f8e0c5a); then heads 128 wide take `attention_vec.comp`, a token's row read in one load a lane and several tokens a subgroup (merged 435d610). One MI50, tg128 at a 16384-token history, main then grouped then vectorized: 0.6B 51.0, 64.4, 86.3; 8B Q8_0 21.2, 27.9, 29.4; 30B-A3B 21.0, 29.1, 31.4; level or faster at every shorter history on the MI50 and the Radeon VII. The vectorized kernel sits closer to the CPU than the one it replaces and resolves the MI50's reversed 8B near-tie (the pinned 8B HF check passes 37 of 37 on one MI50); it swapped the 0.6B Q8_0 fixture's 5th and 6th tokens for "The capital of France is", 0.024 apart on the CPU, and with the user's agreement both HF checks now count a swap at the 5th place when the reference puts both tokens within 0.1 of its 5th value (`common.top5_overlap`).
+- **Done, decode attention on a long history, two steps** (`docs/VULKAN.md`, attention): a workgroup takes up to four query heads of one KV head once the history fills every split, so the history is read once for them, bit-identical to before (merged f8e0c5a); then heads 128 wide take `attention_vec.comp`, a token's row read in one load a lane and several tokens a subgroup (runtime merged acaa399; top-5 test policy changed in 435d610). One MI50, tg128 at a 16384-token history, main then grouped then vectorized: 0.6B 51.0, 64.4, 86.3; 8B Q8_0 21.2, 27.9, 29.4; 30B-A3B 21.0, 29.1, 31.4; level or faster at every shorter history on the MI50 and the Radeon VII. The vectorized kernel sits closer to the CPU than the one it replaces and resolves the MI50's reversed 8B near-tie (the pinned 8B HF check passes 37 of 37 on one MI50); it swapped the 0.6B Q8_0 fixture's 5th and 6th tokens for "The capital of France is", 0.024 apart on the CPU, and with the user's agreement both HF checks now count a swap at the 5th place when the reference puts both tokens within 0.1 of its 5th value (`common.top5_overlap`).
 - **Measured and not taken, 16-bit activations on the MI50:** the integer-dot prefill tile over 16-bit activations fixed the 8B near-tie but cost prefill 17 to 62 percent (8B Q8_0 pp512 898 to 339), and the Q8_0 head on the 16-bit twin cost decode 3.5 to 7 percent; the reference's build reverses the same near-tie with 8-bit activations.
 - **Measured, layer-split decode and the card clocks** (main da325cb, Qwen3-8B Q8_0, tg128, two rounds): one MI50 67.66, 67.50 at the automatic performance level and 67.58, 67.34 held high; split over two MI50s 38.98, 39.09 automatic and 66.59, 66.18 held high. The split's single-stream decode gap is the idle card lowering its clock between stages, not the handoff; with the clocks held high (`rocm-smi --setperflevel high`, which the operator sets; llmx changes no power settings, `docs/USAGE.md`) it meets phase 2's decode target already. pp512 is level too (891 split, 899 one card); prefill above one card needs prompts pipelined across the stages. Split comparisons against the reference hold both at the same clock level.
 - **Left:** decode at a 16384-token history is 29.4 tok/s against the reference's 44.5 on one MI50; on the split 21 against 29. Phase 2 (`docs/MULTI-DEVICE.md`): prefill about one device's times the stages, and passes in flight for throughput at several users.
@@ -3240,6 +3256,7 @@ their own measurements; K-quant optimization remains separate work below.
 | CPU backend optimization                 | Done     |
 | CPU tiny-activation range repair | Done; measured CLI Q5 decode cost retained in the checkpoint above |
 | Vulkan allocation failure ownership | Done |
+| Vulkan attention width and mixed-cache validation | Done |
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
 | More model architectures (Llama, ...)    | Planned  |
 | More formats (safetensors, ...)          | Planned  |

@@ -11,7 +11,6 @@
 #include <stdexcept>
 #include <algorithm>
 #include <limits>
-#include <unordered_map>
 #include <unordered_set>
 
 #include "format/format.hpp"
@@ -89,20 +88,6 @@ struct MetaValue {
     std::vector<MetaValue> arr;
 };
 
-inline uint32_t file_alignment(const std::vector<std::pair<std::string, MetaValue>>& kv) {
-    uint32_t alignment = uint32_t(ALIGNMENT);
-    bool found = false;
-    for (const auto& item : kv) {
-        if (item.first != "general.alignment") continue;
-        const auto& value = item.second;
-        if (found || value.vtype != V_UINT32 || !value.u || value.u % 8 ||
-            value.u > std::numeric_limits<uint32_t>::max())
-            throw std::runtime_error("invalid GGUF general.alignment");
-        alignment = uint32_t(value.u);
-        found = true;
-    }
-    return alignment;
-}
 
 struct TensorInfo {
     std::string name;
@@ -185,6 +170,13 @@ struct GGUFModel {
         blob.insert(blob.end(), bytes.begin(), bytes.end());
     }
 
+    // The value stored under `key`, or null. A file repeats no key; the reader refuses one that does.
+    const MetaValue* find(const std::string& key) const {
+        for (const auto& item : kv)
+            if (item.first == key) return &item.second;
+        return nullptr;
+    }
+
 private:
     // The segment holding `offset`: the last whose base is not past it, so a zero-sized tensor at a boundary takes the next.
     const Segment& segment_of(size_t offset) const {
@@ -192,6 +184,14 @@ private:
         return *(it == segments.begin() ? it : it - 1);
     }
 };
+
+inline uint32_t file_alignment(const GGUFModel& m) {
+    const MetaValue* value = m.find("general.alignment");
+    if (!value) return uint32_t(ALIGNMENT);
+    if (value->vtype != V_UINT32 || !value->u || value->u % 8 || value->u > std::numeric_limits<uint32_t>::max())
+        throw std::runtime_error("invalid GGUF general.alignment");
+    return uint32_t(value->u);
+}
 
 class Reader {
     std::istream& stream_;
@@ -332,7 +332,7 @@ inline void write_meta_value(std::ostream& os, const MetaValue& v) {
 }
 
 inline void write_gguf(const GGUFModel& m, const std::string& path) {
-    const uint32_t alignment = file_alignment(m.kv);
+    const uint32_t alignment = file_alignment(m);
     std::ofstream os(std::filesystem::u8path(path), std::ios::binary);
     if (!os) throw std::runtime_error("cannot open file for writing: " + path);
 
@@ -386,11 +386,13 @@ inline uint64_t read_header(std::ifstream& is, GGUFModel& m) {
         ntc > m.tensors.max_size() || nkv > m.kv.max_size())
         throw std::runtime_error("GGUF entry count exceeds file or allocation limit");
 
+    std::unordered_set<std::string> keys;
     for (uint64_t k = 0; k < nkv; k++) {
         std::string key = read_string(reader);
+        if (!keys.insert(key).second) throw std::runtime_error("duplicate GGUF metadata: " + key);
         m.kv.emplace_back(std::move(key), read_meta_value(reader));
     }
-    const uint32_t alignment = file_alignment(m.kv);
+    const uint32_t alignment = file_alignment(m);
 
     // Tensor infos are packed contiguously (no padding between them).
     for (uint64_t i = 0; i < ntc; i++) {
@@ -444,14 +446,7 @@ struct Split {
 };
 
 inline Split split_info(const GGUFModel& m) {
-    const MetaValue* values[3]{};
-    for (const auto& kv : m.kv) {
-        const int index = kv.first == "split.no" ? 0 : kv.first == "split.count" ? 1 :
-                          kv.first == "split.tensors.count" ? 2 : -1;
-        if (index < 0) continue;
-        if (values[index]) throw std::runtime_error("duplicate GGUF split metadata");
-        values[index] = &kv.second;
-    }
+    const MetaValue* values[3] = {m.find("split.no"), m.find("split.count"), m.find("split.tensors.count")};
     if (!values[0] && !values[1] && !values[2]) return {};
     if (!values[0] || !values[1] || !values[2] ||
         values[0]->vtype != V_UINT16 || values[1]->vtype != V_UINT16 ||
@@ -502,10 +497,6 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
                 throw std::runtime_error("GGUF shard filename must end in " + suffix);
             prefix = path.substr(0, path.size() - suffix.size());
         }
-        std::unordered_map<std::string, const MetaValue*> metadata;
-        for (const auto& kv : m.kv)
-            if (!metadata.emplace(kv.first, &kv.second).second)
-                throw std::runtime_error("duplicate GGUF shard metadata: " + kv.first);
         std::unordered_set<std::string> names;
         auto check_tensors = [&](const GGUFModel& header, size_t total) {
             if (total > uint64_t(split.tensors))
@@ -521,13 +512,10 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
             const auto next = detail::split_info(header);
             if (!next.present || next.no != index || next.count != split.count || next.tensors != split.tensors)
                 throw std::runtime_error("inconsistent GGUF split metadata");
-            std::unordered_set<std::string> keys;
             for (const auto& kv : header.kv) {
-                if (!keys.insert(kv.first).second)
-                    throw std::runtime_error("duplicate GGUF shard metadata: " + kv.first);
                 if (kv.first == "split.no" || kv.first == "general.alignment") continue;
-                const auto found = metadata.find(kv.first);
-                if (found == metadata.end() || !detail::equal_value(*found->second, kv.second))
+                const MetaValue* first_value = m.find(kv.first);
+                if (!first_value || !detail::equal_value(*first_value, kv.second))
                     throw std::runtime_error("inconsistent GGUF shard metadata: " + kv.first);
             }
             check_tensors(header, files.back().end);
@@ -606,27 +594,18 @@ public:
     }
 
     std::string metadata_string(const std::string& key) const override {
-        for (const auto& kv : m_.kv)
-            if (kv.first == key && kv.second.vtype == gguf::V_STRING) return kv.second.s;
-        return "";
+        const gguf::MetaValue* v = m_.find(key);
+        return v && v->vtype == gguf::V_STRING ? v->s : "";
     }
 
     uint64_t metadata_u64(const std::string& key) const override {
-        for (const auto& kv : m_.kv) {
-            if (kv.first != key) continue;
-            switch (kv.second.vtype) {
-                case gguf::V_UINT8:  return kv.second.u;
-                case gguf::V_UINT16: return kv.second.u;
-                case gguf::V_UINT32: return kv.second.u;
-                case gguf::V_UINT64: return kv.second.u;
-                case gguf::V_INT8:   return (uint64_t)kv.second.i;
-                case gguf::V_INT16:  return (uint64_t)kv.second.i;
-                case gguf::V_INT32:  return (uint64_t)kv.second.i;
-                case gguf::V_INT64:  return (uint64_t)kv.second.i;
-                default: return 0;
-            }
+        const gguf::MetaValue* v = m_.find(key);
+        if (!v) return 0;
+        switch (v->vtype) {
+            case gguf::V_UINT8: case gguf::V_UINT16: case gguf::V_UINT32: case gguf::V_UINT64: return v->u;
+            case gguf::V_INT8: case gguf::V_INT16: case gguf::V_INT32: case gguf::V_INT64: return (uint64_t)v->i;
+            default: return 0;
         }
-        return 0;
     }
 
 private:

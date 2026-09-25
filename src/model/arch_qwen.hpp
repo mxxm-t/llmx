@@ -52,18 +52,8 @@ struct QwenConfig {
 
 inline QwenConfig load_config(const gguf::GGUFModel& m) {
     QwenConfig c;
-    auto find = [&](const std::string& k) -> const gguf::MetaValue* {
-        const gguf::MetaValue* found = nullptr;
-        for (const auto& kv : m.kv) {
-            if (kv.first == k) {
-                if (found) throw std::runtime_error("inference: duplicate metadata " + k);
-                found = &kv.second;
-            }
-        }
-        return found;
-    };
     auto integer = [&](const std::string& k, int fallback = 0) -> int {
-        const auto* v = find(k);
+        const auto* v = m.find(k);
         if (!v) {
             if (fallback) return fallback;
             throw std::runtime_error("inference: missing metadata " + k);
@@ -82,7 +72,7 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
         return int(n);
     };
     auto real = [&](const std::string& k, float fallback) -> double {
-        const auto* v = find(k);
+        const auto* v = m.find(k);
         if (!v) return fallback;
         double n;
         if (v->vtype == gguf::V_FLOAT32) {
@@ -101,11 +91,11 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
         return n;
     };
     auto option = [&](const std::string& k, const std::string& supported) {
-        const auto* v = find(k);
+        const auto* v = m.find(k);
         if (v && (v->vtype != gguf::V_STRING || v->s != supported))
             throw std::runtime_error("inference: unsupported metadata " + k);
     };
-    if (const auto* a = find("general.architecture")) {
+    if (const auto* a = m.find("general.architecture")) {
         if (a->vtype != gguf::V_STRING || (a->s != "qwen3" && a->s != "qwen3moe"))
             throw std::runtime_error("inference: unsupported metadata general.architecture");
         c.arch = a->s;
@@ -121,12 +111,12 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
     c.n_layer = integer(p + "block_count");
     c.n_embd = integer(p + "embedding_length");
     // A mixture-of-experts file needs the dense width only for its dense layers, if it has any.
-    c.n_ff = moe && !find(p + "feed_forward_length") ? 0 : integer(p + "feed_forward_length");
+    c.n_ff = moe && !m.find(p + "feed_forward_length") ? 0 : integer(p + "feed_forward_length");
     c.n_head = integer(p + "attention.head_count");
     c.n_head_kv = integer(p + "attention.head_count_kv", c.n_head);
     if (c.n_head % c.n_head_kv)
         throw std::runtime_error("inference: head count must be divisible by KV head count");
-    if (find(p + "attention.key_length")) {
+    if (m.find(p + "attention.key_length")) {
         c.head_dim = integer(p + "attention.key_length");
     } else {
         if (c.n_embd % c.n_head)
@@ -148,14 +138,14 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
         c.n_ff_exp = integer(p + "expert_feed_forward_length");
         if (c.n_expert_used > c.n_expert || c.n_expert_used > 256)
             throw std::runtime_error("inference: more experts per token than the layer has, or above 256");
-        if (const auto* v = find(p + "expert_weights_norm")) {
+        if (const auto* v = m.find(p + "expert_weights_norm")) {
             if (v->vtype != gguf::V_BOOL) throw std::runtime_error("inference: invalid boolean type " + p + "expert_weights_norm");
             c.expert_norm = v->b;
         }
         // Routing is a softmax over the scores; a sigmoid gate, a shared expert or a scaled mixture is another architecture's.
-        if (const auto* g = find(p + "expert_gating_func"))
+        if (const auto* g = m.find(p + "expert_gating_func"))
             if (g->vtype != gguf::V_UINT32 || g->u != 1) throw std::runtime_error("inference: unsupported expert gating function");
-        if (find(p + "expert_shared_count") || find(p + "expert_shared_feed_forward_length"))
+        if (m.find(p + "expert_shared_count") || m.find(p + "expert_shared_feed_forward_length"))
             throw std::runtime_error("inference: shared experts are unsupported");
         if (real(p + "expert_weights_scale", 1) != 1)
             throw std::runtime_error("inference: scaled expert weights are unsupported");

@@ -869,16 +869,6 @@ inline std::string render(const std::string& tpl,
     return out;
 }
 
-// Read the chat template metadata key from a GGUF model.
-// Returns empty if absent.
-inline std::string get_chat_template(const gguf::GGUFModel& m) {
-    for (const auto& kv : m.kv) {
-        if (kv.first == "tokenizer.chat_template" && kv.second.vtype == gguf::V_STRING)
-            return kv.second.s;
-    }
-    return "";
-}
-
 // How a model's conversations are written: its own template, or ChatML when the file carries none, and the text of the start and end tokens a template may name.
 struct ChatFormat {
     std::string tmpl, bos, eos;
@@ -886,7 +876,8 @@ struct ChatFormat {
 
 inline ChatFormat chat_format(const gguf::GGUFModel& m, const bpe::Tokenizer& tok) {
     ChatFormat f;
-    f.tmpl = get_chat_template(m);
+    const gguf::MetaValue* stored = m.find("tokenizer.chat_template");
+    if (stored && stored->vtype == gguf::V_STRING) f.tmpl = stored->s;
     if (f.tmpl.empty())
         f.tmpl = "{% for message in messages %}<|im_start|>{{ message['role'] }}\n"
                  "{{ message['content'] }}<|im_end|>\n{% endfor %}"

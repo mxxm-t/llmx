@@ -10,7 +10,7 @@ namespace `chat` (with a `chat::jj` value/render core).
   render a template.
 - `chat::chat_format(file, tok) -> ChatFormat`: how a model's conversations
   are written, for `chat` and the server alike: the file's
-  `tokenizer.chat_template` (`get_chat_template`), or ChatML when it carries
+  `tokenizer.chat_template`, or ChatML when it carries
   none, and the text of its start and end tokens.
 
 Supports the control-flow and expressions used by common chat templates

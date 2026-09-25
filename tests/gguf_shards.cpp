@@ -284,13 +284,13 @@ int main(int argc, char** argv) {
             auto metadata = in_first ? first_meta : split(1, 2, 3);
             metadata.push_back(metadata.front());
             save(in_first ? first : second, encode(metadata, in_first ? std::vector<Tensor>{quant} : std::vector<Tensor>{scalar, empty}, in_first ? 64 : 32));
-            rejected(first, "duplicate GGUF split metadata");
+            rejected(first, "duplicate GGUF metadata: split.");
             reset();
             metadata = in_first ? first_meta : split(1, 2, 3);
             metadata.push_back(string_value("general.architecture", "qwen3"));
             if (!in_first) metadata.push_back(metadata.back());
             save(in_first ? first : second, encode(metadata, in_first ? std::vector<Tensor>{quant} : std::vector<Tensor>{scalar, empty}, in_first ? 64 : 32));
-            rejected(first, "duplicate GGUF shard metadata");
+            rejected(first, "duplicate GGUF metadata: general.architecture");
         }
         for (auto extra : {string_value("general.architecture", "llama"),
                            number("general.architecture", 1, 4, 4),

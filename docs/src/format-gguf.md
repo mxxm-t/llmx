@@ -34,6 +34,9 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   hold the weights twice. On Windows a mapped model keeps its file handles open,
   preventing another writer from rewriting or removing the files while loaded.
   POSIX closes each descriptor after mapping; the files must still remain unchanged.
+- `find(key)`: the metadata value under `key`, or null. Every reader of
+  metadata looks keys up through it. `read_gguf` refuses a file that repeats
+  a key, so the first match is the only one.
 - `add_tensor_data` keeps `alignof(float)` between in-memory tensors, so a
   34-byte quantized tensor does not misalign a following F32 tensor.
   `read_gguf` maps the files in place, padding included, and refuses a
@@ -42,7 +45,7 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
 - `read_gguf(path, progress = {})` / `write_gguf(m, path)` with the on-disk layout:
   header, metadata KVs, contiguous tensor infos, then an aligned data section
   with each tensor payload aligned to `general.alignment` (default `ALIGNMENT`).
-  The reader and writer require a unique uint32 alignment that is positive and
+  The reader and writer require a uint32 alignment that is positive and
   a multiple of eight; non-power-of-two values such as 24 are supported.
   Tensor infos have no individual padding.
 

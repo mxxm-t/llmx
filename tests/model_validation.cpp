@@ -276,10 +276,6 @@ void metadata_checks() {
             auto m = base; set(m, "qwen3." + key, value);
             rejects("invalid integer " + key, [&] { infer::load_config(m); });
         }
-        auto m = base;
-        set(m, "qwen3." + key, integer(key == "attention.value_length" || key == "rope.dimension_count" ? 4 : 2));
-        m.kv.push_back({"qwen3." + key, integer(2)});
-        rejects("duplicate " + key, [&] { infer::load_config(m); });
     }
     for (uint32_t type : {gguf::V_UINT32, gguf::V_INT32, gguf::V_UINT64, gguf::V_INT64}) {
         auto m = base;
@@ -295,10 +291,8 @@ void metadata_checks() {
             auto m = base; set(m, key, value);
             rejects(std::string("invalid float ") + key, [&] { infer::load_config(m); });
         }
-        auto m = base; set(m, key, real(1)); m.kv.push_back({key, real(1)});
-        rejects(std::string("duplicate ") + key, [&] { infer::load_config(m); });
         for (uint32_t type : {gguf::V_FLOAT32, gguf::V_FLOAT64}) {
-            m = base; set(m, key, real(0.5, type));
+            auto m = base; set(m, key, real(0.5, type));
             infer::load_config(m); ++checks;
         }
     }
@@ -306,8 +300,6 @@ void metadata_checks() {
             {"general.architecture", "qwen3"}, {"qwen3.rope.scaling.type", "none"},
             {"qwen3.tensor_data_layout", "reference"}}) {
         auto m = base; set(m, item.first, text(item.second)); construct(m); ++checks;
-        m.kv.push_back({item.first, text(item.second)});
-        rejects("duplicate " + item.first, [&] { infer::load_config(m); });
         for (const auto& value : {text("unsupported"), text(""), integer(1)}) {
             m = base; set(m, item.first, value);
             rejects("invalid " + item.first, [&] { infer::load_config(m); });
@@ -323,8 +315,6 @@ void metadata_checks() {
         for (uint32_t type : {gguf::V_FLOAT32, gguf::V_FLOAT64}) {
             auto m = base; set(m, key, real(1, type)); construct(m); ++checks;
         }
-        auto m = base; set(m, key, real(1)); m.kv.push_back({key, real(1)});
-        rejects(std::string("duplicate ") + key, [&] { infer::load_config(m); });
     }
     auto m = fixture(false, 0, false, false);
     for (const char* key : {"attention.head_count_kv", "attention.key_length", "context_length"})

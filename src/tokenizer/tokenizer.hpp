@@ -70,7 +70,7 @@ public:
         for (const auto& kv : byte_to_char) char_to_byte[kv.second] = kv.first;
 
         // tokens
-        const gguf::MetaValue* toks = find_kv(m, "tokenizer.ggml.tokens");
+        const gguf::MetaValue* toks = m.find("tokenizer.ggml.tokens");
         if (!toks || toks->vtype != gguf::V_ARRAY)
             throw std::runtime_error("tokenizer: missing tokenizer.ggml.tokens");
         vocab.reserve(toks->arr.size());
@@ -82,7 +82,7 @@ public:
 
         // token types (for specials)
         std::vector<uint32_t> types(vocab.size(), 1);
-        const gguf::MetaValue* tt = find_kv(m, "tokenizer.ggml.token_type");
+        const gguf::MetaValue* tt = m.find("tokenizer.ggml.token_type");
         if (tt && tt->vtype == gguf::V_ARRAY) {
             for (size_t i = 0; i < tt->arr.size() && i < types.size(); i++) {
                 const auto& e = tt->arr[i];
@@ -95,7 +95,7 @@ public:
         }
 
         // merges
-        const gguf::MetaValue* mg = find_kv(m, "tokenizer.ggml.merges");
+        const gguf::MetaValue* mg = m.find("tokenizer.ggml.merges");
         if (mg && mg->vtype == gguf::V_ARRAY) {
             for (size_t i = 0; i < mg->arr.size(); i++) {
                 const std::string& s = mg->arr[i].s;
@@ -112,9 +112,9 @@ public:
         }
 
         // ids
-        if (const gguf::MetaValue* v = find_kv(m, "tokenizer.ggml.bos_token_id"))
+        if (const gguf::MetaValue* v = m.find("tokenizer.ggml.bos_token_id"))
             if (v->vtype == gguf::V_UINT32) bos_id = (int32_t)v->u;
-        if (const gguf::MetaValue* v = find_kv(m, "tokenizer.ggml.eos_token_id"))
+        if (const gguf::MetaValue* v = m.find("tokenizer.ggml.eos_token_id"))
             if (v->vtype == gguf::V_UINT32) eos_id = (int32_t)v->u;
     }
 
@@ -273,12 +273,6 @@ public:
             }
         }
         return out;
-    }
-
-private:
-    static const gguf::MetaValue* find_kv(const gguf::GGUFModel& m, const std::string& key) {
-        for (const auto& kv : m.kv) if (kv.first == key) return &kv.second;
-        return nullptr;
     }
 };
 

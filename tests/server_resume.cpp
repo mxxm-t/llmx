@@ -183,7 +183,9 @@ server::Scheduler::Stats alone_then_together(const Make& make, const bpe::Tokeni
 // Two fit at first; the first reaches its reservation's end ahead of the second, which is paused with generated tokens in its partial block and, its donor taken for the first's growth, recomputes its whole history; the third then runs beside the first and is paused in turn.
 void three_uncapped(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
     const std::vector<Req> reqs = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 9, vocab)}, {prompt_of(3, 23, vocab)}};
-    alone_then_together(make, tok, 1024, 0, 3, {}, reqs, what);
+    const server::Scheduler::Stats stats = alone_then_together(make, tok, 1024, 0, 3, {}, reqs, what);
+    // A resume recomputed more rows than every pause's longest prompt, so generated tokens among them.
+    require(stats.recomputed > stats.pauses * 40, what + ": no resume recomputed a generated token");
 }
 
 // A prompt read one token a pass is still prefilling when the request beside it has to grow and the pool is short, so it is paused part-way through its prompt, its donor then going to the one that grew.

@@ -1,12 +1,14 @@
 #pragma once
 // The scheduler of docs/SERVER.md: one thread drives the model, one Model::forward per iteration carrying every decoding request's next token and a slice of a prefilling prompt, sampling each request's logits into its channel.
-// Admission is by the KV pool's budget, in queue order. A capped request reserves its whole reach up front and is never paused; an uncapped one reserves its prompt and grows as it generates, and when the pool runs out the latest admitted uncapped request is paused and queued again with its history, resuming where it stopped. Finished requests stay as prefix donors, whose full blocks a repeating prompt forks.
+// Admission is by the KV pool's budget, in queue order. A capped request reserves its whole reach up front and is never paused; an uncapped one reserves its prompt and grows as it generates, and when the pool runs out the latest admitted uncapped request is paused and queued again, resuming where it stopped. Finished requests stay as prefix donors, whose full blocks a repeating prompt forks.
+// A request records how each stretch of its history was computed (RowClass), and a resume recomputes what its cache lacks the same way, so a paused request gives the logits it gives when never paused.
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <condition_variable>
 #include <deque>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -29,6 +31,12 @@ struct SampleParams : infer::Sampling {
     size_t top_logprobs = 0;
 };
 
+// A stretch of a history computed one way: the rows before `end`, from the stretch before it on, took this extent and fresh count (infer::BatchEntry).
+// A request's prompt takes its extent and the tokens its first admission prefilled, a generated token extent 1, and a prefix forked at the first admission keeps the stretches its donor recorded.
+struct RowClass {
+    size_t end, extent, fresh;
+};
+
 // One request from submission to completion.
 // The connection thread reads the channel: `next` waits for a token or the end until a deadline, so the thread can look at its client between tokens.
 // Everything below the channel belongs to the scheduler thread.
@@ -37,8 +45,7 @@ public:
     using Clock = std::chrono::steady_clock;
 
     Request(std::vector<uint32_t> prompt, SampleParams params)
-        : prompt_(std::move(prompt)), params_(std::move(params)), prompt_tokens_(prompt_.size()),
-          submitted_(Clock::now()) {}
+        : prompt_(std::move(prompt)), params_(std::move(params)), submitted_(Clock::now()) {}
 
     // A sampled token as the channel delivers it; with logprobs asked, its log-probability and the most likely tokens at its position, most likely first.
     struct Token {
@@ -91,8 +98,8 @@ public:
     }
     // Set by the connection thread when the client goes away; at its next iteration the scheduler drops the request from the queue or from the batch.
     void cancel() { cancel_.store(true); }
-    // The client's prompt tokens; a paused request's queued prompt also holds what it generated.
-    size_t prompt_tokens() const { return prompt_tokens_; }
+    // The client's prompt tokens.
+    size_t prompt_tokens() const { return prompt_.size(); }
     // Prompt tokens taken from a donor's cache rather than prefilled.
     size_t reused() const { return reused_.load(); }
     // Milliseconds from admission to the first token, and from the first token to the end; read once the request has ended.
@@ -141,7 +148,7 @@ private:
         cv_.notify_all();
     }
 
-    std::vector<uint32_t> prompt_;
+    const std::vector<uint32_t> prompt_;
     SampleParams params_;   // never changed once made, since next reads it in the connection thread
     mutable std::mutex m_;
     std::condition_variable cv_;
@@ -152,23 +159,23 @@ private:
     std::string finish_, error_;
     std::atomic<bool> cancel_{false};
     std::atomic<size_t> reused_{0};
-    const size_t prompt_tokens_;
     Clock::time_point submitted_, admitted_, first_, ended_;   // admitted_ is set once, under m_
 
     // Scheduler state.
+    // The history is the prompt then the generated tokens, neither ever rewritten; the cache holds its first seq_.length(), which is all the progress there is.
     infer::Sequence seq_;
     std::string finish_pending_;   // set by a sampled end, acted on after the pass
     std::vector<size_t> need_;     // blocks reserved for it, per cache pool
-    size_t prompt_done_ = 0;
-    size_t fresh_ = 0;             // the prompt tokens this admission prefills, past any reused prefix
+    std::vector<RowClass> classes_;   // how its history was computed, stretch by stretch; empty until the first admission
     uint32_t last_id_ = 0;
     std::vector<uint32_t> gen_;
     std::string decoded_;
     infer::RNG rng_;
     std::vector<float> logits_;
     uint64_t admission_ = 0;       // order of admission, for choosing whom to pause
-    bool resumed_ = false;         // paused once and queued again with its history
-    size_t resumed_gen_ = 0;       // generated tokens already folded into prompt_
+    size_t pauses_ = 0;            // times it was paused
+    size_t reached_ = 0;           // the longest history its cache has held, past which nothing is recomputed
+    size_t recomputed_ = 0;        // rows its resumes computed again
 };
 
 // The queue is full: the request is refused now rather than waiting.
@@ -217,10 +224,11 @@ public:
 
     struct Stats {
         size_t active = 0, queued = 0, donors = 0, prefix_hits = 0, prefix_tokens = 0, pauses = 0;
+        size_t recomputed = 0;   // rows resumes computed again
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
-        return Stats{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_};
+        return Stats{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_, recomputed_};
     }
 
     // The loop, in the caller's thread, until stop().
@@ -229,6 +237,7 @@ public:
         std::vector<std::shared_ptr<Request>> active;
         std::vector<infer::BatchEntry> entries;
         std::vector<std::shared_ptr<Request>> wanting;
+        std::vector<size_t> lengths;   // per active request, its history before the pass
         for (;;) {
             {
                 std::unique_lock<std::mutex> lk(m_);
@@ -247,10 +256,10 @@ public:
                     const auto& r = queue_.front();
                     // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
                     if (r->cancel_.load()) { r->end("cancel"); queue_.pop_front(); continue; }
-                    const size_t tokens = r->prompt_.size() + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
+                    const size_t tokens = history_tokens(*r) + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
                     std::vector<size_t> need = blocks_for(tokens);
                     size_t shared = 0;
-                    size_t d = best_donor(r->prompt_, shared);
+                    size_t d = best_donor(*r, shared);
                     bool consume = shared && donors_[d].tokens.size() - shared < model_.kv_block_tokens() && !room_for(need);
                     const auto fits = [&] { return consume ? room_for(need, donors_[d].blocks) : room_for(need); };
                     for (size_t i = 0; !fits() && i < donors_.size();) {
@@ -279,32 +288,56 @@ public:
             grow(active);
             if (active.empty()) continue;
 
-            // Decode entries first, then prompt slices up to ubatch tokens.
+            // Decode entries first, then what the other requests' caches lack, one stretch's slice each, up to ubatch tokens.
             entries.clear();
             wanting.clear();
+            lengths.clear();
             size_t budget = ubatch_;
             for (auto& r : active) {
-                if (r->prompt_done_ < r->prompt_.size()) continue;
+                lengths.push_back(r->seq_.length());
+                if (!decoding(*r)) continue;
                 entries.push_back(infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
                 wanting.push_back(r);
             }
             for (auto& r : active) {
-                if (r->prompt_done_ >= r->prompt_.size() || !budget) continue;
-                const size_t n = std::min(budget, r->prompt_.size() - r->prompt_done_);
-                const bool last = r->prompt_done_ + n == r->prompt_.size();
-                entries.push_back(infer::BatchEntry{&r->seq_, r->prompt_.data() + r->prompt_done_, n, last});
-                // The whole prompt's extent, reused prefix included, so its slices take the kernels one pass over it would; and its new tokens, which a streamed layer follows.
-                entries.back().extent = r->prompt_.size();
-                entries.back().fresh = r->fresh_;
+                if (decoding(*r) || !budget) continue;
+                const size_t at = r->seq_.length(), end = history_tokens(*r);
+                const RowClass& c = class_at(r->classes_, at);
+                size_t n = std::min(c.end, end) - at;
+                if (c.extent == 1 && at < r->reached_) {
+                    // Rows of extent 1 a resume computes again, generated tokens or a forked reply's: a pass takes at most kReplayRows of them, each costing ubatch / kReplayRows of the budget, which is at most the whole budget, so a request gets one while the budget is untouched.
+                    // A one-token prompt read for the first time costs its row as any prompt does.
+                    const size_t cost = std::max<size_t>(1, ubatch_ / kReplayRows);
+                    n = std::min({n, kReplayRows, budget / cost});
+                    if (!n) continue;
+                    budget -= std::min(budget, n * cost);
+                } else {
+                    n = std::min(n, budget);
+                    budget -= n;
+                }
+                // The entry that ends the history wants the logits the next token is sampled from.
+                const bool last = at + n == end;
+                entries.push_back(infer::BatchEntry{&r->seq_, token_ptr(*r, at), n, last});
+                // The stretch's extent and fresh count, so its rows take the kernels, and a streamed layer the path, that first computed them.
+                entries.back().extent = c.extent;
+                entries.back().fresh = c.fresh;
                 if (last) wanting.push_back(r);
-                budget -= n;
             }
             try {
                 model_.forward(ctx_, entries.data(), entries.size());
-                // Commit the prompt progress now that the pass is submitted.
-                for (auto& r : active)
-                    if (r->prompt_done_ < r->prompt_.size())
-                        r->prompt_done_ = std::min(r->prompt_.size(), r->prompt_done_ + ubatch_slice(r, entries));
+                // Rows a resume computed again are those below the longest history the cache has held.
+                size_t again = 0;
+                for (size_t i = 0; i < active.size(); ++i) {
+                    Request& r = *active[i];
+                    const size_t len = r.seq_.length(), n = std::min(len, r.reached_) - std::min(lengths[i], r.reached_);
+                    r.recomputed_ += n;
+                    again += n;
+                    r.reached_ = std::max(r.reached_, len);
+                }
+                if (again) {
+                    std::lock_guard<std::mutex> lk(m_);
+                    recomputed_ += again;
+                }
                 for (size_t w = 0; w < wanting.size(); ++w) {
                     auto& r = wanting[w];
                     const float* row = ctx_.logits(w);
@@ -340,13 +373,50 @@ public:
 private:
     // Tokens an uncapped request reserves beyond what it holds, at admission and each time it grows.
     static constexpr size_t kGrowTokens = 256;
+    // The most generated tokens a pass recomputes for one resume, and the budget each takes, ubatch / kReplayRows, since a generated token takes the decode kernels: on one MI50 with Qwen3-8B Q8_0, 64 of them cost a pass of 294 ms (batched decode 218 tok/s at 16 and at 64 sequences) against 559 ms for a 512-token prompt slice (916 tok/s).
+    static constexpr size_t kReplayRows = 64;
+
+    // The tokens of r's history, prompt then generated: what a resume holds its cache to.
+    static size_t history_tokens(const Request& r) { return r.prompt_.size() + r.gen_.size(); }
+    // Whether r's cache lacks only its last generated token, which a decode entry reads.
+    static bool decoding(const Request& r) { return !r.gen_.empty() && r.seq_.length() + 1 == history_tokens(r); }
+    // Where history token `at` of r lies, prompt or generated; a stretch never spans the two, since the prompt's own ends with it.
+    static const uint32_t* token_ptr(const Request& r, size_t at) {
+        return at < r.prompt_.size() ? r.prompt_.data() + at : r.gen_.data() + (at - r.prompt_.size());
+    }
+    // The stretch holding position `at`.
+    static const RowClass& class_at(const std::vector<RowClass>& rows, size_t at) {
+        size_t i = 0;
+        while (rows[i].end <= at) ++i;
+        return rows[i];
+    }
+    // The stretches of the first `n` positions.
+    static std::vector<RowClass> clip(const std::vector<RowClass>& rows, size_t n) {
+        std::vector<RowClass> out;
+        for (size_t i = 0; i < rows.size() && (out.empty() || out.back().end < n); ++i) {
+            out.push_back(rows[i]);
+            out.back().end = std::min(out.back().end, n);
+        }
+        return out;
+    }
+    // How many of the first `n` positions two records computed alike.
+    static size_t alike(const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n) {
+        size_t at = 0;
+        for (size_t i = 0, j = 0; at < n && i < a.size() && j < b.size();) {
+            if (a[i].extent != b[j].extent || a[i].fresh != b[j].fresh) break;
+            at = std::min({a[i].end, b[j].end, n});
+            if (a[i].end <= at) ++i;
+            if (b[j].end <= at) ++j;
+        }
+        return std::min(at, n);
+    }
 
     // Before a pass, every uncapped decoding request whose next token would pass its reservation takes another step.
     // When the pool is short, donors go first, then the latest admitted uncapped request is paused: its history becomes a donor and it is queued again at the front, so it resumes from its own blocks unless another request needs them.
     void grow(std::vector<std::shared_ptr<Request>>& active) {
         for (size_t i = 0; i < active.size();) {
             Request& r = *active[i];
-            if (!r.params_.until_limit || r.prompt_done_ < r.prompt_.size() || !beyond(blocks_for(r.seq_.length() + 1), r.need_)) { ++i; continue; }
+            if (!r.params_.until_limit || !decoding(r) || !beyond(blocks_for(r.seq_.length() + 1), r.need_)) { ++i; continue; }
             std::vector<size_t> step = blocks_for(r.seq_.length() + 1 + kGrowTokens);
             for (size_t s = 0; s < step.size(); ++s) step[s] = step[s] > r.need_[s] ? step[s] - r.need_[s] : 0;
             {
@@ -368,48 +438,46 @@ private:
         }
     }
 
-    // A request's prompt, then what it generated since it was last queued: its cache holds the first seq_.length() of these, and a paused request resumes from all of them.
-    // A decoding request has read its whole prompt and a prefilling one has generated nothing since, so a prompt paused part-way keeps the part it has not read.
+    // A request's history, its prompt then what it generated, which a donor keeps as tokens.
     static std::vector<uint32_t> history(const Request& r) {
         std::vector<uint32_t> h = r.prompt_;
-        h.insert(h.end(), r.gen_.begin() + (std::ptrdiff_t)r.resumed_gen_, r.gen_.end());
+        h.insert(h.end(), r.gen_.begin(), r.gen_.end());
         return h;
     }
 
-    // A paused request's history goes to the donors and the request to the front of the queue, its prompt now that history.
+    // A paused request's history and its record go to the donors and the request, unchanged, to the front of the queue.
     void pause(std::vector<std::shared_ptr<Request>>& active, size_t i) {
         auto r = active[i];
-        std::vector<uint32_t> h = history(*r);
-        park(active, i, h);
-        r->prompt_ = std::move(h);
-        r->prompt_done_ = 0;
-        r->resumed_gen_ = r->gen_.size();
-        r->resumed_ = true;
+        park(active, i, history(*r));
+        ++r->pauses_;
         std::lock_guard<std::mutex> lk(m_);
         ++pauses_;
         queue_.push_front(r);
     }
 
-    // A finished request kept for its cache: the tokens its history holds, the sequence holding them and the blocks it has reserved.
+    // A finished or paused request kept for its cache: the tokens its history holds, how they were computed, the sequence holding them and the blocks it has reserved.
     // Shared full blocks are immutable, so a fork of it is safe while it lives.
     struct Donor {
         std::vector<uint32_t> tokens;
+        std::vector<RowClass> classes;
         infer::Sequence seq;
         std::vector<size_t> blocks;   // per cache pool
     };
 
-    // The donor sharing the longest run of full blocks with the prompt, and the token count of that run; zero when no donor shares a block.
+    // The donor sharing the longest run of full blocks with r's history, and the token count of that run; zero when no donor shares a block.
     // Tokens are compared, not hashed.
-    // Only whole blocks are shared since a fork appends only into fresh blocks, and the last prompt token is always prefilled so the request has logits to sample from.
-    size_t best_donor(const std::vector<uint32_t>& prompt, size_t& tokens) const {
-        const size_t bt = model_.kv_block_tokens();
+    // A request admitted before, which has a record of its rows, shares only rows its donor computed the way its own were: its own donor's, or an identical request's.
+    // Only whole blocks are shared since a fork appends only into fresh blocks, and the last history token is always computed in a pass so the request has logits to sample from.
+    size_t best_donor(const Request& r, size_t& tokens) const {
+        const size_t bt = model_.kv_block_tokens(), h = history_tokens(r);
         size_t best = donors_.size();
         tokens = 0;
         for (size_t d = 0; d < donors_.size(); ++d) {
             const auto& t = donors_[d].tokens;
             size_t n = 0;
-            const size_t limit = std::min(t.size(), prompt.size() - 1);
-            while (n < limit && t[n] == prompt[n]) ++n;
+            const size_t limit = std::min(t.size(), h - 1);
+            while (n < limit && t[n] == *token_ptr(r, n)) ++n;
+            if (!r.classes_.empty()) n = alike(r.classes_, donors_[d].classes, n);
             n = n / bt * bt;
             if (n > tokens) { tokens = n; best = d; }
         }
@@ -417,25 +485,27 @@ private:
     }
 
     // A history for an admitted request: a fork of donor `d` holding the `shared` tokens best_donor found, or a fresh sequence when it found none.
+    // A first admission records its rows: a forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent with the tokens it prefills, then the generated tokens at extent 1.
     // Under the lock.
     void admit(Request& r, size_t d, size_t shared) {
         {
             std::lock_guard<std::mutex> lk(r.m_);
             if (r.admitted_ == Request::Clock::time_point{}) r.admitted_ = Request::Clock::now();
         }
+        const bool first = r.classes_.empty();
+        r.seq_ = shared ? model_.fork(donors_[d].seq, shared) : model_.make_sequence();
+        if (!first) return;
         if (shared) {
-            r.seq_ = model_.fork(donors_[d].seq, shared);
-            r.prompt_done_ = shared;
-            if (!r.resumed_) {
-                r.reused_.store(shared);
-                ++prefix_hits_;
-                prefix_tokens_ += shared;
-            }
-        } else {
-            r.seq_ = model_.make_sequence();
+            r.reused_.store(shared);
+            ++prefix_hits_;
+            prefix_tokens_ += shared;
+            r.classes_ = clip(donors_[d].classes, shared);
         }
-        r.fresh_ = r.prompt_.size() - r.prompt_done_;
-        if (!r.resumed_) r.rng_.seed(r.params_.seed);
+        const size_t p = r.prompt_.size();
+        r.classes_.push_back(RowClass{p, p, p - shared});
+        r.classes_.push_back(RowClass{std::numeric_limits<size_t>::max(), 1, 1});
+        r.reached_ = shared;
+        r.rng_.seed(r.params_.seed);
     }
 
     // A donor's blocks back to the pool, the oldest donor's unless another is named. Under the lock.
@@ -446,16 +516,8 @@ private:
         donors_.erase(donors_.begin() + (std::ptrdiff_t)i);
     }
 
-    // How many prompt tokens of r were in this pass.
-    static size_t ubatch_slice(const std::shared_ptr<Request>& r, const std::vector<infer::BatchEntry>& entries) {
-        for (const auto& e : entries)
-            if (e.seq == &r->seq_ && e.ids != &r->last_id_) return e.n;
-        return 0;
-    }
-
     // One sampled token for a request whose logits are in: pushed to its channel unless it ends the request; a request that ends is finished after the pass, once every entry's logits have been read.
     void step(Request& r) {
-        // A resumed request's prompt ends with the last token it sent, so the logits after it are those its next token is sampled from, as they would have been.
         const uint32_t id = infer::sample(r.logits_, r.params_, tok_.eos_id, r.gen_, r.rng_);
         if (tok_.is_eos(id)) { r.finish_pending_ = "eos"; return; }
         r.gen_.push_back(id);
@@ -496,10 +558,12 @@ private:
         }
         r->end(why, err);
         const Request::Timings t = r->timings();
+        char paused[96] = "";
+        if (r->pauses_)
+            std::snprintf(paused, sizeof paused, ", paused %zu time%s, %zu tokens recomputed", r->pauses_, r->pauses_ == 1 ? "" : "s", r->recomputed_);
         std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s\n",
                      r->prompt_tokens(), r->reused(), r->gen_.size(), t.queued_ms, t.prompt_ms,
-                     t.predicted_per_second(r->gen_.size()),
-                     why.c_str(), r->resumed_ ? ", resumed after a pause" : "");
+                     t.predicted_per_second(r->gen_.size()), why.c_str(), paused);
     }
 
     // A request leaves the active set, its history kept as a donor when it holds a full block and its blocks returned otherwise.
@@ -514,6 +578,7 @@ private:
             while (donors_.size() >= max_seqs_) drop_donor();
             Donor d;
             d.tokens.assign(h.begin(), h.begin() + (std::ptrdiff_t)std::min(h.size(), held));
+            d.classes = clip(r->classes_, held);
             d.seq = std::move(r->seq_);
             d.blocks = blocks_for(held);
             sub(reserved_, r->need_);
@@ -572,6 +637,7 @@ private:
     size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
     uint64_t admissions_ = 0;   // the scheduler thread's
     uint64_t pauses_ = 0;       // under the lock
+    size_t recomputed_ = 0;     // under the lock
     std::vector<size_t> reserved_;   // per cache pool, blocks promised to admitted requests and held by donors
     bool stopping_ = false;
 };

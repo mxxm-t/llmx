@@ -118,6 +118,7 @@ to a `backend::Backend`.
   kernels by (`backend.hpp` `RowRuns`): for a prompt's rows the position one
   past its last token, for a generated token 1. `prefill`, `score` and the
   server set it, so a prompt computes the same in one pass or in slices.
+  An entry of many generated tokens at extent 1, which is how the server recomputes a paused request's reply, takes the decode kernels for every one of them.
 - `Model`: built from `QwenWeights` over several backends with a
   `Placement` and an optional `AdoptWeight`. Two constructors take a
   `GGUFModel` instead, over one backend or over several with a placement,

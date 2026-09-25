@@ -49,6 +49,11 @@ is measured against the single-sequence path and the reference.
   A donor is consumed only when the pool is short, so while there is room it stays for other requests sharing its prefix.
   When an uncapped request cannot grow even with every donor evicted, the latest admitted uncapped request is paused: its history becomes a donor and it is queued again at the front, resuming from those blocks unless another request needed them.
   A capped request is never paused, and a request that cannot be admitted is not started.
+- **An exact resume.** A request keeps its prompt and what it generated, never rewritten, and a record of how each stretch of its history was computed, its row classes: the extent and fresh count each stretch took (`BatchEntry`).
+  At its first admission that is the forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent with the tokens it prefills, and the generated tokens at extent 1; a donor keeps the classes of the history it holds.
+  A resumed request forks only rows computed the way its own were, its own donor's or an identical request's, and recomputes what its cache lacks in the classes that first computed it, its generated tokens as entries of extent 1, which take the decode kernels however many rows they carry.
+  So a paused request gives the logits, bit for bit, that it gives when never paused, on the CPU, on a device and on a layer split, and a request that never pauses runs exactly as before.
+  The price is time: recomputed generated tokens cost what decode rows cost, at most 64 a pass (`kReplayRows`), each counting as 8 tokens of a 512-token prompt slice, where a re-prefill as prompt rows cost less and changed the values.
 - **Dependency-free transport.** HTTP/1.1 over BSD sockets and Winsock,
   request parsing, chunked responses, JSON in and out through
   `core/json.hpp`. No TLS: the server sits behind a reverse proxy when it
@@ -102,21 +107,24 @@ loop:
   drop:    end the queued requests whose client left, wherever they
            wait, and look again as admission reaches each one
   admit:   while the queue has a request and active < max_seqs: find
-           the donor sharing the longest run of full blocks; if the pool
-           can hold the prompt plus max_tokens, or an uncapped request's
-           prompt plus a growth step (dropping the other donors, oldest
+           the donor sharing the longest run of full blocks (for a
+           resumed request, of rows computed as its own were); if the pool
+           can hold the history plus max_tokens, or an uncapped request's
+           history plus a growth step (dropping the other donors, oldest
            first, then consuming that donor, to make room; a donor whose
            full blocks the request all shares is consumed first), take
            it, fork the donor at the shared blocks or make a fresh
-           sequence, and mark the request "prefilling" with an offset
-           into its prompt
+           sequence; the cache's length is all the progress there is
   grow:    an uncapped decoding request whose next token passes its
            reservation reserves another step, dropping donors first, or
            else the latest admitted uncapped request is paused
-  assemble: one entry per decoding request with its last sampled id;
-           then prompt slices from prefilling requests, in queue order,
-           until the pass holds ubatch tokens; a request whose slice ends
-           its prompt wants logits, the others do not
+  assemble: one entry per decoding request, whose cache lacks only its
+           last sampled id; then for every other request a slice of the
+           next stretch its cache lacks, at that stretch's extent and
+           fresh count, until the pass holds ubatch tokens, generated
+           tokens at most 64 a pass and each counting ubatch / 64; the
+           entry that ends a request's history wants logits, the others
+           do not
   run:     Model::forward(ctx, entries, n); ctx.logits() waits
   sample:  per entry that wanted logits, the request's own sampler state;
            push the id to its channel, with its logits row when the
@@ -231,9 +239,11 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
   backend, alone and while three other requests decode beside it; the
   kv-cache test already holds a two-entry `forward` to the entries run
   alone. A forked prefix continues exactly as a fresh sequence fed the
-  same history. A cancelled request returns its blocks and the others
+  same history within one row class; rows another prompt's extent computed, or a previous reply's rows computed as generated tokens, stay as they were computed, so a follow-up turn continues as its first turn left it rather than as the CLI would compute its whole prompt.
+  A cancelled request returns its blocks and the others
   finish unchanged. All on the CPU and on the device.
   With log-probabilities, a request's values repeat from run to run, and a request run alone gets the values it gets while three others run beside it.
+  A request paused and resumed gets the ids and every value it gets alone, where it never pauses (`server-resume`, the `server` component's uncapped checks, `tools/server_mix_check.py --uncapped`).
 - **Serving performance.** The figures a serving runtime is judged by, measured by `tools/server_load.py` through streaming requests at 1, 4, 8, 16 and more concurrent requests of the same shape: time to first token and inter-token latency at the median and the 99th percentile, decoded tokens per second and requests per second.
   The tool also runs a sweep of Poisson request rates, prompts of an exact token length and replies of a fixed one, and reports time per output token, end-to-end latency and total tokens per second, the load and figures a reference serving benchmark reports.
   Against the reference runtime's server under the same load, same model, same card, both in the same minutes.
@@ -256,3 +266,4 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 6 | The compatible routes: `/v1/chat/completions`, `/v1/completions`, `/v1/models` in the OpenAI clients' shape (**done**) | The `server` component: greedy equality with the CLI through `/v1/completions` whole and streamed, usage counts, the role in the first chat chunk and the finish reason in the last, text content parts, the refusals' shape; CPU and device |
 | 7 | `/v1/tokenize` and `/v1/detokenize`, and `messages` rendered by the chat template in place of a text (**done**) | The `server` component against `llmx tokenize` and `llmx detokenize` on the synthetic model and the Q8_0 fixture: text beyond ASCII, special tokens, an empty text, ids ending inside a character, a reply's ids giving back its text, the chat fixture's goldens under the file's template and a chat request reading the same count, the refusals |
 | 8 | Log-probabilities on every generating route, in the compatible shapes and a native one (**done**) | The `logprobs` CTest: the log-softmax against a double-precision reference and the scheduler's channel against a second model's logits, read at once or left to fall behind; the `server` component: each route's shape whole and streamed, the ids unchanged, the values repeating byte for byte and equal alone and four at a time, greedy's token the most likely, and a reply that does not ask byte-identical to one that never names them |
+| 9 | An exact resume: each request's row classes, a resume forking only rows of its own classes and recomputing the rest in them (**done**) | `server-resume`: uncapped requests paused beside others give every id and value they give alone, on the CPU, a two-CPU split and a device, a follow-up turn's forked reply rows and a prefix of another extent included; the `server` component's uncapped checks by value; `tools/server_mix_check.py --uncapped` on the MI50s |

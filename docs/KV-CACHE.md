@@ -190,6 +190,7 @@ step 4) keeps finished requests' histories as donors, at most `max_seqs`
 of them for the one model it serves, and finds the one sharing the
 longest run of full blocks with a new prompt by comparing token ids;
 it forks the donor at those blocks and appends into fresh ones.
+A donor also keeps how each stretch of its rows was computed, the extent and fresh count its pass gave it, since a device's kernels follow them: a paused request resumes by forking only rows computed the way its own were and recomputing the rest in the same classes, so it continues bit for bit as it would have unpaused.
 At that scale a hash buys nothing. An index that outlives a process,
 spans models or holds many more entries would key a block on the hash of
 (model identity including revision and the effective RoPE and position

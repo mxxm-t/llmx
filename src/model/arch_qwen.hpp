@@ -270,7 +270,7 @@ struct BatchEntry {
     bool want_logits;
     // The logits after every token of the entry rather than only its last, for scoring a text through the same batched passes a prompt takes; with want_logits.
     bool every_logits = false;
-    // What a device chooses this entry's kernels by (backend::RowRun): for a prompt's rows the position one past the prompt's last token, for a generated token 1.
+    // What a device chooses this entry's kernels by (backend::RowRun): for a prompt's rows the position one past the prompt's last token, for generated tokens 1 however many the entry carries, as a paused request's resume recomputes them.
     // Zero takes the entry's own row count.
     // A prompt given its extent computes the same whether it arrives in one pass or in slices, alone or beside other sequences, with or without a reused prefix.
     size_t extent = 0;

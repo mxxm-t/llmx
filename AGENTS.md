@@ -101,6 +101,14 @@ leaves that shared machine's packages untouched.
   stack; reaching for a library erodes that.
 - **Lean, not clever.** Add a seam only when a second implementation is on the
   roadmap. No speculative abstraction, no empty stubs.
+- **One owner per concern, kept tight.** A feature is implemented once, in the
+  lowest layer that holds what it needs, and callers reach it through one call
+  (`docs/ARCHITECTURE.md`, Each concern has one owner). Before adding code,
+  find the concern's owner; if a second caller needs the same steps, move them
+  into the owner instead of copying them. The CLI and the server read flags
+  and requests and call down; they hold no model, placement or loading logic.
+  Remove what nothing reaches (functions, flags, kernels, diagnostic switches,
+  experiment code) in the change that leaves it unreached.
 - **Not overengineer, not underdo, no bloat.** This is a ground-up runtime with a
   deliberately small surface, so the default is to build *only* what the current
   feature needs and no more. But "lean" is not an excuse to ship a half-built
@@ -527,6 +535,11 @@ reports the embedded value, with `unknown` for builds without Git metadata.
   compiled via `src/cli/main.cpp`. The optional Vulkan backend has its own
   compiled translation unit. Keep one TU per logical unit when adding `.cpp` files.
 - Include paths are relative to `src/` root: `#include "format/gguf.hpp"`.
+- Every source file under `src/` is described in `docs/src/`: a page per file
+  (`<dir>-<file>.md`), or one page for a directory whose files form one unit
+  (`server.md`, `hub.md`, `backends-vulkan.md`). A page changes in the same
+  commit as its file whenever what it says changes; a new file comes with its
+  description, and a removed file takes it with it.
 - No comments in code unless they explain a non-obvious decision or algorithm (e.g. the fp16 rounding, the GGUF padding rules, the AVX2 dequant+FMA path).
 - Cross-platform (Windows / Linux / macOS): guard MSVC-vs-GCC intrinsics with
   `#if defined(_MSC_VER)`; use `<intrin.h>`/`<cpuid.h>` appropriately.

@@ -45,6 +45,27 @@ The rule is: **each layer depends only on the layers below it.** Nothing below
 the model layer knows what the model is; nothing below the format layer knows
 what a file is. That is what makes each dimension independently replaceable.
 
+### Each concern has one owner
+
+A feature lives in as few files as it can, in the lowest layer that holds
+everything it needs, and every other layer reaches it through one call. A
+caller calls the owner; it does not repeat the owner's steps. When a second
+caller needs the same sequence, the sequence moves down into the owner rather
+than being copied. A feature that spans layers by nature keeps only each
+layer's own part in that layer, and the part that decides in one file: the
+layer split has the backends report their memory (`Backend::memory_available`
+and its neighbours), the model fit and place the layers (`layer_split.hpp`,
+`infer::place_model`), and the server admit requests per cache pool, while
+the CLI only reads `--device` and `--layer-shares`.
+
+What this rules out, from cases found here: the CLI building a placement
+from a model's tensor names (moved to `infer::place_model`), a tool building
+the same device budgets again (`budgets_for`), and model loading spread over
+the format layer (touching pages), the model constructor (uploading each
+tensor) and every command (releasing the host copy), which a loader in one
+place replaces. Code that nothing reaches any more is removed in the change
+that leaves it unreached.
+
 This is the intended dependency rule. The current quant registry imports GGUF
 type constants from `format/gguf.hpp`; this existing exception needs resolving
 when adding another format. Dense F32 and supported block-quant matrices

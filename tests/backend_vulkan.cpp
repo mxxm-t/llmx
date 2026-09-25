@@ -505,8 +505,7 @@ size_t check_kernels(backend::Backend& vk) {
                 try {
                     values += close(ac, av, 1e-4, "tiled attention differs beyond 1e-4");
                 } catch (const std::runtime_error&) {
-                    std::fprintf(stderr, "  tiled attention hist %zu rows %zu cache %s\n", hist, nq,
-                                 kt == backend::KVType::f16 ? "f16" : "f32");
+                    std::fprintf(stderr, "  tiled attention hist %zu rows %zu cache %s\n", hist, nq, backend::kv_type_name(kt));
                     throw;
                 }
             }
@@ -572,7 +571,7 @@ size_t check_kernels(backend::Backend& vk) {
                 values += exact(mixed, alone, "attention rows differ alone and beside another history");
             } catch (const std::runtime_error&) {
                 std::fprintf(stderr, "  attention width %d group %d cache K %s V %s\n", head_dim, group,
-                             kt == backend::KVType::f16 ? "f16" : "f32", vt == backend::KVType::f16 ? "f16" : "f32");
+                             backend::kv_type_name(kt), backend::kv_type_name(vt));
                 throw;
             }
         }
@@ -695,7 +694,7 @@ size_t check_kernels(backend::Backend& vk) {
                 a.abort();
                 b.abort();
             } catch (const std::runtime_error&) {
-                std::fprintf(stderr, "  batch invariance: attention, cache %s\n", kt == backend::KVType::f16 ? "f16" : "f32");
+                std::fprintf(stderr, "  batch invariance: attention, cache %s\n", backend::kv_type_name(kt));
                 throw;
             }
         }

@@ -1,5 +1,5 @@
 // A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
-// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type]; a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default (f16) when left out.
+// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type]; a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -60,6 +60,10 @@ int main(int argc, char** argv) {
     try {
         const std::string single = argc > 3 ? argv[3] : "0", split = argc > 4 ? argv[4] : "0,1";
         const int steps = argc > 5 ? std::atoi(argv[5]) : 32, ubatch = argc > 6 ? std::atoi(argv[6]) : 0;
+        // The cache type is checked before the model file is read, so a wrong name costs no load.
+        infer::ModelOptions options;
+        if (argc > 7) options.kv_k = options.kv_v = backend::kv_type_of(argv[7]);
+        options.kv_tokens = 4096;
         gguf::GGUFModel m = gguf::read_gguf(argv[1]);
         bpe::Tokenizer tok(m);
         std::ifstream in(argv[2], std::ios::binary);
@@ -67,9 +71,6 @@ int main(int argc, char** argv) {
         const std::vector<uint32_t> ids = tok.encode(text);
         if (ids.size() < 2) throw std::runtime_error("the text holds fewer than two tokens");
 
-        infer::ModelOptions options;
-        if (argc > 7) options.kv_k = options.kv_v = backend::kv_type_of(argv[7]);
-        options.kv_tokens = 4096;
         infer::Model one(m, backend::make_backend(name(single)), options);
         one.set_ubatch(ubatch);
         // The split takes equal shares of the layers, placed as a device list with --layer-shares 1,1,... places them.

@@ -520,6 +520,55 @@ void histories_fit_the_pool() {
     }
 }
 
+// A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume recomputes it (docs/SERVER.md, pausing): a 40-token prompt at its extent in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows, logits only on the last.
+// The synthetic Q8_0 model's decode rows take the 8-bit dots, so the replay must give the logits one backend gives after the prompt and 199 single decode steps, bit for bit; and so must a fork at the first block replaying the rest.
+void replay_over_stages() {
+    const gguf::GGUFModel weights = infer::synthetic_model(2, 64, 128, 4, 2, 16, 64, 11u);
+    auto one = std::make_shared<backend::CpuBackend>();
+    one->set_threads(1);
+    infer::Model single(weights, one);
+    std::vector<backend::BackendPtr> two{std::make_shared<backend::CpuBackend>(), std::make_shared<backend::CpuBackend>()};
+    infer::PlacementRequest request;
+    request.names = {"cpu", "cpu"};
+    request.shares = {1, 1};
+    for (auto& b : two) b->set_threads(1);
+    infer::PlacedModel placed = infer::place_model(infer::gguf_weights(weights), two, request, infer::ModelOptions{});
+    infer::Model& split = *placed.model;
+    const size_t prompt = 40, steps = 199, V = single.n_vocab(), bt = one->kv_layout().block_tokens;
+    std::vector<uint32_t> ids(prompt);
+    for (size_t i = 0; i < prompt; ++i) ids[i] = (uint32_t)((i * 11 + 3) % V);
+    std::vector<float> want = single.prefill(ids);
+    for (size_t s = 0; s < steps; ++s) {
+        uint32_t next = 0;
+        for (uint32_t v = 1; v < V; ++v)
+            if (want[v] > want[next]) next = v;
+        ids.push_back(next);
+        want = single.step((int)next);
+    }
+    single.reset();
+    auto replay = [&](infer::Model& m, infer::Sequence& seq) {
+        infer::ExecContext ctx;
+        std::vector<float> got;
+        while (seq.length() < ids.size()) {
+            const size_t at = seq.length();
+            const bool generated = at >= prompt;
+            const size_t n = generated ? std::min<size_t>(64, ids.size() - at) : std::min<size_t>(16, prompt - at);
+            infer::BatchEntry e{&seq, ids.data() + at, n, at + n == ids.size()};
+            e.extent = e.fresh = generated ? 1 : prompt;
+            m.forward(ctx, &e, 1);
+            if (e.want_logits) got.assign(ctx.logits(0), ctx.logits(0) + V);
+        }
+        return got;
+    };
+    infer::Sequence whole = split.make_sequence();
+    exact(replay(split, whole), want, "a history replayed by class over two stages differs from its decode on one backend");
+    infer::Sequence forked = split.fork(whole, bt);
+    split.reset(whole);
+    exact(replay(split, forked), want, "a fork at a block replaying the rest by class over two stages differs from the decode");
+    split.reset(forked);
+    checked += 2;
+}
+
 void bad_placements_refused() {
     const auto weights = fixture();
     auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();
@@ -577,6 +626,7 @@ int main() {
         bad_placements_refused();
         pipelined_matches_single();
         pipelined_failure_rolls_back();
+        replay_over_stages();
         std::cout << "placement: " << checked << " checks across two and three CPU backends\n";
         return 0;
     } catch (const std::exception& e) {

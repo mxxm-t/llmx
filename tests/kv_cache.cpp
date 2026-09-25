@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <random>
@@ -726,6 +727,90 @@ void model_fork() {
     require(a.length() == 0 && b.length() == 0, "reset after fork");
 }
 
+// What a paused request's resume relies on (docs/SERVER.md, pausing): a history recomputed in the classes that first computed it gives the logits it gave, bit for bit.
+// The reference is a 40-token prompt at its extent, then 199 greedy tokens each decoded in a pass of its own; the synthetic Q8_0 model's decode rows take the 8-bit dots and its prompt rows the float path, so a class taken wrongly shows.
+// The replays: the prompt at its extent in slices of 16, then the 199 tokens as entries of extent 1 of up to 64 rows, logits only on the last; a fork at the first block of the reference history replaying the rest; and the replay beside another sequence's decode row and a third's prompt slice.
+void replay_by_class() {
+    const gguf::GGUFModel weights = infer::synthetic_model(2, 64, 128, 4, 2, 16, 64, 7u);
+    auto cpu = std::make_shared<backend::CpuBackend>();
+    cpu->set_threads(2);
+    infer::Model model(weights, cpu);
+    const size_t prompt = 40, steps = 199, bt = cpu->kv_layout().block_tokens, V = model.n_vocab();
+    std::vector<uint32_t> ids(prompt);
+    for (size_t i = 0; i < prompt; ++i) ids[i] = (uint32_t)((i * 11 + 3) % V);
+    infer::ExecContext ctx;
+    auto greedy = [&](const float* row) {
+        uint32_t best = 0;
+        for (uint32_t v = 1; v < V; ++v)
+            if (row[v] > row[best]) best = v;
+        return best;
+    };
+    infer::Sequence ref = model.make_sequence();
+    infer::BatchEntry first{&ref, ids.data(), prompt, true};
+    first.extent = first.fresh = prompt;
+    model.forward(ctx, &first, 1);
+    std::vector<float> want;
+    for (size_t s = 0; s < steps; ++s) {
+        ids.push_back(greedy(ctx.logits(0)));
+        const infer::BatchEntry step{&ref, &ids.back(), 1, true};
+        model.forward(ctx, &step, 1);
+    }
+    want.assign(ctx.logits(0), ctx.logits(0) + V);
+    require(ref.length() == prompt + steps, "the reference history");
+
+    // The rows `seq` lacks, by class, `others` sharing each pass; the logits after the last.
+    auto replay = [&](infer::Sequence& seq, const std::function<void(std::vector<infer::BatchEntry>&)>& others) {
+        std::vector<float> got;
+        while (seq.length() < ids.size()) {
+            const size_t at = seq.length();
+            std::vector<infer::BatchEntry> pass;
+            others(pass);
+            const bool generated = at >= prompt;
+            const size_t n = generated ? std::min<size_t>(64, ids.size() - at) : std::min<size_t>(16, prompt - at);
+            infer::BatchEntry e{&seq, ids.data() + at, n, at + n == ids.size()};
+            e.extent = generated ? 1 : prompt;
+            e.fresh = generated ? 1 : prompt;
+            pass.push_back(e);
+            model.forward(ctx, pass.data(), pass.size());
+            if (e.want_logits) got.assign(ctx.logits(ctx.n_logits - 1), ctx.logits(ctx.n_logits - 1) + V);
+        }
+        return got;
+    };
+    auto exact_logits = [&](const std::vector<float>& got, const char* what) {
+        require(got.size() == want.size() && !std::memcmp(got.data(), want.data(), V * sizeof(float)), what);
+    };
+    infer::Sequence alone = model.make_sequence();
+    exact_logits(replay(alone, [](std::vector<infer::BatchEntry>&) {}), "a history replayed by class differs from its decode");
+    model.reset(alone);
+
+    infer::Sequence forked = model.fork(ref, bt);
+    exact_logits(replay(forked, [](std::vector<infer::BatchEntry>&) {}), "a fork at a block replaying the rest by class differs from the decode");
+    model.reset(forked);
+
+    // Beside it, a sequence decoding its own tokens and a third reading a 50-token prompt in slices of 7.
+    infer::Sequence mixed = model.make_sequence(), decoding = model.make_sequence(), reading = model.make_sequence();
+    const uint32_t start[3] = {5, 6, 7};
+    const infer::BatchEntry warm{&decoding, start, 3, false};
+    model.forward(ctx, &warm, 1);
+    std::vector<uint32_t> other(50);
+    for (size_t i = 0; i < other.size(); ++i) other[i] = (uint32_t)((i * 5 + 1) % V);
+    uint32_t next = 9;
+    exact_logits(replay(mixed, [&](std::vector<infer::BatchEntry>& pass) {
+        next = (next * 7 + 3) % (uint32_t)V;
+        pass.push_back(infer::BatchEntry{&decoding, &next, 1, true});
+        if (reading.length() < other.size()) {
+            const size_t at = reading.length(), n = std::min<size_t>(7, other.size() - at);
+            infer::BatchEntry slice{&reading, other.data() + at, n, at + n == other.size()};
+            slice.extent = slice.fresh = other.size();
+            pass.push_back(slice);
+        }
+    }), "a history replayed by class beside other sequences differs from its decode");
+    model.reset(mixed);
+    model.reset(decoding);
+    model.reset(reading);
+    model.reset(ref);
+}
+
 // A failure after the KV writes must leave length, position and bytes as they were, and the retried step must produce the logits of an undisturbed model, exactly.
 void model_transaction() {
     const auto weights = fixture();
@@ -815,8 +900,9 @@ int main() {
         batched_forward();
         fork_shares_blocks();
         model_fork();
+        replay_by_class();
         std::cout << "KV cache: pool, sequence, ownership, on-demand storage, growth steps and peak, growth hooks, "
-                     "reset, paged attention, failed-step transactions and retire-before-release pass\n";
+                     "reset, paged attention, failed-step transactions, retire-before-release and replay by class pass\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

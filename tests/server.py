@@ -888,14 +888,29 @@ def check_unencodable(directory):
         srv.close()
 
 
+def same_choice(alone, got, what):
+    """A compatible reply's choice against the same request's alone: its text, its finish and every token's values, the first differing token named."""
+    a, b = alone["logprobs"], got["logprobs"]
+    first = next((i for i, pair in enumerate(zip(zip(a["tokens"], a["token_logprobs"], a["top_logprobs"]),
+                                                 zip(b["tokens"], b["token_logprobs"], b["top_logprobs"]))) if pair[0] != pair[1]), None)
+    assert first is None and got == alone, "%s: token %s of %d differs from the request alone" % (what, first, len(a["tokens"]))
+
+
 def check_uncapped(model):
-    """Uncapped requests share a small pool: each reserves its prompt and grows, a request is paused when the pool runs out and resumes from its history, and every one runs to its own end."""
+    """Uncapped requests share a small pool: each reserves its prompt and grows, a request is paused when the pool runs out and resumes from its history, and every one runs to its own end with the tokens and log-probabilities it gives alone, where it never pauses."""
     srv = Server(model, "--max-seqs", "4", "--ctx-size", "1024")
     try:
-        results = {}
         prompts = ["The capital of France is", "Once upon a time", "def fib(n):"]
+        body = lambda p: {"prompt": p, "temperature": 0, "logprobs": TOP}
+        alone = {}
+        for p in prompts:
+            status, reply = srv.post("/v1/completions", body(p), timeout=600)
+            assert status == 200, reply
+            alone[p] = reply["choices"][0]
+        before = srv.get("/v1/health")["pauses"]
+        results = {}
         def worker(p):
-            results[p] = srv.post("/v1/completions", {"prompt": p, "temperature": 0}, timeout=600)
+            results[p] = srv.post("/v1/completions", body(p), timeout=600)
         threads = [threading.Thread(target=worker, args=(p,)) for p in prompts]
         for t in threads:
             t.start()
@@ -905,29 +920,38 @@ def check_uncapped(model):
             status, reply = results[p]
             assert status == 200 and reply["choices"][0]["finish_reason"] in ("stop", "length"), (p, reply)
             assert reply["usage"]["total_tokens"] <= 1024, (p, reply)
+            same_choice(alone[p], reply["choices"][0], "an uncapped request paused beside others, %r" % p)
         health = srv.get("/v1/health")
-        assert health["active"] == 0 and health["pauses"] >= 1, health
+        assert health["active"] == 0 and health["pauses"] > before, health
     finally:
         srv.close()
 
 
 def check_paused_prefill(model):
-    """A long uncapped prompt read one token a pass is still prefilling when an earlier uncapped request has to grow and the pool has no room, so it is paused part-way; resumed, its greedy text is the CLI's for the whole prompt."""
+    """A long uncapped prompt read one token a pass is still prefilling when an earlier uncapped request has to grow and the pool has no room, so it is paused part-way; resumed, its greedy text is the CLI's for the whole prompt and its values those it gives alone."""
     flags = ("--ubatch", "1")
+    # 464 tokens in a pool of 1280: in blocks of 64 or 128 both requests fit at admission, the short one reaches its first growth step before this prompt is read, and that step does not fit beside it.
+    with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
+        long_prompt = f.read()[:1800]
+    # A stop string ends the long request a few tokens in, enough to tell which prompt it resumed from.
+    body = {"prompt": long_prompt, "temperature": 0, "stop": [" ."], "logprobs": TOP}
+    # Alone on a server of its own, so no donor of this run's is there for the paused request to fork.
     srv = Server(model, "--ctx-size", "1280", *flags)
     try:
-        # 464 tokens in a pool of 1280: in blocks of 64 or 128 both requests fit at admission, the short one reaches its first growth step before this prompt is read, and that step does not fit beside it.
-        with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
-            long_prompt = f.read()[:1800]
+        status, alone = srv.post("/v1/completions", body, timeout=900)
+        assert status == 200, alone
+    finally:
+        srv.close()
+    srv = Server(model, "--ctx-size", "1280", *flags)
+    try:
         # The short request streams and is queued first, so the long one is the latest admitted and the one paused.
         s = srv.open("/v1/completions", {"prompt": "Once upon a time", "temperature": 0, "stream": True})
         s.recv(64)
         result = []
         failure = []
-        # A stop string ends the long request a few tokens in, enough to tell which prompt it resumed from.
         def worker():
             try:
-                result.append(srv.post("/v1/completions", {"prompt": long_prompt, "temperature": 0, "stop": [" ."]}, timeout=900))
+                result.append(srv.post("/v1/completions", body, timeout=900))
             except Exception as e:
                 failure.append(e)
         later = threading.Thread(target=worker)
@@ -944,6 +968,7 @@ def check_paused_prefill(model):
         assert status == 200, reply
         want = cli_greedy_text(model, long_prompt, reply["usage"]["completion_tokens"], flags)
         assert reply["choices"][0]["text"] == want, (reply["choices"][0]["text"], want)
+        same_choice(alone["choices"][0], reply["choices"][0], "a prompt paused while prefilling")
         health = srv.get("/v1/health")
         assert health["active"] == 0 and health["pauses"] >= 1, health
     finally:
@@ -1138,8 +1163,8 @@ def run():
         check_departed(real)
         k, n = check_ignore_eos_real(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
-              "seeded requests equal to the CLI on four sampler paths, refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, logprobs on every route, a reused prefix, the limits, uncapped requests sharing a pool, "
-              "a prompt paused while prefilling, a %d-turn conversation past half the pool reusing its history on every follow-up, "
+              "seeded requests equal to the CLI on four sampler paths, refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, logprobs on every route, a reused prefix, the limits, uncapped requests paused and resumed with their values alone, "
+              "a prompt paused while prefilling with its values alone, a %d-turn conversation past half the pool reusing its history on every follow-up, "
               "a follow-up consuming the turn it repeats while an unrelated donor stays, clients leaving a whole reply, a prefill and the queue, and one shutting its sending side  [ok]"
               % (os.path.basename(real), n, turns))
         print("server: ignore_eos on %s, a greedy reply that ends at its end token after %d tokens running to %d through generate, chat "

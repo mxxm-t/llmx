@@ -706,6 +706,10 @@ size_t check_kernels(backend::Backend& vk) {
                         const auto mixed = run(0, rows, {{3, 1}, {rows, prompt}});
                         values += exact(part(mixed, 0, 3), part(gen, 0, 3), "generated rows beside a prompt differ from them alone");
                         values += exact(part(mixed, 3, rows), part(whole, 3, rows), "a prompt beside generated rows differs from it alone");
+                        // What a paused request's resume relies on: one sequence's 40 generated rows in one run of extent 1 beside a prompt compute what each computed decoded in a call of its own.
+                        const auto replay = run(0, 100, {{40, 1}, {100, prompt}});
+                        for (size_t r : {size_t(0), size_t(1), size_t(7), size_t(8), size_t(15), size_t(31), size_t(39)})
+                            values += exact(part(replay, r, r + 1), run(r, 1, {{1, 1}}), "a generated row of a 40-row replay beside a prompt differs from it decoded alone");
                     } catch (const std::runtime_error&) {
                         std::fprintf(stderr, "  batch invariance: matmul type %u, %zu outputs%s\n", t.type, n_out, add ? ", accumulating" : "");
                         throw;
@@ -773,6 +777,39 @@ size_t check_kernels(backend::Backend& vk) {
                 b.abort();
             } catch (const std::runtime_error&) {
                 std::fprintf(stderr, "  batch invariance: attention, cache %s\n", backend::kv_type_name(kt));
+                throw;
+            }
+            // What a paused request's resume relies on: 40 generated rows of one sequence after a 500-token history, attended in one view of extent 1 beside a 60-row prompt's view, against the same rows decoded one call at a time.
+            try {
+                const size_t gen = 40, prompt = 60, other = 1000;
+                infer::KVSequence a(&pool, bt), b(&pool, bt), c(&pool, bt);
+                for (auto* s : {&a, &c}) {
+                    s->prepare(ha);
+                    const backend::KVView h = s->view(st.get());
+                    vk.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                    s->commit();
+                }
+                a.prepare(gen);
+                b.prepare(prompt);
+                backend::KVView views[2] = {a.view(st.get()), b.view(st.get())};
+                views[0].extent = 1;
+                views[1].extent = prompt;
+                vk.kv_write(0, &views[0], 1, {Kb.get(), ha * kvw}, {Vb.get(), ha * kvw});
+                vk.kv_write(0, &views[1], 1, {Kb.get(), other * kvw}, {Vb.get(), other * kvw});
+                const auto both = read_rows(views, 2, 0, gen + prompt);
+                for (size_t i = 0; i < gen; ++i) {
+                    c.prepare(1);
+                    backend::KVView v = c.view(st.get());
+                    v.extent = 1;
+                    vk.kv_write(0, &v, 1, {Kb.get(), (ha + i) * kvw}, {Vb.get(), (ha + i) * kvw});
+                    values += exact(std::vector<float>(both.begin() + i * qw, both.begin() + (i + 1) * qw), read_rows(&v, 1, i, 1),
+                                    "a generated row of a 40-row replay beside a prompt attends otherwise than decoded alone");
+                    c.commit();
+                }
+                a.abort();
+                b.abort();
+            } catch (const std::runtime_error&) {
+                std::fprintf(stderr, "  replay by class: attention, cache %s\n", backend::kv_type_name(kt));
                 throw;
             }
         }

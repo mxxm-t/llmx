@@ -18,10 +18,19 @@ Every request that runs to its end must give its ids alone, the CLI its
 text; a client that left must leave nothing active.
 --ids writes every phase's ids, so two builds can be compared byte for byte.
 
+--uncapped runs other phases on a pool too small for its requests: 12
+uncapped greedy requests through /v1/completions, streamed with logprobs 5,
+with --max-seqs 6 and --ctx-size 4096 unless given. Each runs alone, where
+it never pauses, then all at once, where requests are paused and resumed;
+each must give its tokens and every log-probability alone. It reports the
+pauses, the tokens resumes recomputed, the wall time of the run together and
+its inter-token p50 and p99.
+
     python tools/server_mix_check.py --model M.gguf --text wiki.txt \\
         --device vulkan:0,vulkan:1,vulkan:2 --layer-shares 1,1,1
 """
 import argparse
+import http.client
 import json
 import os
 import random
@@ -79,6 +88,79 @@ def run_together(port, reqs, delays=None, leavers=()):
     return results
 
 
+def stream_logprobs(port, prompt):
+    """An uncapped greedy stream through /v1/completions: each token's text, log-probability and top five, and its arrival time."""
+    body = json.dumps({"prompt": prompt, "temperature": 0, "logprobs": 5, "stream": True}).encode()
+    c = http.client.HTTPConnection("127.0.0.1", port, timeout=7200)
+    c.request("POST", "/v1/completions", body, {"Content-Type": "application/json"})
+    tokens, arrivals = [], []
+    for raw in c.getresponse():
+        line = raw.decode("utf-8").rstrip("\n")
+        if not line.startswith("data: ") or line == "data: [DONE]":
+            continue
+        lp = json.loads(line[6:])["choices"][0].get("logprobs")
+        if lp:
+            tokens.append([lp["tokens"][0], lp["token_logprobs"][0], lp["top_logprobs"][0]])
+            arrivals.append(time.perf_counter())
+    c.close()
+    return tokens, arrivals
+
+
+def percentile(values, q):
+    s = sorted(values)
+    if not s:
+        return float("nan")
+    k = (len(s) - 1) * q
+    lo, hi = int(k), min(int(k) + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * (k - lo)
+
+
+def uncapped(args, text, flags):
+    """The uncapped phases: each request alone, then all at once on the small pool, compared token by token and value by value."""
+    rng = random.Random(7 if args.seed is None else args.seed)
+    prompts = []
+    for i in range(args.requests or 12):
+        chars = [300, 900, 1800, 2600][i % 4]
+        start = rng.randrange(0, max(1, len(text) - chars))
+        prompts.append(text[start:start + chars].lstrip("-"))
+    proc, port, log = common.start_server([common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs or 6),
+                                           "--ctx-size", str(args.ctx_size or 4096)] + flags, wait=1800)
+    try:
+        alone = [stream_logprobs(port, p)[0] for p in prompts]
+        before = health(port)
+        together, arrivals = {}, {}
+        def worker(i):
+            together[i], arrivals[i] = stream_logprobs(port, prompts[i])
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(len(prompts))]
+        t0 = time.perf_counter()
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        wall = time.perf_counter() - t0
+        after = health(port)
+    finally:
+        proc.kill()
+        proc.wait()
+        log.close()
+    differ = 0
+    for i in range(len(prompts)):
+        a, b = alone[i], together[i]
+        first = next((j for j in range(min(len(a), len(b))) if a[j] != b[j]), None if len(a) == len(b) else min(len(a), len(b)))
+        differ += first is not None
+        print("request %d: %d tokens alone, %d together, %s" % (i, len(a), len(b), "the same" if first is None else "differs from token %d" % first))
+    gaps = [(y - x) * 1e3 for i in arrivals for x, y in zip(arrivals[i], arrivals[i][1:])]
+    print("uncapped: %d of %d differ; %d pauses, %s tokens recomputed; together %.1f s, %d tokens, inter-token p50 %.2f ms, p99 %.2f ms, longest gap %.0f ms"
+          % (differ, len(prompts), after["pauses"] - before["pauses"],
+             after["recomputed"] - before["recomputed"] if "recomputed" in after else "unreported",
+             wall, sum(len(t) for t in together.values()), percentile(gaps, 0.5), percentile(gaps, 0.99), max(gaps or [0])), flush=True)
+    if args.ids:
+        with open(args.ids, "w", encoding="utf-8") as f:
+            json.dump({"alone": alone, "together": [together[i] for i in range(len(prompts))]}, f)
+    print("FAIL: %d requests differ from alone" % differ if differ else "all requests match")
+    return 1 if differ else 0
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--exe", default=common.EXE)
@@ -86,21 +168,25 @@ def main():
     p.add_argument("--text", required=True, help="text the prompts are cut from")
     p.add_argument("--device", default="cpu")
     p.add_argument("--layer-shares")
-    p.add_argument("--requests", type=int, default=16)
-    p.add_argument("--max-seqs", type=int, default=8)
-    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--requests", type=int, help="16, or 12 with --uncapped")
+    p.add_argument("--max-seqs", type=int, help="8, or 6 with --uncapped")
+    p.add_argument("--ctx-size", type=int, help="the pool of the uncapped phases, 4096 by default")
+    p.add_argument("--seed", type=int, help="1, or 7 with --uncapped")
+    p.add_argument("--uncapped", action="store_true", help="the uncapped phases in place of the others")
     p.add_argument("--cli", type=int, default=4,
                    help="requests also checked against the CLI; the first four cover every prompt length, the last two several ubatch chunks")
-    p.add_argument("--ids", metavar="PATH", help="write the ids of every phase as JSON, the skewed phase's clients that left as null")
+    p.add_argument("--ids", metavar="PATH", help="write the ids of every phase as JSON, the skewed phase's clients that left as null; with --uncapped each token's text and values")
     args = p.parse_args()
     common.EXE = os.path.abspath(args.exe)
 
-    rng = random.Random(args.seed)
     with open(args.text, encoding="utf-8", errors="replace") as f:
         text = f.read()
-    reqs = requests_from(text, args.requests, rng)
     flags = ["--device", args.device] + (["--layer-shares", args.layer_shares] if args.layer_shares else [])
-    proc, port, log = common.start_server([common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs)] + flags,
+    if args.uncapped:
+        return uncapped(args, text, flags)
+    rng = random.Random(1 if args.seed is None else args.seed)
+    reqs = requests_from(text, args.requests or 16, rng)
+    proc, port, log = common.start_server([common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs or 8)] + flags,
                                           wait=1800)
     failures = []
     phases = {}

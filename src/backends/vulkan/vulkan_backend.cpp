@@ -171,6 +171,30 @@ const uint32_t kSpvAttentionV16G4[] = {
 const uint32_t kSpvAttentionKV16G4[] = {
 #include "vulkan/attention_kv16_g4.inc"
 };
+const uint32_t kSpvAttentionVec[] = {
+#include "vulkan/attention_vec.inc"
+};
+const uint32_t kSpvAttentionVecK16[] = {
+#include "vulkan/attention_vec_k16.inc"
+};
+const uint32_t kSpvAttentionVecV16[] = {
+#include "vulkan/attention_vec_v16.inc"
+};
+const uint32_t kSpvAttentionVecKV16[] = {
+#include "vulkan/attention_vec_kv16.inc"
+};
+const uint32_t kSpvAttentionVecG4[] = {
+#include "vulkan/attention_vec_g4.inc"
+};
+const uint32_t kSpvAttentionVecK16G4[] = {
+#include "vulkan/attention_vec_k16_g4.inc"
+};
+const uint32_t kSpvAttentionVecV16G4[] = {
+#include "vulkan/attention_vec_v16_g4.inc"
+};
+const uint32_t kSpvAttentionVecKV16G4[] = {
+#include "vulkan/attention_vec_kv16_g4.inc"
+};
 const uint32_t kSpvAttentionK16[] = {
 #include "vulkan/attention_k16.inc"
 };
@@ -258,7 +282,8 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
                 K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8,
-                K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4, K_COUNT };
+                K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4,
+                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
 // F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
@@ -324,6 +349,7 @@ const char* const kKernelNames[K_COUNT] = {
     "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
     "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
     "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
+    "attention_vec", "attention_vec_k16", "attention_vec_v16", "attention_vec_kv16", "attention_vec_g4", "attention_vec_k16_g4", "attention_vec_v16_g4", "attention_vec_kv16_g4",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -379,6 +405,14 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvAttentionK16G4, sizeof(kSpvAttentionK16G4), 7, nullptr},
     {kSpvAttentionV16G4, sizeof(kSpvAttentionV16G4), 7, nullptr},
     {kSpvAttentionKV16G4, sizeof(kSpvAttentionKV16G4), 7, nullptr},
+    {kSpvAttentionVec, sizeof(kSpvAttentionVec), 7, nullptr},
+    {kSpvAttentionVecK16, sizeof(kSpvAttentionVecK16), 7, nullptr},
+    {kSpvAttentionVecV16, sizeof(kSpvAttentionVecV16), 7, nullptr},
+    {kSpvAttentionVecKV16, sizeof(kSpvAttentionVecKV16), 7, nullptr},
+    {kSpvAttentionVecG4, sizeof(kSpvAttentionVecG4), 7, nullptr},
+    {kSpvAttentionVecK16G4, sizeof(kSpvAttentionVecK16G4), 7, nullptr},
+    {kSpvAttentionVecV16G4, sizeof(kSpvAttentionVecV16G4), 7, nullptr},
+    {kSpvAttentionVecKV16G4, sizeof(kSpvAttentionVecKV16G4), 7, nullptr},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -2060,7 +2094,12 @@ public:
             const VkDescriptorBufferInfo scratch = scratch_
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
             const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));
-            dispatch(hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s),
+            // Heads whose width is eight lanes' worth of eight values take the kernel that reads a token's row in one load a lane and several tokens a subgroup (shaders/attention_vec.comp).
+            const size_t lanes = (size_t)head_dim / 8;
+            const bool vec = head_dim % 8 == 0 && lanes >= 4 && (lanes & (lanes - 1)) == 0 && lanes <= dev_->subgroup_size;
+            const KernelId kernel = vec ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
+                                        : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
+            dispatch(kernel,
                      {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
                       table, scratch, xq},
                      &pc, sizeof(pc), groups(pairs / hg * nsplit, 1), 1, twin_variant());

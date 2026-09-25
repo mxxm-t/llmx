@@ -1,0 +1,144 @@
+#version 450
+// Causal GQA for rows that attend one at a time (decode and short prompts), as attention.comp computes it, for heads whose width is eight lanes' worth of eight values: head_dim / 8 a power of two from 4 to the subgroup size.
+// One workgroup per (batch row, block of heads, split), a block being up to four query heads that read one KV head (LLMX_G4) or one head.
+// A token's key and value are read by head_dim / 8 lanes, eight values each in one load, so a subgroup reads several tokens at once; each such group of lanes keeps its own online softmax over the tokens it takes, and the groups merge in a fixed order at the end.
+// The parts a row's history splits into follow from its length alone, as in attention.comp, so a row computes the same whatever else is in the dispatch.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_control_flow_attributes : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P {
+    uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts; uint hg;
+} p;
+#ifdef LLMX_G4
+#define HG 4u
+#else
+#define HG 1u
+#endif
+layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 6) writeonly buffer XQ { uint xq[]; };
+#include "xquant.glsl"
+// Eight consecutive values of a head row starting at element i, a multiple of eight.
+#ifdef LLMX_K16
+layout(set = 0, binding = 2) readonly buffer K { uvec4 kb16[]; };
+void k_load8(uint i, out float x[8]) {
+    uvec4 w = kb16[i / 8u];
+    vec2 a = unpackHalf2x16(w.x), b = unpackHalf2x16(w.y), c = unpackHalf2x16(w.z), d = unpackHalf2x16(w.w);
+    x = float[8](a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y);
+}
+#else
+layout(set = 0, binding = 2) readonly buffer K { vec4 kb[]; };
+void k_load8(uint i, out float x[8]) {
+    vec4 a = kb[i / 4u], b = kb[i / 4u + 1u];
+    x = float[8](a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w);
+}
+#endif
+#ifdef LLMX_V16
+layout(set = 0, binding = 3) readonly buffer V { uvec4 vb16[]; };
+void v_load8(uint i, out float x[8]) {
+    uvec4 w = vb16[i / 8u];
+    vec2 a = unpackHalf2x16(w.x), b = unpackHalf2x16(w.y), c = unpackHalf2x16(w.z), d = unpackHalf2x16(w.w);
+    x = float[8](a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y);
+}
+#else
+layout(set = 0, binding = 3) readonly buffer V { vec4 vb[]; };
+void v_load8(uint i, out float x[8]) {
+    vec4 a = vb[i / 4u], b = vb[i / 4u + 1u];
+    x = float[8](a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w);
+}
+#endif
+layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
+layout(set = 0, binding = 5) writeonly buffer S { float scratch[]; };
+#include "views.glsl"
+// Streams are the groups of lanes that each take one token at a time: 256 / (head_dim / 8) of them, at most 64, and their accumulations fill 2048 floats whatever the width.
+shared float qs[HG][256];
+shared float ms[HG][64];
+shared float ls[HG][64];
+shared float accs[2048];
+void main() {
+    uint split = gl_WorkGroupID.x % p.nsplit;
+    uint rb = gl_WorkGroupID.x / p.nsplit;
+    uint blocks = p.n_head / p.hg;
+    uint g = rb / blocks;
+    uint h0 = (rb - g * blocks) * p.hg;
+    uint v, b;
+    view_of_row(g, v, b);
+    uint kvh = h0 / (p.n_head / p.n_head_kv);
+    uint lid = gl_LocalInvocationID.x;
+    uint lanes = p.dim / 8u;                              // lanes per token
+    uint streams = 256u / lanes;
+    uint stream = lid / lanes, d0 = (lid - stream * lanes) * 8u;
+    uint qstride = p.n_head * p.dim;
+    uint qrow = (view_row0(v) + b) * qstride;
+    [[unroll]] for (uint j = 0u; j < HG; ++j)
+        if (j < p.hg && lid < p.dim) qs[j][lid] = q[qrow + (h0 + j) * p.dim + lid];
+    barrier();
+    uint len = view_hist(v) + b + 1u, chunk = p.chunk;
+    while ((len + chunk - 1u) / chunk > p.max_parts) chunk *= 2u;
+    uint start = min(split * chunk, len);
+    uint end = min(len, start + chunk);
+    uint bf = p.n_head_kv * p.bt * p.dim;
+    float qv[HG][8], acc[HG][8], m[HG], l[HG];
+    [[unroll]] for (uint j = 0u; j < HG; ++j) {
+        m[j] = -1.0 / 0.0;
+        l[j] = 0.0;
+        [[unroll]] for (uint e = 0u; e < 8u; ++e) {
+            qv[j][e] = qs[j][d0 + e];
+            acc[j][e] = 0.0;
+        }
+    }
+    for (uint t = start + stream; t < end; t += streams) {
+        uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t % p.bt) * p.dim + d0;
+        float kx[8], vx[8];
+        k_load8(base, kx);
+        v_load8(base, vx);
+        [[unroll]] for (uint j = 0u; j < HG; ++j) {
+            if (j >= p.hg) continue;
+            float part = 0.0;
+            [[unroll]] for (uint e = 0u; e < 8u; ++e) part += qv[j][e] * kx[e];
+            // The token's lanes are an aligned run of `lanes`, a power of two, so exchanging across bit o stays inside it.
+            for (uint o = lanes / 2u; o > 0u; o /= 2u) part += subgroupShuffleXor(part, o);
+            float s = part * p.scale;
+            float mn = max(m[j], s);
+            float corr = exp(m[j] - mn), w = exp(s - mn);
+            l[j] = l[j] * corr + w;
+            [[unroll]] for (uint e = 0u; e < 8u; ++e) acc[j][e] = acc[j][e] * corr + w * vx[e];
+            m[j] = mn;
+        }
+    }
+    bool lead = lid == stream * lanes;
+    if (lead)
+        [[unroll]] for (uint j = 0u; j < HG; ++j) { ms[j][stream] = m[j]; ls[j][stream] = l[j]; }
+    // The streams merge one head at a time through the same shared accumulation, in stream order.
+    [[unroll]] for (uint j = 0u; j < HG; ++j) {
+        if (j >= p.hg) continue;
+        [[unroll]] for (uint e = 0u; e < 8u; ++e) accs[stream * p.dim + d0 + e] = acc[j][e];
+        barrier();
+        if (lid < p.dim) {
+            uint h = h0 + j, rh = g * p.n_head + h, qbase = qrow + h * p.dim;
+            float M = ms[j][0];
+            for (uint i = 1u; i < streams; ++i) M = max(M, ms[j][i]);
+            float L = 0.0, A = 0.0;
+            // A stream that saw no token holds -inf and zeros and adds nothing; exp(-inf - -inf) must never be formed.
+            for (uint i = 0u; i < streams; ++i) {
+                if (isinf(ms[j][i])) continue;
+                float c = exp(ms[j][i] - M);
+                L += ls[j][i] * c;
+                A += accs[i * p.dim + lid] * c;
+            }
+            if (p.nsplit == 1u) {
+                float r = A / L;
+                o[qbase + lid] = r;
+                if (p.quant != 0u) xquant_twin(qbase + lid, r, p.rows * qstride);
+            } else {
+                uint sbase = (rh * p.nsplit + split) * (p.dim + 2u);
+                scratch[sbase + 2u + lid] = A;
+                if (lid == 0u) { scratch[sbase] = M; scratch[sbase + 1u] = L; }
+            }
+        }
+        barrier();
+    }
+}

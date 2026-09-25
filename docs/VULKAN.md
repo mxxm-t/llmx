@@ -556,6 +556,19 @@ HF gate measures the cost of it.
   grouped. A shorter history keeps one head a workgroup, since grouping
   there leaves too few workgroups, and its build holds 32 registers where
   the first grouped kernel's single build held 61.
+  Heads whose width is eight lanes' worth of eight values, head_dim / 8 a
+  power of two from 4 to the subgroup size (128 in every Qwen3), take
+  `attention_vec.comp` instead: a token's key and value row is read by
+  head_dim / 8 lanes in one 16-byte load each for f16 (two for f32), so
+  a 64-lane subgroup reads four tokens at once, and each such group of
+  lanes keeps its own online softmax, the groups merging in a fixed
+  order. One head a lane group read a 256-byte row two bytes a lane and
+  crossed a 64-lane reduction and an exp between tokens, which kept few
+  bytes in flight: on an MI50 Qwen3-8B Q8_0 at a 16384-token history
+  decoded at 27.9 tok/s grouped and 29.4 with this kernel (0.6B 64.4 to
+  86.3, 30B-A3B 29.1 to 31.4), and level or better at every shorter
+  history. It sums in another order than the per-lane kernel, so its
+  logits are not bit-identical to it; against the CPU they are closer.
 - **attention_tile**, for a wide pass of 128-wide heads: a workgroup
   per 32 query rows and head, the head's K and V streamed through shared
   memory in 16-token tiles so a tile is read once per 32 rows rather

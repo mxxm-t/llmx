@@ -1330,7 +1330,7 @@ struct PlacementRequest {
     int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
     // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
-    // Each history takes whole blocks, so the budget grows to hold them all where it would not.
+    // Each history takes whole blocks, up to the model's context, so the budget grows to hold them all where it would not.
     size_t histories = 0, history_tokens = 0;
 };
 
@@ -1349,14 +1349,16 @@ inline PlacedModel place_model(const gguf::GGUFModel& m, std::vector<backend::Ba
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
     // A storage has the blocks the budget fills at its backend's block size, and each history takes whole ones, so the request's histories are counted in each backend's blocks.
     // Where any storage would fall short, the budget becomes what they take in the largest blocks, which every other size divides, so every storage holds them and the fit counts them.
+    // No history holds more than the model's context, so one that asks for more is counted at the context: the pool does not grow for tokens no run can hold, and the run is refused where it passes the context.
     if (request.histories) {
-        const size_t budget = kv_tokens(load_config(m), options);
+        const QwenConfig cfg = load_config(m);
+        const size_t budget = kv_tokens(cfg, options), tokens = std::min(request.history_tokens, (size_t)cfg.context_length);
         size_t held = 0;
         bool short_of = false;
         for (const auto& b : backends) {
             if (!b) throw std::runtime_error("inference: missing backend");
             const size_t bt = b->kv_layout().block_tokens;
-            const size_t blocks = backend::size_mul(request.histories, backend::blocks_for(request.history_tokens, bt));
+            const size_t blocks = backend::size_mul(request.histories, backend::blocks_for(tokens, bt));
             short_of = short_of || blocks > backend::blocks_for(budget, bt);
             held = std::max(held, backend::size_mul(blocks, bt));
         }

@@ -443,7 +443,7 @@ void pipelined_failure_rolls_back() {
     }
 }
 
-// A request's histories (PlacementRequest::histories) grow the cache budget only where it cannot hold them, each in whole blocks: the fixture's context is two CPU blocks.
+// A request's histories (PlacementRequest::histories) grow the cache budget only where it cannot hold them, each in whole blocks up to the context: the fixture's context is two CPU blocks.
 void histories_fit_the_pool() {
     const auto weights = fixture();
     const infer::ModelOptions options;
@@ -461,10 +461,16 @@ void histories_fit_the_pool() {
         request.history_tokens = tokens;
         return infer::place_model(weights, std::move(backends), request, options).model;
     };
-    require(place(0, 0, 1)->kv_tokens_total() == 256 && place(2, 128, 1)->kv_tokens_total() == 256,
-            "a budget that holds the histories grew");
+    // One history of one block leaves the two-block budget as it is, where a budget set to what the histories take would shrink to that block.
+    require(place(0, 0, 1)->kv_tokens_total() == 256 && place(1, 100, 1)->kv_tokens_total() == 256 &&
+                place(2, 128, 1)->kv_tokens_total() == 256,
+            "a budget that holds the histories changed");
     require(place(3, 100, 1)->kv_tokens_total() == 384 && place(2, 129, 1)->kv_tokens_total() == 512,
             "a budget short of whole blocks for each history did not grow");
+    ++checked;
+    // A history is counted up to the context: one of 1000 tokens takes the context's two blocks and leaves the budget as it is, and three take six.
+    require(place(1, 1000, 1)->kv_tokens_total() == 256 && place(3, 1000, 1)->kv_tokens_total() == 768,
+            "a history past the context was counted past it");
     ++checked;
     // Three histories of 100 tokens in one pass, which the context's two blocks cannot hold, on one device and over a split.
     for (size_t devices : {1, 2}) {

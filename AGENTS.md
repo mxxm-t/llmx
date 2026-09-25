@@ -141,7 +141,9 @@ do not want while measuring.
 - **Test configuration**: `LLMX_BASELINE_GGUF` points
   `tests/baseline.py` at a fixture model; `LLMX_DEVICE`, set by
   `run_tests.py --device`, appends `--device` to every command that takes
-  it so the suite runs on a device backend; `LLMX_CACHE_TYPE`, set by
+  it so the suite runs on a device backend, except where a component names
+  its own device (`threads` names the CPU, whose thread counts it checks);
+  `LLMX_CACHE_TYPE`, set by
   `run_tests.py --cache-type`, appends `--cache-type-k` and
   `--cache-type-v` the same way so the HF gate runs with a chosen cache
   type; `LLMX_LAYER_SHARES`, set by `run_tests.py --layer-shares`,

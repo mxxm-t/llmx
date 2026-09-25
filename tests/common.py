@@ -24,13 +24,15 @@ def device_args(args, cache=None):
     args = list(args)
     if not args or args[0] not in DEVICE_COMMANDS:
         return args
-    device = os.environ.get("LLMX_DEVICE")
-    if device and "--device" not in args:
-        args += ["--device", device]
-    # LLMX_LAYER_SHARES, set by run_tests.py --layer-shares, fixes each listed device's proportion of the layers, so a split the fit would not choose on this machine is tested anyway.
-    shares = os.environ.get("LLMX_LAYER_SHARES")
-    if shares and "--layer-shares" not in args:
-        args += ["--layer-shares", shares]
+    # A command that names its own device keeps it, and the configured layer shares, which belong to the configured devices, stay off it too.
+    if "--device" not in args:
+        device = os.environ.get("LLMX_DEVICE")
+        if device:
+            args += ["--device", device]
+        # LLMX_LAYER_SHARES, set by run_tests.py --layer-shares, fixes each listed device's proportion of the layers, so a split the fit would not choose on this machine is tested anyway.
+        shares = os.environ.get("LLMX_LAYER_SHARES")
+        if shares and "--layer-shares" not in args:
+            args += ["--layer-shares", shares]
     # LLMX_CACHE_TYPE, set by run_tests.py --cache-type, runs the same commands with both cache sides stored as that type; test configuration like LLMX_DEVICE, reaching the binary only as flags.
     # `cache` is a component asking for a type because its fixtures need it, which an explicit LLMX_CACHE_TYPE overrides.
     want = os.environ.get("LLMX_CACHE_TYPE") or cache
@@ -58,10 +60,15 @@ def top5_overlap(ids, ref_ids, ref_logits, margin=TOP5_TIE_MARGIN):
     return len(got & top) + min(len(missing), len(extra))
 
 
+def run_process(args, input=None, cache=None, text=False, cwd=None, timeout=None):
+    """Run the llmx CLI with the configured device flags and `input` on stdin, returning the finished process; its output is bytes unless `text`."""
+    return subprocess.run([exe_path()] + device_args(args, cache), input=input, capture_output=True,
+                          encoding="utf-8" if text else None, cwd=cwd or ROOT, timeout=timeout)
+
+
 def run(args, cwd=None, cache=None):
     """Run the llmx CLI, returning (returncode, stdout_text)."""
-    p = subprocess.run([exe_path()] + device_args(args, cache), capture_output=True, text=True,
-                       encoding="utf-8", cwd=cwd or ROOT)
+    p = run_process(args, cache=cache, text=True, cwd=cwd)
     # A failure's diagnostic is on stderr; hand it back with the output so a caller can tell a missing device kernel from a wrong answer.
     return p.returncode, p.stdout if p.returncode == 0 else p.stdout + p.stderr
 

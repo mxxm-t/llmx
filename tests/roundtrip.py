@@ -5,10 +5,9 @@ import tempfile
 import random
 import json
 import math
-import subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import run as cli, exe_path, write_bin, read_bin_floats, max_err
+from common import run as cli, run_process, write_bin, read_bin_floats, max_err
 
 # Regression gate for quant/ + format/: build a random F32 model, quantize it to Q8_0 (and Q4_0) via the CLI, dequantize it back, and check the max error is within each type's quantization bound.
 
@@ -91,8 +90,7 @@ def check_tensor_extents(d):
             inputs(shapes, payload)
             with open(mg, "wb") as f:
                 f.write(sentinel)
-            result = subprocess.run([exe_path(), "quantize", mj, mb, mg, qtype],
-                                    capture_output=True, text=True, encoding="utf-8", timeout=30)
+            result = run_process(["quantize", mj, mb, mg, qtype], text=True, timeout=30)
             assert result.returncode != 0, "%s accepted %s" % (qtype, label)
             assert diagnostic in result.stderr, "%s: %s: %s" % (qtype, label, result.stderr)
             with open(mg, "rb") as f:

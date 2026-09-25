@@ -2,16 +2,15 @@ import json
 import math
 from pathlib import Path
 import re
-import subprocess
 import tempfile
 
 import common
 import f32
 
 
+# Thread counts are the CPU backend's, and a device backend reports none, so every command here names the CPU instead of the configured device.
 def invoke(args, data=None):
-    p = subprocess.run([common.exe_path()] + args, input=data,
-                       capture_output=True, timeout=30)
+    p = common.run_process(args + ["--device", "cpu"], input=data, timeout=30)
     assert p.returncode == 0, (args, p.returncode, p.stderr)
     return p.stdout.replace(b"\r\n", b"\n"), p.stderr
 
@@ -28,7 +27,7 @@ def check_perplexity_threads(model, automatic, weights):
         for batch in (None, 0, 1, 3):
             for alias in (("--threads-batch", "-tb") if batch is not None else ("--threads-batch",)):
                 for per_token in (False, True):
-                    flags = ["--verbose", "--ubatch", "3", "--device", "cpu",
+                    flags = ["--verbose", "--ubatch", "3",
                              "--cache-type-k", "f32", "--cache-type-v", "f32",
                              "-c", str(case["context"])]
                     if count is not None:

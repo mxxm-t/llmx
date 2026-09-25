@@ -51,9 +51,10 @@ is measured against the single-sequence path and the reference.
   A capped request is never paused, and a request that cannot be admitted is not started.
 - **An exact resume.** A request keeps its prompt and what it generated, never rewritten, and a record of how each stretch of its history was computed, its row classes: the extent and fresh count each stretch took (`BatchEntry`).
   At its first admission that is the forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent with the tokens it prefills, and the generated tokens at extent 1; a donor keeps the classes of the history it holds.
-  A resumed request forks only rows computed the way its own were, its own donor's or an identical request's, and recomputes what its cache lacks in the classes that first computed it, its generated tokens as entries of extent 1, which take the decode kernels however many rows they carry.
+  A resumed request whose own donor, the one its pause left, is still there because nothing evicted it takes that donor back whole, its partial last block included, and recomputes nothing: the rows it continues from are the ones it computed itself. Its history goes to that donor even when it holds less than a full block, which only it can take.
+  Otherwise it forks only rows computed the way its own were, from a donor sharing part of its history, an identical request's or one holding a prefix it forked at its first admission, and recomputes what its cache lacks in the classes that first computed it, its generated tokens as entries of extent 1, which take the decode kernels however many rows they carry.
   So a paused request gives the logits, bit for bit, that it gives when never paused, on the CPU, on a device and on a layer split, and a request that never pauses runs exactly as before.
-  The price is time: recomputed generated tokens cost what decode rows cost, at most 64 a pass (`kReplayRows`), each counting as 8 tokens of a 512-token prompt slice, where a re-prefill as prompt rows cost less and changed the values.
+  The price of a recompute is time: recomputed generated tokens cost what decode rows cost, at most 64 a pass (`kReplayRows`), each counting as 8 tokens of a 512-token prompt slice, where a re-prefill as prompt rows cost less and changed the values.
 - **Dependency-free transport.** HTTP/1.1 over BSD sockets and Winsock,
   request parsing, chunked responses, JSON in and out through
   `core/json.hpp`. No TLS: the server sits behind a reverse proxy when it
@@ -106,15 +107,17 @@ The scheduler sees the flag at its next iteration, after the pass in flight: a q
 loop:
   drop:    end the queued requests whose client left, wherever they
            wait, and look again as admission reaches each one
-  admit:   while the queue has a request and active < max_seqs: find
+  admit:   while the queue has a request and active < max_seqs: take a
+           resumed request's own donor if it is still there, else find
            the donor sharing the longest run of full blocks (for a
            resumed request, of rows computed as its own were); if the pool
            can hold the history plus max_tokens, or an uncapped request's
            history plus a growth step (dropping the other donors, oldest
            first, then consuming that donor, to make room; a donor whose
-           full blocks the request all shares is consumed first), take
-           it, fork the donor at the shared blocks or make a fresh
-           sequence; the cache's length is all the progress there is
+           full blocks the request all shares, or its own, is consumed
+           first), take it, take its own donor back whole, fork the donor
+           at the shared blocks or make a fresh sequence; the cache's
+           length is all the progress there is
   grow:    an uncapped decoding request whose next token passes its
            reservation reserves another step, dropping donors first, or
            else the latest admitted uncapped request is paused
@@ -266,4 +269,4 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 6 | The compatible routes: `/v1/chat/completions`, `/v1/completions`, `/v1/models` in the OpenAI clients' shape (**done**) | The `server` component: greedy equality with the CLI through `/v1/completions` whole and streamed, usage counts, the role in the first chat chunk and the finish reason in the last, text content parts, the refusals' shape; CPU and device |
 | 7 | `/v1/tokenize` and `/v1/detokenize`, and `messages` rendered by the chat template in place of a text (**done**) | The `server` component against `llmx tokenize` and `llmx detokenize` on the synthetic model and the Q8_0 fixture: text beyond ASCII, special tokens, an empty text, ids ending inside a character, a reply's ids giving back its text, the chat fixture's goldens under the file's template and a chat request reading the same count, the refusals |
 | 8 | Log-probabilities on every generating route, in the compatible shapes and a native one (**done**) | The `logprobs` CTest: the log-softmax against a double-precision reference and the scheduler's channel against a second model's logits, read at once or left to fall behind; the `server` component: each route's shape whole and streamed, the ids unchanged, the values repeating byte for byte and equal alone and four at a time, greedy's token the most likely, and a reply that does not ask byte-identical to one that never names them |
-| 9 | An exact resume: each request's row classes, a resume forking only rows of its own classes and recomputing the rest in them (**done**) | `server-resume`: uncapped requests paused beside others give every id and value they give alone, on the CPU, a two-CPU split and a device, a follow-up turn's forked reply rows and a prefix of another extent included; the `server` component's uncapped checks by value; `tools/server_mix_check.py --uncapped` on the MI50s |
+| 9 | An exact resume: each request's row classes, a resume taking its own donor back whole when it survived, or forking only rows of its own classes and recomputing the rest in them (**done**) | `server-resume`: uncapped requests paused beside others give every id and value they give alone, on the CPU, a two-CPU split and a device, a follow-up turn's forked reply rows and a prefix of another extent included; a donor taken back recomputing nothing, a follow-up turn's among them, part of a history kept after its donor went, and a paused request cancelled; the `server` component's uncapped checks by value; `tools/server_mix_check.py --uncapped` on the MI50s |

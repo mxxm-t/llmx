@@ -607,6 +607,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Whether first admissions stop forking rows across row classes: yes, in the branch after `fix/server-exact-resume`. It reads the row classes this branch records. A follow-up turn recomputes the previous reply as prompt rows, about 1.3 s per 1000 reply tokens on 8B on one MI50, and a short prompt's donor is shared only within its class.
   - Whether logprobs go on the public routes: yes, in `feat/server-logprobs` below.
   - Whether a host tier for paused caches goes on top of the exact recompute: decided on step 3's numbers.
+  - Whether a resumed request whose own donor survived takes it back whole: yes, as a step of its own after step 2, decided with the Qwen 3.5 plan, whose hybrid models need it.
 - **Found**, read at 34bebc3, with measured results on main where stated:
   - Measured on one MI50 with Qwen3-8B Q8_0: 12 uncapped greedy requests with `--max-seqs 6 --ctx-size 4096` pause 24 times. 3 of the 12 replies differ from the same request run alone, first differing 1400 to 2900 characters in.
   - The same run gives 2 of 12 differing on a 3-card split and 1 of 12 with Qwen3-0.6B.
@@ -663,6 +664,13 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
      - Gate: the failing tests pass on the CPU, the Radeon VII, one MI50, a 3-card split and the Radeon VII with the CPU.
      - Gate: every request that never pauses gives main's ids and logprobs.
      - Gate: `git diff main -- src/model src/backends` is that one comment.
+     - **Then take-back resume**, one commit of its own after step 2:
+       - A pause leaves the request's history as a donor whose id the request keeps, even when it holds less than a full block.
+       - A resumed request whose own donor survived, because nothing evicted it while the request was paused, takes it back whole, its partial last block included, and recomputes nothing. The rows it continues from are the ones it computed itself, so the output stays exact.
+       - Hybrid recurrent models need it, since their state cannot be forked at a block boundary, and it removes the recompute of dense models whenever the donor survives.
+       - Otherwise the resume falls back to the exact replay of step 2, forking whatever rows of its own classes survive in other donors.
+       - Tests: `server-resume` cases for a take-back with the donor intact, a follow-up turn's take-back, a partial eviction falling back to exact replay, and cancellation while paused.
+       - Gate: as step 2.
   3. **Room by first admission.**
      - The admission number is set once, at the first admission.
      - `make_room(r, need, preempt)` is the one owner of who gives up blocks for whom. It takes donors first, oldest first. Then, and only for growth, it pauses uncapped requests admitted after `r`, latest first.

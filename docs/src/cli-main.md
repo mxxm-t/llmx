@@ -11,7 +11,7 @@ Commands and their entry points:
   an example. Help returns before opening a model or creating a backend;
   positional text in `tokenize`, `logits` and `perplexity` remains text.
   `print_usage(command, out)` writes the overview or a command's page to the stream it is given and returns false for a name that is no command.
-  Each default it prints comes from its owner: the sampling settings and execution flags from `infer::GenParams{}`, `--ubatch` from `infer::kDefaultUbatch`, the cache types from `infer::ModelOptions{}`, the server's from `server::Config{}` and `pull`'s from `hub::PullOptions{}`.
+  Each default it prints comes from its owner: the sampling settings from `infer::Sampling{}`, the execution flags from `ExecOptions{}`, `--ubatch` from `infer::kDefaultUbatch`, the cache types from `infer::ModelOptions{}`, the server's from `server::Config{}` and `pull`'s from `hub::PullOptions{}`.
   The defaults only the CLI has are named once, beside the readers, and the parsers start from them too: `kLogitsTop` for `logits --top`, `kChatSystem` for `chat --system`, `kQuantType` for `quantize` without a type, and `BenchNumbers` for `bench`'s sizes, counts and repeats.
 - `--version`: release version plus the build revision, without loading a model.
 - Usage errors: a command line a command cannot take throws `UsageError`, and `main` prints that command's page on stderr (the overview for `--help` followed by anything), then `error:` and the reason, and returns 2.
@@ -19,7 +19,7 @@ Commands and their entry points:
   An unknown command prints `unknown command:` and returns 2, bare `llmx` prints the overview on stdout and returns 1, and any other error prints `error:` and returns 1.
 - Readers: `flag_value` takes the value after a flag and refuses a flag at the end of the line.
   `int_arg(argc, argv, i, flag, lo, hi)` reads a decimal whole number through `whole_number` (digits only, read by `std::from_chars`, so no space, sign, base prefix, fraction or trailing character), and `float_arg` a decimal number of digits, a point and an exponent (no infinity, NaN or hexadecimal form); each refuses a value outside `lo` to `hi`, which defaults to the type's largest.
-  Every numeric flag reads through them with its range: `--threads` and `-tb` from 0 (automatic), `--ubatch`, `-n`, `--top`, `--last`, `--max-seqs`, `--max-queue`, the context sizes, `--chunks`, `--iters`, `--p`, `--n`, `--r` and `--seqs` from 1, `--port` 0 to 65535 (0 asks the system for a free port), `pull --parallel` 1 to `hub::max_parallel_streams`, `--size` from 32, `--depth`, `--n-cpu-moe` and `--moe-stream-from` from 0, `--temp`, `--topk`, `--topp` and `--penalty` within the sampler's ranges beside `GenParams` (`infer::kTempRange` and the others), and `--seed` as a decimal unsigned 64-bit value.
+  Every numeric flag reads through them with its range: `--threads` and `-tb` from 0 (automatic), `--ubatch`, `-n`, `--top`, `--last`, `--max-seqs`, `--max-queue`, the context sizes, `--chunks`, `--iters`, `--p`, `--n`, `--r` and `--seqs` from 1, `--port` 0 to 65535 (0 asks the system for a free port), `pull --parallel` 1 to `hub::max_parallel_streams`, `--size` from 32, `--depth`, `--n-cpu-moe` and `--moe-stream-from` from 0, `--temp`, `--topk`, `--topp` and `--penalty` within the ranges `infer::Sampling` holds beside its defaults (`Sampling::temp_range` and the others), and `--seed` as a decimal unsigned 64-bit value.
 - `token_ids(text, vocab_size)`: ids separated by commas or any whitespace, any other character refused, and each id compared with the vocabulary while it is still 64 bits wide, so an id past 2^32 is refused rather than narrowed into range.
   `detokenize` and `logits --then-ids` read their ids through it.
 - `read_text_file(path, command)`: a file's bytes as they are, opened by its UTF-8 path, the refusal naming the command.
@@ -42,13 +42,12 @@ Commands and their entry points:
   gate compares against a full-precision reference, since sampled text hides
   everything except argmax flips).
   It takes its text inline or from `--file <path>` (`-f`) right after the model, as `perplexity` does, and appends the `--then-ids` file's ids.
-- `generate`: `cmd_generate` (prefill + generate; prints `pp:`/`tg:` timings).
-- `chat`: `cmd_chat` (interactive loop using the chat template). Tracks the
-  exact IDs fed into the model separately from message text. Prefills only
-  an exact-prefix extension; resets and refills changed, shortened or identical
-  prompts to obtain valid next-token logits. A returned stop token may not yet
-  be cached, and EOS is supplied by the next rendered transcript rather than
-  appended unconditionally. These are single-sequence semantics.
+- `generate`: `cmd_generate` (`prefill_turn`, then `infer::generate`; prints `pp:`/`tg:` timings).
+- `chat`: `cmd_chat` (interactive loop using the chat template, each turn a `prefill_turn` of what the cache does not hold, then `infer::generate`).
+  Tracks the exact IDs fed into the model separately from message text.
+  Prefills only an exact-prefix extension; resets and refills changed, shortened or identical prompts to obtain valid next-token logits.
+  A returned stop token may not yet be cached, and EOS is supplied by the next rendered transcript rather than appended unconditionally.
+  These are single-sequence semantics.
 - `bench`: `cmd_bench` (hot-path micro-benchmark, timed after one untimed matmul so that one-time setup such as the CPU pool's start stays out, then synthetic end-to-end TPS),
   or with `--model` the matched real-model measurement: warm-up, then `--r`
   repeats of `pp N` and `tg N`, model time only, `--seqs N` for decode
@@ -60,8 +59,11 @@ Commands and their entry points:
   Every test starts from a cleared history, batched decode included, so the last prompt's blocks are back in the pool before its sequences take theirs.
   It tells `open_model` what each sequence holds at most, a batched one its prompt and its tokens, the one sequence its depth and the longer test, so the pool holds its sequences at once.
 - `layer_shares`: `--layer-shares` as one whole-number proportion per device (`core::comma_list`), each 0 to 999999; `exec_flag` reads the list through it when it meets the flag, so a bad share is a usage error before the model is opened.
+- `ExecOptions`: the execution flags and `--verbose`, the CLI's own and not the sampler's: the device list and layer shares, the thread counts for decode and for a prompt, `--ubatch`, the cache types, serve's KV token budget, the experts on the CPU and the stream-from length.
+  `exec_flag` fills it, and `show_progress`, `model_options`, `open_model`, `prefill_turn` and the `cmd_*` functions read it; `generate` and `chat` take the sampling settings apart, as `infer::GenParams`.
 - `model_options`: the model options the flags ask for, starting from `infer::ModelOptions{}`. A cache side changes, through `backend::kv_type_of`, only when its flag is given, so the model layer's default is the one the commands run. `print_usage` prints that default from `ModelOptions{}` as well, as `f16 (default) or f32` while f16 is the default.
-- `exec_flag`: the execution flags every model command takes, read in one place: `--device`, `--layer-shares`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--threads`, `--ubatch` and the cache types. A cache type is checked and written in its one spelling as it is read (`cache_type_arg`, through `backend::kv_type_of` and `backend::kv_type_name`), so an empty or unknown name is a usage error before any model file is read. `generate`, `chat` and `perplexity` add `--threads-batch`.
+- `exec_flag`: the execution flags every model command takes, read in one place: `--device`, `--layer-shares`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--threads`, `--ubatch` and the cache types. A cache type is checked and written in its one spelling as it is read (`cache_type_arg`, through `backend::kv_type_of` and `backend::kv_type_name`), so an empty or unknown name is a usage error before any model file is read.
+  Its `batch_threads` switch adds `--threads-batch` (`-tb`), which `generate`, `chat` and `perplexity` turn on, the same switch `print_usage` lists the flag by, so the commands that do not read it refuse it as an unknown flag.
   Each command's branch refuses what it would otherwise ignore or overwrite: `bench` without `--model` the flags only a model run reads, and `bench --model` `--size` and `--iters`; `generate` `--system` and a second prompt; `chat` any positional argument, since its messages come from stdin; and `generate` and `chat` a second `--stop`. `-tb` with `perplexity --per-token` stays accepted and unused, as USAGE documents.
 - `open_model`: how every model-building command opens its model (`Opened`: the file, its tokenizer and the model, built in place since the model keeps the file's address): refuse `--moe-stream-from` without experts on the CPU as a usage error, which the flags alone decide; read the file, with progress for `generate`, `chat` and `serve`; place the model over the backends `--device` names (`backend::device_specs`, `backend::make_backends`) through `infer::place_model`, with the flags' shares, experts on the CPU, `--moe-stream-from` and `--ubatch`, and `serve`'s `--max-seqs` or `bench`'s `--seqs` as the generated rows a pass carries beside a prompt, `bench`'s also as the histories the cache holds at once (`PlacementRequest::histories`); print a split's plan when `show_plan`, which `generate`, `chat` and `perplexity` set with `--verbose` and `bench --model` always, while `logits` and `serve`, which take no `--verbose`, never print it; release the host's copy of the weights when no weight reads it in place; and set the thread count.
 - `serve`: parses host, port, sequence and queue limits, the KV budget
@@ -70,9 +72,12 @@ Commands and their entry points:
   and the cache types, then runs `server::serve` (see [server](server.md)).
   The sequence and queue limits are refused below 1 here, the one place they are checked.
   The model's name is its file name, read as UTF-8 as the loader reads the path (`u8path`, `u8string`), so on Windows it does not pass through the system code page.
+- `prefill_turn(model, exec, ids, decode_threads, progress, prefilled)`: one turn's prompt for `generate` and each `chat` turn.
+  It sets the prompt's worker count (`--threads-batch`, else the resolved decode count), shows `--verbose`'s prefill thread line and the processing line, prefills, and restores the decode count, including automatic selection.
+  `prefilled` then gets the prompt's time, which is how `generate` prints its `prompt tokens:` and `pp:` lines where they always were; the timer runs from the prefill to the restored decode count, since restoring a changed count stops the CPU workers the prompt ran on, and the decode count's pool starts on the first decode pass.
+  Last come the decode thread line and the generating line, and it returns the logits after the prompt; `generate` and `chat` call `infer::generate` themselves.
 
-`generate` and each `chat` turn apply the prefill worker count and restore the resolved decode count, including automatic selection.
-`--verbose` reports the actual counts on stderr.
+`--verbose` reports each phase's actual worker count on stderr.
 `bench` retains the backend's automatic count for zero or omitted threads, and without `--model` prints that resolved count on stdout.
 
 Generate/chat use `load_model` to render the format's loading progress on

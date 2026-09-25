@@ -138,7 +138,7 @@ private:
                   ",\"vocab\":" + std::to_string(model_.n_vocab()) + "}]}");
     }
 
-    // A sampling setting within the range the sampler takes it in (inference/sampler.hpp), the range the CLI reads its flag against, so both refuse the same values.
+    // A sampling setting within its range in infer::Sampling (inference/sampler.hpp), the range the CLI reads its flag against, so both refuse the same values.
     // A number past the float's range is refused before the cast, which has no defined result for it, and the range is checked on the float the sampler reads.
     static float setting(const jmini::Value& v, const char* key, const infer::SampleRange<float>& range, float fallback) {
         const jmini::Value* f = v.get(key);
@@ -217,13 +217,13 @@ private:
                                    compat(route) ? integer(body, "max_completion_tokens", lo, hi, -1) : defaults.max_tokens);
         params.until_limit = compat(route) && cap == -1;
         params.max_tokens = (int)cap;
-        params.temp = setting(body, "temperature", infer::kTempRange, defaults.temp);
+        params.temp = setting(body, "temperature", infer::Sampling::temp_range, defaults.temp);
         // Clients send a top_k of -1 for no top-k, so the compatible routes take it as 0, which keeps every token; the native routes refuse it as any other top_k below 0.
-        const double top_k = integer(body, "top_k", compat(route) ? -1 : infer::kTopKRange.lo, infer::kTopKRange.hi, defaults.top_k);
+        const double top_k = integer(body, "top_k", compat(route) ? -1 : infer::Sampling::top_k_range.lo, infer::Sampling::top_k_range.hi, defaults.top_k);
         params.top_k = top_k == -1 ? 0 : (int)top_k;
-        params.top_p = setting(body, "top_p", infer::kTopPRange, defaults.top_p);
-        params.penalty = setting(body, "penalty", infer::kPenaltyRange,
-                                 compat(route) ? setting(body, "repetition_penalty", infer::kPenaltyRange, defaults.penalty) : defaults.penalty);
+        params.top_p = setting(body, "top_p", infer::Sampling::top_p_range, defaults.top_p);
+        params.penalty = setting(body, "penalty", infer::Sampling::penalty_range,
+                                 compat(route) ? setting(body, "repetition_penalty", infer::Sampling::penalty_range, defaults.penalty) : defaults.penalty);
         // Clients send a seed of -1 for a random one, so the compatible routes take it as no seed, as they take an absent one; the native routes refuse it as any other seed below 0.
         // The largest double below 2^64 is the last one a seed holds.
         const double seed = integer(body, "seed", compat(route) ? -1 : 0, std::nextafter(18446744073709551616.0, 0.0), (double)defaults.seed);

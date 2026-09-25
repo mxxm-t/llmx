@@ -7,7 +7,8 @@
 #include <limits>
 #include <unordered_set>
 
-// Sampling logic and generation parameters, split out of the CLI so the same sampler can drive generate, perplexity, and chat.
+// The sampler and the sampling settings it reads, with their defaults and ranges.
+// generate (the CLI's generate and chat) and the server's scheduler both sample through it.
 
 namespace infer {
 
@@ -25,37 +26,33 @@ struct RNG {
     float unit() { return (float)((next() >> 40) * (1.0 / 16777216.0)); }
 };
 
-struct GenParams {
-    int max_tokens = 64;
-    float temp = 0.8f;
-    int top_k = 40;
-    float top_p = 0.95f;
-    int threads = 0;        // 0 = auto; used for generation (decode)
-    int threads_batch = 0;  // 0 = same as threads; used for prefill
-    int ubatch = 0;         // physical batch for prefill (0 = default 512)
-    std::string cache_type_k;   // KV cache storage per side as given, f16 or f32; empty keeps the model's default (ModelOptions)
-    std::string cache_type_v;
-    int kv_tokens = 0;      // the KV pool's total token budget (0 = the model context)
-    std::string device = "cpu"; // backend: cpu, or vulkan:N when built with it; several, comma separated, split the model by layers over them
-    std::string layer_shares;   // with several devices, their proportions of the layers, comma separated; empty fits them to the devices' free memory
-    int cpu_moe = 0;        // routed layers whose experts run on the CPU beside a device: the first N, -1 all
-    int moe_stream_from = 0;    // a prompt extent from which those layers run on the device, their experts copied there per pass; 0 never
-    float penalty = 1.0f;   // repetition penalty (>= 1)
-    uint64_t seed = 0;      // 0 retains the fixed default RNG state.
-    std::string stop;       // stop generating when decoded output contains this
-    bool show_prompt_tokens = false;
-};
-
-// The values a sampling setting takes, from lo to hi; the CLI's flags and the server's request fields both refuse a value outside them.
+// The values a sampling setting takes, from lo to hi.
 template <class T>
 struct SampleRange {
     T lo, hi;
     bool holds(T v) const { return v >= lo && v <= hi; }   // false for NaN
 };
-inline constexpr SampleRange<float> kTempRange{0.0f, std::numeric_limits<float>::max()};   // 0 is greedy
-inline constexpr SampleRange<int> kTopKRange{0, std::numeric_limits<int>::max()};           // 0 keeps every token
-inline constexpr SampleRange<float> kTopPRange{0.0f, 1.0f};                                 // 1 keeps every token
-inline constexpr SampleRange<float> kPenaltyRange{1.0f, std::numeric_limits<float>::max()}; // 1 is none, and below 1 would favor repeats
+
+// One generation's sampling settings, each default and each range written once.
+// The CLI's flags and the server's request fields start from these defaults and refuse a value outside these ranges, so the two take the same values.
+struct Sampling {
+    int max_tokens = 64;    // tokens generated at most
+    float temp = 0.8f;
+    int top_k = 40;
+    float top_p = 0.95f;
+    float penalty = 1.0f;   // repetition penalty
+    uint64_t seed = 0;      // 0 keeps the fixed default RNG state
+
+    static constexpr SampleRange<float> temp_range{0.0f, std::numeric_limits<float>::max()};    // 0 is greedy
+    static constexpr SampleRange<int> top_k_range{0, std::numeric_limits<int>::max()};            // 0 keeps every token
+    static constexpr SampleRange<float> top_p_range{0.0f, 1.0f};                                  // 1 keeps every token
+    static constexpr SampleRange<float> penalty_range{1.0f, std::numeric_limits<float>::max()};  // 1 is none, and below 1 would favor repeats
+};
+
+// What generate reads: the sampling settings and the one stop text of the CLI's generate and chat.
+struct GenParams : Sampling {
+    std::string stop;       // stop generating when decoded output contains this
+};
 
 // Temperature + top-k + top-p nucleus sampling with repetition penalty.
 // `penalty` >= 1: divide the score of each already-generated token by penalty to discourage repeats.

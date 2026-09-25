@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <chrono>
 #include <charconv>
+#include <functional>
 #include <limits>
 
 #if defined(_WIN32)
@@ -61,6 +62,22 @@ struct BenchNumbers {
     int repeats = 3;    // a model run's repetitions
     int seqs = 1;       // sequences decoding together
     int depth = 0;      // tokens of history each test runs after
+};
+
+// The execution flags, the "Execution options" of a model command's help, and --verbose: where the model runs, its workers, its prompt batch and its caches.
+// exec_flag fills them, and a flag the command line does not give keeps the default here, which the help prints.
+struct ExecOptions {
+    std::string device = "cpu";   // cpu, or vulkan:N when built with it; several, comma separated, split the model by layers over them
+    std::string layer_shares;     // with several devices, their proportions of the layers, comma separated; empty fits them to the devices' free memory
+    int threads = 0;              // CPU workers, decode's where a command tells the phases apart; 0 selects automatically
+    int threads_batch = 0;        // CPU workers for a prompt's batched passes; 0 takes the decode count
+    int ubatch = 0;               // prompt tokens a pass takes; 0 is infer::kDefaultUbatch
+    std::string cache_type_k;     // each cache side's type as its flag gives it; empty keeps the model's default (ModelOptions)
+    std::string cache_type_v;
+    int kv_tokens = 0;            // the KV pool's total token budget, serve's --ctx-size; 0 is the model context
+    int cpu_moe = 0;              // routed layers whose experts run on the CPU beside a device: the first N, -1 all
+    int moe_stream_from = 0;      // new prompt tokens from which those experts are copied to the device for a pass; 0 never
+    bool verbose = false;         // the prompt token count, the thread counts, a split's plan and progress
 };
 
 // A command line the command cannot take: main prints the command's page on stderr and exits with status 2.
@@ -165,19 +182,19 @@ void no_second_text(const std::string& a) {
     if (a == "--file" || a == "-f") throw UsageError(a + " goes right after the model, in place of the text");
 }
 
-bool show_progress(const infer::GenParams& gp) {
+bool show_progress(const ExecOptions& exec) {
 #if defined(_WIN32)
-    return gp.show_prompt_tokens || _isatty(_fileno(stderr));
+    return exec.verbose || _isatty(_fileno(stderr));
 #else
-    return gp.show_prompt_tokens || isatty(fileno(stderr));
+    return exec.verbose || isatty(fileno(stderr));
 #endif
 }
 
-infer::ModelOptions model_options(const infer::GenParams& gp) {
+infer::ModelOptions model_options(const ExecOptions& exec) {
     infer::ModelOptions o;
-    if (!gp.cache_type_k.empty()) o.kv_k = backend::kv_type_of(gp.cache_type_k);
-    if (!gp.cache_type_v.empty()) o.kv_v = backend::kv_type_of(gp.cache_type_v);
-    o.kv_tokens = gp.kv_tokens > 0 ? (size_t)gp.kv_tokens : 0;
+    if (!exec.cache_type_k.empty()) o.kv_k = backend::kv_type_of(exec.cache_type_k);
+    if (!exec.cache_type_v.empty()) o.kv_v = backend::kv_type_of(exec.cache_type_v);
+    o.kv_tokens = exec.kv_tokens > 0 ? (size_t)exec.kv_tokens : 0;
     return o;
 }
 
@@ -304,18 +321,20 @@ std::vector<int> layer_shares(const std::string& value) {
 }
 
 // The execution flags every model command takes, the "Execution options" of its help: where it runs, its workers, its prompt batch and its caches.
-// Reads argv[i] (and its value) into `gp` and returns true when it is one of them.
-bool exec_flag(int argc, char** argv, int& i, infer::GenParams& gp) {
+// Reads argv[i] (and its value) into `exec` and returns true when it is one of them.
+// `batch_threads` adds --threads-batch (-tb), which only the commands that give a prompt's batched passes their own worker count read: generate, chat and perplexity.
+bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_threads) {
     const std::string a = argv[i];
-    if (a == "--device") gp.device = flag_value(argc, argv, i, a);
-    else if (a == "--layer-shares") { gp.layer_shares = flag_value(argc, argv, i, a); layer_shares(gp.layer_shares); }
-    else if (a == "--n-cpu-moe") gp.cpu_moe = int_arg(argc, argv, i, a, 0);
-    else if (a == "--cpu-moe") gp.cpu_moe = -1;
-    else if (a == "--moe-stream-from") gp.moe_stream_from = int_arg(argc, argv, i, a, 0);
-    else if (a == "--threads") gp.threads = int_arg(argc, argv, i, a, 0);
-    else if (a == "--ubatch") gp.ubatch = int_arg(argc, argv, i, a, 1);
-    else if (a == "--cache-type-k" || a == "-ctk") gp.cache_type_k = cache_type_arg(argc, argv, i, a);
-    else if (a == "--cache-type-v" || a == "-ctv") gp.cache_type_v = cache_type_arg(argc, argv, i, a);
+    if (a == "--device") exec.device = flag_value(argc, argv, i, a);
+    else if (a == "--layer-shares") { exec.layer_shares = flag_value(argc, argv, i, a); layer_shares(exec.layer_shares); }
+    else if (a == "--n-cpu-moe") exec.cpu_moe = int_arg(argc, argv, i, a, 0);
+    else if (a == "--cpu-moe") exec.cpu_moe = -1;
+    else if (a == "--moe-stream-from") exec.moe_stream_from = int_arg(argc, argv, i, a, 0);
+    else if (a == "--threads") exec.threads = int_arg(argc, argv, i, a, 0);
+    else if (batch_threads && (a == "--threads-batch" || a == "-tb")) exec.threads_batch = int_arg(argc, argv, i, a, 0);
+    else if (a == "--ubatch") exec.ubatch = int_arg(argc, argv, i, a, 1);
+    else if (a == "--cache-type-k" || a == "-ctk") exec.cache_type_k = cache_type_arg(argc, argv, i, a);
+    else if (a == "--cache-type-v" || a == "-ctv") exec.cache_type_v = cache_type_arg(argc, argv, i, a);
     else return false;
     return true;
 }
@@ -332,28 +351,28 @@ struct Opened {
 // Open a model file as the flags ask: read it, showing progress when `progress`, place the model over the listed devices for its ubatch plus `decode_rows` generated tokens a pass (a server's sequences), print a split's plan when `show_plan`, and release the host's copy of the weights when no weight reads it in place.
 // `threads` is the worker count to set, 0 to keep the backend's own; `profile` times the one device's kernels.
 // `history_tokens`, when given, is what each of the `decode_rows` sequences holds, and the cache grows to hold them all at once where its budget would not (infer::PlacementRequest::histories).
-std::unique_ptr<Opened> open_model(const std::string& path, const infer::GenParams& gp, bool progress, int threads, size_t decode_rows = 0,
+std::unique_ptr<Opened> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                    bool show_plan = false, bool profile = false, size_t history_tokens = 0) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
-    if (gp.moe_stream_from && !gp.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
+    if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     auto opened = std::make_unique<Opened>();
     opened->file = load_model(path, progress);
     opened->tok.emplace(opened->file);
-    const auto specs = backend::device_specs(gp.device);
+    const auto specs = backend::device_specs(exec.device);
     auto backends = backend::make_backends(specs, profile);
     opened->first = backends.front().get();
     infer::PlacementRequest request;
     request.names = specs;
-    request.shares = layer_shares(gp.layer_shares);
-    request.cpu_moe = gp.cpu_moe;
-    request.stream_from = (size_t)gp.moe_stream_from;
-    request.ubatch = gp.ubatch;
+    request.shares = layer_shares(exec.layer_shares);
+    request.cpu_moe = exec.cpu_moe;
+    request.stream_from = (size_t)exec.moe_stream_from;
+    request.ubatch = exec.ubatch;
     request.decode_rows = decode_rows;
     if (history_tokens) {
         request.histories = decode_rows;
         request.history_tokens = history_tokens;
     }
-    infer::PlacedModel placed = infer::place_model(opened->file, std::move(backends), request, model_options(gp));
+    infer::PlacedModel placed = infer::place_model(opened->file, std::move(backends), request, model_options(exec));
     if (show_plan) std::cerr << placed.plan;
     opened->model = std::move(placed.model);
     if (!opened->model->holds_payload()) opened->file.release_payload();
@@ -361,10 +380,27 @@ std::unique_ptr<Opened> open_model(const std::string& path, const infer::GenPara
     return opened;
 }
 
-int cmd_generate(const std::string& model_path, const std::string& prompt,
-                 const infer::GenParams& gp) {
-    const bool progress = show_progress(gp);
-    const auto opened = open_model(model_path, gp, progress, gp.threads, 0, gp.show_prompt_tokens);
+// One turn's prompt, before its reply is generated: prefill `ids` on the prompt's worker count (--threads-batch, else `decode_threads`), then set `decode_threads` back.
+// `prefilled`, called before the decode lines are shown, gets the prompt's time in milliseconds, which includes setting the decode count back, since a changed count stops the CPU workers the prompt ran on.
+// Returns the logits after the last prompt token.
+std::vector<float> prefill_turn(infer::Model& model, const ExecOptions& exec, const std::vector<uint32_t>& ids, int decode_threads, bool progress,
+                                const std::function<void(double)>& prefilled = {}) {
+    model.set_threads(exec.threads_batch > 0 ? exec.threads_batch : decode_threads);
+    if (exec.verbose) std::cerr << "threads: prefill " << model.threads_available() << "\n";
+    if (progress) std::cerr << "Processing " << ids.size() << " prompt tokens...\n";
+    const auto t0 = std::chrono::steady_clock::now();
+    std::vector<float> logits = model.prefill(ids);
+    model.set_threads(decode_threads);
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    if (prefilled) prefilled(ms);
+    if (exec.verbose) std::cerr << "threads: decode " << model.threads_available() << "\n";
+    if (progress) std::cerr << "Generating...\n";
+    return logits;
+}
+
+int cmd_generate(const std::string& model_path, const std::string& prompt, const infer::GenParams& gp, const ExecOptions& exec) {
+    const bool progress = show_progress(exec);
+    const auto opened = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
     const int decode_threads = model.threads_available();
@@ -374,29 +410,18 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     std::vector<uint32_t> ids = tok.encode(prompt);
     if (ids.empty()) throw std::runtime_error("generate: empty prompt");
 
-    // Prefill and decode can use different worker counts (--threads-batch / --threads).
-    const int tb = (gp.threads_batch > 0) ? gp.threads_batch : decode_threads;
-    model.set_threads(tb);
-    if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
-    if (progress) std::cerr << "Processing " << ids.size() << " prompt tokens...\n";
-    auto t0 = std::chrono::steady_clock::now();
-    std::vector<float> logits = model.prefill(ids);
-    model.set_threads(decode_threads);
-    double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-    if (gp.show_prompt_tokens) std::cout << "prompt tokens: " << ids.size() << "\n";
-    // Preserve fractional throughput for slow models.
-    printf("pp: %zu tok, %.0f ms, %.2f tok/s\n", ids.size(), pp_ms,
-           (double)ids.size() / (pp_ms / 1e3));
-
-    if (gp.show_prompt_tokens) std::cerr << "threads: decode " << model.threads_available() << "\n";
-    if (progress) std::cerr << "Generating...\n";
-    t0 = std::chrono::steady_clock::now();
+    const std::vector<float> logits = prefill_turn(model, exec, ids, decode_threads, progress, [&](double pp_ms) {
+        if (exec.verbose) std::cout << "prompt tokens: " << ids.size() << "\n";
+        // Preserve fractional throughput for slow models.
+        printf("pp: %zu tok, %.0f ms, %.2f tok/s\n", ids.size(), pp_ms, (double)ids.size() / (pp_ms / 1e3));
+    });
+    const auto t0 = std::chrono::steady_clock::now();
     std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits, emit_text);
     std::cout << "\n";
     double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     printf("tg: %zu tok, %.0f ms, %.2f tok/s\n", gen.size(), tg_ms,
            (double)gen.size() / (tg_ms / 1e3));
-    if (gp.show_prompt_tokens)
+    if (exec.verbose)
         printf("kv: allocated %zu bytes, peak %zu bytes, used %zu bytes\n",
                model.kv_allocated_bytes(), model.kv_peak_bytes(), model.kv_used_bytes());
     return 0;
@@ -405,8 +430,8 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
 // `then_ids` appends exact generated IDs without re-tokenizing their text; `last` reports the final positions through batched passes.
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text,
-               int topn, const infer::GenParams& gp, const std::string& then_ids = "", size_t last = 0) {
-    const auto opened = open_model(model_path, gp, false, gp.threads);
+               int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0) {
+    const auto opened = open_model(model_path, exec, false, exec.threads);
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
 
@@ -444,12 +469,12 @@ int cmd_logits(const std::string& model_path, const std::string& text,
 }
 
 int cmd_perplexity(const std::string& model_path, const std::string& text,
-                   const infer::GenParams& gp, int context_size, int chunks, bool per_token) {
-    const int threads = !per_token && gp.threads_batch > 0 ? gp.threads_batch : gp.threads;
-    const auto opened = open_model(model_path, gp, false, threads, 0, gp.show_prompt_tokens);
+                   const ExecOptions& exec, int context_size, int chunks, bool per_token) {
+    const int threads = !per_token && exec.threads_batch > 0 ? exec.threads_batch : exec.threads;
+    const auto opened = open_model(model_path, exec, false, threads, 0, exec.verbose);
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
-    if (gp.show_prompt_tokens)
+    if (exec.verbose)
         std::cerr << "threads: " << (per_token ? "decode " : "prefill ") << model.threads_available() << "\n";
 
     std::vector<uint32_t> ids = tok.encode(text);
@@ -466,10 +491,9 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     return 0;
 }
 
-int cmd_chat(const std::string& model_path, const std::string& system,
-             const infer::GenParams& gp) {
-    const bool progress = show_progress(gp);
-    const auto opened = open_model(model_path, gp, progress, gp.threads, 0, gp.show_prompt_tokens);
+int cmd_chat(const std::string& model_path, const std::string& system, const infer::GenParams& gp, const ExecOptions& exec) {
+    const bool progress = show_progress(exec);
+    const auto opened = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
     const gguf::GGUFModel& m = opened->file;
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
@@ -501,16 +525,9 @@ int cmd_chat(const std::string& model_path, const std::string& system,
             model.reset();
             cached_ids.clear();
         }
-        model.set_threads(gp.threads_batch > 0 ? gp.threads_batch : decode_threads);
-        if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
-        if (progress) std::cerr << "Processing " << gen_ids.size() - cached_ids.size() << " prompt tokens...\n";
-        std::vector<float> logits = model.prefill(
-            std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()));
+        const std::vector<float> logits = prefill_turn(model, exec, std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()),
+                                                       decode_threads, progress);
         cached_ids = std::move(gen_ids);
-
-        model.set_threads(decode_threads);
-        if (gp.show_prompt_tokens) std::cerr << "threads: decode " << model.threads_available() << "\n";
-        if (progress) std::cerr << "Generating...\n";
         std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits, emit_text);
         std::cout << "\n" << std::flush;
         // A stop match may return its final token without feeding it.
@@ -607,10 +624,10 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 
 // Time model execution over fixed IDs after warm-up; history setup and sampling are outside the timer.
 // Multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth; see docs/USAGE.md.
-int cmd_bench_model(const std::string& path, const infer::GenParams& gp, int P, int G, int R, bool profile, int seqs = 1, int D = 0) {
+int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int G, int R, bool profile, int seqs = 1, int D = 0) {
     // What each sequence holds at most: a batched one its prompt and its generated tokens, the one sequence its depth and the longer of its two tests.
     const size_t reach = seqs > 1 ? (size_t)P + (size_t)G : (size_t)D + (size_t)std::max(P, G);
-    const auto opened = open_model(path, gp, false, gp.threads, (size_t)seqs, true, profile, reach);
+    const auto opened = open_model(path, exec, false, exec.threads, (size_t)seqs, true, profile, reach);
     backend::Backend* b = opened->first;
     infer::Model& model = *opened->model;
     // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
@@ -713,8 +730,8 @@ int cmd_bench_model(const std::string& path, const infer::GenParams& gp, int P, 
 }
 
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
-int cmd_serve(const std::string& model_path, const server::Config& cfg, const infer::GenParams& gp) {
-    const auto opened = open_model(model_path, gp, true, gp.threads, cfg.max_seqs);
+int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec) {
+    const auto opened = open_model(model_path, exec, true, exec.threads, cfg.max_seqs);
     const gguf::GGUFModel& m = opened->file;
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
@@ -723,7 +740,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const in
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     http::Listener listener(c.host, c.port);
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
-              << " (device " << gp.device << ", up to " << c.max_seqs << " sequences over "
+              << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
               << model.kv_tokens_total() << " KV tokens, queue of " << c.max_queue << ")\n";
     server::serve(model, tok, m, c, listener);
     return 0;
@@ -762,7 +779,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "Example:  llmx chat model.gguf --threads 6 --temp 0 -n 256\n";
         return true;
     }
-    const infer::GenParams defaults;
+    const infer::Sampling sampling;
+    const ExecOptions defaults;
     const infer::ModelOptions caches;
     // A cache side's two types, the model's default first and marked.
     const auto cache_types = [](backend::KVType d) {
@@ -795,11 +813,11 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "Usage: llmx " << command << " <model.gguf>"
             << (chat ? " [options]\n" : " \"<prompt>\" [options]\n")
             << "\nGeneration options:\n"
-            << "  -n N, --max-tokens N    Maximum generated tokens per turn (default: " << defaults.max_tokens << ")\n"
-            << "  --temp F                Temperature; 0 is greedy (default: " << defaults.temp << ")\n"
-            << "  --topk N                Top-k sampling (default: " << defaults.top_k << ")\n"
-            << "  --topp F                Nucleus sampling (default: " << defaults.top_p << ")\n"
-            << "  --penalty F             Repetition penalty (default: " << defaults.penalty << ")\n"
+            << "  -n N, --max-tokens N    Maximum generated tokens per turn (default: " << sampling.max_tokens << ")\n"
+            << "  --temp F                Temperature; 0 is greedy (default: " << sampling.temp << ")\n"
+            << "  --topk N                Top-k sampling (default: " << sampling.top_k << ")\n"
+            << "  --topp F                Nucleus sampling (default: " << sampling.top_p << ")\n"
+            << "  --penalty F             Repetition penalty (default: " << sampling.penalty << ")\n"
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
             << "  --verbose               Show the prompt token count, progress and execution details\n";
@@ -991,38 +1009,38 @@ int main(int argc, char** argv) {
             const bool chat = cmd == "chat";
             if (argc < 3) throw UsageError("missing the model");
             infer::GenParams gp;
+            ExecOptions exec;
             std::string system = kChatSystem;
             std::string prompt;
             bool have_prompt = false, have_stop = false;
             for (int i = 3; i < argc; i++) {
                 const std::string a = argv[i];
                 if (a == "-n" || a == "--max-tokens") gp.max_tokens = int_arg(argc, argv, i, a, 1);
-                else if (a == "--temp") gp.temp = float_arg(argc, argv, i, a, infer::kTempRange.lo, infer::kTempRange.hi);
-                else if (a == "--topk") gp.top_k = int_arg(argc, argv, i, a, infer::kTopKRange.lo, infer::kTopKRange.hi);
-                else if (a == "--topp") gp.top_p = float_arg(argc, argv, i, a, infer::kTopPRange.lo, infer::kTopPRange.hi);
-                else if (a == "--penalty") gp.penalty = float_arg(argc, argv, i, a, infer::kPenaltyRange.lo, infer::kPenaltyRange.hi);
+                else if (a == "--temp") gp.temp = float_arg(argc, argv, i, a, infer::Sampling::temp_range.lo, infer::Sampling::temp_range.hi);
+                else if (a == "--topk") gp.top_k = int_arg(argc, argv, i, a, infer::Sampling::top_k_range.lo, infer::Sampling::top_k_range.hi);
+                else if (a == "--topp") gp.top_p = float_arg(argc, argv, i, a, infer::Sampling::top_p_range.lo, infer::Sampling::top_p_range.hi);
+                else if (a == "--penalty") gp.penalty = float_arg(argc, argv, i, a, infer::Sampling::penalty_range.lo, infer::Sampling::penalty_range.hi);
                 else if (a == "--seed") gp.seed = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (a == "--stop") {
                     if (have_stop) throw UsageError("--stop takes one text, given once");
                     gp.stop = flag_value(argc, argv, i, a);
                     have_stop = true;
                 }
-                else if (exec_flag(argc, argv, i, gp)) {}
-                else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = int_arg(argc, argv, i, a, 0);
+                else if (exec_flag(argc, argv, i, exec, true)) {}
                 else if (a == "--system" && chat) system = flag_value(argc, argv, i, a);
-                else if (a == "--verbose") gp.show_prompt_tokens = true;
+                else if (a == "--verbose") exec.verbose = true;
                 else if (!a.empty() && a[0] == '-') throw UsageError("unknown flag: " + a);
                 else if (chat) throw UsageError("chat reads its messages from standard input, not '" + a + "'");
                 else if (have_prompt) throw UsageError("a second prompt, '" + a + "'; quote the prompt to keep its spaces");
                 else { prompt = a; have_prompt = true; }
             }
-            if (chat) return cmd_chat(argv[2], system, gp);
+            if (chat) return cmd_chat(argv[2], system, gp, exec);
             if (!have_prompt) throw UsageError("missing the prompt");
-            return cmd_generate(argv[2], prompt, gp);
+            return cmd_generate(argv[2], prompt, gp, exec);
         }
 
         if (cmd == "perplexity") {
-            infer::GenParams gp;
+            ExecOptions exec;
             int context_size = 0, chunks = 0;
             bool per_token = false;
             const int first = text_arg(argc, argv);
@@ -1032,17 +1050,16 @@ int main(int argc, char** argv) {
                 if (a == "--ctx-size" || a == "-c") context_size = int_arg(argc, argv, i, a, 1);
                 else if (a == "--chunks") chunks = int_arg(argc, argv, i, a, 1);
                 else if (a == "--per-token") per_token = true;
-                else if (a == "--verbose") gp.show_prompt_tokens = true;
-                else if (exec_flag(argc, argv, i, gp)) {}
-                else if (a == "--threads-batch" || a == "-tb") gp.threads_batch = int_arg(argc, argv, i, a, 0);
+                else if (a == "--verbose") exec.verbose = true;
+                else if (exec_flag(argc, argv, i, exec, true)) {}
                 else throw UsageError("unknown flag: " + a);
             }
             const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
-            return cmd_perplexity(argv[2], text, gp, context_size, chunks, per_token);
+            return cmd_perplexity(argv[2], text, exec, context_size, chunks, per_token);
         }
 
         if (cmd == "logits") {
-            infer::GenParams gp;
+            ExecOptions exec;
             int topn = kLogitsTop;
             std::string then_ids;
             size_t last = 0;
@@ -1053,11 +1070,11 @@ int main(int argc, char** argv) {
                 if (a == "--top") topn = int_arg(argc, argv, i, a, 1);
                 else if (a == "--then-ids") then_ids = flag_value(argc, argv, i, a);
                 else if (a == "--last") last = (size_t)int_arg(argc, argv, i, a, 1);
-                else if (exec_flag(argc, argv, i, gp)) {}
+                else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
             }
             const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
-            return cmd_logits(argv[2], text, topn, gp, then_ids, last);
+            return cmd_logits(argv[2], text, topn, exec, then_ids, last);
         }
 
         if (cmd == "tokenize") {
@@ -1084,24 +1101,24 @@ int main(int argc, char** argv) {
         if (cmd == "serve") {
             if (argc < 3) throw UsageError("missing the model");
             server::Config cfg;
-            infer::GenParams gp;
+            ExecOptions exec;
             for (int i = 3; i < argc; i++) {
                 const std::string a = argv[i];
                 if (a == "--host") cfg.host = flag_value(argc, argv, i, a);
                 else if (a == "--port") cfg.port = (uint16_t)int_arg(argc, argv, i, a, 0, 65535);   // 0 asks the system for a free port
                 else if (a == "--max-seqs") cfg.max_seqs = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (a == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
-                else if (a == "--ctx-size" || a == "-c") gp.kv_tokens = int_arg(argc, argv, i, a, 1);
-                else if (exec_flag(argc, argv, i, gp)) {}
+                else if (a == "--ctx-size" || a == "-c") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
+                else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
             }
-            return cmd_serve(argv[2], cfg, gp);
+            return cmd_serve(argv[2], cfg, exec);
         }
         if (cmd == "bench") {
             BenchNumbers n;
             bool profile = false;
             std::string model_path, model_only, synthetic_only;   // the first flag given that only a model run reads, and the first only the synthetic bench reads
-            infer::GenParams gp;
+            ExecOptions exec;
             for (int i = 2; i < argc; i++) {
                 const std::string a = argv[i];
                 if (a == "--size") { n.size = int_arg(argc, argv, i, a, 32); if (synthetic_only.empty()) synthetic_only = a; }
@@ -1109,7 +1126,7 @@ int main(int argc, char** argv) {
                 else if (a == "--p") n.prompt = int_arg(argc, argv, i, a, 1);
                 else if (a == "--n") n.decode = int_arg(argc, argv, i, a, 1);
                 else if (a == "--model") model_path = flag_value(argc, argv, i, a);
-                else if (exec_flag(argc, argv, i, gp)) { if (a != "--device" && a != "--threads" && model_only.empty()) model_only = a; }
+                else if (exec_flag(argc, argv, i, exec, false)) { if (a != "--device" && a != "--threads" && model_only.empty()) model_only = a; }
                 else if (a == "--r") { n.repeats = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
                 else if (a == "--seqs") { n.seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
                 else if (a == "--depth") { n.depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
@@ -1123,12 +1140,12 @@ int main(int argc, char** argv) {
             // Batched decode already starts after each sequence's prompt.
             if (n.depth > 0 && n.seqs > 1) throw UsageError("--depth takes one sequence");
             if (profile) {
-                const auto specs = backend::device_specs(gp.device);
-                if (specs.size() != 1 || specs[0].rfind("vulkan:", 0) != 0 || !gp.layer_shares.empty())
+                const auto specs = backend::device_specs(exec.device);
+                if (specs.size() != 1 || specs[0].rfind("vulkan:", 0) != 0 || !exec.layer_shares.empty())
                     throw UsageError("--profile times the kernels of one Vulkan device");
             }
-            if (!model_path.empty()) return cmd_bench_model(model_path, gp, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth);
-            return cmd_bench(n.size, n.iters, gp.threads, n.prompt, n.decode, gp.device);
+            if (!model_path.empty()) return cmd_bench_model(model_path, exec, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth);
+            return cmd_bench(n.size, n.iters, exec.threads, n.prompt, n.decode, exec.device);
         }
         std::cerr << "unknown command: " << cmd << "\n";
         return 2;

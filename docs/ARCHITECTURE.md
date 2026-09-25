@@ -184,11 +184,10 @@ The format layer reports progress through an optional `LoadProgress` callback.
 For mapped GGUF files it normally counts payload ranges whose pages were touched;
 a payload larger than available host memory completes without that page touching.
 This reports format loading, not completed device uploads or model readiness.
-Inference reports decoded byte chunks through an
-optional generation callback. Both run synchronously on their caller, hold no
-global subscriber state, and leave terminal formatting to the CLI. Callback
-exceptions propagate; consumers must not reenter the same model. Future serving
-can adapt these callbacks without importing console code into lower layers.
+Inference reports decoded byte chunks through the optional generation callback of `infer::generate`, which the CLI's `generate` and `chat` drive.
+Both callbacks run synchronously on their caller, hold no global subscriber state, and leave terminal formatting to the CLI.
+Callback exceptions propagate; consumers must not reenter the same model.
+The server does not use the generation callback: its scheduler samples every request's logits itself, ends a request with its own per-token check over the same sampler and `Tokenizer::is_eos`, and hands each token to the request's connection through a channel (`docs/SERVER.md`).
 The callbacks do not provide scheduling, cancellation or concurrent sessions.
 
 ## Error handling

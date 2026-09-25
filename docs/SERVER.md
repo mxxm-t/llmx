@@ -72,10 +72,9 @@ cli/main.cpp     `llmx serve <model.gguf> [--host H] [--port N] [--device D]
                  [--moe-stream-from N]`
 ```
 
-`server/` sits above `inference/` in the layering: it uses the model, the
-tokenizer, the sampler and the chat template renderer and adds only
-scheduling and transport. The directory is created with its first working
-route, not before.
+`server/` sits above `inference/` in the layering: it uses the model, the tokenizer, the sampler and the chat template renderer, and adds scheduling and transport.
+It does not drive `infer::generate`, which runs one sequence to its end: the scheduler advances every request a pass and has its own per-token end check (end of text, any of a request's stop texts, its token limit), over the shared sampler (`infer::sample`, with the defaults and ranges of `infer::Sampling`) and `Tokenizer::is_eos`.
+The directory is created with its first working route, not before.
 
 ### Threads
 
@@ -145,12 +144,9 @@ STATUS, not a scheduler one.
 
 ### Sampling
 
-Sampling is per request, on the host, from the logits row the pass returns
-for that entry: the existing `inference/sampler.hpp` with the request's own
-temperature, top-k, top-p, penalty and seeded RNG, so a request with
-`seed` set is reproducible regardless of what it was batched with. Greedy
-requests give the text the CLI gives for the same prompt, which is the
-first correctness gate below.
+Sampling is per request, on the host, from the logits row the pass returns for that entry: the existing `inference/sampler.hpp` with the request's own temperature, top-k, top-p, penalty and seeded RNG, so a request with `seed` set is reproducible regardless of what it was batched with.
+A field the request leaves out takes the default of `infer::Sampling`, the one the CLI's flag starts from, except `max_tokens` on the compatible routes, where leaving it out means no cap; a value outside the range `infer::Sampling` gives the field is refused, as the CLI refuses it, but for the `top_k` of -1 that the compatible routes take as 0.
+Greedy requests give the text the CLI gives for the same prompt, which is the first correctness gate below.
 
 ### Protocol
 

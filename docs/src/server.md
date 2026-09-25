@@ -11,7 +11,8 @@ scheduler are the runtime's own.
   `Listener::accept` returns no connection only once `close()` has run, and any other failure is retried: at once when it is one client's (a connection aborted before it was taken, an interrupted call), and after 50 ms otherwise, so a client's aborted connection never stops the server and an error that persists cannot spin a core.
   `respond` throws while a stream is open, since a second head would land inside the chunked body.
   The `http` CTest drives it with its own client.
-- `scheduler.hpp`: `Request` and `Scheduler`.
+- `scheduler.hpp`: `Request`, `Scheduler` and `SampleParams`.
+  `SampleParams` is `infer::Sampling` (`inference/sampler.hpp`), with its defaults and ranges, plus what only a request has: a list of stop texts and `until_limit`, a request without a cap.
   Connection threads submit requests and drain their token channels; the scheduler thread is the single caller of `Model::forward`.
   `Request::next` waits for a token or the end only until a deadline, so a connection thread can look at its client between tokens.
   The KV pool holds `--ctx-size` tokens in total, and `submit` owns what one request may hold (`token_limit`): it refuses a prompt plus `max_tokens` past it, or an uncapped prompt that fills it, and sets an uncapped request's `max_tokens` to the room its prompt leaves; past `--max-queue` waiting requests a new one is refused with 503.
@@ -25,7 +26,7 @@ scheduler are the runtime's own.
   Native `/v1/generate`, `/v1/chat` and `/v1/health`; the OpenAI-compatible `/v1/chat/completions`, `/v1/completions` and `/v1/models`, one parse, one request and one drain loop shared with the native routes, with the clients' synonyms accepted and errors in their shape.
   The path of a generating route resolves to its `Route` once, and `compat(Route)` alone says which of those routes speak the clients' shape, so a compatible request refused while it is read gets that shape too.
   `integer` refuses a whole-number field that is fractional or outside what it is cast to (`max_tokens`, `max_completion_tokens` and `n` within `int`, `seed` from 0 to below 2^64) with 400 before any cast.
-  The sampling fields take the ranges beside `infer::GenParams` that the CLI's flags take, so a value the CLI refuses the server refuses too, apart from a `top_k` of -1 on the compatible routes: `setting` refuses `temperature`, `top_p` and `penalty` (or `repetition_penalty`) with 400 outside `kTempRange`, `kTopPRange` and `kPenaltyRange`, checked on the float the sampler reads, and `integer` refuses `top_k` outside `kTopKRange`.
+  The sampling fields start from the defaults of `infer::Sampling` and take the ranges it holds beside them, the ones the CLI's flags take, so a value the CLI refuses the server refuses too, apart from a `top_k` of -1 on the compatible routes: `setting` refuses `temperature`, `top_p` and `penalty` (or `repetition_penalty`) with 400 outside `Sampling::temp_range`, `top_p_range` and `penalty_range`, checked on the float the sampler reads, and `integer` refuses `top_k` outside `top_k_range`.
   On the compatible routes an absent `max_tokens`, or -1, means no cap (`until_limit`): the reply may run to the end of the request's context; the native routes keep a default of 64 and refuse -1 as any other cap below 1.
   A `seed` of -1, which clients send for a random one, is no seed on the compatible routes, sampled as a request with none is, and the native routes refuse it as any other seed below 0.
   A `top_k` of -1, which clients send for no top-k, is 0 on the compatible routes, which keeps every token, and the native routes refuse it as any other `top_k` below 0.

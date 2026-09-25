@@ -339,7 +339,8 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   mapped-byte reporting, files truncated before loading, callback failures, early text
   delivery, split UTF-8 bytes and stop/EOS accounting;
   `cli-output` also reads `--device` lists as the commands do (canonical spellings, a device once, malformed entries refused), and the cache types as `exec_flag` reads them (one spelling each, an empty or unknown name refused before any model file is read).
-  It runs the CLI's number readers (`int_arg`, `float_arg` with the sampler's ranges, `--seed`'s decimal 64-bit read) and `token_ids` over every malformed form: a missing value, a sign, space, base prefix, fraction or trailing character, infinity and NaN, a value past its range or its type, and an id that would narrow into the vocabulary.
+  It checks that `exec_flag` reads `--threads-batch` and `-tb` only where the command asks for them.
+  It runs the CLI's number readers (`int_arg`, `float_arg` with the ranges of `infer::Sampling`, `--seed`'s decimal 64-bit read) and `token_ids` over every malformed form: a missing value, a sign, space, base prefix, fraction or trailing character, infinity and NaN, a value past its range or its type, and an id that would narrow into the vocabulary.
 - **KV cache** (`tests/kv_cache.cpp`, CTest `kv-cache`): block pool reuse and
   exhaustion, sequence prepare/commit/abort/reset, on-demand storage growth
   and retained reset across block boundaries, paged attention over two

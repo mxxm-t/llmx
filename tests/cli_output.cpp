@@ -25,20 +25,34 @@ bool device_lists() {
 
 // A cache type is kept in its one spelling, and an empty or unknown name is a usage error as the flag is read, before any model file is.
 bool cache_types() {
-    auto read = [](std::string flag, std::string value, infer::GenParams& gp) {
+    auto read = [](std::string flag, std::string value, ExecOptions& exec) {
         char* argv[] = {flag.data(), value.data()};
         int i = 0;
-        return exec_flag(2, argv, i, gp) && i == 1;
+        return exec_flag(2, argv, i, exec, false) && i == 1;
     };
     auto refused = [&](const std::string& flag, const std::string& value) {
-        infer::GenParams gp;
-        try { read(flag, value, gp); } catch (const UsageError&) { return gp.cache_type_k.empty() && gp.cache_type_v.empty(); }
+        ExecOptions exec;
+        try { read(flag, value, exec); } catch (const UsageError&) { return exec.cache_type_k.empty() && exec.cache_type_v.empty(); }
         return false;
     };
-    infer::GenParams gp;
-    return gp.cache_type_k.empty() && gp.cache_type_v.empty() && read("-ctk", "f32", gp) && read("--cache-type-v", "f16", gp) &&
-           gp.cache_type_k == "f32" && gp.cache_type_v == "f16" && refused("-ctk", "") && refused("-ctv", "") &&
+    ExecOptions exec;
+    return exec.cache_type_k.empty() && exec.cache_type_v.empty() && read("-ctk", "f32", exec) && read("--cache-type-v", "f16", exec) &&
+           exec.cache_type_k == "f32" && exec.cache_type_v == "f16" && refused("-ctk", "") && refused("-ctv", "") &&
            refused("--cache-type-k", "q8_0") && refused("--cache-type-v", "F16");
+}
+
+// --threads-batch and -tb are execution flags only where the command asks for them, as generate, chat and perplexity do; elsewhere they are not read, so the command refuses them as unknown.
+bool batch_threads() {
+    auto read = [](std::string flag, bool batch_threads, ExecOptions& exec) {
+        std::string value = "3";
+        char* argv[] = {flag.data(), value.data()};
+        int i = 0;
+        return exec_flag(2, argv, i, exec, batch_threads) && i == 1;
+    };
+    ExecOptions taken, left;
+    return read("-tb", true, taken) && taken.threads_batch == 3 && read("--threads-batch", true, taken) &&
+           !read("-tb", false, left) && !read("--threads-batch", false, left) && left.threads_batch == 0 &&
+           read("--threads", false, left) && left.threads == 3 && left.threads_batch == 0;
 }
 
 // Runs `read` over the command line `flag value...` as a command's flag loop does, at the flag; the value it read, or nullopt when it refused the line as a usage error.
@@ -61,12 +75,13 @@ bool number_readers() {
     const auto threads = [](int argc, char** argv, int& i) { return int_arg(argc, argv, i, "--threads", 0); };
     const auto port = [](int argc, char** argv, int& i) { return int_arg(argc, argv, i, "--port", 0, 65535); };
     const auto seed = [](int argc, char** argv, int& i) { return int_arg<uint64_t>(argc, argv, i, "--seed", 0); };
-    // The sampling flags read the sampler's ranges, as generate and chat do.
-    const auto temp = [](int argc, char** argv, int& i) { return float_arg(argc, argv, i, "--temp", infer::kTempRange.lo, infer::kTempRange.hi); };
-    const auto topk = [](int argc, char** argv, int& i) { return int_arg(argc, argv, i, "--topk", infer::kTopKRange.lo, infer::kTopKRange.hi); };
-    const auto topp = [](int argc, char** argv, int& i) { return float_arg(argc, argv, i, "--topp", infer::kTopPRange.lo, infer::kTopPRange.hi); };
+    // The sampling flags read the ranges of infer::Sampling, as generate and chat do.
+    using infer::Sampling;
+    const auto temp = [](int argc, char** argv, int& i) { return float_arg(argc, argv, i, "--temp", Sampling::temp_range.lo, Sampling::temp_range.hi); };
+    const auto topk = [](int argc, char** argv, int& i) { return int_arg(argc, argv, i, "--topk", Sampling::top_k_range.lo, Sampling::top_k_range.hi); };
+    const auto topp = [](int argc, char** argv, int& i) { return float_arg(argc, argv, i, "--topp", Sampling::top_p_range.lo, Sampling::top_p_range.hi); };
     const auto penalty = [](int argc, char** argv, int& i) {
-        return float_arg(argc, argv, i, "--penalty", infer::kPenaltyRange.lo, infer::kPenaltyRange.hi);
+        return float_arg(argc, argv, i, "--penalty", Sampling::penalty_range.lo, Sampling::penalty_range.hi);
     };
     bool ok = read_flag({"--threads", "0"}, threads) == 0 && read_flag({"--threads", "12"}, threads) == 12 &&
               read_flag({"--threads", "2147483647"}, threads) == 2147483647 &&
@@ -122,6 +137,10 @@ int main() {
         std::cerr << "CLI cache types not read as given or not refused as the flag is read\n";
         return 1;
     }
+    if (!batch_threads()) {
+        std::cerr << "CLI --threads-batch read where the command does not ask for it, or not read where it does\n";
+        return 1;
+    }
     if (!number_readers()) {
         std::cerr << "CLI number flags accept a value outside their form or range\n";
         return 1;
@@ -130,6 +149,6 @@ int main() {
         std::cerr << "CLI token id lists not read as comma or whitespace separated ids within the vocabulary\n";
         return 1;
     }
-    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types refused as read; numbers and token ids read strictly\n";
+    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types refused as read; -tb read only where asked; numbers and token ids read strictly\n";
     return 0;
 }

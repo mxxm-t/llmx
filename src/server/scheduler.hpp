@@ -17,13 +17,8 @@
 
 namespace server {
 
-struct SampleParams {
-    int max_tokens = 64;
-    float temp = 0.8f;
-    int top_k = 40;
-    float top_p = 0.95f;
-    float penalty = 1.0f;
-    uint64_t seed = 0;
+// A request's sampling settings, with the defaults and ranges of infer::Sampling, and what only a request has: several stop texts and no cap.
+struct SampleParams : infer::Sampling {
     std::vector<std::string> stop;
     // No cap from the client: submit sets max_tokens to what the request may hold, and its blocks are reserved as it grows.
     bool until_limit = false;

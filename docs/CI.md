@@ -78,7 +78,7 @@ absent; the separate HF job supplies that coverage.
 The Python suite also checks reference-generator argument safeguards and that
 the requested commit, float32 dtype and eager attention reach the HF loader.
 These use standard-library test doubles; CI does not generate new HF goldens
-or download larger models. The ordinary suite now has 14 components, including
+or download larger models. The ordinary suite now has 15 components, including
 `reference-consumer` rejection tests for 8B fixture tampering, malformed or
 out-of-bound numerical output, wrong model identity and failed launches. These
 tests use small committed JSON fixtures and doubles, without 8B inference.
@@ -109,6 +109,8 @@ banner agree with the release version, then runs the small F32 HF fixture
 without downloads. Its deterministic weights are generated locally;
 committed HF float32 logits/NLL cover tied and untied embeddings, matrix
 tails, multiple physical batches and thread counts.
+The same fixture holds the rows `logits --last` and `--then-ids` print to its bound at their positions, and `logits --file` to the inline prompt's output.
+The `cli` component checks that these builds, which have no Vulkan backend, refuse a Vulkan device rather than run on the CPU, and that `info` lists a synthetic model's architecture, layer count and tensors.
 The UBSan job makes misaligned in-memory tensors a test failure. These jobs also
 run CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
 GGUF structure, custom alignment and loading failures, Qwen model configuration

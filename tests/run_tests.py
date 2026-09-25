@@ -19,6 +19,7 @@ import server
 import chat
 import threads
 import version
+import cli
 import reference_generator
 import reference_consumer
 import baseline
@@ -50,6 +51,7 @@ def main():
             parser.error("missing required HF fixtures: " + ", ".join(missing))
     results = []
     for name, fn in [("version", version.run),
+                     ("cli", cli.run),
                      ("reference-generator", reference_generator.run),
                      ("reference-consumer", reference_consumer.run),
                      ("roundtrip", roundtrip.run),

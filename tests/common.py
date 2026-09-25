@@ -178,9 +178,18 @@ def perplexity_fields(out):
     return fields
 
 
+def hf_logit_error(name, got, expected):
+    """The largest distance of `got`, one position's {id: logit} over the whole vocabulary, from that position's logits in a tiny model's HF fixture, which must be within 2e-5."""
+    assert set(got) == set(range(len(expected))), "missing %s logits" % name
+    assert all(math.isfinite(v) for v in got.values()), "non-finite %s logits" % name
+    error = max(abs(got[i] - value) for i, value in enumerate(expected))
+    assert error < 2e-5, "%s/HF logit error: %.8f" % (name, error)
+    return error
+
+
 def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=((),)):
     """A tiny F32 model against its HF fixture at 1 and 4 threads, with f32 caches.
-    Every case's 257 logits at every ubatch and placement must be within 2e-5 (a placement other than the empty one runs at 4 threads only), then the windowed NLL of `text` for every perplexity case within 1e-5.
+    Every case's 257 logits at every ubatch and placement must be within the fixture bound (a placement other than the empty one runs at 4 threads only), then the windowed NLL of `text` for every perplexity case within 1e-5.
     Returns the largest logit error and the number of logit comparisons."""
     worst, count = 0.0, 0
     for threads in (1, 4):
@@ -189,12 +198,7 @@ def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=
                 rc, out = run_f32_cache(["logits", model, case["text"], "--top", "257",
                                          "--threads", str(threads), "--ubatch", str(ubatch)] + list(placement))
                 assert rc == 0, "%s logits failed: %s" % (name, out)
-                got = dict(zip(*parse_logits(out)))
-                assert set(got) == set(range(257)), "missing %s logits" % name
-                assert all(math.isfinite(v) for v in got.values()), "non-finite %s logits" % name
-                error = max(abs(got[i] - expected) for i, expected in enumerate(case["logits"]))
-                assert math.isfinite(error) and error < 2e-5, "%s/HF logit error: %.8f" % (name, error)
-                worst = max(worst, error)
+                worst = max(worst, hf_logit_error(name, dict(zip(*parse_logits(out))), case["logits"]))
                 count += 1
         for case in perplexity:
             rc, out = run_f32_cache(["perplexity", model, text, "--threads", str(threads), "-c", str(case["context"])])

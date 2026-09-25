@@ -116,6 +116,42 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
     return first
 
 
+def check_logits_input(directory, model, cases):
+    """`logits --file` against the same prompt inline, then the `--last` rows of the prompt, and of its head continued by `--then-ids`, against every fixture case at its position.
+    Returns the largest logit error."""
+    text = TEXTS[-1]
+    rc, inline = cli(["logits", model, text, "--top", "257"])
+    assert rc == 0, "logits failed: " + inline
+    path = os.path.join(directory, "prompt.txt")
+    with open(path, "wb") as f:
+        f.write(text.encode())
+    rc, out = cli(["logits", model, path, "--file", "--top", "257"])
+    assert rc == 0 and out == inline, "logits --file differs from the inline prompt: " + out
+    # The vocabulary is one token per byte, id equal to the byte, so a case's last position is its length less one.
+    head = TEXTS[2]
+    ids = os.path.join(directory, "tail.ids")
+    tail = [str(b) for b in text[len(head):].encode()]
+    with open(ids, "w") as f:
+        f.write(" ".join(tail[:3]) + "\n" + "\t".join(tail[3:]) + "\n")
+    # The first two leave the prompt's first positions out, the second over several passes, and the third prints exactly the appended positions.
+    worst = 0.0
+    for args, last in (([text], len(text) - 2), ([text, "--ubatch", "5"], len(text) - 2), ([head, "--then-ids", ids], len(tail))):
+        rc, out = cli(["logits", model] + args + ["--last", str(last), "--top", "257"])
+        assert rc == 0, "logits --last failed: " + out
+        lines = out.splitlines()
+        assert lines[0] == "tokens: %d" % len(text), out
+        rows = {}
+        for line in lines[1:]:
+            fields = line.split()
+            rows[int(fields[0])] = {int(i): float(v) for i, v in zip(fields[1::2], fields[2::2])}
+        assert sorted(rows) == list(range(len(text) - last, len(text))), (args, sorted(rows))
+        checked = [case for case in cases if len(case["text"]) - 1 in rows]
+        assert checked, args
+        for case in checked:
+            worst = max(worst, common.hf_logit_error("F32 --last", rows[len(case["text"]) - 1], case["logits"]))
+    return worst
+
+
 def run():
     if common.f32_cache_skip("f32"):
         return True
@@ -131,13 +167,13 @@ def run():
             write_model(model, weights)
             error, _ = common.check_hf_fixture("F32", model, fixture["cases"], fixture["perplexity"], TEXTS[-1],
                                                (1, 2, 3, 5, 16))
-            worst = max(worst, error)
+            worst = max(worst, error, check_logits_input(directory, model, fixture["cases"]))
         # The bench measures on top of a history when asked for a depth, and refuses one with batched decode.
         rc, out = cli(["bench", "--model", model, "--p", "4", "--n", "2", "--r", "1", "--depth", "6"])
         assert rc == 0 and "pp4 @ d6" in out and "tg2 @ d6" in out, "bench --depth failed: " + out
         rc, out = cli(["bench", "--model", model, "--depth", "6", "--seqs", "2"])
         assert rc != 0, "bench --depth accepted batched decode"
-    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads and PPL; max error %.8f  [ok]" % worst)
+    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids rows; max error %.8f  [ok]" % worst)
     return True
 
 

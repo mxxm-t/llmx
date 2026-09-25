@@ -320,6 +320,11 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
 
 - **Version** (`tests/version.py`): `--version` matches the CMake project
   version and build identifier format, and the usage banner starts with it.
+- **CLI** (`tests/cli.py`): the command-line surface the numerical components do not reach.
+  A Vulkan device is refused with an error and nothing on stdout, never run on the CPU instead, through a model command and through the synthetic bench.
+  A build without the Vulkan backend refuses it, and so does a Vulkan build that cannot open it; where device 0 opens, an index no machine has stands in for the missing device.
+  `info` on the synthetic MoE model names its architecture and layer count, and lists every tensor written with its type, shape and size.
+  It needs no device, so it runs in every job.
 - **Round-trip** (`tests/roundtrip.py`): build a random Q8_0 model, quantize,
   dequantize, assert max error below a Q8_0-appropriate bound. Regression gate
   for `quant/` + `format/`.
@@ -422,6 +427,8 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model,
   and `bench --model` at a depth.
+  `logits --file` must print what the same prompt inline does.
+  The `--last` rows of the prompt, in one pass and in several, and of its first three tokens continued by `--then-ids`, are held to the HF bound at their positions.
 - **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF
   `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and
   one dense, across batch widths and threads and, on a device, with the

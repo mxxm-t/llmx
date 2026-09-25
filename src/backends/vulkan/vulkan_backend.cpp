@@ -2118,11 +2118,11 @@ public:
     }
 
 private:
-    static const uint32_t kRing = 4;
+    static constexpr uint32_t kRing = 4;
     uint32_t chunk_ = 0;
-    static const size_t kStagingBytes = size_t(64) << 20;
-    static const size_t kArenaBytes = size_t(1) << 20;
-    static const uint32_t kPushBytes = 128;
+    static constexpr size_t kStagingBytes = size_t(64) << 20;
+    static constexpr size_t kArenaBytes = size_t(1) << 20;
+    static constexpr uint32_t kPushBytes = 128;
 
     struct Arena {
         std::unique_ptr<VulkanBuffer> buffer;
@@ -2428,7 +2428,7 @@ private:
     Ticket staged_[2] = {};                   // the last copy out of each half of staging
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
-    static const uint32_t kQueries = 8192;    // two per dispatch; a reading empties the pool, which the next dispatch resets
+    static constexpr uint32_t kQueries = 8192;    // two per dispatch; a reading empties the pool, which the next dispatch resets
     uint32_t query_next_ = 0;
     bool queries_stale_ = false;   // the pool holds a read interval's stamps, reset by the next dispatch
     size_t last_timed_ = 0;        // dispatches the last reading covered

@@ -551,7 +551,7 @@ public:
     }
 
     // Rows fused per activation load: the width dot_f32_x4 handles.
-    static const int DOT_ROWS = 4;
+    static constexpr int DOT_ROWS = 4;
 
 
     // Four rows against three columns reuse seven loads across twelve FMAs, with twelve accumulators and three activation registers.
@@ -1381,7 +1381,7 @@ private:
     std::mutex m_;
     std::condition_variable cv_work_, cv_done_;
     // Bounded spinning avoids a condition-variable wait when the other participant is already running, while idle workers still park.
-    static const int SPIN_LIMIT = 2048;
+    static constexpr int SPIN_LIMIT = 2048;
     // Spin loops read epoch_ and stop_ without the mutex, so both are atomic even though writers hold the mutex.
     const std::function<void(int)>* job_ = nullptr;
     std::exception_ptr worker_error_;

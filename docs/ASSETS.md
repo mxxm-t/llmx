@@ -501,6 +501,7 @@ Each NLL case runs twice, in batched passes (`ppl-NN`), the prompt path, and one
 A run therefore has 41 checks: 20 tokenizer cases, six prompt-ID/ranking pairs, the PPL input IDs and eight NLL checks.
 The per-token half was added on 2026-09-25 with the bounds unchanged; the runs below predate it and have 37.
 A Windows CPU run of all 41 with the `e039b62` runtime passed that day, with NLL deltas per token of 0.003734 continuous and at most 0.002223 windowed, and batched of 0.001574 and at most 0.002255.
+On one MI50 with the `a2b732f` runtime, all 41 passed with NLL deltas per token of 0.003624 continuous and at most 0.002515 windowed, and batched of 0.003464 and at most 0.004543, against bounds of 0.01 and 0.02.
 These checks do not bound all logits or establish full-corpus, deep-context, lossless or performance parity.
 The exact original revision used for the GGUF conversion remains undocumented.
 Keep failures and investigate them without relaxing these bounds to fit observations.

@@ -48,7 +48,7 @@ architectures are planned.
 See [usage](docs/USAGE.md#llmx-pull-ownerrepoquant) for the download/cache
 interface. Local layer splitting is implemented; its recorded coverage is in
 [multi-device status](docs/STATUS.md), where the pinned Qwen3-8B HF check,
-once open on the MI50, now passes 37 of 37 on one card. ARM,
+once open on the MI50, now passes 41 of 41 on one card. ARM,
 tensor groups, execution across machines, other vendor backends and additional
 model architectures are not implemented yet; see
 [development status](docs/STATUS.md) for the current state.

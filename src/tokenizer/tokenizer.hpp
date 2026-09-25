@@ -15,7 +15,7 @@
 //   tokenizer.ggml.tokens       = array<string>   (token id -> byte-mapped token)
 //   tokenizer.ggml.token_type   = array<u32>      (per-token type)
 //   tokenizer.ggml.merges       = array<string>   ("s1 s2", rank = index)
-//   tokenizer.ggml.bos/eos/pad_token_id, add_bos_token
+//   tokenizer.ggml.bos/eos_token_id
 
 namespace bpe {
 
@@ -64,8 +64,6 @@ public:
     std::vector<SpecialToken> specials; // control / user-defined tokens
     int32_t bos_id = -1;
     int32_t eos_id = -1;
-    int32_t pad_id = -1;
-    bool add_bos = false;
 
     Tokenizer(const gguf::GGUFModel& m) {
         byte_to_char = build_byte_encoder();
@@ -118,15 +116,6 @@ public:
             if (v->vtype == gguf::V_UINT32) bos_id = (int32_t)v->u;
         if (const gguf::MetaValue* v = find_kv(m, "tokenizer.ggml.eos_token_id"))
             if (v->vtype == gguf::V_UINT32) eos_id = (int32_t)v->u;
-        if (const gguf::MetaValue* v = find_kv(m, "tokenizer.ggml.padding_token_id"))
-            if (v->vtype == gguf::V_UINT32) pad_id = (int32_t)v->u;
-        if (const gguf::MetaValue* v = find_kv(m, "tokenizer.ggml.add_bos_token"))
-            if (v->vtype == gguf::V_BOOL) add_bos = v->b;
-    }
-
-    int32_t token_id(const std::string& s) const {
-        auto it = token_to_id.find(s);
-        return (it == token_to_id.end()) ? -1 : (int32_t)it->second;
     }
 
     // --- pre-tokenization (Qwen2/Qwen3 Split regex from tokenizer.json) ---

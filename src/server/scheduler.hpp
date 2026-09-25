@@ -10,7 +10,6 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <thread>
 #include <vector>
 #include "inference/sampler.hpp"
 #include "model/arch_qwen.hpp"
@@ -60,8 +59,6 @@ public:
     void cancel() { cancel_.store(true); }
     // The client's prompt tokens; a paused request's queued prompt also holds what it generated.
     size_t prompt_tokens() const { return prompt_tokens_; }
-    const SampleParams& params() const { return params_; }
-    size_t generated() const { return generated_.load(); }
     // Prompt tokens taken from a donor's cache rather than prefilled.
     size_t reused() const { return reused_.load(); }
     // Milliseconds from admission to the first token, and from the first token to the end; read once the request has ended.
@@ -82,7 +79,6 @@ private:
         std::lock_guard<std::mutex> lk(m_);
         if (first_ == Clock::time_point{}) first_ = Clock::now();
         out_.push_back(id);
-        generated_.fetch_add(1);
         cv_.notify_all();
     }
     void end(const std::string& why, const std::string& err = "") {
@@ -102,7 +98,6 @@ private:
     bool done_ = false;
     std::string finish_, error_;
     std::atomic<bool> cancel_{false};
-    std::atomic<size_t> generated_{0};
     std::atomic<size_t> reused_{0};
     const size_t prompt_tokens_;
     Clock::time_point submitted_, admitted_, first_, ended_;   // admitted_ is set once, under m_

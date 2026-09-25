@@ -2,9 +2,6 @@
 // The checked-in src/config.hpp is the fallback for the plain build.bat path.
 #pragma once
 
-#define LLMX_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
-#define LLMX_VERSION_MINOR @PROJECT_VERSION_MINOR@
-#define LLMX_VERSION_PATCH @PROJECT_VERSION_PATCH@
 #define LLMX_RELEASE_VERSION "@PROJECT_VERSION@"
 #if __has_include("llmx-build-info.hpp")
 #include "llmx-build-info.hpp"
@@ -14,13 +11,5 @@
 #endif
 #define LLMX_VERSION_STRING LLMX_RELEASE_VERSION "+" LLMX_BUILD_REVISION
 
-// Backends compiled in. CPU is mandatory and has no SDK dependency. GPU
-// backends are opt-in and require their SDK at build time.
-#define LLMX_HAS_BACKEND_CPU    1
-#define LLMX_HAS_BACKEND_ROCM   @LLMX_BACKEND_ROCM_FLAG@
-#define LLMX_HAS_BACKEND_CUDA   @LLMX_BACKEND_CUDA_FLAG@
-#define LLMX_HAS_BACKEND_SYCL   @LLMX_BACKEND_SYCL_FLAG@
+// Backends compiled in besides the CPU, which is always built: the Vulkan backend is opt-in and needs its SDK at build time.
 #define LLMX_HAS_BACKEND_VULKAN @LLMX_BACKEND_VULKAN_FLAG@
-
-// Default worker-thread hint for CPU backends. 0 = auto (hardware_concurrency).
-#define LLMX_DEFAULT_THREADS @LLMX_DEFAULT_THREADS@

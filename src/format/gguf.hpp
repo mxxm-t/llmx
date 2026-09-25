@@ -175,7 +175,6 @@ struct GGUFModel {
         if (!segments.empty()) segment_of(offsets[i]).file->drop(tensor_data(i), tensor_bytes(i));
     }
     // The same bytes; a mapped model's are read-only memory, so only an in-memory model may be written through this.
-    uint8_t* tensor_data(size_t i) { return const_cast<uint8_t*>(static_cast<const GGUFModel&>(*this).tensor_data(i)); }
     size_t tensor_bytes(size_t i) const { return (size_t)tensors[i].data_size(); }
 
     // Append one tensor's bytes.

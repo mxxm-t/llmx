@@ -62,8 +62,6 @@ public:
     }
 
     size_t in_use() const { return next_ - free_.size(); }
-    size_t free_blocks() const { return max_ - in_use(); }
-    size_t capacity() const { return max_; }
     size_t max_blocks() const { return max_; }
     uint32_t refs(int32_t id) const { return refs_.at((size_t)id); }
 

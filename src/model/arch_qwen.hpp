@@ -14,7 +14,6 @@
 #include <limits>
 
 #include "format/gguf.hpp"
-#include "core/fp16.hpp"
 #include "quant/quant.hpp"
 #include "backends/backend.hpp"
 #include "model/kv_cache.hpp"
@@ -513,7 +512,7 @@ public:
     // The cache pools a scheduler admits against, one per device that runs attention, each counted in its own blocks (docs/SERVER.md, docs/MULTI-DEVICE.md).
     size_t kv_pools() const { return storages_.size(); }
     size_t kv_pool_block_tokens(size_t s) const { return storages_.at(s)->b->kv_layout().block_tokens; }
-    size_t kv_pool_blocks(size_t s) const { return storages_.at(s)->pool.capacity(); }
+    size_t kv_pool_blocks(size_t s) const { return storages_.at(s)->pool.max_blocks(); }
     // Tokens every pool can hold.
     size_t kv_tokens_total() const {
         size_t least = std::numeric_limits<size_t>::max();
@@ -540,9 +539,7 @@ public:
     void set_ubatch(int n) { if (n > 0) ubatch_ = n; }
 
     int n_tokens() const { return (int)seq_.length(); }
-    int head_dim() const { return cfg.head_dim; }
     int context_length() const { return cfg.context_length; }
-    const Placement& placement() const { return place_; }
 
     // A second history with the same committed tokens as `src`, sharing every full block and copying the partial tail on each storage.
     // The fork inherits the tickets of the passes that wrote what it shares.

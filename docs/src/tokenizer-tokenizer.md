@@ -14,13 +14,12 @@ merge algorithm are GPT-2's; the pretokenizer is not.
   whitespace run ending in newlines stays one piece. Using the GPT-2 regex here
   produces valid-looking but wrong ids, which the HF tokenizer fixtures catch.
 - `Tokenizer`: reads tokenizer metadata from a GGUF model
-  (`tokenizer.ggml.model/tokens/token_type/merges/bos/eos/pad_token_id`,
-  `add_bos_token`).
+  (`tokenizer.ggml.model/tokens/token_type/merges/bos/eos_token_id`).
   - `encode(text) -> vector<uint32_t>`: pretokenize, byte-encode, BPE merge by
     rank, map to ids.
   - `decode(ids) -> string`: reverse; an id outside the vocabulary throws.
-  - `token_id(s)`, `bpe(word)`, `byte_encode(raw)`.
-  - Tracks `bos_id`, `eos_id`, `pad_id`, `add_bos`, special tokens.
+  - `bpe(word)`, `byte_encode(raw)`.
+  - Tracks `bos_id`, `eos_id` and the special tokens.
 
 Character classes are approximated for UTF-8 without a Unicode table: any byte
 at or above 0x80 counts as a letter. This matches Qwen's classes on the scripts

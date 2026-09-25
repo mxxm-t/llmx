@@ -1,5 +1,5 @@
-// A model on one device against the same model split by layers over two, compared as raw float logits: every position of a scored text through the prompt path, then greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phase 1).
-// Usage: llmx-split-check <model.gguf> <text file> [single device] [first split device] [second split device] [decode steps]; a device is `cpu` or a Vulkan index.
+// A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
+// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch]; a device is `cpu` or a Vulkan index.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -54,12 +54,12 @@ static size_t mixed(infer::Model& one, infer::Model& two, const std::vector<uint
 
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [first] [second] [steps]\n");
+        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch]\n");
         return 2;
     }
     try {
-        const std::string single = argc > 3 ? argv[3] : "0", first = argc > 4 ? argv[4] : "0", second = argc > 5 ? argv[5] : "1";
-        const int steps = argc > 6 ? std::atoi(argv[6]) : 32;
+        const std::string single = argc > 3 ? argv[3] : "0", split = argc > 4 ? argv[4] : "0,1";
+        const int steps = argc > 5 ? std::atoi(argv[5]) : 32, ubatch = argc > 6 ? std::atoi(argv[6]) : 0;
         gguf::GGUFModel m = gguf::read_gguf(argv[1]);
         bpe::Tokenizer tok(m);
         std::ifstream in(argv[2], std::ios::binary);
@@ -70,10 +70,14 @@ int main(int argc, char** argv) {
         infer::ModelOptions options;
         options.kv_tokens = 4096;
         infer::Model one(m, backend::make_backend(name(single)), options);
-        // The split takes the layers half and half, placed as a device list with --layer-shares 1,1 places them.
+        one.set_ubatch(ubatch);
+        // The split takes equal shares of the layers, placed as a device list with --layer-shares 1,1,... places them.
         infer::PlacementRequest request;
-        request.names = {name(first), name(second)};
-        request.shares = {1, 1};
+        for (const std::string& d : core::comma_list(split)) {
+            request.names.push_back(name(d));
+            request.shares.push_back(1);
+        }
+        request.ubatch = ubatch;
         infer::PlacedModel placed = infer::place_model(m, backend::make_backends(request.names), request, options);
         infer::Model& two = *placed.model;
         std::printf("%s: %zu tokens; single %s, split:\n%s", argv[1], ids.size(), name(single).c_str(), placed.plan.c_str());

@@ -123,7 +123,8 @@ inline size_t quantize_raw(const std::string& json_path, const std::string& bin_
 
 // Write a GGUF file's tensors as raw F32, the model.json and model.bin that quantize_raw reads.
 inline void dequantize_to_raw(const std::string& in_path, const std::string& out_json, const std::string& out_bin) {
-    const gguf::GGUFModel m = gguf::read_gguf(in_path);
+    gguf::GGUFModel m = gguf::read_gguf(in_path);
+    gguf::map_payload(m);
     std::stringstream js;
     js << "{\n";
     js << "  \"name\": " << jmini::quote(in_path) << ",\n";

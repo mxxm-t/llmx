@@ -9,7 +9,6 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <cmath>
 #include <stdexcept>
 #include <limits>
@@ -175,19 +174,16 @@ struct QwenWeights {
     std::vector<TensorView> tensors;
 };
 
-// A GGUF model's weights: its configuration, read once, and a view of every tensor.
-// A tensor table whose storage count does not match its tensors, with a duplicate name, a rank above four, or an offset or extent outside the payload is refused, which includes a payload its owner released.
+// A GGUF model's weights: its configuration, read once, and a view of every tensor, whose data is null while the tensor's file is not mapped (gguf::map_payload).
+// A tensor table whose storage count does not match its tensors, with a rank above four, or an offset or extent outside the payload is refused, which includes a payload its owner released; read_gguf has refused duplicate names already.
 inline QwenWeights gguf_weights(const gguf::GGUFModel& m) {
     QwenWeights w;
     w.config = load_config(m);
     if (m.offsets.size() != m.tensors.size())
         throw std::runtime_error("inference: tensor storage count mismatch");
-    std::unordered_set<std::string> names;
     w.tensors.reserve(m.tensors.size());
     for (size_t i = 0; i < m.tensors.size(); i++) {
         const auto& t = m.tensors[i];
-        if (!names.insert(t.name).second)
-            throw std::runtime_error("inference: duplicate tensor " + t.name);
         if (t.ne.size() > 4)
             throw std::runtime_error("inference: invalid tensor rank " + t.name);
         const uint64_t bytes = t.data_size();

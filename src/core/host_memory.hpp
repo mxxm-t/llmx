@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <optional>
+#include <stdexcept>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -15,9 +16,26 @@
 #include <unistd.h>
 #endif
 
-// What the host can still give a process, as its operating system reports it now (docs/src/core-host_memory.md).
+// What the host can still give a process, as its operating system reports it now, and the page its memory comes in (docs/src/core-host_memory.md).
 
 namespace core {
+
+// The size of a page of memory, which the operating system maps files and moves memory in.
+// It throws when the operating system gives no positive size, since every use steps or multiplies by it.
+inline size_t page_size() {
+    static const size_t page = [] {
+#if defined(_WIN32)
+        SYSTEM_INFO si;
+        GetSystemInfo(&si);
+        const long long size = si.dwPageSize;
+#else
+        const long long size = sysconf(_SC_PAGESIZE);
+#endif
+        if (size <= 0) throw std::runtime_error("cannot read the size of a memory page");
+        return (size_t)size;
+    }();
+    return page;
+}
 
 // Bytes of physical memory available without swapping: what Windows reports as available, what Linux reports as MemAvailable (free memory plus reclaimable page cache); nothing when neither can be read.
 inline std::optional<size_t> host_memory_available() {
@@ -38,8 +56,8 @@ inline std::optional<size_t> host_memory_available() {
         if (found) return (size_t)kb * 1024;
     }
 #if defined(_SC_AVPHYS_PAGES)
-    const long pages = sysconf(_SC_AVPHYS_PAGES), page = sysconf(_SC_PAGESIZE);
-    if (pages > 0 && page > 0) return (size_t)pages * (size_t)page;
+    const long pages = sysconf(_SC_AVPHYS_PAGES);
+    if (pages > 0) return (size_t)pages * page_size();
 #endif
     return std::nullopt;
 #endif

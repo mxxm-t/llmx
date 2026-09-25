@@ -98,11 +98,32 @@ static void save(const std::filesystem::path& path, const Bytes& bytes) {
     file.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size()));
 }
 
-static gguf::GGUFModel accepted(const std::filesystem::path& path, const std::vector<Tensor>& expected) {
+// The set read, mapped and read in as the loader does, its payload reported to `progress`.
+static gguf::GGUFModel load(const std::filesystem::path& path, const format::LoadProgress& progress) {
+    auto model = gguf::read_gguf(path.u8string());
+    gguf::map_payload(model);
+    gguf::warm(model, progress);
+    return model;
+}
+
+static gguf::GGUFModel accepted(const std::filesystem::path& path, const std::vector<Tensor>& expected,
+                                const std::vector<std::filesystem::path>& files = {}) {
     size_t total = 0;
     for (const auto& t : expected) total += t.data.size();
+    // Reading the set maps nothing, and lays each tensor in the segment of the file given for it, where one is given: a segment holds the tensors from its first on.
+    {
+        const auto read = gguf::read_gguf(path.u8string());
+        require(read.tensors.size() == expected.size(), "wrong aggregate tensor count");
+        for (size_t i = 0; i < expected.size(); ++i) {
+            require(!read.tensor_data(i), "reading the set mapped it");
+            if (files.empty()) continue;
+            size_t s = 0;
+            while (s + 1 < read.segments.size() && read.segments[s + 1].first <= i) ++s;
+            require(read.segments[s].path == files[i].u8string(), "a tensor lies in another shard's segment");
+        }
+    }
     std::vector<size_t> seen;
-    auto model = gguf::read_gguf(path.u8string(), [&](size_t done, size_t size) {
+    auto model = load(path, [&](size_t done, size_t size) {
         require(size == total && done <= size, "wrong aggregate progress bounds");
         require(seen.empty() ? done == 0 : done > seen.back(), "nonmonotonic aggregate progress");
         seen.push_back(done);
@@ -125,7 +146,7 @@ static gguf::GGUFModel accepted(const std::filesystem::path& path, const std::ve
 static void rejected(const std::filesystem::path& path, const std::string& diagnostic) {
     size_t progress = 0;
     bool failed = false;
-    try { gguf::read_gguf(path.u8string(), [&](size_t, size_t) { ++progress; }); }
+    try { load(path, [&](size_t, size_t) { ++progress; }); }
     catch (const std::bad_alloc&) { throw std::runtime_error("allocation attempted before rejection"); }
     catch (const std::exception& error) { failed = std::string(error.what()).find(diagnostic) != std::string::npos; }
     require(failed, "missing expected rejection: " + diagnostic);
@@ -153,16 +174,16 @@ int main(int argc, char** argv) {
             save(second, encode(split(1, 2, 3), {scalar, empty}));
         };
         reset();
-        auto model = accepted(first, {quant, scalar, empty});
+        auto model = accepted(first, {quant, scalar, empty}, {first, second, second});
         require(model.kv.size() == 3, "split bookkeeping survived assembly");
         gguf::write_gguf(model, plain.string());
         // A loaded model maps its shards, and Windows keeps a mapped file from being rewritten or removed.
         model.release_payload();
         require(accepted(plain, {quant, scalar, empty}).kv.size() == 3, "single-file roundtrip changed metadata");
-        auto adapter = format::open(first.string());
-        require(adapter && adapter->tensors().size() == 3 && adapter->metadata_string("general.architecture") == "qwen3",
-                "format adapter lost assembled tensors or metadata");
-        adapter.reset();
+        const auto read = gguf::read_gguf(first.string());
+        const gguf::MetaValue* architecture = read.find("general.architecture");
+        require(read.tensors.size() == 3 && architecture && architecture->s == "qwen3",
+                "reading the set lost its tensors or metadata");
         ++cases;
 
         const auto unicode_directory = directory / std::filesystem::u8path(u8"cache-\u00e9-\u4e2d-\U0001f680");
@@ -176,10 +197,10 @@ int main(int argc, char** argv) {
         gguf::write_gguf(unicode_model, unicode_single.u8string());
         accepted(unicode_single, {quant, scalar, empty});
         for (const auto& path : {unicode_first, unicode_single}) {
-            auto unicode_adapter = format::open(path.u8string());
-            require(unicode_adapter && unicode_adapter->tensors().size() == 3 &&
-                    unicode_adapter->metadata_string("general.architecture") == "qwen3",
-                    "Unicode format adapter lost model");
+            const auto unicode_read = gguf::read_gguf(path.u8string());
+            const gguf::MetaValue* unicode_architecture = unicode_read.find("general.architecture");
+            require(unicode_read.tensors.size() == 3 && unicode_architecture && unicode_architecture->s == "qwen3",
+                    "reading a Unicode path lost the model");
             ++cases;
         }
         unicode_model.release_payload();
@@ -229,7 +250,11 @@ int main(int argc, char** argv) {
         reset();
         save(first, encode(first_meta, {}, 64));
         save(second, encode(split(1, 2, 3), {quant, scalar, empty}));
-        accepted(first, {quant, scalar, empty});
+        accepted(first, {quant, scalar, empty}, {second, second, second});
+        // A zero-sized tensor that ends a shard lies at the offset the next shard starts at, and still belongs to its own shard.
+        save(first, encode(first_meta, {quant, empty}, 64));
+        save(second, encode(split(1, 2, 3), {scalar}));
+        accepted(first, {quant, empty, scalar}, {first, first, second});
         save(first, encode(split(0, 2, 0), {}));
         save(second, encode(split(1, 2, 0), {}));
         accepted(first, {});
@@ -272,12 +297,12 @@ int main(int argc, char** argv) {
         save(second, encode(split(1, 2, 3), {scalar, empty, empty}));
         rejected(first, "GGUF split tensor count mismatch");
         save(second, encode(split(1, 2, 3), {quant, empty}));
-        rejected(first, "duplicate GGUF shard tensor");
+        rejected(first, "duplicate GGUF tensor");
         save(second, encode(split(1, 2, 3), {scalar, scalar}));
-        rejected(first, "duplicate GGUF shard tensor");
+        rejected(first, "duplicate GGUF tensor");
         reset();
         save(first, encode(first_meta, {quant, quant}, 64));
-        rejected(first, "duplicate GGUF shard tensor");
+        rejected(first, "duplicate GGUF tensor");
 
         for (bool in_first : {false, true}) {
             reset();
@@ -324,10 +349,11 @@ int main(int argc, char** argv) {
         }
         reset();
         const auto third_first = directory / "three-00001-of-00003.gguf";
+        const auto third_last = directory / "three-00003-of-00003.gguf";
         save(third_first, encode(split(0, 3, 3), {quant}));
         save(directory / "three-00002-of-00003.gguf", encode(split(1, 3, 3), {}));
-        save(directory / "three-00003-of-00003.gguf", encode(split(2, 3, 3), {scalar, empty}));
-        accepted(third_first, {quant, scalar, empty});
+        save(third_last, encode(split(2, 3, 3), {scalar, empty}));
+        accepted(third_first, {quant, scalar, empty}, {third_first, third_last, third_last});
 
         const size_t big_size = 8 * 1024 * 1024 + 4;
         Tensor big{"large", {big_size / 4}, 0, Bytes(big_size, 67)};
@@ -338,33 +364,44 @@ int main(int argc, char** argv) {
             require(total == 34 + big_size, "chunk progress changed total");
             seen.push_back(done);
         };
-        gguf::read_gguf(first.string(), progress);
+        load(first, progress);
         require(seen == std::vector<size_t>{0, 34, 34 + 8 * 1024 * 1024, 34 + big_size}, "shard/chunk completion sequence differs");
         ++cases;
         for (bool at_start : {false, true}) {
             bool failed = false;
             try {
-                gguf::read_gguf(first.string(), [&](size_t done, size_t) {
+                load(first, [&](size_t done, size_t) {
                     if (at_start || done) throw std::runtime_error("callback failure");
                 });
             } catch (const std::runtime_error& error) { failed = std::string(error.what()) == "callback failure"; }
             require(failed, "callback exception lost");
             ++cases;
         }
-        // Every shard is mapped with its extent fixed at open, as a single file is, so a shard truncated before loading is refused before any progress and one truncated during it is not a case the reader can see.
+        // A shard truncated before it is read is refused before any progress, as a single file is.
         save(second, encode(split(1, 2, 3), {big, empty}));
+        Bytes whole;
         {
             std::ifstream in(second, std::ios::binary);
-            Bytes whole((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-            whole.resize(whole.size() - 64);
-            save(second, whole);
+            whole.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
         }
+        save(second, Bytes(whole.begin(), whole.end() - 64));
         seen.clear();
         bool failed = false;
         try {
-            gguf::read_gguf(first.string(), [&](size_t done, size_t) { seen.push_back(done); });
+            load(first, [&](size_t done, size_t) { seen.push_back(done); });
         } catch (const std::ios_base::failure&) { failed = true; }
         require(failed && seen.empty(), "a truncated shard was loaded or reported progress");
+        ++cases;
+        // So is a shard truncated after the set was read and before it is mapped; one truncated under a live mapping is not a case the reader can see.
+        save(second, whole);
+        auto read_set = gguf::read_gguf(first.string());
+        save(second, Bytes(whole.begin(), whole.end() - 64));
+        std::string error;
+        try { gguf::map_payload(read_set); }
+        catch (const std::runtime_error& e) { error = e.what(); }
+        require(error == "GGUF file changed size since its header was read: " + second.string(),
+                "a shard truncated after it was read was mapped");
+        read_set = {};   // unmaps the first shard, mapped before the second was refused
         ++cases;
         std::filesystem::remove_all(directory);
         std::cout << "GGUF shards: " << cases << " cases pass\n";

@@ -122,14 +122,16 @@ struct TensorInfo {
 struct GGUFModel {
     std::vector<std::pair<std::string, MetaValue>> kv;
     std::vector<TensorInfo> tensors;
-    // All tensor data, addressed by `offsets`: an in-memory model's in one allocation, a file's data section mapped read-only, one segment per shard.
+    // All tensor data, addressed by `offsets`: an in-memory model's in one allocation, a file's data section in that file, one segment per shard, mapped read-only by map_payload.
     // One heap block per tensor would fragment the weight stream that decode is bandwidth bound on, and mapping shards rather than copying them loads a model larger than host memory.
     std::vector<uint8_t> blob;
     struct Segment {
-        std::shared_ptr<const format::MappedFile> file;
+        std::string path;   // the file, a UTF-8 path
+        std::shared_ptr<const format::MappedFile> file;   // null until map_payload maps it
         size_t start = 0;   // where the data section starts in the file
         size_t base = 0;    // the offset its first byte has among `offsets`; segments follow one another in offset order
-        size_t size = 0;
+        size_t size = 0;    // from `start` to the end of the file, as it was when its header was read
+        size_t first = 0;   // the index of the first tensor it holds; a file's tensors follow one another in the table
     };
     std::vector<Segment> segments;
     std::vector<size_t> offsets;
@@ -143,20 +145,22 @@ struct GGUFModel {
     // The extent `offsets` address, whichever holds the tensor bytes.
     size_t payload_size() const { return segments.empty() ? blob.size() : segments.back().base + segments.back().size; }
 
+    // Tensor i's bytes, or null while its file is not mapped.
     const uint8_t* tensor_data(size_t i) const {
         if (segments.empty()) return blob.data() + offsets[i];
-        const Segment& s = segment_of(offsets[i]);
-        return s.file->data() + s.start + (offsets[i] - s.base);
+        const Segment& s = segment_of(i);
+        return s.file ? s.file->data() + s.start + (offsets[i] - s.base) : nullptr;
     }
-    // A mapped model's tensor no host reads in place: its pages leave the host's working set first (MappedFile::drop). Nothing for an in-memory model.
+    // A mapped tensor no host reads in place: its pages leave the host's working set first (MappedFile::drop). Nothing for an in-memory model or a file not mapped.
     void drop_pages(size_t i) const {
-        if (!segments.empty()) segment_of(offsets[i]).file->drop(tensor_data(i), tensor_bytes(i));
+        if (segments.empty()) return;
+        const Segment& s = segment_of(i);
+        if (s.file) s.file->drop(tensor_data(i), tensor_bytes(i));
     }
     // The same bytes; a mapped model's are read-only memory, so only an in-memory model may be written through this.
     size_t tensor_bytes(size_t i) const { return (size_t)tensors[i].data_size(); }
 
-    // Append one tensor's bytes.
-    // Callers that know the total should reserve blob first; read_gguf sizes it exactly and reads in place instead.
+    // Append one tensor's bytes to an in-memory model; callers that know the total should reserve blob first.
     void add_tensor_data(const std::vector<uint8_t>& bytes) {
         blob.resize((blob.size() + alignof(float) - 1) / alignof(float) * alignof(float));
         offsets.push_back(blob.size());
@@ -171,9 +175,10 @@ struct GGUFModel {
     }
 
 private:
-    // The segment holding `offset`: the last whose base is not past it, so a zero-sized tensor at a boundary takes the next.
-    const Segment& segment_of(size_t offset) const {
-        auto it = std::upper_bound(segments.begin(), segments.end(), offset, [](size_t o, const Segment& s) { return o < s.base; });
+    // The segment of the file holding tensor i: the last whose first tensor is not past it.
+    // Found by index, not by offset, since a zero-sized tensor at the end of one file has the offset the next file starts at.
+    const Segment& segment_of(size_t i) const {
+        auto it = std::upper_bound(segments.begin(), segments.end(), i, [](size_t t, const Segment& s) { return t < s.first; });
         return *(it == segments.begin() ? it : it - 1);
     }
 };
@@ -326,6 +331,9 @@ inline void write_meta_value(std::ostream& os, const MetaValue& v) {
 
 inline void write_gguf(const GGUFModel& m, const std::string& path) {
     const uint32_t alignment = file_alignment(m);
+    // Refused before the output is opened, so a refusal leaves whatever is at `path` as it was.
+    for (size_t i = 0; i < m.tensors.size(); i++)
+        if (!m.tensor_data(i) && m.tensor_bytes(i)) throw std::runtime_error("GGUF tensor is not mapped: " + m.tensors[i].name);
     std::ofstream os(std::filesystem::u8path(path), std::ios::binary);
     if (!os) throw std::runtime_error("cannot open file for writing: " + path);
 
@@ -364,8 +372,7 @@ inline void write_gguf(const GGUFModel& m, const std::string& path) {
 
 namespace detail {
 
-inline uint64_t read_header(std::ifstream& is, GGUFModel& m) {
-    Reader reader(is);
+inline uint64_t read_header(Reader& reader, GGUFModel& m) {
     uint32_t magic;
     uint32_t ver;
     uint64_t ntc, nkv;
@@ -414,17 +421,19 @@ inline uint64_t read_header(std::ifstream& is, GGUFModel& m) {
     return data_start;
 }
 
+// One file of a model as its header describes it: where its data section starts, its size when the header was read, and the model's tensors it holds, [begin, end).
 struct Input {
     std::string path;
-    std::ifstream stream;
-    uint64_t data_start;
+    uint64_t data_start, size;
     size_t begin, end;
 
-    Input(const std::string& file, GGUFModel& header, size_t first)
-        : path(file), stream(std::filesystem::u8path(file), std::ios::binary), begin(first) {
+    Input(const std::string& file, GGUFModel& header, size_t first) : path(file), begin(first) {
+        std::ifstream stream(std::filesystem::u8path(file), std::ios::binary);
         if (!stream) throw std::runtime_error("cannot open file: " + path);
         stream.exceptions(std::ios::failbit | std::ios::badbit);
-        data_start = read_header(stream, header);
+        Reader reader(stream);
+        size = reader.size();
+        data_start = read_header(reader, header);
         const uint64_t total = checked_add(first, header.tensors.size());
         if (total > header.tensors.max_size())
             throw std::runtime_error("GGUF tensor count exceeds allocation limit");
@@ -476,11 +485,22 @@ inline std::string split_suffix(uint16_t no, uint16_t count) {
 
 } // namespace detail
 
-inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& progress = {}) {
+// Read a GGUF file, or the first shard of a set and the shards beside it: the metadata and the tensor table, checked, with every tensor laid out in its file.
+// Nothing past the headers is read and nothing is mapped, so a command that needs the metadata alone neither reads the payload nor holds the files; map_payload maps the payload and warm reads it in.
+inline GGUFModel read_gguf(const std::string& path) {
     GGUFModel m;
     std::vector<detail::Input> files;
     files.emplace_back(path, m, 0);
     const auto split = detail::split_info(m);
+    // Tensors are found by name, so a name repeated in one file or across shards is refused, as is a shard that takes a set past its tensor count.
+    std::unordered_set<std::string> names;
+    auto check_tensors = [&](const GGUFModel& header, size_t total) {
+        if (split.present && total > uint64_t(split.tensors))
+            throw std::runtime_error("GGUF split tensor count mismatch");
+        for (const auto& t : header.tensors)
+            if (!names.insert(t.name).second)
+                throw std::runtime_error("duplicate GGUF tensor: " + t.name);
+    };
     if (split.present) {
         if (split.no) throw std::runtime_error("open the first GGUF shard (split.no must be zero)");
         std::string prefix;
@@ -490,14 +510,6 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
                 throw std::runtime_error("GGUF shard filename must end in " + suffix);
             prefix = path.substr(0, path.size() - suffix.size());
         }
-        std::unordered_set<std::string> names;
-        auto check_tensors = [&](const GGUFModel& header, size_t total) {
-            if (total > uint64_t(split.tensors))
-                throw std::runtime_error("GGUF split tensor count mismatch");
-            for (const auto& t : header.tensors)
-                if (!names.insert(t.name).second)
-                    throw std::runtime_error("duplicate GGUF shard tensor: " + t.name);
-        };
         check_tensors(m, m.tensors.size());
         for (uint16_t index = 1; index < split.count; ++index) {
             GGUFModel header;
@@ -520,40 +532,53 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
         m.kv.erase(std::remove_if(m.kv.begin(), m.kv.end(), [](const auto& kv) {
             return kv.first == "split.no" || kv.first == "split.count" || kv.first == "split.tensors.count";
         }), m.kv.end());
+    } else {
+        check_tensors(m, m.tensors.size());
     }
 
-    // Every file is mapped and its tensors read in place, a shard's data section placed after the one before in the model's offsets, so a model larger than host memory loads; the pages are touched once in the steps the progress reports, so the model is resident before its first pass and the host can still drop what a device copied.
-    if (m.tensors.empty()) {
-        if (progress) progress(0, 0);
-        return m;
-    }
-    size_t payload = 0, base = 0;
+    // Each file's data section is placed after the one before in the model's offsets, so the tensors of a set of shards are addressed as one payload; a shard of metadata alone holds nothing to lay out.
+    size_t base = 0;
     m.offsets.reserve(m.tensors.size());
     for (const auto& file : files) {
-        // A shard of metadata alone may end before its data section would begin, and holds nothing to map.
         if (file.begin == file.end) continue;
-        auto map = std::make_shared<const format::MappedFile>(file.path);
-        const uint64_t start = file.data_start;
-        if (start > map->size()) throw std::ios_base::failure("GGUF data section exceeds file extent");
-        const size_t size = size_t(map->size() - start);
+        const size_t size = size_t(file.size - file.data_start);
         for (size_t i = file.begin; i < file.end; ++i) {
-            const auto& t = m.tensors[i];
-            if (t.offset % alignof(float)) throw std::runtime_error("GGUF tensor offset is not float aligned");
-            if (t.offset > size || t.data_size() > size - t.offset)
-                throw std::ios_base::failure("GGUF tensor exceeds file extent");
-            m.offsets.push_back(size_t(checked_add(base, t.offset)));
-            payload = size_t(checked_add(payload, t.data_size()));
+            if (m.tensors[i].offset % alignof(float)) throw std::runtime_error("GGUF tensor offset is not float aligned");
+            m.offsets.push_back(size_t(checked_add(base, m.tensors[i].offset)));
         }
-        m.segments.push_back({map, size_t(start), base, size});
+        m.segments.push_back({file.path, nullptr, size_t(file.data_start), base, size, file.begin});
         base = size_t(aligned_size(checked_add(base, size), alignof(float)));
     }
-    if (progress && payload) progress(0, payload);
-    // Pages touched here stay resident only while the host can hold them: a payload larger than the memory available is evicted before a device copies it and read from disk twice, so it is left to be read once by whoever reads it.
-    const auto available = core::host_memory_available();
-    if (available && payload > *available) {
-        if (progress) progress(payload, payload);
-        return m;
+    return m;
+}
+
+// Map every file read_gguf laid out that is not mapped yet, so tensor_data addresses its tensors in place.
+// A file whose size changed since its header was read is refused, since the extents read_gguf checked no longer describe it.
+inline void map_payload(GGUFModel& m) {
+    for (auto& s : m.segments) {
+        if (s.file) continue;
+        auto file = std::make_shared<const format::MappedFile>(s.path);
+        if (file->size() != s.start + s.size)
+            throw std::runtime_error("GGUF file changed size since its header was read: " + s.path);
+        s.file = std::move(file);
     }
+}
+
+// The bytes of every tensor, padding excluded.
+inline size_t bytes_of(const GGUFModel& m) {
+    size_t total = 0;
+    for (size_t i = 0; i < m.tensors.size(); ++i) total = size_t(checked_add(total, m.tensor_bytes(i)));
+    return total;
+}
+
+// Read the payload's pages into memory in tensor order, one byte of every page in steps of up to 8 MiB, so that a weight's first reader does not fault them in.
+// `progress` gets the tensors' bytes: 0 first when there are any, then after every step, and their total last, so tensors holding no bytes report (0, 0) once.
+// The files must be mapped (map_payload); a tensor that is not is refused before any progress.
+inline void warm(const GGUFModel& m, const format::LoadProgress& progress = {}) {
+    for (size_t i = 0; i < m.tensors.size(); ++i)
+        if (!m.tensor_data(i) && m.tensor_bytes(i)) throw std::logic_error("GGUF tensor is not mapped: " + m.tensors[i].name);
+    const size_t total = bytes_of(m), page = core::page_size();
+    if (progress && total) progress(0, total);
     size_t completed = 0;
     volatile uint8_t sink = 0;
     for (size_t i = 0; i < m.tensors.size(); ++i) {
@@ -562,58 +587,14 @@ inline GGUFModel read_gguf(const std::string& path, const format::LoadProgress& 
         for (size_t offset = 0; offset < bytes;) {
             const size_t chunk = std::min(bytes - offset, size_t(8 * 1024 * 1024));
             uint8_t acc = 0;
-            for (size_t b = 0; b < chunk; b += 4096) acc ^= p[offset + b];
+            for (size_t b = 0; b < chunk; b += page) acc ^= p[offset + b];
             sink = sink ^ acc;
             offset += chunk;
             completed += chunk;
-            if (progress && completed < payload) progress(completed, payload);
+            if (progress && completed < total) progress(completed, total);
         }
     }
-    if (progress) progress(completed, payload);
-    return m;
+    if (progress) progress(completed, total);
 }
-
-// GGUF is the reference implementation of the format::ModelFormat interface.
-// It wraps a GGUFModel (already read into memory) and exposes its tensors and metadata through the format-agnostic view.
-class GGUFFormat final : public format::ModelFormat {
-public:
-    explicit GGUFFormat(gguf::GGUFModel m) : m_(std::move(m)) {}
-
-    std::vector<format::Tensor> tensors() const override {
-        std::vector<format::Tensor> out;
-        out.reserve(m_.tensors.size());
-        for (const auto& t : m_.tensors) out.push_back({ t.name, t.ne, t.type });
-        return out;
-    }
-
-    std::string metadata_string(const std::string& key) const override {
-        const gguf::MetaValue* v = m_.find(key);
-        return v && v->vtype == gguf::V_STRING ? v->s : "";
-    }
-
-    uint64_t metadata_u64(const std::string& key) const override {
-        const gguf::MetaValue* v = m_.find(key);
-        if (!v) return 0;
-        switch (v->vtype) {
-            case gguf::V_UINT8: case gguf::V_UINT16: case gguf::V_UINT32: case gguf::V_UINT64: return v->u;
-            case gguf::V_INT8: case gguf::V_INT16: case gguf::V_INT32: case gguf::V_INT64: return (uint64_t)v->i;
-            default: return 0;
-        }
-    }
-
-private:
-    gguf::GGUFModel m_;
-};
 
 } // namespace gguf
-
-// Auto-detect the format from the file header and open it.
-// Currently only GGUF is implemented; the magic check is the extension point for future formats.
-inline format::ModelFormatPtr format::open(const std::string& path, const LoadProgress& progress) {
-    std::ifstream is(std::filesystem::u8path(path), std::ios::binary);
-    if (!is) throw std::runtime_error("cannot open file: " + path);
-    uint32_t magic = 0;
-    is.read((char*)&magic, 4);
-    if (is && magic == gguf::MAGIC) return std::make_shared<gguf::GGUFFormat>(gguf::read_gguf(path, progress));
-    return nullptr;
-}

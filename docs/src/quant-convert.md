@@ -13,7 +13,8 @@ is what `llmx quantize` reads and `llmx dequantize` writes. Namespace `quant`.
 - `quantize_raw(json, bin, out, type) -> tensor count`: the model as a GGUF file with every tensor quantized to `type` through the registry (`quant/quant.hpp`).
   The size of `model.bin` must match the shapes, and storage past what a vector or a stream can hold is refused before any allocation.
 - `dequantize_to_raw(in, json, bin)`: a GGUF file's tensors as raw F32, F32
-  tensors copied and quantized ones decoded through the registry.
+  tensors copied and quantized ones decoded through the registry, from the
+  file's payload mapped in place (`gguf::map_payload`).
 
 Every path is UTF-8 and every file is opened through `std::filesystem::u8path`, so a path outside the Windows code page opens too.
 

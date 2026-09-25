@@ -158,15 +158,17 @@ malformed input, nesting limits and JSON output string escaping. The Q8/Q4 round
 escaped Unicode tensor names through the actual CLI.
 
 `gguf-validation` checks independent binary fixtures for field lengths/counts,
-array depth, tensor arithmetic, file extents, quantized row widths and custom
-alignment. These are format checks; they do not establish model-schema safety.
-`load-progress` also checks early rejection and a file truncated before loading, refused before any progress.
+array depth, tensor arithmetic, file extents, quantized row widths, custom
+alignment and a tensor name repeated in one file. These are format checks; they do not establish model-schema safety.
+`load-progress` reads, maps and reads in a file as the loader does, and checks the progress, that reading the headers maps nothing, that a model not mapped is neither written nor read in, early rejection, and a file truncated before loading or whose size changes between reading and mapping, refused before any progress.
 It then writes a tiny Qwen model with tokenizer metadata and loads it twice through `infer::load_model`: on the CPU the payload is kept, and on a CPU backend that copies what it adopts and reports `reads_in_place()` false the host copy is released (`payload_size()` is 0).
 Both give logits bit-identical to the same model built in memory, with the tokenizer and the chat format loaded beside them.
 
 `gguf-shards` covers complete shard sets, metadata-only first shards, exact
-payloads, inconsistent metadata, truncation, aggregate progress and Unicode
-file paths. `hub-manifest`, `hub-pull` and `hub-transport` are offline tests of
+payloads and the shard segment each tensor lies in (a zero-sized tensor that ends
+a shard included), inconsistent metadata,
+duplicate tensor names, truncation before reading and between reading and
+mapping, aggregate progress and Unicode file paths. `hub-manifest`, `hub-pull` and `hub-transport` are offline tests of
 variant selection/hash vectors, concurrent range assembly/cache repair and
 native curl child lifetime/response handling. Real transfers are separate
 integration checks. The Python `shards` component compares sharded synthetic
@@ -364,7 +366,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   Perplexity also checks batched/per-token counts, both batch-thread aliases
   and automatic/zero selection against an independent HF NLL fixture.
 - **Loading and streaming** (CTest `load-progress`, `generation-stream`, `cli-output`):
-  mapped-byte reporting, files truncated before loading, callback failures, the loader's host copy and logits, early text delivery, split UTF-8 bytes and stop/EOS accounting, with `ignore_eos` a reply running past the masked EOS to its limit or to a stop text;
+  read-in byte reporting, files truncated before loading or between reading and mapping, callback failures, the loader's host copy and logits, early text delivery, split UTF-8 bytes and stop/EOS accounting, with `ignore_eos` a reply running past the masked EOS to its limit or to a stop text;
   `cli-output` also reads `--device` lists as the commands do (canonical spellings, a device once, malformed entries refused), and the cache types as `exec_flag` reads them (one spelling each, an empty or unknown name refused before any model file is read).
   It checks that `exec_flag` reads `--threads-batch` and `-tb` only where the command asks for them.
   It runs the CLI's number readers (`int_arg`, `float_arg` with the ranges of `infer::Sampling`, `--seed`'s decimal 64-bit read) and `token_ids` over every malformed form: a missing value, a sign, space, base prefix, fraction or trailing character, infinity and NaN, a value past its range or its type, and an id that would narrow into the vocabulary.
@@ -515,7 +517,7 @@ matters: **each layer depends only on the layers below it** -
 | `core/`      | fp16 <-> f32, JSON parser, UTF-8, common types  |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
 | `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
-| `format/`    | ModelFormat interface + GGUF v3 impl           |
+| `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in) |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |

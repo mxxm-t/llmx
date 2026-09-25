@@ -41,14 +41,15 @@ to a `backend::Backend`.
   dimension first, its storage `type` (the GGUF type id) and its `bytes`,
   with `data` null when they are not in memory. `QwenWeights` is the
   configuration plus one view per tensor in the file's order, so tensor i is
-  the file's tensor i, with unique names, which the model checks again. A
+  the file's tensor i, with unique names: `gguf::read_gguf` refuses a repeated
+  name, and the model refuses one among views that reach it another way. A
   second format is a reader that produces this.
 - `gguf_weights(GGUFModel)`: a GGUF model's weights. It runs `load_config`
   once and, before any backend storage exists, refuses a tensor table whose
-  storage count does not match its tensors, with a duplicate name, a rank
-  above four, or an offset or extent outside the payload, which includes a
-  payload its owner released. The loader and the two GGUF constructors call
-  it.
+  storage count does not match its tensors, with a rank above four, or an offset or extent outside the payload, which includes a
+  payload its owner released. A view's data is null while its tensor's file
+  is not mapped (`gguf::map_payload`). The loader and the two GGUF
+  constructors call it.
 - `AdoptWeight`: `std::function<BufferPtr(size_t tensor, Backend&)>`, how
   the model's builder puts a tensor on a backend. The model calls it once
   for each backend that hosts a weight's role, and without one it calls

@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include "format/gguf.hpp"
 #include "inference/load.hpp"
@@ -6,6 +8,14 @@
 
 void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
+}
+
+// The file at `path` read, mapped and read in as the loader does, its payload reported to `progress`.
+gguf::GGUFModel load_file(const std::string& path, const format::LoadProgress& progress) {
+    gguf::GGUFModel m = gguf::read_gguf(path);
+    gguf::map_payload(m);
+    gguf::warm(m, progress);
+    return m;
 }
 
 // A CPU backend playing a device: it copies what it adopts, so no weight reads the file in place.
@@ -18,7 +28,8 @@ struct CopyingBackend : backend::CpuBackend {
     }
 };
 
-// A model file loaded through infer::load_model keeps its payload on the CPU and releases it on a backend that copies every weight, and both give the logits of the same model built in memory.
+// A model file's weights have no bytes until its payload is mapped.
+// Loaded through infer::load_model it keeps its payload on the CPU and releases it on a backend that copies every weight, and both give the logits of the same model built in memory.
 void loader_checks(const std::string& path) {
     gguf::GGUFModel source = tiny_qwen(2, 2 * 128, false);
     gguf::MetaValue tokens;
@@ -36,6 +47,17 @@ void loader_checks(const std::string& path) {
     source.kv.push_back({"tokenizer.ggml.tokens", tokens});
     source.kv.push_back({"tokenizer.ggml.eos_token_id", eos});
     gguf::write_gguf(source, path);
+    {
+        gguf::GGUFModel file = gguf::read_gguf(path);
+        const infer::QwenWeights unmapped = infer::gguf_weights(file);
+        require(std::all_of(unmapped.tensors.begin(), unmapped.tensors.end(), [](const infer::TensorView& t) { return !t.data; }),
+                "a weight had bytes before its file was mapped");
+        gguf::map_payload(file);
+        const infer::QwenWeights mapped = infer::gguf_weights(file);
+        for (size_t i = 0; i < mapped.tensors.size(); ++i)
+            require(mapped.tensors[i].data && std::memcmp(mapped.tensors[i].data, source.tensor_data(i), source.tensor_bytes(i)) == 0,
+                    "a mapped weight's bytes differ from the file's");
+    }
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
     const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
     for (const bool copying : {false, true}) {
@@ -77,22 +99,34 @@ int main(int argc, char** argv) {
             require(seen.empty() ? done == 0 : done > seen.back(), "non-monotonic progress");
             seen.push_back(done);
         };
-        // A loaded model maps its file, which a rewrite below must not see held.
+        // A mapped model holds its file, which a rewrite below must not see held.
         {
-            auto loaded = gguf::read_gguf(path, progress);
+            const auto in_file = std::filesystem::file_size(path);
+            auto loaded = gguf::read_gguf(path);
+            require(loaded.tensors.size() == 2 && loaded.tensors[0].name == "quant" && loaded.tensors[1].name == "large" &&
+                    loaded.tensors[1].ne == source.tensors[1].ne && loaded.tensors[1].type == gguf::GGML_TYPE_F32,
+                    "reading changed the tensor table");
+            for (size_t i = 0; i < source.tensors.size(); ++i) require(!loaded.tensor_data(i), "reading the file mapped it");
+            require(seen.empty(), "reading the file reported progress");
+            // A model whose file is not mapped is refused before anything is written or reported, even over the file it was read from.
+            std::string refused;
+            try { gguf::write_gguf(loaded, path); } catch (const std::runtime_error& e) { refused = e.what(); }
+            require(refused == "GGUF tensor is not mapped: quant" && std::filesystem::file_size(path) == in_file,
+                    "writing a model that is not mapped touched the output");
+            refused.clear();
+            try { gguf::warm(loaded, progress); } catch (const std::logic_error& e) { refused = e.what(); }
+            require(refused == "GGUF tensor is not mapped: quant" && seen.empty(), "warming a model that is not mapped reported progress");
+            gguf::map_payload(loaded);
+            gguf::warm(loaded, progress);
             require(seen.size() >= 4 && seen.back() == bytes + 34, "missing intermediate/final progress");
             for (size_t i = 0; i < source.tensors.size(); ++i)
                 require(std::memcmp(source.tensor_data(i), loaded.tensor_data(i), source.tensor_bytes(i)) == 0,
                         "loading changed tensor bytes");
             require(loaded.offsets[1] % alignof(float) == 0, "lost F32 alignment");
-            seen.clear();
-            auto adapter = format::open(path, progress);
-            require(adapter && adapter->tensors().size() == 2 && seen.back() == bytes + 34,
-                    "format adapter lost progress");
         }
         bool threw = false;
         try {
-            gguf::read_gguf(path, [](size_t done, size_t) {
+            load_file(path, [](size_t done, size_t) {
                 if (done) throw std::runtime_error("consumer failure");
             });
         } catch (const std::runtime_error& e) {
@@ -104,15 +138,28 @@ int main(int argc, char** argv) {
         std::filesystem::resize_file(path, length - 33);
         seen.clear();
         threw = false;
-        try { gguf::read_gguf(path, progress); }
+        try { load_file(path, progress); }
         catch (const std::runtime_error&) { threw = true; }
         require(threw && seen.empty(), "truncated payload emitted progress before structural rejection");
-        // Every file is mapped with its extent fixed at open, so a truncation during the read is not visible; one before it is refused above.
+        // Reading a file holds nothing, so its size can change before it is mapped, which refuses it before any progress; a file truncated under a live mapping is not visible.
+        for (const auto size : {length - 33, length + 64}) {
+            gguf::write_gguf(source, path);
+            gguf::GGUFModel read = gguf::read_gguf(path);
+            std::filesystem::resize_file(path, size);
+            seen.clear();
+            std::string error;
+            try {
+                gguf::map_payload(read);
+                gguf::warm(read, progress);
+            } catch (const std::runtime_error& e) { error = e.what(); }
+            require(error == "GGUF file changed size since its header was read: " + path && seen.empty(),
+                    "a file whose size changed after it was read was mapped");
+        }
         gguf::write_gguf(source, path);
         std::filesystem::resize_file(path, 8);
         seen.clear();
         threw = false;
-        try { gguf::read_gguf(path, progress); }
+        try { load_file(path, progress); }
         catch (const std::ios_base::failure&) { threw = true; }
         require(threw && seen.empty(), "truncated header reported progress");
         {
@@ -137,19 +184,19 @@ int main(int argc, char** argv) {
         size_t invalid_calls = 0;
         threw = false;
         try {
-            gguf::read_gguf(path, [&](size_t, size_t) { ++invalid_calls; });
+            load_file(path, [&](size_t, size_t) { ++invalid_calls; });
         } catch (const std::runtime_error&) { threw = true; }
         require(threw && invalid_calls == 0, "invalid trailing offset emitted progress");
         gguf::write_gguf(gguf::GGUFModel{}, path);
         size_t empty_calls = 0;
-        gguf::read_gguf(path, [&](size_t done, size_t total) {
+        load_file(path, [&](size_t done, size_t total) {
             require(done == 0 && total == 0, "empty payload progress");
             ++empty_calls;
         });
         require(empty_calls == 1, "empty model completion missing");
         loader_checks(path);
         std::filesystem::remove(path);
-        std::cout << "load progress: payload bytes, chunks, adapter, truncation, consumer failures and the loader pass\n";
+        std::cout << "load progress: payload bytes, chunks, truncation before and after reading, consumer failures and the loader pass\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

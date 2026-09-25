@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "core/host_memory.hpp"
+
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -63,7 +65,7 @@ public:
     // Tell the OS that `bytes` from `p` will not be read again soon, so their pages go before any other the host still reads; a later read brings them back from the file.
     // Only whole pages inside the range, so a neighbour sharing a boundary page keeps it.
     void drop(const void* p, size_t bytes) const {
-        const size_t page = page_size();
+        const size_t page = core::page_size();
         const uintptr_t lo = ((uintptr_t)p + page - 1) / page * page, hi = ((uintptr_t)p + bytes) / page * page;
         if (hi <= lo || lo < (uintptr_t)data_ || hi > (uintptr_t)data_ + size_) return;
 #if defined(_WIN32)
@@ -75,16 +77,6 @@ public:
     }
 
 private:
-    static size_t page_size() {
-#if defined(_WIN32)
-        SYSTEM_INFO si;
-        GetSystemInfo(&si);
-        return (size_t)si.dwPageSize;
-#else
-        return (size_t)sysconf(_SC_PAGESIZE);
-#endif
-    }
-
     void close() {
 #if defined(_WIN32)
         if (data_) UnmapViewOfFile(data_);

@@ -12,7 +12,8 @@ The CLI's commands that run a model, `llmx-split-check` and `compare_cpu` all lo
   - A `LoadedModel` is built in place by `load_model` and is never copied or moved, since a host backend keeps addresses in the file's payload.
 - `recording_adopt(weights, host_reads) -> AdoptWeight`: the adoption hook `load_model` builds the model with. It adopts each weight inline and sets `host_reads[i]` when a backend that reads in place (`Backend::reads_in_place`) took tensor i. It sizes `host_reads` before the model is built, so recording cannot fail while a buffer is held. `model-validation` checks what it records.
 - `load_model(path, backends, request, options = {}, progress = {}) -> unique_ptr<LoadedModel>`:
-  1. It reads the file, or the first shard of a set, with `gguf::read_gguf`, which reports the payload to `progress`.
+  1. It reads the file, or the first shard of a set, with `gguf::read_gguf`, maps its payload (`gguf::map_payload`) and reads every tensor's pages in, in file order, reporting the payload to `progress` (`gguf::warm`).
+     Pages read in stay resident only while the host can hold them, so a payload larger than the host's available memory (`core::host_memory_available`) is not read in: its pages would be evicted before a device copied them and read from disk twice, so they are left for whoever reads them to read once, and the progress reports 0 and then the whole payload.
   2. It builds the tokenizer and the chat format.
   3. It takes the file's weights (`infer::gguf_weights`), which reads the configuration once and checks the tensor table.
   4. It places the model over `backends` as `request` asks, with `options`' caches (`infer::place_model`), through `recording_adopt`.

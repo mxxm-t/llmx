@@ -31,8 +31,9 @@ backends/      Backend interface (type-generic matmul / attention / RMSNorm /
 tokenizer/     byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer (encode / decode)
    |
    v
-format/        GGUF reader/writer + ModelFormat adapter/open; the model is
-               built from QwenWeights, the CLI still consumes GGUFModel
+format/        GGUF reader/writer (headers read, payload mapped and read
+               in as separate steps); the model is built from
+               QwenWeights, the CLI still consumes GGUFModel
    |
    v
 quant/         QuantType registry; Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K kernels
@@ -62,10 +63,12 @@ the CLI only reads `--device` and `--layer-shares`.
 What this rules out, from cases found here: the CLI building a placement
 from a model's tensor names (moved to `infer::place_model`), a tool building
 the same device budgets again (`budgets_for`), and model loading spread over
-the format layer (touching pages), the model constructor (uploading each
-tensor) and every command (releasing the host copy), which a loader in one
-place replaces. Code that nothing reaches any more is removed in the change
-that leaves it unreached.
+the format layer (touching pages), the model constructor (dropping pages)
+and every command (releasing the host copy), which `infer::load_model` now
+does in one place: the format layer reads, maps and reads in files, the
+model asks the loader for each weight's storage, and the commands and tools
+turn flags into a request. Code that nothing reaches any more is removed in
+the change that leaves it unreached.
 
 This is the intended dependency rule. The current quant registry imports GGUF
 type constants from `format/gguf.hpp`; this existing exception needs resolving
@@ -77,14 +80,14 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | Directory       | Contents                                                              |
 |-----------------|-----------------------------------------------------------------------|
 | `src/` root     | `config.hpp` (build configuration: version and the `LLMX_HAS_BACKEND_*` switches) |
-| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory), `list.hpp` (comma-separated values) |
+| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory, the page size), `list.hpp` (comma-separated values) |
 | `hub/`          | `manifest.hpp` (Hub metadata/quant selection), `transport.hpp` (curl HTTPS transport), `pull.hpp` (verified download cache) |
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants), `convert.hpp` (raw F32 tensors to and from GGUF) |
-| `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3), `mapped_file.hpp` (read-only mapping) |
+| `format/`       | `format.hpp` (`LoadProgress`), `gguf.hpp` (GGUF v3: `read_gguf` reads the headers, `map_payload` maps the payload, `warm` reads it in), `mapped_file.hpp` (read-only mapping) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + the format-neutral weights a model is built from, `QwenWeights` and `gguf_weights` + forward pass + its memory footprint, `Placement` of each tensor role, and `place_model`, which places a model over its backends), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
 | `backends/`     | `backend.hpp` (interface), `kv_storage.hpp` (the paged KV storage the backends derive theirs from: buffers, accounting, growth and view checks), `devices.hpp` (the backend a device spec names: `device_specs`, `make_backends`), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/q8_dots.hpp` (the CPU's dots against quantized activations), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
-| `inference/`    | `load.hpp` (`load_model`, the one load sequence: file, tokenizer, chat format, weights, placed model with each weight's reader recorded, host copy released or unread pages dropped), `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
+| `inference/`    | `load.hpp` (`load_model`, the one load sequence: file read, mapped and read in when the host has room, tokenizer, chat format, weights, placed model with each weight's reader recorded, host copy released or unread pages dropped), `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
 | `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, sampling, prefix reuse), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
 
@@ -180,10 +183,10 @@ become requirements imposed on future device backends.
 
 ## Progress and text delivery
 
-The format layer reports progress through an optional `LoadProgress` callback.
-For mapped GGUF files it normally counts payload ranges whose pages were touched;
-a payload larger than available host memory completes without that page touching.
-This reports format loading, not completed device uploads or model readiness.
+Loading reports progress through an optional `LoadProgress` callback, which the loader (`infer::load_model`) passes to the format layer's `gguf::warm`.
+It counts the payload bytes whose pages were read in, in file order, before the model is placed; a payload larger than available host memory is not read in, and its progress goes from 0 straight to complete.
+Reading a file's headers (`gguf::read_gguf`) and mapping its payload report nothing.
+This reports reading, not completed device uploads or model readiness.
 Inference reports decoded byte chunks through the optional generation callback of `infer::generate`, which the CLI's `generate` and `chat` drive.
 Both callbacks run synchronously on their caller, hold no global subscriber state, and leave terminal formatting to the CLI.
 Callback exceptions propagate; consumers must not reenter the same model.
@@ -224,7 +227,8 @@ direct metadata can be rejected after a callback has already run, though
 model-generated malformed runs were not observed.
 
 GGUF metadata reads and seeks throw on stream failure. Payload extents are
-checked before use, so a file truncated before loading is refused. Mapped files
+checked when the headers are read, and a file whose size changed before its
+payload is mapped is refused, so a file truncated before loading is refused. Mapped files
 must remain unchanged for their lifetime; accessing pages removed by a later
 truncation can terminate the process on POSIX instead of throwing an exception.
 The reader bounds metadata lengths/counts by the opened file extent, limits
@@ -232,7 +236,7 @@ array nesting, checks tensor-size arithmetic and validates every payload range
 before mapping payloads or reporting loading progress. It honors declared file alignment.
 These are structural format checks. Taking a GGUF model's weights (`infer::gguf_weights`)
 separately validates consumed configuration values, attention geometry, tensor
-names, ranks and in-memory payload ranges, and Qwen model construction validates
+ranks and in-memory payload ranges (`read_gguf` has refused repeated names), and Qwen model construction validates
 required tensor names/shapes and normalization types, all before model
 activation/KV/RoPE allocation. Explicit malformed values cannot select optional metadata defaults.
 The loader's callers make the backends before the file is read, so a device that cannot be opened fails first.

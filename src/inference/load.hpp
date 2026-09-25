@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/host_memory.hpp"
 #include "format/gguf.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/chat.hpp"
@@ -40,15 +41,31 @@ inline AdoptWeight recording_adopt(const QwenWeights& weights, std::vector<char>
     };
 }
 
-// Load the model at `path`, a GGUF file or the first shard of a set, over `backends` as `request` places it, with `options`' caches.
-// It reads the file, reporting the payload to `progress`, builds the tokenizer and the chat format, and places the model, recording which weights a host reads in place.
-// It then releases the host's copy of the weights when no host reads one, and otherwise lets the pages of every tensor no host reads leave the host's working set.
-// The caller makes the backends, so a device that cannot be opened fails before the file is read.
+namespace detail {
+
+// Read the payload's pages in before the model is placed, reporting its bytes to `progress`.
+// Pages read in stay resident only while the host can hold them: a payload larger than the memory available would be evicted before a device copies it and read from disk twice, so it is left to be read once by whoever reads it, and the progress goes straight to complete.
+inline void warm(const gguf::GGUFModel& file, const format::LoadProgress& progress) {
+    const size_t bytes = gguf::bytes_of(file);
+    const auto available = core::host_memory_available();
+    if (!available || bytes <= *available) return gguf::warm(file, progress);
+    if (progress) {
+        progress(0, bytes);
+        progress(bytes, bytes);
+    }
+}
+
+} // namespace detail
+
+// Load the model at `path`, a GGUF file or the first shard of a set, over the caller's `backends` as `request` places it: read and map the file, reporting its payload to `progress`, build the tokenizer and the chat format, and place the model.
+// The host's copy of the weights is then released when no host reads one in place, and otherwise the pages of every tensor no host reads leave its working set.
 inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vector<backend::BackendPtr> backends,
                                                const PlacementRequest& request, const ModelOptions& options = {},
                                                const format::LoadProgress& progress = {}) {
     auto loaded = std::make_unique<LoadedModel>();
-    loaded->file = gguf::read_gguf(path, progress);
+    loaded->file = gguf::read_gguf(path);
+    gguf::map_payload(loaded->file);
+    detail::warm(loaded->file, progress);
     loaded->tok.emplace(loaded->file);
     loaded->chat = chat::chat_format(loaded->file, *loaded->tok);
     const QwenWeights weights = gguf_weights(loaded->file);

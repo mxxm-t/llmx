@@ -64,13 +64,22 @@ static void save(const std::string& path, const Bytes& bytes) {
     output.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size()));
 }
 
-static void rejected(const std::string& path, const std::string& name, const Bytes& bytes) {
+// The file read, mapped and read in as the loader does, its payload reported to `progress`.
+static gguf::GGUFModel load(const std::string& path, const format::LoadProgress& progress) {
+    auto model = gguf::read_gguf(path);
+    gguf::map_payload(model);
+    gguf::warm(model, progress);
+    return model;
+}
+
+// Refused before any progress, with `diagnostic` in the message when one is given.
+static void rejected(const std::string& path, const std::string& name, const Bytes& bytes, const std::string& diagnostic = {}) {
     save(path, bytes);
     size_t callbacks = 0;
     bool threw = false;
-    try { gguf::read_gguf(path, [&](size_t, size_t) { ++callbacks; }); }
+    try { load(path, [&](size_t, size_t) { ++callbacks; }); }
     catch (const std::bad_alloc&) { throw std::runtime_error(name + ": attempted allocation instead of structural rejection"); }
-    catch (const std::exception&) { threw = true; }
+    catch (const std::exception& error) { threw = std::string(error.what()).find(diagnostic) != std::string::npos; }
     require(threw, name + ": malformed file accepted");
     require(callbacks == 0, name + ": structural rejection emitted progress");
     ++cases;
@@ -82,7 +91,7 @@ static gguf::GGUFModel accepted(const std::string& path, const std::string& name
     size_t total = 0;
     for (const auto& data : expected) total += data.size();
     std::vector<size_t> progress;
-    auto result = gguf::read_gguf(path, [&](size_t done, size_t size) {
+    auto result = load(path, [&](size_t done, size_t size) {
         require(size == total && done <= size, name + ": wrong progress bounds");
         require(progress.empty() ? done == 0 : done > progress.back(), name + ": nonmonotonic progress");
         progress.push_back(done);
@@ -230,6 +239,11 @@ int main(int argc, char** argv) {
         payload(bytes, Bytes(4, 42));
         accepted(path, "valid identical ranges", bytes, {Bytes(4, 42), Bytes(4, 42)});
         bytes = header(2);
+        tensor(bytes, "twice", {1}, 0, 0);
+        tensor(bytes, "twice", {1}, 0, 0);
+        payload(bytes, Bytes(4, 42));
+        rejected(path, "duplicate tensor name", bytes, "duplicate GGUF tensor: twice");
+        bytes = header(2);
         tensor(bytes, "value", {1}, 0, 0);
         tensor(bytes, "empty-at-eof", {0}, 0, 32);
         payload(bytes, Bytes(32, 19));
@@ -273,7 +287,7 @@ int main(int argc, char** argv) {
         written.tensors.push_back({"b", {32}, 8, 0});
         written.add_tensor_data(Bytes(34, 5));
         gguf::write_gguf(written, path);
-        model = gguf::read_gguf(path);
+        model = load(path, {});
         require(model.tensors[0].offset == 0 && model.tensors[1].offset == 24,
                 "writer ignored custom alignment");
         require(model.tensor_bytes(0) == 4 && model.tensor_bytes(1) == 34 &&

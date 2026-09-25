@@ -95,7 +95,8 @@ temporary directories. Completed shards remain reusable if a later shard fails.
 
 All GGUF commands accept the first `-00001-of-0000N.gguf` shard and discover
 the siblings beside it. Loading validates all shard metadata and tensor extents,
-then maps every shard in place, so a sharded model larger than host memory loads.
+then maps every shard in place, so a sharded model larger than host memory loads,
+and refuses a shard whose size changed in between.
 A loaded model's files must not change while it runs: a file truncated or
 rewritten under the mapping is not detected and can end the process. The first shard may contain metadata
 only. Successful download does not establish that llmx implements the model's
@@ -154,8 +155,10 @@ Inspect a GGUF file without running inference. Prints:
 - every metadata key/value (typed dump)
 - the tensor list: type, name, shape, element count, and on-disk byte size
 
-The reader validates field lengths, tensor sizes, alignment and file extents
-before loading payloads. Successful `info` output does not establish valid
+The reader validates field lengths, tensor sizes, alignment, file extents
+and unique tensor names from the file's headers alone: `info`, `tokenize` and
+`detokenize` never read or map the tensor data, and do not hold the file
+while they run. Successful `info` output does not establish valid
 model configuration, required tensor shapes/names or metadata string encoding.
 
 ## `llmx tokenize <in.gguf> "<text>"`
@@ -390,8 +393,10 @@ within that token, as before.
 
 Generate and chat show model-loading percentages and processing/generating
 phases on stderr when it is a terminal, or when `--verbose` is set. Loading
-percentages count completed tensor payload reads, excluding metadata and padding;
-model preparation follows. The processing message reports the prompt token
+percentages count the tensor payload read into memory before the model is
+placed, excluding metadata and padding; a payload larger than the host's
+available memory is not read in ahead, and its percentage goes from 0 to 100
+at once. Model preparation follows. The processing message reports the prompt token
 count before prefill begins, not a token-by-token completion percentage.
 Redirected stderr stays quiet by default. Text continues to stream when stdout
 is redirected.

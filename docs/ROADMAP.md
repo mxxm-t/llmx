@@ -64,13 +64,13 @@ Generalize to an architecture registry keyed by `general.architecture`:
   The Qwen family (`qwen3`, `qwen3moe`, `qwen35`, `qwen35moe`) is one model path, extended per architecture as `qwen3moe` was, since its stages, pools, forks, arena and placement do not depend on the architecture.
 
 ## 3. More formats
-`format::ModelFormat` has a GGUF adapter and a magic-sniffing `format::open()`
-implemented in `gguf.hpp`. The model is built from `infer::QwenWeights`,
-which a second format's reader produces as `infer::gguf_weights` does for
-GGUF; the CLI, the tokenizer and the chat format still consume
+The model is built from `infer::QwenWeights`, which a second format's
+reader produces as `infer::gguf_weights` does for GGUF, and `infer::load_model`
+maps a GGUF file's payload and reads it in before the model is placed. A
+second format is such a reader plus one branch in `infer::load_model`; the CLI, the tokenizer and the chat format still consume
 `gguf::GGUFModel` directly.
 - safetensors, raw `.bin`+`.json`, ONNX export path
-- Extend `format::open()` beyond its current GGUF magic check
+- Choose the reader by the file's header when a second format exists
 - safetensors is HF-native and unlocks most of the Hub; see #9b
 
 ## 4. Backends

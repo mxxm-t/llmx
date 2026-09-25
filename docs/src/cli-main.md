@@ -32,6 +32,7 @@ Commands and their entry points:
   Those are the CLI's two checks; `cmd_quantize` and `cmd_dequantize` then call `quant::quantize_raw` and `quant::dequantize_to_raw`, which check the tensors and files themselves (see [quant-convert](quant-convert.md)).
 - `info`: `cmd_info` (dump metadata + tensor list), each tensor's type named by the quant registry.
 - `tokenize` / `detokenize`: `cmd_tokenize` / `cmd_detokenize`.
+- `info`, `tokenize` and `detokenize` read the file's headers alone (`gguf::read_gguf`): they map no tensor data, so they neither read the payload nor hold the file.
 - `perplexity`: `cmd_perplexity` loads and tokenizes inline or `-f/--file` UTF-8 text (`text_arg`, `read_text_file`), then delegates scoring to `infer::perplexity`.
   `-c/--ctx-size` chooses window size; `--chunks` limits windows; `--per-token` scores one token at a time instead of in batched passes.
   The `context size` it prints is the window `infer::perplexity` scored with (`PerplexityResult::context`), so the CLI does not work the default out again.
@@ -83,7 +84,7 @@ Commands and their entry points:
 `bench` retains the backend's automatic count for zero or omitted threads, and without `--model` prints that resolved count on stdout.
 
 Generate/chat render the loading progress on stderr when attached to a terminal or when verbose, and `serve` always does (`progress_bar`).
-"Reading model metadata..." comes before the file is read, the bar counts the payload read and mapped, and "Preparing model..." follows it once, while the weights are uploaded and the model is placed.
+"Reading model metadata..." comes before the file is read, the bar counts the payload read in, and "Preparing model..." follows it once, while the weights are uploaded and the model is placed.
 They show processing before prefill and generating before sampling.
 `emit_text` writes and flushes inference text chunks to stdout; the caller appends a newline per reply.
 

@@ -9,6 +9,8 @@
 #include <cmath>
 #include <limits>
 
+#include "core/utf8.hpp"
+
 // Minimal recursive-descent JSON parser, written from scratch (no libs).
 
 namespace jmini {
@@ -66,43 +68,12 @@ class Parser {
         return value;
     }
 
-    static void appendUtf8(std::string& out, uint32_t code) {
-        if (code < 0x80) out += char(code);
-        else if (code < 0x800) {
-            out += char(0xc0 | (code >> 6));
-            out += char(0x80 | (code & 0x3f));
-        } else if (code < 0x10000) {
-            out += char(0xe0 | (code >> 12));
-            out += char(0x80 | ((code >> 6) & 0x3f));
-            out += char(0x80 | (code & 0x3f));
-        } else {
-            out += char(0xf0 | (code >> 18));
-            out += char(0x80 | ((code >> 12) & 0x3f));
-            out += char(0x80 | ((code >> 6) & 0x3f));
-            out += char(0x80 | (code & 0x3f));
-        }
-    }
-
-    void rawUtf8(std::string& out, unsigned char first) {
+    void rawUtf8(std::string& out) {
         const size_t start = i - 1;
-        size_t count;
-        uint32_t code, minimum;
-        if (first >= 0xc2 && first <= 0xdf) {
-            count = 1; code = first & 0x1f; minimum = 0x80;
-        } else if (first >= 0xe0 && first <= 0xef) {
-            count = 2; code = first & 0x0f; minimum = 0x800;
-        } else if (first >= 0xf0 && first <= 0xf4) {
-            count = 3; code = first & 0x07; minimum = 0x10000;
-        } else throw std::runtime_error("json: invalid UTF-8 lead byte");
-        if (s.size() - i < count) throw std::runtime_error("json: truncated UTF-8");
-        for (size_t n = 0; n < count; ++n) {
-            const auto c = static_cast<unsigned char>(s[i++]);
-            if ((c & 0xc0) != 0x80) throw std::runtime_error("json: invalid UTF-8 continuation");
-            code = (code << 6) | (c & 0x3f);
-        }
-        if (code < minimum || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff))
-            throw std::runtime_error("json: invalid UTF-8 code point");
-        out.append(s, start, i - start);
+        const size_t length = utf8::valid_length(s, start);
+        if (length == 0) throw std::runtime_error("json: invalid UTF-8");
+        out.append(s, start, length);
+        i = start + length;
     }
 
     std::string parseString() {
@@ -135,13 +106,13 @@ class Parser {
                             code = 0x10000 + ((code - 0xd800) << 10) + low - 0xdc00;
                         } else if (code >= 0xdc00 && code <= 0xdfff)
                             throw std::runtime_error("json: unpaired low surrogate");
-                        appendUtf8(out, code);
+                        out += utf8::encode(code);
                         break;
                     }
                     default: throw std::runtime_error("json: invalid string escape");
                 }
             } else if (c < 0x20) throw std::runtime_error("json: unescaped control character");
-            else if (c >= 0x80) rawUtf8(out, c);
+            else if (c >= 0x80) rawUtf8(out);
             else out += char(c);
         }
         throw std::runtime_error("json: unterminated string");

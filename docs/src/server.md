@@ -34,4 +34,5 @@ scheduler are the runtime's own.
   Either way a `ClientGone` ends the loop, and `handle` answers it with nothing, not even a 500, so the connection just closes.
   The compatible replies carry a `timings` object beside `usage`, and every finished request logs a line on stderr; both take the decode rate from `Request::Timings`.
   A stream whose pass fails ends with one `data:` event holding the error in the route's shape, and no `data: [DONE]`, since its 200 head has gone out.
-  Streams hold a character split across tokens until it completes and replace invalid UTF-8 with U+FFFD.
+  The drain loop holds a character split across tokens until its bytes complete (`utf8_complete`, by `utf8::lead_length`), and `utf8_sanitize` writes U+FFFD for each byte where `utf8::valid_length` finds no character, the JSON parser's own rule ([core-utf8.md](core-utf8.md)), so an overlong form, a surrogate or a value above U+10FFFF never reaches a reply.
+  The `server-utf8` CTest checks `utf8_sanitize` on those three and on valid text, and `utf8_complete` on characters held back and let through.

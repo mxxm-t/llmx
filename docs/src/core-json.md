@@ -16,6 +16,8 @@ Recursive-descent JSON parser, written from scratch (no libs), in namespace
   invalid escapes and unpaired surrogates are rejected. Requiring Unicode
   scalar values is this parser's policy; the RFC grammar also permits lone
   surrogate escapes.
+  - Raw bytes at or above 0x80 are checked by `utf8::valid_length` and escapes are encoded by `utf8::encode` (`core/utf8.hpp`, [core-utf8.md](core-utf8.md)), so the server's replacement of invalid output bytes follows the same rule.
+  - Malformed raw UTF-8 of any kind throws one error, `json: invalid UTF-8`. The unescaped-control refusal stays the parser's own.
 - Numbers follow JSON's decimal grammar and convert to finite `double` using
   a stream imbued with the classic locale. Overflow and nonzero values that
   underflow to zero are rejected; signed zero is preserved. This is bounded

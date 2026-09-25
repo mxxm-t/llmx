@@ -20,7 +20,7 @@ def w_str(f, s):
 
 def build_byte_vocab():
     # Mirrors the C++ GPT-2 bytes_to_unicode() in tokenizer.hpp.
-    # The C++ utf8_encode(cp) returns the UTF-8 bytes of codepoint cp, which as a Python string is simply chr(cp) (w_str then encodes it back to those bytes).
+    # The C++ utf8::encode(cp) returns the UTF-8 bytes of codepoint cp, which as a Python string is simply chr(cp) (w_str then encodes it back to those bytes).
     m = {}
     for b in range(33, 127):
         m[b] = chr(b)

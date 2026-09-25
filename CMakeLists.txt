@@ -237,6 +237,11 @@ if(BUILD_TESTING)
     list(APPEND LLMX_TARGETS llmx-http-test)
     add_test(NAME http COMMAND llmx-http-test)
     set_tests_properties(http PROPERTIES TIMEOUT 30)
+    add_executable(llmx-server-utf8-test tests/server_utf8.cpp)
+    target_include_directories(llmx-server-utf8-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-server-utf8-test)
+    add_test(NAME server-utf8 COMMAND llmx-server-utf8-test)
+    set_tests_properties(server-utf8 PROPERTIES TIMEOUT 30)
 
     # Not a CTest: a model on one device against it split by layers over several, raw logits compared bit for bit; the suite's `split` component runs it over CPU backends, beside the executable.
     # It reads the build's config.hpp first, so it takes Vulkan devices exactly when the build has them.

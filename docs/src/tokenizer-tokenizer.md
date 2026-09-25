@@ -3,7 +3,8 @@
 From-scratch byte-level BPE tokenizer in namespace `bpe`. The byte encoding and
 merge algorithm are GPT-2's; the pretokenizer is not.
 
-- `utf8_encode` / `utf8_char_len`: code-point <-> UTF-8 helpers.
+- UTF-8 comes from `core/utf8.hpp` ([core-utf8.md](core-utf8.md)): `utf8::encode` builds the byte map and `utf8::lead_length` steps through text and tokens.
+  The lead byte's length is lenient, so `pretokenize`, `bpe` and `decode` move on over invalid input rather than refusing it.
 - `build_byte_encoder`: GPT-2 `bytes_to_unicode()` byte <-> printable char map.
 - `SpecialToken`: named control/user-defined token.
 - `pretokenize(text)`: splits text before BPE, implementing the Qwen2/Qwen3

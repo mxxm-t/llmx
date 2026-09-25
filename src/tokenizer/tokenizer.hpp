@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <stdexcept>
 
+#include "core/utf8.hpp"
 #include "format/gguf.hpp"
 
 // GPT-2 style byte-level BPE tokenizer, implemented from scratch.
@@ -20,32 +21,17 @@
 
 namespace bpe {
 
-// Encode a unicode code point to UTF-8.
-inline std::string utf8_encode(uint32_t cp) {
-    if (cp < 0x80) return std::string(1, (char)cp);
-    if (cp < 0x800) return std::string({ (char)(0xC0 | (cp >> 6)), (char)(0x80 | (cp & 0x3F)) });
-    if (cp < 0x10000) return std::string({ (char)(0xE0 | (cp >> 12)), (char)(0x80 | ((cp >> 6) & 0x3F)), (char)(0x80 | (cp & 0x3F)) });
-    return std::string({ (char)(0xF0 | (cp >> 18)), (char)(0x80 | ((cp >> 12) & 0x3F)), (char)(0x80 | ((cp >> 6) & 0x3F)), (char)(0x80 | (cp & 0x3F)) });
-}
-
-inline size_t utf8_char_len(unsigned char c) {
-    if (c >= 0xF0) return 4;
-    if (c >= 0xE0) return 3;
-    if (c >= 0xC0) return 2;
-    return 1;
-}
-
 // GPT-2 bytes_to_unicode(): map each byte to a printable unicode code point.
 inline std::unordered_map<uint8_t, std::string> build_byte_encoder() {
     std::unordered_map<uint8_t, std::string> m;
-    for (int b = 33; b <= 126; b++) m[(uint8_t)b] = utf8_encode((uint32_t)b);
+    for (int b = 33; b <= 126; b++) m[(uint8_t)b] = utf8::encode((uint32_t)b);
     for (int b = 161; b <= 255; b++)
-        if (b != 173) m[(uint8_t)b] = utf8_encode((uint32_t)b);
+        if (b != 173) m[(uint8_t)b] = utf8::encode((uint32_t)b);
     int n = 0;
     for (int b = 0; b < 256; b++) {
         // GPT-2 excludes the soft-hyphen byte, mapping it to U+0143 instead.
         bool in = (b >= 33 && b <= 126) || (b >= 161 && b <= 255 && b != 173);
-        if (!in) { m[(uint8_t)b] = utf8_encode((uint32_t)(256 + n)); n++; }
+        if (!in) { m[(uint8_t)b] = utf8::encode((uint32_t)(256 + n)); n++; }
     }
     return m;
 }
@@ -208,9 +194,9 @@ public:
             { size_t k = i;
               while (k < n && is_space((unsigned char)text[k])) k++;
               if (k > i) { emit(i, k); i = k; continue; } }
-            // safety net: consume one code point
-            emit(i, i + utf8_char_len((unsigned char)text[i]));
-            i += utf8_char_len((unsigned char)text[i]);
+            // safety net: consume one character by the length its lead byte announces, so invalid input still moves on.
+            emit(i, i + utf8::lead_length((unsigned char)text[i]));
+            i += utf8::lead_length((unsigned char)text[i]);
         }
         return out;
     }
@@ -225,7 +211,7 @@ public:
     std::vector<std::string> bpe(const std::string& word) const {
         std::vector<std::string> sym;
         for (size_t i = 0; i < word.size(); ) {
-            size_t l = utf8_char_len((unsigned char)word[i]);
+            size_t l = utf8::lead_length((unsigned char)word[i]);
             sym.push_back(word.substr(i, l));
             i += l;
         }
@@ -280,7 +266,7 @@ public:
         for (uint32_t id : ids) {
             const std::string& tok = vocab.at(id);
             for (size_t i = 0; i < tok.size(); ) {
-                size_t l = utf8_char_len((unsigned char)tok[i]);
+                size_t l = utf8::lead_length((unsigned char)tok[i]);
                 std::string ch = tok.substr(i, l);
                 auto it = char_to_byte.find(ch);
                 if (it != char_to_byte.end()) out += (char)it->second;

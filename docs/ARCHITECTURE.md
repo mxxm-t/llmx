@@ -38,8 +38,8 @@ format/        GGUF reader/writer + ModelFormat adapter/open;
 quant/         QuantType registry; Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K kernels
    |
    v
-core/          fp16 <-> f32, minimal JSON parser, file hashes, available host
-               memory, comma-separated lists
+core/          fp16 <-> f32, minimal JSON parser, UTF-8, file hashes, available
+               host memory, comma-separated lists
 ```
 
 The rule is: **each layer depends only on the layers below it.** Nothing below
@@ -77,7 +77,7 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | Directory       | Contents                                                              |
 |-----------------|-----------------------------------------------------------------------|
 | `src/` root     | `config.hpp` (build configuration: version and the `LLMX_HAS_BACKEND_*` switches) |
-| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory), `list.hpp` (comma-separated values) |
+| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory), `list.hpp` (comma-separated values) |
 | `hub/`          | `manifest.hpp` (Hub metadata/quant selection), `transport.hpp` (curl HTTPS transport), `pull.hpp` (verified download cache) |
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants), `convert.hpp` (raw F32 tensors to and from GGUF) |
 | `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3), `mapped_file.hpp` (read-only mapping) |

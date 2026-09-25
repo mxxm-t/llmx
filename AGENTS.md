@@ -273,6 +273,8 @@ memory. Broad device arithmetic remains covered by `backend-vulkan` and HF.
 `http` starts the server's HTTP layer (`src/server/http.hpp`) on a system-chosen port from a thread and drives it with the layer's own client: a whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, a client seen by `peer_closed` as open while it waits for its answer, also after one urgent (out-of-band) byte, and as closed once it leaves, a write to it then throwing `ClientGone`, and the listener closed from the main thread ending the accept loop.
 Windows and Linux.
 
+`server-utf8` checks that the server's `utf8_sanitize` (`src/server/api.hpp`) turns a surrogate (ED A0 80), an overlong form (E0 80 80) and a value above U+10FFFF (F4 90 80 80) into U+FFFD, one per byte, as it does truncated and stray bytes, while valid text of every length stays unchanged, and that `utf8_complete` holds back a character whose bytes have not all arrived and lets a whole one or a stray continuation byte through.
+
 `placement` splits a two-layer model over two CPU backends with a device per
 tensor role (`docs/EXECUTION.md`) and requires the bytes of the same model on
 one backend for a prompt, decode steps, a history across a block edge, a
@@ -473,7 +475,7 @@ matters: **each layer depends only on the layers below it** -
 
 | Directory    | Contents                                        |
 |--------------|-------------------------------------------------|
-| `core/`      | fp16 <-> f32, JSON parser, common types         |
+| `core/`      | fp16 <-> f32, JSON parser, UTF-8, common types  |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
 | `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
 | `format/`    | ModelFormat interface + GGUF v3 impl           |

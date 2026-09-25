@@ -13,18 +13,10 @@ It contains six independent checks:
 | Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` and `vulkan-lifetime` skipping without a driver, while `vulkan-buffer` exercises fake API cleanup with only the loader |
 | HF reference (CPU) | Linux build plus all three pinned real models: tokenizer, logits, continuous/chunked PPL |
 
-Every CTest in `CMakeLists.txt` runs in every job's "Backend tests" step,
-so the KV cache, placement, HTTP layer and prefill-scope checks are covered
-on all three platforms and under UBSan, and the Python suite's `server`
-component starts `llmx serve` on the synthetic model in every CPU job and
-on the real Q8_0 fixture in the HF job. What no hosted job establishes is
-device behaviour: the Vulkan job proves the tree compiles, and the kernel
-comparisons, the HF gate on the device and the matched floors are run on
-the Radeon VII and the Linux machine's MI50s by hand and recorded in `docs/STATUS.md`. A self-hosted
-runner on that machine would close that. It needs no packages of its own
-for it: `docker/Dockerfile` carries the driver and the compiler and takes
-the cards through `/dev/dri`, and inside it the whole CTest suite,
-`backend-vulkan` included, passes on an MI50.
+Every CTest in `CMakeLists.txt` runs in every job's "Backend tests" step, so the KV cache, placement, HTTP layer, server UTF-8 repair and prefill-scope checks are covered on all three platforms and under UBSan, and the Python suite's `server` component starts `llmx serve` on the synthetic model in every CPU job and on the real Q8_0 fixture in the HF job.
+What no hosted job establishes is device behaviour: the Vulkan job proves the tree compiles, and the kernel comparisons, the HF gate on the device and the matched floors are run on the Radeon VII and the Linux machine's MI50s by hand and recorded in `docs/STATUS.md`.
+A self-hosted runner on that machine would close that.
+It needs no packages of its own for it: `docker/Dockerfile` carries the driver and the compiler and takes the cards through `/dev/dri`, and inside it the whole CTest suite, `backend-vulkan` included, passes on an MI50.
 
 The layer split is covered on the CPU.
 The `placement` CTest, in every job, splits a model over two and three CPU backends, among them a pipelined prompt of five chunks, which reuses pass slots and handoff buffers, and its rollback when a backend on the last stage fails.

@@ -173,7 +173,9 @@ They are a JSON mapping in the routes file over the scheduler the native routes 
 What the shape cannot carry, token ids and the `eos` finish, stays on the native routes; the compatible replies carry the reused-prefix count as `timings.cache_n`.
 A sampling field takes the range the CLI's flag for it takes, both read from beside the sampler's parameters, so the CLI and the server refuse the same values, except that the compatible routes take a `top_k` of -1, which clients send for no top-k, as 0.
 
-A streaming response is `text/event-stream`: one `data:` line per token with the id and the decoded text, a final `data: [DONE]`, and the same UTF-8 boundary rule the CLI streaming has, a split character is held until its bytes complete.
+A streaming response is `text/event-stream`: one `data:` line per token with the id and the decoded text, and a final `data: [DONE]`.
+The server holds a character split across tokens until its bytes complete, and replaces each byte that starts no valid UTF-8 character with U+FFFD, since JSON carries only characters.
+The CLI writes each token's bytes as they come.
 A non-streaming request gets one JSON object with the text, the ids and the counts.
 Errors are JSON with an HTTP status: 400 for a bad request, 413 for a prompt past the context, 503 when the queue is full.
 A stream whose pass fails has already sent its 200 head, so it ends with one `data:` event holding the error in the route's error shape, without `data: [DONE]`.

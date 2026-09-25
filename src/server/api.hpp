@@ -12,6 +12,7 @@
 #include <thread>
 #include <vector>
 #include "core/json.hpp"
+#include "core/utf8.hpp"
 #include "format/gguf.hpp"
 #include "inference/chat.hpp"
 #include "server/http.hpp"
@@ -33,27 +34,21 @@ inline size_t utf8_complete(const std::string& bytes) {
     size_t back = 0;
     while (i > 0 && back < 4) {
         const unsigned char c = (unsigned char)bytes[i - 1];
-        if ((c & 0xC0) != 0x80) {
-            const size_t need = c < 0x80 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
-            return back + 1 >= need ? bytes.size() : i - 1;
-        }
+        if ((c & 0xC0) != 0x80)
+            return back + 1 >= utf8::lead_length(c) ? bytes.size() : i - 1;
         --i;
         ++back;
     }
     return bytes.size();
 }
 
-// The text with every byte sequence that is not valid UTF-8 replaced by U+FFFD, since a byte-level vocabulary can sample bytes that form no character and JSON carries only characters.
+// The text with each byte that starts no valid UTF-8 character replaced by U+FFFD, since a byte-level vocabulary can sample bytes that form no character and JSON carries only characters.
 inline std::string utf8_sanitize(const std::string& s) {
     std::string out;
     out.reserve(s.size());
     for (size_t i = 0; i < s.size();) {
-        const unsigned char c = (unsigned char)s[i];
-        size_t len = c < 0x80 ? 1 : (c >= 0xC2 && c < 0xE0) ? 2 : (c >= 0xE0 && c < 0xF0) ? 3 : (c >= 0xF0 && c < 0xF5) ? 4 : 0;
-        bool ok = len != 0 && i + len <= s.size();
-        for (size_t j = 1; ok && j < len; ++j)
-            if (((unsigned char)s[i + j] & 0xC0) != 0x80) ok = false;
-        if (ok) { out.append(s, i, len); i += len; }
+        const size_t len = utf8::valid_length(s, i);
+        if (len) { out.append(s, i, len); i += len; }
         else { out += "\xEF\xBF\xBD"; ++i; }
     }
     return out;

@@ -36,8 +36,10 @@ def device_args(args, cache=None):
         if device:
             args += ["--device", device]
         # LLMX_LAYER_SHARES, set by run_tests.py --layer-shares, fixes each listed device's proportion of the layers, so a split the fit would not choose on this machine is tested anyway.
+        # The synthetic bench, `bench` without --model, times one device's kernels and places no layers, so it refuses shares.
         shares = os.environ.get("LLMX_LAYER_SHARES")
-        if shares and "--layer-shares" not in args:
+        synthetic = args[0] == "bench" and "--model" not in args
+        if shares and "--layer-shares" not in args and not synthetic:
             args += ["--layer-shares", shares]
     # LLMX_CACHE_TYPE, set by run_tests.py --cache-type, runs the same commands with both cache sides stored as that type; test configuration like LLMX_DEVICE, reaching the binary only as flags.
     # `cache` is a component asking for a type because its fixtures need it, which an explicit LLMX_CACHE_TYPE overrides.

@@ -136,7 +136,7 @@ if(BUILD_TESTING)
     target_include_directories(llmx-model-validation-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-model-validation-test)
     add_test(NAME model-validation COMMAND llmx-model-validation-test)
-    # Each model this test builds starts and stops a CPU worker pool, which is slow on a host with no idle cores.
+    # It builds hundreds of small models, which once started a CPU worker pool each and ran past 30 seconds on a host with no idle cores.
     set_tests_properties(model-validation PROPERTIES TIMEOUT 120)
     add_executable(llmx-gguf-validation-test tests/gguf_validation.cpp)
     target_include_directories(llmx-gguf-validation-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -258,7 +258,8 @@ if(BUILD_TESTING)
         target_link_libraries(llmx-backend-vulkan-test PRIVATE llmx-vulkan)
         list(APPEND LLMX_TARGETS llmx-backend-vulkan-test)
         add_test(NAME backend-vulkan COMMAND llmx-backend-vulkan-test)
-        set_tests_properties(backend-vulkan PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+        # It checks about 25 million kernel outputs against the CPU backend, which takes one to six minutes on a shared card.
+        set_tests_properties(backend-vulkan PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77)
         # Includes the private implementation to inject resource failures without runtime hooks.
         add_executable(llmx-vulkan-lifetime-test tests/vulkan_buffer.cpp)
         add_dependencies(llmx-vulkan-lifetime-test llmx-vulkan-shaders)

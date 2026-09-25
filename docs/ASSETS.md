@@ -360,7 +360,7 @@ when an override is set; unsupported filenames are rejected.
 The K-quant fixtures' bounds are the CPU's measured HF deltas plus a margin.
 Q5_K_M measured 0.026 continuous and 0.130 per chunk (the four 64-token windows) and took 0.05 and 0.16, a margin of 0.024 and 0.030, with its top-5 overlap bound at its lowest measured overlap, 4.
 Q4_K_M takes the same margins over its own largest deltas, rounded up to a hundredth, and the same overlap rule.
-Measured on 2026-09-25 on the CPU (Windows, MSVC build of `ea3a255`), batched and `--per-token`:
+Measured on 2026-09-25 on the CPU (Windows, MSVC build of `ea3a255`), batched and `--per-token`, with the default f16 caches:
 
 | Q4_K_M case | HF NLL | batched NLL | per-token NLL | largest delta | bound |
 |---|---:|---:|---:|---:|---:|
@@ -370,11 +370,10 @@ Measured on 2026-09-25 on the CPU (Windows, MSVC build of `ea3a255`), batched an
 | 123 / 2 | 3.630794 | 3.804750 | 3.801350 | 0.173956 | 0.25 |
 
 Its logits give the HF top-1 on all six prompts, a top-5 overlap of 4, 4, 5, 4, 5 and 4 (bound 4, the lowest), and the exact top-5 order on one.
+With f32 caches, as the HF job's second pass runs it, the largest deltas are 0.105454 continuous and 0.215150 per chunk, with the HF top-1 on all six prompts and a top-5 overlap of at least 4, so the bounds hold for both cache types (0.105454 + 0.024 still rounds up to 0.13).
 The same build measured Q5_K_M at 0.026144 and 0.027534 continuous and 0.129440 at most per chunk, the values its bounds were set from.
 
-Fetch and SHA-256 verify the pinned snapshots with
-`python tools/fetch_test_models.py` (Python standard library only, about 1.9 GB
-combined).
+Fetch and SHA-256 verify the pinned snapshots with `python tools/fetch_test_models.py` (Python standard library only, about 1.9 GB combined).
 Repos, revisions, files and digests are recorded in `tests/data/fixtures.json`, which the downloader and `tests/baseline.py` both read, and each model's bounds in `tests/baseline.py`.
 The numerical checks use those exact snapshots unless explicitly overridden.
 

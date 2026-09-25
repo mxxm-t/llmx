@@ -289,6 +289,7 @@ not one run, and sequences of another model.
 A three-layer model placed by `place_model` over two and three CPU backends at ubatch 3 takes a 13-token prompt in five chunks, more than the stages, so the pipelined prefill reuses its pass slots and both handoff buffers; the prompt, three decode steps, a second prompt continuing the history, every row of `score()` and a two-sequence pass must be exact against one backend, with the same `n_tokens` and `kv_used_bytes`.
 A backend on the last stage then fails while the first stage is chunks ahead, on top of a history, once at an attention mid-prompt and once at the head on the last chunk (`FailingCpu` in `tests/tiny_qwen.hpp`, which `kv-cache` also uses): every storage's length and `kv_used_bytes` must be back at the history, and the same prompt again must be exact.
 `place_model` refuses experts on the CPU beside several devices, and a stream point without experts on the CPU.
+A request's histories grow the cache budget only where the context's blocks cannot hold them, and three histories that need three blocks run in one pass on one backend and over a split.
 
 Run the Python suite (synthetic fixtures are generated locally; real-model HF
 checks skip when their models are absent):
@@ -408,7 +409,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model,
-  and `bench --model` at a depth.
+  and `bench --model` at a depth and with `--seqs 2`, two sequences where the model's context fills one cache block.
   `logits --file` must print what the same prompt inline does.
   The `--last` rows of the prompt, in one pass and in several, and of its first three tokens continued by `--then-ids`, are held to the HF bound at their positions.
 - **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF

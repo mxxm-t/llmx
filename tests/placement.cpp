@@ -443,6 +443,44 @@ void pipelined_failure_rolls_back() {
     }
 }
 
+// A request's histories (PlacementRequest::histories) grow the cache budget only where it cannot hold them, each in whole blocks: the fixture's context is two CPU blocks.
+void histories_fit_the_pool() {
+    const auto weights = fixture();
+    const infer::ModelOptions options;
+    auto place = [&](size_t histories, size_t tokens, size_t devices) {
+        infer::PlacementRequest request;
+        std::vector<backend::BackendPtr> backends;
+        for (size_t d = 0; d < devices; ++d) {
+            auto cpu = std::make_shared<backend::CpuBackend>();
+            cpu->set_threads(1);
+            backends.push_back(cpu);
+            request.names.push_back("cpu");
+        }
+        if (devices > 1) request.shares.assign(devices, 1);
+        request.histories = histories;
+        request.history_tokens = tokens;
+        return infer::place_model(weights, std::move(backends), request, options).model;
+    };
+    require(place(0, 0, 1)->kv_tokens_total() == 256 && place(2, 128, 1)->kv_tokens_total() == 256,
+            "a budget that holds the histories grew");
+    require(place(3, 100, 1)->kv_tokens_total() == 384 && place(2, 129, 1)->kv_tokens_total() == 512,
+            "a budget short of whole blocks for each history did not grow");
+    ++checked;
+    // Three histories of 100 tokens in one pass, which the context's two blocks cannot hold, on one device and over a split.
+    for (size_t devices : {1, 2}) {
+        auto model = place(3, 100, devices);
+        std::vector<infer::Sequence> s;
+        for (int i = 0; i < 3; ++i) s.push_back(model->make_sequence());
+        const std::vector<uint32_t> ids(100, 5);
+        std::vector<infer::BatchEntry> batch;
+        for (auto& q : s) batch.push_back(infer::BatchEntry{&q, ids.data(), ids.size(), true});
+        infer::ExecContext ctx;
+        model->forward(ctx, batch.data(), batch.size());
+        for (const auto& q : s) require(q.length() == 100, "a history the grown pool holds was not committed");
+        ++checked;
+    }
+}
+
 void bad_placements_refused() {
     const auto weights = fixture();
     auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();
@@ -496,6 +534,7 @@ int main() {
     try {
         split_matches_single();
         layer_split_fits();
+        histories_fit_the_pool();
         bad_placements_refused();
         pipelined_matches_single();
         pipelined_failure_rolls_back();

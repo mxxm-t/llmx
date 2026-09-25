@@ -2,6 +2,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import struct
 import tempfile
 
@@ -173,7 +174,12 @@ def run():
         assert rc == 0 and "pp4 @ d6" in out and "tg2 @ d6" in out, "bench --depth failed: " + out
         rc, out = cli(["bench", "--model", model, "--depth", "6", "--seqs", "2"])
         assert rc != 0, "bench --depth accepted batched decode"
-    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids rows; max error %.8f  [ok]" % worst)
+        # Batched decode holds both sequences' prompts and tokens at once, which this model's one context, a single block, cannot.
+        rc, out = cli(["bench", "--model", model, "--p", "4", "--n", "2", "--r", "2", "--seqs", "2"])
+        reports = re.findall(r"^bench: (.+?)\s+(\S+) \+- (\S+) tok/s  \((\d+) runs\)$", out, re.M)
+        assert rc == 0 and [(what, runs) for what, _, _, runs in reports] == [("pp4", "2"), ("x2 tg2", "2")], "bench --seqs 2 failed: " + out
+        assert all(math.isfinite(float(mean)) and float(mean) > 0 and math.isfinite(float(sd)) for _, mean, sd, _ in reports), out
+    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids rows, bench --seqs 2; max error %.8f  [ok]" % worst)
     return True
 
 

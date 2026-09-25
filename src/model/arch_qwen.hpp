@@ -1329,6 +1329,9 @@ struct PlacementRequest {
     size_t stream_from = 0;           // with experts on the CPU, the prompt length from which they are copied to the device (Placement::stream_from)
     int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
+    // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
+    // Each history takes whole blocks, so the budget grows to hold them all where it would not.
+    size_t histories = 0, history_tokens = 0;
 };
 
 // A placed model and, when it was split, what each device was given (LayerSplit::describe).
@@ -1340,10 +1343,25 @@ struct PlacedModel {
 // The model over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, with the request's ubatch set.
 // The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; attention, the dense blocks, the embedding and the head stay on the device.
 inline PlacedModel place_model(const gguf::GGUFModel& m, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
-                               const ModelOptions& options) {
+                               ModelOptions options) {
     if (backends.empty()) throw std::runtime_error("placement: no device");
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
+    // A storage has the blocks the budget fills at its backend's block size, and each history takes whole ones, so the request's histories are counted in each backend's blocks.
+    // Where any storage would fall short, the budget becomes what they take in the largest blocks, which every other size divides, so every storage holds them and the fit counts them.
+    if (request.histories) {
+        const size_t budget = kv_tokens(load_config(m), options);
+        size_t held = 0;
+        bool short_of = false;
+        for (const auto& b : backends) {
+            if (!b) throw std::runtime_error("inference: missing backend");
+            const size_t bt = b->kv_layout().block_tokens;
+            const size_t blocks = backend::size_mul(request.histories, backend::blocks_for(request.history_tokens, bt));
+            short_of = short_of || blocks > backend::blocks_for(budget, bt);
+            held = std::max(held, backend::size_mul(blocks, bt));
+        }
+        if (short_of) options.kv_tokens = held;
+    }
     PlacedModel placed;
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)

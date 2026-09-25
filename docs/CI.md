@@ -102,6 +102,7 @@ without downloads. Its deterministic weights are generated locally;
 committed HF float32 logits/NLL cover tied and untied embeddings, matrix
 tails, multiple physical batches and thread counts.
 The same fixture holds the rows `logits --last` and `--then-ids` print to its bound at their positions, and `logits --file` to the inline prompt's output.
+`bench --model` with `--seqs 2` runs on it and reports the token counts of its prompt and batched decode tests: two sequences need two cache blocks where the model's context fills one.
 The `cli` component checks that these builds, which have no Vulkan backend, refuse a Vulkan device rather than run on the CPU, and that `info` lists a synthetic model's architecture, layer count and tensors.
 It also checks that the CLI's usage errors exit with status 2 and the command's page on stderr, before any model file is opened.
 The UBSan job makes misaligned in-memory tensors a test failure. These jobs also

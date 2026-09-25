@@ -317,8 +317,9 @@ struct Opened {
 
 // Open a model file as the flags ask: read it, showing progress when `progress`, place the model over the listed devices for its ubatch plus `decode_rows` generated tokens a pass (a server's sequences), print a split's plan when `show_plan`, and release the host's copy of the weights when no weight reads it in place.
 // `threads` is the worker count to set, 0 to keep the backend's own; `profile` times the one device's kernels.
+// `history_tokens`, when given, is what each of the `decode_rows` sequences holds, and the cache grows to hold them all at once where its budget would not (infer::PlacementRequest::histories).
 std::unique_ptr<Opened> open_model(const std::string& path, const infer::GenParams& gp, bool progress, int threads, size_t decode_rows = 0,
-                                   bool show_plan = false, bool profile = false) {
+                                   bool show_plan = false, bool profile = false, size_t history_tokens = 0) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (gp.moe_stream_from && !gp.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     auto opened = std::make_unique<Opened>();
@@ -334,6 +335,10 @@ std::unique_ptr<Opened> open_model(const std::string& path, const infer::GenPara
     request.stream_from = (size_t)gp.moe_stream_from;
     request.ubatch = gp.ubatch;
     request.decode_rows = decode_rows;
+    if (history_tokens) {
+        request.histories = decode_rows;
+        request.history_tokens = history_tokens;
+    }
     infer::PlacedModel placed = infer::place_model(opened->file, std::move(backends), request, model_options(gp));
     if (show_plan) std::cerr << placed.plan;
     opened->model = std::move(placed.model);
@@ -589,7 +594,9 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 // Time model execution over fixed IDs after warm-up; history setup and sampling are outside the timer.
 // Multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth; see docs/USAGE.md.
 int cmd_bench_model(const std::string& path, const infer::GenParams& gp, int P, int G, int R, bool profile, int seqs = 1, int D = 0) {
-    const auto opened = open_model(path, gp, false, gp.threads, (size_t)seqs, true, profile);
+    // What each sequence holds at most: a batched one its prompt and its generated tokens, the one sequence its depth and the longer of its two tests.
+    const size_t reach = seqs > 1 ? (size_t)P + (size_t)G : (size_t)D + (size_t)std::max(P, G);
+    const auto opened = open_model(path, gp, false, gp.threads, (size_t)seqs, true, profile, reach);
     backend::Backend* b = opened->first;
     infer::Model& model = *opened->model;
     // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
@@ -617,9 +624,10 @@ int cmd_bench_model(const std::string& path, const infer::GenParams& gp, int P, 
     };
     infer::ExecContext ctx;
     // `start` runs once the decode is set up and before its first pass, so a profile of it leaves out the sequences' prompts.
+    // Batched decode clears the one sequence too, so the last prompt's blocks are back in the pool before its sequences take theirs.
     auto tg = [&](const std::function<void()>& start) {
+        fresh();
         if (seqs <= 1) {
-            fresh();
             if (start) start();
             const auto t0 = clock::now();
             for (uint32_t t : gen) model.step((int)t);

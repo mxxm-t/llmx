@@ -278,7 +278,7 @@ devices in the order listed: the first runs the embedding and the first
 layers, the last runs the final layers and the head, and the residual
 stream crosses once at each boundary per pass. Each device's layers are
 fitted to the memory it reports free, counting its layers' weights, their
-cache for the whole `--ctx-size` budget (the model context by default),
+cache for the whole `--ctx-size` budget (the model context by default, or what `bench --seqs` holds when that is more),
 the embedding and head where they sit, one pass of activations and a
 reserve for kernel scratch. Devices that hold weights in their own memory
 share the layers as evenly as that allows; the CPU, whose weights read the
@@ -595,6 +595,7 @@ is a different measurement.
 `--seqs N` measures decode the way a server runs it: `N` sequences each
 prefilled with the `--p` prompt, then `--n` passes of one token from every
 sequence, reported as `xN tg` in tokens per second over all of them.
+The KV pool is the model context, as for `generate`, and grows to hold the `N` sequences' prompts and tokens at once, each in whole KV blocks, when they need more.
 
 `--depth N` measures a long context: before every repeat, and outside the
 timer, the history is filled with `N` tokens, and `pp` and `tg` then run on

@@ -635,6 +635,1303 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Recording the next stage before its rows arrive (a held input the host fills before the submit): decode on 3 and 4 cards gained under 1.5 percent, 2 cards lost a little in decode and prefill; a stage's first 64 dispatches already start while the rest is recorded.
 - **Left, in later phases:** passes of different sequences in flight (phase 3) with the server gate against the reference's server; per-storage progress visible to the scheduler (phase 4); tensor groups for multi-card decode (phase 6); a thread per stage only if the host is measured to limit a pipeline; pipelined scoring for perplexity. The single-card prefill kernels come after the correctness-bug branches and the loader.
 
+## Quantization coverage: 16-bit, MXFP4, IQ4, Q3_K and Q2_K weights (planned 2026-09-25)
+
+- **Goal:** llmx opens and runs the GGUF files people download for the architectures it runs today and for the ones planned next (Qwen3.5, 3.6 and 3.8, [QWEN35](QWEN35.md)), on the CPU and on both Vulkan cards.
+  Each new tensor type must meet six conditions:
+  - it is exact against a decoder written independently from the format description;
+  - it is within HF bounds on a model a host here can hold;
+  - it is batch-invariant, and prefix reuse with it stays exact;
+  - it is at least level with the reference's Vulkan build on the MI50 and on the Radeon VII, and with the reference's CPU build on the Linux host's CPU;
+  - every existing type keeps byte-identical outputs and its speed;
+  - types are taken in the order of the files they open and how often those files are published, weighed against the effort.
+- **Priority:** built now in the background, following AGENTS.md and docs/ARCHITECTURE.md, with a full review of every step.
+  Layer split phase 3 keeps priority on the cards, so a branch's device gates and speed cells run when the cards are free of it (user, 2026-09-25).
+- **Decided (2026-09-25),** numbered as the plan's questions were:
+  - **1. Order:** 16-bit, MXFP4, IQ4, Q3_K, Q2_K.
+    MXFP4 goes before IQ4 by the user's choice, although IQ4 opens far more files and the order rule above put IQ4 first.
+    So MXFP4's branches write the shared 16-entry lookup that IQ4's then reuse, in C++ and in GLSL.
+    MXFP4 also comes before DeepSeek 4.x and does not wait for it.
+  - **2. Fixtures:** six unsloth Qwen3-0.6B files join the HF gate, from the revision of the Q4_0 and Q5_K_M fixtures (50968a44, 3.41 GB): BF16, UD-Q8_K_XL, IQ4_NL, IQ4_XS, Q2_K and Q3_K_S.
+    BF16 is gated as byte-identical to the existing Qwen3-0.6B-F32.gguf once its widened tensors are shown equal to it, so it inherits that file's bounds (max logit error 0.001, NLL 1e-4).
+    UD-Q8_K_XL is held at Q8_0's bounds, and the lower types' bounds are measured on the CPU and proposed then.
+    Only UD-Q8_K_XL, IQ4_XS and Q2_K (1.51 GB) go into the hosted HF job, since the tiny models, IQ4 dense and MoE ones included, cover every new type in CI.
+    Those three enter `tests/data/fixtures.json` with their repo (`unsloth/Qwen3-0.6B-GGUF`), revision and SHA-256, and the other three are pinned the same way in ASSETS.
+  - **3. File-exact reference:** required for MXFP4, IQ4, Q3_K and Q2_K before their bounds are proposed.
+    HF runs on the fixture's weights as the numpy spec decoder decodes them, held to Q8_0-class bounds, since bounds against the fp32 reference alone are too wide at 2 to 4 bits to catch a mis-scaled sub-block.
+  - **4. MXFP4 fixtures:** a deterministic Python writer in `tools/` writes all-matrix MXFP4, the tied embedding included, from the pinned 0.6B BF16 file.
+    It uses the OCP scale rule, with round-to-nearest-even and saturation, all written down.
+    Its sha256 goes in ASSETS, and the file is checked by hand, not hosted.
+  - **5. MXFP4 edge values:** -0 decodes as +0, and e = 255 as 2^127 by the same construction as every other exponent, with no scan at load, both documented.
+    e <= 1 keeps its subnormal scale on every backend, with DenormPreserve on the devices.
+    If either driver does not offer fp32 denormal preservation, every backend flushes e <= 1 scales to zero, the CPU and the spec decoder included: a documented departure from the spec for values below 3 x 2^-126 that keeps every path bit-identical.
+  - **6. CPU before Vulkan:** a type's CPU branch may merge while Vulkan refuses that type at load, until its Vulkan branch merges.
+    Step 0's load-time device check makes the refusal explicit, streamed layers of that type stay on the host, and the skipped device fixtures are recorded.
+  - **7. 8-bit CPU activations:** MXFP4, IQ4, Q3_K and Q2_K may use 8-bit activations on the CPU for non-head rows where they pass the bounds and gain speed, both recorded.
+    Their heads always read 16 bits, and the existing types' heads keep today's path.
+  - **8. 16-bit identity:** a 16-bit file equals an F32 file of the widened weights, bit for bit, on the CPU and each card.
+    If a driver fuses the 16-bit build differently and `precise` would change F32's bytes or speed, the work stops and the user is asked; the fallback then is equality with the CPU within F32's own device bounds.
+  - **9. 16-bit prefill:** if llmx's lossless f32 float tile for 16-bit weights falls short of the reference at pp512 or pp4096, that is accepted and recorded, with decode and pp64 still required at least level.
+    No lossy path is added unless the user asks for one as an opt-in, which every backend then honours identically or refuses.
+  - **10. Covered by the exact-reuse rule:** rows are reused only where they were computed as the CLI would compute them.
+    Its owner is exact resume's first-admission branch, and step 0's kernel-class function is offered to it.
+    Until then this plan's server checks run with no donor hits or pauses, which each check asserts.
+- **Open, not yet asked:**
+  - **11.** Should IQ3_S be the first type after this plan, as its own plan?
+    It opens the Qwen3.5/3.6-35B-A3B UD-IQ4 files.
+    Copying the IQ1/IQ2 codebooks raises a licence-notice question against the rule on naming other projects in code, to settle then.
+    Recommendation: yes.
+- **Found:** from main d48f2b2, from GGUF headers of the Linux host's model files, from Hub headers read by range requests, and from samples of 40,000 blocks per tensor.
+  No model was run.
+  The first draft read db0f8c3; the eight commits since then change only the KV storage in `src/`.
+  Main has since moved to b7b585f, where `cleanup/backend-contract-helpers` merged as 6aac250 and moved lines in the backends, so the line numbers below are those of d48f2b2 unless b7b585f is named.
+  - **The reader today.**
+    - llmx reads F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K.
+    - `gguf::TensorInfo::data_size` throws on any other type, and it runs for every tensor when a file is opened.
+      So one tensor of another type makes the whole file unreadable, `info`, `tokenize` and `detokenize` included.
+      The message names neither the type nor the tensor.
+    - Type sizes are written in `format/gguf.hpp`, in the registry (`quant/quant.hpp`) and again in `q.glsl`.
+    - Vulkan refuses a type it has no kernel for only when the kernel is first called ("unsupported matrix type").
+      `tests/common.py:device_lacks_kernel` turns that message into a SKIP under `LLMX_DEVICE`, so a device run can pass with nothing checked.
+    - Six checks use F16 (type 1) as the unsupported type, at b7b585f: in `backend_vulkan.cpp`, the matmul at 983, and `check_refusals`' matmul (1537), routed product (1587) and embed (1595) through its F16 constant (1444); and `model_validation.cpp:413` and `:421`.
+  - **Work in flight that this plan touches.**
+    - `feat/hf-loader-main-20260924` (b56e4e3, 234 commits behind main) has a `core/storage.hpp` that is only named constants.
+      It has no lookup table, registry entries for F16 and BF16 with a CPU dequantize fallback, and a refusal of 16-bit weights on Vulkan.
+    - `perf/prefill-kernels`: its commits are on main (4c17361 to 68486a4).
+      Its STATUS block still owes the Radeon VII gate and the merge cells pp247 and tg32.
+    - `cleanup/quant-owner` (eaf1118) and `cleanup/vulkan-constants` are on main.
+    - `cleanup/backend-contract-helpers` (14) merged as 6aac250 after this plan was read.
+      It adds `quant::row_bytes` and sets F32's block size to 1.
+    - `cleanup/cpu-kernels` (16) has no branch yet.
+    - The loader plan's step 4 ("plan, then fill") checks every role before any byte moves.
+      That plan lists checking each device's weight types at load as a follow-up it does not do.
+  - **Silent defaults that would send a new type to another type's kernel:**
+    - CPU:
+      - `q8_dots.hpp`: the `default:` of `dot_block` (544) and of `dot` (556) go to Q6_K;
+      - `q8::reads16` (499);
+      - `row_dot`'s default (1241), which goes to `dot_row_dequant`, accumulating in double;
+      - `is_kquant` (1118).
+    - Shaders:
+      - `embed.comp`: its `else` goes to `q6_k_at`;
+      - `q.glsl`: `block_bytes` falls through to Q6_K's size, and `block_values` returns 32 for every type that is not a K-quant;
+      - `matmul_tile_q.comp`: its `else` goes to Q4_0/Q4_1;
+      - `matmul_tile.comp`: the float tile's last `else` reads weights as F32 (146);
+      - the `matmul_row.comp` plain build treats any type other than Q8_0 as F32 (281);
+      - `qtile`: its last branch.
+    - Host side of Vulkan:
+      - `row_plan`'s `default: break` (1596);
+      - `row_twin` gives the raw activations only to F32 (1620), so a 16-bit row would get the quantized twin;
+      - `reads_x8` (1851), `is_row_kernel`, `row_kernel_builds_one_column` and `row_dot_variant`'s default are hand-written lists, and a new 8-bit row kernel missing from `reads_x8` reads the 16-bit twin as bytes;
+      - `integer_dot_tile` is true on the MI50 for every type except F32;
+      - `tile_from`'s choice between "8-bit" and "float" (1383);
+      - `moe_tile_from_for`'s default (device_profile.hpp:131).
+    - Test helpers place scales by `type >= Q4_K`, and `d` at offset 0 or 2.
+  - **Modules shared by every type through a push constant.**
+    `embed` and the float tile branch on `p.type` at run time and read `q.glsl`'s `block_bytes`, `block_values` and `is_kquant`.
+    So adding a type to them changes their SPIR-V.
+  - **`tile_reads`** takes the maximum of every type's threshold (1956-1957).
+    A new, higher MoE threshold would move, for every model, the range of prompts in which the producers write the 8-bit copy.
+  - **Device buffers** are rounded only to whole words (vulkan_backend.cpp:581).
+  - **Vulkan `matmul_experts`** throws when the gate and up experts differ in type (1721).
+    No file read mixes them.
+  - **Streamed experts:** with experts on the host, long prompts copy the expert stacks into device windows and compute them there (`arch_qwen.hpp ffn_split`).
+  - **Float controls:** nothing in `src/` or CMake requests Vulkan float controls.
+    RADV flushes fp32 denormals unless a module declares DenormPreserve.
+    The CPU sets no flush-to-zero.
+  - **CPU paths.**
+    - Decode takes `dot_f32` for F32 only.
+      Other types without a fused dot are dequantized and take `dot_f32_x4`'s order (426-470).
+    - MoE decode calls `row_dot`.
+    - The prompt dots run only for K-quants at 4096 wide and up (`kPromptDotsFrom`), so they never run on the 0.6B files.
+    - MoE prompt entries take `dot_block` for any type with a fused dot, whatever the width.
+    - The CPU has no `matmul_logits` override: the head falls through to `matmul` (backend.hpp:195).
+  - **Heads.**
+    The Q4_0 fixture failed top-5 because of its Q6_K head on the 8-bit twin (VULKAN.md).
+    The Vulkan `matmul_logits` keeps the 16-bit twin for Q4_0, Q4_1 and Q6_K heads, and every other row of those types reads 8 bits.
+  - **Server.**
+    Prefix reuse chooses a donor by token match alone (`scheduler.hpp best_donor`).
+    A new prompt's own rows follow its whole prompt's extent, as the CLI's do.
+    A donor's reused rows were computed at the donor's extent, and its generated tokens' rows at extent 1, so their kernel class can differ from the CLI's.
+    Pause and resume has the known gap recorded in the second code audit's block below.
+  - **Radeon VII limits.**
+    - Its float tile is one module for every type.
+      It uses 67 registers, three more than a fourth wave allows.
+    - Its plain float row path is exact only while a block's partial sums stay below 2^24.
+  - **Qwen3.x files on the Linux host that need no new type:**
+    - Qwen3.5 0.8B, 2B, 4B and 9B Q4_K_M.
+    - Qwen3.6-27B Q4_K_M, Q8_0 and pure Q4_K.
+    - Qwen3.6-35B-A3B Q4_K_M, Q5_K_M, Q6_K and Q8_0.
+    - Qwen3.8-27B Q8_0.
+    - These hold only F32, Q8_0, Q4_K, Q5_K and Q6_K, so the Qwen3.x architecture work does not wait on this plan.
+  - **Qwen3.x files on the Linux host that do need a new type:**
+
+    | file | architecture | new type it needs |
+    |---|---|---|
+    | Qwen3.8-27B UD-Q8_K_XL | qwen35 | BF16, 5.14 GB (16.4 percent): full-attention q, k and v in 17 layers, the head, the multi-token-prediction projection |
+    | Qwen3.5-35B-A3B UD-Q8_K_XL | qwen35moe | BF16, 3.84 GB: every matrix outside the routed experts |
+    | Qwen3.5-122B-A10B UD-Q8_K_XL | qwen35moe | F16, 87.4 GB (51 percent), all 48 routed down projections included |
+    | Qwen3.6-27B BF16 | qwen35 | BF16 throughout, 54.6 GB |
+    | Qwen3.6-35B-A3B UD-Q4_K_XL, the copy with the prediction layer | qwen35moe | BF16 in two router tensors of layer 40 only; the published file (Hub a483e9e6) has none |
+    | Qwen3.6-35B-A3B IQ4_NL | qwen35moe | IQ4_NL on experts, shared experts, the linear-attention matrices and the embedding |
+    | Qwen3.6-27B and 35B-A3B MXFP4, local requantizations | qwen35, qwen35moe | MXFP4: 498 tensors (27B), 120 expert tensors (35B-A3B) |
+    | Qwen3.6-27B Q5_1 | qwen35 | Q5_1 on 497 matrices |
+
+  - **Files of architectures llmx runs today:**
+    - **Linux host, local requantizations** (in a review directory, sha256 to be recorded, not reproducible):
+      - Qwen3-14B IQ4_NL, 8,597,069,184 bytes.
+        The Hub's main file is 8,541,363,584, so gates use a pinned Hub download instead.
+      - Qwen3-14B MXFP4, with every matrix, the embedding and the head in MXFP4.
+      - Qwen3-14B Q4_K, Q5_K and Q6_K beside them, which calibrate the device-against-CPU criterion.
+    - No file on the host holds Q2_K, Q3_K or IQ4_XS.
+    - **Qwen3-30B-A3B UD-Q8_K_XL:** BF16 gate, up and down experts in 5 layers, BF16 attn_v in all 48 layers, and a BF16 embedding and head.
+    - **Heads of the pinned files:**
+      - The 0.6B IQ4_NL, IQ4_XS, Q2_K and Q3_K_S files all have a tied Q6_K token_embd.
+      - The 8B and 30B IQ4, Q2 and Q3 files all have a Q6_K output.
+      - 8B Q2_K and 30B-A3B Q2_K have a Q2_K token_embd.
+      - So no real fixture puts IQ4, Q2_K or Q3_K in the head.
+  - **Other architectures on the Linux host:**
+    - gpt-oss-120b: MXFP4 experts in rows of 90 blocks.
+    - DeepSeek-V4-Flash: 129 MXFP4 expert tensors and a BF16 router.
+      Its UD-Q8_K_XL holds 14.5 GB of BF16.
+    - DeepSeek-V4.1-Flash: 120 MXFP4 expert tensors and two MXFP4 embedding tables.
+    - Qwen3.8-Flash-Next (qwen4exp): a 28.8 GB IQ4_NL per-layer embedding, Q5_1 expert down projections 640 wide, and BF16 indexer projections.
+    - Two Qwen3.6-27B files use type 53, a research format.
+  - **MXFP4 block samples:**
+    - Exponents run from 116 to 127, and never 255.
+    - Code 8 (-0) is 5.9 to 8.6 percent of values in checkpoints trained in MXFP4 (gpt-oss, the DeepSeek experts).
+      Converted files never use it.
+    - In Qwen3.6-35B-A3B's layer 0 gate experts, 26,432 of 65,536 sampled blocks have exponent 0 with all-zero codes, and 13 of 256 experts are entirely exponent 0.
+    - No sampled block has an exponent of 0 or 1 with a nonzero code.
+  - **Hub headers:**
+    - unsloth Qwen3-0.6B at 50968a44, the revision of the Q4_0 and Q5_K_M fixtures, publishes seven relevant files:
+      - BF16;
+      - UD-Q8_K_XL (F16 plus Q8_0);
+      - IQ4_NL (381,566,656 bytes);
+      - IQ4_XS;
+      - Q2_K, which holds Q2_K and Q3_K;
+      - Q3_K_S;
+      - Q3_K_M.
+    - Every unsloth Qwen3 and Qwen3.x repo read publishes IQ4_NL, IQ4_XS, Q3_K_S, Q3_K_M and the UD-Q2/Q3_K_XL files.
+    - MXFP4 appears only as MXFP4_MOE for Qwen3.5-35B-A3B and Qwen3.6-35B-A3B.
+      The 3.6 file is 21.7 GB: MXFP4 gate and up experts in 39 layers, Q5_K and Q6_K down experts, and Q8_0 elsewhere.
+    - For qwen3moe there is a community Qwen3-Coder-30B-A3B MXFP4_MOE: 17,082,450,208 bytes, MXFP4 on all 144 expert tensors and Q8_0 elsewhere.
+    - UD-Q4_K_XL:
+      - 0.6B, 8B and 32B need IQ4_XS on 20 to 28 tensors (q, k, gate and up of five to seven layers), and nothing else new.
+      - Qwen3.6-27B needs IQ4_XS on 12 tensors.
+      - Qwen3-30B-A3B (d5b1d57b) and Qwen3.6-35B-A3B hold only types llmx reads.
+    - Qwen3-235B-A22B UD-Q2_K_XL (88.0 GB in two shards) has Q2_K gate and up experts, Q3_K down experts, and Q4_K, Q5_K, Q6_K and F32 for the rest.
+      The first of the three shards of its UD-Q3_K_XL (103.7 GB) adds Q3_K alone.
+    - The 30B-A3B UD-Q2_K_XL (11.8 GB) and UD-Q3_K_XL (13.8 GB) need only Q2_K and Q3_K.
+    - Dense UD-Q2_K_XL files also need IQ2_XS, IQ2_S, IQ3_XXS, IQ3_S and IQ4_XS (Qwen3-32B read).
+    - Qwen3.6-35B-A3B's UD-IQ4 files put IQ3_S on the gate and up experts.
+  - **Formats**, from the GGUF type definitions and the OCP MX specification:
+    - **F16 (1) and BF16 (30):** 2 bytes per value, and widening to f32 is exact.
+      0.18 to 0.22 percent of the F16 weights in real files are subnormal.
+    - **IQ4_NL (20):** 32 values in 18 bytes.
+      An f16 scale, then nibbles in Q4_0's order that index the 16-entry int8 table {-127 ... 113}.
+    - **IQ4_XS (23):** 256 values in 136 bytes, as eight sub-blocks with signed 6-bit scales.
+      99.66 percent of the 0.6B file's super-blocks have a subnormal f16 scale.
+    - **MXFP4 (39):** 32 values in 17 bytes.
+      An E8M0 exponent comes first, then nibbles in Q4_0's order that index the doubled E2M1 values {0, +-1, +-2, +-3, +-4, +-6, +-8, +-12}.
+      - Each value is table[c] x 2^(e-128).
+      - For e <= 1 the scale is an f32 subnormal (2^-128 or 2^-127).
+        The plain bit construction turns e = 0 into -inf, and -inf x 0 is NaN, so the scale needs its own branch there.
+      - Values overflow to inf only at e >= 253.
+    - **Q3_K (11):** 110 bytes, with signed 6-bit scales per 16 values and values from -4 to 3.
+    - **Q2_K (10):** 84 bytes, with a 4-bit scale and min per 16 values.
+    - **Exactness.**
+      Every product these decoders form is exact in f32, and Q2_K's scale minus min is one rounding that is exact in double.
+      So every correct decoder gives the same bits, as long as subnormals are kept.
+      f16 subnormal scales widen to normal f32 values; the Q4_0 fixture's subnormal Q6_K scale already passes on both cards.
+      MXFP4's e <= 1 scales stay subnormal in f32, so they need float controls on a device (Design).
+  - **Speed bar.**
+    - The reference's Vulkan source has integer-dot matmul and mat-vec kernels for MXFP4, Q2_K and Q3_K.
+      They are compiled only under `GGML_VULKAN_INTEGER_DOT_GLSLC_SUPPORT` and run only on a device with integer dot.
+      IQ4 goes through dequantization to f16.
+    - For F16 weights, its matmul pipeline accumulates in f16 when precision is default and the device has fp16, which both cards do.
+      Its BF16 path converts activations to BF16.
+      Both are lossy.
+      llmx's lossless f32 float tile, which the BF16 rule requires, may therefore not reach it at pp512 and pp4096.
+    - mx-llama.cpp's ROCm build has gfx906 tuning for MXFP4 and an IQ4_NL prefill repack.
+  - **Radeon VII fit.**
+    30B-A3B Q2_K does not fit at the model's 40,960-token context.
+    The 11.26 GB file, plus the f16 cache at 96 KiB a token (3.75 GiB), plus the reserve (256 MiB and a twentieth of free memory) exceed 16 GB.
+  - **HF container:** transformers 4.55.2, the version the 8B goldens record.
+- **Order:**
+
+  | types | branches (size) | opens on qwen3 and qwen3moe | opens later | shares kernels with |
+  |---|---|---|---|---|
+  | F16, BF16 | 1 `feat/half-weights` (medium) | every BF16/F16 Qwen3 file; the UD-Q8_K_XL family (0.6B, 8B, 30B-A3B, Coder-30B-A3B, 30B-A3B-2507, 4B-2507); native HF weights on devices | Qwen3.5/3.6/3.8 UD-Q8_K_XL and BF16, F16 for the 122B; DeepSeek-V4 UD | F32's plain row build, float tile, embed and CPU decode dot |
+  | MXFP4 | 2 `feat/mxfp4-cpu` (small), 3 `feat/mxfp4-vulkan` (medium) | Qwen3-Coder-30B-A3B MXFP4_MOE; the local Qwen3-14B MXFP4 | unsloth Qwen3.5/3.6-35B-A3B MXFP4_MOE; gpt-oss and DeepSeek-V4/V4.1 experts, with those architectures | Q4_0's nibble order; the 16-entry lookup, which it writes for IQ4; the Q8_0 module's scale-only math |
+  | IQ4_NL, IQ4_XS | 4 `feat/iq4-cpu` (medium), 5 `feat/iq4-vulkan` (large) | IQ4 files of every Qwen3 size up to 235B-A22B; dense UD-Q4_K_XL (0.6B, 8B, 32B); the pinned Qwen3-14B IQ4_NL | Qwen3.6-27B IQ4_XS and UD-Q4_K_XL; Qwen3.6-35B-A3B IQ4_NL; Qwen3.5 IQ4 | IQ4_NL: Q4_0's staging and row pairs; IQ4_XS: Q4_1's aligned staging, KQ45_K's step with no min; both: MXFP4's 16-entry lookup |
+  | Q3_K | 6 `feat/k-low-cpu` (medium, with Q2_K), 7 `feat/q3k-vulkan` (medium) | Q3_K_S/M/L of every Qwen3; the first shard of the 235B-A22B UD-Q3_K_XL | Qwen3.6-27B Q3_K_M; Qwen3.5-0.8B Q3_K_S | Q6_K's signed per-16 scales, KQ6_K dots, Q6 tile math and row lanes |
+  | Q2_K | 6, 8 `feat/q2k-vulkan` (large) | Q2_K of every Qwen3; UD-Q2_K_XL of 30B-A3B and 235B-A22B | none planned | Q3_K's per-16 sums; KQ45_K's unsigned dot with a min |
+
+  - Branch 0, `refactor/storage-types` (medium), comes before all of them.
+  - MXFP4 writes the shared lookup, in C++ in branch 2 and in GLSL in branch 3, and the IQ4 branches reuse it.
+- **MXFP4 comes before DeepSeek 4.x and does not wait for it:**
+  - **It can be gated on qwen3 and qwen3moe:**
+    - raw blocks against a decoder written from the OCP bit fields;
+    - tiny HF models built from random MXFP4 blocks;
+    - a real Qwen3-0.6B written in MXFP4, tied embedding included, against HF;
+    - the local Qwen3-14B MXFP4 and the Hub's Qwen3-Coder-30B-A3B MXFP4_MOE on each device against the CPU.
+  - **What DeepSeek's files add is covered without that architecture:**
+    - Code -0 is tested at the rate the native checkpoints show.
+    - The MXFP4 embedding and head are covered by the 0.6B writer's file and the 14B's.
+    - Its expert widths (128, 64, 160 and 72 blocks per row) are multiples of four blocks, like every Qwen width.
+      gpt-oss's 90-block rows take the general path, which a tiny-model width covers.
+  - **Why the type lands first:** an architecture branch then finds its tensor types already proven, so a failed HF bound there points at the architecture.
+  - **First public file:** unsloth's Qwen3.6-35B-A3B MXFP4_MOE, which the Qwen3.x MoE step can run once branch 3 lands.
+    DeepSeek 4.x follows Qwen 3.x.
+- **Design:**
+  - **One owner per rule:**
+    - **Storage table.** `core/storage.hpp` holds one table over every GGML type id: name, values per block and bytes per block, with F32 at a block size of 1.
+      - `gguf::data_size`, the registry, `quant::row_bytes` and the safetensors reader all read it.
+      - Support is a separate predicate for each backend, not part of the table.
+      - A CTest asserts that `q.glsl`'s type ids and sizes equal the table's.
+    - **Decoders.** Each type has one C++ decoder in `quant/` and one GLSL decoder in `qdecode.glsl`, with its sizes in `q.glsl`.
+      The embed checks prove the two agree bit for bit.
+    - **Lookup.** MXFP4, IQ4_NL and IQ4_XS share one lookup, parameterised by the table, in each language.
+      MXFP4's branches write it, and IQ4's reuse it.
+    - **Python.** One Python module holds a spec decoder for each type in a pure form and a numpy form.
+      The numpy form is checked against the pure one on the raw-block corpus.
+      `roundtrip.py`, the reference generator and the tiny-model builder use it.
+    - **Kernel choice** is an explicit table per backend (row family, tile module, row twin and thresholds), with no default branch.
+      `KernelId`, `kKernelNames` and `kKernels` become one list.
+    - **Refusal.** A type missing from a backend's table is refused at load, naming the type, the tensor and the device.
+    - **Float types.** One predicate names the float storage types F32, F16 and BF16.
+      It feeds `row_twin`, `row_plan`, `integer_dot_tile`, `tile_from`'s choice between 8-bit and float, `moe_tile_from_for` and the CPU's decode branch.
+    - **Kernel class.** The profile table owns one "kernel class of (model, extent)" function covering `tile_from`, `split_tiles_of` and `moe_tile_from`.
+      `tile_reads` reads it, and exact reuse can key donors on it (Decided, 10).
+    - **Per-16 sums.** Per-16 activation sums for Q2_K and Q3_K have one producer.
+    - **Device-against-CPU criterion.** It is written once in `tests/common.py`, beside `top5_overlap`.
+      Over the pinned excerpt:
+      - top-1 is equal wherever the CPU's top-2 gap exceeds the tie margin;
+      - top-5 overlap is 5/5 with the margin;
+      - NLL is within 0.01 of the CPU's;
+      - the largest logit gap is no larger than an existing type of the same model or architecture shows, device against CPU;
+      - the 64 greedy tokens are equal up to the first near-tie.
+  - **Storage.** Weights stay in their file's type on every backend.
+    They are read in place on the CPU and uploaded unchanged to a device; nothing is converted at load.
+  - **Shader modules.**
+    - Every new type gets its own builds of each module it needs: embed, the float tile, the plain rows, the integer tile and the routed builds.
+      They are built from the existing sources under a define, so the existing SPIR-V stays byte-identical.
+    - A hash list of existing modules decides whether that holds.
+      Any module whose hash changes is A/B'd level on both cards.
+  - **CPU.**
+    - **16-bit types.** Fused widen dots in `dot_f32`'s order: F16 through F16C, BF16 by a 16-bit shift.
+      They are used in `row_dot`, in `matmul_raw`'s decode branch beside F32's, and in `matmul_group`'s single-entry path.
+      Prompt rows are dequantized into the row buffer and take F32's four-row kernels, which is F32's path over the same values.
+      So a BF16 file gives the same bits as an F32 file of the widened weights, MoE decode included.
+      16-bit rows never take the prompt dots or 8-bit activations.
+    - **MXFP4 and IQ4** dots look codes up with `pshufb`.
+      Q3_K takes KQ6_K's shape, and Q2_K takes the unsigned dot with mins.
+    - **Heads.** A CPU `matmul_logits` override reads 16-bit activations for heads of the new types only.
+      Q8_0, Q4_K and Q5_K heads keep today's path and bytes.
+    - **Non-head rows** start at 16 bits.
+      A type moves to 8 bits only if it passes the HF bounds and gains speed, and both are recorded (Decided, 7).
+    - **Prompt dots.** Whether prompt rows take the prompt dots is decided by the matrix alone.
+      A type that joins them makes its 8B file a required gate, since the 0.6B rows are narrower than 4096.
+  - **Vulkan on the MI50.**
+    - Integer-dot tile modules per family:
+      - MXFP4 and IQ4_NL are modelled on the Q8_0 module: one scale, no min term.
+      - IQ4_XS uses Q4_1's word-aligned staging.
+      - Q3_K uses the Q6 module.
+      - Q2_K uses a Q6-shaped module with a min term.
+    - Decode rows read the 8-bit copy, and heads read the 16-bit copy through `matmul_logits`.
+    - 16-bit types stay on the float tile and the plain row build, with F32's row plan (units, cluster, rows per group) and F32's `tile_from` and `moe_tile_from`.
+  - **Vulkan on the Radeon VII.**
+    - Each new family gets a float-tile build and a plain row build.
+    - MXFP4 uses signed 16-bit lanes, whose sums stay at or below 12.58M.
+    - IQ4's partial sums reach 66.6M, past 2^24, so its rows use integer byte dots, or split each table value into a high plane and a low plane.
+    - Q3_K and Q2_K fold their offsets through the half sums, as Q6_K does.
+  - **16-bit exactness on the cards.**
+    - The 16-bit builds share F32's source and accumulate expressions, with only the load swapped.
+      The gate requires a BF16 file to equal the F32 file bit for bit on each card.
+    - If a driver fuses the two builds' multiply-adds differently, `precise` on the accumulate in both builds is the fallback.
+      It is taken only if F32's outputs stay byte-identical and F32's speed stays level on that card.
+      Otherwise the work stops and the user is asked (Decided, 8).
+  - **MXFP4 edge values.**
+    - -0 decodes to +0, which is what every integer path computes.
+    - e = 255 decodes to 2^127 by the same construction as any other exponent, with no scan at load.
+    - The scale is never held as f16.
+    - e <= 1 keeps its subnormal scale:
+      - the CPU sets no flush;
+      - MXFP4 modules declare DenormPreserve for 32-bit floats, through GL_EXT_spirv_intrinsics (glslc targets Vulkan 1.2), where the driver reports `shaderDenormPreserveFloat32`;
+      - embed builds value bits with integer operations, which is exact without float controls.
+      - Both drivers are queried first.
+        If either lacks the property, every backend flushes e <= 1 scales to zero, the CPU and the spec decoder included (Decided, 5).
+  - **16-bit rows a power of two wide** may need a padded copy on the float tile, as F32 rows do: without one, F32 rows ran 7 to 10 times slower.
+    This is measured first.
+    If padding is needed:
+    - one padded upload goes through the loader's upload entry, with no second copy;
+    - every reader takes the padded addressing: the plain rows, the embed of a tied F16 or BF16 embedding, and the routed stacks, which are bound unpadded today;
+    - `resident_bytes` counts the padded size in place of the unpadded, rather than adding it.
+  - **Batch invariance.**
+    - Every threshold lives in the profile table.
+    - `tile_reads` takes its threshold from the loaded model's weight types, fixed at load.
+      It is still independent of the batch, and existing files are measured level.
+    - Kernel choice follows the prompt's extent, never the batch.
+      Each tile module gives the same bytes at its 32, 64 and 128-row heights, and each row family gives the same bytes in its one-column, wide and grouped builds.
+  - **Loading and placement.**
+    - Open reads any type in the table, so `info`, `tokenize` and `detokenize` work on every file.
+    - Model construction refuses a tensor whose type the backend holding it cannot run, used or not, naming the type and the tensor.
+      The device check sits in the loader's plan-then-fill step.
+    - A routed layer whose expert type its stream device lacks gets no stream device and runs on the host, which `--verbose` names.
+    - Vulkan refuses at load a routed layer whose gate and up experts differ in type, naming the layer.
+  - **HF references.**
+    - Each fixture is checked against the existing fp32 reference with its own bounds.
+      This measures the format's loss.
+    - For MXFP4, IQ4, Q3_K and Q2_K, a file-exact reference also runs before their bounds are proposed (Decided, 3).
+      HF runs on the fixture's weights as the numpy spec decoder decodes them, which holds llmx's own arithmetic to Q8_0-class bounds.
+      Its goldens are committed under `tests/data` and stay checked after the merge: the hosted job checks the IQ4_XS and Q2_K files against theirs in the same run as their fp32 bounds, with no extra download, and the other files are checked against theirs by hand.
+    - The spec decoder writes inf explicitly for overflow cells, since `struct.pack('<f')` raises OverflowError on them.
+    - BF16 is gated by identity to the independent F32 file, which already carries its HF bounds.
+  - **Read-only.** There is no quantizer for these types.
+    Fixtures come from pinned downloads, and the MXFP4 fixtures come from a deterministic Python writer.
+  - **Risks:**
+    - **ALU cost on the MI50.** The lookup may make MI50 decode ALU-bound: dense MXFP4 at full bandwidth is estimated at about 9 T lookup operations per second against about 6.6 T available.
+      Each Vulkan branch measures SWAR, a shared-memory table and `bitfieldExtract` against each other.
+    - **Strong reference kernels.** The reference's Q2_K and Q3_K kernels are mature.
+    - **The 16-bit prefill bar.** The reference accumulates in f16 or BF16, which llmx will not do by default; a shortfall at pp512 or pp4096 is accepted and recorded (Decided, 9).
+    - **Subnormal f16 scales.** Almost every IQ4_XS block has one, and device paths must keep them.
+    - **Driver contraction** of the 16-bit builds.
+- **Plan**, each branch off main and merged on its own gates:
+  - **Every branch's gate:**
+    - **Suites:** CTest and the Python suites on the Linux MI50s, and on the Windows Radeon VII with the CPU.
+      Windows otherwise serves only the compile check.
+    - **Byte identity with main:** logits over the excerpt and 64 greedy tokens.
+      - Files: tiny F32, 0.6B F32 (3,012,480,832 bytes), Q8_0, Q4_0, Q5_K_M and Q4_K_M, 8B Q8_0, and 30B-A3B Q4_K_M.
+      - Devices: the CPU, one MI50, two MI50s split 1:1, the Radeon VII, and the Radeon VII with `--n-cpu-moe 12`.
+    - **SPIR-V:** existing modules byte-identical by hash.
+      A module that changes is A/B'd for pp and tg level with main on both cards.
+    - **Split:** `llmx-split-check` bit-identical on two MI50s over a file of the new type.
+    - **Server:** `tools/server_mix_check.py` on a file of the new type.
+      Prompts are distinct and the pool large enough that no request finds a donor or pauses, until exact reuse covers donors (Decided, 10).
+      The check asserts that `/v1/health` still reports no `prefix_tokens` and no `pauses` after each run.
+      Each request alone gives the same result as when batched and as through the CLI.
+    - **Skips:** a Vulkan branch requires zero device skips for its types, through a suite switch beside `--require-baseline` and `--require-tools` that fails a run in which `device_lacks_kernel` skips a named type.
+      A CPU-only merge records which device fixtures skipped.
+    - **Hosted CI:** a green hosted run on the branch's `gate/<name>` push, with its job times recorded in STATUS.
+    - **Device speed:** against the reference's pinned Vulkan build on one pinned MI50 and on the Radeon VII.
+      - Cells: pp64, pp512, pp4096 and tg128, plus the merge cells pp247 and tg32.
+      - Q4_0 and Q4_K_M of the same model run as controls.
+      - The reference's numbers sit beside llmx's, and llmx must be at least level.
+      - Step 0 records that the pinned builds on both machines were compiled with integer-dot support and that their devices report it; otherwise both are rebuilt at the same commit with it.
+    - **CPU speed:** against the reference's CPU build on the Linux host's CPU.
+    - **Measured variants:** every lookup, crossover and activation-width variant is measured in the branch and recorded, whether taken or not.
+    - **Docs:** a `docs/src` page for each new source file, the USAGE and VULKAN type lists, and ASSETS rows with sha256.
+      Local requantizations are marked as local and not reproducible.
+  0. **`refactor/storage-types`** (medium, no behaviour change except `info`, `tokenize` and `detokenize` now opening files that hold unsupported types):
+     - **What changes:**
+       - The storage table in `core/storage.hpp` over every GGML id.
+         `data_size`, the registry and `quant::row_bytes` read it, with F32's block size 1 there.
+         The native HF branch rebases onto it.
+       - An id outside the table is refused at open, naming the id and the tensor.
+       - The CPU refuses at construction a tensor whose type it cannot run.
+       - The per-device weight-type check goes into the loader's plan-then-fill step, stream windows included: a streamed layer the device cannot run stays on the host.
+         `device_lacks_kernel` matches the new message.
+       - Vulkan refuses mixed gate and up expert types at load.
+       - Explicit per-backend tables replace every silent default listed under Found.
+       - The kernel list becomes one list.
+       - The kernel-class function lives in the profile table.
+         `tile_reads` reads it over the loaded model's weight types.
+         If exact reuse has already added its own kernel-class function, step 0 makes that function read the table.
+       - Test helpers take block sizes and scale offsets from the registry.
+       - The `q.glsl` constants test.
+       - The suite switch that fails on device skips of named types, and the `tools/server_mix_check.py` assertion of no donor hits or pauses, which every later branch's gate uses.
+     - **Gates:**
+       - the standard byte-identity set, stdout and the split plan identical to main;
+       - existing modules byte-identical, except those whose `else` became explicit, which are A/B'd level on both cards;
+       - `tile_reads` from the model's types measured level or better on every byte-identity file;
+       - a test that every registered type has a row in each backend's table, or a refusal;
+       - `info` prints a tiny file holding a Q2_K tensor, and `generate` refuses it, naming the tensor and type.
+  1. **`feat/half-weights`** (F16 and BF16, medium):
+     - **Measured first, on both cards:**
+       - 16-bit prefill against the reference at pp512 and pp4096, where a shortfall is accepted and recorded (Decided, 9);
+       - power-of-two rows on the float tile.
+     - **Code:**
+       - F16 and BF16 supported in the storage table;
+       - `bf16_to_f32` in `core/fp16.hpp` and the widen in `f16.glsl`;
+       - the CPU fused dots in `row_dot`, the decode branch and `matmul_group`;
+       - the float-type predicate threaded through the six decisions;
+       - Vulkan 16-bit builds of the plain rows, the float tile on both cards, the routed calls, embed and heads, all from F32's sources.
+       - The six unsupported-type checks (Found) move to a still-unsupported id: `backend_vulkan.cpp`'s matmul at 983 and `check_refusals`' F16 constant (1444), which its matmul, routed product and embed use, and `model_validation.cpp:413` and `:421`.
+     - **Side effect:** the native HF branch's safetensors half weights run on devices through the same kernels.
+     - **Exactness and HF:**
+       - Every tensor of unsloth 0.6B BF16 (50968a44), widened by the Python spec decoder rather than by llmx, must equal the independent Qwen3-0.6B-F32.gguf.
+       - Then the BF16 logits and 64 greedy tokens must be byte-identical to that F32 file on the CPU and each card.
+       - 0.6B UD-Q8_K_XL is held at Q8_0's bounds.
+       - A tiny dense model in F32, F16, BF16 and mixed variants, and a tiny MoE with BF16 experts (the CPU decode path), each with the 16-bit type as an untied head and as a tied embedding, give identical logits in CI.
+       - Device kernels are checked against the CPU, including F16 subnormals.
+       - 30B-A3B UD-Q8_K_XL is checked on each device against the CPU by the criterion.
+     - **Speed:**
+       - CPU: 0.6B BF16 and 8B BF16.
+       - Devices: 0.6B BF16, 4B-2507 F16 and 8B UD-Q8_K_XL on both cards; 8B BF16 on an MI50; 30B-A3B UD-Q8_K_XL on two MI50s and on the Radeon VII with `--n-cpu-moe`.
+  2. **`feat/mxfp4-cpu`** (small):
+     - **Code:**
+       - format, the E8M0 scale with its e <= 1 branch, and the table;
+       - the shared C++ lookup, parameterised by the table, which branch 4 reuses for IQ4;
+       - CPU dots and heads;
+       - the spec decoder with explicit inf;
+       - `tools/` writer: deterministic all-matrix MXFP4 with the embedding (Decided, 4).
+         The scale is floor(log2 amax) minus E2M1's top exponent 2; values round to nearest even on E2M1 and saturate at +-6.
+         The rule is written in the tool and in ASSETS.
+       - Vulkan refuses the type at load.
+     - **Raw blocks:**
+       - every exponent from 0 to 254 against every code in every position (255 blocks, 8,160 values);
+       - e = 255 under the chosen rule;
+       - the overflow cells as inf;
+       - -0;
+       - `gguf-validation` refuses a partial row.
+     - **Tiny HF models:** dense qwen3 and qwen3moe built from random blocks, run in CI.
+       - Widths are multiples of 32, and one has a block count that is not a multiple of four.
+       - Blocks with exponent 0 and 1 carry nonzero codes, one block has exponent 0 with all-zero codes, and -0 codes appear at the native rate.
+       - An untied MXFP4 head and a tied MXFP4 embedding are included.
+     - **Real model:**
+       - 0.6B from the writer, sha256 recorded, against the fp32 and file-exact references, with bounds measured and then proposed.
+       - 8B from the writer for speed only.
+     - **Speed:** CPU, the 0.6B from the writer and the local 14B MXFP4.
+  3. **`feat/mxfp4-vulkan`** (medium):
+     - **Code:**
+       - the float-control query and DenormPreserve;
+       - an embed build that makes its value bits with integer operations;
+       - a float-tile build;
+       - an `LLMX_MXFP4` integer tile on the Q8_0 module's math;
+       - the GLSL lookup, written once, which branch 5 reuses for IQ4;
+       - four blocks form one word-aligned 68-byte run where the block count divides by four, and a general funnel covers the other cases without reading past a tensor's last word;
+       - rows use four lanes per 68-byte group on the 8-bit copy on the MI50, and signed 16-bit lanes on the Radeon VII;
+       - routed builds and thresholds.
+     - **Gates:**
+       - HF on both cards with zero skips;
+       - blocks with e <= 1 and nonzero codes bit-exact against the CPU in embed and in every dot, a required outcome;
+       - a tiny tensor of odd byte size placed last in its buffer;
+       - the local Qwen3-14B MXFP4 and the Coder-30B-A3B MXFP4_MOE on each device against the CPU, by the criterion.
+     - **Speed:**
+       - 0.6B, 8B and 14B MXFP4 on both cards;
+       - Coder-30B-A3B MXFP4_MOE on an MI50, and on the Radeon VII with `--n-cpu-moe`.
+  4. **`feat/iq4-cpu`** (IQ4_NL and IQ4_XS, medium, after branch 2):
+     - **Code:**
+       - format, registry and decoders on branch 2's shared C++ lookup;
+       - CPU dots: IQ4_NL on `dot_q4_0`'s shape, IQ4_XS on KQ45_K's step with no min;
+       - the CPU head path for the new types;
+       - the numpy spec decoder and the tiny-model builder;
+       - Vulkan refuses both types at load.
+     - **Raw blocks:**
+       - every code in both nibbles;
+       - `d` positive, negative, zero, subnormal and at the largest finite value;
+       - all six scale bits of every sub-block, 0 and 63 included.
+     - **Tiny models in CI:** dense and MoE, with IQ4_NL and IQ4_XS on matrices and experts, as an untied head and as a tied embedding, against HF.
+     - **HF:**
+       - 0.6B IQ4_NL and IQ4_XS from 50968a44, against the fp32 and the file-exact references, with bounds measured on the CPU and then proposed;
+       - 8B IQ4_XS and UD-Q4_K_XL become required in the 8B check if IQ4_XS joins the prompt dots.
+     - **Speed:** CPU, 0.6B and 8B IQ4_NL and IQ4_XS.
+  5. **`feat/iq4-vulkan`** (large, after branch 3):
+     - **Code:**
+       - embed and float-tile builds on branch 3's GLSL lookup;
+       - an `LLMX_IQ4` integer tile: IQ4_NL on Q4_0's staging, and IQ4_XS on Q4_1's with its scale head read once;
+       - rows on the 8-bit copy on the MI50, and on integer byte dots or two planes on the Radeon VII;
+       - heads on the 16-bit copy;
+       - routed builds and profile rows, MoE thresholds included.
+     - **Gates:**
+       - HF on both cards with the CPU's bounds and zero skips;
+       - the pinned Hub Qwen3-14B IQ4_NL on each device against the CPU, by the criterion;
+       - subnormal f16 scales on both cards;
+       - tile heights and row builds giving the same bytes.
+     - **Speed:**
+       - 8B IQ4_NL, 8B IQ4_XS, 8B UD-Q4_K_XL and 14B IQ4_NL on both cards;
+       - 30B-A3B IQ4_XS on an MI50, and on the Radeon VII with `--n-cpu-moe`.
+  6. **`feat/k-low-cpu`** (Q3_K and Q2_K, medium):
+     - **Code:**
+       - format and dequantizers, with one Q3_K scale unpacker;
+       - per-16 activation sums built from the already-quantized integers, so no existing result changes;
+       - Q3_K dots on KQ6_K's shape, and Q2_K on the unsigned dot with mins;
+       - the CPU head path for both;
+       - `is_kquant` includes both, so 8B rows take the prompt dots;
+       - Vulkan refuses both types at load.
+     - **Raw blocks:**
+       - Q3_K: scale-bit patterns, and high-bit patterns keyed to each value's address, which catch an inverted -4;
+       - Q2_K: scale and min patterns, with `d` and `dmin` paired over subnormals and negatives.
+     - **Tiny models:** a K-quant MoE and a dense model with Q2_K and Q3_K, as an untied head and as a tied embedding.
+       Widths are multiples of 256, with a down projection 768 wide.
+     - **HF:**
+       - 0.6B Q2_K, which holds both types, and Q3_K_S from 50968a44, against the fp32 and file-exact references;
+       - 8B Q2_K (required) for the prompt dots and the Q2_K embedding.
+     - **Speed:** CPU, 0.6B and 8B Q2_K and Q3_K_M.
+  7. **`feat/q3k-vulkan`** (medium):
+     - **Code:**
+       - embed and float-tile builds;
+       - a Q6-shaped integer tile build: the low-bit and high-bit runs are funnelled, and the -4 is folded in by bit flip;
+       - rows on the 8-bit copy with the -4 folded per byte on the MI50, and on the 16-bit copy through the half sums on the Radeon VII;
+       - routed rows 768 wide.
+     - **Gates:** HF on both cards with zero skips; 30B-A3B UD-Q3_K_XL on each device against the CPU.
+     - **Speed:** 8B Q3_K_M and 30B-A3B Q3_K_M on both cards, the Radeon VII with experts on the CPU where the file does not fit.
+  8. **`feat/q2k-vulkan`** (large):
+     - **Code:**
+       - an embed build, since the 8B and 30B-A3B Q2_K files have a Q2_K token_embd;
+       - the Radeon VII float-tile build, and its plain rows through the half sums;
+       - a Q2_K tile whose min term comes from per-column half-block sums, which the activation stagers compute;
+       - rows on the MI50 that compute their own activation byte sums with one integer dot;
+       - routed builds.
+     - **Gates:** HF on both cards with zero skips; 30B-A3B UD-Q2_K_XL on each device against the CPU.
+     - **Speed:**
+       - 8B Q2_K and 30B-A3B Q2_K on both cards.
+         On the Radeon VII, 30B-A3B runs with every expert on the card at the context the fit admits (recorded), and with `--n-cpu-moe` at full context.
+       - Once: Qwen3-235B-A22B UD-Q2_K_XL on the fewest MI50s it fits, with `llmx-split-check` bit identity, and the reference's layer split beside it.
+- **Tests:**
+  - **Every CPU job:**
+    - raw-block round trips for each type, from the spec decoders, with the numpy form checked against the pure one;
+    - `q8-dots`, `backend-group` and `fused-dot-overflow` rows for each type, MoE prompt entries through `dot_block` included;
+    - the tiny 16-bit, MXFP4, IQ4 and K-quant models, dense and MoE, against HF, each new type as an untied head and as a tied embedding;
+    - the storage-table completeness test and the `q.glsl` constants test.
+  - **The hosted HF job:** the UD-Q8_K_XL, IQ4_XS and Q2_K files against their fp32 bounds, and the IQ4_XS and Q2_K files against their file-exact goldens.
+    The job took 15 min 13 s of its 30-minute limit at 73f4f78 (CI.md), and each 0.6B fixture adds about 3 minutes with its f32 pass, so these three add about 9.
+    With the Qwen 3.x plan's two 0.8B files the job would near its limit.
+    So the branch of either plan that would take the job past 20 minutes, two thirds of its limit, adds a second HF job with its own fixture list and cache key instead.
+  - **By hand on the cards:**
+    - `backend-vulkan` for each type:
+      - embed bit-exact against the CPU;
+      - tile, both row variants and routed calls at model shapes;
+      - invariance across tile heights and one-column, wide and grouped builds, alone and beside other rows, grouped and routed;
+      - subnormal and e <= 1 cases;
+      - odd-size tensors placed last.
+    - The HF bounds with `LLMX_DEVICE` on both cards and zero skips.
+    - The split and server checks, and speed.
+- **Not doing:**
+  - **IQ1_S, IQ1_M, IQ2_XXS, IQ2_XS, IQ2_S and IQ3_XXS.**
+    They need about 33 KB of lattice codebooks, and every file that uses them mixes 8 or 9 types.
+    IQ3_S is proposed as the first candidate after this plan (open question 11, not yet asked).
+  - **Q5_0 and Q5_1.**
+    Only one local Qwen3.6-27B Q5_1 file and the qwen4exp architecture use them.
+    They are small to add once a planned file needs them (whether they join is the Qwen 3.x plan's open question 12).
+  - **Q8_K, TQ1_0, TQ2_0 and type 53.** No file of a planned architecture uses them.
+  - **Converting at load,** whether 16-bit to F32 or Q8_0, or any type to another.
+    It doubles memory or moves results.
+  - **Widening tiny 16-bit tensors at load**, which the user allows.
+    Routers go through the same `matmul` as every other matrix, so branch 1's kernels serve them.
+    This is revisited for an operation that reads only F32.
+  - **A lossy 16-bit prefill** (f16 accumulation or BF16 activations) as a default.
+    It would come only as an opt-in the user asks for, honoured identically or refused on every backend.
+  - **A quantizer or requantize command for the new types.**
+    They stay read-only, like the K-quants.
+    The MXFP4 writer is a test tool.
+  - **A 16-bit-activation integer tile on the MI50.** It cost 17 to 62 percent where it was tried.
+  - **F16 weights through f16-rounded activations.** That moves results away from the F32 path.
+  - **Scanning MXFP4 exponents at load.** No sampled block has e = 255.
+  - **The gpt-oss and DeepSeek 4.x architectures.**
+    They belong to the architecture roadmap.
+    This plan only makes their MXFP4 tensors readable.
+- **Sequencing:**
+  - **Background:** the branches are built now, and layer split phase 3 keeps the cards first, so a branch's device gates run when the cards are free and nothing merges before its gates pass.
+  - **Before step 0:**
+    - The prefill-kernels block's owed Radeon VII gate and its merge cells (pp247, tg32) pass on main, where its commits already are.
+      Step 0 then records its baselines.
+    - `cleanup/cpu-kernels` (16) merges, since it rewrites the decode dots branch 1 edits.
+    - Loader steps 3 and 4 are on main, because step 0's device check goes into plan-then-fill and its `data_size` change sits beside the reader step 3 rewrites.
+    - If any of these is not ready, step 0 waits for it rather than rebasing across it.
+  - **Native HF loading branch.**
+    It rebases onto step 0's table and branch 1's F16/BF16 entries.
+    Branch 1 gives its half weights their device kernels.
+  - **Exact resume and exact reuse.**
+    The kernel-class function is offered to exact resume's first-admission branch, which owns the exact-reuse rule (Decided, 10).
+    The server checks here run without donor hits or pauses until that branch covers donors.
+  - **Qwen3.x architecture** ([QWEN35](QWEN35.md) and its block below).
+    It runs in parallel, since its first targets need no new type.
+    - After step 0's one kernel list, a Qwen3.x Vulkan branch and a type Vulkan branch may be open together; whichever merges second rebases.
+    - Branch 1 lands before its UD-Q8_K_XL and BF16 files are used.
+    - Branch 3 lands before its MoE step runs the MXFP4_MOE files.
+    - Branch 5 lands before its IQ4 files.
+    - Branch 7 lands before Qwen3.6-27B Q3_K_M.
+  - **Within this plan:**
+    - Step 0 comes first, then branch 1.
+    - Branch 4 follows branch 2 (the C++ lookup), and branch 5 follows branch 3 (the GLSL lookup).
+    - A type's CPU branch may be open while the previous type's Vulkan branch is being gated.
+    - Two Vulkan type branches are never open at once, because they edit the same selection tables and shader headers.
+  - **DeepSeek 4.x** comes after Qwen 3.x and after branch 3.
+
+## Qwen 3.5, 3.6 and 3.8: the qwen35 and qwen35moe architectures (planned 2026-09-25)
+
+- **Goal:** run the current Qwen generation on both backends, text only.
+  The models are Qwen3.5 0.8B to 9B, Qwen3.6-27B and Qwen3.8-27B (`general.architecture = qwen35`), and Qwen3.6-35B-A3B and Qwen3.5-35B-A3B (`qwen35moe`).
+  - The work goes in this order.
+    The step numbers are the ones in the plan below.
+    1. The text path: the chat template renderer and the tokenizer (steps 2 and 3).
+    2. The dense models, exact on the CPU against HF (step 4).
+    3. Vulkan speed at or above llama.cpp's Vulkan backend, on the MI50 and on the Radeon VII (steps 5 and 6).
+    4. The MoE form (step 7).
+    5. Serving with the recurrent state: memory fitted at load, pause, checkpoints with reuse, and the layer split (step 8).
+    6. The multi-token-prediction (MTP) layer as a proposer of the speculative decoding plan, and the recurrent state's part of its `Model::retract` (step 9).
+    7. Cross-gates with the quantization coverage plan's 16-bit, MXFP4 and IQ4 branches (step 10).
+  - Every result stays batch-invariant.
+  - Every reused cache row or recurrent state is one the CLI would have computed the same way.
+- **Design page:** [QWEN35](QWEN35.md) holds the models and their shapes, the forward pass of each layer kind, the GGUF conventions (tensor names and shapes, the folded constants, the V-to-K head mapping), the files on hand and how each is handled, the recurrent state and the row classes.
+  This block holds the plan: what llmx lacks today, how the code changes, the branches and their gates, and the decisions.
+- **Speculative decoding** is one system for every proposer, set out in the speculative decoding plan, which the user approved on 2026-09-26 and whose block comes to STATUS with its own docs branch.
+  It owns verify, acceptance and retract; this plan's step 9 is its step 4, and DFlash drafters are its step 5.
+- **Priority:** built now in the background, following AGENTS.md and docs/ARCHITECTURE.md, with a full review of every step.
+  Layer split phase 3 keeps priority on the cards, so a step's device gates and speed cells run when the cards are free of it (user, 2026-09-25).
+- **Decided (2026-09-25),** numbered as the plan's questions were:
+  - **1. HF environment and models:** a second, isolated reference environment with transformers 5.17.0, with 4.55.2 left untouched.
+    The gate takes the tiny qwen35 fixtures (Hv = Hk and Hv = 3 Hk), with goldens from HF's token-by-token cached path, and Qwen3.5-0.8B (a pinned Q8_0 plus the Q4_K_M) in the hosted HF job with 512-token windows.
+    The 4096-token windows and Qwen3.5-4B run by hand.
+  - **2. Layered HF reference** for the 9B, the 27B and the 35B-A3B: HF's own decoder-layer and MoE-block modules run in order, one layer's weights at a time, with peaks of about 9 GB, 11 GB and 8 GB against 18 to 22 GiB free on the Linux host.
+    On the 0.8B it must equal the full forward bit for bit.
+    It needs bf16 safetensors downloads on the Linux host: about 19 GB for the 9B, 55 GB for the 27B and 70 GB for the 35B-A3B.
+    It gives the 27B, a real model with Hv = 3 Hk, and the MoE an HF reference in place of greedy sanity and the CPU-against-device fallback.
+  - **3. Exactness classes and the state:** the CPU runs the per-token recurrence for every row.
+    Vulkan runs it for generated rows, and the chunked form for every prompt row on an absolute 64-row grid (step 6), kept only if measured faster.
+    The state is F32 only, with no flag for a narrower type, since a narrower state breaks batch invariance.
+    A one-token prompt is an extent-1 entry and runs the recurrence, as [QWEN35](QWEN35.md), Row classes, defines.
+  - **5. Serving before step 8b:** `serve` refuses qwen35 and qwen35moe until the state-aware scheduler lands, so there is no half-exact serving.
+  - **6. Failed passes:** a failed pass marks its sequences' states as lost.
+    The server ends those requests, as it already does, and the CLI keeps one slot and ends the command, as it does for Qwen3.
+  - **8. Take-back resume:** "a resumed request whose own donor survives takes it back whole" goes into `fix/server-exact-resume`, as a step after its step 2.
+    Hybrid models need it, and it also removes recompute for dense models.
+  - **11. The acceptance rule and the MTP gate** (2026-09-26, through the speculative decoding plan, whose recommendations the user approved): a draft is kept only if it equals the sampler's own pick, and the acceptance-rate gate holds MTP within that plan's margin (5 percent, re-derived in its step 0) of the exact reference build.
+    Only the assembled tiny MTP reference is still open (question 11 below).
+  - **13. Thinking controls, the chat reference and the tokenizer:**
+    - `reasoning_content` goes into step 2, with one split owner shared by the CLI and the server's message parser, because the 3.8 templates render history wrongly without it.
+    - The chat reference moves to transformers' renderer, whose `tojson` differs from Jinja2's.
+      The Qwen3 chat goldens may change, and any change is recorded and fixed in step 2.
+    - The template variables (`enable_thinking`, `preserve_thinking`, `reasoning_effort`) come through `chat_template_kwargs` on the server and one CLI flag, in a small follow-up branch after step 2.
+    - The tokenizer's byte-class approximation stays.
+      Exact Unicode classes and NFC come later as their own branch, which also fixes Qwen3's Thai gap.
+    - The 7 GGUF-only control tokens were to be documented as a difference, but a review on 2026-09-26 found none against transformers 5.17.0, which encodes each as one id, as llmx does (Found, Tokenizer).
+      So there is no difference to document, and the tokenizer reference is transformers' tokenizer rather than `tokenizer.json` read alone.
+  - **14. Early start:** answered by background development.
+    Steps 2 and 3 need no card and gate on hosted CI; the later steps run their card gates when phase 3 frees the cards.
+- **Open questions** (asked 2026-09-25, not yet answered):
+  - **4. The serve memory fit, step 8a, for every model.**
+    `serve` would fit its KV budget at load after the weights, activations and state slots, back it whole at load, and cap `token_limit` at it.
+    This changes dense serving too: it takes its whole budget at start instead of growing.
+    The alternative keeps growth and counts its peak, which leaves only about half to two thirds of the room reachable as KV.
+    Recommendation: fit and back at load.
+  - **7. Checkpoint policy, slots and flag.**
+    At first, only the checkpoint at the end of the stable prefix, kept on the device and stored in-kernel at a named row.
+    The checkpoint slot count is fixed at load, and defaults to what fits in a quarter of the room left after the live slots, at most `--max-seqs`; on the 27B Q8_0 on one MI50 that is 4.
+    Message-boundary and every-N checkpoints would come later, on measurement, and the host tier is decided with exact resume's step 3 numbers.
+    A suggested flag name is `--state-checkpoints N`.
+    Recommendation: approve, and choose the flag name.
+  - **9. Speed gate files and cells.**
+    MI50: the 0.8B, the 9B Q4_K_M, the 27B Q4_K_M and Q8_0, and the 35B-A3B Q4_K_M and Q8_0.
+    Radeon VII: the 0.8B, the 9B Q4_K_M, and the 35B-A3B Q4_K_M with experts on the CPU, since the 27B does not fit its 16 GB.
+    Cells: pp64, pp247, pp512, pp4096, tg32 and tg128, plus pp16384/tg512 from the start.
+    The files would be copied from the Linux host to the workstation.
+    Recommendation: yes.
+  - **10. Serving references.**
+    Steps 8c and 8d would gate against llama.cpp's server and against mx-llama.cpp's layer and tensor split.
+    A gfx906 vLLM build, if it runs `qwen3_5`, would be recorded beside them, not gated.
+    Recommendation: approve, and say whether vLLM should also be a gate.
+  - **11. The assembled tiny MTP reference.**
+    The tiny fixture's MTP logits would be checked against a reference assembled from HF's own decoder layer, since HF has no MTP reference of its own.
+    The acceptance rule and the acceptance gate are decided (above).
+    Recommendation: approve.
+  - **12. Scope.**
+    "Qwen 3.8" means Qwen3.8-27B, which comes with qwen35.
+    Two lines of the question were settled by later plans on 2026-09-26: Flash-Next (`qwen4exp`) gets its own plan after DeepSeek V4.1, and DFlash drafters are the speculative decoding plan's step 5.
+    The MXFP4, IQ4_NL and BF16 files come from the quantization plan's branches and are gated here in step 10; the MXFP4 files are requantized, so they are gated runtime against runtime only.
+    The Q5_1 and type-53 files stay refused, and the 122B-A10B comes later, needing F16 and a split.
+    Should Q5_0 and Q5_1 join the quantization roadmap?
+    Recommendation: approve, and leave Q5_0 and Q5_1 off the roadmap.
+- **Found** by four read-only reviews (the model math, the kernels, the recurrent state, the loading and text path) and one review of the plan itself.
+  - Sources read:
+    - main at d48f2b2, and `refactor/loader` at bdcd2f2;
+    - the GGUF headers of every qwen35, qwen35moe and dflash file on the Linux host, plus a few small F32 tensors;
+    - the HF checkpoints: layer-0 tensors by range request, and every `config.json`;
+    - the `qwen3_5` and `qwen3_5_moe` modeling code in transformers 5.17.0 and on main;
+    - llama.cpp 4b1a27fa's converter and `qwen35` graph, and master's `qwen35.cpp` and Vulkan gated-delta-net shader.
+  - Nothing ran on a GPU and nothing was changed.
+  - The model shapes, the GGUF conventions, what the converter folds, the tiled V-head order, the decay range and the files on the Linux host are in [QWEN35](QWEN35.md).
+  - **What llmx refuses or gets wrong today** (line numbers on d48f2b2):
+    - The architecture is refused (`arch_qwen.hpp` 99).
+    - The rotary width must equal the head dim (130).
+    - The rope table uses the head dim as its frequency denominator.
+      `footprint` sizes it by the head dim (435), which comes to 256 MiB at 262144 positions.
+    - `norm_rope_rows` rotates whole, contiguous heads.
+    - Shared experts are refused (148 to 149).
+    - `block_count` is read as the layer count (111), which would run the MTP block as a 65th decoder layer.
+    - There is no BF16, MXFP4, IQ4_NL or Q5_1.
+    - The tokenizer refuses pre `qwen35` (`tokenizer.hpp` 69).
+    - Head dim 256 runs only on the per-row attention kernel, because the attention tile and `attention_vec` are fixed at 128.
+    - The activation arena has 12 slots (`kSlots`, 278; `slot_widths`, 322 to 330).
+      None fits r = 2 q_dim (12288 on the 27B), the raw qkv rows (10240), the conv output, z, alpha, beta and g, o or y.
+    - `footprint` holds one cache size for every layer (`cache_per_layer`, 434).
+      `kv_used_bytes` multiplies by `n_layer` (795).
+      `kv_alloc` is given `attn_layers` (567), which would include the linear layers.
+    - `matmul_group` takes at most three projections (`vulkan_backend.cpp` 1432).
+      A group of mixed types is split into one dispatch per type.
+    - `attention()` writes the 8-bit copy of its output, or the 16-bit twin, for `attn_output` to read (2045 to 2052, 2059, 2097).
+      A gate applied between the two would leave that copy ungated.
+    - The KV storage grows by doubling and copying, and holds the old and new buffers together (`kv_storage.hpp` 20 to 21, 41 to 73).
+      It backs a block when an op writes to it (87), in the middle of a pass.
+    - `serve` defaults to `--max-seqs` 16 (`server/api.hpp` 26), and its KV budget is the model context.
+      For these files that is 262144 tokens, 16 GiB of KV on the 27B, so the server admits more than one card can back.
+    - `tools/long_context_check.py`, the 16k check, runs its device side through `llmx serve`.
+    - On `refactor/loader`, `load_model` builds the chat format for every command (`inference/load.hpp` 75).
+    - `tools/gen_chat_baseline.py` renders with Jinja2's plain sandbox (63).
+      Its built-in `tojson` sorts keys and escapes HTML characters and non-ASCII text, and transformers' override, `json.dumps` with `ensure_ascii=False` and `sort_keys=False`, does none of these.
+      Every qwen35 template uses `tojson`.
+    - Every CLI command ends on an error (`cli/main.cpp` 1123 to 1125).
+      `cmd_chat` only resets or extends its history, and never truncates it.
+  - **Tokenizer:**
+    - The qwen35 regex adds `\p{M}` to two alternatives: runs of letters, and the run of punctuation and symbols.
+    - llmx treats every byte at or above 0x80 as a letter, so marks already join words.
+      That is qwen35's behaviour.
+    - Example: the Thai title for a lady, 11 code points with its combining marks, is 2 tokens in both HF with qwen35 and llmx.
+      With Qwen3's vocabulary HF gives 6 and llmx 2, so this is an existing Qwen3 gap.
+    - Deviations that remain, shared with Qwen3: no NFC, runs of U+3000, and one of the 20 multilingual texts (a line of math symbols).
+    - The GGUF lists 7 control tokens (248070 to 248076, among them `<|audio_start|>`) that `tokenizer.json` lacks, and llmx encodes each as one id.
+      transformers 5.17.0 adds them from `tokenizer_config.json`'s `added_tokens_decoder` and encodes each as one id too (`Qwen2Tokenizer`, 248077 entries, at `Qwen/Qwen3.5-0.8B` 2fc06364).
+      Only the `tokenizers` library reading `tokenizer.json` alone splits them, `<|audio_start|>` into 6 ids.
+    - No BOS is added.
+      EOS is 248046.
+      HF's generation config also stops on 248044, the same gap Qwen3 has today.
+  - **The chat template renderer gives wrong output, with no error, on every Qwen3.5 and later template:**
+    - 16 of 16 fixture cases differ from Jinja2, on the 0.8B, 9B, 3.6 and 3.8 templates.
+    - `llmx chat` with the 0.8B template drops every message's content.
+      It prefilled 99 tokens for both a 9-byte and a 27-byte message.
+    - Causes in `chat.hpp`:
+      - `macro` is skipped as an unknown tag.
+      - Unknown filters return none.
+      - `[::-1]` lexes as `[-1]`.
+      - `raise_exception` does nothing.
+      - `default` returns its argument for any false value (415), where Jinja returns it only for an undefined one.
+      - The tests `undefined`, `true` and `false` are unknown.
+      - Ternaries and tuple literals do not parse, and trailing tokens are ignored.
+      - Missing: `loop.previtem` and `loop.nextitem`, `startswith` and `endswith`, the `string`, `safe` and `items` filters, and `for a, b in`.
+  - **Thinking across turns:**
+    - The 3.5 and 3.6 templates drop earlier reasoning.
+      Turn N+1 matches turn N's prompt only through `<|im_start|>assistant\n`, which is 2 to 4 tokens before turn N's prompt ends.
+    - The 3.8 templates keep reasoning.
+      They match 71 of 71 tokens, but only when the reply's reasoning is passed as `reasoning_content`.
+      Stored as content, as `cmd_chat` stores it, the history is malformed.
+    - The 0.8B and 2B templates default to thinking off.
+      The 4B and larger default to thinking on.
+    - The GGUF templates are Unsloth's edits of the official templates.
+  - **HF reference:**
+    - The reference environment has transformers 4.55.2, which has no `qwen3_5`.
+    - The versions that matter:
+      - 5.2.0 is the first release with `qwen3_5`.
+      - Before 5.7.0, a cached multi-token forward restarted the linear layers from a zero state.
+      - 5.16.0 fixes the recurrent fallback.
+      - 5.17.0 (2026-09-09) has all of these.
+        It runs on torch 2.5.1 and needs tokenizers 0.23, huggingface-hub 1.5 or later, and safetensors 0.8 or later.
+    - Version 5 loads these checkpoints in bf16 unless a dtype is passed.
+    - Its `Qwen2Tokenizer` class rebuilds the qwen2 regex.
+    - HF drops `mtp.*` at load (`_keys_to_ignore_on_load_unexpected`), so no HF reference exists for the MTP block.
+    - A full forward runs the chunked fallback.
+      A cached step runs the recurrent fallback only when `use_precomputed_states and seq_len == 1`.
+      Both fallbacks cast q, k, v, beta and the decay to F32 inside, so HF's own code has no FP64 path.
+    - FP32 sizes of a whole model: 0.8B about 3.4 GB, 2B about 8 GB, 4B about 18 GB.
+      The 9B's weights alone are about 36 GB.
+      The Linux host has 62 GiB, of which 18 to 22 GiB was free when read.
+    - Running HF's own decoder-layer and MoE-block modules one layer at a time peaks at about embedding + head + one layer: about 11 GB for the 27B, 9 GB for the 9B, 8 GB for the 35B-A3B and 4 GB for the 4B.
+    - No small qwen35moe model exists.
+  - **Speed references:**
+    - No Vulkan qwen35 measurement exists on the Linux host.
+    - Upstream, llama.cpp's Vulkan linear attention has had decode pathologies: issue 26795 reports the 35B-A3B at tg128 3.52 against pp512 3159 on an RDNA4 card under RADV.
+    - The ROCm build of mx-llama.cpp on one MI50: 27B Q4_K_M pp2048 215 to 235, tg128 25.3 to 25.4.
+    - That build's profiles were probably taken on a two-card layer split:
+      - 27B Q8_0 pp512: the recurrence is 4.4 percent of device time, at 3.9 us per token step.
+      - 35B-A3B pp512: 8.0 percent, at 2.9 us per step.
+      - 27B decode: 1.9 percent, at 19.6 us per layer.
+    - That build and llama.cpp's Vulkan shader both run prompts through the same per-token loop as decode.
+    - **What the per-token loop costs in prefill.**
+      At a target of 1 us per token step, the 0.8B's 18 linear layers take 9.2 ms per 512-token pass.
+      Qwen3-0.6B's pp512 on one MI50 is about 39 ms, so the recurrence would be roughly 15 to 20 percent of the 0.8B's prefill.
+      It would be about 6 percent on the 4B, 4 percent on the 35B-A3B and 2 percent on the 27B.
+      At 3 us per step, all of these triple.
+  - **Memory, estimated.**
+    Every setup here has its KV backed whole at load (step 8a), with a fixed number of state slots.
+
+    | setup | room for KV and state | slots | state | KV tokens |
+    |---|---|---|---|---|
+    | 27B Q8_0 (26.63 GiB) on one MI50 | about 4.7 GiB | 16 live (serve's default) + 16 checkpoints | 4.67 GiB | about 0.4K: refused by the fit |
+    | | | 16 live + 4 checkpoints (the fitted default) | 2.92 GiB | about 29K |
+    | | | 8 live + 4 checkpoints | 1.75 GiB | about 48K |
+    | | | 8 live, no checkpoints | 1.17 GiB | about 58K |
+    | 27B-MTP Q8_0 (27.05 GiB) on one MI50, MTP on | about 4.3 GiB | 8 live + a pool of 4 verify slots + saved inputs | 1.81 GiB | about 38K at 68 KiB a token, given as `--ctx-size`: a drafter takes only the room the no-drafter fit leaves |
+    | 27B Q4_K_M (15.41 GiB) on one MI50 | about 15.9 GiB | 16 + 16 | 4.67 GiB | about 184K |
+    | | | 32 + 16 | 7.0 GiB | about 146K |
+    | 35B-A3B Q4_K_M (19.71 GiB) on one MI50 | about 11.7 GiB | 16 + 16 | 1.96 GiB | about 508K |
+    | | | 32 + 32 | 3.93 GiB | about 405K |
+    | 9B Q4_K_M (5.24 GiB) on the Radeon VII | about 10.1 GiB | 16 + 16 | 1.57 GiB | about 280K |
+    | | | 32 + 32 | 3.14 GiB | about 229K |
+
+    - Under today's growth rule, the last doubling holds the old and new buffers together, so only about half to two thirds of these KV figures is reachable.
+    - The 27B does not fit the Radeon VII alone.
+    - A 27B decode step reads and writes its 144 MiB of S per sequence, 288 MiB of traffic.
+      That adds 14 percent to the weight stream at 8 sequences and 57 percent at 32.
+- **Design, the model:**
+  - One model path.
+    `QwenConfig` stays the one metadata reader, `QwenWeights` the one input, and `Model` the one class, extended as qwen3moe was.
+    A second class would copy about 1,000 lines of code that does not depend on the architecture: stages, pools, fork, the arena and placement.
+  - The config gains:
+    - `n_layer = block_count - nextn_predict_layers`, and `n_nextn`.
+      More than one MTP layer is refused.
+    - A mixer kind per layer, from `full_attention_interval`, or from the per-layer `attention.recurrent_layers` array when a file has one, whose length and MTP entries are checked as [QWEN35](QWEN35.md) says.
+      The resolver refuses a layer whose tensors disagree with it.
+    - `rope_dim`: even, at most the head dim, and twice the sum of the sections.
+      qwen3 keeps its refusal.
+    - The linear-attention widths: K width = state size, V width = inner size / time-step rank, and the K and V head counts, with V a multiple of K.
+    - The gated attention flag.
+    - The shared-expert width, for qwen35moe only.
+      qwen3moe keeps its refusal.
+  - The resolver:
+    - Maps `post_attention_norm` onto the pre-FFN norm role.
+    - Never resolves or reads blocks at or above `n_layer`, unless MTP is asked for.
+    - Gains the linear-attention roles (`attn_qkv`, `attn_gate`, `ssm_alpha`, `ssm_beta`, `ssm_out`, `ssm_conv1d`, `ssm_a`, `ssm_dt.bias`, `ssm_norm`) and the shared-expert roles, all of which `footprint` counts.
+  - Weights load as the file stores them, with no byte transform, so the loader keeps streaming in file order.
+    The kernels read the GGUF conventions of [QWEN35](QWEN35.md): the folded norms, `ssm_a` as stored, V head j against K head j mod Hk, and `attn_q`'s interleaved rows.
+    `TensorView` documents that its values follow the GGUF conventions.
+  - **Arena and fit:**
+    - The arena's slots take the widest use over both mixer kinds, since a layer uses only one.
+      The q slot holds r on attention layers and the raw qkv rows on linear layers.
+      The k slot holds the conv output.
+      The v slot holds z.
+      The attention output slot holds o, then y.
+      One new slot holds alpha, beta and g (3 Hv).
+      `kSlots` becomes 13.
+    - `Footprint` gives each layer its own cache: KV tokens for a full-attention layer, and slots x state for a linear layer.
+      `tables` is sized by rope_dim / 2: 64 MiB at 262144 positions instead of 256 MiB.
+    - `kv_used_bytes` and `kv_alloc` count only the full-attention layers.
+  - KV storage covers only the full-attention layers, plus the MTP layer when MTP is on.
+- **Design, the forward pass and exactness:** the math of each layer kind, the MTP block, the row classes, the chunk grid and the rules the kernels keep are in [QWEN35](QWEN35.md).
+- **Design, the state:**
+  - The layout and type (S and the conv rows, F32 only, on every backend) are in [QWEN35](QWEN35.md), The recurrent state.
+  - The logical side lives in `model/`: a slot pool, with one slot per sequence in each state storage.
+  - The physical side lives in the backend, beside `BlockKVStorage`, without its growth:
+    - `state_alloc` allocates, at load, one buffer per layer that holds every slot.
+      It is counted in the fit and never grows, so no pass allocates state.
+    - `state_copy` copies a slot.
+      It restores a checkpoint or a take-back into a live slot.
+    - Length 0 means a zero state, so a recycled slot needs no clearing.
+      A slot returns to the pool only after the tickets of every pass that touched it have retired, which is the KV storage's retirement rule.
+  - A layer's state sits on the device that runs that layer's mixer, so a stage may hold only states.
+    `Sequence::length()` and `history()` therefore read a committed length that does not depend on which storage exists.
+  - **One slot count per model**, `ModelOptions::state_slots`, which each command sets:
+    - 1 for `generate`, `logits`, `perplexity` and `chat`;
+    - `--seqs` for `bench`;
+    - 2 for `llmx-split-check`;
+    - `serve`: `--max-seqs` live slots, plus checkpoint slots, plus the verify-slot pool the fit sizes from the room left after the KV budget when a drafter is on.
+  - A pass updates the state in place, so "a failed pass leaves every history as it was" no longer holds by itself.
+    A failed pass marks its entries' states as lost (Decided, 6).
+    A CLI command ends on the error, as it does for Qwen3.
+    The server already ends every request in a failed pass.
+  - Until checkpoints exist (step 8c):
+    - `truncate` to any length other than 0 or the current length is refused.
+    - Forks and prefix reuse are refused for these models.
+- **Design, the kernels:**
+  - **CPU:**
+    - One routine for all rows.
+    - Tasks are (sequence, V head), and each head's arithmetic runs on one thread, so the thread count cannot change a result.
+    - The state is laid out as [K row][V column], vectorized over 8 columns, with fixed-order sums over K.
+    - The conv, the L2 norms, g and beta run in a prologue, and the gated norm runs after.
+  - **The Vulkan recurrence**, one shader for the rows of every extent-1 entry, and for every prompt row until step 6:
+    - Candidate layout: a 256-lane workgroup covers 32 V columns by 8 lanes, and each lane holds 16 K rows of one column in registers, so a head takes 4 workgroups.
+      It is measured against a one-subgroup (64-lane) workgroup per 8 columns.
+    - The next token's q, k, v, g and beta are prefetched while the current token computes.
+      o_t and m_{t+1} both read S_t, so their reductions share one butterfly phase.
+      State loads and stores are 16 bytes wide.
+      The L2 norms are fused into the prologue.
+    - It reads the state from a source slot and writes it to a destination slot, which are the same slot except in a verify.
+    - One checkpoint mechanism: a pass may name one row p and a checkpoint slot.
+      The recurrence stores S at p from its registers, and the conv dispatch writes the three raw rows before p, from the arena or the carried rows.
+      Batch assembly names the row, and no slice is cut for it.
+      The checkpoint becomes valid when the pass commits.
+      A verify entry never names a checkpoint row.
+    - Targets, which are estimates and not gates: at most 1 us per token step in prefill, and at most 10 us per layer in 27B decode.
+  - **The Vulkan chunked form (step 6)**, only for the prompt rows of entries whose extent is above 1: per 64-row chunk, the intra-chunk products and the WY/UT correction in F32, forming only exp(G_i - G_j) for i >= j, then the state passed from chunk to chunk.
+    It is about 1.7 times the recurrence's arithmetic, on cards without matrix units, but the sequential chain drops from one step per token to one step per 64 tokens.
+  - **The conv** is its own dispatch, with one invocation per (entry, channel).
+  - **The gated RMSNorm x silu(z)** is its own op.
+    It takes runs, like `silu_mul`, and writes the activation copy that `ssm_out` reads.
+    Fusing it into the recurrence is a later, measured step.
+  - **Projection groups**, since `matmul_group` holds three projections.
+    The candidates, to be measured: {`attn_qkv`, `attn_gate`} + {`ssm_alpha`, `ssm_beta`}, against {`attn_qkv`} + {`attn_gate`, `ssm_alpha`, `ssm_beta`}.
+    The second is one dispatch per group in the Q4_K_M files, where those three are all Q4_K.
+    On the MoE, the shared-expert gate joins the F32 router's group, and the shared expert's gate and up form one group.
+  - **Activation copies:**
+    - `sigmoid_mul` writes the 8-bit copy, or the 16-bit twin, of its output by runs, for the matmul that reads it next.
+    - `attention` is told when its output is not a matmul's next input, and then skips its copy.
+    - Every new op that writes an arena slot (conv, recurrence, gated norm, `sigmoid_mul`, state copies) clears the tags it overlaps, as 1492, 1672 and 1818 do.
+  - **Attention at head dim 256:**
+    - Decode: `attention_vec` at 256, with 32 lanes per token and one more shuffle stage.
+      On the 27B each KV head serves a group of 6 query heads.
+    - The prefill tile at 256 needs 34 KiB of shared memory at TK 16 in F32, over the Radeon VII's 32 KiB.
+      The candidates, to be measured: 16 lanes per row, with two query heads of one KV head per workgroup; f16 staging, which is exact for the f16 cache; TK 8.
+    - TK sets the online softmax's rescale points, so it is a constant of the head dim and the cache type, never of the batch.
+      The tile threshold stays by extent.
+  - **`norm_rope`** takes a source head stride, and a rotary width separate from the norm width.
+    It writes contiguous heads, so `attn_q` loads unchanged and the attention's Q layout stays.
+  - **The output gate** is a `sigmoid_mul` op with runs, which reads the gate in place.
+    The shared expert's scale is the same op with one value per row, applied to the down projection's input.
+    Fusing either into an epilogue is a later, measured step.
+  - **Expected on one MI50** (estimates from llmx's measured 8B and 30B-A3B, not gates):
+    - 27B Q4_K_M: pp512 about 330 to 350, tg128 about 27 to 28.
+    - 27B Q8_0: tg about 20.
+    - 35B-A3B Q4_K_M: pp512 about 1200 to 1400, tg128 about 115 to 130.
+- **Design, MoE placement:**
+  - Under `--n-cpu-moe`, a host-placed layer's whole FFN goes to the CPU with its experts: the router, the shared expert and its gate.
+    That is qwen3moe's rule.
+    Placing the shared expert beside attention is a later, measured step.
+  - Under `--moe-stream-from`, the shared expert and its gate are copied to the attention device at load, beside the norm and router.
+- **Design, serving (step 8):**
+  - **The fit (8a, every model; question 4):**
+    - `serve` fits its KV budget at load after the weights, activations and state slots, and backs it whole at load, so no pass grows the KV.
+    - `token_limit` is the smaller of the context, `--ctx-size` and the fitted budget.
+    - A drafter never changes the fitted budget; it takes only the room left after it (the speculative decoding plan).
+    - Load is refused when the live slots leave no room for KV.
+      The startup log gives the live slots, checkpoint slots and KV tokens.
+  - **Admission:**
+    - An admitted request takes one live slot, and there are `--max-seqs` of them, so admission never waits on a slot.
+  - **Checkpoints (question 7):**
+    - A checkpoint is a checkpoint slot's copy of every state storage at a position p, plus the row classes of [0, p).
+    - p is a multiple of `kv_block_tokens()`, which 64 divides, so the KV fork stays whole-block and p lies on the chunk grid.
+    - The checkpoint slot count is fixed at load.
+      It defaults to the number that fits in a quarter of the room left after the live slots, at most `--max-seqs`.
+    - A checkpoint is skipped, never forced, when no checkpoint slot is free.
+  - **Where checkpoints go.** Batch assembly is the one owner.
+    - Always: the largest block boundary at or below E - g, where E is the prompt's end and g is the length of the generation-prompt suffix.
+    - On the 3.5 and 3.6 templates the next turn diverges right after `<|im_start|>assistant\n`, so this one checkpoint serves both retries and follow-up turns.
+    - On the 3.8 templates the next turn keeps the whole reply when its reasoning is passed as `reasoning_content`, and the same checkpoint still serves, since a follow-up turn recomputes the reply's generated rows as prompt rows.
+    - Message-boundary and every-N checkpoints are options, off at first.
+  - **Choosing a donor:**
+    - `best_donor` considers only checkpoints whose tokens, and whose row classes over [0, p), equal what the CLI would compute for the new prompt.
+    - A finished request's final state follows generated rows, which a follow-up turn recomputes as prompt rows.
+      So at finish a donor is trimmed to its last checkpoint, and a hybrid donor with no checkpoint is released.
+  - **Pause:**
+    - If a resumed request's own donor survives, the request takes it back whole, KV and live slot included, and recomputes nothing.
+      This take-back lands in `fix/server-exact-resume`, as a step after its step 2 (Decided, 8).
+    - Otherwise the exact-resume replay runs from 0, or from a checkpoint whose classes match.
+    - A 27B state is 150 MiB, which takes 13 to 31 ms each way to host memory at 5 to 12 GB/s.
+      Recomputing is estimated at about 4 s per 1000 tokens.
+      That weighs toward exact resume's host tier for these models.
+  - **`make_room`** stays the one owner, now over KV blocks and checkpoint slots together.
+    It frees in this order: the oldest finished donors' checkpoints, then paused donors, then active requests' optional checkpoints.
+  - **Layer split:**
+    - Each stage holds its own layers' states, and phase 2's pipelined chunks, cut on the chunk grid, advance them in order.
+      So the CLI's split needs nothing more.
+    - Phase 4's per-storage progress includes the state storages.
+      A checkpoint is valid only once every stage has taken it.
+- **Design, speculative decoding (step 9):**
+  - **Verify, acceptance and retract** are the speculative decoding plan's (`infer::accept`, `Model::retract`) for every proposer; this plan supplies the qwen35 state's part of `retract`.
+  - **State:**
+    - The verify reads the live slot and writes a verify slot from the pool, so the state from before the verify is kept; a request drafts only while it holds one.
+    - Each linear layer's verify inputs are saved to a per-sequence buffer counted in the fit: the raw conv rows, plus the normed q and k, v, g and beta after the conv, for k + 1 rows.
+      That is about 16 MB per sequence on the 27B at k = 3.
+      The arena cannot hold them, because every layer reuses it.
+    - After a rejection, the recurrence reruns over the accepted rows from the kept state, using the saved inputs.
+      The per-token arithmetic is the same, so the bits are the same.
+      When every draft is accepted, the two slots swap roles.
+      A sequence with a restore pending is not parked, paused, forked, checkpointed or cancelled into a donor until the restore has run.
+    - `Model::retract` drops rejected rows through the model's one storage list, calls this plan's state restore, and drops any checkpoint past the new length.
+      The public truncate stays refused.
+    - Snapshots after every row (144 MiB each on the 27B) are not planned (the speculative decoding plan's Not doing).
+  - **The MTP proposer:**
+    - It loads only when `--drafter embedded` or a sidecar path asks for it.
+    - Its KV is one more attention layer in the target's KV storage, 4 KiB per token on the 27B, with the target's length, blocks, forks and truncation.
+      Every pass computes its rows (`eh_proj`, the norms, K and V; no attention or FFN) for every row it feeds, prompt rows included.
+    - The MTP row that reads h_{i-1} and t_i sits at index i, at rotary position i - 1, and its attention reads indices 1 to i.
+      So a prefix of p rows carries exactly the MTP rows its tokens determine, and a fork takes them with the target's blocks.
+      Each MTP block keeps h of its last position, and the sequence keeps its last h.
+    - On a layer split, the MTP block runs on the output device, which holds h, `output` and a copy of `token_embd` counted by the fit.
+      The draft chain (argmax, embedding, next step) is one submission there.
+    - On the 35B-A3B, the MTP block's FFN is step 7's MoE FFN.
+- **Design, text:**
+  - **Tokenizer:**
+    - Accept pre `qwen35` beside `qwen2`.
+    - `pretokenize` needs no change.
+  - **Chat template:**
+    - The renderer gains:
+      - `macro`/`endmacro`, with default arguments, their own scope, and namespaces shared by reference;
+      - slicing;
+      - `x if c else y`, and tuple literals;
+      - the tests `undefined`, `true` and `false`;
+      - the filters `trim`, `string`, `safe` and `items`;
+      - `startswith` and `endswith`;
+      - `loop.previtem` and `loop.nextitem`;
+      - `for a, b in`;
+      - `raise_exception` as a real error;
+      - `default` returning its argument only for an undefined value, as Jinja does, so that the 3.8 templates' `reasoning_effort|default('xhigh')` raises on a null, as transformers does;
+      - `tojson` as transformers renders it, Python's `json.dumps(x, ensure_ascii=False, sort_keys=False)` with its `indent` and `separators` arguments: keys in their given order, no HTML escaping, non-ASCII text kept as it is, Python's escapes (`\b` and `\f` among them), and numbers spelled as Python spells the int or float the JSON text parsed to.
+    - Any unknown tag, filter, test or method, and any trailing tokens, make the template refused.
+      The refusal is recorded in `ChatFormat` and raised only by `chat` and `serve`.
+      `generate`, `logits` and the other commands are unaffected.
+  - **Messages:** `chat::Message` gains `reasoning_content`.
+    One owner in `inference/chat.hpp`, beside the renderer and `chat::Message` and below both `server/api.hpp` and the CLI, splits an assistant turn as the 3.5 and 3.6 templates split it: `reasoning_content` is the text before the first `</think>`, after the last `<think>` in it, and the content is the text after the last `</think>`, with the templates' newline trims.
+    A reply with no `</think>` is all content.
+    Both the CLI's turn recording and the server's message parser use it, so a server render equals the CLI render, and a split turn renders on those templates as its unsplit text does.
+  - **Thinking variables** (Decided, 13): `enable_thinking`, `preserve_thinking` and `reasoning_effort` reach the template through `chat_template_kwargs` on the server and one CLI flag, named for best fit and added to USAGE and `print_usage`, in a small branch after step 2.
+- **Design, the HF reference:**
+  - A second, isolated environment with transformers 5.17.0 on torch 2.5.1+cpu, so the 4.55.2 goldens stay reproducible (Decided, 1).
+    Its exact package versions are recorded in the repo's reference tooling, as the existing environment's are.
+  - The generator:
+    - passes float32 explicitly and uses eager attention;
+    - runs offline with no `kernels` package, so the torch fallbacks run;
+    - loads `Qwen3_5ForCausalLM`;
+    - asserts that the only unexpected keys are `mtp.*` and `model.visual.*`, and that no key is missing;
+    - counts, through a hook on HF's recurrent function, that every cached step of a tiny golden ran the token-by-token recurrence, and records the full forward's distance from it, which must be non-zero;
+    - is held to all of the above by `reference-generator`'s doubles: the version, float32, eager attention, no `kernels` package, and the unexpected- and missing-key assertions.
+  - The tiny fixtures' goldens come from HF's token-by-token cached forward, whose recurrent form matches llmx's per-token arithmetic.
+    HF's full forward, which uses the chunked form, is recorded beside them with its distance.
+    HF has no FP64 path for these layers.
+  - The real models' goldens come from HF's full forward.
+    The 0.8B's weights and tokenizer come from `Qwen/Qwen3.5-0.8B` at 2fc06364, and both 0.8B files from `unsloth/Qwen3.5-0.8B-GGUF` at 6ab46149 (Q8_0 811,843,840 bytes, Q4_K_M 532,517,120 bytes), which enter `tests/data/fixtures.json` with their SHA-256.
+    The Linux host's 0.8B Q4_K_M is another build (527,502,816 bytes) with no known Hub source, so it is not a gate file.
+  - The 4B's full forward takes about 18 GB in FP32 against the 18 to 22 GiB found free, before its 4096-token windows.
+    If it does not fit, the fallback is a layered run for the 4B as for the 9B, and using it needs the user's OK first, as a gate revision.
+  - The layered reference (Decided, 2) runs HF's own decoder-layer and MoE-block modules in order, with the model's own rotary embedding and masks, loading one layer's weights at a time.
+    It covers the 9B, 27B and 35B-A3B.
+    On the 0.8B it must equal the full forward bit for bit.
+    Its goldens follow the 8B's: committed under `tests/data`, each recording the HF repo and revision it ran on and the SHA-256 of the GGUF it is for, and read by a consumer like `tests/baseline_8b.py` that checks the model's and the goldens' hashes and writes a report.
+  - Goldens are stored as JSON, as today, so the hosted HF job needs no new environment.
+  - The tokenizer reference is transformers 5.17.0's tokenizer at `Qwen/Qwen3.5-0.8B` 2fc06364, which adds the entries of `tokenizer_config.json`'s `added_tokens_decoder` to `tokenizer.json`; the `tokenizers` library on `tokenizer.json` alone would split the 7 control tokens (Found, Tokenizer).
+  - The chat reference renders with transformers 5.17.0's own template renderer, in the second environment (its `tojson`, `raise_exception` and loop controls), not with a plain Jinja2 sandbox.
+    Each chat golden records the transformers version that rendered it.
+  - The fixture writers apply the converter's transforms themselves (1 + w, -exp, the tiled V order).
+    HF then runs the raw weights, and llmx reads the GGUF conventions.
+    A hosted check holds the writer's tiled permutation to real values: it maps HF's `dt_bias` of one 4B layer onto that layer's `ssm_dt.bias` in the 4B GGUF bit for bit, from the 32 values of each committed under `tests/data`, so a misreading that the writer and the kernels share cannot pass the tiny Hv = 3 Hk fixture.
+- **Plan.** Each branch comes off main and merges on its own gates, which always include a green hosted run on its `gate/<name>` push, with the job times recorded in STATUS.
+  Sizes are relative to the Qwen3 MoE work: `feat/moe` took about 1,200 lines of source and tests for the model, routing, the expert kernels and the tiny HF gate (beside its stored baseline), then about a day of speed work.
+  1. **`docs/qwen35-design`** (this branch): this block, the quantization coverage block above, the design page [QWEN35](QWEN35.md) for the math, the GGUF conventions, the file inventory and the row classes, ROADMAP #1, #2 and #9b brought in line, and the design page listed in README.
+     - Gate: review of the design.
+     - Size: small.
+  2. **`feat/chat-template-jinja`:** the renderer features above, the refusal recorded in `ChatFormat`, `reasoning_content` with its one split owner, and the chat reference moved to transformers' renderer.
+     - Gates:
+       - byte-equal to transformers' renderer on all 9 distinct qwen35 templates (pinned by sha256) and their cases, which cover:
+         - tools, so `tojson` meets non-ASCII text and nested key order;
+         - `tool_calls` arguments as a dict and as a string, and tool responses;
+         - content-part lists;
+         - conversations with and without a system message;
+         - both values of `add_generation_prompt`, and of `enable_thinking` passed to the renderer;
+         - `reasoning_content` in earlier assistant turns on the 3.8 templates, with thinking on and off;
+         - cases where transformers raises, which llmx must refuse rather than render;
+       - a `chat-template` CTest case for each new renderer construct;
+       - the Qwen3 fixtures regenerated with that renderer, with any difference from the old goldens recorded and fixed in this branch;
+       - no template in any GGUF on either machine (deduplicated by sha256) becomes refused;
+       - unsupported syntax refused by `chat` and `serve`, and `generate` still runs on a file whose template is refused;
+       - server renders with `reasoning_content` equal to CLI renders;
+       - split-owner cases: a reply with no `</think>`, with a leading `<think>`, and with two `</think>`, each rendering on the 3.5 and 3.6 templates as its unsplit text does;
+       - a two-turn `llmx chat` test on a 3.8 template: the history the CLI records through the split owner renders byte-equal to transformers' render of the same {content, reasoning_content} messages, and turn 2's prompt begins with turn 1's;
+       - hosted CI.
+     - Size: about 0.6.
+     - **The follow-up branch** (Decided, 13): the thinking variables through `chat_template_kwargs` and one CLI flag.
+       Gates, as this step's: renders with each variable set byte-equal to transformers' renderer, the server's render equal to the CLI's, and hosted CI.
+       Size: small.
+  3. **`feat/tokenizer-qwen35`**, which also lets `tests/data/fixtures.json` and `tests/baseline.py` take a second model family (Tests).
+     - Gates:
+       - A golden in `tests/data` from transformers' tokenizer, recording the tokenizer's repo and revision: the Qwen3 golden's 20 texts, the 20 multilingual texts of the review, Thai, Devanagari, CJK punctuation, combining marks after letters, digits, punctuation and spaces, and every entry of `added_tokens_decoder` (248044 to 248076, the 7 control tokens included), alone and inside text.
+       - llmx's ids equal the golden's, except the known deviations (the math-symbol line, runs of U+3000, and any text NFC would change), each listed in the golden as an expected difference with both id lists.
+       - Every other pre name still refused.
+       - Hosted CI, with the 0.8B Q8_0 pinned as a tokenizer-only fixture until step 4 adds its bounds.
+     - Size: about 0.1.
+  4. **`feat/qwen35-cpu`**, the dense models on the CPU.
+     It brings:
+     - the config, the resolver and the mixer kind;
+     - the arena slots, the per-layer cache in `Footprint`, the rope table by rope_dim, and the KV counters over attention layers only;
+     - the CPU conv, recurrence, gated norm, partial rope and output gate;
+     - state storage allocated at load, the slot count per command, the retirement rule, and the failed-pass and truncate rules;
+     - refusal, with a clear message, by the device backends and by `serve` (Decided, 5);
+     - the HF environment and the fixtures.
+     - Gates:
+       - Tiny qwen35 fixtures within today's bounds (2e-5 per logit, 1e-5 NLL) against HF's token-by-token goldens.
+         The fixtures cover Hv = Hk, Hv = 3 Hk, tied and untied heads, and a file with an MTP block whose logits must not change.
+         The bounds must hold across ubatches, batch widths, threads, decode after prefill, and scoring.
+       - Qwen3.5-0.8B (the pinned Q8_0 and Q4_K_M downloads) and Qwen3.5-4B against HF: tokenizer ids, top-1 and top-5, PPL windows, and the chat render and its ids.
+         The hosted job keeps windows at 512 tokens, and 4096-token windows run by hand.
+         Bounds are set from a first measurement, as `tests/baseline.py` does, and both 0.8B files are hosted fixtures of the qwen35 family from then on.
+       - The hosted check of the fixture writer's tiled permutation against the 4B's `dt_bias`.
+       - The 9B and 27B Q4_K_M against the layered HF reference (Decided, 2).
+       - Bitwise slice invariance.
+       - `bench --seqs` and a two-CPU `llmx-split-check`, including a stage that holds only states.
+       - Logits and greedy text on the Qwen3 files byte-identical to main.
+     - Size: about 1.3.
+  5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
+     - Gates:
+       - The tiny fixtures, the 0.8B and the 4B within bounds on both cards.
+       - Bitwise slice invariance on the device.
+       - A backend-vulkan test of attention, then `sigmoid_mul`, then a matmul, on the tile and on the row path, against the CPU.
+       - The 16k check in its CLI mode on the 9B and the 27B, against CPU baselines on the Q4_K_M files.
+       - `llmx-split-check` identical to one card on 2 and 3 MI50s, including a stage that holds only linear layers.
+         The Radeon VII with the CPU is held to the HF bounds and to the CPU-against-device margins, not to bitwise identity.
+         The check's fork and replay phase skips hybrids until step 8c.
+       - The Qwen3 files byte-identical on both cards.
+       - Speed at or above llama.cpp Vulkan on every cell: pp64, pp247, pp512, pp4096, tg32, tg128 and pp16384/tg512.
+         The files are the 0.8B Q4_K_M, the 9B Q4_K_M, and the 27B Q4_K_M and Q8_0 on the MI50, and the 0.8B and 9B Q4_K_M on the Radeon VII (question 9).
+     - Size: about 1.6 to 2.1.
+  6. **`feat/qwen35-chunked`:** the chunked form on Vulkan for the prompt rows of every entry whose extent is above 1, and the model's prompt cut on the absolute 64-row grid.
+     - Gates:
+       - The tiny fixtures, the 0.8B and the 4B within HF bounds on both cards.
+       - Bitwise slice invariance with cuts at 1, 63, 64, 65 and 511 rows, where the cut rounds to the grid, and with prompts that start off the grid.
+       - Server budget slices and the split's pipelined chunks land on the grid.
+       - The 16k check.
+       - The 0.8B, 4B, 9B and 35B-A3B prefill cells faster than step 5 on both cards, and no tg cell slower.
+         The form is kept only if it passes, and a loss is recorded (Decided, 3).
+       - Speed still at or above llama.cpp Vulkan.
+     - Size: about 0.6 to 0.8.
+  7. **`feat/qwen35moe`:** the shared expert and its gate on both backends, 256 experts (the routing kernel already holds up to 1024), and the `--n-cpu-moe` and `--moe-stream-from` placements.
+     - Gates:
+       - A tiny qwen35moe fixture (8 experts, top 3, expert FFN 11, shared FFN 13, the shared gate, the router scaled as `moe.py` does, the minimum routing gap recorded) on the CPU and both cards, in both placements.
+       - The 35B-A3B against the layered HF reference (Decided, 2).
+       - The 35B-A3B Q4_K_M on the MI50 against the CPU, with the existing CPU-against-device margin check and the 16k check.
+         The Q8_0 files do not fit the host's free memory for a CPU baseline.
+       - Qwen3, qwen3moe and qwen35 dense byte-identical.
+       - Speed at or above llama.cpp Vulkan: the 35B-A3B Q4_K_M and Q8_0 on the MI50, and the Q4_K_M with experts on the CPU on the Radeon VII (question 9).
+     - Size: about 0.4 to 0.5.
+  8. **Serving,** as four branches:
+     - a. **`fix/serve-kv-fit`,** for every model: the fit, backing at load, and the `token_limit` cap (question 4).
+       - Gates:
+         - The server suites unchanged on dense and MoE models.
+         - A configuration that asks for more than fits is refused at load.
+         - `tools/server_mix_check.py` and the serving load tool on the 8B and the 30B-A3B, with no throughput loss against main.
+       - Size: about 0.2.
+     - b. **`feat/qwen35-serve`:** live slots and admission, and pause and resume by take-back or exact replay.
+       No prefix reuse.
+       It lifts `serve`'s refusal of these models.
+       - Gates:
+         - `server-resume` cases on a synthetic hybrid model: take-back, a recompute after eviction, cancellation back to zero slots, and repeated requests on recycled slots with two contexts in flight.
+         - `tools/server_mix_check.py` with uncapped pausing on the 9B and the 35B-A3B: each request equals itself alone and the CLI.
+         - The randomized `make_room` test, with the slot ledger.
+       - Size: about 0.6.
+     - c. **`feat/qwen35-checkpoints`:** checkpoint slots, the in-kernel store, class-aware `best_donor`, donor trimming, and `make_room` over blocks and slots (question 7).
+       The split check's fork and replay phase comes back for hybrids.
+       - Gates:
+         - A fork from a checkpoint continues bit-identically to a fresh run.
+         - Server equals CLI, with reuse on, under mixed and skewed load.
+         - vLLM-style metrics (TTFT, ITL and throughput percentiles, 1 to 64 users, a rate sweep) heavily ahead of llama.cpp's server and of mx-llama.cpp on the same cards (question 10).
+           Their logs are checked for whether their checkpoints were actually restored.
+           A gfx906 vLLM build, if it runs `qwen3_5`, is recorded beside them, not gated.
+       - Size: about 0.7.
+     - d. **The server on a layer split**, with states in phase 4's per-storage progress.
+       - Gate: the split's server gate with a hybrid model on 2 or more cards, against mx-llama.cpp's layer and tensor split (question 10).
+       - Size: about 0.3.
+  9. **`feat/qwen35-mtp`** (step 4 of the speculative decoding plan): the verify-slot pool and saved inputs behind `Model::retract` for qwen35, the MTP proposer embedded and as a sidecar, its rows indexed by the token they read, the on-device draft chain, and its placement on a split.
+     - Gates (Decided, 11):
+       - Tokens and logits identical with MTP on and off, greedy and seeded sampling, on the CPU and both cards, through the CLI and the server.
+       - The acceptance rate on a fixed prompt set, at draft lengths 1 and 3, within the speculative decoding plan's acceptance margin of the exact reference build.
+         On-and-off identity alone passes even with a wrong block, and only a draft length above 1 reads the block's own row after `nextn.shared_head_norm`.
+       - The tiny fixture's MTP logits against a reference built from HF's own decoder layer, if question 11 approves it.
+       - Decode speedup and memory cost on the 27B at Q8_0 and Q4_K_M, beside llama.cpp with its MTP.
+       - The 35B-A3B MTP waits for the 16-bit branch.
+       - Embedded and sidecar MTP give the same drafts.
+       - With MTP loaded and k = 0, logits are identical to no drafter, decode is within 3 percent, and pp512 and pp16384 are within 2 percent.
+       - The synthetic proposers reject at j = 0, 1, 2 and k.
+       - On the Radeon VII, the tiny fixtures run written both ways (a gate revision approved with the speculative decoding plan).
+     - Size: about 1.0.
+  10. **Cross-gates with the quantization plan,** run once both sides have merged.
+      No branch is made unless a fix is found.
+      - MXFP4: the 27B and 35B-A3B MXFP4 files.
+        CPU against device with the margin check, split identity, PPL beside llama.cpp on the same file, and speed at or above llama.cpp Vulkan.
+        There is no HF bound, since both files are requantized.
+      - IQ4_NL: the 35B-A3B IQ4_NL, with the same checks.
+      - BF16: the UD files, the 27B BF16 on a two-MI50 split against the layered HF reference, and the 35B-A3B MTP files.
+      - Size: about 0.1 each.
+  - **Totals:**
+    - Steps 4 to 7 are about 3.9 to 4.7 times the MoE work.
+      That is above the earlier estimate of 2 to 3 times, because it now includes the chunked form, the arena and fit work, and the split and 16k-check paths.
+    - Steps 2 and 3 add about 0.7.
+      They were not in that estimate: the template breakage was found by this review.
+    - Serving adds about 1.8, MTP about 1.0 (verify, acceptance and retract are in the speculative decoding plan's steps 1 to 3), and the cross-gates about 0.3.
+    - The whole plan is about 7.5 to 8.5 times the MoE work.
+- **Tests.** Everything that needs no GPU runs in the hosted workflow.
+  Device checks run by hand on both cards and are named in the step's STATUS entry.
+  - **Fixtures and references:**
+    - `tests/qwen35.py` and a qwen35moe case, with goldens from `tools/gen_baseline.py` in the new environment.
+    - `tests/data/fixtures.json` and `tests/baseline.py` take a second model family in step 3.
+      Each pinned entry names its family, each family has its own goldens and its own vocabulary size and context (151936 and 40960 for Qwen3, 248320 and 262144 for qwen35), and an entry may be tokenizer-only until its bounds exist.
+    - The 0.8B HF check in the hosted HF job, with 512-token windows.
+      The 4096-token windows and the 4B check run by hand.
+    - Hosted time: the two 0.8B files add an estimated 6 to 8 minutes to the HF job with their f32 pass, under the limit rule in the quantization coverage block's Tests.
+    - The layered goldens, read by hand by their consumer.
+    - Chat template fixtures against transformers' renderer, and tokenizer ids against transformers' tokenizer.
+    - The hosted check of the fixture writer's tiled permutation.
+    - A scan that renders or refuses every GGUF template on both machines.
+  - **Guards on the recurrence:**
+    - Slice invariance: one pass against splits at 1, 3, 63, 64, 65 and 511 tokens, beside other sequences, with checkpoint stores on and off, compared with `memcmp` on logits and state.
+      It also covers a conv with fewer than 3 earlier tokens, and Hv / Hk of 1, 2 and 3.
+    - Extent-1 replay: k rows in one extent-1 entry equal k decode steps.
+    - Decay flush: a fixture row with a decay factor below 2^-126 gives the same state on the CPU and the device.
+  - **`backend-vulkan`:**
+    - The conv, the recurrence, the chunked form, the gated norm, `sigmoid_mul`, strided partial rope, and dim-256 attention on the vec, tile and per-row kernels, each against the CPU and a double-precision reference.
+    - Attention, then `sigmoid_mul`, then a matmul, on the tile and row paths.
+    - The existing tail-after-reuse and decode-beside-longer checks, at 256.
+  - **Model:**
+    - The slot pool, and slot retirement with two contexts in flight.
+    - An injected failed pass marks states lost, and the command ends.
+    - `truncate` is refused.
+    - A file with an MTP block runs `block_count - nextn` layers.
+      `nextn_predict_layers` above 1 is refused.
+    - A `recurrent_layers` array of the wrong length, or with an MTP entry true, is refused.
+    - Bad head counts are refused.
+    - qwen3 with a rotary width different from its head dim is still refused.
+    - A two-CPU split equals one CPU, with a stage that holds only states.
+    - MXFP4, IQ4_NL, BF16, Q5_1 and type-53 files are refused, each naming its type, until their branches land.
+  - **Server:**
+    - The fit refuses at load, and `token_limit` follows the fit.
+    - The hybrid `server-resume` cases.
+    - `make_room` with slots.
+    - Checkpoint forks.
+    - MTP identity under the speculative decoding plan's synthetic proposers, and `Model::retract`'s state restore.
+- **Risks:**
+  - A wrong V-to-K head mapping gives plausible text.
+    Only Hv different from Hk catches it: the tiny Hv = 3 Hk fixture, the 4B, and the 9B, 27B and 35B-A3B through the layered reference, with the hosted permutation check covering a misreading that the fixture's writer and the kernels could share.
+    A file converted before the tiling change cannot be told apart from its metadata.
+  - Folding done twice or missed: 1 added again to the norms, 1 added to `ssm_norm`, or exp applied to `ssm_a`, which is already negative.
+  - The recurrence's step latency: on the 0.8B it is 15 to 20 percent of prefill at 1 us per step.
+    The chunked form is the answer, and it is a hard kernel.
+  - The dim-256 tile's shared memory and registers.
+  - Silent inexactness from contraction without `precise`, from driver `exp` or denormal flushing, or from a pipeline specialized on the token count.
+  - State corruption across requests on recycled slots, which llama.cpp's fork has logged.
+    The retirement rule and the recycled-slot tests cover it.
+  - Checkpoint slots compete with KV: on the 27B Q8_0 on one MI50, serve's defaults with a checkpoint per sequence leave no KV.
+  - The requantized MXFP4 and review files are lossy twice over, so they compare runtimes only.
+  - The 27B configs carry `output_gate_type: "swish"`, `attn_output_gate` and `mtp_use_dedicated_embeddings`.
+    HF, llama.cpp and vLLM all ignore these and apply a sigmoid gate.
+    llmx follows HF, and the HF gate checks it.
+- **Not doing, with reasons** (question 12 covers the scope lines):
+  - **Qwen3.8-Flash-Next (`qwen4exp`):** a different architecture, with its own plan after DeepSeek V4.1.
+    Qwen3.8-27B is plain qwen35 and comes with this plan.
+  - **DFlash drafters (`dflash`):** a different architecture.
+    They draft blocks of 8 or 16 tokens from hidden rows exported by 5 to 8 chosen target layers, with non-causal or sliding-window attention and conv projections.
+    They need an export of hidden rows from chosen layers and a block drafter.
+    They are step 5 of the speculative decoding plan, a proposer over the same verify and loader path.
+  - **Vision and video input:** text only.
+    For text positions the M-RoPE reduces exactly to plain rope.
+  - **A chunked form keyed on the batch, on an extent threshold above 1, or for extent-1 entries:** a row's class is its entry's extent, 1 or above 1, nothing else.
+  - **A narrower state, or compressed checkpoints** (such as llama.cpp's INT8 and INT16 checkpoint codec): they break batch invariance or exact reuse.
+  - **Forking or truncating at arbitrary positions:** a recurrent state exists only at the end of what it has read.
+  - **BF16, F16, MXFP4 and IQ4_NL files:** they load once the quantization plan's branches merge, and step 10 gates them.
+  - **Q5_1 and type-53 files:** Q5_0 and Q5_1 are not on the quantization roadmap, and type 53 is not a ggml type.
+    Both are refused, each naming its type.
+  - **Qwen3.5-122B-A10B as a gate file:** it needs F16 and a multi-card split, and adds no code of its own.
+  - **Fused `ffn_gate_up_exps` from newer converters:** no file here has it, so it is refused by name until a gate file does.
+  - **Exact Unicode classes and NFC:** a separate tokenizer branch (Decided, 13).
+    The approximation already matches qwen35 on marks.
+  - **A safetensors qwen35 reader:** it would need byte transforms that the streamed loader cannot express.
+- **Sequencing against the work in flight:**
+  - Implementation runs now in the background (user, 2026-09-25).
+    Layer split phase 3 keeps priority on the cards, and each step merges only on its own gates.
+  - `refactor/loader` (at bdcd2f2) merges before step 4, which extends its `QwenConfig`, `QwenWeights`, resolver and single load owner.
+    Step 2's refusal lives in the `ChatFormat` that its `load_model` builds.
+  - Steps 2 and 3 touch neither the loader nor the model, need no card, and gate on hosted CI.
+  - Step 5:
+    - The dim-256 tile builds on `feat/attn-tile-split` after it merges, and on the prefill kernels just merged.
+    - Its speed gate needs the cards that the phase 3 server gate uses.
+  - Step 6 follows step 5.
+    Step 7 needs step 5, and does not need step 6.
+  - Step 8:
+    - 8a does not depend on qwen35, and follows phase 3's server work.
+    - 8b needs 8a, and `fix/server-exact-resume` for the replay and its take-back step.
+    - 8c needs exact resume's class-aware first-admission follow-up for `best_donor`, and phase 3.
+    - 8d needs phase 4.
+  - Step 9:
+    - It needs step 5 for the CLI and 8b for the server, and the speculative decoding plan's steps 1 to 3.
+    - It uses exact resume's multi-row extent-1 entries.
+    - Speculative decoding is listed as not in the server's first version (docs/SERVER.md), so SERVER.md changes with the speculative decoding plan's step 3.
+  - Step 10 waits for the quantization plan's `feat/half-weights`, `feat/mxfp4-vulkan` and `feat/iq4-vulkan`, and for steps 5 and 7.
+  - DeepSeek 4.x comes after this plan.
+
 ## Test and CI coverage (planned 2026-09-25)
 
 - **Goal:** every feature a user can reach has a test the hosted workflow runs, or its STATUS block names the hand check that covers it and says why no hosted runner can. A bug fix lands its failing test first. The workflow runs everything that needs no GPU. What needs the cards is still run on them by hand, as it is today.
@@ -4327,7 +5624,9 @@ their own measurements; K-quant optimization remains separate work below.
 | Vulkan allocation failure ownership | Done |
 | Vulkan attention width and mixed-cache validation | Done |
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
+| Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | Planned (block above), built in the background |
 | More model architectures (Llama, ...)    | Planned  |
+| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | Planned (block above, design in [QWEN35](QWEN35.md)), built in the background |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |
 | GGUF reader size and tensor extent validation | Done |

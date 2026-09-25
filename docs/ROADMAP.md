@@ -26,15 +26,21 @@ their own kernels and validation for each new type. Block kernels and the regist
   because d*q - m factorises the dot into d*sum(q*x) - m*sum(x). 2.16 -> ~2.6
   tok/s. Fused Q5_K and Q6_K decode dots followed the same way; prefill is a
   different question since the batched path already reuses the dequantized row.
-- `IQ2/IQ3/IQ4` are deliberately NOT next. Every quant type multiplies the
-  per-backend kernel work later (see #4b), and these are both rarer on the Hub
-  and harder to implement. Hold them until a GPU backend exists and that cost
-  is visible.
+- Next, planned in `docs/STATUS.md` (Quantization coverage): `F16` and `BF16`, then `MXFP4`, then `IQ4_NL` and `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only, on the CPU and on Vulkan.
+  Every type multiplies the per-backend kernel work (see #4b), so they are taken in the order of the files they open and how often those files are published, weighed against the effort.
+  The one exception is MXFP4, which goes before IQ4 by the user's decision of 2026-09-25, although IQ4 opens far more files.
+  They open the BF16 and UD-Q8_K_XL files, the MXFP4_MOE files, the IQ4 and UD-Q4_K_XL files, and the Q2_K and Q3_K mixtures that Qwen3 and Qwen 3.x are published in.
+  16-bit weights are widened to F32 exactly inside the kernels, since gfx906 has no BF16 arithmetic, and never through a lossy path.
+  Each type must meet the six conditions listed there.
+- The lattice-codebook types (`IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`) are not planned: they need about 33 KB of codebooks, and every file that uses them mixes 8 or 9 types.
+  `IQ3_S` is proposed as the first candidate after it, a question not yet asked (`docs/STATUS.md`, Quantization coverage, question 11).
+  `Q5_0` and `Q5_1` are not planned; whether they join is an open question of the Qwen 3.x plan in `docs/STATUS.md`.
 - K-quants are what most GGUF on the Hub actually uses; see #9b
-- `TensorInfo::data_size()` still switches on type in `format/gguf.hpp` rather
-  than reading the registry, because `quant/` includes `format/` and not the
-  other way round. Adding a type means touching both.
-- Extend `tests/roundtrip.py` to cover each new type that has a quantizer
+- `TensorInfo::data_size()` still switches on type in `format/gguf.hpp` rather than reading the registry, because `quant/` includes `format/` and not the other way round.
+  Adding a type means touching both, plus the sizes in the Vulkan shaders' `q.glsl`.
+  The quantization plan's first step moves the type ids and sizes into one table in `core/storage.hpp`, which the reader and the registry read and a test holds `q.glsl` to.
+- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1 and Q4_K from raw blocks that reach every scale, min and nibble bit, each against a decoder written from the format description.
+  Each new type joins it from raw blocks, since the planned types stay read-only, with no quantizer.
 
 ## 2. More model architectures
 The `infer::Model` layer covers Qwen3 and its mixture-of-experts form today.
@@ -42,15 +48,20 @@ Generalize to an architecture registry keyed by `general.architecture`:
 - Done: `qwen3moe` (Qwen3-30B-A3B), routed layers on the CPU and Vulkan
   backends with experts optionally on the CPU beside a device; the gate is a
   tiny random-weight model through HF `Qwen3MoeForCausalLM` (`docs/STATUS.md`)
+- Next: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS.md`.
+  Three layers in four are gated delta-net linear attention, with a fixed-size recurrent state per sequence, and every fourth layer is gated full attention at head width 256 with partial rotary.
+  The MoE form adds a shared expert with its own gate, and some files carry a multi-token-prediction block, which becomes one proposer of a single speculative decoding system for every kind of drafter.
+  A recurrent state exists only at the end of what it has read, so reuse and pause work from checkpoints of it, and every reused state is one the CLI would have computed the same way.
+  The gate is HF: tiny random-weight fixtures, the small released models, and HF's own layers run one at a time for the larger ones.
 - Llama (GQA + RoPE, close to Qwen3)
 - Mistral, Gemma (rotary/context differences), Phi
-- DeepSeek V4-class: hybrid compressed sparse attention, mixture of
-  experts, lookup-table memory, residual mixing. What each needs from the
-  execution model, and the assumptions the model layer must not make so
-  they stay additive, is in `docs/EXECUTION.md`, "Beyond dense Qwen".
-  Their released sizes exceed the hardware here; the gate is a tiny
-  random-weight model of the real architecture through HF modeling code.
-- Each arch = a forward-graph file under `model/`, selected at load from metadata
+- DeepSeek V4-class: hybrid compressed sparse attention, mixture of experts, lookup-table memory, residual mixing.
+  What each needs from the execution model, and the assumptions the model layer must not make so they stay additive, is in `docs/EXECUTION.md`, "Beyond dense Qwen".
+  Their released sizes exceed the hardware here; the gate is a tiny random-weight model of the real architecture through HF modeling code.
+  They follow Qwen 3.x and the `MXFP4` type (#1).
+  Qwen3.8-Flash-Next (`qwen4exp`), with hyper-connections, compressed attention and hashed n-gram embeddings, gets its own plan after DeepSeek V4.1.
+- Each architecture family is a forward-graph file under `model/`, selected at load from metadata.
+  The Qwen family (`qwen3`, `qwen3moe`, `qwen35`, `qwen35moe`) is one model path, extended per architecture as `qwen3moe` was, since its stages, pools, forks, arena and placement do not depend on the architecture.
 
 ## 3. More formats
 `format::ModelFormat` has a GGUF adapter and a magic-sniffing `format::open()`
@@ -245,9 +256,9 @@ make a model usable: its architecture and tokenizer must also be implemented.
   bounded depth and finite-double number storage. The loader still needs
   schema, integer-range, tensor-extent and dtype checks before exposing data.
   No new dependency; see #3.
-- **BF16 / F16 tensors**: most HF safetensors are BF16. `core/fp16.hpp` covers
-  f16 <-> f32, but there is no bf16 path and no F16 case in
-  `gguf::TensorInfo::data_size()`
+- **BF16 / F16 tensors**: most HF safetensors are BF16.
+  `core/fp16.hpp` covers f16 <-> f32, but there is no bf16 path and no F16 case in `gguf::TensorInfo::data_size()`.
+  Both are the first types of the quantization plan (#1), widened exactly to F32 inside the kernels on every backend, and the native safetensors path takes the same kernels.
 - **`tokenizer.json`**: the HF tokenizer format. `bpe::Tokenizer` reads only
   GGUF-embedded `tokenizer.ggml.*`, so safetensors repos have no tokenizer path
 - **`config.json`**: architecture config. `infer::load_config` reads only

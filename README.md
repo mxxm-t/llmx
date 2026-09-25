@@ -105,6 +105,7 @@ The performance target is to be at least as fast as [mx-llama.cpp](https://githu
 - [VULKAN](docs/VULKAN.md): design and kernels of the Vulkan backend.
 - [MULTI-DEVICE](docs/MULTI-DEVICE.md): design of the layer split and the splits planned after it.
 - [EXECUTION](docs/EXECUTION.md), [DEVICE-EXECUTION](docs/DEVICE-EXECUTION.md) and [KV-CACHE](docs/KV-CACHE.md): design of batched execution, device placement and the paged KV cache.
+- [QWEN35](docs/QWEN35.md): design of the Qwen 3.5, 3.6 and 3.8 architectures (`qwen35` and `qwen35moe`), planned and not yet run.
 - [ROADMAP](docs/ROADMAP.md): planned models, formats, backends and features.
 - [STATUS](docs/STATUS.md): the dated development log, newest first, with measurements.
 - [ASSETS](docs/ASSETS.md): the models, corpora and reference fixtures behind the recorded results.

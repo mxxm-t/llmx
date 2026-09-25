@@ -5,6 +5,8 @@
 #include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <limits>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -71,29 +73,37 @@ public:
         http::Request req;
         int status = 0;
         http::Limits limits;
-        if (!c.read_request(req, limits, status)) {
-            if (status) c.respond(status, "application/json", error_json(http::reason(status), false));
+        const bool read = c.read_request(req, limits, status);
+        // The compatible routes report errors in their clients' shape, a request refused while it is read included; the path is known unless the head itself was refused.
+        const std::optional<Route> route = route_of(req.path);
+        const bool shape = route && compat(*route);
+        if (!read) {
+            if (status) c.respond(status, "application/json", error_json(http::reason(status), shape));
             return;
         }
-        // The compatible routes report errors in their clients' shape.
-        const bool compat = req.path == "/v1/chat/completions" || req.path == "/v1/completions";
         try {
             if (req.method == "GET" && req.path == "/v1/health") return health(c);
             if (req.method == "GET" && req.path == "/v1/models") return models(c);
-            if (req.method == "POST" && req.path == "/v1/generate") return generate(c, req, Route::generate);
-            if (req.method == "POST" && req.path == "/v1/chat") return generate(c, req, Route::chat);
-            if (req.method == "POST" && req.path == "/v1/chat/completions") return generate(c, req, Route::chat_completions);
-            if (req.method == "POST" && req.path == "/v1/completions") return generate(c, req, Route::completions);
-            c.respond(404, "application/json", error_json("no such route", compat));
+            if (req.method == "POST" && route) return generate(c, req, *route);
+            c.respond(404, "application/json", error_json("no such route", shape));
         } catch (const BadRequest& e) {
-            c.respond(e.status, "application/json", error_json(e.what(), compat));
+            c.respond(e.status, "application/json", error_json(e.what(), shape));
         } catch (const std::exception& e) {
-            try { c.respond(500, "application/json", error_json(e.what(), compat)); } catch (...) {}
+            try { c.respond(500, "application/json", error_json(e.what(), shape)); } catch (...) {}
         }
     }
 
 private:
     enum class Route { generate, chat, chat_completions, completions };
+    static std::optional<Route> route_of(const std::string& path) {
+        if (path == "/v1/generate") return Route::generate;
+        if (path == "/v1/chat") return Route::chat;
+        if (path == "/v1/chat/completions") return Route::chat_completions;
+        if (path == "/v1/completions") return Route::completions;
+        return std::nullopt;
+    }
+    // The routes that speak the OpenAI clients' shape.
+    static bool compat(Route route) { return route == Route::chat_completions || route == Route::completions; }
 
     struct BadRequest : std::runtime_error {
         int status;
@@ -121,13 +131,23 @@ private:
                   ",\"vocab\":" + std::to_string(model_.n_vocab()) + "}]}");
     }
 
-    // The cap a compatible request gets when it sends none; replaced by the room left once its prompt is encoded.
-    static constexpr int kUntilLimit = -1;
     static double number(const jmini::Value& v, const char* key, double fallback) {
         const jmini::Value* f = v.get(key);
         if (!f) return fallback;
         if (!f->isNumber() || !std::isfinite(f->asNumber())) throw BadRequest(400, std::string(key) + " must be a number");
         return f->asNumber();
+    }
+    // A whole number from lo to hi, refused before the caller casts it, since a double outside the target type has no defined conversion.
+    static double integer(const jmini::Value& v, const char* key, double lo, double hi, double fallback) {
+        const jmini::Value* f = v.get(key);
+        if (!f) return fallback;
+        const double x = f->isNumber() ? f->asNumber() : NAN;
+        if (!(x >= lo && x <= hi) || x != std::floor(x)) {
+            char range[96];
+            std::snprintf(range, sizeof range, " must be an integer from %.0f to %.0f", lo, hi);
+            throw BadRequest(400, key + std::string(range));
+        }
+        return x;
     }
     static bool flag(const jmini::Value& v, const char* key) {
         const jmini::Value* f = v.get(key);
@@ -174,23 +194,29 @@ private:
 
     // The sampling fields, native names first and the compatible routes' synonyms accepted beside them.
     SampleParams params_of(const jmini::Value& body, Route route) {
-        const bool compat = route == Route::chat_completions || route == Route::completions;
         SampleParams params;
         const SampleParams defaults;
-        // The compatible routes take an absent cap as the standard does, no cap: the reply runs to the model's end of text or to what the request may hold, set once the prompt is encoded (kUntilLimit). The native route keeps the default cap.
-        params.max_tokens = (int)number(body, "max_tokens", compat ? number(body, "max_completion_tokens", kUntilLimit) : defaults.max_tokens);
+        const double lo = std::numeric_limits<int>::min(), hi = std::numeric_limits<int>::max();
+        // The compatible routes take an absent cap, or -1, as the standard does: no cap, the reply running to the model's end of text or to what the request may hold. The native routes keep the default cap and refuse -1 as any other cap below 1.
+        const double cap = integer(body, "max_tokens", lo, hi,
+                                   compat(route) ? integer(body, "max_completion_tokens", lo, hi, -1) : defaults.max_tokens);
+        params.until_limit = compat(route) && cap == -1;
+        params.max_tokens = (int)cap;
         params.temp = (float)number(body, "temperature", defaults.temp);
-        params.top_k = (int)number(body, "top_k", defaults.top_k);
+        params.top_k = (int)integer(body, "top_k", lo, hi, defaults.top_k);
         params.top_p = (float)number(body, "top_p", defaults.top_p);
-        params.penalty = (float)number(body, "penalty", compat ? number(body, "repetition_penalty", defaults.penalty) : defaults.penalty);
-        params.seed = (uint64_t)number(body, "seed", (double)defaults.seed);
+        params.penalty = (float)number(body, "penalty", compat(route) ? number(body, "repetition_penalty", defaults.penalty) : defaults.penalty);
+        // Clients send a seed of -1 for a random one, so the compatible routes take it as no seed, as they take an absent one; the native routes refuse it as any other seed below 0.
+        // The largest double below 2^64 is the last one a seed holds.
+        const double seed = integer(body, "seed", compat(route) ? -1 : 0, std::nextafter(18446744073709551616.0, 0.0), (double)defaults.seed);
+        params.seed = seed == -1 ? defaults.seed : (uint64_t)seed;
         if (const jmini::Value* stop = body.get("stop")) {
             if (stop->isString()) params.stop.push_back(stop->asString());
             else if (stop->isArray())
                 for (const auto& s : stop->asArray())
                     if (s.isString()) params.stop.push_back(s.asString());
         }
-        if (compat && number(body, "n", 1) != 1) throw BadRequest(400, "n must be 1");
+        if (compat(route) && integer(body, "n", lo, hi, 1) != 1) throw BadRequest(400, "n must be 1");
         return params;
     }
 
@@ -204,13 +230,12 @@ private:
     // A finished request's speed in the fields clients that display speed read beside the standard usage: prompt tokens prefilled and reused, milliseconds to the first token, and generation after it.
     static std::string timings_json(const Request& r, size_t tokens) {
         const Request::Timings t = r.timings();
-        const size_t cached = r.reused(), prefilled = r.prompt_tokens() - cached, predicted = tokens > 1 ? tokens - 1 : 0;
-        auto rate = [](size_t n, double ms) { return ms > 0 ? 1000.0 * (double)n / ms : 0.0; };
+        const size_t cached = r.reused(), prefilled = r.prompt_tokens() - cached;
         auto num = [](double v) { char b[32]; std::snprintf(b, sizeof b, "%.3f", v); return std::string(b); };
         return "{\"cache_n\":" + std::to_string(cached) + ",\"prompt_n\":" + std::to_string(prefilled) +
-               ",\"prompt_ms\":" + num(t.prompt_ms) + ",\"prompt_per_second\":" + num(rate(prefilled, t.prompt_ms)) +
-               ",\"predicted_n\":" + std::to_string(predicted) + ",\"predicted_ms\":" + num(t.predicted_ms) +
-               ",\"predicted_per_second\":" + num(rate(predicted, t.predicted_ms)) + ",\"queued_ms\":" + num(t.queued_ms) + "}";
+               ",\"prompt_ms\":" + num(t.prompt_ms) + ",\"prompt_per_second\":" + num(Request::Timings::per_second(prefilled, t.prompt_ms)) +
+               ",\"predicted_n\":" + std::to_string(Request::Timings::predicted(tokens)) + ",\"predicted_ms\":" + num(t.predicted_ms) +
+               ",\"predicted_per_second\":" + num(t.predicted_per_second(tokens)) + ",\"queued_ms\":" + num(t.queued_ms) + "}";
     }
     // The head every compatible object and chunk starts with.
     std::string head(const std::string& id, const char* object) const {
@@ -242,25 +267,15 @@ private:
         try { body = jmini::parse(req.body); }
         catch (const std::exception& e) { throw BadRequest(400, std::string("bad JSON: ") + e.what()); }
         if (!body.isObject()) throw BadRequest(400, "the body must be a JSON object");
-        const bool compat = route == Route::chat_completions || route == Route::completions;
 
         const std::string prompt = prompt_of(body, route);
-        SampleParams params = params_of(body, route);
+        const SampleParams params = params_of(body, route);
         const bool stream = flag(body, "stream");
         const jmini::Value* so = body.get("stream_options");
         const bool include_usage = so && so->isObject() && flag(*so, "include_usage");
 
-        std::vector<uint32_t> ids = tok_.encode(prompt);
-        if (ids.empty()) throw BadRequest(400, "the prompt encodes to no tokens");
-        // An uncapped request may run to its token limit; the scheduler reserves its blocks as it grows, so uncapped requests run side by side.
-        if (params.max_tokens == kUntilLimit) {
-            if (ids.size() >= sched_.token_limit())
-                throw BadRequest(413, "the prompt fills the " + std::to_string(sched_.token_limit()) + " tokens a request may hold");
-            params.max_tokens = (int)(sched_.token_limit() - ids.size());
-            params.until_limit = true;
-        }
         std::shared_ptr<Request> r;
-        try { r = sched_.submit(std::move(ids), params); }
+        try { r = sched_.submit(tok_.encode(prompt), params); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
@@ -282,7 +297,7 @@ private:
                 pending.erase(0, whole);
                 text += piece;
                 if (!stream) continue;
-                if (compat) c.write_chunk("data: " + chunk(route, id, piece, first, nullptr) + "\n\n");
+                if (compat(route)) c.write_chunk("data: " + chunk(route, id, piece, first, nullptr) + "\n\n");
                 else c.write_chunk("data: {\"id\":" + std::to_string(tid) + ",\"text\":" + jmini::quote(piece) + "}\n\n");
                 first = false;
             }
@@ -293,12 +308,12 @@ private:
             if (finish == "error") {
                 if (!stream) throw std::runtime_error(r->error());
                 // The stream's head went out as 200, so the failure is its last event.
-                c.write_chunk("data: " + error_json(r->error(), compat) + "\n\n");
+                c.write_chunk("data: " + error_json(r->error(), compat(route)) + "\n\n");
                 c.end_stream();
                 return;
             }
             const size_t prompt_tokens = r->prompt_tokens();
-            if (stream && compat) {
+            if (stream && compat(route)) {
                 if (!pending.empty() || first) c.write_chunk("data: " + chunk(route, id, pending, first, nullptr) + "\n\n");
                 c.write_chunk("data: " + last_chunk(route, id, finish, *r, gen.size()) + "\n\n");
                 if (include_usage)

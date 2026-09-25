@@ -15,7 +15,7 @@ import f32
 import moe
 from common import run as cli
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats; a bad body and a request past the context are refused; a client that goes away mid-stream leaves the server with nothing active; a chat turn renders.
+# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold and a request past the context are refused; a client that goes away mid-stream leaves the server with nothing active; a chat turn renders.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 
 
@@ -114,6 +114,11 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
         # Refusals: a bad body, and a request past the context.
         assert srv.post("/v1/generate", {"prompt": ""})[0] == 400
         assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": 10 ** 9})[0] == 413
+        # A number its field cannot hold is refused before any cast, and -1, no cap or no seed on the compatible routes, is refused on the native route as a cap or a seed.
+        for field, value in (("max_tokens", 3e9), ("top_k", 1e10), ("seed", -1)):
+            status, err = srv.post("/v1/generate", dict({"prompt": "a", "max_tokens": 2}, **{field: value}))
+            assert status == 400 and field in err["error"], (field, status, err)
+        assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": -1})[0] == 400
 
         # A client that leaves mid-stream: open the socket, start a request, close after the first bytes, and the server ends with nothing active.
         s = socket.create_connection(("127.0.0.1", srv.port))
@@ -133,12 +138,16 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
             assert status == 200 and reply["tokens"] >= 1, reply
 
         # The compatible routes: /v1/completions gives the native route's greedy text in the standard shape, whole and streamed with the finish chunk then the end marker; /v1/chat/completions renders the same template as /v1/chat, its first chunk carries the role and its usage counts add up; the standard refusals have the standard shape.
-        # An absent max_tokens means no cap, checked on the synthetic model only, since the real model's uncapped reply would run long.
+        # An absent max_tokens, or -1, means no cap, checked on the synthetic model only, since the real model's uncapped reply would run long.
         if not chat:
-            status, reply = srv.post("/v1/completions", {"prompt": prompts[0], "temperature": 0})
             limit = models["data"][0]["context_length"]
-            assert status == 200 and reply["choices"][0]["finish_reason"] in ("stop", "length"), reply
-            assert reply["usage"]["completion_tokens"] >= 1 and reply["usage"]["total_tokens"] <= limit, reply
+            uncapped = []
+            for cap in ({}, {"max_tokens": -1}):
+                status, reply = srv.post("/v1/completions", dict({"prompt": prompts[0], "temperature": 0}, **cap))
+                assert status == 200 and reply["choices"][0]["finish_reason"] in ("stop", "length"), reply
+                assert reply["usage"]["completion_tokens"] >= 1 and reply["usage"]["total_tokens"] <= limit, reply
+                uncapped.append((reply["choices"][0]["text"], reply["usage"]["completion_tokens"]))
+            assert uncapped[0] == uncapped[1], uncapped
         status, reply = srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": n, "temperature": 0})
         assert status == 200 and reply["object"] == "text_completion", reply
         assert reply["choices"][0]["text"] == cli_greedy_text(model, prompts[0], n, flags), reply
@@ -155,6 +164,26 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
         assert "".join(e["choices"][0]["text"] for e in events[:-2]) == reply["choices"][0]["text"], events
         status, err = srv.post("/v1/completions", {"prompt": prompts[0], "n": 2})
         assert status == 400 and err["error"]["message"], err
+        # Clients send a seed of -1 for a random one, and the compatible routes sample it as they sample a request with no seed; a seed below -1 is still refused.
+        sampled = [srv.post("/v1/completions", dict({"prompt": prompts[0], "max_tokens": n, "temperature": 1.0}, **seed))
+                   for seed in ({}, {"seed": -1})]
+        assert all(status == 200 for status, _ in sampled), sampled
+        assert sampled[0][1]["choices"][0]["text"] == sampled[1][1]["choices"][0]["text"], sampled
+        status, err = srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": 2, "seed": -2})
+        assert status == 400 and "seed" in err["error"]["message"], err
+        # A body past the size limit is refused while it is read, still in the compatible route's error shape.
+        s = socket.create_connection(("127.0.0.1", srv.port), timeout=30)
+        s.sendall(b"POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % (65 << 20))
+        raw = b""
+        while True:
+            part = s.recv(4096)
+            if not part:
+                break
+            raw += part
+        s.close()
+        head, _, payload = raw.partition(b"\r\n\r\n")
+        err = json.loads(payload)
+        assert head.startswith(b"HTTP/1.1 413") and isinstance(err["error"], dict) and err["error"]["message"], raw
         if chat:
             status, reply = srv.post("/v1/chat/completions",
                                      {"messages": [{"role": "user", "content": [{"type": "text", "text": prompts[0]}]}],

@@ -25,7 +25,7 @@ struct SampleParams {
     float penalty = 1.0f;
     uint64_t seed = 0;
     std::vector<std::string> stop;
-    // No cap from the client: max_tokens is what the request may hold, and its blocks are reserved as it grows.
+    // No cap from the client: submit sets max_tokens to what the request may hold, and its blocks are reserved as it grows.
     bool until_limit = false;
 };
 
@@ -62,7 +62,13 @@ public:
     // Prompt tokens taken from a donor's cache rather than prefilled.
     size_t reused() const { return reused_.load(); }
     // Milliseconds from admission to the first token, and from the first token to the end; read once the request has ended.
-    struct Timings { double queued_ms = 0, prompt_ms = 0, predicted_ms = 0; };
+    struct Timings {
+        double queued_ms = 0, prompt_ms = 0, predicted_ms = 0;
+        // The tokens predicted_ms covers: those after the first, which came with the prompt's pass.
+        static size_t predicted(size_t tokens) { return tokens > 1 ? tokens - 1 : 0; }
+        static double per_second(size_t n, double ms) { return ms > 0 ? 1000.0 * (double)n / ms : 0.0; }
+        double predicted_per_second(size_t tokens) const { return per_second(predicted(tokens), predicted_ms); }
+    };
     Timings timings() const {
         std::lock_guard<std::mutex> lk(m_);
         auto ms = [](Clock::time_point a, Clock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
@@ -123,7 +129,7 @@ struct QueueFull : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-// A request whose prompt and max_tokens pass what one request may hold (Scheduler::token_limit).
+// A request whose prompt and max_tokens pass what one request may hold (Scheduler::token_limit), or an uncapped one whose prompt leaves no room.
 struct TooLong : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
@@ -140,9 +146,14 @@ public:
     }
 
     // Queue a request; the handle's channel delivers its tokens.
-    // A prompt the limit cannot hold is refused here, before it waits, and so is a request arriving at a full queue.
+    // A prompt the limit cannot hold is refused here, before it waits, and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
     std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params) {
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
+        if (params.until_limit) {
+            if (prompt.size() >= token_limit())
+                throw TooLong("the prompt fills the " + std::to_string(token_limit()) + " tokens a request may hold");
+            params.max_tokens = (int)(token_limit() - prompt.size());
+        }
         if (params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
         if (prompt.size() + (size_t)params.max_tokens > token_limit())
             throw TooLong("prompt plus max_tokens exceeds the " + std::to_string(token_limit()) + " tokens a request may hold");
@@ -413,7 +424,7 @@ private:
         const Request::Timings t = r->timings();
         std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s\n",
                      r->prompt_tokens(), r->reused(), r->gen_.size(), t.queued_ms, t.prompt_ms,
-                     t.predicted_ms > 0 ? 1000.0 * (double)(r->gen_.size() > 1 ? r->gen_.size() - 1 : 0) / t.predicted_ms : 0.0,
+                     t.predicted_per_second(r->gen_.size()),
                      why.c_str(), r->resumed_ ? ", resumed after a pause" : "");
     }
 

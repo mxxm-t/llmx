@@ -286,12 +286,8 @@ these cases skip if diagnostic timestamps are unavailable. Transfer ownership
 cases intercept copies so old failures cannot submit references to freed
 memory. Broad device arithmetic remains covered by `backend-vulkan` and HF.
 
-`http` starts the server's HTTP layer (`src/server/http.hpp`) on a
-system-chosen port from a thread and drives it with the layer's own client:
-a whole response, a body echoed back, a chunked stream whose chunks arrive
-as written, an oversized body refused with 413, a malformed request line
-refused with 400, an unknown route 404, and the listener closed from the
-main thread ending the accept loop. Windows and Linux.
+`http` starts the server's HTTP layer (`src/server/http.hpp`) on a system-chosen port from a thread and drives it with the layer's own client: a whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, and the listener closed from the main thread ending the accept loop.
+Windows and Linux.
 
 `placement` splits a two-layer model over two CPU backends with a device per
 tensor role (`docs/EXECUTION.md`) and requires the bytes of the same model on

@@ -492,31 +492,18 @@ to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request
 
 On the last two an absent `max_tokens`, or `-1`, means no cap, as the standard has it: the reply runs to the model's end of text or to what the request may hold. Such a request reserves its prompt and grows its reservation as it generates, so uncapped requests run side by side; when the KV pool runs out, cached prefixes are dropped first, then the most recently admitted uncapped request is paused and resumes from its history once there is room. A capped request reserves its whole reach up front and is never paused. The compatible routes also return a `timings` object beside `usage`, in the fields clients that display speed read: `prompt_n` and `cache_n` (prompt tokens prefilled and reused), `prompt_ms`, `prompt_per_second`, `predicted_n`, `predicted_ms`, `predicted_per_second` and `queued_ms`. Each finished request logs one line on stderr. The native routes keep a default of 64.
 
-The last two are the shape the OpenAI clients speak, so a UI, an SDK or a
-script written for any such server connects to `llmx serve` unchanged: it
-lists `/v1/models`, sends the `id` it finds there as the model and streams
-`/v1/chat/completions`. Streamed, each `data:` line is a chunk whose first
-delta carries the role, the last carries `finish_reason` (`stop` for the
-end of text or a stop string, `length` for the token limit), a usage chunk
-follows when asked for, then `data: [DONE]`. A message's content is a
-string or an array of `{"type": "text", "text"}` parts; `n` other than 1
-and non-text parts are refused with 400 in the clients' error shape,
-`{"error": {"message", "type"}}`. The native routes carry what the shape
-cannot: token ids, the `eos` finish and the reused-prefix count.
+The last two are the shape the OpenAI clients speak, so a UI, an SDK or a script written for any such server connects to `llmx serve` unchanged: it lists `/v1/models`, sends the `id` it finds there as the model and streams `/v1/chat/completions`.
+Streamed, each `data:` line is a chunk whose first delta carries the role, the last carries `finish_reason` (`stop` for the end of text or a stop string, `length` for the token limit), a usage chunk follows when asked for, then `data: [DONE]`.
+A message's content is a string or an array of `{"type": "text", "text"}` parts; `n` other than 1 and non-text parts are refused with 400 in the clients' error shape, `{"error": {"message", "type"}}`.
+A stream whose pass fails ends with one `data:` event holding the error in that shape, without `data: [DONE]`, since its 200 head has gone out.
+The native routes carry what the shape cannot: token ids, the `eos` finish and the reused-prefix count.
 
-With `"stream": true` the reply is `text/event-stream`: one `data:` line
-per token holding its id and text (a character split across tokens is
-held until complete), then `data: {"done": true, "finish": ..., "tokens":
-N}` and `data: [DONE]`. A request is admitted when the KV pool can hold
-its prompt plus `max_tokens`, otherwise it waits in the queue; a prompt
-that cannot fit the context at all is refused with 413. A greedy request
-gives the ids `generate --temp 0` gives for the same prompt, alone or
-beside other requests, and a seeded request is reproducible whatever it is
-batched with. A finished request's cache stays a while as a donor: a new
-prompt that repeats its tokens shares those KV blocks read-only and
-prefills only what follows, `reused_tokens` in the reply, whole blocks
-only and never the last prompt token. Donors give their blocks up, oldest
-first, when a request needs them.
+With `"stream": true` the reply is `text/event-stream`: one `data:` line per token holding its id and text (a character split across tokens is held until complete), then `data: {"done": true, "finish": ..., "tokens": N}` and `data: [DONE]`.
+A stream whose pass fails ends with one `data:` event holding the error in the native shape, `{"error": "..."}`, in place of the `done` event and without `data: [DONE]`.
+A request is admitted when the KV pool can hold its prompt plus `max_tokens`, otherwise it waits in the queue; a prompt that cannot fit the context at all is refused with 413.
+A greedy request gives the ids `generate --temp 0` gives for the same prompt, alone or beside other requests, and a seeded request is reproducible whatever it is batched with.
+A finished request's cache stays a while as a donor: a new prompt that repeats its tokens shares those KV blocks read-only and prefills only what follows, `reused_tokens` in the reply, whole blocks only and never the last prompt token.
+Donors give their blocks up, oldest first, when a request needs them.
 
 ```
 llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080

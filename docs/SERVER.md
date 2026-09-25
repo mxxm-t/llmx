@@ -86,13 +86,8 @@ accept thread ---> connection thread (one per socket)
 scheduler thread   the only caller of Model::forward for its devices
 ```
 
-A `Request` carries the prompt ids, the sampling parameters, a `Sequence`,
-the stop conditions and a channel: a mutex, a condition variable and a
-deque of sampled ids that the connection thread drains. Cancellation is a
-flag the connection thread sets when the socket closes; the scheduler sees
-it at the next iteration, drops the request from the batch and releases
-its sequence, which returns its blocks once the last pass that read them
-has retired.
+A `Request` carries the prompt ids, the sampling parameters, a `Sequence`, the stop conditions and a channel: a mutex, a condition variable and a deque of sampled ids that the connection thread drains.
+Cancellation is a flag the connection thread sets when a write to the client fails, so a stream notices a departed client at its next token and a whole reply only when it is written at the end; the scheduler sees the flag at the next iteration, drops the request from the batch and releases its sequence, which returns its blocks once the last pass that read them has retired.
 
 ### The scheduler loop
 
@@ -173,13 +168,10 @@ beside them, validated before anything reaches the model, and they cost a
 request exactly what a native one costs. What the shape cannot carry, token
 ids and the reused-prefix count, stays on the native routes.
 
-A streaming response is `text/event-stream`: one `data:` line per token
-with the id and the decoded text, a final `data: [DONE]`, and the same
-UTF-8 boundary rule the CLI streaming has, a split character is held until
-its bytes complete. A non-streaming request gets one JSON object with the
-text, the ids and the counts. Errors are JSON with an HTTP status: 400 for
-a bad request, 413 for a prompt past the context, 503 when the queue is
-full.
+A streaming response is `text/event-stream`: one `data:` line per token with the id and the decoded text, a final `data: [DONE]`, and the same UTF-8 boundary rule the CLI streaming has, a split character is held until its bytes complete.
+A non-streaming request gets one JSON object with the text, the ids and the counts.
+Errors are JSON with an HTTP status: 400 for a bad request, 413 for a prompt past the context, 503 when the queue is full.
+A stream whose pass fails has already sent its 200 head, so it ends with one `data:` event holding the error in the route's error shape, without `data: [DONE]`.
 
 ### What is not in the first version
 

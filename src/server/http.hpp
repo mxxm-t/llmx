@@ -1,13 +1,17 @@
 #pragma once
 // HTTP/1.1 over blocking sockets, enough for the server in docs/SERVER.md: listen, accept, read one request with a Content-Length body, write one response or a chunked stream.
 // One thread per connection, no keep-alive beyond one request, no TLS, no external library: a reverse proxy does the rest when the server faces a network.
-// Windows uses Winsock, everything else BSD sockets; the two differ only in the handle type and in how a socket is closed, which is what the few #if blocks below cover.
+// Windows uses Winsock, everything else BSD sockets; the two differ only in the handle type, in how a socket is closed and in their error codes, which is what the few #if blocks below cover.
+#include <atomic>
+#include <cerrno>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <map>
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #if defined(_WIN32)
@@ -36,6 +40,8 @@ using Socket = SOCKET;
 constexpr Socket kInvalid = INVALID_SOCKET;
 inline void close_socket(Socket s) { closesocket(s); }
 inline int last_error() { return WSAGetLastError(); }
+// The accept failures that belong to one client, a connection reset before it was taken or an interrupted call, after which the next accept can succeed at once.
+inline bool per_client(int e) { return e == WSAECONNRESET || e == WSAEINTR; }
 // Winsock wants one startup per process; the first listener does it and nothing undoes it, since the process ends with the server.
 inline void platform_init() {
     static std::once_flag once;
@@ -49,6 +55,8 @@ using Socket = int;
 constexpr Socket kInvalid = -1;
 inline void close_socket(Socket s) { ::close(s); }
 inline int last_error() { return errno; }
+// The accept failures that belong to one client, a connection aborted before it was taken, an interrupted call or a protocol error on the new connection, after which the next accept can succeed at once.
+inline bool per_client(int e) { return e == ECONNABORTED || e == EINTR || e == EPROTO; }
 // A write to a socket the peer has closed raises SIGPIPE and ends the process unless the process ignores it; a client leaving mid-stream is ordinary here, so the signal is ignored once and every send also passes MSG_NOSIGNAL where the platform has it.
 inline void platform_init() {
     static std::once_flag once;
@@ -135,7 +143,9 @@ public:
         return true;
     }
 
+    // Refused while a stream is open: its head has gone out, and a second one would land inside the chunked body.
     void respond(int status, const std::string& content_type, const std::string& body) {
+        if (streaming_) throw std::logic_error("http: a response inside a stream");
         std::string out = "HTTP/1.1 " + std::to_string(status) + " " + reason(status) + "\r\n";
         out += "Content-Type: " + content_type + "\r\n";
         out += "Content-Length: " + std::to_string(body.size()) + "\r\n";
@@ -264,15 +274,22 @@ public:
     uint16_t port() const { return port_; }
 
     // Blocks for the next client; an invalid connection means the listener was closed from another thread, which is how the server stops.
+    // Any other failure is retried while the listener is open: at once when it was one client's, and after 50 ms otherwise, so a shortage of descriptors or buffers can pass and an error that persists cannot spin a core.
     Connection accept() {
-        const Socket c = ::accept(s_, nullptr, nullptr);
-        if (c != kInvalid) {
-            int one = 1;
-            setsockopt(c, IPPROTO_TCP, TCP_NODELAY, (const char*)&one, sizeof(one));
+        for (;;) {
+            const Socket c = ::accept(s_, nullptr, nullptr);
+            if (c != kInvalid) {
+                int one = 1;
+                setsockopt(c, IPPROTO_TCP, TCP_NODELAY, (const char*)&one, sizeof(one));
+                return Connection(c);
+            }
+            const int e = last_error();
+            if (closed_.load()) return Connection(kInvalid);
+            if (!per_client(e)) std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        return Connection(c);
     }
     void close() {
+        closed_.store(true);
         if (s_ != kInvalid) {
 #if defined(_WIN32)
             shutdown(s_, SD_BOTH);
@@ -287,6 +304,7 @@ public:
 private:
     Socket s_ = kInvalid;
     uint16_t port_ = 0;
+    std::atomic<bool> closed_{false};   // set before the socket closes, so a failing accept knows the stop from a passing error
 };
 
 // The client side, for the tests: one request, the whole response read to the end, chunked bodies decoded.

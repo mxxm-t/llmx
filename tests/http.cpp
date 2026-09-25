@@ -1,5 +1,5 @@
 // The HTTP layer of docs/SERVER.md step 1: a listener on a system-chosen port served from a thread, requests sent with the layer's own client.
-// A whole response, a body echoed back, a chunked stream whose chunks arrive as written, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, and the listener closed from the main thread ending the accept loop.
+// A whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, and the listener closed from the main thread ending the accept loop.
 #include <atomic>
 #include <cstdio>
 #include <iostream>
@@ -34,6 +34,13 @@ void serve_one(http::Connection& c) {
         c.write_chunk("data: tw\xc3\xb6\n\n");
         c.write_chunk("data: [DONE]\n\n");
         c.end_stream();
+    } else if (req.method == "GET" && req.path == "/respond-in-stream") {
+        // A second head would land inside the chunked body, so respond refuses and the stream carries on.
+        c.begin_stream(200, "text/plain");
+        bool refused = false;
+        try { c.respond(500, "text/plain", "late"); } catch (const std::logic_error&) { refused = true; }
+        c.write_chunk(refused ? "refused" : "sent");
+        c.end_stream();
     } else {
         c.respond(404, "text/plain", "no such route");
     }
@@ -64,6 +71,8 @@ int main() {
         require(http::fetch("127.0.0.1", port, "GET", "/stream", "", out, &chunks) == 200, "GET /stream");
         require(chunks.size() == 3 && chunks[1] == "data: tw\xc3\xb6\n\n" &&
                 out == "data: one\n\ndata: tw\xc3\xb6\n\ndata: [DONE]\n\n", "chunks as written");
+        require(http::fetch("127.0.0.1", port, "GET", "/respond-in-stream", "", out) == 200 && out == "refused",
+                "a whole response refused inside a stream");
         require(http::fetch("127.0.0.1", port, "POST", "/echo", std::string(2048, 'x'), out) == 413,
                 "oversized body refused");
         require(http::fetch("127.0.0.1", port, "GET", "/nowhere", "", out) == 404, "unknown route");
@@ -90,8 +99,8 @@ int main() {
         }
         listener.close();
         server.join();
-        require(served.load() == 6, "every request served once");
-        std::cout << "http: listener, whole responses, a 3-chunk stream, 413, 400 and 404 over " << served.load()
+        require(served.load() == 7, "every request served once");
+        std::cout << "http: listener, whole responses, a 3-chunk stream, a response refused inside a stream, 413, 400 and 404 over " << served.load()
                   << " connections\n";
         return 0;
     } catch (const std::exception& e) {

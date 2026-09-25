@@ -290,7 +290,13 @@ private:
             pending = utf8_sanitize(pending);
             text += pending;
             const std::string finish = r->finish();
-            if (finish == "error") throw std::runtime_error(r->error());
+            if (finish == "error") {
+                if (!stream) throw std::runtime_error(r->error());
+                // The stream's head went out as 200, so the failure is its last event.
+                c.write_chunk("data: " + error_json(r->error(), compat) + "\n\n");
+                c.end_stream();
+                return;
+            }
             const size_t prompt_tokens = r->prompt_tokens();
             if (stream && compat) {
                 if (!pending.empty() || first) c.write_chunk("data: " + chunk(route, id, pending, first, nullptr) + "\n\n");

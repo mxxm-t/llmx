@@ -164,8 +164,9 @@ The round-trip component (`tests/roundtrip.py`, under Tests below) checks
 the format and quantization paths: it builds a random F32 model, quantizes
 it to Q8_0 and Q4_0 through the CLI, dequantizes it back and bounds the
 error, and decodes the written blocks from the format description rather
-than with llmx's own reader. Run it alone against the root `llmx.exe` that
-`build.bat` writes, or as part of the suite for a CMake build:
+than with llmx's own reader.
+Q4_1 and Q4_K, which `quantize` does not write, are decoded the same way from raw blocks the test writes, chosen so every scale, min and nibble bit reaches a decoded value, and `dequantize` must match bit for bit.
+Run it alone against the root `llmx.exe` that `build.bat` writes, or as part of the suite for a CMake build:
 ```
 python tests/roundtrip.py
 python tests/run_tests.py --exe build/Release/llmx.exe
@@ -325,6 +326,7 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   Also checks quantize's JSON tensor schema/dimension and binary-length rejection,
   output preservation on validation failure, and valid one-to-four-dimensional
   conversion for both writable types.
+  `dequantize` must match, bit for bit, a decode written from the format description: Q8_0 and Q4_0 on the blocks quantize writes, Q4_1 and Q4_K on raw blocks that reach every scale, min and nibble bit, so the Q8_0, Q4_0, Q4_1 and Q4_K references of `q8-dots` and `backend-group`, which take them from the same decoders, rest on an independent decode; their Q5_K and Q6_K references still rest on the real-model HF checks.
 - **Perf** (`tests/perf.py`): time matmul / RMSNorm / RoPE hot paths and print
   throughput, so perf-first changes can be checked for regressions. Assert a
   generous floor so catastrophic slowdowns fail loudly without being flaky.

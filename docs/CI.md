@@ -116,6 +116,7 @@ and required tensor/storage layouts,
 grouped kernels, worker
 failures, chat rendering, sampling and KV storage,
 plus the Python HF/Jinja2 follow-up fixtures and CLI thread-control checks.
+The Python suite's `roundtrip` component in these jobs checks the Q8_0, Q4_0, Q4_1 and Q4_K decoders bit for bit against a decode written from the format description, the last two on raw blocks that reach every scale, min and nibble bit, so those readers are covered without a real model.
 The combined five-job workflow first ran on published runtime `08351b0`.
 [Run 35512421834](https://github.com/mxxm-t/llmx/actions/runs/35512421834)
 passed ordinary Ubuntu and required HF, but exposed three portability issues:

@@ -80,8 +80,8 @@ void xquant8_block(uint i, float v, uint n, uint base) { xquant8_block_at(i, v, 
 
 // The same 8-bit block, a lane per four consecutive values: a block is eight consecutive lanes aligned to eight, lane w of them holding its word w.
 // Every lane calls, those of a block with nothing to write with `live` false; a maximum and an integer sum do not depend on their order, so the block is the one the lanes above write, bit for bit.
-// Word w of block blk goes to word blk * 8 + w, and the block's scale and scaled sum after the n / 4 words of quants, as for xquant8_block_at with base 0.
-void xquant8_word(vec4 v, bool live, uint w, uint blk, uint n) {
+// Word w of block blk goes to word blk * 8 + w, and the block's scale and scaled sum to words tab + 2 * blk and the next.
+void xquant8_word(vec4 v, bool live, uint w, uint blk, uint tab) {
     vec4 a = abs(v);
     float amax = max(max(a.x, a.y), max(a.z, a.w));
     amax = max(amax, subgroupShuffleXor(amax, 4u));
@@ -99,17 +99,18 @@ void xquant8_word(vec4 v, bool live, uint w, uint blk, uint n) {
     uvec4 b = uvec4(q) & 255u;
     xq[blk * 8u + w] = b.x | (b.y << 8u) | (b.z << 16u) | (b.w << 24u);
     if (w == 0u) {
-        uint e = n / 4u + 2u * blk;
-        xq[e] = floatBitsToUint(d);
-        xq[e + 1u] = floatBitsToUint(d * float(s));
+        xq[tab + 2u * blk] = floatBitsToUint(d);
+        xq[tab + 2u * blk + 1u] = floatBitsToUint(d * float(s));
     }
 }
 
-// The prefill tile's copy of an nbatch x nin batch (quantize_x8.comp) orders blocks by block of the inner dimension, then column: the block of values 4t .. 4t + 3.
-uint xquant8_tile_block(uint t, uint nin, uint nbatch) {
+// The prefill tile's copy of a batch nin wide (quantize_x8.comp) orders blocks by block of the inner dimension, then column, a block of the inner dimension being a row of xrow columns: the block of values 4t .. 4t + 3.
+// Its scale table starts after all rows' quants, at word xquant8_tile_table.
+uint xquant8_tile_block(uint t, uint nin, uint xrow) {
     uint nblk = nin / 32u, run = t / 8u, col = run / nblk;
-    return (run - col * nblk) * nbatch + col;
+    return (run - col * nblk) * xrow + col;
 }
+uint xquant8_tile_table(uint nin, uint xrow) { return nin / 32u * xrow * 8u; }
 
 // Where the 8-bit twin starts, in words, after the 16-bit twin, rounded up to 256 bytes so it can be bound at its own offset.
 uint xquant8_base(uint n) { return (n / 2u + n / 8u + 63u) & ~63u; }

@@ -2,12 +2,13 @@
 // The 8-bit twin of a batch of activation rows for the integer-dot prefill tile (matmul_tile_q.comp): a lane per four values over the batch as one flat run, since a row is whole blocks of 32.
 // Per block, 8 words of signed bytes in position order scaled so the largest magnitude is 127, then after every block's quants the scale and scaled sum per block.
 // Blocks are ordered by block of the inner dimension, then column, so a tile step reads its 64 columns as one run.
+// A block of the inner dimension holds xrow columns, the batch's padded so that its rows are not a large power of two apart, which slowed every writer of the copy (vulkan_backend.cpp, x8_row).
 // A lane loads its four values at once and packs its word itself (xquant8_word), so a block is eight consecutive lanes and its maximum and sum take three shuffles each.
 // Where the batch's producer knows the tile reads it, the producer writes this copy itself and this pass does not run (vulkan_backend.cpp, tile_reads).
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint n; uint nin; uint nbatch; } p;
+layout(push_constant) uniform P { uint n; uint nin; uint xrow; } p;
 layout(set = 0, binding = 0) readonly buffer X { vec4 x[]; };
 layout(set = 0, binding = 1) writeonly buffer Q { uint xq[]; };
 
@@ -17,5 +18,5 @@ void main() {
     uint t = gl_GlobalInvocationID.x;
     // Every lane takes part in the shuffles, a lane past the end with zeros; n is whole blocks, so a block is live or not as a whole.
     bool live = t < p.n / 4u;
-    xquant8_word(live ? x[t] : vec4(0.0), live, t & 7u, xquant8_tile_block(t, p.nin, p.nbatch), p.n);
+    xquant8_word(live ? x[t] : vec4(0.0), live, t & 7u, xquant8_tile_block(t, p.nin, p.xrow), xquant8_tile_table(p.nin, p.xrow));
 }

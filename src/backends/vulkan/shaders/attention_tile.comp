@@ -10,7 +10,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
-    uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint rows;
+    uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint xrow;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
@@ -38,7 +38,7 @@ layout(set = 0, binding = 3) readonly buffer V { vec4 vb[]; };
 void v_load8(uint i, out vec4 a, out vec4 b) { a = vb[i / 4u]; b = vb[i / 4u + 1u]; }
 #endif
 layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
-// With `quant` set every view of the batch is here and the batch's `rows` rows are read next by the integer-dot prefill tile, whose 8-bit copy of the output is written here (xquant8_word).
+// With `quant` set every view of the batch is here and the batch's rows are read next by the integer-dot prefill tile, whose 8-bit copy of the output, xrow columns a row, is written here (xquant8_word).
 layout(set = 0, binding = 5) writeonly buffer XQ { uint xq[]; };
 #include "views.glsl"
 #include "xquant.glsl"
@@ -150,6 +150,6 @@ void main() {
         vec4 a = acc[k] / l;
         if (live) { o[qbase + d] = a.x; o[qbase + d + 1u] = a.y; o[qbase + d + 2u] = a.z; o[qbase + d + 3u] = a.w; }
         // Dimensions 32k .. 32k + 31 of head h are block 4h + k of the row, held by its eight lanes in order.
-        if (p.quant != 0u) xquant8_word(live ? a : vec4(0.0), live, lane, (4u * h + k) * p.rows + row0 + b, p.rows * qstride);
+        if (p.quant != 0u) xquant8_word(live ? a : vec4(0.0), live, lane, (4u * h + k) * p.xrow + row0 + b, xquant8_tile_table(qstride, p.xrow));
     }
 }

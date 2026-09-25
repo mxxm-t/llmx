@@ -1,13 +1,13 @@
 #version 450
 // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i], per row, over `chunks` workgroups a row.
 // The sum of squares is a tree, through shared memory down to one subgroup's width and then through that subgroup's shuffles in the same order; a subgroup reduction adds in another order and moved an HF gate result (docs/STATUS.md), so the tree stays.
-// With `quant` set the rows are dense and a multiple of 32 wide, and with `quant` 1 the output's twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot prefill tile reads the rows, and the tile's 8-bit copy is written in the twin's place.
+// With `quant` set the rows are dense and a multiple of 32 wide, and with `quant` 1 the output's twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot prefill tile reads the rows, and the tile's 8-bit copy, xrow columns a row, is written in the twin's place.
 // With one chunk dst and src may be the same buffer: every element is read before the barrier and written after it by its own lane.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
 // Each of a row's `chunks` workgroups sums the whole row in the same order and writes its own 256-value chunks, or 1024-value chunks with `quant` 2; the backend takes one chunk when dst and src overlap.
-layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; uint quant; uint chunks; } p;
+layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; uint quant; uint chunks; uint xrow; } p;
 layout(set = 0, binding = 0) buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer S { float src[]; };
 layout(set = 0, binding = 2) readonly buffer W { float w[]; };
@@ -52,7 +52,7 @@ void main() {
         for (uint j = chunk * 256u + lid; j < p.n / 4u; j += 256u * p.chunks) {
             vec4 v = src4[base / 4u + j] * r * w4[j];
             dst4[base / 4u + j] = v;
-            xquant8_word(v, true, j & 7u, xquant8_tile_block(row * (p.n / 4u) + j, p.n, p.rows), p.rows * p.n);
+            xquant8_word(v, true, j & 7u, xquant8_tile_block(row * (p.n / 4u) + j, p.n, p.xrow), xquant8_tile_table(p.n, p.xrow));
         }
         return;
     }

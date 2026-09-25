@@ -17,10 +17,11 @@ layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
 // Up to three projections of one X and one type per dispatch; workgroups start0, start1 and start2 on begin each projection's row tiles. kper is the quant blocks a workgroup sums, a multiple of two when the call is split; blocks of a step past its part read as zero.
 // When the call is split, projection q's part z goes to y at parts * nbatch * (rows of the projections before q) + z * nbatch * nout_q, all projections sharing one scratch buffer.
+// xrow is the columns a row of the 8-bit activations holds, nbatch padded (quantize_x8.comp).
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint type; uint accum; uint kper; uint nproj;
     uint nout0; uint start0; uint nout1; uint start1; uint nout2; uint start2;
-    uint per; uint order0;
+    uint per; uint order0; uint xrow;
 } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 1) readonly buffer W32 { uint w32[]; } ws[3];
@@ -127,7 +128,7 @@ void main() {
     uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W stager: row wrow, words wseg*WW..
     uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X stager: column xcol, words xseg*2..
     uint nblk = p.nin / 32u;
-    uint xtab = p.nbatch * p.nin / 8u;                // the scale table's start, in pairs
+    uint xtab = p.xrow * p.nin / 8u;                  // the scale table's start, in pairs
     uint kbeg = part * p.kper, kend = min(nblk, kbeg + p.kper);
     uint parts = (nblk + p.kper - 1u) / p.kper;
     uint before = (pi > 0u ? p.nout0 : 0u) + (pi > 1u ? p.nout1 : 0u);
@@ -149,16 +150,16 @@ void main() {
         float xf[XSC];
         for (uint s = 0u; s < STEP; ++s) {
             uint kb = k0 + s;
-            uint xb = xin && kb < kend ? (kb * p.nbatch + xc) * 8u + xseg * 2u : 0u;
+            uint xb = xin && kb < kend ? (kb * p.xrow + xc) * 8u + xseg * 2u : 0u;
             xv[s] = uvec2(xq[xb], xq[xb + 1u]);
         }
         for (uint k = 0u; k < XSC; ++k) {
 #ifdef LLMX_Q8
             uint kb = k0 + xseg;
-            xf[k] = xs[xin && xseg < STEP && kb < kend ? xtab + kb * p.nbatch + xc : 0u].x;
+            xf[k] = xs[xin && xseg < STEP && kb < kend ? xtab + kb * p.xrow + xc : 0u].x;
 #else
             uint kb = k0 + xseg % STEP;
-            xf[k] = xs[xin && kb < kend ? xtab + kb * p.nbatch + xc : 0u][xseg / STEP + k * (4u / STEP)];
+            xf[k] = xs[xin && kb < kend ? xtab + kb * p.xrow + xc : 0u][xseg / STEP + k * (4u / STEP)];
 #endif
         }
         uint row = row_base + wrow, wr = expert * nout + row;

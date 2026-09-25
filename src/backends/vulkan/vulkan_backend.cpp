@@ -1266,8 +1266,8 @@ public:
         // Where the integer-dot tile reads dst next, its 8-bit copy in place of the twin, four values a lane (shaders/silu_mul.comp).
         const size_t rows = runs.n ? runs.runs[runs.n - 1].end : 0;
         const bool tile = quant && rows && n % rows == 0 && tile_reads(n / rows, rows, runs);
-        const uint32_t pc[4] = {u32(n), tile ? 2u : quant ? 1u : 0u, u32(tile ? n / rows : 0), u32(rows)};
-        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), tile ? x8_for(n) : quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
+        const uint32_t pc[4] = {u32(n), tile ? 2u : quant ? 1u : 0u, u32(tile ? n / rows : 0), u32(tile ? x8_row(rows) : 0)};
+        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), tile ? x8_for(x8_row(rows) * (n / rows)) : quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
                  groups(tile ? n / 4 : n, 256), 1, twin_variant());
         if (tile) made_x8(bind(dst), n / rows, rows);
         else if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_};
@@ -1299,9 +1299,9 @@ public:
         const bool tile = quant && !overlap && tile_reads(n, rows, runs);
         const size_t fill = (4 * dev_->caps.compute_units + rows - 1) / rows;
         const size_t chunks = overlap ? 1 : std::max<size_t>(1, std::min((tile ? n / 4 + 255 : n + 255) / 256, fill));
-        struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks; }
-            pc{u32(rows), u32(n), u32(stride), eps, tile ? 2u : quant ? 1u : 0u, u32(chunks)};
-        dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), tile ? x8_for(rows * n) : quant ? xq_for(rows * n) : bind(dst)},
+        struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks, xrow; }
+            pc{u32(rows), u32(n), u32(stride), eps, tile ? 2u : quant ? 1u : 0u, u32(chunks), u32(x8_row(rows))};
+        dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), tile ? x8_for(x8_row(rows) * n) : quant ? xq_for(rows * n) : bind(dst)},
                  &pc, sizeof(pc), u32(rows * chunks), 1, twin_variant());
         if (tile) made_x8(bind(dst), n, rows);
         else if (quant) xq_tag_ = XqTag{bind(dst), rows * n, want_x8_};
@@ -1521,9 +1521,9 @@ public:
                     (pr->type == pending[0]->type ? group : rest).push_back(pr);
                 pending.swap(rest);
                 if (!x8.buffer) {
-                    x8 = x8_for(nbatch * nin);
+                    x8 = x8_for(x8_row(nbatch) * nin);
                     if (!has_x8(X, nin, nbatch)) {
-                        const uint32_t qpc[3] = {u32(nbatch * nin), u32(nin), u32(nbatch)};
+                        const uint32_t qpc[3] = {u32(nbatch * nin), u32(nin), u32(x8_row(nbatch))};
                         dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(nbatch * nin / 4, 256));
                     }
                 }
@@ -1535,8 +1535,8 @@ public:
                 for (const Projection* pr : group) gxs += groups(pr->rows, hs);
                 const size_t kper = split_blocks(gxs * st, nblk);
                 const size_t parts = (nblk + kper - 1) / kper;
-                const uint32_t pc[14] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
-                                         u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0};
+                const uint32_t pc[15] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
+                                         u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0, u32(x8_row(nbatch))};
                 const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
                 const int small = t.height == kTileRowsSmall ? 1 : 0;
                 if (parts > 1) {
@@ -1813,15 +1813,15 @@ public:
             return;
         }
         if (integer_dot_tile(type)) {
-            const VkDescriptorBufferInfo x8 = x8_for(xcols * nin);
+            const VkDescriptorBufferInfo x8 = x8_for(x8_row(xcols) * nin);
             if (!has_x8(X, nin, xcols)) {
-                const uint32_t qpc[3] = {u32(xcols * nin), u32(nin), u32(xcols)};
+                const uint32_t qpc[3] = {u32(xcols * nin), u32(nin), u32(x8_row(xcols))};
                 dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(xcols * nin / 4, 256));
             }
             const QTile t = qtile(live, max_tiles, nin);
             const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
-            const uint32_t pc[14] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
-                                     t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0};
+            const uint32_t pc[15] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
+                                     t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0, u32(x8_row(xcols))};
             dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, tab},
                      pc, sizeof(pc), u32(t.gx), u32(max_tiles), t.height == kTileRowsSmall ? 1 : 0);
         } else {
@@ -1952,7 +1952,11 @@ public:
         return std::min(kper, nblk);
     }
 
-    // The scratch the 8-bit twin of an n-value batch lives in (shaders/quantize_x8.comp), reused stream-ordered.
+    // The columns a row of the tile's 8-bit copy of an nbatch-column batch holds (shaders/quantize_x8.comp): nbatch padded to an odd number of four-block, 128-byte runs, so rows start on a cache line and are never a multiple of 256 bytes apart.
+    // Unpadded rows at 512 columns are 16 KB apart, which slowed every writer of the copy (docs/VULKAN.md).
+    static size_t x8_row(size_t nbatch) { return (((nbatch + 3) / 4) | 1) * 4; }
+
+    // The scratch the tile's 8-bit copy of n values, a batch x8_row columns wide, lives in (shaders/quantize_x8.comp), reused stream-ordered.
     VkDescriptorBufferInfo x8_for(size_t n) {
         const size_t bytes = n + (n / 32) * 8;
         if (!x8_ || x8_->size() < bytes) {
@@ -2060,11 +2064,11 @@ public:
             std::vector<RowRun> vruns;
             for (const Placed& pv : placed) vruns.push_back(RowRun{pv.row0 + pv.view->nq, pv.view->extent});
             const bool tile = narrow.empty() && tile_reads(qstride, rows, RowRuns{vruns.data(), vruns.size()});
-            struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows; }
-                tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(rows)};
+            struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, xrow; }
+                tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(x8_row(rows))};
             dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k(layer).get(), 0}), bind(CSlice{s.v(layer).get(), 0}),
-                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? x8_for(rows * qstride) : bind(out)},
+                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? x8_for(x8_row(rows) * qstride) : bind(out)},
                      &tc, sizeof(tc), u32(tiles * (size_t)n_head));
             if (tile) made_x8(bind(out), qstride, rows);
         }

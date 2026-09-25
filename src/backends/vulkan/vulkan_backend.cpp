@@ -1512,7 +1512,7 @@ public:
                 if (!x8.buffer) {
                     x8 = x8_for(nbatch * nin);
                     const uint32_t qpc[3] = {u32(nbatch * nin), u32(nin), u32(nbatch)};
-                    dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(nbatch * nin, 256));
+                    dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(nbatch * nin / 4, 256));
                 }
                 const QTile t = qtile(group, gy, nin);
                 // The split is the one the rows' whole prompt would take (matmul_runs).
@@ -1801,7 +1801,7 @@ public:
         if (integer_dot_tile(type)) {
             const VkDescriptorBufferInfo x8 = x8_for(xcols * nin);
             const uint32_t qpc[3] = {u32(xcols * nin), u32(nin), u32(xcols)};
-            dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(xcols * nin, 256));
+            dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(xcols * nin / 4, 256));
             const QTile t = qtile(live, max_tiles, nin);
             const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
             const uint32_t pc[14] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),

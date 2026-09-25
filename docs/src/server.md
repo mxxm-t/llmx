@@ -13,6 +13,7 @@ scheduler are the runtime's own.
   The `http` CTest drives it with its own client.
 - `scheduler.hpp`: `Request`, `Scheduler` and `SampleParams`.
   `SampleParams` is `infer::Sampling` (`inference/sampler.hpp`), with its defaults and ranges, plus what only a request has: a list of stop texts and `until_limit`, a request without a cap.
+  A request's token is drawn through `infer::sample(logits, params, eos_id, ...)`, the call `infer::generate` makes, so `ignore_eos` masks the end of text here as it does in the CLI.
   Connection threads submit requests and drain their token channels; the scheduler thread is the single caller of `Model::forward`.
   `Request::next` waits for a token or the end only until a deadline, so a connection thread can look at its client between tokens.
   The KV pool holds `--ctx-size` tokens in total, and `submit` owns what one request may hold (`token_limit`): it refuses a prompt plus `max_tokens` past it, or an uncapped prompt that fills it, and sets an uncapped request's `max_tokens` to the room its prompt leaves; past `--max-queue` waiting requests a new one is refused with 503.
@@ -33,6 +34,7 @@ scheduler are the runtime's own.
   On the compatible routes an absent `max_tokens`, or -1, means no cap (`until_limit`): the reply may run to the end of the request's context; the native routes keep a default of 64 and refuse -1 as any other cap below 1.
   A `seed` of -1, which clients send for a random one, is no seed on the compatible routes, sampled as a request with none is, and the native routes refuse it as any other seed below 0.
   A `top_k` of -1, which clients send for no top-k, is 0 on the compatible routes, which keeps every token, and the native routes refuse it as any other `top_k` below 0.
+  `boolean` reads `ignore_eos` on every route, `false` when absent, and refuses with 400 any value other than `true` or `false`, where `stream` and `include_usage` still read anything but `true` as false.
   The routes only map the scheduler's refusals to statuses.
   The drain loop cancels a request when a write to its client fails, and between writes looks at the socket every 100 ms (`kProbe`), token or not, cancelling once `peer_closed` says the client has gone, so a client that leaves while its request is queued, prefilling or building a whole reply is noticed within about 100 ms as well.
   Either way a `ClientGone` ends the loop, and `handle` answers it with nothing, not even a 500, so the connection just closes.

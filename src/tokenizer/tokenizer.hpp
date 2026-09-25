@@ -54,6 +54,7 @@ public:
     int32_t eos_id = -1;
 
     // Whether `id` ends a generation. A model without an EOS id has no stop token at all; folding it to 0 made token zero, an ordinary token, end every generation.
+    // A request's ignore_eos masks the same id before sampling (infer::sample).
     bool is_eos(uint32_t id) const { return eos_id >= 0 && id == (uint32_t)eos_id; }
 
     Tokenizer(const gguf::GGUFModel& m) {

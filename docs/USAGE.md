@@ -418,10 +418,13 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--moe-stream-from N`   | new prompt tokens from which those experts run on the device | 0 (never) |
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
+| `--ignore-eos`          | never end at the model's end-of-text token           | off     |
 | `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status | off   |
 
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
 `--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1, the ranges the server takes for the same settings.
+`--ignore-eos` takes the end-of-text token out of every draw, greedy included, so the reply runs to `-n` unless a `--stop` match ends it first; the server's `ignore_eos` is the same rule, and the two give the same tokens for the same settings.
+The model's context still bounds the reply: a `-n` up to what the prompt leaves of it runs to `-n`, and past that the command stops with the context error, as it does without the option, where the server refuses such a request before it starts.
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
 
@@ -436,6 +439,7 @@ the complete conversation with its assistant-generation header and reuses KV
 only when the cached token IDs are an exact prefix. If the template rewrites
 earlier turns (for example, removing old reasoning), it rebuilds the cache.
 The template supplies turn-ending tokens; chat does not insert an extra EOS.
+With `--ignore-eos` every reply runs to `-n` tokens, and the next rendered turn closes it as it closes any other.
 An empty rendered prompt is an error. History must fit the model context;
 automatic truncation and concurrent conversations are not implemented.
 
@@ -494,13 +498,13 @@ to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request
 
 | Route | Body | Reply |
 |---|---|---|
-| `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "stream": false}` | `{"text", "ids", "finish", "prompt_tokens", "reused_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length` |
+| `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "ignore_eos": false, "stream": false}` | `{"text", "ids", "finish", "prompt_tokens", "reused_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length` |
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "..."}], ...}` (the same sampling fields) | as above; the prompt is the model's chat template over the messages |
 | `POST /v1/tokenize` | `{"text": "..."}`, or `{"messages": [...]}` in place of the text | `{"tokens": [ids], "count": n}` |
 | `POST /v1/detokenize` | `{"tokens": [ids]}` | `{"text": "..."}` |
 | `GET /v1/health` | | `{"status": "ok", "model", "active", "queued", "donors", "prefix_hits", "prefix_tokens", "pauses"}` |
 | `GET /v1/models` | | `{"object": "list", "data": [{"id", "object": "model", "created", "owned_by", "context_length", "vocab"}]}` |
-| `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}}`, plus `top_k`, `penalty` or `repetition_penalty` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "content"}, "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}` |
+| `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}}`, plus `top_k`, `penalty` or `repetition_penalty`, and `ignore_eos` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "content"}, "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}` |
 | `POST /v1/completions` | `{"prompt": "...", ...}` (the same fields) | as above with `"object": "text_completion"` and `choices[0].text` |
 
 On the last two an absent `max_tokens`, or `-1`, means no cap, as the standard has it: the reply runs to the model's end of text or to what the request may hold. Such a request reserves its prompt and grows its reservation as it generates, so uncapped requests run side by side; when the KV pool runs out, cached prefixes are dropped first, then the most recently admitted uncapped request is paused and resumes from its history once there is room. A capped request reserves its whole reach up front and is never paused. The compatible routes also return a `timings` object beside `usage`, in the fields clients that display speed read: `prompt_n` and `cache_n` (prompt tokens prefilled and reused), `prompt_ms`, `prompt_per_second`, `predicted_n`, `predicted_ms`, `predicted_per_second` and `queued_ms`. Each finished request logs one line on stderr. The native routes keep a default of 64. A `seed` of `-1`, which clients send for a random one, is taken on these two routes as no seed and sampled as a request without one is; the native routes refuse it as any other seed below 0.
@@ -512,6 +516,9 @@ A stream whose pass fails ends with one `data:` event holding the error in that 
 The native routes carry what the shape cannot: token ids and the `eos` finish.
 On every route `temperature` and `top_k` are at least 0, `top_p` is 0 to 1 and `penalty`, or `repetition_penalty` on the compatible routes, is at least 1, as the CLI's flags are, and a value outside is refused with 400.
 The compatible routes also take a `top_k` of -1, which clients send for no top-k, as 0, which keeps every token.
+`ignore_eos`, on every route, makes a reply end only at its limit: the model's end-of-text token is taken out of every draw, greedy included, so the reply runs to `max_tokens`, or uncapped on the compatible routes to what the request may hold, unless a stop text ends it first.
+The token does not exist for the draw: the penalty cannot bring it back, and `top_k` and `top_p` count only the other tokens.
+It is `false` by default, a value other than `true` or `false` is refused with 400, and a request gives the ids `generate --ignore-eos` gives with the same settings.
 The compatible replies carry the reused-prefix count as `timings.cache_n`.
 
 With `"stream": true` the reply is `text/event-stream`: one `data:` line per token holding its id and text (a character split across tokens is held until complete), then `data: {"done": true, "finish": ..., "tokens": N}` and `data: [DONE]`.
@@ -569,7 +576,7 @@ The same seed gives the same prompts, so a second run against a server that kept
 A prompt's length counts every token the server reads, a start token it adds included.
 Where the server has a tokenize route (`POST /tokenize`, or `POST /v1/tokenize` as `llmx serve` has) each prompt is counted there and trimmed or extended to its length, and a line below the table lists any prompt that cannot reach it; otherwise two one-token requests on the word list, once and twice, show whether every word is one token, and when it is a prompt's length is exact by construction.
 Where the replies report their prompt tokens (`usage` on `--api openai`, `tokens_evaluated` on `--api completion`) a line below the table lists any that miss their target.
-`--output-len` asks every route to ignore the end of text; llmx's routes do not read `ignore_eos` today, so a reply there can still end at the model's end of text, and the `short` column counts such replies.
+`--output-len` asks every route to ignore the end of text, which llmx's routes do (`ignore_eos`), so there every reply has its length; a server that does not honour `ignore_eos` can still end a reply at the model's end of text, and the `short` column counts such replies.
 
 One row per level: the first eight columns are the tool's earlier table (output tokens per second, requests per second, time to first token and inter-token latency at the median and the 99th percentile), then prompt and output tokens per second (`all tok/s`), time to first token at the mean and the 90th percentile, time per output token after the first (`tpot`, per request (end - first token) / (tokens - 1), the end being the reply's last event) at the mean, median and 99th percentile, end-to-end latency to the reply's last event at the median and 99th percentile, the mean prompt and output tokens, the counts (completed, failed and short) and the mean prompt tokens a request reused from the server's prefix cache.
 Figures are over the completed requests, from a level's first send to its last reply's end; time to first token counts from before the connection is opened.

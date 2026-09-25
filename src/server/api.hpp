@@ -186,6 +186,13 @@ private:
         for (size_t i = 0; i < ids.size(); ++i) json += (i ? "," : "") + std::to_string(ids[i]);
         return json + "]";
     }
+    // A setting that is true or false, anything else refused rather than read as either.
+    static bool boolean(const jmini::Value& v, const char* key, bool fallback) {
+        const jmini::Value* f = v.get(key);
+        if (!f) return fallback;
+        if (f->t != jmini::Value::T::Bool) throw BadRequest(400, key + std::string(" must be true or false"));
+        return f->b;
+    }
 
     // A message's content: a string, or the array of text parts the compatible chat route accepts.
     static std::string content_of(const jmini::Value& m) {
@@ -246,6 +253,7 @@ private:
         // The largest double below 2^64 is the last one a seed holds.
         const double seed = integer(body, "seed", compat(route) ? -1 : 0, std::nextafter(18446744073709551616.0, 0.0), (double)defaults.seed);
         params.seed = seed == -1 ? defaults.seed : (uint64_t)seed;
+        params.ignore_eos = boolean(body, "ignore_eos", defaults.ignore_eos);
         if (const jmini::Value* stop = body.get("stop")) {
             if (stop->isString()) params.stop.push_back(stop->asString());
             else if (stop->isArray())

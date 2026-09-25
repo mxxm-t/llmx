@@ -45,13 +45,13 @@ def check_info(directory):
     assert listed == expected, listed
 
 
-def usage_error(args, page):
-    """`args` must be refused as a usage error: status 2, nothing on stdout, and `page`'s help on stderr followed by the reason.
+def usage_error(args, page, reason=""):
+    """`args` must be refused as a usage error: status 2, nothing on stdout, and `page`'s help on stderr followed by the reason, which starts with `reason`.
     The line is run as written, without the configured device flags, so a check of missing arguments stays one."""
     p = subprocess.run([common.exe_path()] + args, capture_output=True, timeout=10)
     err = p.stderr.decode("utf-8", "replace")
     assert p.returncode == 2 and not p.stdout, (args, p.returncode, p.stdout, err)
-    assert err.startswith("llmx ") and ("Usage: llmx " + page) in err and "\nerror: " in err, (args, err)
+    assert err.startswith("llmx ") and ("Usage: llmx " + page) in err and "\nerror: " + reason in err, (args, err)
 
 
 def check_usage_errors():
@@ -84,6 +84,12 @@ def check_usage_errors():
                        (["logits", model, "a", "--moe-stream-from", "4"], "logits"),
                        (["serve", model, "--moe-stream-from", "1", "--n-cpu-moe", "0"], "serve")):
         usage_error(args, page)
+    # --ignore-eos is a switch, so a value written after it is refused rather than read as true or false: generate reads it as a second prompt and chat as a message.
+    # The reasons are checked, since a parser without the switch would refuse these lines as an unknown flag.
+    for args, page, reason in ((["generate", model, "a", "--ignore-eos", "true"], "generate", "a second prompt, 'true'"),
+                               (["generate", model, "a", "--ignore-eos", "0"], "generate", "a second prompt, '0'"),
+                               (["chat", model, "--ignore-eos", "false"], "chat", "chat reads its messages from standard input, not 'false'")):
+        usage_error(args, page, reason)
     # Numbers are decimal, whole where the flag counts, and within the flag's range; a flag at the end of the line has no value.
     numbers = [("-n", ["0", "-1", "x", ""]), ("--threads", ["-1", "-0", "x", "4x", "+4", "0x4", "1.5", "2147483648", ""]),
                ("-tb", ["-1"]), ("--ubatch", ["0", "-5"]), ("--topk", ["-1"]), ("--seed", ["-1", "0x10", "18446744073709551616"]),

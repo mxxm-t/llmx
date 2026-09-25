@@ -820,6 +820,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --penalty F             Repetition penalty (default: " << sampling.penalty << ")\n"
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
+            << "  --ignore-eos            Never end at the end-of-text token; run to -n or --stop\n"
             << "  --verbose               Show the prompt token count, progress and execution details\n";
         if (chat) out
             << "  --system TEXT           System message (default: " << kChatSystem << ")\n";
@@ -1027,6 +1028,7 @@ int main(int argc, char** argv) {
                     gp.stop = flag_value(argc, argv, i, a);
                     have_stop = true;
                 }
+                else if (a == "--ignore-eos") gp.ignore_eos = true;
                 else if (exec_flag(argc, argv, i, exec, true)) {}
                 else if (a == "--system" && chat) system = flag_value(argc, argv, i, a);
                 else if (a == "--verbose") exec.verbose = true;

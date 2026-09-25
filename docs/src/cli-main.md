@@ -43,6 +43,7 @@ Commands and their entry points:
   everything except argmax flips).
   It takes its text inline or from `--file <path>` (`-f`) right after the model, as `perplexity` does, and appends the `--then-ids` file's ids.
 - `generate`: `cmd_generate` (`prefill_turn`, then `infer::generate`; prints `pp:`/`tg:` timings).
+  `--ignore-eos`, read for `generate` and `chat`, sets `GenParams::ignore_eos`, so the sampler never draws the end-of-text token.
 - `chat`: `cmd_chat` (interactive loop using the chat template, each turn a `prefill_turn` of what the cache does not hold, then `infer::generate`).
   Tracks the exact IDs fed into the model separately from message text.
   Prefills only an exact-prefix extension; resets and refills changed, shortened or identical prompts to obtain valid next-token logits.

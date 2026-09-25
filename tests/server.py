@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import socket
 import sys
 import tempfile
@@ -22,6 +23,7 @@ import server_load  # noqa: E402
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 # The synthetic model's file name holds a byte that is not UTF-8 on Linux and characters beyond ASCII that several Windows code pages cannot map elsewhere, and every reply naming the model must still be UTF-8.
 # The synthetic MoE model gives each prompt the same ids alone and four at a time, on the CPU as it is and on a device with its experts on the host.
+# With ignore_eos a reply that would end at the model's end token runs to its limit, through the CLI and the server alike, on the synthetic model given an end token and on the real fixture.
 
 
 class Server:
@@ -188,6 +190,149 @@ def check_tokenize(srv, model, texts, replies, vocab, chat):
     for path in ("/v1/tokenize", "/v1/detokenize"):
         head, err = srv.oversized(path)
         assert head.startswith(b"HTTP/1.1 413") and isinstance(err["error"], str), (path, head, err)
+
+
+def cli_reply(model, prompt, n, flags):
+    """`generate`'s reply with the f32 cache sides: its bytes and the token count of its tg line."""
+    p = common.run_process(["generate", model, prompt, "-n", str(n)] + list(flags), cache="f32")
+    assert p.returncode == 0, p.stderr
+    count = re.findall(rb"^tg: (\d+) tok", common.cli_stdout(p.stdout), re.M)[-1]
+    return common.generate_text(p.stdout), int(count)
+
+
+def cli_chat_reply(model, line, n, flags):
+    """`chat`'s reply to one line with an empty system message, as a reply carries it, with the f32 cache sides."""
+    p = common.run_process(["chat", model, "--system", "", "-n", str(n)] + list(flags), input=(line + "\n").encode(), cache="f32")
+    assert p.returncode == 0, p.stderr
+    out = common.cli_stdout(p.stdout)
+    banner = b"Chat ready (type your message; Ctrl+C to quit)\n"
+    assert out.startswith(banner) and out.endswith(b"\n"), out
+    return repaired(out[len(banner):-1])
+
+
+def post_ok(srv, path, body):
+    status, reply = srv.post(path, body)
+    assert status == 200, (path, body, reply)
+    return reply
+
+
+def refuses_ignore_eos(srv):
+    """A non-boolean ignore_eos is refused with 400 on every generating route, in the route's error shape."""
+    for path in ("/v1/generate", "/v1/chat", "/v1/completions", "/v1/chat/completions"):
+        body = {"messages": [{"role": "user", "content": "a"}]} if "chat" in path else {"prompt": "a"}
+        for value in ("true", 1, 0, None, [True], {}):
+            status, err = srv.post(path, dict(body, max_tokens=2, ignore_eos=value))
+            message = err["error"]["message"] if "completions" in path else err["error"]
+            assert status == 400 and "ignore_eos" in message, (path, value, status, err)
+
+
+def alone_and_together(srv, bodies):
+    """Each /v1/generate body's ids, alone and then all at once, which must be the same."""
+    alone = [post_ok(srv, "/v1/generate", body)["ids"] for body in bodies]
+    results = {}
+    def worker(i):
+        results[i] = srv.post("/v1/generate", bodies[i])
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(len(bodies))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    for i, body in enumerate(bodies):
+        status, reply = results[i]
+        assert status == 200 and reply["ids"] == alone[i], (body, reply, alone[i])
+
+
+# ignore_eos on the synthetic model, whose token b below 256 is the byte b, so the bytes the CLI prints are its ids.
+def check_ignore_eos_synthetic(directory):
+    """Without ignore_eos a greedy reply ends at the model's end token, and with it the reply runs to its limit, through the CLI and the server alike, greedy and seeded; uncapped, it runs to the context, as the CLI asked for the room its prompt leaves does; requests with and without it give their own ids side by side; a non-boolean value is refused."""
+    weights = f32.tensors(True)
+    prompt, n = "ab", 12
+    ids = list(cli_reply(f32.write_model(os.path.join(directory, "tiny-plain.gguf"), weights), prompt, n, ("--temp", "0"))[0])
+    # The end token is the first id from the third on that the reply has not given before, so the reply ends just before it.
+    k = next(i for i in range(2, n) if ids[i] not in ids[:i])
+    end = ids[k]
+    model = f32.write_model(os.path.join(directory, "tiny-end.gguf"), weights, eos_id=end)
+    greedy, seeded = ("--temp", "0"), ("--temp", "1", "--seed", "7")
+    early, count = cli_reply(model, prompt, n, greedy)
+    assert list(early) == ids[:k] and count == k, (early, ids, k)
+    full, count = cli_reply(model, prompt, n, greedy + ("--ignore-eos",))
+    assert count == len(full) == n and list(full[:k]) == ids[:k] and end not in full, (full, end)
+    drawn, count = cli_reply(model, prompt, n, seeded + ("--ignore-eos",))
+    assert count == len(drawn) == n and end not in drawn, (drawn, end)
+    srv = Server(model)
+    try:
+        base = {"prompt": prompt, "max_tokens": n}
+        for body, want, finish in (({"temperature": 0}, ids[:k], "eos"), ({"temperature": 0, "ignore_eos": False}, ids[:k], "eos"),
+                                   ({"temperature": 0, "ignore_eos": True}, list(full), "length"),
+                                   ({"temperature": 1, "seed": 7, "ignore_eos": True}, list(drawn), "length")):
+            reply = post_ok(srv, "/v1/generate", dict(base, **body))
+            assert reply["ids"] == want and reply["finish"] == finish, (body, reply, want)
+        events = srv.stream("/v1/generate", dict(base, temperature=0, ignore_eos=True, stream=True))
+        assert [e["id"] for e in events if e and "id" in e] == list(full) and events[-2]["finish"] == "length", events[-2:]
+        for body, tokens, finish in (({}, k, "stop"), ({"ignore_eos": True}, n, "length")):
+            reply = post_ok(srv, "/v1/completions", dict(base, temperature=0, **body))
+            assert reply["usage"]["completion_tokens"] == tokens and reply["choices"][0]["finish_reason"] == finish, (body, reply)
+        # Uncapped, the reply ends at the end token without ignore_eos and at the 16-token context with it.
+        limit = srv.get("/v1/models")["data"][0]["context_length"]
+        reply = post_ok(srv, "/v1/completions", {"prompt": prompt, "temperature": 0})
+        assert reply["usage"]["completion_tokens"] == k and reply["choices"][0]["finish_reason"] == "stop", reply
+        reply = post_ok(srv, "/v1/completions", {"prompt": prompt, "temperature": 0, "ignore_eos": True})
+        assert reply["usage"]["total_tokens"] == limit and reply["choices"][0]["finish_reason"] == "length", reply
+        # The CLI asked for the room the prompt leaves gives the server's ids and fills the context too.
+        room = limit - reply["usage"]["prompt_tokens"]
+        filled, count = cli_reply(model, prompt, room, greedy + ("--ignore-eos",))
+        capped = post_ok(srv, "/v1/generate", dict(base, max_tokens=room, temperature=0, ignore_eos=True))
+        assert count == room and capped["ids"] == list(filled) and capped["finish"] == "length", (filled, capped)
+        alone_and_together(srv, [dict(base, prompt=p, temperature=0, ignore_eos=on) for p, on in (("a", True), ("ab", False), ("ab", True), ("abc", True))])
+        refuses_ignore_eos(srv)
+    finally:
+        srv.close()
+    return k, n
+
+
+# A turn in Qwen3's chat format answered without thinking, so the greedy reply is short and ends at the model's end token.
+IGNORE_EOS_LINE = "Say hello in one short sentence. /no_think"
+IGNORE_EOS_PROMPT = "<|im_start|>user\n" + IGNORE_EOS_LINE + "<|im_end|>\n<|im_start|>assistant\n"
+
+
+def check_ignore_eos_real(model):
+    """On a real model a greedy reply that ends early at the end token runs to its limit with ignore_eos, through generate and chat on the CLI and all four routes, greedy and seeded, a stop text still ending it; with and without it side by side each request gives its own ids."""
+    n, prompt = 48, IGNORE_EOS_PROMPT
+    greedy, seeded = ("--temp", "0"), ("--temp", "0.8", "--seed", "11")
+    early, k = cli_reply(model, prompt, n, greedy)
+    full, count = cli_reply(model, prompt, n, greedy + ("--ignore-eos",))
+    assert k < n and count == n and full.startswith(early), (early, k, full, count)
+    drawn, count = cli_reply(model, prompt, n, seeded + ("--ignore-eos",))
+    assert count == n, (drawn, count)
+    early, full, drawn = repaired(early), repaired(full), repaired(drawn)
+    # A stop text reached only past the masked end token still ends the reply.
+    stop = full[len(early):len(early) + 4]
+    assert stop and stop not in early, (early, full)
+    stopped = repaired(cli_reply(model, prompt, n, greedy + ("--ignore-eos", "--stop", stop))[0])
+    assert full.startswith(stopped) and stop in stopped and len(stopped) < len(full), (stopped, full)
+    chat_early = cli_chat_reply(model, IGNORE_EOS_LINE, n, greedy)
+    chat_full = cli_chat_reply(model, IGNORE_EOS_LINE, n, greedy + ("--ignore-eos",))
+    srv = Server(model)
+    try:
+        base = {"prompt": prompt, "max_tokens": n}
+        for body, text, tokens, finish in (({"temperature": 0}, early, k, "eos"), ({"temperature": 0, "ignore_eos": True}, full, n, "length"),
+                                           ({"temperature": 0.8, "seed": 11, "ignore_eos": True}, drawn, n, "length"),
+                                           ({"temperature": 0, "ignore_eos": True, "stop": [stop]}, stopped, None, "stop")):
+            reply = post_ok(srv, "/v1/generate", dict(base, **body))
+            assert reply["text"] == text and reply["finish"] == finish and (tokens is None or reply["tokens"] == tokens), (body, reply, text)
+        reply = post_ok(srv, "/v1/completions", dict(base, temperature=0, ignore_eos=True))
+        assert reply["choices"][0]["text"] == full and reply["choices"][0]["finish_reason"] == "length", reply
+        messages = [{"role": "system", "content": ""}, {"role": "user", "content": IGNORE_EOS_LINE}]
+        for body, text, finish in (({}, chat_early, "eos"), ({"ignore_eos": True}, chat_full, "length")):
+            reply = post_ok(srv, "/v1/chat", dict({"messages": messages, "max_tokens": n, "temperature": 0}, **body))
+            assert reply["text"] == text and reply["finish"] == finish and (finish == "eos") == (reply["tokens"] < n), (body, reply, text)
+        reply = post_ok(srv, "/v1/chat/completions", {"messages": messages, "max_tokens": n, "temperature": 0, "ignore_eos": True})
+        assert reply["choices"][0]["message"]["content"] == chat_full and reply["choices"][0]["finish_reason"] == "length", reply
+        alone_and_together(srv, [dict(base, temperature=0, ignore_eos=on) for on in (False, True)] +
+                           [dict(base, temperature=0.8, seed=11, ignore_eos=True), dict(base, prompt="The capital of France is", temperature=0, ignore_eos=True)])
+    finally:
+        srv.close()
+    return k, n
 
 
 def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
@@ -645,6 +790,9 @@ def run():
                             ("--cpu-moe", "--moe-stream-from", "3") if host else ())
             print("server: synthetic MoE model, %s, %d prompts alone and four at a time  [ok]"
                   % ("experts on the host and long prompts streamed" if host else "on the CPU", n))
+        k, n = check_ignore_eos_synthetic(directory)
+        print("server: ignore_eos on the synthetic model, a greedy reply that ends at its end token after %d tokens running to %d through the CLI "
+              "and the server, greedy and seeded, uncapped to the context, which the CLI given the room also fills, beside requests without it, and refused unless a boolean  [ok]" % (k, n))
     real = baseline.find_fixture(baseline.BASELINE_MODELS[0])
     if real:
         with open(os.path.join(os.path.dirname(__file__), "data", "baseline_perplexity.json"), encoding="utf-8") as f:
@@ -660,11 +808,14 @@ def run():
         turns = check_conversation(real, excerpt)
         check_unrelated_donor(real)
         check_departed(real)
+        k, n = check_ignore_eos_real(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
               "refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
               "a prompt paused while prefilling, a %d-turn conversation past half the pool reusing its history on every follow-up, "
               "a follow-up consuming the turn it repeats while an unrelated donor stays, clients leaving a whole reply, a prefill and the queue, and one shutting its sending side  [ok]"
               % (os.path.basename(real), n, turns))
+        print("server: ignore_eos on %s, a greedy reply that ends at its end token after %d tokens running to %d through generate, chat "
+              "and the four routes, greedy and seeded, a stop text still ending it, beside requests without it  [ok]" % (os.path.basename(real), k, n))
     else:
         print("server: SKIP real-model pass - fixture model not on disk")
     return True

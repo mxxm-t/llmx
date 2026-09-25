@@ -21,6 +21,7 @@ The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
   - `bpe(word)`, `byte_encode(raw)`.
   - Tracks `bos_id`, `eos_id` and the special tokens.
   - `is_eos(id)`: whether a token ends a generation, for `generate` and the server alike; a model without an EOS id has no stop token.
+    `ignore_eos` masks the same id before sampling (`infer::sample`).
 
 Character classes are approximated for UTF-8 without a Unicode table: any byte at or above 0x80 counts as a letter.
 This matches Qwen's classes on the scripts the fixtures cover; it is not a general `\p{L}` implementation.

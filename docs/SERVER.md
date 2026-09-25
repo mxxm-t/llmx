@@ -73,7 +73,7 @@ cli/main.cpp     `llmx serve <model.gguf> [--host H] [--port N] [--device D]
 ```
 
 `server/` sits above `inference/` in the layering: it uses the model, the tokenizer, the sampler and the chat template renderer, and adds scheduling and transport.
-It does not drive `infer::generate`, which runs one sequence to its end: the scheduler advances every request a pass and has its own per-token end check (end of text, any of a request's stop texts, its token limit), over the shared sampler (`infer::sample`, with the defaults and ranges of `infer::Sampling`) and `Tokenizer::is_eos`.
+It does not drive `infer::generate`, which runs one sequence to its end: the scheduler advances every request a pass and has its own per-token end check (end of text, which a request's `ignore_eos` keeps out of the draw, any of its stop texts, its token limit), over the shared sampler (`infer::sample`, with the defaults and ranges of `infer::Sampling`) and `Tokenizer::is_eos`.
 The directory is created with its first working route, not before.
 
 ### Threads
@@ -141,13 +141,16 @@ What the host does spend per pass is the recording of the pass itself, 0.7 milli
 Sampling is per request, on the host, from the logits row the pass returns for that entry: the existing `inference/sampler.hpp` with the request's own temperature, top-k, top-p, penalty and seeded RNG, so a request with `seed` set is reproducible regardless of what it was batched with.
 A field the request leaves out takes the default of `infer::Sampling`, the one the CLI's flag starts from, except `max_tokens` on the compatible routes, where leaving it out means no cap; a value outside the range `infer::Sampling` gives the field is refused, as the CLI refuses it, but for the `top_k` of -1 that the compatible routes take as 0.
 Greedy requests give the text the CLI gives for the same prompt, which is the first correctness gate below.
+A request's `ignore_eos`, the CLI's `--ignore-eos`, is one rule of the sampler (`infer::Sampling::ignore_eos`): the id that ends a reply (`Tokenizer::is_eos`) scores negative infinity before any sampling step, greedy included, and a draw leaves it out before top-k, top-p and the softmax, so the reply runs to its token limit, the context's for an uncapped request, while a stop text still ends it.
+The masked token does not exist for the draw, so the repetition penalty cannot bring it back and top-k and top-p count only the other tokens.
+The mask changes the draw, not the logits row: whatever reads the row reads the model's own distribution, the end token's share included.
 
 ### Protocol
 
 ```
 POST /v1/generate    {"prompt": "...", "max_tokens": 64, "temperature": 0.8,
                       "top_k": 40, "top_p": 0.95, "seed": 0, "stop": ["..."],
-                      "stream": true}
+                      "ignore_eos": false, "stream": true}
 POST /v1/chat        {"messages": [{"role": "user", "content": "..."}], ...}
                      the model's chat template renders the prompt
 POST /v1/tokenize    {"text": "..."} or {"messages": [...]}
@@ -162,7 +165,7 @@ POST /v1/completions        request: one parse, one request, one drain loop
 ```
 
 The compatible routes exist so existing tools connect without a client of their own: they list `/v1/models`, send its `id` back as the model, and stream `/v1/chat/completions` as chunks with the role in the first delta, `finish_reason` in the last and `data: [DONE]` after.
-They are a JSON mapping in the routes file over the scheduler the native routes use, with llmx's own knobs (`top_k`, `penalty`, `seed`) accepted as extra fields and the synonyms the clients send (`max_completion_tokens`, `repetition_penalty`) beside them, validated before anything reaches the model, and they cost a request exactly what a native one costs.
+They are a JSON mapping in the routes file over the scheduler the native routes use, with llmx's own knobs (`top_k`, `penalty`, `seed`, `ignore_eos`) accepted as extra fields and the synonyms the clients send (`max_completion_tokens`, `repetition_penalty`) beside them, validated before anything reaches the model, and they cost a request exactly what a native one costs.
 What the shape cannot carry, token ids and the `eos` finish, stays on the native routes; the compatible replies carry the reused-prefix count as `timings.cache_n`.
 A sampling field takes the range the CLI's flag for it takes, both read from beside the sampler's parameters, so the CLI and the server refuse the same values, except that the compatible routes take a `top_k` of -1, which clients send for no top-k, as 0.
 

@@ -55,8 +55,9 @@ gguf::GGUFModel fixture(const std::vector<uint32_t>& sequence) {
     return m;
 }
 
+// Generated ids follow `sequence` and start it again where ignore_eos masks the EOS after it: every other score is then 0, and a tie takes the lowest id, 1.
 void check(const std::vector<uint32_t>& sequence, const std::string& stop, int limit, const std::string& expected, size_t generated,
-           size_t fed) {
+           size_t fed, bool ignore_eos = false) {
     auto weights = fixture(sequence);
     bpe::Tokenizer tok(weights);
     infer::Model model(weights);
@@ -65,6 +66,7 @@ void check(const std::vector<uint32_t>& sequence, const std::string& stop, int l
     gp.temp = 0;
     gp.max_tokens = limit;
     gp.stop = stop;
+    gp.ignore_eos = ignore_eos;
     infer::RNG rng;
     std::vector<float> logits(tok.vocab.size(), 0);
     logits[sequence.empty() ? 0 : sequence.front()] = 1;
@@ -77,7 +79,7 @@ void check(const std::vector<uint32_t>& sequence, const std::string& stop, int l
     });
     require(text == expected, "displayed bytes changed");
     require(ids.size() == generated && size_t(model.n_tokens()) == fed, "stop/EOS/token-limit accounting changed");
-    require(std::equal(ids.begin(), ids.end(), sequence.begin()), "generated IDs changed");
+    for (size_t i = 0; i < ids.size(); ++i) require(ids[i] == sequence[i % sequence.size()], "generated IDs changed");
 }
 
 int main() {
@@ -87,6 +89,9 @@ int main() {
         check({1, 2, 3, 4}, "", 2, "A\xc3", 2, 2);
         check({}, "", 8, "", 0, 0);
         check({1}, "", 0, "", 0, 0);
+        // With ignore_eos the reply runs to its limit, and a stop text still ends it, here one reached only past the masked EOS.
+        check({1, 2, 3, 4}, "", 8, "A\xc3\xa9ZA\xc3\xa9Z", 8, 8, true);
+        check({1, 2, 3, 4}, "ZA", 8, "A\xc3\xa9ZA", 5, 4, true);
         auto weights = fixture({1});
         bpe::Tokenizer tok(weights);
         infer::Model model(weights);
@@ -105,7 +110,7 @@ int main() {
         require(threw && model.n_tokens() == 0, "consumer failure continued generation");
         auto ids = infer::generate(model, tok, gp, rng, logits);
         require(ids == std::vector<uint32_t>{1}, "generation without output callback failed");
-        std::cout << "generation stream: early delivery, UTF-8, stop/EOS and consumer failures pass\n";
+        std::cout << "generation stream: early delivery, UTF-8, stop/EOS, ignore_eos and consumer failures pass\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

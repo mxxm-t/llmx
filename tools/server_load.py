@@ -26,7 +26,7 @@ Otherwise two requests for one token, on the word list once and twice, show whet
 Where a reply reports its prompt tokens, the achieved lengths are checked against the target and the mismatches reported.
 
 --output-len sends the cap with ignore_eos set on every route: max_tokens on llmx's /v1/generate and on the OpenAI route, n_predict on the reference server's /completion.
-A server that does not honour ignore_eos can still end a reply at its end of text, which the short count shows.
+llmx's routes honour ignore_eos; a server that does not can still end a reply at its end of text, which the short count shows.
 
 The APIs: --api llmx speaks /v1/generate, --api openai /v1/completions (with the model id /v1/models lists, or --model), and --api completion the reference server's /completion route, so the same load compares servers on the same model and card.
 A reply's tokens are the count it reports (usage on the OpenAI route, tokens_predicted on /completion, the done event on /v1/generate), so an event carrying several tokens counts them all and an event carrying only text held back at the end, a character split across tokens, counts none; a reply that reports no count has one token an event.
@@ -866,7 +866,7 @@ class FakeServer:
     """A server for --self-test that speaks the three APIs, counts a prompt's tokens as its words, and sends each streamed token at a known time after the request arrives: the first after `ttft` seconds and one every `itl` after it.
     With `tokenize` one of TOKENIZE_PATHS it has a tokenize route there, reading the field that path's servers read.
     Streamed requests take their behaviour from `plan` in arrival order: ok, 503, cut (the connection drops after two tokens), short (half the tokens, then the end of text) or stall (silence after the first token until the server closes).
-    Every streamed reply reports 4 reused prompt tokens, and /v1/health counts them."""
+    Every streamed reply reports 4 reused prompt tokens, which /v1/health counts, and `ignore_eos` keeps the field of that name each streamed request sent, None for none, in arrival order."""
 
     REUSED = 4
 
@@ -879,6 +879,7 @@ class FakeServer:
         self.closing = threading.Event()
         self.hits = 0
         self.reused = 0
+        self.ignore_eos = []
 
         class Handler(http.server.BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
@@ -929,6 +930,7 @@ class FakeServer:
                                                            "tokens_predicted": 1}}[api])
                 with fake.lock:
                     behaviour = fake.plan.pop(0) if fake.plan else "ok"
+                    fake.ignore_eos.append(body.get("ignore_eos"))
                 if behaviour == "503":
                     return self.reply(503, {"error": "queue full"})
                 with fake.lock:
@@ -1193,6 +1195,12 @@ def fake_checks(name, check):
         check(label + " itl order", all(g >= 0 for r in records for g in r["itl"]))
         # Two users over four requests: two after two.
         within(label + " span", [wall], 2 * (ttft + (n - 1) * itl))
+        # --output-len fixes the lengths by asking every request to ignore the end of text, and a --tokens request asks nothing.
+        # The --tokens request comes from a workload built without --output-len, so the check covers the flag's reading as well as the request.
+        check(label + " ignore_eos", fake.ignore_eos == [True] * 4, fake.ignore_eos)
+        capped = Workload(argparse.Namespace(seed=3, output_len=None, tokens=n, input_len=12, input_len_range=None), lengths)
+        send(target, api, capped.specs("closed/2/0", 1)[0], 0, (10, 30), time.perf_counter())
+        check(name + " --tokens ignore_eos", fake.ignore_eos[4:] == [None], fake.ignore_eos)
 
         offsets = arrivals(40.0, 5, 3)
         records, wall = open_level(target, api, work.specs("open/40.0", 5), offsets, (10, 30))

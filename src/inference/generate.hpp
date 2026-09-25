@@ -13,7 +13,7 @@
 
 namespace infer {
 
-// Generate tokens starting from `logits` (the prediction after the last fed token), stopping at eos.
+// Generate tokens starting from `logits` (the prediction after the last fed token), stopping at eos unless gp.ignore_eos masks it.
 // Returns generated ids (excluding the eos token).
 // Text callbacks run synchronously, each token's text before the next step, and may split a UTF-8 character between chunks.
 inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
@@ -23,7 +23,7 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
     std::vector<uint32_t> gen;
     std::string decoded;
     for (int t = 0; t < gp.max_tokens; t++) {
-        uint32_t id = infer::sample(logits, gp.temp, gp.top_k, gp.top_p, gp.penalty, gen, rng);
+        uint32_t id = infer::sample(logits, gp, tok.eos_id, gen, rng);
         if (tok.is_eos(id)) break;
         gen.push_back(id);
         const std::string text = tok.decode({ id });

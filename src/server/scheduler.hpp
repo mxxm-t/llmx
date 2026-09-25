@@ -406,8 +406,7 @@ private:
     // One sampled token for a request whose logits are in: pushed to its channel unless it ends the request; a request that ends is finished after the pass, once every entry's logits have been read.
     void step(Request& r) {
         // A resumed request's prompt ends with the last token it sent, so the logits after it are those its next token is sampled from, as they would have been.
-        const uint32_t id = infer::sample(r.logits_, r.params_.temp, r.params_.top_k, r.params_.top_p,
-                                          r.params_.penalty, r.gen_, r.rng_);
+        const uint32_t id = infer::sample(r.logits_, r.params_, tok_.eos_id, r.gen_, r.rng_);
         if (tok_.is_eos(id)) { r.finish_pending_ = "eos"; return; }
         r.gen_.push_back(id);
         r.last_id_ = id;

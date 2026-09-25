@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -24,18 +25,18 @@ const std::vector<uint32_t> no_history;
 constexpr int draws = 10000;
 
 uint32_t greedy(const std::vector<float>& logits, float penalty = 1.0f,
-                const std::vector<uint32_t>& gen = no_history) {
+                const std::vector<uint32_t>& gen = no_history, int64_t masked = -1) {
     infer::RNG rng;
-    return infer::sample(logits, 0.0f, 40, 0.95f, penalty, gen, rng);
+    return infer::sample(logits, 0.0f, 40, 0.95f, penalty, gen, rng, masked);
 }
 
 std::vector<int> counts(const std::vector<float>& logits, float temp, int top_k, float top_p,
-                        uint64_t seed) {
+                        uint64_t seed, int64_t masked = -1) {
     infer::RNG rng;
     rng.seed(seed);
     std::vector<int> n(logits.size(), 0);
     for (int i = 0; i < draws; i++) {
-        const uint32_t id = infer::sample(logits, temp, top_k, top_p, 1.0f, no_history, rng);
+        const uint32_t id = infer::sample(logits, temp, top_k, top_p, 1.0f, no_history, rng, masked);
         if (id >= logits.size())
             throw std::runtime_error("sampled id " + std::to_string(id) + " is out of range");
         n[id]++;
@@ -161,6 +162,42 @@ void seeds() {
     require(sequence(seeded(0)) == sequence(infer::RNG{}), "seed 0 moved the default state");
 }
 
+// A masked id, the end of text under ignore_eos, does not exist for the draw: greedy takes the best of the rest, the penalty cannot bring it back, top-k and top-p count only the other tokens, and a draw follows their softmax.
+void masked() {
+    const std::vector<float> row = {0.5f, 2.0f, -1.0f, 1.5f};
+    require(greedy(row, 1.0f, no_history, 1) == 3, "greedy took the masked leader");
+    require(greedy(row, 1.0f, no_history, 0) == 1, "masking another id moved greedy");
+    require(greedy(row, 1.0f, no_history, 4) == 1, "an id past the row masked a token");
+    // Penalty 2 would take a seen leader of 3 to 1.5, above the rest; masked, it stays below them.
+    require(greedy({3.0f, -5.0f, -6.0f}, 2.0f, {0}, 0) == 1, "the penalty brought a masked token back");
+    // Beside scores that are all negative infinity or NaN a masked id 0 is still not given, greedy or drawn.
+    const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
+    require(greedy({1.0f, -inf, -inf}, 1.0f, no_history, 0) == 1, "greedy gave a masked id 0 over negative infinities");
+    require(greedy({1.0f, nan, nan}, 1.0f, no_history, 0) == 1, "greedy gave a masked id 0 over NaN");
+    require(counts({1.0f, -inf, -inf}, 1.0f, 0, 1.0f, 12, 0)[0] == 0, "a draw gave a masked id 0 over negative infinities");
+
+    const std::vector<float> logits = {1.0f, 0.0f, 2.0f, 0.5f, -0.5f};
+    fits("temperature 1 with the leader masked", counts(logits, 1.0f, 0, 1.0f, 7, 2), softmax(logits, 1.0, {0, 1, 3, 4}));
+    require(counts(logits, 1.0f, 0, 1.0f, 8, 5) == counts(logits, 1.0f, 0, 1.0f, 8), "an id past the row changed the draws");
+    // With the best, id 1, masked, top_k 3 keeps the next three.
+    const std::vector<float> wide = {0.2f, 1.5f, -0.3f, 1.1f, 0.9f, -1.0f, 1.3f, 0.0f};
+    fits("top_k 3 with the leader masked", counts(wide, 2.0f, 3, 1.0f, 9, 1), softmax(wide, 2.0, {6, 3, 4}));
+    // Without id 3 the first of the rest holds 0.627, so top_p 0.7 keeps two; a nucleus that counted the masked id's 0.508 would keep id 1 alone.
+    const std::vector<float> nucleus = {0.0f, 1.2f, -1.0f, 1.7f, -0.5f};
+    fits("top_p 0.7 with the leader masked", counts(nucleus, 1.0f, 0, 0.7f, 10, 3), softmax(nucleus, 1.0, {1, 0}));
+    // A row holding only the masked id still gives a token.
+    fits("a row of the masked id alone", counts({7.0f}, 1.0f, 0, 1.0f, 11, 0), {1.0});
+
+    // The settings' overload masks the end id the caller names only with ignore_eos.
+    infer::Sampling s;
+    s.temp = 0.0f;
+    infer::RNG rng;
+    require(infer::sample(row, s, 1, no_history, rng) == 1, "the end id was masked without ignore_eos");
+    s.ignore_eos = true;
+    require(infer::sample(row, s, 1, no_history, rng) == 3, "ignore_eos drew the end id");
+    require(infer::sample(row, s, -1, no_history, rng) == 1, "ignore_eos masked a token of a model without an end id");
+}
+
 }  // namespace
 
 int main() {
@@ -171,6 +208,7 @@ int main() {
         top_p();
         temperature();
         seeds();
+        masked();
         std::cout << "sampler: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& error) {

@@ -42,6 +42,7 @@ struct Sampling {
     float top_p = 0.95f;
     float penalty = 1.0f;   // repetition penalty
     uint64_t seed = 0;      // 0 keeps the fixed default RNG state
+    bool ignore_eos = false;    // the token that ends a reply is never drawn, so the reply runs to its limit or a stop text
 
     static constexpr SampleRange<float> temp_range{0.0f, std::numeric_limits<float>::max()};    // 0 is greedy
     static constexpr SampleRange<int> top_k_range{0, std::numeric_limits<int>::max()};            // 0 keeps every token
@@ -56,17 +57,21 @@ struct GenParams : Sampling {
 
 // Temperature + top-k + top-p nucleus sampling with repetition penalty.
 // `penalty` >= 1: divide the score of each already-generated token by penalty to discourage repeats.
+// `masked`, an id of the row or -1 for none, scores negative infinity whatever the penalty: greedy never takes it, and a draw leaves it out before top-k, top-p and the softmax, so it does not exist for the draw.
 // Returns the chosen token id.
 inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
                        float top_p, float penalty, const std::vector<uint32_t>& gen,
-                       RNG& rng) {
+                       RNG& rng, int64_t masked = -1) {
     const size_t n = logits.size();
+    // A row holding nothing else keeps the masked id, since a draw needs a token.
+    const bool mask = masked >= 0 && (uint64_t)masked < n && n > 1;
 
     // Repetition penalty, read through rather than materialized: the greedy path below never needs a second array.
     std::unordered_set<uint32_t> seen;
     const bool repeat = (penalty > 0.0f && penalty != 1.0f && !gen.empty());
     if (repeat) for (uint32_t id : gen) seen.insert(id);
     const auto score = [&](size_t i) {
+        if (mask && i == (size_t)masked) return -std::numeric_limits<float>::infinity();
         const float v = logits[i];
         if (!repeat || !seen.count((uint32_t)i)) return v;
         return (v > 0.0f) ? (v / penalty) : (v * penalty);
@@ -74,10 +79,11 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
 
     // Greedy needs the largest score, not an ordering of the rest.
     // Ties take the lowest token id.
+    // The scan starts past a masked id 0, so a row whose other scores are all negative infinity or NaN still does not give it.
     if (temp <= 0.0f) {
-        size_t best = 0;
-        float best_score = score(0);
-        for (size_t i = 1; i < n; i++) {
+        size_t best = (mask && masked == 0) ? 1 : 0;
+        float best_score = score(best);
+        for (size_t i = best + 1; i < n; i++) {
             const float v = score(i);
             if (v > best_score) { best_score = v; best = i; }
         }
@@ -86,7 +92,9 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
 
     std::vector<std::pair<float, uint32_t>> ranked;
     ranked.reserve(n);
-    for (size_t i = 0; i < n; i++) ranked.push_back({ score(i), (uint32_t)i });
+    for (size_t i = 0; i < n; i++)
+        if (!mask || i != (size_t)masked) ranked.push_back({ score(i), (uint32_t)i });
+    const size_t m = ranked.size();
 
     const auto by_score = [](const std::pair<float, uint32_t>& a,
                              const std::pair<float, uint32_t>& b) {
@@ -95,8 +103,8 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
 
     // top-k truncation.
     // Nothing below reads past `keep`, so the tail is left unordered.
-    const size_t keep = (top_k > 0 && (size_t)top_k < n) ? (size_t)top_k : n;
-    if (keep < n)
+    const size_t keep = (top_k > 0 && (size_t)top_k < m) ? (size_t)top_k : m;
+    if (keep < m)
         std::partial_sort(ranked.begin(), ranked.begin() + (ptrdiff_t)keep,
                           ranked.end(), by_score);
     else
@@ -134,6 +142,13 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
         if (r < acc) return ranked[i].second;
     }
     return ranked[nuc - 1].second;
+}
+
+// The next token of a reply under `s`, drawn from the logits after the tokens `gen` it holds so far.
+// `end` is the id that ends a reply (bpe::Tokenizer::eos_id, -1 for none); with s.ignore_eos it is masked, so the reply runs on to its token limit.
+inline uint32_t sample(const std::vector<float>& logits, const Sampling& s, int32_t end,
+                       const std::vector<uint32_t>& gen, RNG& rng) {
+    return sample(logits, s.temp, s.top_k, s.top_p, s.penalty, gen, rng, s.ignore_eos ? end : -1);
 }
 
 } // namespace infer

@@ -45,7 +45,8 @@ is measured against the single-sequence path and the reference.
   waiting requests a new one is refused with 503.
   A request's donor is chosen before room is made for it, and the other donors are evicted, oldest first, when it needs their blocks.
   If the pool is still short, its donor is consumed: the request forks it and the donor goes, so the blocks they share are reserved once rather than for each, and a follow-up turn keeps the history it repeats however many donors fill the pool.
-  A donor is consumed only then, so while there is room it stays for other requests sharing its prefix.
+  A request that shares every full block of its donor, a follow-up turn or a resume, consumes that donor before any other is evicted, since all the donor holds beyond what the request keeps is a partial last block; the other donors go only if that does not make room.
+  A donor is consumed only when the pool is short, so while there is room it stays for other requests sharing its prefix.
   When an uncapped request cannot grow even with every donor evicted, the latest admitted uncapped request is paused: its history becomes a donor and it is queued again at the front, resuming from those blocks unless another request needed them.
   A capped request is never paused, and a request that cannot be admitted is not started.
 - **Dependency-free transport.** HTTP/1.1 over BSD sockets and Winsock,
@@ -97,9 +98,11 @@ loop:
            the donor sharing the longest run of full blocks; if the pool
            can hold the prompt plus max_tokens, or an uncapped request's
            prompt plus a growth step (dropping the other donors, oldest
-           first, then consuming that donor, to make room), take it, fork
-           the donor at the shared blocks or make a fresh sequence, and
-           mark the request "prefilling" with an offset into its prompt
+           first, then consuming that donor, to make room; a donor whose
+           full blocks the request all shares is consumed first), take
+           it, fork the donor at the shared blocks or make a fresh
+           sequence, and mark the request "prefilling" with an offset
+           into its prompt
   grow:    an uncapped decoding request whose next token passes its
            reservation reserves another step, dropping donors first, or
            else the latest admitted uncapped request is paused

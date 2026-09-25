@@ -15,7 +15,7 @@ import f32
 import moe
 from common import run as cli
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold and a request past the context are refused; a client that goes away mid-stream leaves the server with nothing active; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up.
+# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold and a request past the context are refused; a client that goes away mid-stream leaves the server with nothing active; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 
 
@@ -347,6 +347,33 @@ def check_conversation(model, text):
         srv.close()
 
 
+def check_unrelated_donor(model):
+    """A follow-up turn beside an unrelated donor, on a pool with room for the follow-up once the turn it repeats is consumed but not beside both donors: the follow-up consumes that turn's history rather than evicting the unrelated donor, so a later prompt repeating the unrelated request's history still reuses it, with the CLI's greedy text."""
+    pool, n = 1024, 16
+    srv = Server(model, "--ctx-size", str(pool))
+    try:
+        with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
+            text = f.read()
+        # In a pool of 1024 tokens in blocks of 64 or 128, the unrelated request keeps about 200 tokens and the first turn about 280, and the follow-up's prompt and max_tokens, about 590, fit beside one of them but not beside both.
+        unrelated, first = text[4000:4750], text[:1100]
+        replies = []
+        for prompt in (unrelated, first):
+            status, reply = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
+            assert status == 200 and reply["reused_tokens"] == 0, reply
+            replies.append(reply)
+        status, reply = srv.post("/v1/generate", {"prompt": first + replies[1]["text"] + " " + text[1100:2200], "max_tokens": n, "temperature": 0})
+        assert status == 200 and reply["reused_tokens"] > 0, reply
+        # One donor went to make room for the follow-up, so the pool was short; the first turn's is the one it consumed.
+        health = srv.get("/v1/health")
+        assert health["donors"] == 2, health
+        later = unrelated + replies[0]["text"] + " " + text[6000:6200]
+        status, reply = srv.post("/v1/generate", {"prompt": later, "max_tokens": n, "temperature": 0})
+        assert status == 200 and reply["reused_tokens"] > 0, (reply, srv.get("/v1/health"))
+        assert reply["text"] == cli_greedy_text(model, later, n), (reply["text"],)
+    finally:
+        srv.close()
+
+
 def run():
     if common.f32_cache_skip("server"):
         return True
@@ -374,9 +401,11 @@ def run():
         check_uncapped(real)
         check_paused_prefill(real)
         turns = check_conversation(real, excerpt)
+        check_unrelated_donor(real)
         print("server: %s, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, "
               "refusals, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, "
-              "a prompt paused while prefilling, a %d-turn conversation past half the pool reusing its history on every follow-up  [ok]"
+              "a prompt paused while prefilling, a %d-turn conversation past half the pool reusing its history on every follow-up, "
+              "a follow-up consuming the turn it repeats while an unrelated donor stays  [ok]"
               % (os.path.basename(real), n, turns))
     else:
         print("server: SKIP real-model pass - fixture model not on disk")

@@ -190,6 +190,7 @@ public:
                 // Admission, in queue order, by the pool's budget: a capped request reserves the blocks its prompt and max_tokens can reach, an uncapped one its prompt and a growth step.
                 // The donor a request forks is chosen first, and the others give their blocks up, oldest first, when it needs them.
                 // If that is not enough, the chosen donor is consumed: the request forks it and it goes, so the blocks they share are counted once and a follow-up turn never evicts the history it repeats.
+                // A request sharing every full block of its donor, a follow-up turn or a resume, consumes it before any other goes, since the donor then holds nothing the request does not keep but a partial last block.
                 while (!queue_.empty() && active.size() < max_seqs_) {
                     const auto& r = queue_.front();
                     if (r->cancel_.load()) { r->end("cancel"); queue_.pop_front(); continue; }
@@ -197,13 +198,15 @@ public:
                     std::vector<size_t> need = blocks_for(tokens);
                     size_t shared = 0;
                     size_t d = best_donor(r->prompt_, shared);
-                    for (size_t i = 0; !room_for(need) && i < donors_.size();) {
+                    bool consume = shared && donors_[d].tokens.size() - shared < model_.kv_block_tokens() && !room_for(need);
+                    const auto fits = [&] { return consume ? room_for(need, donors_[d].blocks) : room_for(need); };
+                    for (size_t i = 0; !fits() && i < donors_.size();) {
                         if (i == d) { ++i; continue; }
                         drop_donor(i);
                         if (i < d) --d;
                     }
-                    const bool consume = shared && !room_for(need);
-                    if (consume ? !room_for(need, donors_[d].blocks) : !room_for(need)) break;
+                    consume = consume || (shared && !room_for(need));
+                    if (!fits()) break;
                     admit(*r, d, shared);
                     if (consume) drop_donor(d);
                     add(reserved_, need);

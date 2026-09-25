@@ -191,24 +191,13 @@ def run_tokenizer():
               % doc["gguf_file"])
         return True
 
-    failures = []
-    for case in doc["cases"]:
-        rc, out = cli(["tokenize", model, case["text"]])
-        if rc != 0:
-            failures.append((case["text"], case["ids"], "exit %d" % rc))
-            continue
-        got = common.parse_ids(out)
-        if got != case["ids"]:
-            failures.append((case["text"], case["ids"], got))
-
+    failures = common.tokenize_failures(model, doc["cases"])
     n = len(doc["cases"])
     if failures:
         print("baseline: %d/%d cases MATCH the HF reference, %d differ:"
               % (n - len(failures), n, len(failures)))
         for text, want, got in failures:
-            # The Windows console is not UTF-8, so escape non-ASCII rather than crashing the report on the cases most likely to fail.
-            safe = text.encode("unicode_escape").decode("ascii")
-            print("    text : '%s'" % safe)
+            print("    text : '%s'" % text)
             print("    want : %s" % want)
             print("    got  : %s" % got)
         return False

@@ -242,6 +242,22 @@ def parse_ids(out):
     return [int(t) for t in out.replace(",", " ").split()]
 
 
+def tokenize_failures(model, cases, ids=None):
+    """The tokenizer golden's cases whose text `llmx tokenize` on `model` does not turn into their `ids`, each as (text escaped to ASCII, the ids wanted, what the CLI gave).
+    `ids`, when given, maps each position of a model that holds only part of a vocabulary to the id it stands for."""
+    failures = []
+    for case in cases:
+        rc, out = run(["tokenize", model, case["text"]])
+        if rc != 0:
+            got = "exit %d: %s" % (rc, out.strip())
+        else:
+            got = [ids[p] for p in parse_ids(out)] if ids else parse_ids(out)
+        if got != case["ids"]:
+            # The Windows console is not UTF-8, so the text is escaped rather than crashing the report on the cases most likely to fail.
+            failures.append((case["text"].encode("unicode_escape").decode("ascii"), case["ids"], got))
+    return failures
+
+
 # The real-model HF gates, tests/baseline.py and tests/baseline_8b.py, check their outputs with these validators, each at its own model's vocabulary, context and bounds.
 # A validator raises ValueError on the first rule an output breaks and returns what it measured otherwise.
 

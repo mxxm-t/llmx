@@ -1,23 +1,21 @@
 """Generate golden fixtures for the correctness baseline.
 
 Run this ONCE on a machine with the HF tooling, then commit the output.
-tests/baseline.py only reads the committed JSON, so running the test suite
-never needs torch, transformers, or network access -- llmx stays
-dependency-free at runtime and the suite stays self-contained.
+tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|tokenizer-qwen35]
 
-Defaults use the pinned Qwen3-0.6B reference. Another model requires --repo,
---revision (full commit SHA), --output-dir, --gguf-repo and --gguf-file.
+Defaults use the pinned Qwen3-0.6B reference.
+Another model requires --repo, --revision (full commit SHA), --output-dir, --gguf-repo and --gguf-file.
 The GGUF arguments are labels, not proof of the converted model's provenance.
 Real-model logits/PPL use CPU float32 eager attention and --threads (default 6).
-The independent synthetic f32 and moe fixtures use one thread; only --output-dir
-applies to those modes. all includes both regardless of --repo.
+The independent synthetic f32 and moe fixtures use one thread; only --output-dir applies to those modes.
+all includes both regardless of --repo.
+tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
 
-Requires: tokenizers, huggingface_hub (tokenizer goldens) and, for the logit/PPL
-goldens, torch + transformers. Those two segfault together in some environments
-(any `from transformers import Auto*` dies); an isolated venv with numpy<2.3,
-torch 2.5.1+cpu and transformers 4.55.2 is known to work.
+Requires: tokenizers, huggingface_hub (tokenizer goldens) and, for the logit/PPL goldens, torch + transformers.
+Those two segfault together in some environments (any `from transformers import Auto*` dies); an isolated venv with numpy<2.3, torch 2.5.1+cpu and transformers 4.55.2 is known to work.
+The qwen35 goldens come from a second isolated venv, so the first stays as it is: Python 3.12.13 with torch 2.5.1+cpu, transformers 5.17.0, tokenizers 0.23.2, huggingface_hub 1.33.0, safetensors 0.8.0, numpy 2.2.6 and Jinja2 3.1.6.
 """
 
 import argparse
@@ -64,6 +62,40 @@ CASES = [
     "\u036d",
 ]
 
+# The qwen35 tokenizer golden reads Qwen3.5-0.8B's tokenizer.json, whose vocabulary and merges every Qwen3.5, 3.6 and 3.8 file holds, and its tokenizer_config.json, which adds the control tokens those files hold beyond it.
+# Each file must have the digest the committed golden records.
+QWEN35_REPO = "Qwen/Qwen3.5-0.8B"
+QWEN35_REVISION = "2fc06364715b967f1860aea9cf38778875588b17"
+QWEN35_SHA256 = {
+    "tokenizer.json": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+    "tokenizer_config.json": "49e2b6e395f959f077f1e992b338919c0d4a9732fc6e613995e06557f843500c",
+}
+# The cases above, then Thai and Devanagari, whose combining marks are where qwen35's pretokenizer differs from qwen2's, CJK punctuation, and every token HF's tokenizer adds, between words, side by side and inside a word.
+QWEN35_CASES = CASES + [
+    "\u0e17\u0e48\u0e32\u0e19\u0e1c\u0e39\u0e49\u0e2b\u0e0d\u0e34\u0e07",
+    "\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e04\u0e23\u0e31\u0e1a \u0e22\u0e34\u0e19\u0e14\u0e35\u0e17\u0e35\u0e48\u0e44\u0e14\u0e49\u0e23\u0e39\u0e49\u0e08\u0e31\u0e01",
+    "\u0e20\u0e32\u0e29\u0e32\u0e44\u0e17\u0e22\u0e40\u0e1b\u0e47\u0e19\u0e20\u0e32\u0e29\u0e32\u0e17\u0e35\u0e48\u0e2a\u0e27\u0e22\u0e07\u0e32\u0e21 "
+    "\u0e41\u0e25\u0e30\u0e21\u0e35\u0e27\u0e23\u0e23\u0e13\u0e22\u0e38\u0e01\u0e15\u0e4c",
+    "\u0e23\u0e32\u0e04\u0e32 125 \u0e1a\u0e32\u0e17 (\u0e1b\u0e23\u0e30\u0e21\u0e32\u0e13)",
+    "\u0928\u092e\u0938\u094d\u0924\u0947 \u0926\u0941\u0928\u093f\u092f\u093e",
+    "\u092f\u0939 \u090f\u0915 \u092a\u0930\u0940\u0915\u094d\u0937\u0923 \u0935\u093e\u0915\u094d\u092f \u0939\u0948\u0964",
+    "\u0939\u093f\u0928\u094d\u0926\u0940 \u092e\u0947\u0902 \u0915\u094d\u0937\u0924\u094d\u0930\u093f\u092f \u0914\u0930 \u091c\u094d\u091e\u093e\u0928\u0964 "
+    "\u0915\u094d\u092f\u093e \u0906\u092a \u0920\u0940\u0915 \u0939\u0948\u0902?",
+    "\u4f60\u597d\uff0c\u4e16\u754c\uff01\u8fd9\u662f\u4e00\u4e2a\u6d4b\u8bd5\u3002",
+    "\u300c\u3053\u3093\u306b\u3061\u306f\u300d\u3068\u8a00\u3044\u307e\u3057\u305f\u3002",
+    "\u3010\u6ce8\u610f\u3011\u8bf7\u9605\u8bfb\u300a\u7528\u6237\u624b\u518c\u300b\uff08\u7b2c\u4e8c\u7248\uff09\uff1a"
+    "\u7b2c\u4e09\u7ae0\u3001\u7b2c\u56db\u7ae0\uff1b\u8c22\u8c22\u2026\u2026",
+    "\u597d\u7684\u3002\n\n\u4e0b\u4e00\u6b65\uff1f\u300e\u5b8c\u6210\u300f",
+    "\u4f60\u597d\uff0c\u3002\u4e16\u754c",
+    "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nhi<|im_end|>\n"
+    "<|im_start|>assistant\n<think>\n\n</think>\n\nHello!<|im_end|><|endoftext|>",
+    "<tool_call>\n{\"name\": \"f\", \"arguments\": {}}\n</tool_call><tool_response>ok</tool_response>",
+    "<|vision_start|><|image_pad|><|video_pad|><|vision_end|><|object_ref_start|>x<|object_ref_end|>"
+    "<|box_start|>(1,2)<|box_end|><|quad_start|><|quad_end|><|vision_pad|>",
+    "<|fim_prefix|>def f():<|fim_suffix|>\n<|fim_middle|>    return 1<|fim_pad|><|repo_name|>r<|file_sep|>a.py",
+    "a<think>b</think>c <|im_start and im_end|>",
+]
+
 # Prompts for the logit golden.
 # Plain ASCII and short, so the fixture stays small and the comparison is about the forward pass rather than tokenization, which the tokenizer golden already covers.
 LOGIT_PROMPTS = [
@@ -94,6 +126,71 @@ def gen_tokenizer(args):
     path = os.path.join(args.output_dir, "baseline_tokenizer.json")
     _write(path, doc)
     print("wrote %s (%d cases)" % (path, len(cases)))
+
+
+def gen_tokenizer_qwen35(output_dir):
+    """HF's ids for QWEN35_CASES from the pinned tokenizer.json, with the part of its vocabulary those texts reach, so tests/tokenizer.py checks them without a model file.
+    The control tokens only tokenizer_config.json adds are kept apart, with the GGUF type of every added token."""
+    import unicodedata
+    import tokenizers
+    from tokenizers import Tokenizer
+    from tokenizers.pre_tokenizers import ByteLevel
+    from huggingface_hub import hf_hub_download
+
+    def pinned(name):
+        """The path and parsed contents of one pinned tokenizer file, refused unless it has the pinned digest."""
+        path = hf_hub_download(QWEN35_REPO, name, revision=QWEN35_REVISION)
+        with open(path, "rb") as f:
+            raw = f.read()
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest != QWEN35_SHA256[name]:
+            raise SystemExit("tokenizer-qwen35: %s at %s has SHA-256 %s, not the pinned %s" % (name, QWEN35_REVISION, digest, QWEN35_SHA256[name]))
+        return path, json.loads(raw)
+
+    path, spec = pinned("tokenizer.json")
+    config = pinned("tokenizer_config.json")[1]
+    tok = Tokenizer.from_file(path)
+    byte_level = ByteLevel(add_prefix_space=False, use_regex=False)
+    # BPE only joins neighbours within one pretokenized piece, and every piece is a substring of its text however the text is cut.
+    # So the merges that form a substring of a text, in rank order with the tokens they form, give the ids the whole vocabulary gives, whatever the pretokenizer.
+    reach = set()
+    for text in QWEN35_CASES:
+        for form in {text, unicodedata.normalize("NFC", text)}:
+            mapped = byte_level.pre_tokenize_str(form)[0][0]
+            reach.update(mapped[i:j] for i in range(len(mapped)) for j in range(i + 2, len(mapped) + 1))
+    assert all(isinstance(m, str) and m.count(" ") == 1 for m in spec["model"]["merges"])
+    merges = [m for m in spec["model"]["merges"] if m.replace(" ", "") in reach]
+    vocab = spec["model"]["vocab"]
+    tokens = {vocab[t]: t for t in ByteLevel.alphabet()}
+    tokens.update((vocab[m.replace(" ", "")], m.replace(" ", "")) for m in merges)
+    tokens.update((a["id"], a["content"]) for a in spec["added_tokens"])
+    # tokenizer_config.json adds control tokens that tokenizer.json lacks, and the GGUF files hold them too.
+    # transformers' tokenizer encodes each as its one id, so they are kept apart from the tokens whose ids come from tokenizer.json.
+    added = {a["id"]: a for a in spec["added_tokens"]}
+    config_tokens = {int(i): a for i, a in config["added_tokens_decoder"].items() if int(i) not in added}
+    assert all(added[int(i)]["content"] == a["content"] for i, a in config["added_tokens_decoder"].items() if int(i) in added)
+    assert not set(config_tokens) & set(vocab.values())
+    # The GGUF token types of the added tokens, as the Qwen3.5 files give them: control (3) for HF's special ones and for any written <|name|>, which takes in the fim and repo tokens HF leaves unspecial, and user-defined (4) for the rest.
+    types = {i: 3 if a["special"] or (a["content"].startswith("<|") and a["content"].endswith("|>")) else 4
+             for i, a in list(added.items()) + list(config_tokens.items())}
+    cases = [{"text": t, "ids": tok.encode(t, add_special_tokens=False).ids} for t in QWEN35_CASES]
+    assert all(i in tokens for case in cases for i in case["ids"])
+    doc = {
+        "_comment": "Generated by tools/gen_baseline.py tokenizer-qwen35. Do not hand-edit.",
+        "tokenizer_repo": QWEN35_REPO,
+        "tokenizer_revision": QWEN35_REVISION,
+        "tokenizer_json_sha256": QWEN35_SHA256["tokenizer.json"],
+        "tokenizer_config_json_sha256": QWEN35_SHA256["tokenizer_config.json"],
+        "tokenizers_version": tokenizers.__version__,
+        "tokens": {str(i): tokens[i] for i in sorted(tokens)},
+        "config_tokens": {str(i): config_tokens[i]["content"] for i in sorted(config_tokens)},
+        "token_types": {str(i): types[i] for i in sorted(types)},
+        "merges": merges,
+        "cases": cases,
+    }
+    path = os.path.join(output_dir, "baseline_tokenizer_qwen35.json")
+    _write(path, doc)
+    print("wrote %s (%d cases, %d tokens, %d merges, %d config tokens)" % (path, len(cases), len(tokens), len(merges), len(config_tokens)))
 
 
 def load_reference(args):
@@ -317,9 +414,17 @@ def gen_moe(output_dir=OUT_DIR):
     print("wrote %s (full logits and windowed NLL; smallest routing gap %.2e)" % (path, min(gaps)))
 
 
+# The kinds whose inputs are fixed, so only --output-dir applies to them, each with the reason a refusal gives.
+FIXED_KINDS = {
+    "f32": "uses fixed synthetic weights and one thread",
+    "moe": "uses fixed synthetic weights and one thread",
+    "tokenizer-qwen35": "reads its own pinned tokenizer files",
+}
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "tokenizer-qwen35"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -329,8 +434,8 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     if os.path.isdir(args.repo):
         parser.error("--repo must identify a Hub repository, not a local directory that bypasses revision pinning")
-    if args.kind in ("f32", "moe") and (args.repo != TOKENIZER_REPO or args.revision or args.gguf_repo or args.gguf_file or args.threads is not None):
-        parser.error(args.kind + " uses fixed synthetic weights and one thread; only --output-dir applies")
+    if args.kind in FIXED_KINDS and (args.repo != TOKENIZER_REPO or args.revision or args.gguf_repo or args.gguf_file or args.threads is not None):
+        parser.error("%s %s; only --output-dir applies" % (args.kind, FIXED_KINDS[args.kind]))
     if args.kind == "tokenizer" and args.threads is not None:
         parser.error("--threads applies to real-model logits/PPL, not tokenizer generation")
     if args.repo != TOKENIZER_REPO and not args.revision:
@@ -369,6 +474,8 @@ def main(argv=None):
         gen_f32(args.output_dir)
     if args.kind in ("all", "moe"):
         gen_moe(args.output_dir)
+    if args.kind == "tokenizer-qwen35":
+        gen_tokenizer_qwen35(args.output_dir)
 
 
 if __name__ == "__main__":

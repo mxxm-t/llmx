@@ -1,15 +1,19 @@
+import io
+import json
 import os
 import sys
 import struct
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import run as cli
+from common import run as cli, tokenize_failures
 
 # Tokenizer round-trip gate.
 # Builds a minimal GGUF with a tiny GPT-2-style BPE vocab + merges (via the CLI's own quantize path is overkill, so we write the GGUF directly), then exercises encode/decode incl. unicode and specials.
+# It also requires a file naming another tokenizer or pretokenizer to be refused, and holds the qwen35 pretokenizer to HF's ids through a file written from tests/data/baseline_tokenizer_qwen35.json.
 
 ALIGN = 32
+QWEN35_GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tokenizer_qwen35.json")
 
 
 def w_str(f, s):
@@ -78,6 +82,26 @@ def build_tokenizer_gguf(path, tokens, merges, specials, strings=()):
     return path
 
 
+def check_qwen35(d):
+    """The qwen35 golden's texts through a file named as the Qwen3.5 files name their tokenizer, holding the part of the pinned HF vocabulary those texts reach: each must give HF's ids.
+    The file also holds the control tokens only tokenizer_config.json adds, as the GGUF files do, and each one's text, alone and all side by side, must give its one id.
+    The file lists the tokens in id order, so a token's position in it maps back to its id."""
+    with io.open(QWEN35_GOLDEN, encoding="utf-8") as f:
+        doc = json.load(f)
+    vocab = dict(doc["tokens"], **doc["config_tokens"])
+    ids = sorted(int(i) for i in vocab)
+    path = build_tokenizer_gguf(os.path.join(d, "qwen35.gguf"), [vocab[str(i)] for i in ids], doc["merges"],
+                                [(p, doc["token_types"][str(i)]) for p, i in enumerate(ids) if str(i) in doc["token_types"]],
+                                [("tokenizer.ggml.model", "gpt2"), ("tokenizer.ggml.pre", "qwen35")])
+    config = [{"text": text, "ids": [int(i)]} for i, text in doc["config_tokens"].items()]
+    config.append({"text": "".join(case["text"] for case in config), "ids": [case["ids"][0] for case in config]})
+    for cases, what in [(doc["cases"], "texts differ from HF"), (config, "control-token texts differ from their ids")]:
+        failures = tokenize_failures(path, cases, ids)
+        assert not failures, "qwen35: %d/%d %s:" % (len(failures), len(cases), what) + \
+            "".join("\n  %s: want %s, got %s" % f for f in failures)
+    return len(doc["cases"]), len(doc["config_tokens"])
+
+
 def run():
     d = tempfile.mkdtemp(prefix="llmx_tok_")
     try:
@@ -125,14 +149,18 @@ def run():
                              [("tokenizer.ggml.model", "gpt2"), ("tokenizer.ggml.pre", "qwen2")])
         rc, out7 = cli(["tokenize", named, "hello"])
         assert rc == 0 and out7 == out, "named gpt2/qwen2 tokenizer: %r, unnamed %r" % (out7, out)
-        for key, value in [("tokenizer.ggml.pre", "gpt-2"), ("tokenizer.ggml.model", "llama")]:
+        # The refusal names the key and every implemented value.
+        for key, value, implemented in [("tokenizer.ggml.pre", "gpt-2", ("qwen2", "qwen35")), ("tokenizer.ggml.pre", "qwen3", ("qwen2", "qwen35")),
+                                        ("tokenizer.ggml.model", "llama", ("gpt2",))]:
             other = os.path.join(d, "other.gguf")
             build_tokenizer_gguf(other, tokens, merges, specials, [(key, value)])
             rc, out8 = cli(["tokenize", other, "hello"])
-            assert rc != 0 and key in out8, "%s = %s was not refused: %r" % (key, value, out8)
+            assert rc != 0 and key in out8 and all("'%s'" % name in out8 for name in implemented), \
+                "%s = %s was not refused naming %s: %r" % (key, value, implemented, out8)
 
-        print("tokenizer: encode->decode round-trip 'hello' -> %s, unicode and "
-              "special token, other tokenizers refused  [ok]" % out2.strip())
+        n, controls = check_qwen35(d)
+        print("tokenizer: encode->decode round-trip 'hello' -> %s, unicode and special token, other tokenizers refused, "
+              "qwen35 %d/%d texts match HF and its %d file-only control tokens are one id each  [ok]" % (out2.strip(), n, n, controls))
         return True
     finally:
         import shutil

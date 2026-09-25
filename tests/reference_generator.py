@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -22,6 +23,7 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(default.repo, "Qwen/Qwen3-0.6B")
         self.assertEqual(default.revision, "c1899de289a04d12100db370d81485cdf75e47ca")
         self.assertEqual(default.threads, 6)
+        self.assertEqual(generator.parse_args(["tokenizer-qwen35"]).output_dir, generator.OUT_DIR)
         alternate = ["logits", "--repo", "Qwen/Qwen3-8B", "--revision", "a" * 40]
         invalid = [
             ["typo"], ["logits", "--revision", "main"],
@@ -31,6 +33,9 @@ class ReferenceGenerator(unittest.TestCase):
             ["logits", "--threads", "0"], ["tokenizer", "--threads", "2"],
             ["f32", "--revision", "b" * 40], ["f32", "--threads", "2"],
             ["logits", "--repo", str(SCRIPT.parent)],
+            ["tokenizer-qwen35", "--revision", "c" * 40], ["tokenizer-qwen35", "--threads", "2"],
+            ["tokenizer-qwen35", "--repo", "Qwen/Qwen3.5-9B", "--revision", "c" * 40],
+            ["tokenizer-qwen35", "--gguf-repo", "a/b", "--gguf-file", "c.gguf"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
             for argv in invalid:
@@ -99,6 +104,60 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertEqual(doc["threads"], 2)
             self.assertEqual(doc["torch_version"], "test-torch")
             self.assertTrue(all(case["token_ids"] == [11, 12] for case in doc["cases"]))
+
+    def test_qwen35_tokenizer_golden_keeps_reached_merges_and_the_files_token_types(self):
+        # The byte map writes the space of "ab c" as U+0120; HF cuts the text before it, and the merge of "b" with it joins across that cut, so it must be kept for a pretokenizer that does not cut there.
+        # The added tokens take the GGUF files' types, control for a special token or one written <|name|> and user-defined for the rest, and a token only the config adds is kept apart.
+        space = "\u0120"
+        alphabet = ["a", "b", "c", "x", "y", space]
+        merges = ["a b", space + " c", "x y", "b " + space, "ab " + space + "c"]
+        vocab = {t: i for i, t in enumerate(alphabet + ["ab", space + "c", "xy", "b" + space, "ab" + space + "c"])}
+        added = [{"id": 20, "content": "<s>", "special": True}, {"id": 21, "content": "<t>", "special": False},
+                 {"id": 22, "content": "<|x|>", "special": False}]
+        spec = {"model": {"vocab": vocab, "merges": merges}, "added_tokens": added}
+        config = {"added_tokens_decoder": {str(a["id"]): a for a in added + [{"id": 23, "content": "<u>", "special": True}]}}
+        byte_level = MagicMock()
+        byte_level.return_value.pre_tokenize_str = lambda text: [(text.replace(" ", space), (0, len(text)))]
+        byte_level.alphabet.return_value = alphabet
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_qwen35_") as directory:
+            files = {"tokenizer.json": json.dumps(spec).encode(), "tokenizer_config.json": json.dumps(config).encode()}
+            for name, raw in files.items():
+                (Path(directory) / name).write_bytes(raw)
+            digests = {name: hashlib.sha256(raw).hexdigest() for name, raw in files.items()}
+            hub = SimpleNamespace(hf_hub_download=MagicMock(side_effect=lambda repo, name, revision: str(Path(directory) / name)))
+            encoded = SimpleNamespace(ids=[vocab["ab"], vocab[space + "c"]])
+            tokenizers = SimpleNamespace(__version__="test-tokenizers",
+                Tokenizer=SimpleNamespace(from_file=MagicMock(return_value=SimpleNamespace(encode=MagicMock(return_value=encoded)))),
+                pre_tokenizers=SimpleNamespace(ByteLevel=byte_level))
+            with patch.dict(sys.modules, {"tokenizers": tokenizers, "tokenizers.pre_tokenizers": tokenizers.pre_tokenizers,
+                                          "huggingface_hub": hub}), \
+                 patch.object(generator, "QWEN35_CASES", ["ab c"]), contextlib.redirect_stdout(io.StringIO()):
+                # A file whose digest is not the pinned one is refused before anything is written.
+                with patch.object(generator, "QWEN35_SHA256", dict(digests, **{"tokenizer_config.json": "0" * 64})), \
+                     self.assertRaisesRegex(SystemExit, "tokenizer_config.json"):
+                    generator.gen_tokenizer_qwen35(directory)
+                self.assertFalse((Path(directory) / "baseline_tokenizer_qwen35.json").exists())
+                hub.hf_hub_download.reset_mock()
+                with patch.object(generator, "QWEN35_SHA256", digests):
+                    generator.gen_tokenizer_qwen35(directory)
+            self.assertEqual(hub.hf_hub_download.call_args_list,
+                             [call(generator.QWEN35_REPO, name, revision=generator.QWEN35_REVISION) for name in ("tokenizer.json", "tokenizer_config.json")])
+            doc = json.loads((Path(directory) / "baseline_tokenizer_qwen35.json").read_text(encoding="utf-8"))
+        self.assertEqual(doc["merges"], ["a b", space + " c", "b " + space, "ab " + space + "c"])
+        self.assertEqual(doc["tokens"], {str(i): t for t, i in vocab.items() if t != "xy"} | {"20": "<s>", "21": "<t>", "22": "<|x|>"})
+        self.assertEqual(doc["config_tokens"], {"23": "<u>"})
+        self.assertEqual(doc["token_types"], {"20": 3, "21": 4, "22": 3, "23": 3})
+        self.assertEqual(doc["cases"], [{"text": "ab c", "ids": encoded.ids}])
+        self.assertEqual(doc["tokenizers_version"], "test-tokenizers")
+        self.assertEqual((doc["tokenizer_json_sha256"], doc["tokenizer_config_json_sha256"]), (digests["tokenizer.json"], digests["tokenizer_config.json"]))
+
+    def test_committed_qwen35_tokenizer_golden_is_the_generators(self):
+        # Changing the generator's texts, commit or pinned digests without regenerating the golden fails here.
+        doc = json.loads((Path(generator.OUT_DIR) / "baseline_tokenizer_qwen35.json").read_text(encoding="utf-8"))
+        self.assertEqual([case["text"] for case in doc["cases"]], generator.QWEN35_CASES)
+        self.assertEqual((doc["tokenizer_repo"], doc["tokenizer_revision"]), (generator.QWEN35_REPO, generator.QWEN35_REVISION))
+        self.assertEqual({"tokenizer.json": doc["tokenizer_json_sha256"], "tokenizer_config.json": doc["tokenizer_config_json_sha256"]},
+                         generator.QWEN35_SHA256)
 
 
 def run():

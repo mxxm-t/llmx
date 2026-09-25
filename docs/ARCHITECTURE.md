@@ -28,7 +28,7 @@ backends/      Backend interface (type-generic matmul / attention / RMSNorm /
                RoPE / batched elementwise ops), cpu/ and vulkan/ impls
    |
    v
-tokenizer/     byte-level BPE, Qwen2/Qwen3 pretokenizer (encode / decode)
+tokenizer/     byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer (encode / decode)
    |
    v
 format/        GGUF reader/writer + ModelFormat adapter/open;
@@ -81,7 +81,7 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `hub/`          | `manifest.hpp` (Hub metadata/quant selection), `transport.hpp` (curl HTTPS transport), `pull.hpp` (verified download cache) |
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants), `convert.hpp` (raw F32 tensors to and from GGUF) |
 | `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3), `mapped_file.hpp` (read-only mapping) |
-| `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3 pretokenizer)             |
+| `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass + its memory footprint, `Placement` of each tensor role, and `place_model`, which places a model over its backends), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
 | `backends/`     | `backend.hpp` (interface), `kv_storage.hpp` (the paged KV storage the backends derive theirs from: buffers, accounting, growth and view checks), `devices.hpp` (the backend a device spec names: `device_specs`, `make_backends`), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/q8_dots.hpp` (the CPU's dots against quantized activations), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
 | `inference/`    | `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp`    |

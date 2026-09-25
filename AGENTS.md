@@ -326,7 +326,10 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
 - **Perf** (`tests/perf.py`): time matmul / RMSNorm / RoPE hot paths and print
   throughput, so perf-first changes can be checked for regressions. Assert a
   generous floor so catastrophic slowdowns fail loudly without being flaky.
-- **Tokenizer** (`tests/tokenizer.py`): encode/decode round-trips incl. unicode and special tokens, and refusal of a file naming another tokenizer or pretokenizer.
+- **Tokenizer** (`tests/tokenizer.py`): encode/decode round-trips incl. unicode and special tokens, and refusal of a file naming another tokenizer or pretokenizer, with an error naming the key and the implemented values.
+  The qwen35 pretokenizer must give HF's ids for the 37 texts of `tests/data/baseline_tokenizer_qwen35.json` (the Qwen3 fixture's 20, Thai, Devanagari, CJK punctuation and every added token), read through a file the test writes from the part of the pinned HF vocabulary those texts reach, so it needs no model.
+  The 7 control tokens only the GGUF files and `tokenizer_config.json` add must each give their one id, alone and side by side.
+  `python tools/gen_baseline.py tokenizer-qwen35` regenerates the file, keeping every merge that forms a substring of a text, so the ids equal the whole vocabulary's however llmx cuts the text.
 - **Perplexity** (`tests/perplexity.py`): a synthetic model with an analytic
   scoring oracle checks window boundaries, chunk limits, target counts, file
   and inline input parity and invalid flags.
@@ -429,10 +432,11 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   Its logit and PPL outputs go through the validators the 8B check uses, `common.check_logits` and `common.check_ppl`, at each fixture model's bounds: the exact prompt token count, ten unique in-vocabulary IDs with finite logits sorted from the top, and exactly the PPL fields with every count exact.
   Regenerating tokenizer fixtures needs `tokenizers` and `huggingface_hub`; numerical fixtures also need `torch` and `transformers`.
   RUNNING the suite needs none of these packages.
-- **Reference generator** (`tests/reference_generator.py`): standard-library
-  checks for pinned reference selection, separate alternate-model output and
-  forwarding the revision/float32/eager settings to the HF loaders. Actual
-  reference generation and model correctness remain separate checks.
+- **Reference generator** (`tests/reference_generator.py`): standard-library checks for pinned reference selection, separate alternate-model output and forwarding the revision/float32/eager settings to the HF loaders.
+  Actual reference generation and model correctness remain separate checks.
+  The qwen35 tokenizer golden, on a made-up vocabulary, must keep a merge that joins across a cut HF makes and drop one no text reaches.
+  It must give an added token the GGUF files' type, control for a special one or one written `<|name|>` and user-defined otherwise, and keep a token only the config adds apart.
+  The generator must refuse a tokenizer file whose SHA-256 is not the pinned one, and the committed golden must hold the generator's texts, commit and digests, so neither changes without regenerating it.
 - **Reference consumer** (`tests/reference_consumer.py`): standard-library rejection tests for changed 8B fixtures, damaged logits/PPL, top-5 boundary swaps beyond those `common.top5_overlap` forgives, wrong model identity and failed launches, and a passing run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
   It is included in the ordinary suite; it does not load or download the 8B model.
 - **Fixture downloader** (`tests/fetch_models.py`): fifteen offline tests
@@ -491,7 +495,7 @@ matters: **each layer depends only on the layers below it** -
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
 | `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
 | `format/`    | ModelFormat interface + GGUF v3 impl           |
-| `tokenizer/` | byte-level BPE, Qwen2/Qwen3 pretokenizer       |
+| `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
 | `inference/` | sampler, generate, perplexity, chat template renderer      |

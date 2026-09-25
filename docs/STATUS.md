@@ -4,6 +4,42 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## The qwen35 pretokenizer (2026-09-26, branch feat/tokenizer-qwen35)
+
+- **Goal:** the tokenizer reads the Qwen3.5, 3.6 and 3.8 files (`tokenizer.ggml.pre` `qwen35`) and gives HF's ids, and every other pretokenizer name stays refused.
+- **Done:**
+  - `Tokenizer` accepts `qwen35` beside `qwen2`, and a refusal names the key and the implemented values.
+  - `pretokenize` is unchanged: the qwen35 regex adds `\p{M}` to qwen2's letter runs and to the class its punctuation runs exclude, and llmx reads every byte at or above 0x80 as a letter, so marks already join letter runs.
+  - `tools/gen_baseline.py tokenizer-qwen35` writes `tests/data/baseline_tokenizer_qwen35.json` (45 KB) from the `tokenizer.json` and `tokenizer_config.json` of Qwen/Qwen3.5-0.8B at 2fc06364 with `tokenizers` 0.23.2, and refuses either file if its SHA-256 is not the pinned one.
+    It holds HF's ids for the 20 texts of the Qwen3 fixture, 4 Thai, 3 Devanagari, 5 CJK punctuation and 5 special-token texts, the 1,251 tokens and 969 merges those texts reach, and apart from them the 7 control tokens only `tokenizer_config.json` adds.
+    Every added token has the type the GGUF files give it: control for HF's special tokens and for those written `<|name|>`, user-defined for the other 6.
+  - `tests/tokenizer.py` writes a file from it that names `qwen35` and requires HF's ids for all 37 texts and one id for each of the 7 control tokens, alone and side by side, in every CI job and without a model; `qwen3` joins the refused names it checks.
+  - The generator keeps every merge that forms a substring of a text, so the file gives the ids the whole vocabulary gives however llmx cuts the text.
+    `tests/reference_generator.py` holds it to that and to the files' token types on a made-up vocabulary, and holds the committed golden to the generator's texts, commit and digests.
+  - The reference is a second isolated venv on the Linux machine, which the other qwen35 branches share: Python 3.12.13, torch 2.5.1+cpu, transformers 5.17.0, tokenizers 0.23.2, huggingface_hub 1.33.0, safetensors 0.8.0, numpy 2.2.6, Jinja2 3.1.6 (`docs/ASSETS.md`).
+- **Gate:**
+  - The 37 texts through the real files give HF's ids, 37 of 37 on each, and each control token's text gives its one id, alone and side by side: Qwen3.5-0.8B, 2B, 4B and 9B Q4_K_M, Qwen3.6-27B Q8_0, Qwen3.6-35B-A3B Q4_K_M and Qwen3.8-27B Q8_0.
+    The Qwen3.5-122B-A10B UD-Q8_K_XL file is refused by the GGUF reader for its F16 tensors before its tokenizer is read.
+  - All 45 distinct Qwen3.5, 3.6 and 3.8 GGUFs on the Linux machine hold identical tokens, types and merges: `tokenizer.json`'s, plus 7 control tokens and 243 padding entries.
+    They are 18 qwen35 and 11 qwen35moe models, 2 DFlash drafters (`dflash`) and 14 files of Qwen3.8-Flash-Next (`qwen4exp`) and its MTP heads.
+    Every one names EOS 248046; some also name BOS 248044 with `add_bos_token` false or absent, and llmx adds no BOS.
+    The golden's tokens, control tokens and added-token types equal those of the 8 files checked: the 7 above and the first Qwen3.8-Flash-Next Q8_0 shard.
+  - The golden regenerates byte for byte in the venv above, offline, from the pinned files.
+    A file the generator builds the same way from 11 other texts, 7 of which differ from HF on the 0.8B file (curly quotes, U+3000 runs, U+00BD, U+00BB, a decomposed accent, symbols before punctuation, no-break spaces), gives the 0.8B file's ids on all 11 and on the 7 control tokens side by side, so the fixture cannot hide a pretokenizer difference.
+  - A sweep of the Wikitext test file in 33 pieces and 18 multilingual paragraphs (297,747 HF tokens) on the 0.8B file: 48 of 51 texts equal HF, and 3 differ in one place each, a space before U+00BD twice and U+00BB followed by a comma.
+    On Qwen3-0.6B the same sweep gives 42 of 51, with Thai, CJK period and newlines, U+3000 and NFC among the differences.
+  - That sweep understates English text with typographic quotes, which Wikitext does not use.
+    Of its 501 paragraphs that hold quotes, 270 differ from HF on the 0.8B file and 269 on Qwen3-0.6B once the quotes are made curly, against 1 of 501 with straight quotes; 243 of the 501 hold a closing quote before a period or a comma, which is one HF token and two in llmx.
+  - Qwen3 is unchanged: main b7b585f and this branch give the same output on Qwen3-0.6B Q8_0 for the 37 golden texts, the 8 control-token texts, the 51 sweep texts and the 501 curly-quote paragraphs.
+- **Known differences** (`docs/src/tokenizer-tokenizer.md`): no NFC; non-ASCII spaces, numbers, punctuation and symbols read as letters, most often a closing curly quote before a period or a comma, as the typographic-quote sweep above measures; the 7 control tokens 248070 to 248076 that the GGUF files add, each one id in llmx and several in `tokenizer.json`.
+  Exact Unicode classes and NFC come later as their own branch (decided 2026-09-25); the typographic-quote rate above bears on its priority.
+- **Gotcha for the qwen35 references:** transformers 5.17.0 loads Qwen3.5 as `Qwen2Tokenizer`, which puts back the qwen2 regex and adds the 7 control tokens, so its ids differ from `tokenizer.json` on Thai and Devanagari and on those tokens; `gen_logits` tokenizes through `AutoTokenizer`, so a qwen35 golden made that way must be checked against `tokenizers`.
+- **Tests:** on main b7b585f, whose code main bd73203 keeps, on Linux, CPU only: CTest 22/22 and 16 of the 17 suite components pass, the tokenizer's 20 Qwen3 fixture cases and the Qwen3 logit and PPL gates among them.
+  The server component timed out in its uncapped case, three replies of about 1,020 tokens under a 600 s limit, at a host load average near 48, and main failed the same way in the same run; this branch changes neither the server nor the model.
+  On Windows the MSVC build compiles with no warning, and the tokenizer and reference-generator components pass.
+  Only the tokenizer's constructor changed, no hot path, so no speed run was made.
+- **Left:** the qwen35 CPU model branch runs this golden against its pinned 0.8B file in `tests/baseline.py`.
+
 ## Prefill kernels on the MI50 (2026-09-25, branch perf/prefill-kernels)
 
 - **Goal:** single-card prefill on the MI50, where the integer-dot tile was 89.4 percent of an 8B Q8_0 512-row pass. Three changes measured apart earlier the same day (branches `perf/tile-staging-loads`, `perf/q8-tile-step4`, and `feat/quantize-x8-vec4` to `feat/x8-row-pad`) are combined on main 34bebc3 in that order, each re-applied on top of the one before and gated again as a layer. After review the branch was rebased onto main aea6e34 and gated again there (Rebased, below).

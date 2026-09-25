@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cctype>
+#include <initializer_list>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -12,11 +13,11 @@
 
 // GPT-2 style byte-level BPE tokenizer, implemented from scratch.
 // Reads tokenizer metadata from a GGUF model:
-//   tokenizer.ggml.model        = "gpt2"          (refused when present with another value)
-//   tokenizer.ggml.pre          = "qwen2"         (refused when present with another value)
-//   tokenizer.ggml.tokens       = array<string>   (token id -> byte-mapped token)
-//   tokenizer.ggml.token_type   = array<u32>      (per-token type)
-//   tokenizer.ggml.merges       = array<string>   ("s1 s2", rank = index)
+//   tokenizer.ggml.model        = "gpt2"           (refused when present with another value)
+//   tokenizer.ggml.pre          = "qwen2"/"qwen35" (refused when present with another value)
+//   tokenizer.ggml.tokens       = array<string>    (token id -> byte-mapped token)
+//   tokenizer.ggml.token_type   = array<u32>       (per-token type)
+//   tokenizer.ggml.merges       = array<string>    ("s1 s2", rank = index)
 //   tokenizer.ggml.bos/eos_token_id
 
 namespace bpe {
@@ -58,15 +59,21 @@ public:
     Tokenizer(const gguf::GGUFModel& m) {
         // A file made for another tokenizer or pretokenizer would encode to valid-looking but wrong ids, so naming one is refused.
         // A key the file omits is not checked, which the synthetic test models rely on.
-        auto require = [&](const std::string& key, const std::string& implemented) {
+        auto require = [&](const std::string& key, std::initializer_list<const char*> implemented) {
             const gguf::MetaValue* v = m.find(key);
-            if (v && (v->vtype != gguf::V_STRING || v->s != implemented))
-                throw std::runtime_error("tokenizer: unsupported " + key +
-                                         (v->vtype == gguf::V_STRING ? " '" + v->s + "'" : std::string()) +
-                                         "; only '" + implemented + "' is implemented");
+            if (!v) return;
+            std::string names;
+            for (const char* name : implemented) {
+                if (v->vtype == gguf::V_STRING && v->s == name) return;
+                names += (names.empty() ? "'" : ", '") + std::string(name) + "'";
+            }
+            throw std::runtime_error("tokenizer: unsupported " + key +
+                                     (v->vtype == gguf::V_STRING ? " '" + v->s + "'" : std::string()) +
+                                     "; implemented: " + names);
         };
-        require("tokenizer.ggml.model", "gpt2");
-        require("tokenizer.ggml.pre", "qwen2");
+        require("tokenizer.ggml.model", {"gpt2"});
+        // qwen35 differs from qwen2 only in combining marks (see pretokenize).
+        require("tokenizer.ggml.pre", {"qwen2", "qwen35"});
 
         byte_to_char = build_byte_encoder();
         for (const auto& kv : byte_to_char) char_to_byte[kv.second] = kv.first;
@@ -130,6 +137,7 @@ public:
     //   | \s+
     // This is not the GPT-2 regex: leading punctuation or underscore binds to the following word ("_snake", "(x"), digits are emitted one at a time, and a whitespace run ending in newlines stays one piece.
     // Alternatives are ordered; the first match wins.
+    // qwen35's regex adds \p{M} to the second alternative's letter run and to the fourth's excluded class, so combining marks join letter runs; every byte at or above 0x80 is a letter here, which already does that.
     static bool is_space(unsigned char c) { return c==' '||c=='\t'||c=='\n'||c=='\r'||c=='\f'||c=='\v'; }
     static bool is_ascii_letter(unsigned char c) { return (c>='a'&&c<='z')||(c>='A'&&c<='Z'); }
     static bool is_digit(unsigned char c) { return c>='0'&&c<='9'; }
@@ -177,15 +185,13 @@ public:
                               k++; }
               if (k > j) { while (k < n && is_nl((unsigned char)text[k])) k++;
                            emit(i, k); i = k; continue; } }
-            // 5. whitespace run truncated at its LAST newline, which is what
-            //    keeps a blank line a single piece rather than two.
+            // 5. whitespace run truncated at its LAST newline, which is what keeps a blank line a single piece rather than two.
             { size_t k = i;
               while (k < n && is_space((unsigned char)text[k])) k++;
               size_t last_nl = std::string::npos;
               for (size_t q = i; q < k; q++) if (is_nl((unsigned char)text[q])) last_nl = q;
               if (last_nl != std::string::npos) { emit(i, last_nl + 1); i = last_nl + 1; continue; } }
-            // 6. whitespace run minus its last char when a non-space follows;
-            //    that last space belongs to the next token via rules 2 and 4.
+            // 6. whitespace run minus its last char when a non-space follows; that last space belongs to the next token via rules 2 and 4.
             { size_t k = i;
               while (k < n && is_space((unsigned char)text[k])) k++;
               if (k > i) { size_t e = (k < n) ? k - 1 : k;

@@ -379,13 +379,11 @@ The numerical checks use those exact snapshots unless explicitly overridden.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity` or
-`f32` (default `all`). Real-model modes default to `Qwen/Qwen3-0.6B` at commit
-`c1899de289a04d12100db370d81485cdf75e47ca`. Both model and tokenizer loaders
-receive that revision. Logits and PPL use CPU float32 eager attention with six
-threads by default; `--threads N` selects another positive count. Generated
-numerical metadata records the revision, execution settings and package versions;
-logit cases also record the exact input token IDs.
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe` or `tokenizer-qwen35` (default `all`).
+Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
+Both model and tokenizer loaders receive that revision.
+Logits and PPL use CPU float32 eager attention with six threads by default; `--threads N` selects another positive count.
+Generated numerical metadata records the revision, execution settings and package versions; logit cases also record the exact input token IDs.
 
 For review, generate into a separate directory before replacing any goldens:
 
@@ -407,6 +405,25 @@ another real-model repository is selected. Tokenizer mode does not accept
 `--threads`; it does no numerical inference. Use `--help` for the flag reference.
 Generation needs the optional HF tooling described in the script; running the
 ordinary suite still needs only Python's standard library and the built runtime.
+
+#### The qwen35 tokenizer reference
+
+`tokenizer-qwen35` writes `tests/data/baseline_tokenizer_qwen35.json` from the `tokenizer.json` of `Qwen/Qwen3.5-0.8B` at commit `2fc06364715b967f1860aea9cf38778875588b17` (SHA-256 `5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42`), read with the `tokenizers` library, and the `tokenizer_config.json` of the same commit (SHA-256 `49e2b6e395f959f077f1e992b338919c0d4a9732fc6e613995e06557f843500c`).
+It refuses either file when its SHA-256 differs, and `tests/reference_generator.py` requires the committed golden to record the generator's texts, commit and digests.
+It accepts only `--output-dir` and is not part of `all`.
+It holds HF's ids for its texts and the part of the vocabulary those texts reach: every merge that forms a substring of a text, the tokens those merges form, the 256 byte tokens and the added tokens, so `tests/tokenizer.py` checks llmx's pretokenizer without a model file.
+It keeps apart the 7 control tokens only `tokenizer_config.json` adds, which `tests/tokenizer.py` holds to one id each, and gives every added token the type the GGUF files give it.
+
+It was generated in a second isolated venv, which the qwen35 references share and which leaves the transformers 4.55.2 environment above as it is: Python 3.12.13 with torch 2.5.1+cpu, transformers 5.17.0, tokenizers 0.23.2, huggingface_hub 1.33.0, safetensors 0.8.0, numpy 2.2.6 and Jinja2 3.1.6.
+
+Every Qwen3.5, 3.6 and 3.8 GGUF read on the Linux machine holds the same 248,320 tokens, token types and 247,587 merges.
+That is 45 distinct files: 18 qwen35 and 11 qwen35moe models, 2 DFlash drafters (`dflash`), and 14 files of Qwen3.8-Flash-Next (`qwen4exp`) and its MTP heads, which carry the same tokenizer.
+They are that `tokenizer.json`'s vocabulary, merges and 26 added tokens, 7 control tokens it lacks (248070 to 248076, from `tokenizer_config.json`) and 243 unused padding entries.
+An added token is control (type 3) when HF marks it special or it is written `<|name|>`, which takes in the six fim and repo tokens (248060 to 248065) that HF leaves unspecial, and user-defined (type 4) otherwise: `<tool_call>`, `</tool_call>`, `<tool_response>`, `</tool_response>`, `<think>` and `</think>`.
+That gives 27 control and 6 user-defined tokens in each file.
+
+transformers 5.17.0 loads this repository as `Qwen2Tokenizer`, which replaces the file's pretokenizer with the qwen2 regex and adds the 7 control tokens.
+Its ids therefore differ from `tokenizer.json` on text with combining marks (Thai and Devanagari) and on those 7 tokens, so the qwen35 tokenizer golden takes its ids from `tokenizers` and the file itself, and any qwen35 reference that tokenizes through `AutoTokenizer` must be checked against it.
 
 The local 8B GGUF is not an independent HF reference. On 2026-09-20, original
 `Qwen/Qwen3-8B` weights/config at revision

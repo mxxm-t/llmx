@@ -78,8 +78,10 @@ missing fixtures fatal, preventing a green numerical job made entirely of
 skips. Test execution does not install torch, transformers or HF packages.
 The ordinary CPU jobs can skip real-model checks because their fixtures are
 absent; the separate HF job supplies that coverage.
+The qwen35 pretokenizer is held to HF in every job all the same, with no model: the `tokenizer` component writes a file from `tests/data/baseline_tokenizer_qwen35.json` and requires HF's ids for its 37 texts and one id for each of the 7 control tokens only the GGUF files add.
 
 The Python suite also checks reference-generator argument safeguards and that the requested commit, float32 dtype and eager attention reach the HF loader.
+It checks that the qwen35 tokenizer golden keeps every merge its texts reach and gives the added tokens the files' types, that a tokenizer file with another SHA-256 is refused, and that the committed golden holds the generator's texts, commit and digests.
 These use standard-library test doubles; CI does not generate new HF goldens or download larger models.
 The ordinary suite now has 17 components, including `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
 These tests use small committed JSON fixtures and doubles, without 8B inference.

@@ -66,7 +66,9 @@ server/
                  /v1/completions
 cli/main.cpp     `llmx serve <model.gguf> [--host H] [--port N] [--device D]
                  [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N]
-                 [--cache-type-k T] [--cache-type-v T] [--threads N]`
+                 [--cache-type-k T] [--cache-type-v T] [--threads N]
+                 [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe]
+                 [--moe-stream-from N]`
 ```
 
 `server/` sits above `inference/` in the layering: it uses the model, the

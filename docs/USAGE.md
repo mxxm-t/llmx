@@ -158,7 +158,7 @@ comma-separated list on one line.
 
 Decode a comma- or space-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> "<text>" [--file] [--then-ids F] [--last N] [--top N] [--threads N] [--ubatch N] [--device D] [--cache-type-k T] [--cache-type-v T]`
+## `llmx logits <in.gguf> "<text>" [--file] [--then-ids F] [--last N] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T]`
 
 Print the top-N next-token logits for `text`, one `id value` pair per line
 after a `tokens:` header. `--top` defaults to 10. `--file` reads the text
@@ -223,6 +223,9 @@ Flags:
 | `--ubatch N`    | tokens per batched pass (default 512)          |
 | `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32` |
 | `--device D`    | backend: `cpu`, or `vulkan:N` in a build with it |
+| `--layer-shares A,B` | with several devices, their proportions of the layers |
+| `--n-cpu-moe N`, `--cpu-moe` | experts of the first `N` routed layers, or of all, on the CPU beside a device |
+| `--moe-stream-from N` | run those experts on the device for a prompt of at least `N` new tokens (default 0, never) |
 
 By default a window goes through the model in batched passes of up to `--ubatch` tokens, the way a prompt does, with logits taken for every position; the output head then runs once per pass over all of its rows. `--per-token` scores the same targets one token at a time instead, which is the path generation takes after the prompt. On a device the two paths use different kernels, so a score from each checks different code; they agree to within the rounding of their reductions. This all-target window policy differs from
 scoring modes elsewhere that exclude a warmup half-window; compare scores only with
@@ -401,6 +404,10 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `-ctv`, `--cache-type-v T` | KV cache storage for values: `f16` or `f32`    | `f16`   |
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
 | `--device D`            | backend: `cpu`, or `vulkan:N` in a build with it     | `cpu`   |
+| `--layer-shares A,B`    | with several devices, their proportions of the layers | fitted to free memory |
+| `--n-cpu-moe N`         | experts of the first `N` routed layers on the CPU    | 0       |
+| `--cpu-moe`             | experts of every routed layer on the CPU             | off     |
+| `--moe-stream-from N`   | new prompt tokens from which those experts run on the device | 0 (never) |
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--system TEXT`         | accepted but unused by raw generation; use `chat` for a system message | (unused) |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
@@ -456,9 +463,8 @@ comparison below for that path.
 | `--threads N`   | CPU worker count (0 = auto)                  | 0       |
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
-| `--profile`     | with `--model` on a device backend, after the timed runs: one more prompt run and one more decode run, each reported on its own as the device time each kernel spent (`profile pp`, then `profile tg` or `profile batched tg`, which starts after its sequences' prompts); the first 4096 dispatches of each are timed | off |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T]`
 
 The multi-user server (`docs/SERVER.md`): one model, a sequence per
 request, every active request advanced by one token per pass with a slice
@@ -516,7 +522,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080
 curl -N -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--device D] [--cache-type-k T] [--cache-type-v T] [--profile]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--profile]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an
@@ -538,6 +544,12 @@ sequence, reported as `xN tg` in tokens per second over all of them.
 timer, the history is filled with `N` tokens, and `pp` and `tg` then run on
 top of it, reported as `pp P @ dN` and `tg G @ dN`, the protocol reference
 bench tools use for the same `-d N`. It takes one sequence.
+
+`--profile`, on a device backend, runs one more prompt run and one more
+decode run after the timed runs, each reported on its own as the device
+time each kernel spent (`profile pp`, then `profile tg` or
+`profile batched tg`, which starts after its sequences' prompts); the
+first 4096 dispatches of each are timed. It takes one device.
 
 ```
 llmx bench --model Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --p 247 --n 32 --r 3

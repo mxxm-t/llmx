@@ -15,7 +15,7 @@ import f32
 import moe
 from common import run as cli
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
+# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 
 
@@ -137,6 +137,17 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
             status, err = srv.post("/v1/generate", dict({"prompt": "a", "max_tokens": 2}, **{field: value}))
             assert status == 400 and field in err["error"], (field, status, err)
         assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": -1})[0] == 400
+        # A sampling field outside the range the CLI's flag takes is refused, the penalty's synonym on the compatible route too, and the ends of each range are accepted.
+        # A top_k of -1 is refused here on the native route only, since the compatible routes take it as no top-k.
+        for field, value in (("temperature", -0.5), ("temperature", "0.5"), ("temperature", 1e39), ("top_k", -1), ("top_p", 1.5),
+                             ("top_p", -0.1), ("penalty", 0.5)):
+            status, err = srv.post("/v1/generate", dict({"prompt": "a", "max_tokens": 2}, **{field: value}))
+            assert status == 400 and field in err["error"], (field, value, status, err)
+        for field in ("penalty", "repetition_penalty"):
+            status, err = srv.post("/v1/completions", {"prompt": "a", "max_tokens": 2, field: 0.9})
+            assert status == 400 and field in err["error"]["message"], (field, status, err)
+        status, reply = srv.post("/v1/generate", {"prompt": "a", "max_tokens": 2, "temperature": 0, "top_k": 0, "top_p": 1, "penalty": 1})
+        assert status == 200 and reply["ids"], (status, reply)
 
         # A client that leaves mid-stream: open the socket, start a request, close after the first bytes, and the server ends with nothing active.
         s = srv.open("/v1/generate", {"prompt": prompts[0], "max_tokens": long_n, "temperature": 0, "stream": True})
@@ -184,6 +195,13 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
         assert sampled[0][1]["choices"][0]["text"] == sampled[1][1]["choices"][0]["text"], sampled
         status, err = srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": 2, "seed": -2})
         assert status == 400 and "seed" in err["error"]["message"], err
+        # Clients send a top_k of -1 for no top-k, and the compatible routes sample it as top_k 0, which keeps every token; a top_k below -1 is still refused.
+        sampled = [srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": n, "temperature": 1.0, "seed": 7, "top_k": k})
+                   for k in (0, -1)]
+        assert all(status == 200 for status, _ in sampled), sampled
+        assert sampled[0][1]["choices"][0]["text"] == sampled[1][1]["choices"][0]["text"], sampled
+        status, err = srv.post("/v1/completions", {"prompt": prompts[0], "max_tokens": 2, "top_k": -2})
+        assert status == 400 and "top_k" in err["error"]["message"], err
         # A body past the size limit is refused while it is read, still in the compatible route's error shape.
         s = socket.create_connection(("127.0.0.1", srv.port), timeout=30)
         s.sendall(b"POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % (65 << 20))

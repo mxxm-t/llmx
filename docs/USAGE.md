@@ -421,7 +421,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status | off   |
 
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
-`--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1.
+`--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1, the ranges the server takes for the same settings.
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
 
@@ -508,6 +508,8 @@ Streamed, each `data:` line is a chunk whose first delta carries the role, the l
 A message's content is a string or an array of `{"type": "text", "text"}` parts; `n` other than 1 and non-text parts are refused with 400 in the clients' error shape, `{"error": {"message", "type"}}`.
 A stream whose pass fails ends with one `data:` event holding the error in that shape, without `data: [DONE]`, since its 200 head has gone out.
 The native routes carry what the shape cannot: token ids and the `eos` finish.
+On every route `temperature` and `top_k` are at least 0, `top_p` is 0 to 1 and `penalty`, or `repetition_penalty` on the compatible routes, is at least 1, as the CLI's flags are, and a value outside is refused with 400.
+The compatible routes also take a `top_k` of -1, which clients send for no top-k, as 0, which keeps every token.
 The compatible replies carry the reused-prefix count as `timings.cache_n`.
 
 With `"stream": true` the reply is `text/event-stream`: one `data:` line per token holding its id and text (a character split across tokens is held until complete), then `data: {"done": true, "finish": ..., "tokens": N}` and `data: [DONE]`.

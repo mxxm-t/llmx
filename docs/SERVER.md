@@ -171,6 +171,7 @@ POST /v1/completions        request: one parse, one request, one drain loop
 The compatible routes exist so existing tools connect without a client of their own: they list `/v1/models`, send its `id` back as the model, and stream `/v1/chat/completions` as chunks with the role in the first delta, `finish_reason` in the last and `data: [DONE]` after.
 They are a JSON mapping in the routes file over the scheduler the native routes use, with llmx's own knobs (`top_k`, `penalty`, `seed`) accepted as extra fields and the synonyms the clients send (`max_completion_tokens`, `repetition_penalty`) beside them, validated before anything reaches the model, and they cost a request exactly what a native one costs.
 What the shape cannot carry, token ids and the `eos` finish, stays on the native routes; the compatible replies carry the reused-prefix count as `timings.cache_n`.
+A sampling field takes the range the CLI's flag for it takes, both read from beside the sampler's parameters, so the CLI and the server refuse the same values, except that the compatible routes take a `top_k` of -1, which clients send for no top-k, as 0.
 
 A streaming response is `text/event-stream`: one `data:` line per token with the id and the decoded text, a final `data: [DONE]`, and the same UTF-8 boundary rule the CLI streaming has, a split character is held until its bytes complete.
 A non-streaming request gets one JSON object with the text, the ids and the counts.

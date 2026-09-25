@@ -24,9 +24,11 @@ scheduler are the runtime's own.
 - `api.hpp`: the routes and `serve()`.
   Native `/v1/generate`, `/v1/chat` and `/v1/health`; the OpenAI-compatible `/v1/chat/completions`, `/v1/completions` and `/v1/models`, one parse, one request and one drain loop shared with the native routes, with the clients' synonyms accepted and errors in their shape.
   The path of a generating route resolves to its `Route` once, and `compat(Route)` alone says which of those routes speak the clients' shape, so a compatible request refused while it is read gets that shape too.
-  `integer` refuses a whole-number field that is fractional or outside what it is cast to (`max_tokens`, `max_completion_tokens`, `top_k` and `n` within `int`, `seed` from 0 to below 2^64) with 400 before any cast.
+  `integer` refuses a whole-number field that is fractional or outside what it is cast to (`max_tokens`, `max_completion_tokens` and `n` within `int`, `seed` from 0 to below 2^64) with 400 before any cast.
+  The sampling fields take the ranges beside `infer::GenParams` that the CLI's flags take, so a value the CLI refuses the server refuses too, apart from a `top_k` of -1 on the compatible routes: `setting` refuses `temperature`, `top_p` and `penalty` (or `repetition_penalty`) with 400 outside `kTempRange`, `kTopPRange` and `kPenaltyRange`, checked on the float the sampler reads, and `integer` refuses `top_k` outside `kTopKRange`.
   On the compatible routes an absent `max_tokens`, or -1, means no cap (`until_limit`): the reply may run to the end of the request's context; the native routes keep a default of 64 and refuse -1 as any other cap below 1.
   A `seed` of -1, which clients send for a random one, is no seed on the compatible routes, sampled as a request with none is, and the native routes refuse it as any other seed below 0.
+  A `top_k` of -1, which clients send for no top-k, is 0 on the compatible routes, which keeps every token, and the native routes refuse it as any other `top_k` below 0.
   The routes only map the scheduler's refusals to statuses.
   The drain loop cancels a request when a write to its client fails, and between writes looks at the socket every 100 ms (`kProbe`), token or not, cancelling once `peer_closed` says the client has gone, so a client that leaves while its request is queued, prefilling or building a whole reply is noticed within about 100 ms as well.
   Either way a `ClientGone` ends the loop, and `handle` answers it with nothing, not even a 500, so the connection just closes.

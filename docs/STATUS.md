@@ -104,7 +104,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
      - `info` on the synthetic model names its architecture, layer count and tensor count.
      - `logits --file` matches the inline prompt, and the `--last N` and `--then-ids` rows fall within the fixture's HF bound at their positions.
      - `bench --model --seqs 2` runs and reports finite speeds.
-     - Branch 5 (`cleanup/cli-arguments`) adds to this component the refusals from 010d7d9 (model flags on the synthetic bench, `generate --system`, `-n 0`), plus bad and negative numbers.
+     - Branch 5 (`cleanup/cli-arguments`) adds to this component the refusals from 010d7d9 (model flags on the synthetic bench, `generate --system`, `-n 0`), plus bad and negative numbers. It also has the server refuse a `temperature`, `top_k`, `top_p` or `penalty` outside the range the CLI's flag takes with 400, a `top_k` of -1 still taken as 0 on the compatible routes, and `tests/server.py` checks both.
      - Branch 10 (`cleanup/cli-help`) adds the help check: every flag a command's help lists is accepted by that command, a flag it does not list is refused, and help needs no model.
   8. `fix/tokenizer-metadata` (8) and `fix/chat-template-defined` (9) each land their failing test first. For branch 8, a synthetic GGUF declaring another tokenizer is refused with a message (`tests/tokenizer.py`). For branch 9, a template testing `is defined` takes the else branch for a variable that is absent (`chat-template` CTest).
   9. `tests/server.py` also runs its MoE server check on the CPU, as part of `ci/hosted-coverage`. The routed model's ids for each request alone must equal its ids four at a time, without the host-expert flags that need a device. This adds about 10 seconds per job.

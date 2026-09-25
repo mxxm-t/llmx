@@ -137,11 +137,19 @@ private:
                   ",\"vocab\":" + std::to_string(model_.n_vocab()) + "}]}");
     }
 
-    static double number(const jmini::Value& v, const char* key, double fallback) {
+    // A sampling setting within the range the sampler takes it in (inference/sampler.hpp), the range the CLI reads its flag against, so both refuse the same values.
+    // A number past the float's range is refused before the cast, which has no defined result for it, and the range is checked on the float the sampler reads.
+    static float setting(const jmini::Value& v, const char* key, const infer::SampleRange<float>& range, float fallback) {
         const jmini::Value* f = v.get(key);
         if (!f) return fallback;
-        if (!f->isNumber() || !std::isfinite(f->asNumber())) throw BadRequest(400, std::string(key) + " must be a number");
-        return f->asNumber();
+        const double x = f->isNumber() ? f->asNumber() : NAN;
+        if (!(std::fabs(x) <= std::numeric_limits<float>::max()) || !range.holds((float)x)) {
+            char text[96];
+            if (range.hi == std::numeric_limits<float>::max()) std::snprintf(text, sizeof text, " must be a number of at least %g", range.lo);
+            else std::snprintf(text, sizeof text, " must be a number from %g to %g", range.lo, range.hi);
+            throw BadRequest(400, key + std::string(text));
+        }
+        return (float)x;
     }
     // A whole number from lo to hi, refused before the caller casts it, since a double outside the target type has no defined conversion.
     static double integer(const jmini::Value& v, const char* key, double lo, double hi, double fallback) {
@@ -208,10 +216,13 @@ private:
                                    compat(route) ? integer(body, "max_completion_tokens", lo, hi, -1) : defaults.max_tokens);
         params.until_limit = compat(route) && cap == -1;
         params.max_tokens = (int)cap;
-        params.temp = (float)number(body, "temperature", defaults.temp);
-        params.top_k = (int)integer(body, "top_k", lo, hi, defaults.top_k);
-        params.top_p = (float)number(body, "top_p", defaults.top_p);
-        params.penalty = (float)number(body, "penalty", compat(route) ? number(body, "repetition_penalty", defaults.penalty) : defaults.penalty);
+        params.temp = setting(body, "temperature", infer::kTempRange, defaults.temp);
+        // Clients send a top_k of -1 for no top-k, so the compatible routes take it as 0, which keeps every token; the native routes refuse it as any other top_k below 0.
+        const double top_k = integer(body, "top_k", compat(route) ? -1 : infer::kTopKRange.lo, infer::kTopKRange.hi, defaults.top_k);
+        params.top_k = top_k == -1 ? 0 : (int)top_k;
+        params.top_p = setting(body, "top_p", infer::kTopPRange, defaults.top_p);
+        params.penalty = setting(body, "penalty", infer::kPenaltyRange,
+                                 compat(route) ? setting(body, "repetition_penalty", infer::kPenaltyRange, defaults.penalty) : defaults.penalty);
         // Clients send a seed of -1 for a random one, so the compatible routes take it as no seed, as they take an absent one; the native routes refuse it as any other seed below 0.
         // The largest double below 2^64 is the last one a seed holds.
         const double seed = integer(body, "seed", compat(route) ? -1 : 0, std::nextafter(18446744073709551616.0, 0.0), (double)defaults.seed);

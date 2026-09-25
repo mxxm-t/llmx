@@ -105,8 +105,9 @@ if(LLMX_HAS_BACKEND_VULKAN)
     add_custom_target(llmx-vulkan-shaders DEPENDS ${LLMX_VK_SPV})
     add_library(llmx-vulkan STATIC src/backends/vulkan/vulkan_backend.cpp)
     add_dependencies(llmx-vulkan llmx-vulkan-shaders)
+    # The generated directory comes first, so every target linking the backend reads the build's config.hpp and not the checked-in fallback.
     target_include_directories(llmx-vulkan
-        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR}/generated
+        PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src
         PRIVATE ${LLMX_VULKAN_INCLUDE_DIR})
     target_link_libraries(llmx-vulkan PUBLIC ${CMAKE_DL_LIBS})
     target_link_libraries(llmx PRIVATE llmx-vulkan)

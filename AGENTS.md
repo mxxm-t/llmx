@@ -371,6 +371,14 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   four at a time, where a pass holds streamed prompt rows beside host
   decode rows. Skips under `--cache-type f16`.
   Throughput is measured separately with `tools/server_load.py`.
+- **Many users** (`tools/server_mix_check.py`): a real model through
+  `llmx serve` on any placement, a layer split above all. Requests mixing
+  short and long prompts with short and long replies are run alone, then
+  all at once, then skewed: long prompts land while others decode and every
+  fourth client leaves mid-stream. Each request that finishes must give its
+  ids alone, clients that left must leave nothing active, and the first
+  requests must give the same text through `generate --temp 0`, whose
+  prompt a split pipelines over its stages.
 - **Long context** (`tools/long_context_check.py`): one 16k-token
   summarization prompt from `tests/data/wiki.test.raw`, greedy, 512
   generated tokens by default, sent to `llmx serve` on the device under

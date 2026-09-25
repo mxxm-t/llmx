@@ -295,6 +295,7 @@ python tests/run_tests.py
 ```
 
 For a CMake build, pass `--exe <path-to-built-llmx>`.
+`--only` runs just the components it names, comma separated (`--only baseline`, `--only split,server`), and refuses a name the suite does not have.
 CI uses `--no-perf-floor` for shared runners, `--require-tools` in every job that runs the suite so a tool missing beside the executable fails rather than skips, and `--require-baseline` in its real-model job so missing fixtures fail.
 Local performance floors remain enabled by default. See `docs/CI.md` for workflow coverage and reproduction commands.
 

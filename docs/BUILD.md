@@ -258,5 +258,6 @@ python3 tests/run_tests.py --exe build/llmx --no-perf-floor
 
 - `--no-perf-floor` reports the `perf` component's timings without enforcing its floors, which were set on the development workstation; CI passes it too.
 - `--device vulkan:0` runs every command in the suite that takes `--device` on that device.
+- `--only baseline` runs just the named components, comma separated for several.
 - Real-model checks skip when their models are absent; `tools/fetch_test_models.py` downloads the pinned models, and `--require-baseline` makes a missing one fail the suite.
 - In a Vulkan build without a usable device, CTest reports `backend-vulkan` and `vulkan-lifetime` as skipped.

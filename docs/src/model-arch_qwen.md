@@ -36,6 +36,25 @@ to a `backend::Backend`.
   remains accepted for existing synthetic models. RoPE scaling is
   unsupported: type must be absent or `none`, and current/legacy factors
   absent or exactly one. These keys use the [GGUF metadata vocabulary](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
+- `TensorView`, `QwenWeights`: what the model is built from, whatever file
+  it came from. A view is a tensor's `name`, its `shape` with the fastest
+  dimension first, its storage `type` (the GGUF type id) and its `bytes`,
+  with `data` null when they are not in memory. `QwenWeights` is the
+  configuration plus one view per tensor in the file's order, so tensor i is
+  the file's tensor i, with unique names, which the model checks again. A
+  second format is a reader that produces this.
+- `gguf_weights(GGUFModel)`: a GGUF model's weights. It runs `load_config`
+  once and, before any backend storage exists, refuses a tensor table whose
+  storage count does not match its tensors, with a duplicate name, a rank
+  above four, or an offset or extent outside the payload, which includes a
+  payload its owner released. The loader and the two GGUF constructors call
+  it.
+- `AdoptWeight`: `std::function<BufferPtr(size_t tensor, Backend&)>`, how
+  the model's builder puts a tensor on a backend. The model calls it once
+  for each backend that hosts a weight's role, and without one it calls
+  `Backend::adopt(view.data, view.bytes)`. The loader's hook
+  (`infer::recording_adopt`) records which tensors a backend that reads in
+  place took ([load](inference-load.md)).
 - `Weight` / `LayerWeights`: a tensor resolved once at load - type, a buffer
   handle from the backend that hosts it and the two dimensions - and a
   layer's weights grouped together: eleven for a dense layer, the router
@@ -46,9 +65,9 @@ to a `backend::Backend`.
   rebuilding `"blk.N."` and hashing a tensor name for every projection of
   every layer of every token, and a device backend recognizes the same
   weight across calls. See `docs/DEVICE-EXECUTION.md` step 1.
-- `footprint(model, options)`: what this architecture asks of memory, for a split fitted to devices (`model/layer_split.hpp`): each layer's matrices from its `blk.N.` tensors, those a product reads marked by their role (the attention and feed-forward projections and the router, whatever their rank), the embedding, the head's matrix and norm and whether it is tied, one layer's cache for the budgeted positions at the options' cache types, the RoPE tables, a row of the arena and a row of the residual stream handed between devices. `placement_for(split)` turns a `LayerSplit` into a `Placement`. `synthetic_model(...)`: a model of this architecture with a given shape and random weights, Q8_0 matrices and F32 norms, which `bench` times without a file.
-- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(cfg, options)` and `kv_bytes_per_position(cfg, options)`: the positions the caches are budgeted for, which the fit and the cache allocation take, and one position's key and value bytes at the options' cache types, which only the fit and `kv_used_bytes` take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`). `routed_layers(m, n_layer)`: the layers whose router tensor (`blk.N.ffn_gate_inp.weight`) is present.
-- `place_model(model, backends, request, options)`: the one place a model is placed over the backends its caller made, returning the model with the request's ubatch set and, for a split, its plan (`LayerSplit::describe`). A request that names `histories` of `history_tokens` each, as `bench --model` does its sequences, has them counted in whole blocks of each backend, each up to the model's context, which no run passes: where the options' budget would leave any storage short, the budget becomes what they take in the largest blocks, which the fit and every storage then use, and otherwise it is unchanged. With several backends or layer shares it fits the split for `request.ubatch` (default `kDefaultUbatch`) plus `request.decode_rows` rows (`budgets_for`, `split_layers`, `placement_for`); with one backend and `PlacementRequest::cpu_moe`, the CPU becomes device 0 beside it and the first `cpu_moe` routed layers' feed-forward blocks (every one at -1) run there, with `stream_from` as the placement's; otherwise the model is on the one backend. Experts on the CPU with several devices are refused, and so is a nonzero `stream_from` without experts on the CPU, which would have nothing to stream. The CLI, `bench --model`, the server and `llmx-split-check` all build their model through it by way of `infer::load_model` ([load](inference-load.md)), as does `compare_cpu`. A routed layer's experts are streamed to the device only where attention runs on a backend that copies its weights and the experts on one that reads them in place (`Backend::reads_in_place`). A tied head on the embedding's device reads the buffer adopted for the embedding rather than a second copy.
+- `footprint(weights, options)`: what this architecture asks of memory, for a split fitted to devices (`model/layer_split.hpp`): each layer's matrices from its `blk.N.` tensors, those a product reads marked by their role (the attention and feed-forward projections and the router, whatever their rank), the embedding, the head's matrix and norm and whether it is tied, one layer's cache for the budgeted positions at the options' cache types, the RoPE tables, a row of the arena and a row of the residual stream handed between devices. The arena's feed-forward slots are as wide as a dense layer's when some layer is not routed (`routed_layers`), as the model resolves it. `placement_for(split)` turns a `LayerSplit` into a `Placement`. `synthetic_model(...)`: a model of this architecture with a given shape and random weights, Q8_0 matrices and F32 norms, which `bench` times without a file.
+- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(cfg, options)` and `kv_bytes_per_position(cfg, options)`: the positions the caches are budgeted for, which the fit and the cache allocation take, and one position's key and value bytes at the options' cache types, which only the fit and `kv_used_bytes` take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`). `routed_layers(weights)`: the layers whose router tensor (`blk.N.ffn_gate_inp.weight`) is present.
+- `place_model(weights, backends, request, options, adopt = {})`: the one place a model is placed over the backends its caller made, returning the model with the request's ubatch set and, for a split, its plan (`LayerSplit::describe`). A request that names `histories` of `history_tokens` each, as `bench --model` does its sequences, has them counted in whole blocks of each backend, each up to the model's context, which no run passes: where the options' budget would leave any storage short, the budget becomes what they take in the largest blocks, which the fit and every storage then use, and otherwise it is unchanged. With several backends or layer shares it fits the split for `request.ubatch` (default `kDefaultUbatch`) plus `request.decode_rows` rows (`budgets_for`, `split_layers`, `placement_for`); with one backend and `PlacementRequest::cpu_moe`, the CPU becomes device 0 beside it and the first `cpu_moe` routed layers' feed-forward blocks (every one at -1) run there, with `stream_from` as the placement's; otherwise the model is on the one backend. Experts on the CPU with several devices are refused, and so is a nonzero `stream_from` without experts on the CPU, which would have nothing to stream. The CLI, `bench --model`, the server and `llmx-split-check` all build their model through it by way of `infer::load_model` ([load](inference-load.md)), as does `compare_cpu`. A routed layer's experts are streamed to the device only where attention runs on a backend that copies its weights and the experts on one that reads them in place (`Backend::reads_in_place`). A tied head on the embedding's device reads the buffer adopted for the embedding rather than a second copy.
 - `slot_widths(config, dense)`: the floats one row takes in each of the arena's twelve slots, which `ensure` allocates and `footprint` counts.
 - `Placement`: a device index per tensor role: each layer's attention and
   feed-forward block, the embedding table and the output head. Empty means
@@ -60,9 +79,9 @@ to a `backend::Backend`.
   (one buffer per projection, sized to the largest such layer) once per
   pass that needs them, and `ffn_split` runs a pass's consecutive entries
   alike as one group, the long ones on the device and the rest on the host
-  through a crossing each way. A host backend aliases what it adopts and a
-  device copies it, which is how the model tells which side a weight is
-  on.
+  through a crossing each way. Which side a weight is on is the backend's
+  `reads_in_place()`: a host reads what it adopts in place and a device
+  copies it.
 - `ModelOptions`: what is fixed at construction, before the caches are
   allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
   `--cache-type-k` and `--cache-type-v`) and `kv_tokens`, the positions
@@ -93,10 +112,13 @@ to a `backend::Backend`.
   kernels by (`backend.hpp` `RowRuns`): for a prompt's rows the position one
   past its last token, for a generated token 1. `prefill`, `score` and the
   server set it, so a prompt computes the same in one pass or in slices.
-- `Model`: loads tensors from a `GGUFModel` over one backend, or over
-  several with a `Placement`. Each weight is adopted by the backend that
-  hosts its role, which on the CPU aliases the loaded file bytes and costs no
-  further RAM.
+- `Model`: built from `QwenWeights` over several backends with a
+  `Placement` and an optional `AdoptWeight`. Two constructors take a
+  `GGUFModel` instead, over one backend or over several with a placement,
+  and forward through `gguf_weights`; the fixtures and the synthetic bench
+  use them. The model keeps no view and no reference to the file. Each
+  weight is put on the backend that hosts its role, which on the CPU reads
+  the file's bytes in place and on a device copies them.
   Each device that runs attention gets a `KVStorage` for exactly its layers
   with its own pool, block size and adopted RoPE tables. Its stages are
   runs of consecutive layers whose attention sits on one device, each
@@ -172,11 +194,13 @@ to a `backend::Backend`.
     row keeps the same arithmetic, and the operations finish before dependent
     matrix operations or KV writes begin. Whether to spread a stage across
     workers is the backend's decision, not the model's.
-  - Before model activation/KV/RoPE allocation, construction checks tensor-name
-    uniqueness, offset count/alignment/ranges, supported storage types and all
-    required layouts. `resolve_tensors` performs this validation and returns
-    the `Weight` for each tensor from the same check, so a resolved handle is
-    well-formed by construction and no other path produces one.
+  - Before model activation/KV/RoPE allocation, `gguf_weights` checks
+    tensor-name uniqueness, offset count/alignment/ranges and supported
+    storage types, and construction checks all required layouts.
+    `resolve_tensors` builds a name index for construction alone, performs
+    this validation and returns the `Weight` for each tensor from the same
+    check, so a resolved handle is well-formed by construction and no other
+    path produces one.
     Norms are F32 vectors. Matrices have the expected input
     and output dimensions, with equal embedding/output vocabulary sizes.
     Trailing singleton dimensions up to rank four are accepted. Valid payload
@@ -186,18 +210,19 @@ to a `backend::Backend`.
     constructor catches failures inside its body and drains each used backend
     while its members are still alive. Normal model destruction also drains
     those backends before releasing weights, caches and RoPE storage. Successful
-    loading keeps uploads asynchronous; reader tracking is allocated before
-    the first adoption so bookkeeping cannot fail while holding a local weight.
+    loading keeps uploads asynchronous.
 
 Supports dense and mixture-of-experts Qwen3 with Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K weights
 and F32 embeddings/matrices/norms. F32 embedding rows are copied directly;
 F32 matmul reads weight rows without staging. Missing
 `output.weight` selects tied token embeddings for the output projection.
 
-The borrowed GGUF model must outlive `Model` and remain unchanged, except that
-its payload may be released (`GGUFModel::release_payload`) once
-`holds_payload()` is false, that is when every weight was copied into a
-device backend's own memory rather than read in place. Construction
+The views are read only during construction. The bytes a backend that reads
+in place adopted must stay valid and unchanged while its buffer lives, which
+is the model's lifetime; a backend that copies has consumed its bytes when
+`adopt` returns (`backend.hpp`). So the payload of a model whose every weight
+a copying backend took may be released once the model is built, which the
+loader does (`GGUFModel::release_payload`). Construction
 does not scan numerical weight contents, validate every possible metadata
 extension, check arbitrary token IDs or establish recovery after an execution
 failure. Those require separate input/session checks; they are not guarantees

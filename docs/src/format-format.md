@@ -12,8 +12,10 @@ is the intended integration, not the current CLI/model behavior.
   bottom of `gguf.hpp`, after the reader and adapter definitions.
 
 `gguf::GGUFFormat` derives from `ModelFormat` and wraps a `GGUFModel` for tensor
-and metadata access. CLI/model code still uses `gguf::GGUFModel` directly;
-using the format-independent interface throughout remains future work.
+and metadata access. The model is built from `infer::QwenWeights`
+(`model/arch_qwen.hpp`), which `infer::gguf_weights` makes from a
+`GGUFModel`; the CLI, the tokenizer and the chat format still use
+`gguf::GGUFModel` directly.
 
 `LoadProgress(completed, total)` reports tensor payload bytes, excluding metadata
 and padding. Callbacks are synchronous and optional; exceptions propagate.

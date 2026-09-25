@@ -31,8 +31,8 @@ backends/      Backend interface (type-generic matmul / attention / RMSNorm /
 tokenizer/     byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer (encode / decode)
    |
    v
-format/        GGUF reader/writer + ModelFormat adapter/open;
-               CLI/model still consume GGUFModel directly
+format/        GGUF reader/writer + ModelFormat adapter/open; the model is
+               built from QwenWeights, the CLI still consumes GGUFModel
    |
    v
 quant/         QuantType registry; Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K kernels
@@ -82,9 +82,9 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants), `convert.hpp` (raw F32 tensors to and from GGUF) |
 | `format/`       | `format.hpp` (ModelFormat interface), `gguf.hpp` (GGUF v3), `mapped_file.hpp` (read-only mapping) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
-| `model/`        | `arch_qwen.hpp` (Qwen3 config + forward pass + its memory footprint, `Placement` of each tensor role, and `place_model`, which places a model over its backends), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
+| `model/`        | `arch_qwen.hpp` (Qwen3 config + the format-neutral weights a model is built from, `QwenWeights` and `gguf_weights` + forward pass + its memory footprint, `Placement` of each tensor role, and `place_model`, which places a model over its backends), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
 | `backends/`     | `backend.hpp` (interface), `kv_storage.hpp` (the paged KV storage the backends derive theirs from: buffers, accounting, growth and view checks), `devices.hpp` (the backend a device spec names: `device_specs`, `make_backends`), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/q8_dots.hpp` (the CPU's dots against quantized activations), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
-| `inference/`    | `load.hpp` (`load_model`, the one load sequence: file, tokenizer, chat format, placed model, host copy released), `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
+| `inference/`    | `load.hpp` (`load_model`, the one load sequence: file, tokenizer, chat format, weights, placed model with each weight's reader recorded, host copy released or unread pages dropped), `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
 | `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, sampling, prefix reuse), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
 
@@ -230,12 +230,13 @@ truncation can terminate the process on POSIX instead of throwing an exception.
 The reader bounds metadata lengths/counts by the opened file extent, limits
 array nesting, checks tensor-size arithmetic and validates every payload range
 before mapping payloads or reporting loading progress. It honors declared file alignment.
-These are structural format checks. Qwen model construction separately validates
-consumed configuration values, attention geometry, required tensor names/shapes,
-normalization types and in-memory payload ranges before model activation/KV/RoPE
-allocation. Explicit malformed values cannot select optional metadata defaults.
+These are structural format checks. Taking a GGUF model's weights (`infer::gguf_weights`)
+separately validates consumed configuration values, attention geometry, tensor
+names, ranks and in-memory payload ranges, and Qwen model construction validates
+required tensor names/shapes and normalization types, all before model
+activation/KV/RoPE allocation. Explicit malformed values cannot select optional metadata defaults.
 The loader's callers make the backends before the file is read, so a device that cannot be opened fails first.
-Borrowed model metadata and weights must stay unchanged for the model's lifetime, except that the loader (`infer::load_model`) releases the host payload (`GGUFModel::release_payload`) once no weight reads it in place (`Model::holds_payload`), as on device backends.
+Weights a host backend reads in place must stay unchanged for the model's lifetime; a backend that copies has consumed its weights when `adopt` returns, so the loader (`infer::load_model`) releases the host payload (`GGUFModel::release_payload`) once no host reads a weight in place, as on device backends alone.
 Metadata string encoding, numeric weight contents, arbitrary token IDs and dynamic request limits are not fully validated by construction.
 Valid large files or overlapping tensor ranges can still exceed available memory;
 there is no per-request memory budget. The JSON parser validates syntax and

@@ -21,8 +21,7 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   section mapped read-only, one `Segment` per shard placed after the one
   before in offset order (see [mapped_file](format-mapped_file.md)), so a
   sharded model larger than host memory loads without a copy.
-  `payload_size()` is the extent the offsets address and `holds(p)` whether
-  a pointer lies in the tensor bytes; `tensor_data(i)` / `tensor_bytes(i)`
+  `payload_size()` is the extent the offsets address; `tensor_data(i)` / `tensor_bytes(i)`
   address a tensor in whichever holds it, and a mapped model's bytes are
   read-only. `read_gguf` maps every file and touches every page once in the
   steps the progress reports, unless the payload is larger than the host's
@@ -30,8 +29,10 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   them and read from disk twice, so they are left for the copy to read once
   and progress goes straight to complete. `release_payload()` drops the mappings or
   frees the blob once a model on device backends alone has copied every
-  weight into device memory (`Model::holds_payload`), so the host does not
-  hold the weights twice. On Windows a mapped model keeps its file handles open,
+  weight into device memory, which the loader tells from the backends that
+  took each weight ([load](inference-load.md)), so the host does not
+  hold the weights twice. `drop_pages(i)` lets one tensor's pages leave the
+  host's working set. On Windows a mapped model keeps its file handles open,
   preventing another writer from rewriting or removing the files while loaded.
   POSIX closes each descriptor after mapping; the files must still remain unchanged.
 - `find(key)`: the metadata value under `key`, or null. Every reader of

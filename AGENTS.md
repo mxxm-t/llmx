@@ -172,12 +172,11 @@ native curl child lifetime/response handling. Real transfers are separate
 integration checks. The Python `shards` component compares sharded synthetic
 logits and NLL against the independent HF fixture.
 
-`model-validation` checks Qwen configuration ranges/defaults, required tensor
-layouts and in-memory storage before model execution buffers are allocated.
-It covers tied/untied output, supported matrix types and singleton axes. An
-asynchronous test backend also checks loading failure and model teardown drain
-pending work before releasing buffers, including split placements and backend
-reuse. It does not validate numeric weights, arbitrary token IDs or failed-session recovery.
+`model-validation` checks Qwen configuration ranges/defaults, required tensor layouts and in-memory storage before model execution buffers are allocated.
+It covers tied/untied output, supported matrix types and singleton axes.
+An asynchronous test backend, which copies what it adopts, also checks loading failure and model teardown drain pending work before releasing buffers, including split placements and backend reuse.
+Through the loader's own adoption hook (`infer::recording_adopt`), it checks that nothing is read in place on that backend, and that a host running a streamed layer's experts beside it reads exactly that layer's feed-forward norm, router and three expert stacks, the norm and router taken by both.
+It does not validate numeric weights, arbitrary token IDs or failed-session recovery.
 Each model it builds runs on a one-thread CPU backend that must start no worker threads.
 
 `backend-group` checks mixed types, uneven rows, batches, thread counts,

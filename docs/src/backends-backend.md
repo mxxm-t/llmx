@@ -15,8 +15,11 @@ placement contracts in `docs/EXECUTION.md`.
   `copy(dst, dst_off, src, src_off, bytes)`: backend-owned storage. `where`
   is `Memory::device` or `Memory::host_visible`; the logits live in the
   latter and the host reads them through `host_ptr()` after a wait, with no
-  copy op. `adopt` makes host data reachable without copying on a host
-  backend; the source must outlive the handle.
+  copy op. `adopt` makes host data reachable by the backend's ops. A backend
+  that reads in place (`reads_in_place()`) borrows the source for the
+  buffer's life and does not read it inside `adopt`; one that copies has
+  consumed the source when `adopt` returns, so the caller may release it
+  then, as the loader does for a model on device backends alone.
 - `write(dst, off, src, bytes)`: host to storage, enqueued, the source
   consumed before it returns. Callers include residual transfers at placement
   boundaries and uploads of streamed expert weights.

@@ -65,8 +65,10 @@ Generalize to an architecture registry keyed by `general.architecture`:
 
 ## 3. More formats
 `format::ModelFormat` has a GGUF adapter and a magic-sniffing `format::open()`
-implemented in `gguf.hpp`. CLI/model code currently consumes `gguf::GGUFModel`
-directly; a second format needs integration through this seam.
+implemented in `gguf.hpp`. The model is built from `infer::QwenWeights`,
+which a second format's reader produces as `infer::gguf_weights` does for
+GGUF; the CLI, the tokenizer and the chat format still consume
+`gguf::GGUFModel` directly.
 - safetensors, raw `.bin`+`.json`, ONNX export path
 - Extend `format::open()` beyond its current GGUF magic check
 - safetensors is HF-native and unlocks most of the Hub; see #9b

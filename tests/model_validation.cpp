@@ -6,8 +6,9 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
-#include "model/arch_qwen.hpp"
+#include "inference/load.hpp"
 
 namespace {
 size_t checks = 0;
@@ -149,7 +150,9 @@ struct LoadingBackend : backend::CpuBackend {
     bool reads_in_place() const override { return false; }
     backend::BufferPtr adopt(const void* src, size_t bytes) override {
         if (++state->adoptions == fail_adopt) throw std::runtime_error("injected adoption failure");
-        auto buffer = std::make_shared<LoadingBuffer>(backend::CpuBackend::adopt(src, bytes), state);
+        auto storage = backend::CpuBackend::alloc(bytes, backend::Memory::device);
+        backend::CpuBackend::write(*storage, 0, src, bytes);
+        auto buffer = std::make_shared<LoadingBuffer>(std::move(storage), state);
         state->pending = true;
         return buffer;
     }
@@ -247,17 +250,23 @@ void fit_width_checks() {
     const auto m = routed_fixture(6);
     size_t routed = 0;
     for (size_t w : infer::slot_widths(infer::load_config(m), false)) routed += w * sizeof(float);
-    require(infer::footprint(m, infer::ModelOptions{}).activations_per_row == routed,
+    require(infer::footprint(infer::gguf_weights(m), infer::ModelOptions{}).activations_per_row == routed,
             "the fit widens a routed layer's slots for the dense ffn_gate it also carries");
     infer::Model model(m);
     ++checks;
 }
 
-void loading_window_checks() {
-    const auto m = routed_fixture();
+// Layer 0's attention on a device and its experts on a host, streamed to the device from one new token.
+infer::Placement streamed_placement() {
     infer::Placement placement;
     placement.attn_device = {0}; placement.ffn_device = {1};
     placement.stream_from = 1;
+    return placement;
+}
+
+void loading_window_checks() {
+    const auto m = routed_fixture();
+    const infer::Placement placement = streamed_placement();
     for (int failure = 1; failure <= 3; ++failure) {
         auto device = std::make_shared<LoadingBackend>();
         auto host = std::make_shared<backend::CpuBackend>();
@@ -274,6 +283,53 @@ void loading_window_checks() {
         require(device->workers_started() == 0 && host->workers_started() == 0, "a one-thread model started worker threads");
         ++checks;
     }
+}
+
+// The model puts each weight on a backend through the loader's hook, which records the tensors a host reads in place (infer::recording_adopt).
+// A copying backend reads none; beside a device, a host that runs a streamed layer's experts reads exactly those, its norm and its router, which the device also takes.
+void reader_checks() {
+    auto read_in_place = [](const infer::QwenWeights& weights, std::vector<backend::BackendPtr> backends, infer::Placement placement) {
+        std::vector<int> takes(weights.tensors.size(), 0);
+        std::vector<char> host_reads;
+        const infer::AdoptWeight record = infer::recording_adopt(weights, host_reads);
+        const infer::AdoptWeight adopt = [&](size_t i, backend::Backend& b) {
+            ++takes[i];
+            return record(i, b);
+        };
+        { infer::Model model(weights, std::move(backends), std::move(placement), {}, adopt); }
+        std::vector<std::string> host;
+        for (size_t i = 0; i < host_reads.size(); ++i)
+            if (host_reads[i]) host.push_back(weights.tensors[i].name);
+        std::sort(host.begin(), host.end());
+        return std::make_pair(host, takes);
+    };
+    const auto dense = fixture();
+    auto device = std::make_shared<LoadingBackend>();
+    device->set_threads(1);
+    const auto copied = read_in_place(infer::gguf_weights(dense), {device}, infer::Placement{});
+    require(copied.first.empty(), "a copying backend read a weight in place");
+    for (int n : copied.second) require(n == 1, "a dense model did not take every tensor once through the hook");
+    require(device->workers_started() == 0, "a one-thread model started worker threads");
+    const auto routed = routed_fixture();
+    const infer::QwenWeights weights = infer::gguf_weights(routed);
+    auto host = std::make_shared<backend::CpuBackend>();
+    device = std::make_shared<LoadingBackend>();
+    device->set_threads(1); host->set_threads(1);
+    const auto seen = read_in_place(weights, {device, host}, streamed_placement());
+    require(device->workers_started() == 0 && host->workers_started() == 0, "a one-thread model started worker threads");
+    require(seen.first == std::vector<std::string>({"blk.0.ffn_down_exps.weight", "blk.0.ffn_gate_exps.weight",
+                                                    "blk.0.ffn_gate_inp.weight", "blk.0.ffn_norm.weight",
+                                                    "blk.0.ffn_up_exps.weight"}),
+            "a streamed layer's host did not read exactly its norm, router and experts in place");
+    // The fixture keeps its dense feed-forward matrices, which a routed layer does not take.
+    for (size_t i = 0; i < weights.tensors.size(); ++i) {
+        const std::string& name = weights.tensors[i].name;
+        const bool both = name == "blk.0.ffn_norm.weight" || name == "blk.0.ffn_gate_inp.weight";
+        const bool dense_ffn = name == "blk.0.ffn_gate.weight" || name == "blk.0.ffn_up.weight" || name == "blk.0.ffn_down.weight";
+        require(seen.second[i] == (both ? 2 : dense_ffn ? 0 : 1),
+                "a streamed layer's norm and router not taken by both backends, or another tensor taken other than once");
+    }
+    checks += 2;
 }
 
 void metadata_checks() {
@@ -415,6 +471,15 @@ void tensor_checks() {
     }
     auto m = base; m.tensors.push_back(m.tensors[0]); m.offsets.push_back(m.offsets[0]);
     rejects("duplicate tensor", [&] { construct(m); });
+    // A reader's views reach the model without gguf_weights' checks, so the model refuses a duplicate name itself.
+    auto views = infer::gguf_weights(base); views.tensors.push_back(views.tensors[0]);
+    rejects("duplicate view", [&] {
+        auto cpu = std::make_shared<backend::CpuBackend>();
+        cpu->set_threads(1);
+        infer::Model model(views, {cpu}, infer::Placement{});
+    });
+    m = base; m.release_payload();
+    rejects("released payload", [&] { construct(m); });
     m = base; m.offsets.pop_back();
     rejects("missing offset", [&] { construct(m); });
     m = base; m.offsets.push_back(0);
@@ -454,6 +519,7 @@ int main() {
         tensor_checks();
         loading_lifetime_checks();
         loading_window_checks();
+        reader_checks();
         fit_width_checks();
         std::cout << "model-validation: " << checks << " checks passed\n";
         return 0;

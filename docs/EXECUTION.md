@@ -230,8 +230,9 @@ block size and its own pool; a `Sequence` therefore holds one block table
 per storage; each stage prepares and commits the table of the storage it
 writes, and a failed pass or prompt truncates every table back to where it
 began. Weights are
-adopted by the backend that hosts them, which on the CPU is the mapped
-GGUF bytes and costs no RAM.
+adopted by the backend that hosts them, which on the CPU reads the mapped
+GGUF bytes in place rather than copying them; those pages are the page
+cache, which is still the host's memory.
 
 Wherever two consecutive graph nodes sit on different devices the residual
 stream crosses: the source `copy`s it into a host-visible handoff buffer

@@ -99,10 +99,13 @@ takes responsibility for making this data reachable by its device, by whatever
 means it needs*. The CPU backend stores the pointer. A GPU backend does a
 staging copy to VRAM.
 
-The contract that makes this work without a capability query: **`src` must
-remain valid for the lifetime of the returned `Buffer`.** `Model` already
-requires the `GGUFModel` to outlive it, so this is free on CPU; a GPU backend
-that copied simply never relies on the guarantee.
+The contract has two halves, told apart by `reads_in_place()`. **A backend
+that reads in place borrows `src` for the lifetime of the returned `Buffer`
+and does not read it inside `adopt`**; the file's mapping outlives the model,
+so this is free on CPU. **A backend that copies has consumed `src` when
+`adopt` returns.** The loader relies on the second half: a model whose every
+weight a copying backend took releases the host's copy of the file as soon
+as it is built (`inference/load.hpp`).
 
 `copy` exists for the KV cache, whose writes are device-to-device once
 activations are resident. A host-to-device `write` was part of this design,

@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <cmath>
 #include <stdexcept>
 #include <limits>
@@ -158,6 +159,50 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
     return c;
 }
 
+// One tensor as a reader hands it to the model: its name, its dimensions with the fastest first, its storage type (the GGUF type id), and its bytes, where `data` is null when they are not in memory.
+struct TensorView {
+    std::string name;
+    std::vector<uint64_t> shape;   // fastest dimension first
+    uint32_t type = gguf::GGML_TYPE_F32;
+    const uint8_t* data = nullptr;
+    size_t bytes = 0;
+};
+
+// What a model of this architecture is built from, whatever file it came from: the configuration and one view per tensor in the file's order, so tensor i is the file's tensor i.
+// Names are unique. The views are read only while the model is built; the bytes a backend adopted in place are read for as long as its buffer lives.
+struct QwenWeights {
+    QwenConfig config;
+    std::vector<TensorView> tensors;
+};
+
+// A GGUF model's weights: its configuration, read once, and a view of every tensor.
+// A tensor table whose storage count does not match its tensors, with a duplicate name, a rank above four, or an offset or extent outside the payload is refused, which includes a payload its owner released.
+inline QwenWeights gguf_weights(const gguf::GGUFModel& m) {
+    QwenWeights w;
+    w.config = load_config(m);
+    if (m.offsets.size() != m.tensors.size())
+        throw std::runtime_error("inference: tensor storage count mismatch");
+    std::unordered_set<std::string> names;
+    w.tensors.reserve(m.tensors.size());
+    for (size_t i = 0; i < m.tensors.size(); i++) {
+        const auto& t = m.tensors[i];
+        if (!names.insert(t.name).second)
+            throw std::runtime_error("inference: duplicate tensor " + t.name);
+        if (t.ne.size() > 4)
+            throw std::runtime_error("inference: invalid tensor rank " + t.name);
+        const uint64_t bytes = t.data_size();
+        if (m.offsets[i] % alignof(float) || m.offsets[i] > m.payload_size() ||
+            bytes > m.payload_size() - m.offsets[i])
+            throw std::runtime_error("inference: invalid tensor storage " + t.name);
+        w.tensors.push_back({t.name, t.ne, t.type, m.tensor_data(i), (size_t)bytes});
+    }
+    return w;
+}
+
+// How the model's builder puts tensor `tensor` of its QwenWeights on backend `b`, returning the buffer the model reads.
+// The model calls it once for each backend that hosts a weight's role; without one it calls b.adopt(view.data, view.bytes).
+using AdoptWeight = std::function<backend::BufferPtr(size_t tensor, backend::Backend& b)>;
+
 // A weight resolved once at load: type, storage and dimensions.
 // Resolving per call meant rebuilding "blk.N." and hashing a tensor name for every projection of every layer of every token; the forward pass indexes layers_ instead.
 // It is also what lets a device backend recognize a weight across calls, which is the prerequisite for residency (docs/DEVICE-EXECUTION.md).
@@ -306,10 +351,10 @@ inline size_t kv_bytes_per_position(const QwenConfig& cfg, const ModelOptions& o
 }
 
 // Which layers route their feed-forward block through experts, found by their router tensor.
-inline std::vector<bool> routed_layers(const gguf::GGUFModel& m, int n_layer) {
-    std::vector<bool> routed((size_t)n_layer, false);
+inline std::vector<bool> routed_layers(const QwenWeights& weights) {
+    std::vector<bool> routed((size_t)weights.config.n_layer, false);
     const std::string suffix = ".ffn_gate_inp.weight";
-    for (const auto& t : m.tensors) {
+    for (const auto& t : weights.tensors) {
         if (t.name.compare(0, 4, "blk.") != 0 || t.name.size() <= suffix.size() ||
             t.name.compare(t.name.size() - suffix.size(), suffix.size(), suffix) != 0)
             continue;
@@ -397,11 +442,11 @@ inline gguf::GGUFModel synthetic_model(int n_layer, int n_embd, int n_ff, int n_
 
 // What this architecture asks of the memory of the devices it runs on, for a split fitted to them (model/layer_split.hpp).
 // The cache is counted for every position the options budget; activations are the slots of ExecContext's arena.
-inline Footprint footprint(const gguf::GGUFModel& m, const ModelOptions& options) {
-    const QwenConfig cfg = load_config(m);
+inline Footprint footprint(const QwenWeights& weights, const ModelOptions& options) {
+    const QwenConfig& cfg = weights.config;
     Footprint fp;
     fp.layers.resize((size_t)cfg.n_layer);
-    bool dense = false, output = false;
+    bool output = false;
     // The roles a matrix product reads as its weights: a layer's projections and router, and the head; the embedding is gathered, norms are vectors and stacked experts are routed.
     // By role, not by rank, since a projection may carry trailing singleton axes.
     auto product = [](const std::string& name) {
@@ -414,17 +459,19 @@ inline Footprint footprint(const gguf::GGUFModel& m, const ModelOptions& options
             if (role == r) return true;
         return false;
     };
-    for (const auto& t : m.tensors) {
-        Matrix w{t.type, t.ne.empty() ? 0 : (size_t)t.ne[0], 1, (size_t)t.data_size(), product(t.name)};
-        for (size_t d = 1; d < t.ne.size(); ++d) w.rows *= (size_t)t.ne[d];
+    for (const TensorView& t : weights.tensors) {
+        Matrix w{t.type, t.shape.empty() ? 0 : (size_t)t.shape[0], 1, t.bytes, product(t.name)};
+        for (size_t d = 1; d < t.shape.size(); ++d) w.rows *= (size_t)t.shape[d];
         if (t.name == "token_embd.weight") fp.embedding = w;
         else if (t.name == "output.weight") { fp.output = w; output = true; }
         else if (t.name == "output_norm.weight") fp.output_norm = w;
         if (t.name.compare(0, 4, "blk.") != 0) continue;
         const size_t l = (size_t)std::strtoull(t.name.c_str() + 4, nullptr, 10);
         if (l < fp.layers.size()) fp.layers[l].push_back(w);
-        dense = dense || t.name.find(".ffn_gate.weight") != std::string::npos;
     }
+    // A layer without a router is dense, as the model resolves it.
+    const std::vector<bool> routed = routed_layers(weights);
+    const bool dense = std::find(routed.begin(), routed.end(), false) != routed.end();
     fp.tied = !output;
     if (fp.tied) {
         fp.output = fp.embedding;
@@ -453,21 +500,25 @@ inline Placement placement_for(const LayerSplit& split) {
 
 class Model {
 public:
-    // Construct the model over a GGUF model on one backend (defaults to the CPU backend).
-    // The model owns a reference to the model data, which must outlive the Model.
+    // Construct the model over a GGUF model on one backend (defaults to the CPU backend), or over several with a placement of every role.
+    // The GGUF model's payload must outlive the Model, since a backend that reads in place keeps its addresses.
     explicit Model(const gguf::GGUFModel& m,
                    backend::BackendPtr backend = backend::make_cpu_backend(),
                    ModelOptions options = ModelOptions{})
-        : Model(m, std::vector<backend::BackendPtr>{std::move(backend)}, Placement{}, options) {}
-
-    // Construct over several backends with a placement of every role.
+        : Model(gguf_weights(m), std::vector<backend::BackendPtr>{std::move(backend)}, Placement{}, options) {}
     Model(const gguf::GGUFModel& m, std::vector<backend::BackendPtr> backends,
           Placement placement, ModelOptions options = ModelOptions{})
-        : m_(&m), place_(std::move(placement)), options_(options) {
+        : Model(gguf_weights(m), std::move(backends), std::move(placement), options) {}
+
+    // Construct from a model's weights over several backends with a placement of every role, each weight put on the backend that hosts it by `adopt`.
+    // The views are not kept; the bytes a backend adopted in place must outlive the Model (Backend::adopt).
+    Model(const QwenWeights& weights, std::vector<backend::BackendPtr> backends,
+          Placement placement, ModelOptions options = ModelOptions{}, const AdoptWeight& adopt = {})
+        : place_(std::move(placement)), options_(options) {
         if (backends.empty()) throw std::runtime_error("inference: missing backend");
         for (const auto& b : backends)
             if (!b) throw std::runtime_error("inference: missing backend");
-        cfg = load_config(m);
+        cfg = weights.config;
         // The attention projection width is n_head*head_dim, which only equals n_embd by coincidence on some models (Qwen3-8B: 32*128 == 4096).
         // Qwen3-0.6B/1.7B/4B have head_dim 128 with a smaller n_embd.
         q_dim_ = cfg.n_head * cfg.head_dim;
@@ -526,30 +577,8 @@ public:
                 pipelined_ = pipelined_ && place_.ffn_device[(size_t)l] == (int)stages_[s].device;
         }
 
-        if (m.offsets.size() != m.tensors.size())
-            throw std::runtime_error("inference: tensor storage count mismatch");
-        for (size_t i = 0; i < m.tensors.size(); i++) {
-            const auto& t = m.tensors[i];
-            if (!tindex_.emplace(t.name, i).second)
-                throw std::runtime_error("inference: duplicate tensor " + t.name);
-            if (t.ne.size() > 4)
-                throw std::runtime_error("inference: invalid tensor rank " + t.name);
-            const uint64_t bytes = t.data_size();
-            if (m.offsets[i] % alignof(float) || m.offsets[i] > m.payload_size() ||
-                bytes > m.payload_size() - m.offsets[i])
-                throw std::runtime_error("inference: invalid tensor storage " + t.name);
-        }
-
-        // Tied embeddings: models without a separate output.weight reuse token_embd.weight as the output projection (same [n_embd, n_vocab] layout), so the head is just a matvec against the embedding matrix.
-        out_name_ = tindex_.count("output.weight") ? "output.weight" : "token_embd.weight";
-        host_reads_.assign(m_->tensors.size(), 0);
-        copied_.assign(m_->tensors.size(), 0);
         try {
-            resolve_tensors();
-            // With experts on the host, the file stays mapped for them; the tensors the devices copied need not stay resident beside them.
-            if (holds_payload_)
-                for (size_t i = 0; i < copied_.size(); ++i)
-                    if (copied_[i] && !host_reads_[i]) m_->drop_pages(i);
+            resolve_tensors(weights, adopt);
 
             // Each device that runs attention gets a storage for exactly its layers, with its own block size and pool.
             // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
@@ -795,9 +824,6 @@ public:
         return seq_.length() * (size_t)cfg.n_layer * kv_bytes_per_position(cfg, options_);
     }
 
-    // Whether any weight still reads the GGUF model's tensor bytes in place. A host backend adopts by aliasing them; a device backend copies them into its own memory, and a model on device backends alone then holds every weight twice unless its owner releases the host copy (GGUFModel::release_payload).
-    bool holds_payload() const { return holds_payload_; }
-
 private:
     // One backend and what the placement put on it.
     // A pool is not movable, because sequences hold its address, so devices live behind pointers.
@@ -819,9 +845,6 @@ private:
         std::vector<size_t> touches;
     };
 
-    const gguf::GGUFModel* m_;
-    bool holds_payload_ = false;   // some weight reads the GGUF model's bytes in place
-    std::vector<char> host_reads_, copied_;   // per tensor: a host reads it in place, a device copied it
     Placement place_;
     std::vector<std::unique_ptr<Device>> devices_;
     std::vector<Device*> storages_;              // the devices that run attention
@@ -835,49 +858,62 @@ private:
     // Per device, what a streamed layer's experts are copied into: one buffer per projection, sized to the largest streamed layer's.
     struct Window { backend::BufferPtr gate, up, down; };
     std::vector<Window> windows_;
-    std::string out_name_;
-    std::unordered_map<std::string, size_t> tindex_;
     std::vector<LayerWeights> layers_;
     Weight token_embd_, output_norm_, output_;
     std::vector<float> rope_cos_, rope_sin_;
     Sequence seq_;
     ExecContext ctx_;
 
-    const gguf::TensorInfo& tensor(const std::string& name) const {
-        auto it = tindex_.find(name);
-        if (it == tindex_.end()) throw std::runtime_error("inference: missing tensor " + name);
-        return m_->tensors[it->second];
-    }
-
     // Validate every tensor this architecture needs and resolve it to a Weight in the same pass, so a resolved handle is well-formed by construction and the forward pass never looks a tensor up by name.
-    // Each weight is adopted by the backend that hosts its role.
-    void resolve_tensors() {
-        const auto& embedding = tensor("token_embd.weight");
-        if (embedding.ne.size() < 2 || !embedding.ne[1] ||
-            embedding.ne[1] > uint64_t(std::numeric_limits<int>::max()))
+    // Each weight is put on the backend that hosts its role, by the caller's hook when it gave one.
+    void resolve_tensors(const QwenWeights& weights, const AdoptWeight& adopt) {
+        std::unordered_map<std::string, size_t> index;
+        index.reserve(weights.tensors.size());
+        for (size_t i = 0; i < weights.tensors.size(); ++i)
+            if (!index.emplace(weights.tensors[i].name, i).second)
+                throw std::runtime_error("inference: duplicate tensor " + weights.tensors[i].name);
+        auto find = [&](const std::string& name) -> size_t {
+            auto it = index.find(name);
+            if (it == index.end()) throw std::runtime_error("inference: missing tensor " + name);
+            return it->second;
+        };
+        auto take = [&](size_t device, size_t i) -> backend::BufferPtr {
+            backend::Backend& b = *devices_[device]->b;
+            return adopt ? adopt(i, b) : b.adopt(weights.tensors[i].data, weights.tensors[i].bytes);
+        };
+        const TensorView& embedding = weights.tensors[find("token_embd.weight")];
+        if (embedding.shape.size() < 2 || !embedding.shape[1] ||
+            embedding.shape[1] > uint64_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: invalid vocabulary dimension");
-        const uint64_t vocab = embedding.ne[1];
+        const uint64_t vocab = embedding.shape[1];
         auto check = [&](size_t device, const std::string& name, uint64_t input,
                          uint64_t output, bool norm = false) -> Weight {
-            const auto& t = tensor(name);
-            bool valid = !t.ne.empty() && t.ne[0] == input;
+            const size_t i = find(name);
+            const TensorView& t = weights.tensors[i];
+            bool valid = !t.shape.empty() && t.shape[0] == input;
             if (norm) {
                 valid = valid && t.type == gguf::GGML_TYPE_F32;
             } else {
-                valid = valid && t.ne.size() >= 2 && t.ne[1] == output;
+                valid = valid && t.shape.size() >= 2 && t.shape[1] == output;
             }
-            for (size_t d = norm ? 1 : 2; d < t.ne.size(); ++d) valid = valid && t.ne[d] == 1;
+            for (size_t d = norm ? 1 : 2; d < t.shape.size(); ++d) valid = valid && t.shape[d] == 1;
             if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + name);
-            // adopt, not copy: the payload is already resident and the GGUF model outlives this one by contract.
-            const size_t i = tindex_.at(t.name);
-            backend::BufferPtr buf = devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i));
-            note_reader(i, buf);
-            return Weight{t.type, std::move(buf), (size_t)input, (size_t)output};
+            return Weight{t.type, take(device, i), (size_t)input, (size_t)output};
         };
+        // A stacked expert tensor: n_expert matrices of `output` rows of `input` values, the whole tensor adopted as one buffer.
+        auto experts = [&](size_t device, const std::string& name, uint64_t input, uint64_t output) -> Weight {
+            const size_t i = find(name);
+            const TensorView& t = weights.tensors[i];
+            if (t.shape.size() != 3 || t.shape[0] != input || t.shape[1] != output || t.shape[2] != (uint64_t)cfg.n_expert)
+                throw std::runtime_error("inference: incompatible tensor layout " + name);
+            return Weight{t.type, take(device, i), (size_t)input, (size_t)output};
+        };
+        // Tied embeddings: models without a separate output.weight reuse token_embd.weight as the output projection (same [n_embd, n_vocab] layout), so the head is just a matvec against the embedding matrix.
+        const std::string out_name = index.count("output.weight") ? "output.weight" : "token_embd.weight";
         const size_t ed = (size_t)place_.embed_device, od = (size_t)place_.output_device;
         token_embd_ = check(ed, "token_embd.weight", cfg.n_embd, vocab);
         // A tied head on the embedding's own device reads the buffer adopted for the embedding rather than a second copy.
-        output_ = out_name_ == "token_embd.weight" && ed == od ? token_embd_ : check(od, out_name_, cfg.n_embd, vocab);
+        output_ = out_name == "token_embd.weight" && ed == od ? token_embd_ : check(od, out_name, cfg.n_embd, vocab);
         output_norm_ = check(od, "output_norm.weight", cfg.n_embd, 1, true);
         const uint64_t kv_width = uint64_t(cfg.n_head_kv) * cfg.head_dim;
         layers_.resize(cfg.n_layer);
@@ -894,7 +930,7 @@ private:
             w.attn_v      = check(a, pre + "attn_v.weight", cfg.n_embd, kv_width);
             w.attn_output = check(a, pre + "attn_output.weight", q_dim_, cfg.n_embd);
             w.ffn_norm    = check(f, pre + "ffn_norm.weight", cfg.n_embd, 1, true);
-            w.moe = tindex_.count(pre + "ffn_gate_inp.weight") != 0;
+            w.moe = index.count(pre + "ffn_gate_inp.weight") != 0;
             if (w.moe) {
                 if (!cfg.n_expert) throw std::runtime_error("inference: expert tensors in a dense architecture " + pre);
                 w.ffn_gate_inp  = check(f, pre + "ffn_gate_inp.weight", cfg.n_embd, cfg.n_expert);
@@ -932,28 +968,6 @@ private:
             windows_[d].gate = b.alloc(s[0]);
             windows_[d].up = b.alloc(s[1]);
             windows_[d].down = b.alloc(s[2]);
-        }
-    }
-
-    // A stacked expert tensor: n_expert matrices of `output` rows of `input` values, the whole tensor adopted as one buffer.
-    Weight experts(size_t device, const std::string& name, uint64_t input, uint64_t output) {
-        const auto& t = tensor(name);
-        if (t.ne.size() != 3 || t.ne[0] != input || t.ne[1] != output || t.ne[2] != (uint64_t)cfg.n_expert)
-            throw std::runtime_error("inference: incompatible tensor layout " + name);
-        const size_t i = tindex_.at(t.name);
-        backend::BufferPtr buf = devices_[device]->b->adopt(m_->tensor_data(i), m_->tensor_bytes(i));
-        note_reader(i, buf);
-        return Weight{t.type, std::move(buf), (size_t)input, (size_t)output};
-    }
-
-    // Whether each tensor is read in place by a host and whether a device copied it, so the pages of a tensor only devices hold can leave the host's working set once every weight is resolved.
-    void note_reader(size_t i, const backend::BufferPtr& buf) {
-        const uint8_t* hp = static_cast<const uint8_t*>(buf->host_ptr());
-        if (hp && m_->holds(hp)) {
-            holds_payload_ = true;
-            host_reads_[i] = 1;
-        } else {
-            copied_[i] = 1;
         }
     }
 
@@ -1346,8 +1360,8 @@ struct PlacedModel {
 
 // The model over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, with the request's ubatch set.
 // The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; attention, the dense blocks, the embedding and the head stay on the device.
-inline PlacedModel place_model(const gguf::GGUFModel& m, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
-                               ModelOptions options) {
+inline PlacedModel place_model(const QwenWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
+                               ModelOptions options, const AdoptWeight& adopt = {}) {
     if (backends.empty()) throw std::runtime_error("placement: no device");
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
@@ -1355,7 +1369,7 @@ inline PlacedModel place_model(const gguf::GGUFModel& m, std::vector<backend::Ba
     // Where any storage would fall short, the budget becomes what they take in the largest blocks, which every other size divides, so every storage holds them and the fit counts them.
     // No history holds more than the model's context, so one that asks for more is counted at the context: the pool does not grow for tokens no run can hold, and the run is refused where it passes the context.
     if (request.histories) {
-        const QwenConfig cfg = load_config(m);
+        const QwenConfig& cfg = weights.config;
         const size_t budget = kv_tokens(cfg, options), tokens = std::min(request.history_tokens, (size_t)cfg.context_length);
         size_t held = 0;
         bool short_of = false;
@@ -1374,18 +1388,18 @@ inline PlacedModel place_model(const gguf::GGUFModel& m, std::vector<backend::Ba
             throw std::runtime_error("--n-cpu-moe and --cpu-moe: not with several devices; list the CPU as a device to give it layers");
         const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
         const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
-        const LayerSplit split = split_layers(footprint(m, options), budgets, rows, request.shares, core::host_memory_available());
-        placed = {std::make_unique<Model>(m, std::move(backends), placement_for(split), options), split.describe(budgets)};
+        const LayerSplit split = split_layers(footprint(weights, options), budgets, rows, request.shares, core::host_memory_available());
+        placed = {std::make_unique<Model>(weights, std::move(backends), placement_for(split), options, adopt), split.describe(budgets)};
     } else if (!request.cpu_moe || backends[0]->reads_in_place()) {
-        placed.model = std::make_unique<Model>(m, std::move(backends[0]), options);
+        placed.model = std::make_unique<Model>(weights, std::move(backends), Placement{}, options, adopt);
     } else {
-        const QwenConfig cfg = load_config(m);
+        const QwenConfig& cfg = weights.config;
         Placement place;
         place.attn_device.assign((size_t)cfg.n_layer, 1);
         place.ffn_device.assign((size_t)cfg.n_layer, 1);
         place.embed_device = place.output_device = 1;
         place.stream_from = request.stream_from;
-        const std::vector<bool> routed = routed_layers(m, cfg.n_layer);
+        const std::vector<bool> routed = routed_layers(weights);
         int seen = 0;
         for (int l = 0; l < cfg.n_layer; ++l) {
             if (!routed[(size_t)l]) continue;
@@ -1394,7 +1408,7 @@ inline PlacedModel place_model(const gguf::GGUFModel& m, std::vector<backend::Ba
         }
         if (!seen) throw std::runtime_error("--n-cpu-moe: the model has no expert layers");
         std::vector<backend::BackendPtr> both{backend::make_cpu_backend(), std::move(backends[0])};
-        placed.model = std::make_unique<Model>(m, std::move(both), place, options);
+        placed.model = std::make_unique<Model>(weights, std::move(both), place, options, adopt);
     }
     placed.model->set_ubatch(request.ubatch);
     return placed;

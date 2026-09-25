@@ -2264,6 +2264,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
        - It loses its progress parameter.
      - **`map_payload(GGUFModel&)`** maps each segment. It refuses a file whose size changed since its header was read, taking over the extent checks at 544-550.
      - **`GGUFModel::span(i)`** returns a `format::FileSpan{file, offset, bytes}`.
+     - **`gguf_weights`** gives a view a null `data` while its tensor's segment is unmapped, deciding per segment by its `file`, not by whether segments exist.
      - **`format/format.hpp`** keeps `LoadProgress` and gains `FileSpan`. `ModelFormat`, `format::Tensor`, `ModelFormatPtr`, `format::open` and `GGUFFormat` are deleted.
      - **`gguf::warm(m, tensors, progress)`** is today's loop at 564-579 over the given tensors, with the same 8 MiB steps. The host-memory rule moves into the loader.
      - **`core::page_size()`** in `core/host_memory.hpp` replaces `MappedFile::page_size` and the literal 4096.
@@ -2368,7 +2369,22 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     - Stdout is byte-identical to main on the CPU for Qwen3-0.6B Q8_0, Q4_0 and Q5_K_M: 64 greedy tokens, logits, perplexity batched and per token, `info`, `tokenize`, `detokenize` and `chat` with a fixed seed.
     - On one MI50, 64 greedy tokens and logits are byte-identical to main for Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M, and so are a split over the MI50 and the CPU, `--n-cpu-moe 12` and `llmx-split-check`, apart from the free memory they report.
     - Warm loads of Qwen3-8B Q8_0 on one MI50 are level with main: 2.62 to 2.81 s against 2.82 to 3.23 s.
-    - Open before the merge to main: the cold A/B, which needs a scratch dataset with `primarycache=metadata`, and the Vulkan identity on the Radeon VII.
+  - Step 2 as planned, except that it landed before the safetensors branch agreed to its types, which step 0 put first.
+    - `TensorView` and `QwenWeights` use the safetensors branch's field names and meanings. Its `vocab_size` and `tie_output` are left out: a reader ties the head by leaving out `output.weight`, as a GGUF file does. They went to that branch's developer for objections, with `AdoptWeight` and step 3's `format::FileSpan`, before the step was committed, and no answer had come when it was.
+    - The loader drops the pages of every tensor no host reads, which also covers a tensor no backend took; main dropped only the tensors a device copied.
+    - The model also refuses a duplicate tensor name, since a second format's views reach it without `gguf_weights`' checks, and `model-validation` records through the loader's own hook, `recording_adopt`.
+    - `format-gguf.md`, `format-format.md`, ROADMAP §3 and the ARCHITECTURE diagram named `GGUFModel::holds`, `Model::holds_payload` or a model that reads `GGUFModel`, so they changed with the step; step 3 still rewrites the last three.
+    - `footprint` is unchanged on all 17 local model files: the 12 Qwen3 files give the same footprint, and the other 5 are refused with the same message.
+    - Stdout and stderr are byte-identical to main on the CPU for Qwen3-0.6B Q8_0, Q4_0 and Q5_K_M (64 greedy tokens, logits, perplexity batched and per token, `info`, `tokenize`, `detokenize`, `chat` with a fixed seed), for Qwen3-30B-A3B Q4_K_M (16 greedy tokens and logits) and for the plan of a one-share split, apart from the free memory it reports.
+    - On one MI50, 64 greedy tokens and logits are byte-identical to main for Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M, and so are a split over the MI50 and the CPU, `--n-cpu-moe 12` and `llmx-split-check`, stderr included.
+    - Host memory once a server serves is main's to 2 MiB: 130 MiB for Qwen3-8B Q8_0 on the MI50, 4427 MiB for Qwen3-30B-A3B with `--n-cpu-moe 12` (4323 MiB of it file pages), 511 MiB for Qwen3-0.6B split over the MI50 and the CPU, and 702 MiB for it on the CPU.
+    - Loads of Qwen3-8B Q8_0 on one MI50 are level with main: 2.62 to 2.75 s against 2.67 to 2.79 s, eight each, interleaved, all of them warm. Half came after `posix_fadvise(DONTNEED)` on the file, which leaves a ZFS file's pages cached.
+    - On the Windows CPU, placing the model on warm pages takes 117 to 415 ms on either side for Qwen3-0.6B, Qwen3-8B and Qwen3-30B-A3B, and whole loads of Qwen3-0.6B are level; whole loads of Qwen3-8B took 8.2 to 18.0 s on main and 9.5 to 43.7 s on the branch while other processes were loading models on the same machine.
+  - Open before the merge to main:
+    - a cold A/B of loads on the Linux machine, which needs a scratch dataset with `primarycache=metadata`;
+    - the Vulkan identity on the Radeon VII;
+    - the safetensors branch's agreement to `TensorView`, `QwenWeights`, `AdoptWeight` and `format::FileSpan`, which step 3 waits for before it fixes `FileSpan`;
+    - an A/B of whole Qwen3-8B Q8_0 loads on the Windows CPU with nothing else running, since no load may be slower than main on either machine.
 - **The `--load-mode` flag, for docs/USAGE.md.** The execution options of chat, generate, serve, logits, perplexity and `bench --model` take it. Help line: `--load-mode M           How weights are read: auto (default), mapped or direct`.
   - **`auto` (default):**
     - Weights a device copies are read from the file in large sequential reads, overlapped with the uploads.

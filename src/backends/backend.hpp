@@ -187,7 +187,8 @@ public:
     // Zero-filled backend storage.
     virtual BufferPtr alloc(size_t bytes, Memory where = Memory::device) = 0;
 
-    // Make src reachable without copying on a host backend; src must outlive the returned buffer.
+    // Make src reachable by this backend's ops.
+    // A backend that reads in place (reads_in_place) borrows src for the returned buffer's life and does not read it inside adopt; one that copies has consumed src when adopt returns, so the caller may release it then.
     virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
 
     // Ops enqueue on one stream; submit() flushes and returns a monotonic ticket, and wait(t) retires that submission and everything before it.

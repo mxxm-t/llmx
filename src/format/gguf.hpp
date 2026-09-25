@@ -140,22 +140,15 @@ struct GGUFModel {
         segments.clear();
     }
 
-    // The extent `offsets` address, and whether a pointer lies in the tensor bytes, whichever holds them.
+    // The extent `offsets` address, whichever holds the tensor bytes.
     size_t payload_size() const { return segments.empty() ? blob.size() : segments.back().base + segments.back().size; }
-    bool holds(const void* p) const {
-        const uint8_t* b = (const uint8_t*)p;
-        if (segments.empty()) return !blob.empty() && b >= blob.data() && b < blob.data() + blob.size();
-        for (const auto& s : segments)
-            if (s.size && b >= s.file->data() + s.start && b < s.file->data() + s.start + s.size) return true;
-        return false;
-    }
 
     const uint8_t* tensor_data(size_t i) const {
         if (segments.empty()) return blob.data() + offsets[i];
         const Segment& s = segment_of(offsets[i]);
         return s.file->data() + s.start + (offsets[i] - s.base);
     }
-    // A mapped model's tensor whose only reader copied it: its pages leave the host's working set first (MappedFile::drop). Nothing for an in-memory model.
+    // A mapped model's tensor no host reads in place: its pages leave the host's working set first (MappedFile::drop). Nothing for an in-memory model.
     void drop_pages(size_t i) const {
         if (!segments.empty()) segment_of(offsets[i]).file->drop(tensor_data(i), tensor_bytes(i));
     }

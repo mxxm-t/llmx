@@ -105,7 +105,7 @@ void layer_split_fits() {
     const auto weights = fixture();
     const infer::ModelOptions options;
     const size_t GiB = size_t(1) << 30, MiB = size_t(1) << 20;
-    const infer::Footprint fp = infer::footprint(weights, options);
+    const infer::Footprint fp = infer::footprint(infer::gguf_weights(weights), options);
     // The fixture's two layers of equal shape, and no output.weight, so the head reads the embedding.
     size_t layer0 = 0, layer1 = 0;
     for (const auto& m : fp.layers.at(0)) layer0 += m.bytes;
@@ -253,7 +253,7 @@ void layer_split_fits() {
     auto singleton = weights;
     for (auto& t : singleton.tensors)
         if (t.name.compare(0, 4, "blk.") == 0 && t.ne.size() == 2) t.ne.push_back(1);
-    const infer::Footprint fs = infer::footprint(singleton, options);
+    const infer::Footprint fs = infer::footprint(infer::gguf_weights(singleton), options);
     size_t products = 0, singleton_products = 0;
     for (size_t l = 0; l < fp.layers.size(); ++l)
         for (size_t i = 0; i < fp.layers[l].size(); ++i) {
@@ -299,27 +299,27 @@ void layer_split_fits() {
     request.names = {"cpu", "cpu"};
     request.shares = {1, 1};
     request.ubatch = 3;
-    infer::PlacedModel placed_split = infer::place_model(weights, cpus(), request, options);
+    infer::PlacedModel placed_split = infer::place_model(infer::gguf_weights(weights), cpus(), request, options);
     single.reset();
     exact(single.prefill(prompt), placed_split.model->prefill(prompt), "place_model split prefill differs from one device");
     require(placed_split.model->prefill_batch() == 3 && !placed_split.plan.empty(), "place_model did not apply the ubatch or describe the split");
     request.cpu_moe = 1;
     bool experts_refused = false;
-    try { infer::place_model(weights, cpus(), request, options); } catch (const std::runtime_error&) { experts_refused = true; }
+    try { infer::place_model(infer::gguf_weights(weights), cpus(), request, options); } catch (const std::runtime_error&) { experts_refused = true; }
     require(experts_refused, "experts on the CPU accepted beside several devices");
     // A stream point has nothing to stream without experts on the CPU, so place_model refuses it for every caller, whatever the caller checked first.
     infer::PlacementRequest stream_alone;
     stream_alone.names = {"cpu"};
     stream_alone.stream_from = 1;
     bool stream_refused = false;
-    try { infer::place_model(weights, {std::make_shared<backend::CpuBackend>()}, stream_alone, options); }
+    try { infer::place_model(infer::gguf_weights(weights), {std::make_shared<backend::CpuBackend>()}, stream_alone, options); }
     catch (const std::runtime_error&) { stream_refused = true; }
     require(stream_refused, "a stream point accepted without experts on the CPU");
     // A CPU reads its weights in place, so experts on the CPU beside it are the one device alone.
     infer::PlacementRequest experts_on_cpu;
     experts_on_cpu.names = {"cpu"};
     experts_on_cpu.cpu_moe = -1;
-    require(infer::place_model(weights, {std::make_shared<backend::CpuBackend>()}, experts_on_cpu, options).model->prefill_batch() ==
+    require(infer::place_model(infer::gguf_weights(weights), {std::make_shared<backend::CpuBackend>()}, experts_on_cpu, options).model->prefill_batch() ==
                 (size_t)infer::kDefaultUbatch,
             "experts on the CPU beside a CPU not taken as one device");
     checked += 5;
@@ -340,7 +340,7 @@ infer::PlacedModel pipelined(const gguf::GGUFModel& weights, std::vector<backend
     request.shares = shares;
     request.ubatch = 3;
     for (auto& b : backends) b->set_threads(1);
-    return infer::place_model(weights, std::move(backends), request, infer::ModelOptions{});
+    return infer::place_model(infer::gguf_weights(weights), std::move(backends), request, infer::ModelOptions{});
 }
 
 // The prompt, decode steps after it, a second prompt continuing that history, every row score() hands out, and a pass of a decoding sequence beside a fresh prompt, each exact against one backend.
@@ -459,7 +459,7 @@ void histories_fit_the_pool() {
         if (devices > 1) request.shares.assign(devices, 1);
         request.histories = histories;
         request.history_tokens = tokens;
-        return infer::place_model(weights, std::move(backends), request, options).model;
+        return infer::place_model(infer::gguf_weights(weights), std::move(backends), request, options).model;
     };
     // One history of one block leaves the two-block budget as it is, where a budget set to what the histories take would shrink to that block.
     require(place(0, 0, 1)->kv_tokens_total() == 256 && place(1, 100, 1)->kv_tokens_total() == 256 &&

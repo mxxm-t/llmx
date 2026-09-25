@@ -555,6 +555,50 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Gaps in llmx the tool meets, proposed and not changed here:** the routes read no `ignore_eos`, so a greedy reply ends at the model's end of text whatever its cap and fixed output lengths hold only while the model does not emit it (the `short` count shows when it does); a boolean `ignore_eos` on the four generation routes that masks the end-of-text ids before sampling would close it (closed by the `ignore_eos` block above). The native stream's `done` event carries `tokens` but not the `prompt_tokens` and `reused_tokens` a whole reply carries, so on `/v1/generate` the tool reads reused tokens from `/v1/health` and cannot check prompt lengths per request. There is no tokenize route (`/v1/tokenize` came later, branch feat/server-tokenize, and the tool counts prompts through it since). A burst is admitted up to about `--max-queue`, not `--max-seqs` plus `--max-queue`, since a request waits in the queue until the scheduler's next pass makes it active: 8 at once on 2 and 2 admitted 3, and 100 at once on the defaults 65.
 - **Left:** the gate's measurement on the cards, llmx against mx-llama.cpp's server and vLLM with the same load at 1 to 64 users and a rate sweep; `--api completion` and the reference server's `/tokenize` have run here only against in-process servers, since no reference server is built on this machine.
 
+## Log-probabilities on the server's routes (2026-09-25, branch feat/server-logprobs)
+
+- **Why:** the exact resume planned below compares a request's logits with its run alone, and ids show a difference only once a greedy token flips. The compatible APIs define `logprobs` for the values, so the detector is a public feature rather than a test-only seam.
+- **Done:**
+  - `logprobs` and `top_logprobs` (at most 20) on `/v1/completions` and `/v1/chat/completions` in the compatible shapes, and on `/v1/generate` and `/v1/chat` in a native one, whole and streamed (`docs/SERVER.md`, Log-probabilities).
+  - Each value is the log-softmax of the logits row the sampler reads, before the penalty, the temperature, top-k and top-p. That is the raw row: the compatible APIs report the model's distribution, and values that moved with the sampling settings would blur the detector. It is computed in double, rounded once to float and written by `jmini::number`, the shortest decimal that reads back as the float.
+  - The row goes with the id on the request's token channel (`Request::Token`), and `Request::next` turns it into the values in the thread that reads the channel. Computed on the scheduler thread, they had slowed every request in the pass (below).
+  - A reader can fall behind: a client that stops reading its stream holds its connection thread in a write. Once 8 tokens wait with their rows (`Request::kRowsWaiting`), the scheduler computes the next tokens' values itself and sends them in the rows' place, so a request holds at most ten rows. Before this, every unread token held its 0.6 MB row: a streamed request of 3000 tokens with `logprobs` 20 whose client never reads took the server (Windows CPU, Qwen3-0.6B Q8_0) from 110 to 2355 MB committed, and it now peaks at 825 MB, against 819 MB without logprobs.
+  - Rows the reader has finished with go back to the request and are filled again, so a pass does not allocate one a token; a cancelled request's rows are dropped unread.
+  - The compatible shapes type a value as a number, so they write -9999 for one below it or with no JSON number, while the native shape keeps `null`. The chat shape carries `"refusal": null`. `log_sum_exp` seeks the maximum from the row's first value, so a row lying below -1e30 still normalizes.
+  - `inference/logprobs.hpp` holds the log-sum-exp, the rounding and the top list. Perplexity's `token_nll` reads the same log-sum-exp, and its output is byte-identical.
+  - `tools/server_mix_check.py --ids` writes every phase's ids, which the gate below compares between builds.
+- **Tests:** the `logprobs` CTest holds the log-softmax to a compensated double-precision reference on 151936-token rows and edge rows, one below -1e30 among them, and the scheduler's channel to a second model's logits through the same passes, read at once and left unread to its end (8 rows waiting, then the same values), and cancelled unread (the waiting rows dropped). `json` checks the float writer. `server.py` checks each route's shape whole and streamed, the ids unchanged, the values repeating byte for byte, greedy's token the most likely, each prompt's values alone equal to its values four at a time, the refusals, and a reply that does not ask byte-identical to one that never names the fields.
+- **Exact against the base** (`gate/merge-4` at ea3a255), replies without logprobs:
+  - CPU (Windows, Qwen3-0.6B Q8_0): 96 replies, three prompts greedy, seeded, with a stop string and with penalty 1.3 on the four routes, whole and streamed, byte-identical apart from `created`, a compatible reply's `id` and its `timings`. An earlier set of 89, four at once among them, was byte-identical before the bound on unread rows.
+  - One MI50 and a 3-card split (Qwen3-8B Q8_0): `server_mix_check.py` ids byte-equal in the alone, together and skewed phases, with 0 of 16 and 0 of 12 differing from alone in both builds.
+  - Perplexity byte-identical on the CPU (0.6B batched and per token) and on an MI50 (0.6B batched and per token, 8B batched).
+  - With logprobs, the values match a log-softmax of the row `llmx logits --top 151936` prints to within its six decimals, in the same order, at temperature 0, 0.7 and 1.5.
+- **Measured** (one MI50, Qwen3-8B Q8_0, clocks held high, `server_load.py` closed loop, 128-token prompts and replies, 32 requests a level, the better of two passes a round):
+  - Four rounds in ABBA order, medians, tok/s and inter-token p50:
+
+    | concurrent | base tok/s | branch tok/s | base ITL p50 | branch ITL p50 |
+    |---:|---:|---:|---:|---:|
+    | 1 | 62.3 | 62.2 | 14.96 ms | 14.96 ms |
+    | 4 | 116.5 | 119.2 | 29.17 ms | 29.01 ms |
+    | 8 | 177.2 | 182.4 | 35.45 ms | 34.89 ms |
+    | 16 | 177.1 | 184.4 | 71.12 ms | 68.90 ms |
+
+  - Two rounds in ABC CBA order with the reference server beside (mx-llama.cpp's llama-server, 16 slots, flash attention, on the same card), tok/s of each round, the second lower for all three with the host busier:
+
+    | concurrent | base | branch | reference |
+    |---:|---:|---:|---:|
+    | 1 | 61.4, 60.0 | 62.2, 59.5 | 63.1, 63.0 |
+    | 4 | 118.2, 115.1 | 117.2, 111.4 | 148.5, 143.8 |
+    | 8 | 180.3, 173.8 | 181.7, 173.6 | 181.9, 169.7 |
+    | 16 | 181.5, 178.8 | 179.6, 176.5 | 224.1, 206.3 |
+
+  - The branch is level with the base: every difference is inside a round-to-round spread of up to 8 tok/s, and an earlier build's two rounds, with the host at a load average of 6 to 10, put it 2 to 4 percent below at 8 and 16 in one round and above in the other.
+  - The reference leads both builds at 4 and 16 concurrent by its inter-token latency (19.6 against 29.3 ms at 4, 57.4 against 70.2 ms at 16) and trails them at time to first token from 8 up (1017 against 763 ms at 8, 1810 against 1214 ms at 16). That is the base's standing against the serving gate, not a change here.
+  - `logprobs` 20 on 256-token replies: 65.8 tok/s alone without, 65.5 with; 222.2 and 220.3 tok/s with 16 at once. Computed on the scheduler thread they cost 67.2 to 62.9 and 210 to 185: a walk over 151936 logits in double takes about a millisecond a token, and every request in the pass waited for it.
+  - With the bound on unread rows and the rows filled again, against the build before it, in ABBA order twice with the host at a load average of 35 to 45 (medians of 12 samples): with `logprobs` 20, 61.7 against 61.0 tok/s alone and 197.1 against 198.0 with 16 at once, inside a spread of 186 to 208; without, 60.5 against 61.0 and 202.6 against 201.3. A diagnostic build counted the scheduler computing the values for 3 of 6912 such tokens, so readers stay under the bound even on that host.
+- **Left before merge:** on the Radeon VII, CTest and the suites, `server.py` (whose device checks include each prompt's values alone against four at once), `server_load.py` level with main beside the reference server, and the `logprobs` 20 cost. The hosted run.
+- **Suites:** CTest 23/23 and the suite on the CPU pass on Windows, where the Vulkan tree builds. On the MI50s, CTest 25/25 and `server.py` on one card pass.
+
 ## Exact resume of a paused request (planned 2026-09-25, branch fix/server-exact-resume)
 
 - **Goal:** a paused and resumed request gives the same logits, bit for bit, that it gives when never paused. This holds on the CPU, on a device and on a layer split. Its server reply then equals its reply alone, and without a forked prefix it equals the CLI's.
@@ -588,7 +632,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Who gives up blocks for whom: `make_room`.
   - Which donor a request may fork: `best_donor`.
   - How far a request has progressed: its cache's length.
-- **Before it, `feat/server-logprobs`**, on its own branch with its own gate:
+- **Before it, `feat/server-logprobs`** (implemented, see its section), on its own branch with its own gate:
   - `logprobs` and `top_logprobs` (up to 20) on `/v1/completions` and `/v1/chat/completions` in the compatible shapes, and on `/v1/generate`.
   - Each value is the log-softmax of the logits row the sampler reads. It is computed only when asked and printed so the float round-trips.
   - The channel a request's tokens come through carries these values, so the C++ tests read them without a test-only seam.

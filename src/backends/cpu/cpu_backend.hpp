@@ -221,7 +221,7 @@ public:
                                    ? nullptr : quant::Registry::instance().get(type);
         if (type != gguf::GGML_TYPE_F32 && (!qt || !qt->dequantize))
             throw std::runtime_error("backend: unsupported embedding type");
-        const size_t stride = qt ? (nin / qt->block_size) * qt->type_size : nin * sizeof(float);
+        const size_t stride = quant::row_bytes(type, nin);
         for (size_t i = 0; i < count; ++i) {
             if (ids[i] >= nrows) throw std::runtime_error("backend: embedding row out of range");
             const uint8_t* row = rows + (size_t)ids[i] * stride;
@@ -295,18 +295,7 @@ public:
     static void each_run(size_t nbatch, RowRuns runs, const Fn& each) {
         if (!nbatch) return;
         if (!runs.n) { each(0, nbatch, nbatch == 1); return; }
-        if (runs.runs[runs.n - 1].end != nbatch) throw std::runtime_error("backend: row runs do not cover the batch");
-        size_t start = 0;
-        for (size_t i = 0; i < runs.n;) {
-            const bool decode = runs.runs[i].extent <= 1;
-            size_t j = i + 1;
-            while (j < runs.n && (runs.runs[j].extent <= 1) == decode) ++j;
-            const size_t end = runs.runs[j - 1].end;
-            if (end < start) throw std::runtime_error("backend: row runs out of order");
-            if (end > start) each(start, end - start, decode);
-            start = end;
-            i = j;
-        }
+        for_each_run(nbatch, runs, [](const RowRun& r) { return r.extent <= 1; }, each);
     }
 
     // Whether decode rows meet quantized activations (q8_dots.hpp); a reference that wants the float arithmetic turns it off.
@@ -316,7 +305,7 @@ public:
     void matvec_q8x(uint32_t type, const uint8_t* data, const float* X, float* Y, size_t nin, size_t nout, size_t ncols) {
         xq8_.reset(X, ncols, nin);
         prepare_x(type);
-        const size_t rb = row_bytes_of(type, nin), rows = ncols * nout;
+        const size_t rb = quant::row_bytes(type, nin), rows = ncols * nout;
         auto work = [&](size_t r0, size_t r1) {
             for (size_t r = r0; r < r1; ++r) {
                 const size_t c = r / nout, o = r - c * nout;
@@ -335,7 +324,7 @@ public:
     void matmul_q8_prompt(uint32_t type, const uint8_t* data, const float* X, float* Y, size_t nin, size_t nout, size_t ncols) {
         xq8_.reset(X, ncols, nin);
         prepare_x(type);
-        const size_t rb = row_bytes_of(type, nin), R = 16, tasks = (nout + R - 1) / R;
+        const size_t rb = quant::row_bytes(type, nin), R = 16, tasks = (nout + R - 1) / R;
         prompt_rows_.resize(ncols);
         prompt_outs_.resize(ncols);
         for (size_t c = 0; c < ncols; ++c) {
@@ -370,23 +359,15 @@ public:
             for (size_t c = 0; c < nbatch; ++c) matmul_raw(type, data, X + c * nin, Y + c * nout, nin, nout, 1, true);
             return;
         }
+        const size_t rowbytes = quant::row_bytes(type, nin);
         // Single-column Q8_0 fuses dequantization into the row dot, avoiding a scratch copy.
         if (decode && type == gguf::GGML_TYPE_Q8_0) {
             matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
             return;
         }
         // K-quants whose dot factorises so no dequantized value is materialised: Q4_K/Q5_K give d*sum(q*x) - m*sum(x), Q6_K has signed group scales and no min, so it is sum over groups of d_g*sum(q*x).
-        if (decode && (type == gguf::GGML_TYPE_Q4_K ||
-                            type == gguf::GGML_TYPE_Q5_K ||
-                            type == gguf::GGML_TYPE_Q6_K)) {
-            const size_t blk = type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_BLOCK
-                             : type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_BLOCK
-                                                                 : gguf::Q6_K_BLOCK;
-            const size_t tsz = type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE
-                             : type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_TYPESIZE
-                                                                 : gguf::Q6_K_TYPESIZE;
-            const size_t nb = nin / blk;
-            const size_t rowbytes = nb * tsz;
+        if (decode && is_kquant(type)) {
+            const size_t nb = nin / gguf::Q4_K_BLOCK;
             // A fused dot applies the block scale after sum(q*x), so a large activation can overflow the inner sum where dequantizing first stays finite (then d*Inf is Inf, and 0*Inf NaN).
             // Once any partial overflows the row result is Inf or NaN, never a plausible finite number, so a finite fused result needs no fallback.
             const auto dot = [&](const uint8_t* r) {
@@ -415,10 +396,8 @@ public:
         }
         const quant::QuantType* qt = quant::Registry::instance().get(type);
         const bool f32 = type == gguf::GGML_TYPE_F32;
-        if (!f32 && (!qt || !qt->dequantize || qt->block_size == 0))
-            throw std::runtime_error("backend: no dequantizer for tensor type");
+        if (!f32 && !qt->dequantize) throw std::runtime_error("backend: no dequantizer for tensor type");
         const size_t nblocks = f32 ? 0 : nin / qt->block_size;
-        const size_t rowbytes = f32 ? nin * sizeof(float) : nblocks * qt->type_size;
 
         // Rows dequantized together before walking the batch: the fused kernel's row width, since dot_f32_x4 shares one activation load across exactly 4 rows.
         const size_t RB = (size_t)DOT_ROWS;
@@ -485,8 +464,8 @@ public:
                       CSlice X_s, size_t nin, size_t nbatch, RowRuns runs = {}) override {
         for (const auto& p : projections)
             if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
-        bool decode = runs.n ? true : nbatch == 1;
-        for (size_t i = 0; i < runs.n; ++i) decode = decode && runs.runs[i].extent <= 1;
+        bool decode = nbatch > 0;
+        each_run(nbatch, runs, [&](size_t, size_t, bool d) { decode = decode && d; });
         bool q8 = decode && decode8_ && avx2_ && nin % 32 == 0 && projections.size() > 1;
         for (const auto& p : projections) q8 = q8 && q8::has_dot(p.type);
         if (!q8) { Backend::matmul_group(projections, X_s, nin, nbatch, runs); return; }
@@ -497,7 +476,7 @@ public:
         std::vector<Part> parts;
         size_t total = 0;
         for (const auto& p : projections) {
-            parts.push_back({p.type, (const uint8_t*)bytes_at(p.data), at(p.out), p.rows, row_bytes_of(p.type, nin), total});
+            parts.push_back({p.type, (const uint8_t*)bytes_at(p.data), at(p.out), p.rows, quant::row_bytes(p.type, nin), total});
             total += nbatch * p.rows;
         }
         auto work = [&](size_t r0, size_t r1) {
@@ -1149,7 +1128,7 @@ private:
     // Each entry keeps its arithmetic regardless of the entries routed beside it.
     void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
                          float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode) {
-        const size_t row_bytes = row_bytes_of(type, nin), stride = size_mul(nout, row_bytes);
+        const size_t row_bytes = quant::row_bytes(type, nin), stride = size_mul(nout, row_bytes);
         span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
         const uint8_t* data = (const uint8_t*)bytes_at(data_s);
         const bool q8 = quantized_dots(type, nin);
@@ -1243,14 +1222,6 @@ private:
             return dot_row_dequant(type, row, x, nin, nin / qt->block_size);
         }
         }
-    }
-
-    static size_t row_bytes_of(uint32_t type, size_t nin) {
-        if (type == gguf::GGML_TYPE_F32) return size_mul(nin, sizeof(float));
-        const quant::QuantType* qt = quant::Registry::instance().get(type);
-        if (!qt || !qt->block_size || nin % qt->block_size)
-            throw std::runtime_error("backend: expert matrix type or width unsupported");
-        return nin / qt->block_size * qt->type_size;
     }
 
     std::vector<float> expert_x_, expert_y_, expert_out_;

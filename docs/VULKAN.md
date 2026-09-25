@@ -88,7 +88,7 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   memory and null for device memory. Each buffer uses a separate device
   allocation; failures are reported by Vulkan. Construction releases acquired
   handles if memory selection, allocation, binding or mapping fails. Zero-fill on `alloc` is a `vkCmdFillBuffer` in the current command
-  buffer, so it is ordered like every other op. A buffer's size is
+  buffer, so it is ordered like every other op, and that slot holds the new buffer until it retires, as each slot an adoption copies through does, so a buffer dropped at once leaves no command naming freed memory. A buffer's size is
   rounded up to whole 32-bit words, since a tensor with an odd block
   count can end two bytes into a word its 32-bit view reads.
 - **Adopt copies.** The contract lets it: `src` outlives the handle, and a

@@ -3,9 +3,11 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <new>
 #include <stdexcept>
 #include <thread>
+#include <vector>
 #include "backends/cpu/cpu_backend.hpp"
 
 static std::atomic<int> fail_allocation{-1};
@@ -90,6 +92,52 @@ static void check_interface(backend::CpuBackend& cpu) {
     rejects([&] { api.write(*live, 0, nullptr, 1); }, "nonempty write accepted a null source");
     require(bytes == expected && sentinel == 0x5a, "empty or rejected transfer changed storage");
     std::printf("CPU interface: %zu empty transfers, %zu rejected ranges/sources, 3 thread-hint checks passed\n", valid, invalid);
+}
+
+// Every op sizes a row through quant::row_bytes, so each refuses a row that ends inside a block rather than truncating it, and row runs are checked whole before any row is computed.
+static void check_contracts(backend::CpuBackend& cpu) {
+    size_t refused = 0;
+    auto rejects = [&](auto&& work, const char* label) {
+        bool rejected = false;
+        try { work(); } catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, label);
+        ++refused;
+    };
+    require(quant::row_bytes(gguf::GGML_TYPE_F32, 37) == 148 && quant::row_bytes(gguf::GGML_TYPE_Q8_0, 64) == 68 &&
+            quant::row_bytes(gguf::GGML_TYPE_Q6_K, 512) == 420, "row bytes differ from the block layout");
+    rejects([] { quant::row_bytes(gguf::GGML_TYPE_Q4_K, 128); }, "a row inside one K-quant block was sized");
+    rejects([] { quant::row_bytes(9999, 32); }, "an unknown type was sized");
+    rejects([] { quant::row_bytes(gguf::GGML_TYPE_Q8_0, std::numeric_limits<size_t>::max() / 32 * 32); },
+            "a row size that wraps was returned");
+
+    // Q8_0 rows of 48 values, a block and a half, with storage for two whole blocks a row so a truncating op would run.
+    // One column takes the decode path and two the batched one.
+    const size_t nin = 48, nout = 2;
+    std::vector<uint8_t> w(nout * 2 * gguf::Q8_0_TYPESIZE, 0);
+    std::vector<float> x(3 * 64, 1.0f), wf(nout * 64, 1.0f), y(4 * 64, 7.0f);
+    const auto wb = cpu.adopt(w.data(), w.size()), wfb = cpu.adopt(wf.data(), wf.size() * sizeof(float));
+    const auto xb = cpu.adopt(x.data(), x.size() * sizeof(float)), yb = cpu.adopt(y.data(), y.size() * sizeof(float));
+    for (size_t nbatch : {size_t(1), size_t(2)})
+        rejects([&] { cpu.matmul(gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, nbatch); },
+                "matmul computed a row that ends inside a block");
+    const uint32_t id = 1;
+    rejects([&] { cpu.embed({yb.get(), 0}, gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, nin, nout, &id, 1); },
+            "embed gathered a row that ends inside a block");
+
+    // Runs that reach past the call, runs out of order that would take one path, and runs short of the call.
+    // The grouped projections are Q8_0 rows of 64 values, so all-decode runs would take the grouped 8-bit dots.
+    const backend::RowRun past[2] = {{3, 1}, {2, 2}}, merged[2] = {{3, 1}, {2, 1}}, short_of[1] = {{1, 1}};
+    for (const backend::RowRuns runs : {backend::RowRuns{past, 2}, backend::RowRuns{merged, 2}, backend::RowRuns{short_of, 1}}) {
+        rejects([&] { cpu.matmul(gguf::GGML_TYPE_F32, {wfb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, 64, nout, 2, runs); },
+                "matmul accepted malformed row runs");
+        rejects([&] {
+            cpu.matmul_group({{gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 0}, 1},
+                              {gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 2}, 1}},
+                             {xb.get(), 0}, 64, 2, runs);
+        }, "matmul_group accepted malformed row runs");
+    }
+    for (float v : y) require(v == 7.0f, "a refused call wrote rows");
+    std::printf("backend contracts: %zu refusals, no rows written\n", refused);
 }
 
 static void check_dispatch(backend::CpuBackend& cpu, int threads, int failing) {
@@ -208,6 +256,7 @@ int main() {
         check_lazy_start();
         backend::CpuBackend cpu;
         check_interface(cpu);
+        check_contracts(cpu);
         for (int threads : {1, 2, 4}) {
             cpu.set_threads(threads);
             for (int repeat = 0; repeat < 10; ++repeat)

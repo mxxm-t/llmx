@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <cstddef>
 #include <cmath>
+#include <limits>
+#include <stdexcept>
+#include <string>
 #include <unordered_map>
 
 #include "core/fp16.hpp"
@@ -174,9 +177,21 @@ private:
         { gguf::GGML_TYPE_Q6_K,
           { "Q6_K", gguf::Q6_K_BLOCK, gguf::Q6_K_TYPESIZE, nullptr, dequantize_row_q6_K } },
         { gguf::GGML_TYPE_F32,
-          { "F32", 0, 4, nullptr, nullptr } },
+          { "F32", 1, 4, nullptr, nullptr } },
     } {}
     const std::unordered_map<uint32_t, QuantType> types_;
 };
+
+// Bytes in a row of `nin` values of a registered type.
+// Throws for a type the registry does not name, a row that ends inside a block, or a size that would wrap.
+inline size_t row_bytes(uint32_t type, size_t nin) {
+    const QuantType* qt = Registry::instance().get(type);
+    if (!qt) throw std::runtime_error("quant: unknown tensor type " + std::to_string(type));
+    if (nin % qt->block_size)
+        throw std::runtime_error("quant: a row of " + std::to_string(nin) + " values is not whole " + qt->name + " blocks");
+    const size_t blocks = nin / qt->block_size;
+    if (blocks > std::numeric_limits<size_t>::max() / qt->type_size) throw std::runtime_error("quant: row size overflows");
+    return blocks * qt->type_size;
+}
 
 } // namespace quant

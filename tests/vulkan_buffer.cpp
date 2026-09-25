@@ -297,7 +297,7 @@ int padded_drop_checks() {
 
 int queue_checks() {
     int failures = 0;
-    for (int kind = 0; kind < 7; ++kind) {
+    for (int kind = 0; kind < 8; ++kind) {
         auto base = backend::make_vulkan_backend(0);
         auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
         QueueCalls q(b);
@@ -330,6 +330,13 @@ int queue_checks() {
             allocation_countdown = -1;
             exercised = q.copied;
             b.sync();
+        } else if (kind == 7) {
+            // A buffer dropped before anything is submitted outlives its zero fill, and an adopted one its upload.
+            { auto dropped = b.alloc(256, backend::Memory::device); }
+            const std::vector<unsigned char> bytes(256, 1);
+            { auto dropped = b.adopt(bytes.data(), bytes.size()); }
+            exercised = q.count >= 2;
+            b.sync();
         } else {
             std::vector<unsigned char> bytes((1 << 20), 0);
             const auto first = backend::VulkanLifetimeTest::args(b, bytes.data(), bytes.size() - 16);
@@ -353,7 +360,7 @@ int queue_checks() {
                   << (ok ? " PASS\n" : " FAIL\n");
         if (!ok) ++failures;
     }
-    std::cout << "vulkan queue ownership: 7 cases, " << failures << " failures (transfers intercepted)\n";
+    std::cout << "vulkan queue ownership: 8 cases, " << failures << " failures (transfers intercepted)\n";
     return failures ? 1 : 0;
 }
 }

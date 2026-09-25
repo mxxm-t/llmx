@@ -21,6 +21,9 @@ Block quantization kernels, in namespace `quant`.
   block-wise (de)quantize routines).
 - `Registry::instance().get(id)`: the quant type for a GGML id, or null for a type llmx does not read.
   The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K` and `F32` on first use and never changes after, so no caller sets it up and any thread may read it.
+  `F32` is registered as a block of one value in 4 bytes.
+- `row_bytes(type, nin)`: the bytes in a row of `nin` values of a registered type, which every backend op sizes its rows by.
+  It throws for an unknown type, for a row that ends inside a block and for a size that would wrap, so no op truncates a partial block.
 
 K-quant layouts and shared sub-scale decoding live in `k_quants.hpp`. Adding
 a quant also requires GGUF type/size entries in `format/gguf.hpp`.

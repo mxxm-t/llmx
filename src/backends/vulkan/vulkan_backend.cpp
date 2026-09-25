@@ -1068,7 +1068,9 @@ public:
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, where == Memory::host_visible);
         if (bytes && !b->host_visible()) {
             // Zeroed like every other allocation, in stream order.
+            // The slot holds the buffer until the fill retires, so a caller may drop it before anything is submitted.
             VkCommandBuffer cmd = open();
+            pending_[ring_index_].push_back(b);
             dev_->fn.vkCmdFillBuffer(cmd, b->handle(), 0, VK_WHOLE_SIZE, 0);
             barrier(cmd);
         }
@@ -1081,7 +1083,7 @@ public:
         drop_tags();
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, false);
         try {
-            upload(*b, 0, src, bytes);
+            upload(*b, 0, src, bytes, b);
         } catch (...) {
             // Earlier chunks may still target this local buffer when a later submission fails.
             sync();
@@ -1341,9 +1343,7 @@ public:
                const uint32_t* ids, size_t count) override {
         if (count && !ids) throw std::runtime_error("vulkan: embed without ids");
         if (!count || !nin) return;
-        if (!row_bytes_of(type, nin)) throw std::runtime_error("vulkan: unsupported embedding type");
-        if (nin % block_values_of(type))
-            throw std::runtime_error("vulkan: embedding width is not whole blocks");
+        check_matrix(type, table, nin, nrows, "embedding");
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
         const uint32_t pc[2] = {u32(nin), type};
@@ -1391,61 +1391,52 @@ public:
     static size_t split_tiles_of(size_t extent) { return (std::min<size_t>(extent, 512) + 63) / 64; }
     void matmul_runs(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nbatch,
                      bool accumulate, RowRuns runs) {
-        if (!runs.n || !nbatch) {
+        if (!nbatch) return;
+        check_group(projections.begin(), projections.size(), X, nin, nbatch);
+        if (!runs.n) {
             matmul_group_impl(projections.begin(), projections.size(), X, nin, nbatch, accumulate);
             return;
         }
-        if (runs.runs[runs.n - 1].end != nbatch) throw std::runtime_error("vulkan: row runs do not cover the batch");
         const size_t from = tile_from(projections.begin(), projections.size(), nin);
-        size_t start = 0;
-        for (size_t i = 0; i < runs.n;) {
-            const bool tile = runs.runs[i].extent >= from;
-            const size_t split = tile ? split_tiles_of(runs.runs[i].extent) : 0;
-            auto same = [&](const RowRun& r) {
-                return (r.extent >= from) == tile && (!tile || split_tiles_of(r.extent) == split);
-            };
-            size_t j = i + 1;
-            while (j < runs.n && same(runs.runs[j])) ++j;
-            const size_t end = runs.runs[j - 1].end;
-            if (end < start) throw std::runtime_error("vulkan: row runs out of order");
-            if (end > start) {
-                const int k = tile ? 1 : 0;
-                if (start == 0 && end == nbatch) {
-                    matmul_group_impl(projections.begin(), projections.size(), X, nin, nbatch, accumulate, k, split);
-                } else {
-                    std::vector<Projection> at(projections);
-                    for (Projection& pr : at) pr.out.offset += start * pr.rows;
-                    const CSlice xs{X.buffer, X.offset + start * nin};
-                    matmul_group_impl(at.data(), at.size(), xs, nin, end - start, accumulate, k, split);
-                }
+        auto tile_split = [&](const RowRun& r) {
+            const bool tile = r.extent >= from;
+            return std::make_pair(tile, tile ? split_tiles_of(r.extent) : size_t(0));
+        };
+        for_each_run(nbatch, runs, tile_split, [&](size_t start, size_t rows, std::pair<bool, size_t> ts) {
+            const int k = ts.first ? 1 : 0;
+            if (rows == nbatch) {
+                matmul_group_impl(projections.begin(), projections.size(), X, nin, nbatch, accumulate, k, ts.second);
+            } else {
+                std::vector<Projection> at(projections);
+                for (Projection& pr : at) pr.out.offset += start * pr.rows;
+                const CSlice xs{X.buffer, X.offset + start * nin};
+                matmul_group_impl(at.data(), at.size(), xs, nin, rows, accumulate, k, ts.second);
             }
-            start = end;
-            i = j;
+        });
+    }
+
+    // Throws unless the weights, outputs and X hold the call's `nbatch` rows.
+    // matmul_runs checks a call whole before recording any of it, so a call its runs split into several is refused before the first.
+    static void check_group(const Projection* projections, size_t count, CSlice X, size_t nin, size_t nbatch) {
+        for (size_t i = 0; i < count; ++i) {
+            const Projection& pr = projections[i];
+            check_matrix(pr.type, pr.data, nin, pr.rows);
+            if (floats_from(pr.out) < size_mul(nbatch, pr.rows)) throw std::runtime_error("vulkan: matmul operand outside its allocation");
         }
+        if (floats_from(X) < size_mul(nbatch, nin)) throw std::runtime_error("vulkan: matmul operand outside its allocation");
     }
 
     // Up to three projections of one X in one dispatch: the row kernel for narrow batches hands workgroups to projections in order; wide batches take the tile.
     // `kernel_choice` forces the row kernel (0) or the tile (1), below zero the call's width chooses; `split_tiles` is the column tiles the tile's split is taken for, zero for the call's own.
+    // The operands are those check_group accepted for the whole call.
     void matmul_group_impl(const Projection* projections, size_t count, CSlice X,
                            size_t nin, size_t nbatch, bool accumulate, int kernel_choice = -1, size_t split_tiles = 0) {
         // The kernels' limit; no caller passes more.
         if (count > 3) throw std::logic_error("vulkan: a matmul call of more than three projections");
         if (!nbatch) return;
         std::vector<const Projection*> live;
-        for (size_t i = 0; i < count; ++i) {
-            const Projection& pr = projections[i];
-            if (!pr.data.buffer) throw std::runtime_error("vulkan: projection without storage");
-            const size_t row_bytes = row_bytes_of(pr.type, nin);
-            if (!row_bytes)
-                throw std::runtime_error("vulkan: unsupported matrix type " + std::to_string(pr.type) +
-                                         " (docs/VULKAN.md lists the types the kernels decode)");
-            if (nin % block_values_of(pr.type))
-                throw std::runtime_error("vulkan: matrix width is not whole blocks");
-            if (bytes_from(pr.data) < pr.rows * row_bytes || floats_from(pr.out) < nbatch * pr.rows)
-                throw std::runtime_error("vulkan: matmul operand outside its allocation");
-            if (pr.rows) live.push_back(&pr);
-        }
-        if (floats_from(X) < nbatch * nin) throw std::runtime_error("vulkan: matmul operand outside its allocation");
+        for (size_t i = 0; i < count; ++i)
+            if (projections[i].rows) live.push_back(&projections[i]);
         if (live.empty()) return;
         if (kernel_choice == 1 || (kernel_choice < 0 && nbatch >= tile_from(projections, count, nin))) {
             const size_t gy = (nbatch + 63) / 64;
@@ -1693,18 +1684,7 @@ public:
     void expert_runs(uint32_t type, size_t nrows, RowRuns runs, const Fn& each) {
         const size_t from = moe_tile_from_for(dev_->profile, type);
         if (!runs.n) { each(0, nrows, nrows >= from); return; }
-        if (runs.runs[runs.n - 1].end != nrows) throw std::runtime_error("vulkan: row runs do not cover the batch");
-        size_t start = 0;
-        for (size_t i = 0; i < runs.n;) {
-            const bool tile = runs.runs[i].extent >= from;
-            size_t j = i + 1;
-            while (j < runs.n && (runs.runs[j].extent >= from) == tile) ++j;
-            const size_t end = runs.runs[j - 1].end;
-            if (end < start) throw std::runtime_error("vulkan: row runs out of order");
-            if (end > start) each(start, end - start, tile);
-            start = end;
-            i = j;
-        }
+        for_each_run(nrows, runs, [&](const RowRun& r) { return r.extent >= from; }, each);
     }
 
     static CSlice at_float(CSlice s, size_t floats) { return CSlice{s.buffer, s.offset + floats}; }
@@ -1716,7 +1696,7 @@ public:
         if (!entries || !projections.size()) return;
         if (projections.size() > 3) throw std::logic_error("vulkan: more than three routed projections");
         for (const Projection& pr : projections) {
-            check_experts(pr.type, pr.data, nin, pr.rows, routing.n_expert);
+            check_matrix(pr.type, pr.data, nin, size_mul(routing.n_expert, pr.rows));
             if (floats_from(pr.out) < entries * pr.rows) throw std::runtime_error("vulkan: matmul operand outside its allocation");
             if (pr.type != projections.begin()->type) throw std::runtime_error("vulkan: routed projections of different types");
         }
@@ -1735,7 +1715,7 @@ public:
                             const Routing& routing, RowRuns runs) override {
         const size_t k = routing.k, entries = nrows * k;
         if (!entries) return;
-        check_experts(type, data, nin, nout, routing.n_expert);
+        check_matrix(type, data, nin, size_mul(routing.n_expert, nout));
         if (floats_from(X) < entries * nin || floats_from(Y) < nrows * nout || floats_from(routing.ids) < entries ||
             floats_from(routing.weights) < entries)
             throw std::runtime_error("vulkan: matmul operand outside its allocation");
@@ -1827,12 +1807,14 @@ public:
         return b.offset < tag_end && xq_tag_.x.offset < end;
     }
 
-    void check_experts(uint32_t type, CSlice data, size_t nin, size_t nout, size_t n_expert) {
-        if (!data.buffer) throw std::runtime_error("vulkan: projection without storage");
-        const size_t row_bytes = row_bytes_of(type, nin);
-        if (!row_bytes) throw std::runtime_error("vulkan: unsupported matrix type " + std::to_string(type));
-        if (nin % block_values_of(type)) throw std::runtime_error("vulkan: matrix width is not whole blocks");
-        if (bytes_from(data) < n_expert * nout * row_bytes) throw std::runtime_error("vulkan: matmul operand outside its allocation");
+    // Throws unless the kernels decode `type` and `data` holds `rows` rows of `nin` values of it, each whole blocks.
+    // `what` names the operand in the errors; tests/common.py matches the unsupported-type one to skip a model the device has no kernel for.
+    static void check_matrix(uint32_t type, CSlice data, size_t nin, size_t rows, const char* what = "matrix") {
+        if (type != gguf::GGML_TYPE_F32 && !decoded_blocks(type))
+            throw std::runtime_error(std::string("vulkan: unsupported ") + what + " type " + std::to_string(type) +
+                                     " (docs/VULKAN.md lists the types the kernels decode)");
+        if (bytes_from(data) < size_mul(rows, quant::row_bytes(type, nin)))
+            throw std::runtime_error(std::string("vulkan: ") + what + " outside its allocation");
     }
 
     // The scratch the twin of an n-value input lives in.
@@ -2183,12 +2165,7 @@ private:
         default: return nullptr;
         }
     }
-    // Bytes per row of a matrix type the kernels decode, zero for one they do not; and the values per block, one for F32.
-    static size_t row_bytes_of(uint32_t type, size_t nin) {
-        if (type == gguf::GGML_TYPE_F32) return nin * sizeof(float);
-        const quant::QuantType* qt = decoded_blocks(type);
-        return qt ? nin / qt->block_size * qt->type_size : 0;
-    }
+    // The values per block of a type the kernels decode, one for F32.
     static size_t block_values_of(uint32_t type) {
         const quant::QuantType* qt = decoded_blocks(type);
         return qt ? qt->block_size : 1;
@@ -2441,7 +2418,8 @@ private:
 
     // Host to device through the two halves of staging: the host fills one while the device copies from the other, so a long upload runs at the slower of the two rather than at their sum.
     // It returns once the source is consumed; the copies are in stream order, ahead of whatever reads the destination.
-    void upload(VulkanBuffer& dst, size_t off, const void* src, size_t bytes) {
+    // `keep`, a buffer being adopted, is held by every slot that copies into it, so its caller may drop it before the copies retire.
+    void upload(VulkanBuffer& dst, size_t off, const void* src, size_t bytes, const std::shared_ptr<VulkanBuffer>& keep = nullptr) {
         if (!bytes) return;
         VulkanBuffer& st = staging();
         const size_t half = st.size() / 2;
@@ -2451,6 +2429,7 @@ private:
             wait(staged_[i]);
             std::memcpy((uint8_t*)st.mapped() + i * half, (const uint8_t*)src + done, n);
             VkCommandBuffer cmd = open();
+            if (keep) pending_[ring_index_].push_back(keep);
             barrier(cmd);
             VkBufferCopy region{i * half, off + done, n};
             dev_->fn.vkCmdCopyBuffer(cmd, st.handle(), dst.handle(), 1, &region);

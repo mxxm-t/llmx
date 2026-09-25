@@ -297,6 +297,15 @@ size_t check_kernels(backend::Backend& vk) {
         try { p.vk.embed(d.vs(), gguf::GGML_TYPE_F32, t.vs(), nin, nrows, beyond, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "embedding row beyond the table accepted");
+        // A table that holds fewer rows than the call names is refused before any row is read, even when every id is inside the table.
+        const uint32_t first[1] = {0};
+        auto short_table_refused = [&](uint32_t type, const Pair::In& table_in) {
+            try { p.vk.embed(d.vs(), type, table_in.vs(), nin, nrows + 1, first, 1); }
+            catch (const std::runtime_error& e) { return std::string(e.what()).find("outside its allocation") != std::string::npos; }
+            return false;
+        };
+        require(short_table_refused(gguf::GGML_TYPE_F32, t), "F32 embedding table shorter than its rows accepted");
+        require(short_table_refused(gguf::GGML_TYPE_Q8_0, tq), "Q8_0 embedding table shorter than its rows accepted");
     }
     // The float tile reads an F32 matrix 256 or more floats wide through a padded copy made on first use; after a write into the weights the next call must read what was written.
     {
@@ -974,6 +983,17 @@ size_t check_kernels(backend::Backend& vk) {
         try { p.vk.matmul(1u /* F16, no kernel */, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "unsupported matrix type accepted");
+        // Row runs out of order are refused even when every run takes the same kernel, so nothing would have split them.
+        {
+            const backend::RowRun merged[2] = {{3, 1}, {2, 1}};
+            const auto x = uniform(2 * nin, 13);
+            Pair::In xi = p.in(x);
+            Pair::Out d = p.out(2 * nout);
+            rejected = false;
+            try { p.vk.matmul(gguf::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), d.vs(), nin, nout, 2, {merged, 2}); }
+            catch (const std::runtime_error&) { rejected = true; }
+            require(rejected, "row runs out of order accepted");
+        }
         // Three projections in one dispatch equal the same three one at a time, bit for bit, since each row's work is unchanged; rows are uneven so the workgroup ranges do not line up.
         for (size_t nbatch : {size_t(1), size_t(3)}) {
             const auto x = uniform(nbatch * nin, 30 + (uint32_t)nbatch);
@@ -1412,6 +1432,186 @@ std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
     }
     return v;
 }
+
+// Each refusal below records and writes nothing, so the stream works after it as before.
+// Each is made twice, in a first pass whose operands no command-buffer slot holds and in a second into an output that must keep what it held.
+// alloc and adopt leave a new buffer held by the slot that fills or copies it, so the first pass submits until the slots let go of the operands before it makes the call.
+// It drops them when the call throws, so a command the call left naming one names freed memory and fails the next submission.
+// After each pass, a valid call must give what it gave before any refusal.
+size_t check_refusals(backend::Backend& vk) {
+    const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
+    const bool twin8 = prof.prefer_integer_dot;
+    const uint32_t q8 = gguf::GGML_TYPE_Q8_0, f32 = gguf::GGML_TYPE_F32, f16 = 1;   // F16 has no kernel
+    const size_t nin = 64, nout = 8, rows = 3, n_expert = 4, k = 2, entries = rows * k, nrows = 4, partial = 48;
+    const size_t row_bytes = nin / gguf::Q8_0_BLOCK * gguf::Q8_0_TYPESIZE;
+    auto quantized = [&](size_t n, uint32_t seed) {
+        const auto f = uniform(n * nin, seed);
+        std::vector<uint8_t> q(n * row_bytes);
+        for (size_t r = 0; r < n; ++r) quant::quantize_row_q8_0(f.data() + r * nin, q.data() + r * row_bytes, nin / gguf::Q8_0_BLOCK);
+        return q;
+    };
+    const auto wq = quantized(nout, 101), stack = quantized(n_expert * nout, 102), tq = quantized(nrows, 103);
+    const auto xf = uniform(rows * nin, 104), x2f = uniform(entries * nin, 105), tf = uniform(nrows * nin, 106);
+    const std::vector<uint32_t> ids = {0, 1, 2, 3, 1, 2};
+    const std::vector<float> weights(entries, 0.5f);
+
+    // The valid call, a Q8_0 matmul on the row kernel, checked against the CPU once.
+    const auto w = vk.adopt(wq.data(), wq.size()), x = vk.adopt(xf.data(), xf.size() * sizeof(float));
+    const auto y = vk.alloc(rows * nout * sizeof(float));
+    auto valid = [&] {
+        vk.matmul(q8, {w.get(), 0}, {x.get(), 0}, {y.get(), 0}, nin, nout, rows);
+        std::vector<float> out(rows * nout);
+        vk.read(*y, 0, out.data(), out.size() * sizeof(float));
+        return out;
+    };
+    const std::vector<float> expected = valid();
+    {
+        backend::CpuBackend cpu;
+        cpu.set_threads(1);
+        cpu.set_decode_activations8(false);
+        const auto xr = rows < backend::tile_from_for(prof, true, nin) ? twin_activations(xf, twin8)
+                        : prof.prefer_integer_dot                     ? tile_activations8(xf)
+                                                                      : xf;
+        const auto cw = cpu.adopt(wq.data(), wq.size()), cx = cpu.adopt(xr.data(), xr.size() * sizeof(float));
+        const auto cy = cpu.alloc(rows * nout * sizeof(float), backend::Memory::device);
+        cpu.matmul(q8, {cw.get(), 0}, {cx.get(), 0}, {cy.get(), 0}, nin, nout, rows);
+        std::vector<float> ref(rows * nout);
+        cpu.read(*cy, 0, ref.data(), ref.size() * sizeof(float));
+        close(ref, expected, twin8 ? 1e-2 : 1e-4, "the call run after refusals differs from the CPU beyond its bound");
+    }
+
+    const size_t kept = 256;
+    const std::vector<float> held(kept, 0.25f);
+    const auto keep = vk.alloc(kept * sizeof(float));
+    vk.write(*keep, 0, held.data(), kept * sizeof(float));
+
+    // A slot lets go of what it holds when it is next opened, and each read is its own submission.
+    // One read more than the backend's four slots therefore reopens every slot, the one open when the reads start included.
+    const size_t slots = 4;
+    auto let_go = [&] {
+        float f = 0;
+        for (size_t i = 0; i < slots + 1; ++i) vk.read(*keep, 0, &f, sizeof f);
+    };
+
+    // `call` makes its operands, takes its outputs from `out` last, and must be refused.
+    // In the first pass `out` lets the slots go after each output it makes, so after the last no slot holds any of the call's operands.
+    using Out = std::function<backend::Slice(size_t)>;
+    size_t checks = 0;
+    auto refused = [&](const char* what, const std::function<void(const Out&)>& call) {
+        for (int pass = 0; pass < 2; ++pass) {
+            {
+                std::vector<backend::BufferPtr> made;
+                size_t used = 0;
+                const Out out = [&](size_t n) -> backend::Slice {
+                    if (pass == 0) {
+                        made.push_back(vk.alloc(n * sizeof(float)));
+                        let_go();
+                        return {made.back().get(), 0};
+                    }
+                    if (used + n > kept) throw std::logic_error("a refused call's outputs exceed the kept buffer");
+                    used += n;
+                    return {keep.get(), used - n};
+                };
+                bool threw = false;
+                try { call(out); } catch (const std::runtime_error&) { threw = true; }
+                require(threw, what);
+            }
+            const std::vector<float> again = valid();
+            require(std::memcmp(again.data(), expected.data(), again.size() * sizeof(float)) == 0,
+                    "a call after a refusal differs from the same call before it");
+            std::vector<float> now(kept);
+            vk.read(*keep, 0, now.data(), kept * sizeof(float));
+            require(now == held, "a refused call wrote into its output");
+            ++checks;
+        }
+    };
+    auto in = [&](const void* data, size_t bytes) { return vk.adopt(data, bytes); };
+    auto floats = [&](const std::vector<float>& v) { return vk.adopt(v.data(), v.size() * sizeof(float)); };
+    auto at = [](const backend::BufferPtr& b) { return backend::CSlice{b.get(), 0}; };
+    const backend::RowRun disordered[3] = {{2, 1}, {1, 1}, {3, 1}}, beyond[2] = {{1, 1}, {4, 1}}, short_of[2] = {{1, 1}, {2, 1}};
+    // A generated token, then a prompt's rows on the tile: two calls, the second reading rows of X the first does not.
+    const backend::RowRun two_calls[2] = {{1, 1}, {3, 512}};
+
+    refused("matmul of a type without a kernel accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size()), xb = floats(xf);
+        vk.matmul(f16, at(wb), at(xb), out(rows * nout), nin, nout, rows);
+    });
+    refused("matmul of weights shorter than the call accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size() - row_bytes), xb = floats(xf);
+        vk.matmul(q8, at(wb), at(xb), out(rows * nout), nin, nout, rows);
+    });
+    refused("matmul of a row ending inside a block accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size()), xb = floats(xf);
+        vk.matmul(q8, at(wb), at(xb), out(rows * nout), partial, nout, rows);
+    });
+    refused("matmul_add of weights shorter than the call accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size() - row_bytes), xb = floats(xf);
+        vk.matmul_add(q8, at(wb), at(xb), out(rows * nout), nin, nout, rows);
+    });
+    refused("matmul_group with a short second projection accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size()), ws = in(wq.data(), wq.size() - row_bytes), xb = floats(xf);
+        vk.matmul_group({{q8, at(wb), out(rows * nout), nout}, {q8, at(ws), out(rows * nout), nout}}, at(xb), nin, rows);
+    });
+    refused("matmul with X short of its second run accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size()), xb = in(xf.data(), nin * sizeof(float));
+        vk.matmul(q8, at(wb), at(xb), out(rows * nout), nin, nout, rows, {two_calls, 2});
+    });
+    refused("matmul with row runs out of order accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size()), xb = floats(xf);
+        vk.matmul(q8, at(wb), at(xb), out(rows * nout), nin, nout, rows, {disordered, 3});
+    });
+    refused("matmul with row runs past the call accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size()), xb = floats(xf);
+        vk.matmul(q8, at(wb), at(xb), out(rows * nout), nin, nout, rows, {beyond, 2});
+    });
+    refused("matmul with row runs short of the call accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size()), xb = floats(xf);
+        vk.matmul(q8, at(wb), at(xb), out(rows * nout), nin, nout, rows, {short_of, 2});
+    });
+    refused("matmul_group with row runs out of order accepted", [&](const Out& out) {
+        const auto wb = in(wq.data(), wq.size()), xb = floats(xf);
+        vk.matmul_group({{q8, at(wb), out(rows * nout), nout}, {q8, at(wb), out(rows * nout), nout}}, at(xb), nin, rows, {disordered, 3});
+    });
+
+    // The routed products, over n_expert stacked matrices.
+    auto routed = [&](const char* what, uint32_t type, size_t stack_bytes, size_t width, backend::RowRuns runs) {
+        refused(what, [&](const Out& out) {
+            const auto sb = in(stack.data(), stack_bytes), xb = floats(xf), idb = in(ids.data(), ids.size() * sizeof(uint32_t)), wtb = floats(weights);
+            vk.matmul_experts({{type, at(sb), out(entries * nout), nout}}, at(xb), width, rows, {at(idb), at(wtb), k, n_expert}, runs);
+        });
+        refused(what, [&](const Out& out) {
+            const auto sb = in(stack.data(), stack_bytes), xb = floats(x2f), idb = in(ids.data(), ids.size() * sizeof(uint32_t)), wtb = floats(weights);
+            vk.matmul_experts_add(type, at(sb), at(xb), out(rows * nout), width, nout, rows, {at(idb), at(wtb), k, n_expert}, runs);
+        });
+    };
+    routed("routed product of a type without a kernel accepted", f16, stack.size(), nin, {});
+    routed("routed product of a stack short of its experts accepted", q8, stack.size() - row_bytes, nin, {});
+    routed("routed product of a row ending inside a block accepted", q8, stack.size(), partial, {});
+    routed("routed product with row runs out of order accepted", q8, stack.size(), nin, {disordered, 3});
+
+    const uint32_t first[1] = {0}, past[1] = {uint32_t(nrows)};
+    refused("embedding of a type without a kernel accepted", [&](const Out& out) {
+        const auto tb = floats(tf);
+        vk.embed(out(nin), f16, at(tb), nin, nrows, first, 1);
+    });
+    refused("F32 embedding table shorter than its rows accepted", [&](const Out& out) {
+        const auto tb = floats(tf);
+        vk.embed(out(nin), f32, at(tb), nin, nrows + 1, first, 1);
+    });
+    refused("Q8_0 embedding table shorter than its rows accepted", [&](const Out& out) {
+        const auto tb = in(tq.data(), tq.size());
+        vk.embed(out(nin), q8, at(tb), nin, nrows + 1, first, 1);
+    });
+    refused("embedding row ending inside a block accepted", [&](const Out& out) {
+        const auto tb = in(tq.data(), tq.size());
+        vk.embed(out(partial), q8, at(tb), partial, nrows, first, 1);
+    });
+    refused("embedding row beyond the table accepted", [&](const Out& out) {
+        const auto tb = floats(tf);
+        vk.embed(out(nin), f32, at(tb), nin, nrows, past, 1);
+    });
+    return checks;
+}
 }
 
 // `--isa DIR` opens the backend for diagnostics and writes the driver's representation of every kernel it compiled, one file per kernel, after the checks.
@@ -1513,6 +1713,8 @@ int main(int argc, char** argv) {
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "an overflowing KV budget accepted");
         checks += 1;
+
+        checks += check_refusals(*b);
 
         const size_t values = check_kernels(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "

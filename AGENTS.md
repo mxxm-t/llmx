@@ -234,6 +234,8 @@ It also checks valid empty CPU transfers, rejected offsets/null sources,
 unchanged storage and a zero thread hint preserving the current pool.
 It pins that construction and count changes start no threads, and that the first dispatch at a count starts one pool of that size, which later dispatches reuse.
 A start that fails partway fails its dispatch and keeps the count, and the next dispatch starts the whole pool without a new count.
+It checks `quant::row_bytes` against the block layouts and its refusals of an unknown type, a partial block and a wrapping size.
+Decode and batched `matmul` and `embed` must refuse a Q8_0 row that ends inside a block, and `matmul` and `matmul_group` must refuse row runs that reach past the call, are out of order or fall short of it, all before writing any output.
 It does not establish recovery of partially executed model sessions.
 
 `backend-vulkan` exists only in a build with `LLMX_HAS_BACKEND_VULKAN=ON`.
@@ -253,12 +255,18 @@ inputs at long histories. Both rows of a mixed short/long pass must equal the
 same rows taken separately, bit for bit; CPU comparisons retain the bound
 `1e-4 * (1 + abs(reference))`.
 A group of a Q8_0 and a Q4_0 projection whose batch reaches the 8-bit tile crossover but not the other types' must equal each type alone forced onto the row kernel, bit for bit, on a device whose profile puts batches between the two.
+A matmul whose row runs are out of order must be refused even when every run takes the same kernel.
+An `embed` whose F32 or Q8_0 table holds fewer rows than the call names must be refused, even when every id is inside the table.
+Each refusal it makes of `matmul`, `matmul_add`, `matmul_group`, the routed products and `embed` is made in two passes, and a valid call after each pass must give what it gave before.
+`alloc` and `adopt` leave a new buffer held by the command-buffer slot that fills or copies it, so the first pass submits until no slot holds the call's operands, makes the call and then drops them, and a command the call left naming one fails the next submission.
+The second pass writes into an output that must keep what it held.
 It exits 77, which CTest reports as skipped, when there is no loader, no
 device or a driverless loader.
 
 `vulkan-buffer` checks constructor cleanup on a fake device that supplies every Vulkan call it makes, so it needs no loader and runs wherever the backend builds.
 `vulkan-lifetime` opens a device, intercepts transfers and injects allocation failures to check queued storage ownership during KV growth, padded-copy creation/replacement/invalidation and argument-arena overflow.
 It checks retry and unchanged KV accounting after failed growth.
+A buffer dropped right after `alloc` or `adopt` must outlive its zero fill or its upload.
 Five kernel-construction cases substitute calls to check cleanup, poisoned failure outputs, retry and cache reuse.
 Two query cases use a real diagnostic add dispatch to check creation failure/retry and destruction after device idle; these cases skip if diagnostic timestamps are unavailable.
 Transfer ownership cases intercept copies so old failures cannot submit references to freed memory.

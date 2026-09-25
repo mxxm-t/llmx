@@ -49,6 +49,11 @@ kernel notes and measurements are `docs/VULKAN.md`.
   Successfully adopted weights retain their eligibility for padded F32 copies.
   Padded copies enter their owning cache before their copy command is recorded;
   a replaced copy is retained by the command-buffer slot first.
+  A buffer `alloc` zero-fills or `adopt` copies into is held by each command-buffer slot that names it until the slot retires, so a caller may drop it before anything is submitted.
+- `check_matrix(type, data, nin, rows, what)`: the one check of a weight operand, made by `check_group` for a matmul and by the routed products and `embed` before they record a dispatch.
+  `check_group` checks a matmul call whole, weights, outputs and X, before `matmul_runs` records any of the calls its runs split it into, so a call it refuses records and writes nothing.
+  `decoded_blocks` decides which types have kernels, and a type without one is refused with the unsupported-type error that `tests/common.py` matches, naming the operand as `what`, a matrix or an embedding.
+  The operand must then hold `rows` rows sized by `quant::row_bytes`, which refuses a row that ends inside a block.
 - `matmul` and `matmul_group` (up to three projections a call, the
   kernels' limit, with a type's block sizes from `quant::Registry`): narrow
   batches take the row kernel, one
@@ -92,6 +97,7 @@ kernel notes and measurements are `docs/VULKAN.md`.
   and each row's length for its history splits. Grouped-head variants
   also depend on the dispatch's longest history while preserving each
   row's arithmetic, so batching must not change a sequence's output.
+  `matmul_runs` and `expert_runs` read the runs through `for_each_run`, keyed by kernel and split and by kernel alone.
 - `rms_norm_rows` spreads a row over several workgroups when the output
   does not overlap the input, with the same tree reduction as one, up to
   four workgroups per compute unit over the pass: each reads the whole row

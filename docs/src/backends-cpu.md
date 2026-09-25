@@ -38,6 +38,7 @@ the compiled binary portable to older CPUs.
   2 FMAs/cycle, so it was load bound at half of FMA peak. `dot_f32` uses four
   independent accumulators; with one, every FMA depends on the previous and the
   loop runs at FMA latency rather than throughput.
+  Its paths, `embed` and the expert products all size a row by `quant::row_bytes`, so a row that ends inside a block is refused rather than truncated.
 - `dot_f32_x4x3` reuses four weight rows across three activation columns in
   batched prefill; remaining columns/rows use the smaller kernels. Explicit
   ordered lane reductions avoid making all 12 accumulators addressable after
@@ -56,6 +57,7 @@ the compiled binary portable to older CPUs.
   also admits batches of generated rows. F32, prompt rows, single projections
   and unsupported integer-dot configurations fall back to separate matmul
   calls; small grouped jobs run on the caller.
+  Whether every row is a generated token's is read through `for_each_run`, so malformed runs are refused here as in `matmul`.
 - `dot_row_impl`: AVX2 fused dequant + FMA accumulation over int8 blocks.
   The stored half scale is broadcast directly from memory before F16C
   conversion; signed byte groups load directly into the widening operations.
@@ -125,6 +127,7 @@ the compiled binary portable to older CPUs.
   not established by this check.
   `set_decode_activations8(false)` keeps the float dots, which the device
   comparison test's reference and the float-kernel checks use.
+  `each_run` reads the runs through `backend.hpp` `for_each_run`, keyed by whether a run is a generated token's.
 - `route_experts`, `matmul_experts`, `matmul_experts_add`: routing in
   float, then the entries grouped by expert. A generated token's entries take
   the decode dots, every such entry's rows of a call in one pool dispatch. A

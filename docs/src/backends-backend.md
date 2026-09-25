@@ -38,6 +38,7 @@ placement contracts in `docs/EXECUTION.md`.
   format gets the generic CPU batched fallback. Vendor backends require kernels
   and validation for each supported type. A decode token is the one-column
   case of the same call.
+  Rows are sized by `quant::row_bytes`, so a row that ends inside a block is refused by every op on every backend.
 - `RowRun` / `RowRuns`: the rows of a call grouped by the prompt they belong
   to, each run's `end` and its `extent`, the position one past the prompt's
   last token for prompt rows and 1 for a generated token. A device picks a
@@ -45,6 +46,10 @@ placement contracts in `docs/EXECUTION.md`.
   computes the same however its rows are batched; without runs a backend
   chooses by the width. The CPU reads them the same way: a generated token
   takes its decode dots and a prompt's rows the batched path.
+- `for_each_run(n, runs, key, each)`: the one reader of `RowRuns`.
+  It checks that the runs are in row order and end at row `n` before any callback, so a malformed list reaches no rows.
+  Then it calls `each(first, count, key)` over each stretch of adjacent runs whose `key(run)` is equal, which is how each backend groups the rows that take one kernel.
+  A call without runs is left to the caller, which chooses by the call's width.
 - `matmul_group(projections, X, nin, nbatch, runs)`: independent projections sharing
   activations. Each descriptor gives type, weights, output and row count.
   Outputs must be disjoint from one another, inputs and weights. The default

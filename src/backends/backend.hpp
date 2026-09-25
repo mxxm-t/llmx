@@ -84,6 +84,28 @@ struct RowRuns {
     size_t n = 0;
 };
 
+// Calls `each(first, count, key)` over the stretches of adjacent runs whose `key(run)` is equal, once the runs are known to be in row order and to end at row `n`.
+// Every run is checked before the first call, so a malformed list reaches no rows; a caller handles a call without runs itself.
+template <typename Key, typename Each>
+void for_each_run(size_t n, RowRuns runs, const Key& key, const Each& each) {
+    size_t end = 0;
+    for (size_t i = 0; i < runs.n; ++i) {
+        if (runs.runs[i].end < end) throw std::runtime_error("backend: row runs out of order");
+        end = runs.runs[i].end;
+    }
+    if (end != n) throw std::runtime_error("backend: row runs do not cover the batch");
+    size_t start = 0;
+    for (size_t i = 0; i < runs.n;) {
+        const auto k = key(runs.runs[i]);
+        size_t j = i + 1;
+        while (j < runs.n && key(runs.runs[j]) == k) ++j;
+        const size_t stop = runs.runs[j - 1].end;
+        if (stop > start) each(start, stop - start, k);
+        start = stop;
+        i = j;
+    }
+}
+
 // The backend owns KV storage and its block layout; models keep logical views (docs/KV-CACHE.md).
 // A block id indexes the same block in every layer of one KVStorage.
 struct KVLayout {

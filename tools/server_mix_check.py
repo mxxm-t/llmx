@@ -24,7 +24,6 @@ import argparse
 import json
 import os
 import random
-import socket
 import subprocess
 import sys
 import threading
@@ -47,21 +46,6 @@ def health(port):
         return json.loads(r.read().decode("utf-8"))
 
 
-def leave_early(port, body, after_bytes):
-    """A streamed request whose client closes the socket once `after_bytes` of the reply have arrived."""
-    data = json.dumps(dict(body, stream=True)).encode()
-    s = socket.create_connection(("127.0.0.1", port), timeout=600)
-    s.sendall(b"POST /v1/generate HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n"
-              % len(data) + data)
-    got = 0
-    while got < after_bytes:
-        chunk = s.recv(4096)
-        if not chunk:
-            break
-        got += len(chunk)
-    s.close()
-
-
 def requests_from(text, count, rng):
     """`count` requests: prompts of a sentence, a paragraph or pages, cut from `text` at random offsets, with replies of 8 to 128 tokens."""
     out = []
@@ -80,7 +64,7 @@ def run_together(port, reqs, delays=None, leavers=()):
         if delays:
             time.sleep(delays[i])
         if i in leavers:
-            leave_early(port, reqs[i], 600)
+            common.leave_mid_stream(port, reqs[i], 600)
             return
         try:
             results[i] = post(port, reqs[i])["ids"]
@@ -142,17 +126,18 @@ def main():
         if post(port, reqs[0])["ids"] != alone[0]:
             failures.append("the first request differs after the load")
     finally:
-        proc.kill()
-        proc.wait()
-        log.close()
+        common.stop_server(proc, log)
 
     # The CLI prints the reply's text between its pp and tg lines, which must be the text the server gave the request alone.
     for i in range(min(args.cli, len(reqs))):
         r = reqs[i]
         out = subprocess.run([common.EXE, "generate", args.model, r["prompt"], "-n", str(r["max_tokens"]), "--temp", "0"] + flags,
-                             capture_output=True, text=True, encoding="utf-8", errors="replace")
-        lines = out.stdout.split("\n")
-        if out.returncode != 0 or len(lines) < 3 or "\n".join(lines[1:-2]) != replies[i]["text"]:
+                             capture_output=True)
+        try:
+            same = out.returncode == 0 and common.generate_text(out.stdout).decode("utf-8", errors="replace") == replies[i]["text"]
+        except AssertionError:  # output outside the pp and tg frame
+            same = False
+        if not same:
             failures.append("cli %d" % i)
     print("cli: %d requests checked" % min(args.cli, len(reqs)), flush=True)
 

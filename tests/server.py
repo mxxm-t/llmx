@@ -13,7 +13,6 @@ import baseline
 import common
 import f32
 import moe
-from common import run as cli
 
 # The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
@@ -73,18 +72,14 @@ class Server:
             time.sleep(0.05)
 
     def close(self):
-        self.proc.kill()
-        self.proc.wait()
-        self.log.close()
+        common.stop_server(self.proc, self.log)
 
 
 def cli_greedy_text(model, prompt, n, flags=()):
-    """What `generate --temp 0` prints between its pp and tg lines, with the f32 cache sides and the flags the server under test is started with."""
-    rc, out = cli(["generate", model, prompt, "-n", str(n), "--temp", "0"] + list(flags), cache="f32")
-    assert rc == 0, out
-    lines = out.split("\n")
-    assert lines[0].startswith("pp:") and lines[-2].startswith("tg:"), out
-    return "\n".join(lines[1:-2])
+    """What `generate --temp 0` prints between its pp and tg lines, as text, with the f32 cache sides and the flags the server under test is started with."""
+    p = common.run_process(["generate", model, prompt, "-n", str(n), "--temp", "0"] + list(flags), cache="f32")
+    assert p.returncode == 0, p.stderr
+    return common.generate_text(p.stdout).decode("utf-8")
 
 
 def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
@@ -154,10 +149,8 @@ def check_server(model, prompts, n, long_n, chat, prefix=None, flags=()):
         status, reply = srv.post("/v1/generate", {"prompt": "a", "max_tokens": 2, "temperature": 0, "top_k": 0, "top_p": 1, "penalty": 1})
         assert status == 200 and reply["ids"], (status, reply)
 
-        # A client that leaves mid-stream: open the socket, start a request, close after the first bytes, and the server ends with nothing active.
-        s = srv.open("/v1/generate", {"prompt": prompts[0], "max_tokens": long_n, "temperature": 0, "stream": True})
-        s.recv(64)
-        s.close()
+        # A client that leaves mid-stream once its reply has begun, and the server ends with nothing active.
+        common.leave_mid_stream(srv.port, {"prompt": prompts[0], "max_tokens": long_n, "temperature": 0}, 64)
         srv.wait(lambda h: h["active"] == 0, "a cancelled request stayed active", 60)
 
         # /v1/chat renders through the template and answers; the synthetic model's 16-token context has no room for a rendered turn.

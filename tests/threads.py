@@ -12,7 +12,7 @@ import f32
 def invoke(args, data=None):
     p = common.run_process(args + ["--device", "cpu"], input=data, timeout=30)
     assert p.returncode == 0, (args, p.returncode, p.stderr)
-    return p.stdout.replace(b"\r\n", b"\n"), p.stderr
+    return p.stdout, p.stderr
 
 
 def check_perplexity_threads(model, automatic, weights):
@@ -56,7 +56,7 @@ def run():
     for count in (None, 0, 1, 4):
         flags = [] if count is None else ["--threads", str(count)]
         out, _ = invoke(bench + flags)
-        match = re.search(rb"^bench: threads (\d+)$", out, re.M)
+        match = re.search(rb"^bench: threads (\d+)\r?$", out, re.M)
         assert match, out
         actual = int(match[1])
         if count is None:
@@ -101,9 +101,9 @@ def run():
                     assert counts == expected, (command, count, batch, counts, expected)
                     replies = b"".join(bytes(t["reply_ids"]) + b"\n" for t in case["turns"][:turns])
                     if command == "chat":
-                        assert out == b"Chat ready (type your message; Ctrl+C to quit)\n" + replies, out
+                        # Windows text-mode stdout writes each line feed as CR LF, generated ones included.
+                        assert out.replace(b"\r\n", b"\n") == b"Chat ready (type your message; Ctrl+C to quit)\n" + replies, out
                     else:
-                        generated = re.search(rb"^pp: [^\n]*\n(.*?)^tg: ", out, re.M | re.S)
-                        assert generated and generated[1] == replies, out
+                        assert common.generate_text(out) + b"\n" == replies, out
     print("threads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]")
     return True

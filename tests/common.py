@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -9,7 +10,7 @@ import tempfile
 import time
 import urllib.request
 
-# Shared helpers for synthetic tests and the optional real-model HF baseline.
+# Shared helpers for synthetic tests, the optional real-model HF baseline and the tools in tools/ that run the CLI or a server.
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXE = os.path.join(ROOT, "llmx.exe" if os.name == "nt" else "llmx")
@@ -81,6 +82,16 @@ def run(args, cwd=None, cache=None):
     return p.returncode, p.stdout if p.returncode == 0 else p.stdout + p.stderr
 
 
+def generate_text(stdout):
+    """The bytes `llmx generate` wrote between its `pp:` and `tg:` lines, from its raw stdout, without the line feed that ends the text.
+    The lines `--verbose` adds, the prompt token count before them and the cache line after, may frame them; any other output fails the assertion."""
+    # Windows text-mode stdout writes every line feed as CR LF, generated ones included, so each pair is read back as the line feed it was.
+    out = stdout.replace(b"\r\n", b"\n")
+    frame = re.fullmatch(rb"(?:prompt tokens: \d+\n)?pp: [^\n]*\n(.*)\ntg: [^\n]*\n(?:kv: [^\n]*\n)?", out, re.S)
+    assert frame, out
+    return frame[1]
+
+
 def free_port():
     """A loopback port the system has just handed out and nothing holds."""
     s = socket.socket()
@@ -114,10 +125,31 @@ def start_server(command, wait=120):
             time.sleep(0.1)
         raise RuntimeError("server did not come up")
     except BaseException:
-        proc.kill()
-        proc.wait()
-        log.close()
+        stop_server(proc, log)
         raise
+
+
+def stop_server(proc, log):
+    """Stop a server start_server started and close its log.
+    The server has no shutdown of its own to wait for, so it is killed."""
+    proc.kill()
+    proc.wait()
+    log.close()
+
+
+def leave_mid_stream(port, body, after_bytes):
+    """A client that leaves mid-stream: `body` goes to /v1/generate as a stream, and the socket closes once `after_bytes` of the reply have arrived, or the server has closed it first."""
+    data = json.dumps(dict(body, stream=True)).encode()
+    s = socket.create_connection(("127.0.0.1", port), timeout=600)
+    s.sendall(b"POST /v1/generate HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n"
+              % len(data) + data)
+    got = 0
+    while got < after_bytes:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        got += len(chunk)
+    s.close()
 
 
 def device_lacks_kernel(rc, out):

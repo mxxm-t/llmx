@@ -93,15 +93,6 @@ def serve(exe, model, device, ctx, extra):
     return common.start_server(cmd, wait=600)
 
 
-def stop(proc, log):
-    proc.terminate()
-    try:
-        proc.wait(timeout=30)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-    log.close()
-
-
 # Seconds to wait for a reply; None waits as long as it takes.
 TIMEOUT = None
 
@@ -181,7 +172,7 @@ def main():
                 print(f"prompt: {n} tokens, {len(prompt)} characters", flush=True)
             got = run_once(port, prompt, args.max_tokens)
         finally:
-            stop(proc, log)
+            common.stop_server(proc, log)
         report(f"{args.device} #{i + 1}", got)
         runs.append(got)
     repeat_ok = runs[0].get("ids") == runs[1].get("ids")

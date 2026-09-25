@@ -296,7 +296,6 @@ static size_t check_gather(backend::CpuBackend& cpu) {
 
 int main() {
     try {
-        quant::register_builtins();
         backend::CpuBackend cpu;
         cpu.set_threads(1);
         // These checks pin the float decode dots exactly; the 8-bit ones have tests/q8_dots.cpp.

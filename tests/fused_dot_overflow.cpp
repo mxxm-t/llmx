@@ -128,7 +128,6 @@ int run_type(uint32_t type, const char* tname, bool eight) {
 
 int main() {
     try {
-        quant::register_builtins();
         int n = 0;
         for (bool eight : {false, true}) {
             n += run_type(gguf::GGML_TYPE_Q8_0, "Q8_0", eight);

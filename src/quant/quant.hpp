@@ -135,7 +135,7 @@ inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) 
 }
 
 // A quantized storage type: block size, bytes per block, and block-wise (de)quantize routines.
-// Register each type with the quant::Registry so consumers can look a type up by its GGML id.
+// quant::Registry holds one for each type llmx reads, so consumers look a type up by its GGML id.
 struct QuantType {
     const char* name = "?";
     size_t block_size = 0;   // values per block
@@ -145,50 +145,37 @@ struct QuantType {
 };
 
 // Registry of quant types keyed by GGML type id.
-// Populate at startup with quant::register_builtins().
 class Registry {
 public:
-    static Registry& instance() {
-        static Registry r;
+    // A function-local static is initialized once even when threads race to it (C++11), and the map is never written after, so any thread may read it without a lock.
+    static const Registry& instance() {
+        static const Registry r;
         return r;
     }
-    void add(uint32_t ggml_id, const QuantType& t) { types_[ggml_id] = t; }
     const QuantType* get(uint32_t ggml_id) const {
         auto it = types_.find(ggml_id);
         return it == types_.end() ? nullptr : &it->second;
     }
-    void clear() { types_.clear(); }
 
 private:
-    Registry() = default;
-    std::unordered_map<uint32_t, QuantType> types_;
+    Registry() : types_{
+        { gguf::GGML_TYPE_Q8_0,
+          { "Q8_0", gguf::Q8_0_BLOCK, gguf::Q8_0_TYPESIZE, quantize_row_q8_0, dequantize_row_q8_0 } },
+        { gguf::GGML_TYPE_Q4_0,
+          { "Q4_0", gguf::Q4_0_BLOCK, gguf::Q4_0_TYPESIZE, quantize_row_q4_0, dequantize_row_q4_0 } },
+        { gguf::GGML_TYPE_Q4_1,
+          { "Q4_1", gguf::Q4_1_BLOCK, gguf::Q4_1_TYPESIZE, quantize_row_q4_1, dequantize_row_q4_1 } },
+        // The K-quants are read-only: llmx loads files that carry them, including a few Q6_K tensors inside an otherwise Q4_0 file, but produces none, so a quantizer would be unused code.
+        { gguf::GGML_TYPE_Q4_K,
+          { "Q4_K", gguf::Q4_K_BLOCK, gguf::Q4_K_TYPESIZE, nullptr, dequantize_row_q4_K } },
+        { gguf::GGML_TYPE_Q5_K,
+          { "Q5_K", gguf::Q5_K_BLOCK, gguf::Q5_K_TYPESIZE, nullptr, dequantize_row_q5_K } },
+        { gguf::GGML_TYPE_Q6_K,
+          { "Q6_K", gguf::Q6_K_BLOCK, gguf::Q6_K_TYPESIZE, nullptr, dequantize_row_q6_K } },
+        { gguf::GGML_TYPE_F32,
+          { "F32", 0, 4, nullptr, nullptr } },
+    } {}
+    const std::unordered_map<uint32_t, QuantType> types_;
 };
-
-// Register the built-in quant types. Safe to call multiple times.
-inline void register_builtins() {
-    Registry& r = Registry::instance();
-    r.clear();
-    r.add(gguf::GGML_TYPE_Q8_0,
-          { "Q8_0", gguf::Q8_0_BLOCK, gguf::Q8_0_TYPESIZE,
-            quantize_row_q8_0, dequantize_row_q8_0 });
-    r.add(gguf::GGML_TYPE_Q4_0,
-          { "Q4_0", gguf::Q4_0_BLOCK, gguf::Q4_0_TYPESIZE,
-            quantize_row_q4_0, dequantize_row_q4_0 });
-    r.add(gguf::GGML_TYPE_Q4_1,
-          { "Q4_1", gguf::Q4_1_BLOCK, gguf::Q4_1_TYPESIZE,
-            quantize_row_q4_1, dequantize_row_q4_1 });
-    // The K-quants are read-only: llmx loads files that carry them, including a few Q6_K tensors inside an otherwise Q4_0 file, but produces none, so a quantizer would be unused code.
-    r.add(gguf::GGML_TYPE_Q4_K,
-          { "Q4_K", gguf::Q4_K_BLOCK, gguf::Q4_K_TYPESIZE,
-            nullptr, dequantize_row_q4_K });
-    r.add(gguf::GGML_TYPE_Q5_K,
-          { "Q5_K", gguf::Q5_K_BLOCK, gguf::Q5_K_TYPESIZE,
-            nullptr, dequantize_row_q5_K });
-    r.add(gguf::GGML_TYPE_Q6_K,
-          { "Q6_K", gguf::Q6_K_BLOCK, gguf::Q6_K_TYPESIZE,
-            nullptr, dequantize_row_q6_K });
-    r.add(gguf::GGML_TYPE_F32,
-          { "F32", 0, 4, nullptr, nullptr });
-}
 
 } // namespace quant

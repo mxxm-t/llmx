@@ -303,7 +303,6 @@ size_t check_experts(uint32_t type, std::mt19937& rng) {
 
 int main() {
     try {
-        quant::register_builtins();
         const auto a8 = check_activation_range<backend::q8::Rows>(127, backend::q8::quantize);
         const auto a16 = check_activation_range<backend::q8::Rows16>(32767, backend::q8::quantize16);
         std::printf("activation range: %zu blocks, %zu packed values, %zu tiny blocks, %zu exact tiny ties; input and output guards passed\n",

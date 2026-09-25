@@ -172,8 +172,6 @@ to a `backend::Backend`.
     row keeps the same arithmetic, and the operations finish before dependent
     matrix operations or KV writes begin. Whether to spread a stage across
     workers is the backend's decision, not the model's.
-  - The constructor calls `quant::register_builtins()` (idempotent) so the
-    quant registry is populated before any tensor is processed.
   - Before model activation/KV/RoPE allocation, construction checks tensor-name
     uniqueness, offset count/alignment/ranges, supported storage types and all
     required layouts. `resolve_tensors` performs this validation and returns

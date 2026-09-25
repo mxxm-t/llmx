@@ -86,10 +86,12 @@ void emit_text(const std::string& text) {
 // commands
 // ---------------------------------------------------------------------------
 
+// An unknown type name is refused as a usage error, with status 2, before any file is opened.
 int cmd_quantize(const std::string& json_path, const std::string& bin_path,
                  const std::string& out_path, const std::string& type_arg) {
-    const uint32_t type = type_arg == "q4_0" ? gguf::GGML_TYPE_Q4_0 : gguf::GGML_TYPE_Q8_0;
-    const size_t tensors = quant::quantize_raw(json_path, bin_path, out_path, type);
+    const std::optional<uint32_t> type = quant::quant_type_of(type_arg);
+    if (!type) { std::cerr << "unknown quant type: " << type_arg << " (expected q8_0 or q4_0)\n"; return 2; }
+    const size_t tensors = quant::quantize_raw(json_path, bin_path, out_path, *type);
     std::cout << "wrote " << out_path << " (" << tensors << " tensors, " << type_arg << ")\n";
     return 0;
 }
@@ -849,8 +851,6 @@ int main(int argc, char** argv) {
     SetConsoleOutputCP(CP_UTF8);
 #endif
     try {
-        // Populate the quant registry here, since info and dequantize never build a Model.
-        quant::register_builtins();
         if (argc < 2) { print_usage(); return 1; }
         std::string cmd = argv[1];
         if (argc == 2 && (cmd == "--help" || cmd == "-h")) {
@@ -1012,9 +1012,7 @@ int main(int argc, char** argv) {
 
         if (cmd == "quantize") {
             if (argc < 5 || argc > 6) { std::cerr << "usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n"; return 2; }
-            std::string type = (argc == 6) ? argv[5] : "q8_0";
-            if (type != "q8_0" && type != "q4_0") { std::cerr << "unknown quant type: " << type << " (expected q8_0 or q4_0)\n"; return 2; }
-            return cmd_quantize(argv[2], argv[3], argv[4], type);
+            return cmd_quantize(argv[2], argv[3], argv[4], argc == 6 ? argv[5] : "q8_0");
         }
         if (cmd == "dequantize") {
             if (argc != 5) { std::cerr << "usage: llmx dequantize <in.gguf> <out.json> <out.bin>\n"; return 2; }

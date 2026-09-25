@@ -276,7 +276,6 @@ static void fallback(const std::string& name) {
 
 int main() {
     try {
-        quant::register_builtins();
         hooks::simulated = true;
         for (int cores : {2, 4}) {
             hooks::core_count = cores;

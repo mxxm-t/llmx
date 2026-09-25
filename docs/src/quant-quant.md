@@ -19,8 +19,8 @@ Block quantization kernels, in namespace `quant`.
   produces it and a quantizer would be unused code.
 - `QuantType`: description of a quant type (block size, bytes/block,
   block-wise (de)quantize routines).
-- `Registry` / `register_builtins()`: lookup a quant type by GGML id. Registers
-  `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K` and `F32`.
+- `Registry::instance().get(id)`: the quant type for a GGML id, or null for a type llmx does not read.
+  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K` and `F32` on first use and never changes after, so no caller sets it up and any thread may read it.
 
 K-quant layouts and shared sub-scale decoding live in `k_quants.hpp`. Adding
 a quant also requires GGUF type/size entries in `format/gguf.hpp`.

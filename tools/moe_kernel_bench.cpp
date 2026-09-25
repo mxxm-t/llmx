@@ -14,7 +14,6 @@
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "bench_weights.hpp"
 #include "format/gguf.hpp"
-#include "quant/quant.hpp"
 
 namespace {
 
@@ -35,7 +34,6 @@ int main(int argc, char** argv) {
 
     // Kernel timestamps on unless the fifth argument is 0, which leaves wall times undisturbed by the queries.
     const bool timed = argc > 5 ? std::atoi(argv[5]) != 0 : true;
-    quant::register_builtins();
     auto bp = backend::make_vulkan_backend(device, timed);
     backend::Backend& b = *bp;
 

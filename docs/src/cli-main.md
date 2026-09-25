@@ -15,9 +15,8 @@ Commands and their entry points:
   pass HF credentials to `hub::pull`, render status on stderr and print the
   verified model path on stdout. See [Hub acquisition](hub.md).
 
-- `quantize` / `dequantize`: `cmd_quantize` / `cmd_dequantize` check the
-  arguments and call `quant::quantize_raw` / `quant::dequantize_to_raw`
-  (`quant/convert.hpp`), which read and write `model.json`/`model.bin`.
+- `quantize` / `dequantize`: the dispatch in `main` checks the argument count, and `cmd_quantize` / `cmd_dequantize` call `quant::quantize_raw` / `quant::dequantize_to_raw` (`quant/convert.hpp`), which read and write `model.json`/`model.bin` by their UTF-8 paths.
+  `cmd_quantize` maps the quant type name, `q8_0` when omitted, through `quant::quant_type_of`, and a name quantize does not write is a usage error with exit status 2, before any file is opened.
   Quantize requires one to four positive integral dimensions in the JSON
   parser's consecutive integer range (`1..2^53-1`) and whole 32-value rows.
   Shared GGUF tensor arithmetic checks products and output bytes; the CLI

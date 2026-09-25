@@ -1391,7 +1391,6 @@ int main(int argc, char** argv) {
         require(rejected, "copy past the source accepted");
         checks += 2;
 
-        quant::register_builtins();
         const size_t values = check_kernels(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";

@@ -204,7 +204,6 @@ void check_model(bool tied) {
 
 int main() {
     try {
-        quant::register_builtins();
         check_contract();
         check_model(false); check_model(true);
         std::cout << "prefill scope: " << contracts << " contracts, " << model_calls

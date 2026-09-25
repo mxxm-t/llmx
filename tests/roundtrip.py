@@ -6,6 +6,7 @@ import tempfile
 import random
 import json
 import math
+import shutil
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, run_process, write_bin, read_bin_floats, max_err
@@ -275,6 +276,40 @@ def check_raw_decode(d):
               "from %d raw blocks  [ok]" % (qtype, count, len(payload) // typesize))
 
 
+# Paths reach the converter as UTF-8, and Windows reads a narrow path in the system code page, so a directory named outside it is where a narrow open fails.
+def check_non_ascii_directory(d):
+    sub = os.path.join(d, "é中\U0001f600")
+    os.mkdir(sub)
+    for name in ("model.json", "model.bin"):
+        shutil.copyfile(os.path.join(d, name), os.path.join(sub, name))
+    for qtype in ("q8_0", "q4_0"):
+        written = []
+        for where in (d, sub):
+            mj, mb = os.path.join(where, "model.json"), os.path.join(where, "model.bin")
+            mg, oj, ob = (os.path.join(where, "dir_%s.%s" % (qtype, ext)) for ext in ("gguf", "json", "bin"))
+            rc, out = cli(["quantize", mj, mb, mg, qtype])
+            assert rc == 0, "quantize (%s) under %a failed: %a" % (qtype, where, out)
+            rc, out = cli(["dequantize", mg, oj, ob])
+            assert rc == 0, "dequantize (%s) under %a failed: %a" % (qtype, where, out)
+            with open(oj, encoding="utf-8") as f:
+                assert json.load(f)["name"] == mg, "model path changed under %a" % where
+            with open(mg, "rb") as f, open(ob, "rb") as g:
+                written.append((f.read(), g.read()))
+        assert written[0] == written[1], "%s files differ under a non-ASCII directory" % qtype
+        print("roundtrip: %s under a non-ASCII directory writes the same files  [ok]" % qtype)
+
+
+# quantize takes only the names of the types it writes: Q4_1 has a quantizer but no GGUF file type here.
+def check_type_names(d):
+    mj, mb, mg = (os.path.join(d, n) for n in ("model.json", "model.bin", "names.gguf"))
+    for name in ("q4_1", "Q8_0"):
+        result = run_process(["quantize", mj, mb, mg, name], text=True, timeout=30)
+        assert result.returncode == 2 and "unknown quant type" in result.stderr, (
+            "quantize did not refuse type %a with status 2: %d %a" % (name, result.returncode, result.stderr))
+        assert not os.path.exists(mg), "refused type %a created an output" % name
+    print("roundtrip: type names quantize does not write are refused with status 2  [ok]")
+
+
 def run():
     d = tempfile.mkdtemp(prefix="llmx_rt_")
     try:
@@ -314,10 +349,11 @@ def run():
                       qtype, len(got), err, tiny_err))
         check_independent_decode(d)
         check_raw_decode(d)
+        check_non_ascii_directory(d)
+        check_type_names(d)
         check_tensor_extents(d)
         return True
     finally:
-        import shutil
         shutil.rmtree(d, ignore_errors=True)
 
 

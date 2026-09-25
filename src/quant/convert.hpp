@@ -2,8 +2,10 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -47,6 +49,13 @@ inline std::vector<gguf::TensorInfo> raw_tensors(const jmini::Value& root, uint3
     return out;
 }
 
+// The GGML type a quantize type name selects, or none for any other name: q8_0 and q4_0 are the only types quantize writes.
+inline std::optional<uint32_t> quant_type_of(const std::string& name) {
+    if (name == "q8_0") return gguf::GGML_TYPE_Q8_0;
+    if (name == "q4_0") return gguf::GGML_TYPE_Q4_0;
+    return std::nullopt;
+}
+
 // GGUF's general.file_type for a model whose matrices are all `type`.
 inline uint32_t file_type_of(uint32_t type) {
     if (type == gguf::GGML_TYPE_Q8_0) return 7;   // MOSTLY_Q8_0
@@ -56,10 +65,9 @@ inline uint32_t file_type_of(uint32_t type) {
 
 // Write the model model.json and model.bin describe as a GGUF file whose tensors are all `type`; returns the tensor count.
 inline size_t quantize_raw(const std::string& json_path, const std::string& bin_path, const std::string& out_path, uint32_t type) {
-    register_builtins();
     const QuantType* qt = Registry::instance().get(type);
     if (!qt || !qt->quantize) throw std::runtime_error("quantize: unsupported quant type");
-    std::ifstream jf(json_path);
+    std::ifstream jf(std::filesystem::u8path(json_path));
     if (!jf) throw std::runtime_error("cannot open " + json_path);
     std::stringstream jss;
     jss << jf.rdbuf();
@@ -78,7 +86,7 @@ inline size_t quantize_raw(const std::string& json_path, const std::string& bin_
         output_size > m.blob.max_size())
         throw std::runtime_error("model.json: tensor storage exceeds allocation or stream limit");
 
-    std::ifstream bf(bin_path, std::ios::binary);
+    std::ifstream bf(std::filesystem::u8path(bin_path), std::ios::binary);
     if (!bf) throw std::runtime_error("cannot open " + bin_path);
     bf.exceptions(std::ios::failbit | std::ios::badbit);
     bf.seekg(0, std::ios::end);
@@ -115,7 +123,6 @@ inline size_t quantize_raw(const std::string& json_path, const std::string& bin_
 
 // Write a GGUF file's tensors as raw F32, the model.json and model.bin that quantize_raw reads.
 inline void dequantize_to_raw(const std::string& in_path, const std::string& out_json, const std::string& out_bin) {
-    register_builtins();
     const gguf::GGUFModel m = gguf::read_gguf(in_path);
     std::stringstream js;
     js << "{\n";
@@ -152,10 +159,10 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
         std::memcpy(out.data() + (out.size() - n * 4), f.data(), n * 4);
     }
 
-    std::ofstream oj(out_json);
+    std::ofstream oj(std::filesystem::u8path(out_json));
     if (!oj) throw std::runtime_error("cannot open " + out_json);
     oj << js.str();
-    std::ofstream ob(out_bin, std::ios::binary);
+    std::ofstream ob(std::filesystem::u8path(out_bin), std::ios::binary);
     if (!ob) throw std::runtime_error("cannot open " + out_bin);
     ob.write((const char*)out.data(), (std::streamsize)out.size());
 }

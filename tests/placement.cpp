@@ -486,7 +486,6 @@ void bad_placements_refused() {
 
 int main() {
     try {
-        quant::register_builtins();
         split_matches_single();
         layer_split_fits();
         bad_placements_refused();

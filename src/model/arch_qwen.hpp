@@ -466,7 +466,6 @@ public:
         if (backends.empty()) throw std::runtime_error("inference: missing backend");
         for (const auto& b : backends)
             if (!b) throw std::runtime_error("inference: missing backend");
-        quant::register_builtins(); // populate the quant registry (idempotent)
         cfg = load_config(m);
         // The attention projection width is n_head*head_dim, which only equals n_embd by coincidence on some models (Qwen3-8B: 32*128 == 4096).
         // Qwen3-0.6B/1.7B/4B have head_dim 128 with a smaller n_embd.

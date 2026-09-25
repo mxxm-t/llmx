@@ -108,15 +108,17 @@ gguf::GGUFModel fixture(bool tied = false, uint32_t type = 0, bool odd = false,
     return m;
 }
 
+// Hundreds of models are built here, so each one's backend must start no worker threads: its pool would start only for work, and one thread needs none.
 void construct(const gguf::GGUFModel& m, bool step = false) {
-    auto cpu = backend::make_cpu_backend();
+    auto cpu = std::make_shared<backend::CpuBackend>();
     cpu->set_threads(1);
-    infer::Model model(m, std::move(cpu));
+    infer::Model model(m, cpu);
     if (step) {
         const auto logits = model.step(0);
         require(logits.size() == 5, "valid fixture vocabulary changed");
         for (float v : logits) require(v == 0.0f, "zero-weight fixture produced nonzero logits");
     }
+    require(cpu->workers_started() == 0, "a one-thread model started worker threads");
 }
 
 
@@ -192,6 +194,7 @@ void loading_lifetime_checks() {
         require(caught == expected, "loading exception was lost or replaced");
         require(b->state->releases > 0 && b->state->premature == 0 && b->state->drains > 0,
                 "loading failure freed a buffer before its upload retired");
+        require(b->workers_started() == 0, "a one-thread model started worker threads");
         ++checks;
     }
     const auto m = fixture();
@@ -218,6 +221,8 @@ void loading_lifetime_checks() {
         require(!device->state->pending && device->state->premature == 0,
                 "model teardown freed buffers before pending loading completed");
     require(unused->state->drains == 0, "model teardown drained an unused backend");
+    for (const auto& device : {a, b, unused})
+        require(device->workers_started() == 0, "a one-thread split model started worker threads");
     ++checks;
 }
 
@@ -238,7 +243,7 @@ void loading_window_checks() {
     placement.stream_from = 1;
     for (int failure = 1; failure <= 3; ++failure) {
         auto device = std::make_shared<LoadingBackend>();
-        auto host = backend::make_cpu_backend();
+        auto host = std::make_shared<backend::CpuBackend>();
         device->set_threads(1); host->set_threads(1);
         device->fail_alloc = failure;
         std::string caught;
@@ -249,6 +254,7 @@ void loading_window_checks() {
                 "streamed window fixture did not create pending storage");
         require(device->state->premature == 0 && device->state->drains > 0,
                 "window allocation failure freed pending storage before the constructor catch");
+        require(device->workers_started() == 0 && host->workers_started() == 0, "a one-thread model started worker threads");
         ++checks;
     }
 }

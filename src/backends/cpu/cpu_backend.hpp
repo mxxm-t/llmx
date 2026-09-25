@@ -140,28 +140,35 @@ private:
 // Uses AVX2 fused dequant+FMA for quantized matmuls where the host supports it, otherwise a scalar fallback.
 class CpuBackend : public Backend {
 public:
+    // No worker starts here: the pool starts on the first dispatch that needs it, so a count set before any work costs no pool at the automatic size.
     CpuBackend() {
         unsigned hw = std::thread::hardware_concurrency();
         threads_ = (hw > 0) ? (int)hw : 4;
         if (threads_ > 64) threads_ = 64;
         avx2_ = has_avx2();   // detect once, not per row dot
         f16c_ = has_f16c();
-        start_pool();
+        rowbuf_.resize((size_t)threads_);
     }
 
     ~CpuBackend() override { stop_pool(); }
 
+    // A new count stops the running workers, and the next dispatch that needs workers starts them at that count.
+    // The scratch is allocated before anything changes, so a failure leaves the backend as it was.
     void set_threads(int n) override {
         if (n == 0) return;
         int t = (n > 0) ? n : 1;
         if (t == threads_) return;
         if (prefill_active_) throw std::runtime_error("CPU threads cannot change during prefill");
+        std::vector<std::vector<float>> rows((size_t)t);
         stop_pool();
+        rowbuf_.swap(rows);
         threads_ = t;
-        start_pool();
     }
 
     int threads_available() const override { return threads_; }
+
+    // Worker threads started over the backend's life, the calling thread not among them; tests read it to pin when the pool starts.
+    size_t workers_started() const { return workers_started_; }
 
     // Weights on the host read the mapped file in place, so what counts against this is caches, activations and whatever a loader materializes.
     std::optional<size_t> memory_available() const override { return core::host_memory_available(); }
@@ -220,10 +227,12 @@ public:
     }
 
     // Run fn(0..threads_-1) across the pool: worker 0 is the calling thread, so a single-threaded backend never touches the pool at all.
+    // The first dispatch at a count starts the pool; a failed start fails this dispatch before any participant runs, and the next dispatch tries again.
     // Blocks until every participant has returned, which is what lets the job be referenced rather than copied.
     template <class F>
     void run_parallel(F&& fn) {
         if (threads_ <= 1) { fn(0); return; }
+        if (pool_.empty()) start_pool();
         std::function<void(int)> job(std::ref(fn));   // ref -> no heap alloc
         {
             std::lock_guard<std::mutex> lk(m_);
@@ -1373,9 +1382,10 @@ private:
     bool f16c_ = false;
     bool prefill_active_ = false;
 
-    // Persistent worker pool.
+    // Persistent worker pool, empty until a dispatch needs it and again after a count change or a failed start.
     std::vector<std::thread> pool_;
-    // Per-worker dequantized weight-row scratch for the batched matmul path.
+    size_t workers_started_ = 0;
+    // Per-worker dequantized weight-row scratch for the batched matmul path, one per participant of the current count whether or not the pool runs.
     std::vector<std::vector<float>> rowbuf_;
     std::vector<float> attention_scores_;
     std::mutex m_;
@@ -1389,17 +1399,19 @@ private:
     std::atomic<int> pending_{0};
     std::atomic<bool> stop_{false};
 
+    // A partial start joins the threads it created and keeps the count, so the dispatch that asked fails and the next one starts the pool again.
+    // Falling back to one thread instead would let a server that outlives the failed request run every later one serially without a word.
     void start_pool() {
         try {
-            rowbuf_.assign((size_t)(threads_ > 0 ? threads_ : 1), std::vector<float>());
             stop_.store(false);
             epoch_.store(0);
             pending_.store(0);
-            for (int i = 1; i < threads_; i++)
+            for (int i = 1; i < threads_; i++) {
                 pool_.emplace_back([this, i] { worker(i); });
+                ++workers_started_;
+            }
         } catch (...) {
             stop_pool();
-            threads_ = 1;
             throw;
         }
     }

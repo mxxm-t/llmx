@@ -178,6 +178,7 @@ It covers tied/untied output, supported matrix types and singleton axes. An
 asynchronous test backend also checks loading failure and model teardown drain
 pending work before releasing buffers, including split placements and backend
 reuse. It does not validate numeric weights, arbitrary token IDs or failed-session recovery.
+Each model it builds runs on a one-thread CPU backend that must start no worker threads.
 
 `backend-group` checks mixed types, uneven rows, batches, thread counts,
 output boundaries and fallback behavior against separate calls and double dots.
@@ -231,6 +232,8 @@ A seed repeats its sequence and seed 0 keeps the default state; every seed is fi
 before error propagation, and exercises pool reuse and thread reconfiguration.
 It also checks valid empty CPU transfers, rejected offsets/null sources,
 unchanged storage and a zero thread hint preserving the current pool.
+It pins that construction and count changes start no threads, and that the first dispatch at a count starts one pool of that size, which later dispatches reuse.
+A start that fails partway fails its dispatch and keeps the count, and the next dispatch starts the whole pool without a new count.
 It does not establish recovery of partially executed model sessions.
 
 `backend-vulkan` exists only in a build with `LLMX_HAS_BACKEND_VULKAN=ON`. It

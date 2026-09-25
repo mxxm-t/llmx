@@ -202,9 +202,9 @@ CPU dispatch waits for every participant before propagating a task exception
 on the calling thread. This keeps the borrowed callable alive and leaves the
 pool reusable. Other participants finish their work; there is no cancellation
 or rollback. Partially written outputs are invalid, and pool recovery alone
-does not establish that a failed model/session can resume. Partial pool startup
-joins threads already created; a failed thread-count change leaves the backend
-in serial mode, from which it can be configured again.
+does not establish that a failed model/session can resume.
+The pool starts on the first dispatch that needs it.
+A partial start joins the threads already created and fails that dispatch; the count stays and the next dispatch retries, so a lasting failure fails every dispatch rather than leaving the backend serial.
 
 Model loading failures drain each used backend before constructor members
 unwind; model destruction drains them before owned buffers are released.

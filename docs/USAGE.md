@@ -453,8 +453,8 @@ process starts a new history. Press Ctrl+C to exit.
 
 Micro-benchmark of the backend hot paths, plus end-to-end TPS:
 
-- `matmul`: Q8_0 matvec on an `N x N` matrix (`--size`, default 1024). Reports
-  ms and GFLOPS.
+- `matmul`: Q8_0 matvec on an `N x N` matrix (`--size`, default 1024), timed after one untimed call so that one-time setup stays out.
+  Reports ms and GFLOPS.
 - `rms_norm`: RMSNorm on `N` elements.
 - `norm_rope`: per-head RMS norm followed by rotary position embedding on
   one row of `N` floats, the op the model runs.

@@ -6,13 +6,17 @@ the compiled binary portable to older CPUs.
 
 - Detects AVX2 **once** in the constructor (via `__cpuid` on MSVC, `__get_cpuid`
   on GCC/Clang) and caches it - not per row.
-- Persistent worker pool, started once. `matvec_q8_0` and attention both
-  run through it; previously each created and joined `std::thread`s per call,
-  which on Qwen3-8B was thousands of thread creations per token.
+- Persistent worker pool. `matvec_q8_0` and attention both run through it; previously each created and joined `std::thread`s per call, which on Qwen3-8B was thousands of thread creations per token.
+- The pool starts on the first dispatch that needs it (`run_parallel`), at the thread count in force then, and runs until the count changes.
+  Construction and `set_threads` start no threads, so a loader that sets its count before any work starts one pool of the size it uses, and a one-thread backend never starts one.
+  The first parallel pass after a load therefore includes the pool's start, once; the synthetic `bench` runs one untimed matmul first so that its timed loop leaves the start out.
+  A count changed after work stops the running workers, and the next dispatch starts a pool of the new size.
+  `workers_started()` counts the threads started over the backend's life; `tests/backend_errors.cpp` and `tests/model_validation.cpp` pin it.
 - Dispatch catches exceptions from callers and workers, waits for all
   participants, clears the borrowed job and rethrows on the caller. Failure
-  leaves outputs potentially partial but the pool reusable. Partial startup
-  joins created threads; failed reconfiguration falls back to serial execution.
+  leaves outputs potentially partial but the pool reusable.
+  A failed start joins the threads it created and fails the dispatch that asked for it before any participant runs; the count stays and the next dispatch retries, so a lasting failure fails every dispatch rather than leaving the backend serial.
+  A count change allocates its scratch before stopping anything, so a failed change keeps the previous count and pool.
   Concurrent or recursive submissions remain unsupported.
 - `set_threads(0)` leaves the current pool unchanged, including inside a prefill
   scope. The constructor selects the initial automatic count; the CLI resolves

@@ -119,7 +119,7 @@ static void check_dispatch(backend::CpuBackend& cpu, int threads, int failing) {
 
 static void check_startup() {
     bool success = false;
-    int constructor_failures = 0, resize_failures = 0;
+    int constructor_failures = 0, resize_failures = 0, start_failures = 0;
     for (int after = 0; after < 128 && !success; ++after) {
         try {
             AllocationFailure fail(after);
@@ -127,31 +127,85 @@ static void check_startup() {
             success = true;
         } catch (const std::bad_alloc&) { ++constructor_failures; }
     }
-    require(success && constructor_failures > 1, "constructor fault sweep incomplete");
+    require(success && constructor_failures > 0, "constructor fault sweep incomplete");
     backend::CpuBackend cpu;
+    cpu.set_threads(2);
+    check_dispatch(cpu, 2, 1);
     success = false;
     for (int after = 0; after < 128 && !success; ++after) {
-        cpu.set_threads(1);
         try {
             AllocationFailure fail(after);
-            cpu.set_threads(4);
+            cpu.set_threads(3);
             success = true;
         } catch (const std::bad_alloc&) {
             ++resize_failures;
-            require(cpu.threads_available() == 1, "failed startup did not leave serial backend");
-            check_dispatch(cpu, 1, 0);
-            cpu.set_threads(4);
+            require(cpu.threads_available() == 2, "failed count change did not keep the count");
+            check_dispatch(cpu, 2, 0);
+        }
+    }
+    require(success && resize_failures > 0, "resize fault sweep incomplete");
+    success = false;
+    // The first dispatch at a count starts the pool, so that is where a start fails; the count stays, and the next dispatch starts the whole pool without a new count.
+    for (int after = 0; after < 128 && !success; ++after) {
+        cpu.set_threads(1);
+        cpu.set_threads(4);
+        try {
+            AllocationFailure fail(after);
+            cpu.run_parallel([](int) {});
+            success = true;
+        } catch (const std::bad_alloc&) {
+            ++start_failures;
+            require(cpu.threads_available() == 4, "a failed start changed the count");
+            const size_t started = cpu.workers_started();
+            std::atomic<int> participants{0};
+            cpu.run_parallel([&](int) { ++participants; });
+            require(participants == 4 && cpu.workers_started() == started + 3, "the dispatch after a failed start did not start the whole pool");
             check_dispatch(cpu, 4, 2);
         }
     }
-    require(success && resize_failures > 1, "resize fault sweep incomplete");
-    std::printf("startup allocation failures: constructor=%d resize=%d\n",
-                constructor_failures, resize_failures);
+    require(success && start_failures > 1, "start fault sweep incomplete");
+    std::printf("startup allocation failures: constructor=%d resize=%d start=%d\n",
+                constructor_failures, resize_failures, start_failures);
+}
+
+// Construction and count changes start no threads; the first dispatch at a count starts one pool of that size, which later dispatches reuse.
+static void check_lazy_start() {
+    std::atomic<int> participants{0};
+    auto dispatch = [&](backend::CpuBackend& cpu) {
+        participants = 0;
+        cpu.run_parallel([&](int) { ++participants; });
+        return participants.load();
+    };
+    {
+        backend::CpuBackend cpu;
+        require(cpu.workers_started() == 0, "construction started workers");
+        cpu.set_threads(1);
+        std::atomic<int> calls{0};
+        cpu.parallel_for(1000, [&](int) { ++calls; });
+        require(calls == 1000 && dispatch(cpu) == 1, "serial backend dispatch changed");
+        require(cpu.workers_started() == 0, "a serial backend started workers");
+    }
+    backend::CpuBackend cpu;
+    cpu.set_threads(3);
+    cpu.set_threads(5);
+    require(cpu.workers_started() == 0, "a count change before any work started workers");
+    require(dispatch(cpu) == 5 && cpu.workers_started() == 4, "first dispatch did not start the pool at the count in use");
+    require(dispatch(cpu) == 5 && cpu.workers_started() == 4, "a second dispatch restarted the pool");
+    cpu.set_threads(0);
+    cpu.set_threads(5);
+    require(dispatch(cpu) == 5 && cpu.workers_started() == 4, "an unchanged count restarted the pool");
+    cpu.set_threads(2);
+    require(cpu.workers_started() == 4, "a count change after work started workers before a dispatch");
+    require(dispatch(cpu) == 2 && cpu.workers_started() == 5, "a count change after work did not start a pool of the new size");
+    cpu.set_threads(1);
+    require(dispatch(cpu) == 1 && cpu.workers_started() == 5, "a serial count started workers");
+    std::printf("lazy pool start: %zu workers started for pools of 5 and 2\n", cpu.workers_started());
 }
 
 int main() {
     try {
         check_startup();
+        check_lazy_start();
         backend::CpuBackend cpu;
         check_interface(cpu);
         for (int threads : {1, 2, 4}) {

@@ -180,8 +180,8 @@ to a `backend::Backend`.
     Norms are F32 vectors. Matrices have the expected input
     and output dimensions, with equal embedding/output vocabulary sizes.
     Trailing singleton dimensions up to rank four are accepted. Valid payload
-    aliases and unused scalar/empty F32 tensors remain supported. The backend
-    can already have allocated its worker pool before these checks.
+    aliases and unused scalar/empty F32 tensors remain supported.
+    A CPU backend starts its worker pool on its first parallel dispatch, so a fresh one has started no threads when these checks run.
   - Loading may enqueue uploads before a later tensor or allocation fails. The
     constructor catches failures inside its body and drains each used backend
     while its members are still alive. Normal model destruction also drains

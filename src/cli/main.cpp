@@ -527,6 +527,10 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     const auto x_buf = b->adopt(x.data(), x.size() * sizeof(float));
     const auto dst_buf = b->adopt(dst.data(), dst.size() * sizeof(float));
 
+    // One untimed pass, drained, so the timed loop leaves out one-time setup such as the CPU backend starting its workers on its first parallel dispatch.
+    b->matmul(gguf::GGML_TYPE_Q8_0, {weights.get(), 0}, {x_buf.get(), 0},
+              {dst_buf.get(), 0}, (size_t)size, (size_t)size, 1);
+    b->sync();
     using clock = std::chrono::steady_clock;
     auto t0 = clock::now();
     for (int it = 0; it < iters; it++)

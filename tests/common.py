@@ -30,21 +30,21 @@ def device_args(args, cache=None):
     args = list(args)
     if not args or args[0] not in DEVICE_COMMANDS:
         return args
+    # The synthetic bench, `bench` without --model, times one device's kernels on a model of its own, so it takes only --device and --threads: it gets neither layer shares nor cache types.
+    synthetic = args[0] == "bench" and "--model" not in args
     # A command that names its own device keeps it, and the configured layer shares, which belong to the configured devices, stay off it too.
     if "--device" not in args:
         device = os.environ.get("LLMX_DEVICE")
         if device:
             args += ["--device", device]
         # LLMX_LAYER_SHARES, set by run_tests.py --layer-shares, fixes each listed device's proportion of the layers, so a split the fit would not choose on this machine is tested anyway.
-        # The synthetic bench, `bench` without --model, times one device's kernels and places no layers, so it refuses shares.
         shares = os.environ.get("LLMX_LAYER_SHARES")
-        synthetic = args[0] == "bench" and "--model" not in args
         if shares and "--layer-shares" not in args and not synthetic:
             args += ["--layer-shares", shares]
     # LLMX_CACHE_TYPE, set by run_tests.py --cache-type, runs the same commands with both cache sides stored as that type; test configuration like LLMX_DEVICE, reaching the binary only as flags.
     # `cache` is a component asking for a type because its fixtures need it, which an explicit LLMX_CACHE_TYPE overrides.
     want = os.environ.get("LLMX_CACHE_TYPE") or cache
-    if want and "--cache-type-k" not in args:
+    if want and "--cache-type-k" not in args and not synthetic:
         args += ["--cache-type-k", want, "--cache-type-v", want]
     return args
 

@@ -246,8 +246,9 @@ must be at least as close as either neighbouring half, ties to even.
 
 `sampler` calls `infer::sample` on hand-picked logits with expectations taken from the definitions.
 Temperature 0 takes the largest score and the lowest id on a tie.
-The repetition penalty divides a seen token's positive score and multiplies a negative one, by exactly the penalty and once however often the token was seen, so a repeated leader loses to the runner-up.
+The repetition penalty divides a seen token's positive score and multiplies a negative one, by the penalty and once however often the token was seen, so a repeated leader loses to the runner-up.
 `top_k` 1 is greedy at any temperature, `top_k` 3 never draws outside the three best, and a `top_p` between the first probability and the sum of the first two keeps exactly those two.
+The nucleus is measured after the temperature and within the `top_k` window, which default requests combine: at temperature 2 a `top_p` of 0.7 keeps three tokens, and `top_k` 2 with `top_p` 0.6 keeps one.
 Draws at temperatures 1 and 0.5 fall within three binomial standard deviations of the softmax at that temperature, a bound that rejects the temperature applied twice or ignored.
 A seed repeats its sequence and seed 0 keeps the default state; every seed is fixed, so the frequency checks draw the same tokens on every run.
 

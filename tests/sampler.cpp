@@ -120,6 +120,12 @@ void top_p() {
     const std::vector<double> full = softmax(logits, 1.0, every(logits));
     require(full[3] < 0.65 && 0.65 < full[3] + full[1], "top_p 0.65 does not fall between the first two");
     fits("top_p 0.65", counts(logits, 1.0f, 0, 0.65f, 4), softmax(logits, 1.0, {3, 1}));
+    // At temperature 2 the first two hold only 0.636, so top_p 0.7 keeps three; a nucleus measured before the temperature would keep two.
+    const std::vector<double> warm = softmax(logits, 2.0, every(logits));
+    require(warm[3] + warm[1] < 0.7 && 0.7 < warm[3] + warm[1] + warm[0], "top_p 0.7 does not fall between the second and third at temperature 2");
+    fits("top_p 0.7 at temperature 2", counts(logits, 2.0f, 0, 0.7f, 5), softmax(logits, 2.0, {3, 1, 0}));
+    // Within the two best the first holds 0.622, so top_p 0.6 keeps it alone; a nucleus measured over the whole row would keep both.
+    fits("top_k 2 with top_p 0.6", counts(logits, 1.0f, 2, 0.6f, 6), softmax(logits, 1.0, {3}));
 }
 
 void temperature() {

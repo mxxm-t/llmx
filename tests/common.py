@@ -1,8 +1,13 @@
+import json
 import math
 import os
+import socket
 import subprocess
 import sys
 import struct
+import tempfile
+import time
+import urllib.request
 
 # Shared helpers for synthetic tests and the optional real-model HF baseline.
 
@@ -72,6 +77,40 @@ def run(args, cwd=None, cache=None):
     p = run_process(args, cache=cache, text=True, cwd=cwd)
     # A failure's diagnostic is on stderr; hand it back with the output so a caller can tell a missing device kernel from a wrong answer.
     return p.returncode, p.stdout if p.returncode == 0 else p.stdout + p.stderr
+
+
+def free_port():
+    """A loopback port the system has just handed out and nothing holds."""
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def start_server(command, wait=120):
+    """Start `command`, an `llmx serve` command line, on a free loopback port and return (process, port, log) once /v1/health answers ok.
+    The server logs a line per request, so its output goes to a temporary file: a pipe nobody reads would fill and block it."""
+    port = free_port()
+    log = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+    proc = subprocess.Popen(list(command) + ["--host", "127.0.0.1", "--port", str(port)],
+                            stdout=log, stderr=subprocess.STDOUT)
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            log.seek(0)
+            raise RuntimeError("server exited early: " + log.read())
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:%d/v1/health" % port, timeout=30) as r:
+                if json.load(r).get("status") == "ok":
+                    return proc, port, log
+        except OSError:
+            pass  # not listening yet
+        time.sleep(0.1)
+    proc.kill()
+    proc.wait()
+    log.close()
+    raise RuntimeError("server did not come up")
 
 
 def device_lacks_kernel(rc, out):

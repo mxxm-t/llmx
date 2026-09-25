@@ -37,29 +37,22 @@ import argparse
 import hashlib
 import json
 import os
-import socket
 import subprocess
 import sys
 import tempfile
 import time
-import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, os.pardir, "tests"))
+import common
+
 CORPUS = os.path.join(HERE, os.pardir, "tests", "data", "wiki.test.raw")
 INSTRUCTION = (
     "Read the following encyclopedia extract and write a single paragraph "
     "summarising what it is about.\n\n"
 )
 TOP = 20   # candidates the baseline reports per position
-
-
-def free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
 
 
 def build_prompt(port, want_tokens):
@@ -93,35 +86,20 @@ def build_prompt(port, want_tokens):
 
 
 def serve(exe, model, device, ctx, extra):
-    port = free_port()
-    cmd = [exe, "serve", model, "--host", "127.0.0.1", "--port", str(port),
-           "--ctx-size", str(ctx)] + extra
+    """(process, port, log) of `llmx serve` on `device`, once it answers."""
+    cmd = [exe, "serve", model, "--ctx-size", str(ctx)] + extra
     if device:
         cmd += ["--device", device]
-    # The server logs a line per request; to a file, since a pipe nobody reads fills and blocks it.
-    log = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
-    proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, text=True)
-    deadline = time.time() + 600
-    while time.time() < deadline:
-        if proc.poll() is not None:
-            log.seek(0)
-            raise SystemExit("serve exited:\n" + log.read()[-2000:])
-        try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/health", timeout=2) as r:
-                if json.load(r).get("status") == "ok":
-                    return proc, port
-        except Exception:
-            time.sleep(0.25)
-    proc.kill()
-    raise SystemExit("serve did not become healthy")
+    return common.start_server(cmd, wait=600)
 
 
-def stop(proc):
+def stop(proc, log):
     proc.terminate()
     try:
         proc.wait(timeout=30)
     except subprocess.TimeoutExpired:
         proc.kill()
+    log.close()
 
 
 # Seconds to wait for a reply; None waits as long as it takes.
@@ -196,14 +174,14 @@ def main():
     runs = []
     prompt = None
     for i in range(2):
-        proc, port = serve(args.exe, args.model, args.device, ctx, extra)
+        proc, port, log = serve(args.exe, args.model, args.device, ctx, extra)
         try:
             if prompt is None:
                 n, prompt = build_prompt(port, args.tokens)
                 print(f"prompt: {n} tokens, {len(prompt)} characters", flush=True)
             got = run_once(port, prompt, args.max_tokens)
         finally:
-            stop(proc)
+            stop(proc, log)
         report(f"{args.device} #{i + 1}", got)
         runs.append(got)
     repeat_ok = runs[0].get("ids") == runs[1].get("ids")

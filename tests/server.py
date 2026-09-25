@@ -1,7 +1,6 @@
 import json
 import os
 import socket
-import subprocess
 import sys
 import tempfile
 import threading
@@ -20,34 +19,11 @@ from common import run as cli
 # The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
 
 
-def free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
 class Server:
     def __init__(self, model, *extra):
-        self.port = free_port()
         # The device and cache flags go on the command, not the executable path, which device_args would not recognise; the server then runs where the CLI it is compared with runs.
-        args = ["serve", model, "--host", "127.0.0.1", "--port", str(self.port), "--max-seqs", "8"] + list(extra)
-        # The server logs a line per request on stderr, so it goes to a file: a pipe nobody reads would fill and block the server.
-        self.log = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
-        self.proc = subprocess.Popen([common.exe_path()] + common.device_args(args, "f32"), stdout=subprocess.DEVNULL, stderr=self.log,
-                                     text=True, encoding="utf-8")
-        deadline = time.time() + 120
-        while time.time() < deadline:
-            if self.proc.poll() is not None:
-                self.log.seek(0)
-                raise AssertionError("server exited early: " + self.log.read())
-            try:
-                self.get("/v1/health")
-                return
-            except (urllib.error.URLError, ConnectionError, OSError):
-                time.sleep(0.1)
-        raise AssertionError("server did not come up")
+        args = ["serve", model, "--max-seqs", "8"] + list(extra)
+        self.proc, self.port, self.log = common.start_server([common.exe_path()] + common.device_args(args, "f32"))
 
     def get(self, path):
         with urllib.request.urlopen("http://127.0.0.1:%d%s" % (self.port, path), timeout=30) as r:

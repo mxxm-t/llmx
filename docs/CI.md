@@ -48,7 +48,7 @@ installation; the native transport test supplies a fake child executable.
 Live downloads still require curl 8.4+ and separate network integration checks.
 
 The HF job runs `tools/fetch_test_models.py`, a standard-library downloader
-using the revisions and SHA-256 digests in `tests/baseline.py`. Downloads are
+using the revisions and SHA-256 digests in `tests/data/fixtures.json`. Downloads are
 verified before entering the HF snapshot cache. The HF job caches those
 snapshots between runs, with a key derived from `tests/baseline.py`; restored
 files are still SHA-256 checked on every run. Cold or invalid cache entries

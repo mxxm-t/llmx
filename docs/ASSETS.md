@@ -358,8 +358,9 @@ when an override is set; unsupported filenames are rejected.
 
 Fetch and SHA-256 verify the pinned snapshots with
 `python tools/fetch_test_models.py` (Python standard library only, about 1.4 GB
-combined). Revisions and digests are recorded in `tests/baseline.py`; the
-numerical checks use those exact snapshots unless explicitly overridden.
+combined).
+Repos, revisions, files and digests are recorded in `tests/data/fixtures.json`, which the downloader and `tests/baseline.py` both read, and each model's bounds in `tests/baseline.py`.
+The numerical checks use those exact snapshots unless explicitly overridden.
 
 ### Generating pinned HF references
 

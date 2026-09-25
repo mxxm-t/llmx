@@ -21,29 +21,26 @@ GOLDEN = os.path.join(HERE, "data", "baseline_tokenizer.json")
 GOLDEN_LOGITS = os.path.join(HERE, "data", "baseline_logits.json")
 GOLDEN_PPL = os.path.join(HERE, "data", "baseline_perplexity.json")
 
-# Fixture models for the logit/PPL gates, each with the top-5 overlap it reaches against the full-precision reference, measured per model since coarser quantization reorders more of the tail.
-# The Q4_0 entry covers subnormal f16 scales: its token_embd is Q6_K with a subnormal super-block scale, which the Q8_0 fixture almost never has.
-BASELINE_MODELS = [
-    {"repo": "Qwen/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q8_0.gguf",
-     "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
-     "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
-     "top5_overlap": 5, "continuous_nll": 0.01, "window_nll": 0.02},
-    {"repo": "unsloth/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q4_0.gguf",
-     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
-     "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
-     "top5_overlap": 4, "continuous_nll": 0.16, "window_nll": 0.20},
+# The fixture models for the logit/PPL gates are pinned in tests/data/fixtures.json (repo, revision, file and SHA-256), which tools/fetch_test_models.py downloads and the HF job's cache key hashes, so a change of bounds keeps the cached downloads.
+FIXTURES = os.path.join(HERE, "data", "fixtures.json")
+
+# Each model's bounds against the full-precision reference: the top-5 overlap it reaches, measured per model since coarser quantization reorders more of the tail, and its NLL deltas (docs/ASSETS.md).
+BOUNDS = {
+    "Qwen3-0.6B-Q8_0.gguf": {"top5_overlap": 5, "continuous_nll": 0.01, "window_nll": 0.02},
+    # Subnormal f16 scales: its token_embd is Q6_K with a subnormal super-block scale, which the Q8_0 fixture almost never has.
+    "Qwen3-0.6B-Q4_0.gguf": {"top5_overlap": 4, "continuous_nll": 0.16, "window_nll": 0.20},
     # 168 Q5_K, 29 Q6_K and 113 F32 tensors: the K-quant path in every matmul and the Q6_K head, on both backends.
-    # Same repo and revision as the Q4_0 file, so no third download source.
-    {"repo": "unsloth/Qwen3-0.6B-GGUF", "file": "Qwen3-0.6B-Q5_K_M.gguf",
-     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
-     "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
-     "top5_overlap": 4, "continuous_nll": 0.05, "window_nll": 0.16},
-]
+    "Qwen3-0.6B-Q5_K_M.gguf": {"top5_overlap": 4, "continuous_nll": 0.05, "window_nll": 0.16},
+}
+
+with io.open(FIXTURES, encoding="utf-8") as f:
+    BASELINE_MODELS = [dict(spec, **BOUNDS[spec["file"]]) for spec in json.load(f)]
+assert set(BOUNDS) == {spec["file"] for spec in BASELINE_MODELS}, "every pinned fixture model needs bounds, and only those"
 
 # A correct next-token logit for these models sits around 15-25.
 # Gross corruption blows this up (the reintroduced f16 bug gave 582), so a magnitude bound catches whole classes of damage that a ranking check can miss.
 MAX_PLAUSIBLE_LOGIT = 100.0
-# The three files share the vocabulary and the trained context that the outputs are checked against.
+# The fixture models share the vocabulary and the trained context that the outputs are checked against.
 VOCAB_SIZE = 151936
 MODEL_CONTEXT = 40960
 

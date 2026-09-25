@@ -1,8 +1,10 @@
 """Download and verify the pinned HF fixtures using only the Python stdlib."""
 
+import argparse
 from email.utils import parsedate_to_datetime
 import hashlib
 import http.client
+import json
 import math
 from pathlib import Path
 import re
@@ -13,7 +15,10 @@ import urllib.error
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
-from baseline import BASELINE_MODELS, snapshot_path
+from baseline import snapshot_path
+
+# The pinned models alone, repo, revision, file and SHA-256 each, which tests/baseline.py reads too.
+FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "data" / "fixtures.json"
 
 
 def sha256(path):
@@ -105,5 +110,7 @@ def fetch(spec):
 
 
 if __name__ == "__main__":
-    for spec in BASELINE_MODELS:
+    argparse.ArgumentParser(description="Download the models pinned in tests/data/fixtures.json into the HF cache, "
+                                        "each verified by its SHA-256 before it replaces anything there.").parse_args()
+    for spec in json.loads(FIXTURES.read_text(encoding="utf-8")):
         fetch(spec)

@@ -69,15 +69,15 @@ def top5_overlap(ids, ref_ids, ref_logits, margin=TOP5_TIE_MARGIN):
     return len(got & top) + min(len(missing), len(extra))
 
 
-def run_process(args, input=None, cache=None, text=False, cwd=None, timeout=None):
-    """Run the llmx CLI with the configured device flags and `input` on stdin, returning the finished process; its output is bytes unless `text`."""
+def run_process(args, input=None, cache=None, text=False, timeout=None):
+    """Run the llmx CLI from the repository root with the configured device flags and `input` on stdin, returning the finished process; its output is bytes unless `text`."""
     return subprocess.run([exe_path()] + device_args(args, cache), input=input, capture_output=True,
-                          encoding="utf-8" if text else None, cwd=cwd or ROOT, timeout=timeout)
+                          encoding="utf-8" if text else None, cwd=ROOT, timeout=timeout)
 
 
-def run(args, cwd=None, cache=None):
+def run(args, cache=None):
     """Run the llmx CLI, returning (returncode, stdout_text)."""
-    p = run_process(args, cache=cache, text=True, cwd=cwd)
+    p = run_process(args, cache=cache, text=True)
     # A failure's diagnostic is on stderr; hand it back with the output so a caller can tell a missing device kernel from a wrong answer.
     return p.returncode, p.stdout if p.returncode == 0 else p.stdout + p.stderr
 
@@ -177,8 +177,8 @@ def max_err(a, b):
 
 
 # The components that check exact f32 arithmetic against independently generated fixtures run the CLI through this, so they keep their f32 cache sides now that the runtime stores f16 by default.
-def run_f32_cache(args, cwd=None):
-    return run(args, cwd, cache="f32")
+def run_f32_cache(args):
+    return run(args, cache="f32")
 
 
 def f32_cache_skip(component):

@@ -305,9 +305,8 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   It also checks the CLI's usage errors, all refused before a model is opened: an unknown command, `serve` and `pull` without arguments, missing and extra arguments, unknown flags and flags without a value, a chat positional argument, a second prompt or `--stop`, the synthetic bench's flags with `--model` and the model run's without it, `--profile` off a single Vulkan device, `--moe-stream-from` without experts on the CPU, an unknown cache type, and numbers out of their form or range.
   Each exits with status 2, nothing on stdout and the command's page then the reason on stderr.
   It needs no device, so it runs in every job.
-- **Round-trip** (`tests/roundtrip.py`): build a random Q8_0 model, quantize,
-  dequantize, assert max error below a Q8_0-appropriate bound. Regression gate
-  for `quant/` + `format/`.
+- **Round-trip** (`tests/roundtrip.py`): build a random F32 model and quantize it to Q8_0 and Q4_0, each dequantized and checked against its own bound.
+  Regression gate for `quant/` + `format/`.
   Also checks quantize's JSON tensor schema/dimension and binary-length rejection,
   output preservation on validation failure, and valid one-to-four-dimensional
   conversion for both writable types.

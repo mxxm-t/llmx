@@ -104,8 +104,7 @@ public:
             throw std::runtime_error("KV cache: sequence length overflow");
         if (n && length_ % block_tokens_ && pool_->refs(blocks_[length_ / block_tokens_]) > 1)
             throw std::logic_error("KV cache: append into a block shared with another sequence");
-        const size_t total = length_ + n;
-        const size_t need = total / block_tokens_ + (total % block_tokens_ != 0);
+        const size_t need = backend::blocks_for(length_ + n, block_tokens_);
         // The pool may have been reconfigured larger since this sequence was bound; reserve to its current budget before taking any id, so no push_back below can throw with an unrecorded id in hand.
         blocks_.reserve(pool_->max_blocks());
         try {
@@ -123,7 +122,7 @@ public:
     }
 
     void abort() noexcept {
-        shrink_to(length_ / block_tokens_ + (length_ % block_tokens_ != 0));
+        shrink_to(backend::blocks_for(length_, block_tokens_));
         pending_ = 0;
     }
 
@@ -132,7 +131,7 @@ public:
     void truncate(size_t length) noexcept {
         if (length < length_) length_ = length;
         pending_ = 0;
-        shrink_to(length_ / block_tokens_ + (length_ % block_tokens_ != 0));
+        shrink_to(backend::blocks_for(length_, block_tokens_));
     }
 
     // Start a new history.

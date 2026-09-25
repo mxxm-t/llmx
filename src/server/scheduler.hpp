@@ -462,10 +462,8 @@ private:
     // What `tokens` positions take in each cache pool, in that pool's own blocks, never more than the pool holds.
     std::vector<size_t> blocks_for(size_t tokens) const {
         std::vector<size_t> b(model_.kv_pools());
-        for (size_t s = 0; s < b.size(); ++s) {
-            const size_t bt = model_.kv_pool_block_tokens(s);
-            b[s] = std::min((tokens + bt - 1) / bt, model_.kv_pool_blocks(s));
-        }
+        for (size_t s = 0; s < b.size(); ++s)
+            b[s] = std::min(backend::blocks_for(tokens, model_.kv_pool_block_tokens(s)), model_.kv_pool_blocks(s));
         return b;
     }
     // Whether every pool can take `more` beside what is reserved.

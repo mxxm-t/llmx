@@ -43,7 +43,6 @@ struct GenParams {
     uint64_t seed = 0;      // 0 retains the fixed default RNG state.
     std::string stop;       // stop generating when decoded output contains this
     bool show_prompt_tokens = false;
-    bool show_thinking = false; // Show legacy reasoning tokens normally filtered by generation.
 };
 
 // Temperature + top-k + top-p nucleus sampling with repetition penalty.

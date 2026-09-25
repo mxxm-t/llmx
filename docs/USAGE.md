@@ -373,13 +373,9 @@ prompt does not allocate a full-width buffer.
 ## `llmx generate <in.gguf> "<prompt>" [flags...]`
 
 Prompt-process `prompt`, then autoregressively generate tokens until eos or
-`--max-tokens`. Streams generated text as tokens arrive. The legacy reasoning filter recognizes
-`thinking_start` / `thinking_end` token names; it does not currently recognize
-Qwen3's `<think>` / `</think>` markers. The legacy filter also recognizes
-`answer_start` / `answer_end`; when such vocabulary markers can discard earlier
-text, output remains buffered until generation ends. `--think` disables that
-filtering and streams all generated text. Stop matching retains the matching
-token in output, including any suffix within that token, as before.
+`--max-tokens`. Streams generated text as tokens arrive, reasoning included.
+Stop matching retains the matching token in output, including any suffix
+within that token, as before.
 
 Generate and chat show model-loading percentages and processing/generating
 phases on stderr when it is a terminal, or when `--verbose` is set. Loading
@@ -408,7 +404,6 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--system TEXT`         | accepted but unused by raw generation; use `chat` for a system message | (unused) |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
-| `--think`               | disable legacy reasoning-token filtering             | off     |
 | `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status | off   |
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`

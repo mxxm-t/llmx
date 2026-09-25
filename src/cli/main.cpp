@@ -29,22 +29,18 @@
 #if LLMX_HAS_BACKEND_VULKAN
 #include "backends/vulkan/vulkan_backend.hpp"
 #endif
-#include "core/fp16.hpp"
 #include "core/list.hpp"
 #include "backends/devices.hpp"
 #include "core/json.hpp"
 #include "hub/pull.hpp"
 #include "format/gguf.hpp"
-#include "format/format.hpp"
 #include "quant/quant.hpp"
-#include "backends/cpu/cpu_backend.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/sampler.hpp"
 #include "inference/generate.hpp"
 #include "inference/perplexity.hpp"
 #include "inference/chat.hpp"
 #include "model/arch_qwen.hpp"
-#include "model/layer_split.hpp"
 #include "server/api.hpp"
 
 // CLI argument parsing and dispatch; format, quantization, inference and model logic stay in their own layers.
@@ -414,7 +410,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt,
     if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
     if (progress) std::cerr << "Processing " << ids.size() << " prompt tokens...\n";
     auto t0 = std::chrono::steady_clock::now();
-    std::vector<float> logits = infer::prefill(model, ids);
+    std::vector<float> logits = model.prefill(ids);
     model.set_threads(decode_threads);
     double pp_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (gp.show_prompt_tokens) std::cout << "prompt tokens: " << ids.size() << "\n";
@@ -477,7 +473,7 @@ int cmd_logits(const std::string& model_path, const std::string& text,
         });
         return 0;
     }
-    std::vector<float> logits = infer::prefill(model, ids);
+    std::vector<float> logits = model.prefill(ids);
     for (const auto& r : top(logits.data())) printf("%u %.6f\n", r.second, r.first);
     return 0;
 }
@@ -560,7 +556,7 @@ int cmd_chat(const std::string& model_path, const std::string& system,
         model.set_threads(gp.threads_batch > 0 ? gp.threads_batch : decode_threads);
         if (gp.show_prompt_tokens) std::cerr << "threads: prefill " << model.threads_available() << "\n";
         if (progress) std::cerr << "Processing " << gen_ids.size() - cached_ids.size() << " prompt tokens...\n";
-        std::vector<float> logits = infer::prefill(model,
+        std::vector<float> logits = model.prefill(
             std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()));
         cached_ids = std::move(gen_ids);
 
@@ -914,7 +910,6 @@ bool print_usage(const std::string& command = {}) {
             << "  --penalty F             Repetition penalty (default: " << defaults.penalty << ")\n"
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
-            << "  --think                 Show legacy reasoning tokens normally filtered\n"
             << "  --verbose               Show prompt IDs, progress and execution details\n";
         if (chat) std::cout
             << "  --system TEXT           System message (default: You are a helpful assistant.)\n";
@@ -1145,7 +1140,6 @@ int main(int argc, char** argv) {
                 else if (a == "--moe-stream-from") gp.moe_stream_from = (i + 1 < argc) ? std::atoi(argv[++i]) : gp.moe_stream_from;
                 else if (a == "--system") system = (i + 1 < argc) ? argv[++i] : system;
                 else if (a == "--verbose") gp.show_prompt_tokens = true;
-                else if (a == "--think") gp.show_thinking = true;
                 else if (!a.empty() && a[0] == '-') { std::cerr << "unknown flag: " << a << "\n"; return 2; }
                 else { prompt = a; have_prompt = true; }
             }

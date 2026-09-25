@@ -5,7 +5,7 @@ void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
 }
 
-gguf::GGUFModel fixture(const std::vector<uint32_t>& sequence, bool legacy) {
+gguf::GGUFModel fixture(const std::vector<uint32_t>& sequence) {
     gguf::GGUFModel m;
     for (const auto& setting : std::vector<std::pair<std::string, int>>{
             {"block_count", 1}, {"embedding_length", 16}, {"feed_forward_length", 16},
@@ -17,9 +17,7 @@ gguf::GGUFModel fixture(const std::vector<uint32_t>& sequence, bool legacy) {
         m.kv.push_back({"qwen3." + setting.first, value});
     }
     const auto encoder = bpe::build_byte_encoder();
-    const std::vector<std::string> vocab = {"EOS", "A", encoder.at(0xc3), encoder.at(0xa9), "Z",
-        legacy ? "<thinking_start>" : "B", legacy ? "<thinking_end>" : "C",
-        legacy ? "<answer_start>" : "D", legacy ? "<answer_end>" : "E"};
+    const std::vector<std::string> vocab = {"EOS", "A", encoder.at(0xc3), encoder.at(0xa9), "Z"};
     gguf::MetaValue tokens;
     tokens.vtype = gguf::V_ARRAY;
     tokens.u = gguf::V_STRING;
@@ -57,10 +55,9 @@ gguf::GGUFModel fixture(const std::vector<uint32_t>& sequence, bool legacy) {
     return m;
 }
 
-void check(const std::vector<uint32_t>& sequence, bool legacy, bool show_thinking,
-           const std::string& stop, int limit, const std::string& expected,
-           size_t generated, size_t fed, bool streaming) {
-    auto weights = fixture(sequence, legacy);
+void check(const std::vector<uint32_t>& sequence, const std::string& stop, int limit, const std::string& expected, size_t generated,
+           size_t fed) {
+    auto weights = fixture(sequence);
     bpe::Tokenizer tok(weights);
     infer::Model model(weights);
     model.set_threads(1);
@@ -68,14 +65,13 @@ void check(const std::vector<uint32_t>& sequence, bool legacy, bool show_thinkin
     gp.temp = 0;
     gp.max_tokens = limit;
     gp.stop = stop;
-    gp.show_thinking = show_thinking;
     infer::RNG rng;
     std::vector<float> logits(tok.vocab.size(), 0);
     logits[sequence.empty() ? 0 : sequence.front()] = 1;
     std::string text;
     size_t calls = 0;
     auto ids = infer::generate(model, tok, gp, rng, logits, [&](const std::string& piece) {
-        require(size_t(model.n_tokens()) == (streaming ? calls : fed), "text was not delivered before the next model step");
+        require(size_t(model.n_tokens()) == calls, "text was not delivered before the next model step");
         ++calls;
         text += piece;
     });
@@ -86,17 +82,12 @@ void check(const std::vector<uint32_t>& sequence, bool legacy, bool show_thinkin
 
 int main() {
     try {
-        check({1, 2, 3, 4}, false, false, "", 8, "A\xc3\xa9Z", 4, 4, true);
-        check({1, 2, 3, 4}, false, false, "\xc3\xa9", 8, "A\xc3\xa9", 3, 2, true);
-        check({1, 2, 3, 4}, false, false, "", 2, "A\xc3", 2, 2, true);
-        check({}, false, false, "", 8, "", 0, 0, true);
-        check({1}, false, false, "", 0, "", 0, 0, true);
-        check({1, 5, 2, 6, 7, 4, 8, 3}, true, false, "", 16, "Z", 8, 8, false);
-        check({1, 5, 2, 6, 4}, true, false, "", 16, "Z", 5, 5, false);
-        check({1, 5, 2}, true, false, "", 16, "", 3, 3, false);
-        check({1, 4}, true, false, "", 16, "AZ", 2, 2, false);
-        check({1, 5, 2}, true, true, "", 16, "A<thinking_start>\xc3", 3, 3, true);
-        auto weights = fixture({1}, false);
+        check({1, 2, 3, 4}, "", 8, "A\xc3\xa9Z", 4, 4);
+        check({1, 2, 3, 4}, "\xc3\xa9", 8, "A\xc3\xa9", 3, 2);
+        check({1, 2, 3, 4}, "", 2, "A\xc3", 2, 2);
+        check({}, "", 8, "", 0, 0);
+        check({1}, "", 0, "", 0, 0);
+        auto weights = fixture({1});
         bpe::Tokenizer tok(weights);
         infer::Model model(weights);
         model.set_threads(1);
@@ -114,7 +105,7 @@ int main() {
         require(threw && model.n_tokens() == 0, "consumer failure continued generation");
         auto ids = infer::generate(model, tok, gp, rng, logits);
         require(ids == std::vector<uint32_t>{1}, "generation without output callback failed");
-        std::cout << "generation stream: early delivery, UTF-8, filters, stop/EOS and consumer failures pass\n";
+        std::cout << "generation stream: early delivery, UTF-8, stop/EOS and consumer failures pass\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

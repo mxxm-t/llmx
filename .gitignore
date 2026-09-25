@@ -5,8 +5,6 @@
 /build-*/
 
 # Test outputs
-test_out.*
-test_model.*
 *.bin
 *.gguf
 __pycache__/

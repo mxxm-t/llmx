@@ -160,16 +160,17 @@ change, or it does not exist as far as a user is concerned.
 
 ## Verify
 
-Round-trip test (generates fixtures, quantizes, dequantizes, compares):
+The round-trip component (`tests/roundtrip.py`, under Tests below) checks
+the format and quantization paths: it builds a random F32 model, quantizes
+it to Q8_0 and Q4_0 through the CLI, dequantizes it back and bounds the
+error, and decodes the written blocks from the format description rather
+than with llmx's own reader. Run it alone against the root `llmx.exe` that
+`build.bat` writes, or as part of the suite for a CMake build:
 ```
-python make_test.py
-llmx.exe quantize test_model.json test_model.bin test_model.gguf
-llmx.exe dequantize test_model.gguf test_out.json test_out.bin
-python -c "import struct;a=open('test_orig.bin','rb').read();b=open('test_out.bin','rb').read();fa=struct.unpack('<%df'%(len(a)//4),a);fb=struct.unpack('<%df'%(len(b)//4),b);print('max err',max(abs(x-y) for x,y in zip(fa,fb)))"
+python tests/roundtrip.py
+python tests/run_tests.py --exe build/Release/llmx.exe
 ```
-Note: `verify_gguf.py` is an independent spec parser that aligns between tensor
-infos; our writer packs them contiguously. That script's alignment is stricter
-than the spec requires, so use `llmx.exe info` as the authoritative check.
+`llmx.exe info FILE` lists the metadata and tensors of a written GGUF.
 
 ## Tests
 

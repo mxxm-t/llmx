@@ -202,9 +202,10 @@ A stream whose pass fails has already sent its 200 head, so it ends with one `da
   measured by `tools/server_load.py` through streaming requests at 1, 4,
   8, 16 and more concurrent requests of the same shape: time to first
   token and inter-token latency at the median and the 99th percentile,
-  decoded tokens per second and requests per second. Against the
-  reference runtime's server under the same load, same model, same card,
-  both in the same minutes. The bar is not parity: the reference's server
+  decoded tokens per second and requests per second.
+  The tool also runs a sweep of Poisson request rates, prompts of an exact token length and replies of a fixed one, and reports time per output token, end-to-end latency and total tokens per second, the load and figures a reference serving benchmark reports.
+  Against the reference runtime's server under the same load, same model, same card, both in the same minutes.
+  The bar is not parity: the reference's server
   is the weaker of the serving runtimes at concurrency and the one that
   can run on this hardware, so llmx must beat it by a wide margin on every
   figure, and the margin is what is reported. A batch of one must not

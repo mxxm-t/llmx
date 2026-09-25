@@ -525,6 +525,47 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080
 curl -N -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
 ```
 
+## Serving load (`tools/server_load.py`)
+
+A running server under load, measured the way serving runtimes are compared: `python tools/server_load.py --url http://127.0.0.1:8080 [flags]`, standard library only.
+Every request streams a greedy reply, so the arrival of each token is timed and the work of a request is fixed.
+
+| Flag | Meaning | Default |
+|---|---|---|
+| `--url U` | the server | `http://127.0.0.1:8080` |
+| `--api A` | `llmx` (`/v1/generate`), `openai` (`/v1/completions`) or `completion` (the reference server's `/completion`) | `llmx` |
+| `--model M` | the model id `--api openai` sends | the first id `/v1/models` lists |
+| `--concurrency C ...` | closed-loop levels: C users, each sending its next request when its reply ends | `1 2 4 8 16 32 64`, none when `--rate` is given alone |
+| `--rate R ...` | open-loop levels: requests arriving at R a second as a Poisson process, each sent whatever is still running; `inf` sends them all at once | none |
+| `--num-prompts N` | requests a level | one a user in the closed loop, 100 in the open loop |
+| `--rounds N` | repeats of each closed-loop level, the best by output tokens per second reported | 2 |
+| `--tokens N` | tokens a request asks for, a reply ending at the end of text | 64 |
+| `--output-len N` | in place of `--tokens`: exactly N tokens a request, with `ignore_eos` sent | |
+| `--input-len N` | every request its own prompt of N tokens | the eight short fixed prompts |
+| `--input-len-range LO:HI` | prompt lengths uniform from LO to HI | |
+| `--seed S` | seeds the prompts, their lengths and the arrivals | 0 |
+| `--warmup N` | requests before any level, at the longest prompt and the full reply | 1 |
+| `--timeout S` | seconds a timed request may take before it counts as failed | 600 |
+| `--json PATH` | every request's record and every level's figures, rewritten after each level | |
+| `--self-test` | check the figures against an in-process server with known token times, and exit | |
+
+A prompt of `--input-len N` is the word "the" and random words from a fixed list after it, a different prompt for every request, so no two share a cached prefix.
+The same seed gives the same prompts, so a second run against a server that kept the first run's prefixes can reuse them; the hits column shows it, and another `--seed` avoids it.
+Its length counts every token the server reads, a start token it adds included.
+Where the server has a tokenize route (`POST /tokenize`) each prompt is counted there and trimmed or extended to its length; otherwise two one-token requests on the word list, once and twice, show whether every word is one token, and when it is a prompt's length is exact by construction.
+Where the replies report their prompt tokens (`usage` on `--api openai`, `tokens_evaluated` on `--api completion`) a line below the table lists any that miss their target.
+`--output-len` asks every route to ignore the end of text; llmx's routes do not read `ignore_eos` today, so a reply there can still end at the model's end of text, and the `short` column counts such replies.
+
+One row per level: the first eight columns are the tool's earlier table (output tokens per second, requests per second, time to first token and inter-token latency at the median and the 99th percentile), then prompt and output tokens per second (`all tok/s`), time to first token at the mean and the 90th percentile, time per output token after the first (`tpot`, per request (last token - first token) / (tokens - 1)) at the mean, median and 99th percentile, end-to-end latency at the median and 99th percentile, the mean prompt and output tokens, and the counts: completed, failed, short and prefix hits.
+Figures are over the completed requests, from a level's first send to its last reply's end.
+A request fails on an HTTP error, a refused or dropped connection, an error event, a stream that ends before its last event, or `--timeout`; each failure is counted and its reason listed below the table.
+Prefix hits are read from the replies (`timings.cache_n`) or, on the native route, from the difference of `/v1/health`'s `prefix_hits` around the level.
+
+```
+python tools/server_load.py --input-len 128 --output-len 128 --concurrency 1 2 4 8 16 32 64 --num-prompts 128 --json closed.json
+python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
+```
+
 ## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--profile]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`

@@ -375,6 +375,9 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   four at a time, where a pass holds streamed prompt rows beside host
   decode rows. Skips under `--cache-type f16`.
   Throughput is measured separately with `tools/server_load.py`.
+- **Serving load** (`tools/server_load.py`, suite component `server-load`): a running server's figures under closed-loop levels of concurrent users and open-loop Poisson request rates, through `/v1/generate`, `/v1/completions` or the reference server's `/completion`.
+  Prompts of an exact token length come from a seeded word list, replies of a fixed length ask to ignore the end of text, and each level reports time to first token, time per output token, inter-token and end-to-end latency percentiles, output and total tokens per second, and failures by reason; `--json` keeps every request's record.
+  The suite runs its `--self-test`, which needs no model: the figures on made-up arrival times exactly, then every API in both loads against an in-process server whose tokens arrive at known times, with a refusal, a dropped stream, a timeout and a short reply.
 - **Many users** (`tools/server_mix_check.py`): a real model through
   `llmx serve` on any placement, a layer split above all. Requests mixing
   short and long prompts with short and long replies are run alone, then

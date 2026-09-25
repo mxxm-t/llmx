@@ -17,6 +17,7 @@ import moe
 import split
 import shards
 import server
+import server_load_tool
 import chat
 import threads
 import version
@@ -70,6 +71,7 @@ def main():
                      ("split", lambda: split.run(require=args.require_tools)),
                      ("shards", shards.run),
                      ("server", server.run),
+                     ("server-load", server_load_tool.run),
                      ("chat", chat.run),
                      ("threads", threads.run),
                      ("baseline", baseline.run)]:

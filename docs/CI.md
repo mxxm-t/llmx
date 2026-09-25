@@ -3,19 +3,22 @@
 `.github/workflows/ci.yml` runs on pull requests, pushes to `main`, pushes to `gate/<name>` branches, and manual dispatch.
 A stack of branches about to merge is pushed as `gate/<name>` so these checks run before the merge, and that branch is deleted after it.
 Branches are merged locally, so no pull request reaches the workflow, and the gates a branch passes before it merges are run locally and recorded in `docs/STATUS.md`.
+A pull request's newer push cancels its older run; every other run has a concurrency group of its own, so each push to `main` keeps its run as the record of that merge and each push to a `gate/<name>` branch keeps its run as the check before it.
+Builds use `--parallel 4`, the hosted runners' core count.
 It contains six independent checks:
 
 | Check | Coverage |
 |---|---|
-| CPU (ubuntu-24.04) | GCC, CMake Release, synthetic tests and benchmark smoke |
+| CPU (ubuntu-24.04) | GCC, CMake Release, synthetic tests and benchmark smoke; first, every file in `tests/` and `tools/` byte-compiled and every Python tool's `--help` run, so a tool broken by a change to the CLI or the tests fails here rather than when it is next run by hand |
 | CPU (windows-2022) | MSVC, CMake Release and `build.bat`, synthetic tests and benchmark smoke on both binaries, and the `build.bat` binary reporting the same version as the CMake one |
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | CPU (Linux UBSan) | GCC undefined-behavior checks, including mixed-tensor float alignment |
-| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` and `vulkan-lifetime` skipping without a driver, while `vulkan-buffer`, whose fake device supplies every Vulkan call, needs no loader and runs; no Python |
-| HF reference (CPU) | Linux build plus all four pinned real models: tokenizer, logits, continuous/chunked PPL, and the real-model server checks on the Q8_0 (limits, uncapped requests pausing, a prompt paused while prefilling, prefix reuse over a conversation, clients leaving, a chat turn); the suite's HF chat and thread replies run here as in every CPU job |
+| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` and `vulkan-lifetime` skipping without a driver, while `vulkan-buffer`, whose fake device supplies every Vulkan call, needs no loader and runs; then the Python suite with `--require-tools` on the CPU path (`--device cpu`) of the Vulkan-enabled binary, the build Linux GPU users make |
+| HF reference (CPU) | Linux build plus all four pinned real models: tokenizer, logits, continuous/chunked PPL, and the real-model server checks on the Q8_0 (limits, uncapped requests pausing, a prompt paused while prefilling, prefix reuse over a conversation, clients leaving, a chat turn); the suite's HF chat and thread replies run here as in every CPU job. Then the `baseline` component again with f32 caches, `llmx-split-check` on the Q8_0 over two CPU backends, and many users through the server on the Q8_0. No CTest: the Ubuntu job runs it on the same build |
 
-Every CTest a CPU build registers runs in every job's "Backend tests" step, so the KV cache, placement, HTTP layer, server UTF-8 repair and prefill-scope checks are covered on all three platforms and under UBSan.
-The three Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan` and `vulkan-lifetime` skip without a device, and that job runs no Python.
+Every CTest a CPU build registers runs in every job's "Backend tests" step but the HF job's, which builds what the Ubuntu job builds, so the KV cache, placement, HTTP layer, server UTF-8 repair and prefill-scope checks are covered on all three platforms and under UBSan.
+The three Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan` and `vulkan-lifetime` skip without a device.
+That job then runs the Python suite on the CPU through the Vulkan-enabled binary, where the `cli` component finds no device and checks that a Vulkan device is refused rather than run on the CPU.
 The Python suite's `server` component starts `llmx serve` on the synthetic dense and MoE models in every CPU job, the MoE model's prompts alone against four at a time, and on the real Q8_0 fixture in the HF job.
 What no hosted job establishes is device behaviour: the Vulkan job proves the tree compiles, and the kernel comparisons, the HF gate on the device and the matched floors are run on the Radeon VII and the Linux machine's MI50s by hand and recorded in `docs/STATUS.md`.
 A self-hosted runner on that machine would close that.
@@ -25,7 +28,12 @@ The layer split is covered on the CPU.
 The `placement` CTest, in every job, splits a model over two and three CPU backends, among them a pipelined prompt of five chunks, which reuses pass slots and handoff buffers, and its rollback when a backend on the last stage fails.
 The Python suite's `split` component, in every job that runs the suite, runs `llmx-split-check` on the tiny F32 and MoE models over two and three CPU backends against one, with f16 and f32 caches.
 CMake builds that tool in every configuration with tests (the default), and those jobs pass `--require-tools`, so a tool missing beside the executable fails the job rather than skipping.
+The Windows job's second run, on the `build.bat` binary, which has no tools beside it, leaves the flag off.
+The HF job also runs `llmx-split-check <Q8_0> <excerpt> cpu cpu,cpu 8 64` on the real Q8_0 over the 247-token perplexity excerpt: every position through the prompt path, the prefill in four 64-token chunks pipelined over two CPU stages, 8 greedy steps and a decoding sequence beside a fresh prompt, bit for bit against one backend.
 Splits over GPUs are run by hand on the Radeon VII and the MI50s.
+
+The HF job ends with `tools/server_mix_check.py` on the Q8_0 on the CPU, `--requests 8 --cli 2`, prompts cut from `tests/data/wiki.test.raw`: eight requests of 120 to 12000 characters each give their ids alone, then all at once, then skewed, the long prompts landing while others decode and every fourth client leaving mid-stream, and the first two give the same text through `generate --temp 0`.
+It is the only hosted check of long prompts landing while others decode and of clients leaving a real model's server.
 
 The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448)
 at `ec74308`.
@@ -49,9 +57,10 @@ Live downloads still require curl 8.4+ and separate network integration checks.
 
 The HF job runs `tools/fetch_test_models.py`, a standard-library downloader
 using the revisions and SHA-256 digests in `tests/data/fixtures.json`. Downloads are
-verified before entering the HF snapshot cache. The HF job caches those
-snapshots between runs, with a key derived from `tests/baseline.py`; restored
-files are still SHA-256 checked on every run. Cold or invalid cache entries
+verified before entering the HF snapshot cache.
+The HF job caches those snapshots between runs, with a key derived from `tests/data/fixtures.json` alone, which holds only the pinned model specs, so a change to a check or a bound in `tests/baseline.py` keeps the cache.
+The cache is restored before the fetch and, when the key missed, saved right after it, once every file is verified, so a run that fails later still keeps its downloads.
+Restored files are still SHA-256 checked on every run. Cold or invalid cache entries
 are downloaded from the pinned revision.
 
 The downloader makes at most five attempts for HTTP 408/429/500/502/503/504
@@ -98,7 +107,7 @@ At `dacf18c` local Windows and Linux runs each passed the 37 checks the consumer
 The Linux ordinary suite passed its 11 components with `--no-perf-floor` at that commit.
 These local results do not establish hosted 8B coverage; the optional consumer is not run by the workflow.
 
-Every job except the Vulkan build checks that `--version` and the usage
+Every job checks that `--version` and the usage
 banner agree with the release version, then runs the small F32 HF fixture
 without downloads. Its deterministic weights are generated locally;
 committed HF float32 logits/NLL cover tied and untied embeddings, matrix
@@ -106,11 +115,11 @@ tails, multiple physical batches and thread counts.
 The same fixture checks that `logits --file` prints what the inline prompt does, and holds the rows `logits --last` and `--then-ids` print to its HF bound at their positions.
 Those rows are printed once each, and the ones printed over passes of five tokens or after a head continued by `--then-ids` are the bytes the same positions print in one pass.
 `bench --model` with `--seqs 2` runs on it and reports the token counts of its prompt and batched decode tests: two sequences need two cache blocks where the model's context fills one.
-The `cli` component checks that these builds, which have no Vulkan backend, refuse a Vulkan device rather than run on the CPU, and that `info` lists a synthetic model's architecture, layer count and tensors.
+The `cli` component checks that the builds without the Vulkan backend, and the Vulkan job's build, which finds no device, refuse a Vulkan device rather than run on the CPU, and that `info` lists a synthetic model's architecture, layer count and tensors.
 It also checks that the CLI's usage errors exit with status 2 and the command's page on stderr, before any model file is opened.
 It shows every help page without a model, and checks that each command takes every flag its page lists and refuses the flags its page does not.
-The UBSan job makes misaligned in-memory tensors a test failure. These jobs also
-run CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
+The UBSan job makes misaligned in-memory tensors a test failure.
+The three CPU jobs and the UBSan job also run CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
 GGUF structure, custom alignment and loading failures, Qwen model configuration
 and required tensor/storage layouts,
 grouped kernels, worker
@@ -135,19 +144,31 @@ used to establish its local floors; automatic counts are tested separately.
 Hosted timings are diagnostic. The performance gate against mx-llama.cpp
 still requires matched hardware, model, quant and workload; see ROADMAP #8.
 
+The last hosted run before the Vulkan job's suite and the HF job's added steps, at `a2b732f`, took 7 min 33 s for the HF job, 3 min 34 s for macOS, 3 min 7 s for Windows, 2 min 9 s for the Vulkan build, 2 min 6 s for UBSan and 1 min 40 s for Linux.
+Those additions are estimates until a hosted run measures them: about 3 minutes for the Vulkan job's suite, and for the HF job 1 to 2 for the Q4_K_M fixture, 3 to 4 for the f32 pass, 1 for the split check and 4 to 6 for many users, less the minute its CTest step took.
+The HF job keeps its 30-minute limit until then, and the first such run's job times are recorded here.
+
 To reproduce locally:
 
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel 2
+cmake --build build --config Release --parallel 4
 ctest --test-dir build -C Release --output-on-failure
+python -X utf8 -m compileall -q tests tools
 python -X utf8 tests/fetch_models.py
 python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools
 python -X utf8 tools/fetch_test_models.py
 python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --require-baseline
+python -X utf8 tests/run_tests.py --exe build/llmx --require-baseline --cache-type f32 --only baseline
+build/llmx-split-check <Q8_0 fixture> <excerpt> cpu cpu,cpu 8 64
+python -X utf8 tools/server_mix_check.py --exe build/llmx --model <Q8_0 fixture> --text tests/data/wiki.test.raw --requests 8 --cli 2
 ```
 
-For MSVC, use `--exe build/Release/llmx.exe`. Omitting `--no-perf-floor`
+The Ubuntu job also runs each `tools/*.py` with `--help`.
+The Vulkan job runs the suite with `--device cpu` on its build, `-DLLMX_HAS_BACKEND_VULKAN=ON`.
+The Q8_0 fixture is `baseline.find_fixture(baseline.BASELINE_MODELS[0])`, under `~/.cache/huggingface/hub`, and the excerpt is the `text` of `tests/data/baseline_perplexity.json` written to a file as it is, which the HF job's "Q8_0 fixture path and perplexity excerpt" step does.
+
+For MSVC, use `--exe build/Release/llmx.exe` and `build/Release/llmx-split-check.exe`. Omitting `--no-perf-floor`
 preserves the existing local timing floors. `build.bat` still builds the root
 `llmx.exe`, which remains the Windows test runner's default.
 

@@ -10,9 +10,10 @@ on:
 permissions:
   contents: read
 
+# A pull request's newer push cancels its older run; every other run has a group of its own, so each push to main keeps its run as the record of that merge and each push to a gate branch keeps its run as the check before it.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   cpu:
@@ -36,16 +37,26 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
+      # A tool broken by a change to the CLI or to tests/ fails here rather than when it is next run by hand.
+      - name: Python byte-compile and tool help
+        if: runner.os == 'Linux'
+        run: |
+          python -X utf8 -m compileall -q tests tools
+          for tool in tools/*.py; do
+            echo "$tool --help"
+            python -X utf8 "$tool" --help > /dev/null
+          done
       - name: Test fixture downloader
         run: python -X utf8 tests/fetch_models.py
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
-        run: cmake --build build --config Release --parallel 2
+        run: cmake --build build --config Release --parallel 4
       - name: Backend tests
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Test
         run: python -X utf8 tests/run_tests.py --exe "${{ matrix.executable }}" --no-perf-floor --require-tools
+      # build.bat builds llmx.exe alone, without the tools beside it, so this run lets the split component skip.
       - name: Plain build and test
         if: runner.os == 'Windows'
         shell: cmd
@@ -73,7 +84,7 @@ jobs:
       - name: Configure with undefined-behavior checks
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_FLAGS=-fsanitize=undefined -fno-sanitize-recover=undefined"
       - name: Build
-        run: cmake --build build --config Release --parallel 2
+        run: cmake --build build --config Release --parallel 4
       - name: Backend tests
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Test
@@ -87,6 +98,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
       # The distribution's compiler is older than the shader extensions the kernels use; the LunarG repository carries a current one.
       - name: Vulkan headers and shader compiler
         run: |
@@ -97,9 +111,13 @@ jobs:
       - name: Configure with the Vulkan backend
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_VULKAN=ON
       - name: Build
-        run: cmake --build build --config Release --parallel 2
+        run: cmake --build build --config Release --parallel 4
       - name: Backend tests
         run: ctest --test-dir build -C Release --output-on-failure
+      # The build Linux GPU users make, on its CPU path: the runner has no device, so the Vulkan commands the suite tries are refused.
+      - name: Test on the CPU
+        run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --device cpu
+
   hf-reference:
     name: HF reference (CPU)
     runs-on: ubuntu-24.04
@@ -116,15 +134,42 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
-        run: cmake --build build --config Release --parallel 2
-      - name: Backend tests
-        run: ctest --test-dir build -C Release --output-on-failure
-      - name: Cache HF fixtures
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        run: cmake --build build --config Release --parallel 4
+      # The key hashes only the pinned model specs, so it changes when a download does and not when a check or a bound does.
+      - name: Restore HF fixtures
+        id: hf-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/huggingface/hub
-          key: hf-fixtures-v1-${{ runner.os }}-${{ hashFiles('tests/baseline.py') }}
+          key: hf-fixtures-v1-${{ runner.os }}-${{ hashFiles('tests/data/fixtures.json') }}
       - name: Fetch pinned HF fixtures
         run: python -X utf8 tools/fetch_test_models.py
+      # Saved as soon as every download is verified, so a run that fails later still keeps them.
+      - name: Save HF fixtures
+        if: steps.hf-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/huggingface/hub
+          key: ${{ steps.hf-cache.outputs.cache-primary-key }}
       - name: Test with required HF fixtures
         run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --require-baseline
+      - name: HF gate with f32 caches
+        run: python -X utf8 tests/run_tests.py --exe build/llmx --require-baseline --cache-type f32 --only baseline
+      - name: Q8_0 fixture path and perplexity excerpt
+        run: |
+          python -X utf8 - >> "$GITHUB_ENV" <<'EOF'
+          import json, os, sys
+          sys.path.insert(0, "tests")
+          import baseline
+          excerpt = os.path.join(os.environ["RUNNER_TEMP"], "excerpt.txt")
+          with open("tests/data/baseline_perplexity.json", encoding="utf-8") as f:
+              text = json.load(f)["text"]
+          with open(excerpt, "w", encoding="utf-8", newline="") as f:
+              f.write(text)
+          print("Q8_0_MODEL=" + baseline.find_fixture(baseline.BASELINE_MODELS[0]))
+          print("EXCERPT=" + excerpt)
+          EOF
+      - name: Layer split over two CPU backends
+        run: build/llmx-split-check "$Q8_0_MODEL" "$EXCERPT" cpu cpu,cpu 8 64
+      - name: Many users through the server
+        run: python -X utf8 tools/server_mix_check.py --exe build/llmx --model "$Q8_0_MODEL" --text tests/data/wiki.test.raw --requests 8 --cli 2

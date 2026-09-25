@@ -296,7 +296,8 @@ python tests/run_tests.py
 
 For a CMake build, pass `--exe <path-to-built-llmx>`.
 `--only` runs just the components it names, comma separated (`--only baseline`, `--only split,server`), and refuses a name the suite does not have.
-CI uses `--no-perf-floor` for shared runners, `--require-tools` in every job that runs the suite so a tool missing beside the executable fails rather than skips, and `--require-baseline` in its real-model job so missing fixtures fail.
+CI uses `--no-perf-floor` for shared runners, `--require-tools` on every CMake build it runs the suite on so a tool missing beside the executable fails rather than skips (the `build.bat` binary has no tools beside it), and `--require-baseline` in its real-model job so missing fixtures fail.
+That job also runs `--only baseline` with `--cache-type f32`, `llmx-split-check` on the Q8_0 over two CPU backends and `tools/server_mix_check.py` on the Q8_0; the Vulkan job runs the suite with `--device cpu` on the Vulkan-enabled binary.
 Local performance floors remain enabled by default. See `docs/CI.md` for workflow coverage and reproduction commands.
 
 - **Version** (`tests/version.py`): `--version` matches the CMake project
@@ -386,6 +387,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   ids alone, clients that left must leave nothing active, and the first
   requests must give the same text through `generate --temp 0`, whose
   prompt a split pipelines over its stages.
+  The HF job runs it on the Q8_0 fixture on the CPU with `--requests 8 --cli 2`.
 - **Long context** (`tools/long_context_check.py`): one 16k-token
   summarization prompt from `tests/data/wiki.test.raw`, greedy, 512
   generated tokens by default, sent to `llmx serve` on the device under
@@ -404,7 +406,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   Each listed device is a backend of its own, without the CLI's listed-once rule, so `cpu,cpu` is two CPU backends.
   The `split` component (`tests/split.py`) runs the tool found beside `--exe` on the tiny F32 model, tied and untied, and the tiny MoE model, one CPU against `cpu,cpu` and the MoE also against `cpu,cpu,cpu`, at ubatch 1, 3 and 16 and with f16 and f32 caches, with 3 decode steps after a 13-token text, which fills their 16-token context.
   It skips when the tool is not there, unless `--require-tools` is given, and the configured device, shares and cache type do not reach it.
-  Real models and splits over devices are run by hand.
+  The HF job runs it on the Q8_0 fixture over the perplexity excerpt, `cpu` against `cpu,cpu` with 8 steps and 64-token chunks; other real models and splits over devices are run by hand.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model,

@@ -191,6 +191,364 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   This block ran with the machine otherwise quiet (system CPU 13 percent). On the CPU the interquartile ranges do not overlap: the synthetic model's decode is 7.2 percent and its prefill 3.5 percent slower with f16 caches. The matmul line, which no cache touches, moved 4 percent, so the prefill change is within the layout band and the decode change is not. The Radeon VII's 64-token passes vary by half between runs of one binary. The floors hold in the quiet block (the branch's lowest runs 33.8 GFLOPS, 5443 and 5099 tok/s against 8, 1000 and 800). Three more blocks ran while other test suites held 11 to 16 cores; there single matmul runs of either arm fell below the 8 GFLOPS floor, and neither arm differed from the other beyond the spread.
 
+## Layer split phase 3: passes in flight (planned 2026-09-25, decided 2026-09-26, branches feat/split-passes and perf/decode-columns)
+
+- **Goal:** on a pipelined layer split, the server keeps several passes of different requests in flight, so every stage works while the host samples and forms the next pass. Throughput at many users then scales with the stage count, as phase 3 of `docs/MULTI-DEVICE.md` (Order of work) plans. Every request's ids and logprobs stay equal to its run alone and to the CLI's, and identical across one MI50 and 2 to 4 MI50s. Together with the batch-invariant decode kernel branch `perf/decode-columns`, this phase passes the layer split's final gate (Gate, below), and the layer split is not done until it does.
+- **Decided by the user (2026-09-25 and 2026-09-26):**
+  - The gate: at 16, 32 and 64 users, output throughput at least 2 times both layer-split servers (mx-llama.cpp's ROCm layer split and llama.cpp's Vulkan layer split) and at least 1.5 times mx-llama.cpp's ROCm tensor split and the gfx906 vLLM, with time to first token and inter-token p99 no worse.
+  - vLLM is compared at matched bits: llmx Q4_K_M against vLLM AWQ, and llmx Q8_0 against a vLLM 8-bit checkpoint (GPTQ-Int8 or W8A16) where one runs on gfx906, each named. The comparison is rerun on the identical checkpoint once llmx loads AWQ. Both the newest vLLM build that runs and the fastest are reported, with their versions and weights.
+  - That gate is the final gate of the layer split, owned jointly by this phase and `perf/decode-columns`, which started 2026-09-26. This phase's scheduler steps merge on their own correctness gates plus being faster than today at every load. The layer split is not done until the full gate passes.
+  - Threads: one scheduler thread, a sampling pool, a 16-slot command ring and the fast sampler (`perf/sampler-select`, approved). The thread is measured after step 4 and after the kernel step, and step 7 applies the rule decided with it.
+  - A decode kernel that needs a different per-column summation order, fixed and independent of the batch, changes decode output once. It needs the user's OK first, with the count of changed greedy tokens on a fixed set, the HF results and the speed gain. Until then every new build is bit-identical to today's per column.
+  - Slice boundaries may follow the cost model; an entry's extent and fresh count never do. `docs/MULTI-DEVICE.md` says so from this commit.
+  - Batch invariance and exact reuse only: every request's output equals its run alone and the CLI's, and is identical across one card and 2 to 4 cards.
+- **Rules it keeps:**
+  - A row's arithmetic follows its entry (token, position, extent, fresh count, its own cache), never what else is in flight.
+  - The scheduler steps change no kernel, and `perf/decode-columns` keeps every column's bits until the user approves another order.
+  - Exact reuse only: this branch reuses no rows of its own, and a donor is parked only after its last pass has returned.
+  - P = 1, every single-device path and the CLI keep main's bytes and speed.
+  - One owner per rule, as in the exact-resume plan.
+  - A flag means the same on every backend or is refused.
+- **Found**, read at d48f2b2 for the model and the backends and at bf17d6a (`feat/server-logprobs`) for the scheduler:
+  - The server runs one `forward` per iteration and reads its logits before it forms the next pass. `forward` runs `begin`, every `run_stage` and `finish` in a row, so on a split every stage but one idles.
+  - Phase 2 already supplies most of the pieces. There is a `Pass` plan per pass in flight, and `run_stage` reserves and commits one storage. `send` and `receive` go through host-visible buffers. One activation arena per device is shared, because each device runs its passes in order.
+  - Five things tie the model to one server pass:
+    - `ExecContext` has one logits buffer and one ticket. The head writes at row 0, and `finish` takes the output device's latest ticket, not the pass's own `p.sent`.
+    - Each device has two handoff buffers, picked by chunk parity. Picked by slot at an odd pass count, two consecutive passes on one device would share one. With any queueing between stages, parity by start order is not safe either.
+    - `begin` calls `ensure`, which replaces the arena, handoff and logits buffers when a pass needs more rows. A pass between `send` and `receive` would lose its residual.
+    - `begin`, `run_stage` and `finish` are private.
+    - Nothing checks at run time that a sequence is in only one pass. `KVSequence::prepare` refuses a second pending step within one storage only, so a sequence at stage 1 in one pass and at stage 0 in another passes the check.
+  - `pipelined_` holds only when there is more than one stage, the embedding is on the first stage's device, the head is on the last stage's device, and every feed-forward block sits beside its attention. Elsewhere `cross` uses handoff buffer 0 inside a stage, so passes in flight are for pipelined placements only.
+  - `Sequence::length()` reads the first storage, which a pass commits a stage ahead of the others. The scheduler may read it, and change a sequence, only while that sequence is not in flight.
+  - One host thread blocks in seven places: `receive` waiting on the previous stage's ticket; `receive`'s upload into the destination, which waits for the copy of the previous upload out of the same half of staging (every upload under 32 MiB starts at half 0), and so for everything queued on that device before it; `open` when every command slot is busy; the logits wait; a CPU stage (which computes on the calling thread); `reset` waiting on a sequence's last tickets; and `retire`, which drains every device after a failure.
+  - The Vulkan backend holds 4 command buffers in flight (`kRing`). An 8B stage on two cards is 3 to 4 submissions plus its receive's upload, so a thread recording ahead onto a busy device blocks in `open`. Phase 2 measured 16 and 32 slots as neutral for prompts. Each slot holds 1 MiB of host memory, which `host_resident` counts.
+  - The Q8_0 decode kernel on integer-dot devices, `matmul_vec_q8.comp`, keeps up to 8 columns, so a pass reads the weights once per 8 rows; the K-quant row kernels in `matmul_row.comp` keep 8 too. Each column's sum is fixed by the lane layout and the reduction: one subgroup reduction per row and column in `matmul_vec_q8.comp`, and in the K-quant row kernels a cluster of lanes per row that reduce with xor shuffles, the cluster set by type and row length, never by the column count. So a build with more columns that keeps both computes the same bits, as long as the compiler contracts `acc += dw * dx * float(s)` the same way in every build.
+  - The 8-column build loads every column's activations whatever the pass's column count, and holds an accumulator per row and column and a word pair and a scale per column in registers. So its fixed cost grows with its width: at 32 columns about 160 registers a lane, one wave per SIMD. A one-column chunk takes a one-column build, which frees those registers.
+  - Step 0's first runs, on one MI50 with clocks held high, llmx at db0f8c3, Qwen3-8B Q8_0, 512-token prompts and 128-token replies with the end of text ignored, host load average 15 to 54 (vLLM's runs 34 to 78), two rounds each:
+    - An 8B pass costs 16.1 ms at 1 row, 28.3 at 2, 31.6 at 4, 39.5 at 8, 78.2 at 16, 157 at 32 and 320 at 64, read from the server's inter-token p50 with host sampling included (the 64-slot server's second round, at host load 34 to 54, read 4 to 7 percent higher: 167 at 32, 336 at 64). From 2 rows that is about 25 ms for each block of 8 rows plus 1.75 ms a row; one row takes the one-column build. Eight rows cost 2.5 times one row, and every further 8 rows cost about another 8-row pass. `docs/MULTI-DEVICE.md` said wider passes were free up to about 35 rows; from this commit it gives this curve.
+    - llmx serves 118 to 125 tok/s at 16 users, 118 to 124 at 32 and 113 to 124 at 64, decoding 190 to 207 tok/s by inter-token p50.
+    - The ROCm reference (mx-llama.cpp's server) serves 100 to 129, 113 to 136 and 111 to 146 tok/s, decoding 212 to 261, 298 to 337 and 339 to 430.
+    - vLLM, the gfx906 fork's v0.12.0 image on FP16 weights, serves 19.8 to 21.1, 18.0 to 18.8, 36.6 to 38.9, 55.1 to 58.2, 75.9 to 79.2, 93.6 to 96.2 and 118.2 to 120.5 tok/s at 1, 2, 4, 8, 16, 32 and 64 users. At 64 users it is level with llmx, and its inter-token p50 of 177 ms is a decode rate of 361 tok/s, 1.8 times llmx's.
+    - The same image on the Q8_0 GGUF gave 61.0 tok/s at 16 users, and the newest image that ran (aiinfos/vllm-gfx906-mobydick, which reports vLLM 0.1.dev17732+gff063e44e and is published as 0.23.1rc0; FP16) 46.7 to 47.7 with a 15.8 to 18.5 s time to first token. The 0.29 source line is unbuilt, and no 8-bit or AWQ run of 8B exists yet.
+    - A 512-token prompt costs 385 to 400 ms of one MI50 (time to first token 0.397 s at one user, pp512 1330 tok/s), against 40 ms for 8 decode rows. A pass that carries a whole ubatch of prompt holds every pass behind it at every stage.
+  - 32B Q8_0, about 35 GB, does not fit one 32 GB MI50. Its curve is modeled at 4 times 8B's until step 0 measures it on two cards. llmx's one measured 32B split decode, 13.28 tok/s at one request, is 5.1 times slower than 8B's tg128 on one card, but it was taken in phase 1 before the clocks were held high, when 8B's own split read 38.7 against 64.6 on one card (and later 39.0 at the automatic level against 66.6 held high), so it neither confirms nor refutes the 4 times.
+  - The fit balances layer counts. Modeled, the head is 7 percent of an 8B pass and 2 percent of a 32B pass. So for 8B the last stage is about 15 percent heavier than the others on two cards and 30 percent on four, which caps two cards near 1.9 times one card and four near 3.3, and for 32B about 4 percent on two.
+  - Sampling per row on the EPYC 7262, with the scheduler's 594 KiB row copy, medians at host load average 36 to 39: 0.25 ms greedy, 0.45 at the defaults (temperature 0.8, top-k 40, top-p 0.95), 1.55 greedy with a penalty of 1.1, 1.68 at the defaults with it, and 15.4 with top-k 0 (18.3 with top-p 0.95), which the compatible routes give a client's `top_k: -1`. The row copy alone takes 0.054 ms.
+    - Main's penalty looks up a hash set for each of the 151,936 entries, which is the 1.2 to 1.3 ms it adds. `perf/sampler-select` writes the penalized scores into a copy of the row instead, so with it a penalty is modeled at the copy's 0.05 ms.
+    - `perf/sampler-select` selects only what top-k and top-p keep, so the defaults are modeled at no more than main's 0.45 ms, and top-k 0 is estimated at 1 to 2 ms from its code (a selection pass and an exponential per entry).
+    - Neither sampler has been timed at a load average under 12. Both are far above the host time of about 25 microseconds a pass that the server's step 5 timing build recorded at 1 to 16 sequences (`docs/SERVER.md`), and step 0 settles which holds.
+  - Host share of a round, modeled: the busiest host thread's work per round over the round, for 8B at P = S with today's decode cost, the worst of 16, 32 and 64 users, read as the defaults / the defaults with a penalty of 1.1. Recording is scaled from 0.6B's measured recording (about 0.9 to 2.2 ms a pass at 8B's 36 layers), and a crossing costs 0.11 to 0.17 ms.
+
+    | Host | S = 2 | S = 3 | S = 4 |
+    |---|---|---|---|
+    | One thread, main's sampler | 29% / 76% | 38% / 98% | 54% / 136% |
+    | One thread, the new sampler | 29% / 31% | 38% / 40% | 54% / 58% |
+    | One thread and four sampling threads, the new sampler | 17% / 17% | 23% / 23% | 32% / 33% |
+
+    - With the new sampler the penalty no longer needs the pool. Top-k 0, at the estimated 1 to 2 ms a row, does: 50 to 158 percent of a round without the pool, 22 to 58 percent with it.
+    - A faster pass shortens the round. At the pass costs 32B needs (8 rows in 21.5 ms and 16 in 25 ms, 8B-equivalent, Targets) and with head-aware shares, one thread with the pool is modeled at 71 to 73 percent of a round at S = 4 with 32 users and 99 to 103 percent with 64, recording being the largest part.
+  - Whether one thread keeps the devices fed is not modeled reliably. The first model put it at 55 to 71 percent of the device-bound rate at four stages in a fixed round order, and at 83 to 91 percent serving stages as they complete. A later simulation put it near 100 percent with the pool, but it does not state its order and is unchecked. Phase 0's P sweep ran a thread per stage, so step 0's pipeline bench, driven by one thread and by a thread per stage, measures it.
+  - Elsewhere, servers that keep decode passes in flight across stages give each device a process (vLLM, SGLang, TensorRT-LLM) or a thread (Orca, in C++), and all but SGLang keep one central scheduler. LMDeploy's TurboMind, also C++, gives each device a scheduling thread and an executor thread but has no pipeline stages. None relays activations through the host as llmx does.
+  - mx-llama.cpp's continuous-serving research executor (not landed), under ROCm, where the host does not wait between stages, kept 2 to 8 MI50s at 95.6 to 100.6 percent of the stage count times one request's rate, with one host thread and one queue per device. One spare lane gained 4.5 and 10.2 percent at 8 and 10 lanes on ten MI50s, and a second spare lost.
+  - mx-llama.cpp's tensor split sums the cards' partials in a fixed order and sends them as F32 or BF16 by message size, which grows with the batch, so its outputs depend on the batch and on the card count. llmx cannot copy that reduction.
+  - A tensor group that splits output rows and gathers them computes every element as one card does, since the Q8_0 kernel adds a lane's blocks one after another, and a split by input blocks would regroup that sum. At 16 to 64 users such a group reads the same bytes per token as P = S, so this gate is won by the pipeline and the kernel.
+- **Targets**, modeled for 8B Q8_0 and 30B-A3B Q4_K_M from their measured one-card curves and for 32B Q8_0 from 8B's; 8B and 32B Q4_K_M, 30B-A3B Q8_0 and the Radeon VII with the CPU wait for step 0's curves:
+  - Throughput is decode-bound output tok/s, greedy; prompt loads follow below. P is S or step 8's P, whichever gives the higher rate. The pool is in place and the host does not limit. Crossings (0.11 to 0.17 ms) are ignored, and 32B costs 4.0 times 8B.
+  - Every reference figure marked "est." is within about 40 percent either way until step 0 measures it in the same minutes. The method predicts the ROCm 32B layer split at about 59 tok/s at 16 users, where 84.0 was measured.
+  - The ROCm layer split is taken at about one card, since its tg128 on 2 to 4 cards is 70.5 to 69.7 against 71.0 on one. One card is the ROCm reference's decode rate by inter-token p50 (Found).
+  - The ROCm tensor split is taken at that rate times 1.41 to 1.51 on 2 cards, 1.41 to 1.77 on 3 and 1.41 to 1.89 on 4: its tg128 ratios, and its 32B ratio to the layer split at 32 users.
+  - The Vulkan layer split's 8B servers are unmeasured. On 32B it served 0.41 to 0.42 times the ROCm layer split, so the ROCm layer split sets the 2 times bar until step 0 measures both.
+  - "Needed" is the lowest rate that meets 2 times the layer split and 1.5 times the tensor split, from the low and the high ends of the estimates.
+  - "Today's kernel" is P = S or step 8's P. "+ head shares" adds step 6. "+ wider build" adds step 5's 16- and 32-column builds at 39.5 ms plus 2.0 ms a row beyond 8. That is an upper bound on their gain until a 16-column prototype is timed: the reference's own multi-column kernel on this card takes 8 to 36 percent longer (61 to 75 ms at 16 rows and 95 to 107 at 32, read from its server steps), and the build's fixed cost grows with its width (Found).
+  - "Pass cost needed" is the 8B pass cost at which the needed rate is met, with head-aware shares at P = S.
+
+  **Qwen3-8B Q8_0 on 2, 3 and 4 MI50s:**
+
+  | Cards | Users | ROCm layer split (est.) | ROCm tensor split (est.) | Needed | llmx, today's kernel | + head shares | + wider build | Pass cost needed, ms |
+  |---:|---:|---|---|---|---:|---:|---:|---|
+  | 2 | 16 | 212-261 | 299-394 | 448-591 | 379 | 405 | 405 | 8 rows 27.1-35.7 (39.5 today) |
+  | 2 | 32 | 298-337 | 420-509 | 630-763 | 382 | 409 | 577 | 16 rows 41.9-50.8 (78.2) |
+  | 2 | 64 | 339-430 | 478-649 | 717-974 | 381 | 408 | 731 | 32 rows 65.7-89.3 (157) |
+  | 3 | 16 | 212-261 | 299-462 | 448-693 | 409 | 466 | 466 | 5 to 6 rows 23.1-35.7 (34.3) |
+  | 3 | 32 | 298-337 | 420-596 | 630-895 | 533 | 608 | 714 | 10 to 11 rows 35.8-50.8 (68.7) |
+  | 3 | 64 | 339-430 | 478-761 | 717-1142 | 533 | 608 | 967 | 21 to 22 rows 56.1-89.3 (112.3) |
+  | 4 | 16 | 212-261 | 299-493 | 448-740 | 418 | 506 | 506 | 4 rows 21.6-35.7 (31.6) |
+  | 4 | 32 | 298-337 | 420-637 | 630-955 | 670 | 810 | 810 | 8 rows 33.5-50.8 (39.5) |
+  | 4 | 64 | 339-430 | 478-813 | 717-1219 | 676 | 818 | 1153 | 16 rows 52.5-89.3 (78.2) |
+
+  **Qwen3-32B Q8_0 on 2 MI50s**, with the references measured on 2026-09-24 on short prompts with the end of text allowed:
+
+  | Users | ROCm layer split | Vulkan layer split | ROCm tensor split | vLLM, AWQ, TP 2 | Needed, Q8_0 | llmx, today's kernel | + head shares | + wider build | Pass cost needed, 8B-equivalent |
+  |---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+  | 16 | 84.0 | 34.9 | 124.3 | 208.6 | 186 | 99 | 101 | 101 | 8 rows 21.5 ms (39.5 today) |
+  | 32 | 151.6 | 64.4 | 213.3 | 237.7 | 320 | 100 | 102 | 144 | 16 rows 25.0 ms (78.2 today, 55.5 wider) |
+  | 64 | step 0 | step 0 | step 0 | step 0 | step 0 | 100 | 102 | 183 | step 0 |
+
+  - The AWQ figures face llmx's Q4_K_M, which needs 313 and 357 tok/s at 16 and 32 users; llmx's 32B Q4_K_M curve is unmeasured. The vLLM 8-bit 32B, which the Q8_0 row faces, is unmeasured too.
+
+  **Qwen3-30B-A3B Q4_K_M on 2 and 3 MI50s**, modeled from llmx's one-card server (115, 194, 218 to 222, 230 to 232 and 262 to 263 tok/s at 1, 4, 8, 16 and 32 users, 64-token replies on short prompts, 2026-09-24) with 8B's head share. The only reference figures are the reference's server on one card the same day (94, 149, 164, 110 and 203 tok/s at 1, 4, 8, 16 and 32 users), standing in for the layer splits. Its 110 at 16 users is below its 164 at 8, so the 16-user bar (220) is probably low; step 0 re-measures it.
+
+  | Cards | Users | Layer split (est.) | Needed, 2 times it | llmx, today's kernel | + head shares |
+  |---:|---:|---:|---:|---:|---:|
+  | 2 | 16 | 110 | 220 | 411 | 440 |
+  | 2 | 32 | 203 | 406 | 432 | 462 |
+  | 2 | 64 | step 0 | step 0 | 491 | 525 |
+  | 3 | 16 | 110 | 220 | 543 | 619 |
+  | 3 | 32 | 203 | 406 | 593 | 676 |
+  | 3 | 64 | step 0 | step 0 | 647 | 737 |
+
+  - The tensor split and vLLM on this model are unmeasured. MoE tensor decode gained little on this hardware (`docs/MULTI-DEVICE.md`), and the gfx906 vLLM was reported partly working on it. The Q8_0 file (32.5 GB) needs two cards, and step 0 models it from its own curve.
+
+  **The Radeon VII with the CPU:** the CPU stage computes on the scheduler thread, so P = 2 overlaps the card with the CPU and is bound by the CPU's stage. The reference is llama.cpp's Vulkan build on the Radeon VII with the same layers on the CPU. Step 0 models it from both devices' measured pass costs, and its bar waits for the user (Open).
+
+  **Prompt loads**, modeled as device time per output token = (prompt tokens per reply token) / prefill rate + 1 / decode rate. These are estimates at 32 users, with today's kernel and the head shares:
+  - Prefill on S cards is taken as 0.9 S times one card for llmx, since prompts of different requests fill the stages, and as the references' measured pp4096 ratios: the layer split 1.62 on 2 cards and 2.59 on 4, the tensor split 1.56 and 1.98. One card prefills 8B at about 1200 tok/s for llmx and 1000 for the reference on 128-token prompts (their pp64 and pp512 lie either side), and about 1250 and 1300 on 1024-token prompts (their pp512 and pp4096).
+  - 128/128: llmx about 344 tok/s on 2 cards against 266 (layer split) and 348 to 367 (tensor split), and 682 on 4 against 283 and 366 to 461. Prompts take about 16 percent of llmx's device time on 4 cards, so the decode-bound tables above are optimistic by about that.
+  - 1024/128: llmx about 167 tok/s on 2 cards against 144 and 162 to 166, and 332 on 4 against 181 and 187 to 210. Here a prompt costs more device time than its reply, and llmx's prefill per card is level with the reference's at 512 tokens (1318 against 1323 tok/s by the mean of rounds) and 0.84 times at 4096 (976 against 1167).
+  - On 2 cards, 2 times the layer split at 1024/128 is out of reach even with free decode (281 against 288 tok/s). With decode at about 700 tok/s, which the kernel has to give there anyway, it needs llmx's prefill about 1.7 times faster per card than today. So at that load the gate rests on prefill work as much as on this phase (Open, below).
+  - **What the targets say:**
+    - At the low end of the estimates, the kernel is needed for 8B on 2 cards at every load and on 3 cards at 32 and 64 users, and for 32B everywhere. 8B on 4 cards, and on 3 cards at 16 users, clears the two llama.cpp-based references with the head shares and today's kernel, by 4 to 29 percent, inside the estimates' spread (vLLM's 8-bit rate is unmeasured).
+    - At the high end, every 8B placement needs a faster pass than the wider build's upper bound gives, so the pass at 2 to 8 rows must lose fixed cost too: 4 rows in 21.6 ms and 8 in 27.1 ms, against 31.6 and 39.5 today.
+    - 32B needs the most: an 8-row pass 1.84 times faster than today and a 16-row pass 3.1 times faster, 2.2 times beyond the wider build's upper bound. That is estimated possible from the card's measured read ceiling (a 32B stage on two cards reads about 17.4 GB, about 22 ms at 786 GB/s, against the 43 ms an 8-row stage may take), but no kernel on this card has shown it.
+    - 30B-A3B clears 2 times the one-card reference with today's kernel, narrowly at 32 users on 2 cards (432 against 406). Its tensor split and vLLM rows are unknown.
+    - vLLM on 8B is a live threat at 48 to 64 users. If its tensor parallelism scales as the ROCm tensor split does, 1.5 times its FP16 rate at 64 users is about 760 to 820 tok/s on 2 cards and 760 to 1020 on 4. Its 8-bit rate is unmeasured.
+    - The head shares are needed on 3 and 4 cards, step 8 on 3 cards at 32 and 64 users (from 409 and 500 tok/s to 533), the pool and the new sampler for the sampled loads, and step 9 and prefill work for the prompt loads.
+- **Levers**, each batch-invariant:
+  - Wider decode builds (step 5): one weight read for up to 16 or 32 columns. A build keeps batch invariance only if each column keeps its lanes and its reduction (Found: one subgroup reduction in `matmul_vec_q8.comp`, a cluster's xor shuffles in the K-quant row kernels); the row count may change only how many columns share a weight fetch. Counterexamples: Marlin picks its tile by batch, llama.cpp switches kernels at 8 columns, and the gfx906 vLLM's AWQ kernel switches at 32 rows and adds with FP16 atomics.
+  - A cheaper pass at 2 to 8 rows (step 5): builds that load only the columns a pass has.
+  - Stage shares that count the head (step 6): any split is bit-identical to one card (`llmx-split-check`).
+  - P from the kernel's column width (step 8) and assembly by predicted stage time (step 9): the cost model chooses which entries share a pass and where a slice ends, never an entry's extent or fresh count.
+  - Host work off the critical path (steps 3 and 4): the 16-slot ring, the pool, rows read in place and the new sampler, which changes seeded draws once and leaves greedy unchanged.
+  - Considered, not planned: greedy argmax on the device for rows that ask for neither logprobs nor a penalty. It is exact by construction (comparisons only, the lowest id on a tie, the host's handling of NaN kept), and it would take the row's pass over the vocabulary and part of the logits wait off the thread. It is built only if step 7's measurement shows the logits wait or greedy sampling limiting.
+  - Not in this phase: prefill speed, which the prompt loads rest on; tensor groups (phase 6); command buffers recorded once and replayed (Not doing).
+- **Design:** one host thread, the scheduler's, drives every stage of every pass, with a pool of sampling threads the scheduler owns, a 16-slot command ring and the new sampler (Decided). It does so through a small public pass API over one `ExecContext` with P pass slots. Four designs were compared:
+  - This one.
+  - A relay that does not block, with P = S + 1. Each crossing waits on the device through a sync file, and the destination reads the handoff without staging, from host memory imported into it or from the source's memory through dma-buf, so neither the source's ticket nor staging holds the thread (55 us a hop through dma-buf with the chain queued ahead, on Linux, where every multi-card placement runs). Or the thread polls each device's timeline and serves stages in the order they complete. One pass more than the stages hides a round of sampling and assembly, as vLLM's pp + 1 does.
+    - It needs no contract change, and it is step 7's first answer when the thread is found blocked while devices idle.
+    - Its costs: backend-private code, a non-blocking ticket query for the polling form, and fewer rows per pass at P = S + 1, which today's curve charges (modeled: 346 against 418 tok/s at 16 users on 4 cards while the devices bound).
+    - A device-side wait is trusted only after a garbage check at 16k tokens and more, since mx-llama.cpp's ROCm stage transfers raced only past about 3K tokens.
+  - A submitter thread per device that runs the (pass, stage) jobs the scheduler posts, in order, and decides nothing. It changes the backend's one-thread contract, needs the ticket read atomic and the block pool kept on one thread or locked, and races on the MoE run vectors unless each device has its own. It goes to the user only by step 7's rule.
+  - A strict rotation of exactly S passes with buffers picked by start parity. It is not taken as it stands, for three reasons. Its buffers are safe only under strict rotation. It cannot run more passes than stages. It retries growth only when a request's own pass returns, which can give room made for an older request to a younger one.
+  - **Model, no arithmetic touched:**
+    - `reserve_passes(ctx, slots, rows, logit_rows)` runs once before serving. It sizes the arena for `ubatch + max_seqs` rows, `max(2, slots)` handoff buffers per sending device, and the logits rows. The context is then frozen: `begin` throws `logic_error` before any work if a pass would need more, and nothing is replaced while serving. The CLI never calls it and keeps `ensure` as today.
+    - `Pass::parity` becomes `handoff`, the handoff buffer the pass owns until it ends. `Pass` also gains `logits_base`, its first logits row. The server sets `handoff` to the pass's slot and `logits_base` to the range the scheduler gave it; `prefill` sets chunk parity and row 0 as today.
+    - The head writes at `logits_base`, and `finish` records `p.sent` as the pass's logits ticket.
+    - `begin_pass` marks each of its sequences in flight and refuses one already marked; `end_pass` and `abort_pass` clear the mark. `reset` and `fork` refuse a sequence in flight. `forward` and `prefill` do not use the mark, since a pipelined prompt has several chunks in flight on purpose.
+    - Public calls: `stage_count`, `pipelined`, `reserve_passes`, `begin_pass(ctx, slot, entries, n, logits_base)`, `run_pass_stage(ctx, slot, s)`, `pass_logits(ctx, slot, i)` (which waits on the pass's own ticket), `end_pass(ctx, slot)` and `abort_pass(ctx, slot)`. `abort_pass` is today's `roll_back`: every device is drained, then only that pass's entries are truncated to where the pass found them.
+    - `forward`, `prefill`, `step` and `score` keep their code.
+  - **Logits:**
+    - One host-visible range of `2 * max_seqs * (k + 1)` rows sits on the output device. It is carved in formation order and released when a pass ends.
+    - Wanting rows in flight never exceed `max_seqs * (k + 1)`, since a sequence is in one pass and wants at most one row, or k + 1 as a speculative verify entry of k drafts (k = 0 without speculative decoding), so a contiguous range of `2 * max_seqs * (k + 1)` rows always fits. An aborted pass leaves a gap, reclaimed once the passes formed before it have ended.
+    - The scheduler's policy core owns the offsets, and the model only checks them against the reservation.
+    - At `max_seqs` 64 on the 151,936-token vocabulary the range is 74 MiB at any P without drafts, and k + 1 times that with them. The fit's `ubatch + max_seqs` logits rows cover it while `2 * max_seqs * (k + 1)` is at most that (k up to 3 at `max_seqs` 64 and ubatch 512).
+  - **The round**, which the scheduler thread repeats:
+    1. Under the lock, new submissions join the queue, and cancellations are swept in the queue, the paused list and the stalled list.
+    2. Advance from the last stage down to stage 1: each device stage takes its oldest waiting pass. Each `receive` waits on a submission made in an earlier round.
+    3. Retire, oldest first, every pass whose last stage was recorded in an earlier round. Wait on its logits, sample its wanting rows, push the tokens and end the pass. Its members leave flight, ends and cancels are applied, and a member that needs more blocks joins the stalled list.
+    4. Room, in the exact-resume order. Stalled requests go first, oldest first; then resumes, oldest first; then new admissions, and only when nothing is stalled or paused.
+    5. Form new passes while a slot and a logits range are free, work is ready and fewer than P passes are in flight: assemble, `begin_pass`, then stage 0.
+    6. Run the CPU stages due this round, after every device stage of the round has been submitted, since a CPU stage computes on this thread.
+    7. With nothing in flight and nothing ready, wait on the queue.
+  - Each pass advances at most one stage a round, and each stage takes its oldest waiting pass. So every device runs its passes in formation order, which is what makes the shared arena safe. Advancing from the last stage down gives the later devices their work before the host samples.
+  - **P:**
+    - Step 3 runs P = S on a pipelined placement.
+    - Step 8 changes it to P = max(S, ceil(D / W)) for D decode rows, capped by `--passes`, where W is the decode build's column count: 8 today, and step 5's width once it merges. A speculative verify entry counts its k + 1 rows. Passes then carry whole blocks of W decode rows, and no pass is twice as heavy as the rest. Decode rows per pass are at most ceil(D / P).
+    - Step 7 may run P = S + 1.
+    - Other placements run P = 1, and `--passes` above 1 is refused there.
+  - **Room and pausing:**
+    - `make_room` stays the one owner of who gives up blocks. Each round it plans over every request, in flight or not, by the exact-resume rule: donors first, oldest first; then, for growth only, uncapped requests admitted after the asker, latest first.
+    - It returns what it may take now and which requests in flight it waits for, and it takes nothing until the whole plan is out of flight.
+    - A request the plan waits for is held: when its pass returns it is not formed into a new pass, and the next round's plan, recomputed from scratch, takes it.
+    - The plan is never stored, so if the asker is cancelled or room frees up elsewhere, the hold ends within one round. A stall lasts at most one lap of the passes after its plan is made.
+  - **Assembly:**
+    - Step 3 keeps today's rule: decode entries first, then prompt slices by exact-resume's row classes, one stretch per pass, up to the ubatch.
+    - Step 9 sizes passes by predicted stage time instead. Slices come in whole 64-row tiles, costed with each stage's measured coefficients and corrected by observed pass times. Replays of generated rows are costed as decode rows, which replaces `kReplayRows`. When nothing else is decoding, a prompt gets the whole ubatch, so time to first token does not regress at low load.
+    - The cost model chooses which entries share a pass and where a slice ends, never an entry's extent or fresh count.
+  - **Sampling:** rows are sampled per wanting row in entry order, each request with its own random generator, so the result does not depend on the pass, on P or on order. From step 4, after `perf/sampler-select` has merged, a pass's rows are sampled on a small pool of threads private to the scheduler. They read the mapped row in place and copy it only when logprobs are asked. Only the scheduler thread touches channels, the ledger and backends.
+  - **Failure:**
+    - A throw in any pass call reaches `abort_pass`. Every device is drained and that pass's entries are truncated in every storage. Its requests end with "error" and are released, never parked.
+    - Other passes continue, because their rows sit in their own storages, handoff buffers and logits ranges. The drain submits and completes what the failed pass recorded (`sync`), so no tag describes work that did not run, and a stage that starts with `receive` also resets the tags through its host write.
+    - This narrows today's rule, where a failed pass ends every active request. Device loss still exits.
+  - **Cancel and stop:** a request not in flight ends at once. A request in flight completes its pass, is not sampled, ends with "cancel" and is parked, since its cache is consistent. `stop()` aborts every pass in flight and then ends everything as today, leaving the ledger and every pool at zero.
+  - **Health:** `/v1/health` adds `passes` (the cap and the count in flight), the round period, the thread's working time per round (recording, relaying, sampling and assembly), its blocked time in `receive` (the source's ticket and the staging wait apart), in `open` and in the logits wait, each stage's idle share, and the device-bound rate. The timers are sampled and can be switched off, and their cost is measured against a build without them before any round time is trusted, since mx-llama.cpp's per-submission timers cost it 9 percent.
+  - **The device-bound rate** is the rows a pass carries over the busiest stage's device time per pass. A stage's device time comes from GPU timestamps at the start and end of its submissions, in a timing build run on the same load. Ticket times the host sees are not used, because the command ring hides stage edges from the host. Throughput is always read from a build without timestamps.
+  - **Memory** for Qwen3-8B at `max_seqs` 64 and ubatch 512:
+    - The arena is 216 KiB a row for 576 rows, 121.5 MiB per device, and does not grow with P. A context per pass would add 121.5 MiB per device for every extra pass.
+    - Handoff is 9 MiB of host memory per slot per sending device: 72 MiB at 8 slots against 18 MiB today.
+    - Logits take 74 MiB at any P without drafts (Logits).
+    - The 16-slot ring adds 12 MiB of host memory per device.
+    - The placement request carries the slot count, and the fit counts `max(2, slots)` handoff buffers. When they do not fit, the server says so at start and runs with fewer.
+- **Owners:**
+  - What is in flight, and in which order: the round.
+  - Who gives up blocks for whom: `make_room`.
+  - Where a pass's logits go: the policy core's range allocator.
+  - How a row is computed: the request's row classes, from the exact-resume branch.
+  - How a decode column is summed: the kernel's lane layout and reduction, the same in every build.
+  - Buffer sizes: `reserve_passes`, once.
+  - Whether the host gets more threads: step 7's rule.
+  - The final gate: Gate, below, shared with `perf/decode-columns`.
+- **Plan:** each step of `feat/split-passes` is one commit. Before the next step starts, every step keeps `generate`, `logits`, `perplexity` and `chat` byte-identical to main on the CPU, the Radeon VII and one MI50. It also keeps `llmx-split-check` bit-identical on 2, 3 and 4 MI50s for Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M. Each of this phase's steps from 1 to 9 other than step 5 merges on its own correctness gates plus being faster than today at every load (Decided), read as Open says until the user confirms it.
+  0. **Measure; no change to the model, the backends or the server**, with cards pinned, clocks held high and the host at a load average under 12. Each program's effective P and ring depth are read from its own log, never from its command line. Done so far: the one-card runs in Found. Left:
+     - `llmx bench --model M --seqs N`, one run for each N of 1, 2, 4, 8, 9, 16, 24, 32 and 64, for 8B Q8_0, 8B Q4_K_M and 32B Q4_K_M on one MI50, 32B Q8_0 on two MI50s with one pass in flight, and 30B-A3B Q4_K_M on one and Q8_0 on two. These are the pass cost curves every target rests on.
+     - The ROCm reference's decode step time at 8, 16, 32 and 64 rows from its batched bench on one pinned MI50, which step 5 compares against.
+     - A timing build on 2, 3 and 4 MI50s measures:
+       - recording per stage at 1 to 64 rows;
+       - one crossing;
+       - the head's share of the last stage;
+       - each stage's device time from GPU timestamps;
+       - `llmx-multi-device-bench pipeline` at P = S and S + 1, with the measured stage times, against 4 and 16 command-ring slots (the 16-slot arm a build with `kRing` 16), driven by one thread and by a thread per stage. The bench runs two stages with a thread each today, so a `tools/` commit of its own first gives it 3 and 4 stages and a one-thread driver.
+     - Sampling per row on the EPYC 7262 for main and `perf/sampler-select`: greedy and the defaults, each with and without a penalty of 1.1, and top-k 0 with and without top-p 0.95. Beside it, the server's host time between a pass's logits and the next pass, which `docs/SERVER.md` records far lower.
+     - Today's server and the references on the same cards in the same minutes, under the gate's loads and server settings (Gate): 8B on 1 to 4 MI50s, 32B on 2, 30B-A3B on 2 and 3, and the Q4_K_M rows beside vLLM's AWQ. The references' 8B servers on 2, 3 and 4 cards are measured for the first time, every reference runs at 48 and 64 users too, and vLLM runs as its newest and its fastest build, in 8 bits and in AWQ where they run.
+     - Gate: the numbers recorded in this block. Every target is re-derived for every placement and load the gate runs, prompts included, with the estimates replaced by same-minute measurements. The host share of a round is predicted for S = 2, 3 and 4 at today's decode cost and at step 5's targets.
+  1. **The pass API**, as in Design (Model): `reserve_passes`, `Pass::handoff`, `logits_base`, the in-flight mark, the frozen context and the fit's slot count. The server still calls `forward`.
+     - Gate: placement test 1 below.
+     - Gate: the split plan prints identical to main for every placement the suites run.
+     - Gate: `llmx bench` tg128 and pp512 level with main on one MI50 and on the Radeon VII, and `server_load.py` level with main.
+     - Docs: the `ExecContext` comment.
+  2. **The scheduler over the pass API at P = 1.** The policy core (the round, the room plan and the logits ranges) becomes free functions, and property test 2 arrives with them.
+     - Gate: server replies byte-identical to the base (`server.py`, `server_mix_check.py` with logprobs, `server-resume`) on the CPU, the Radeon VII, one MI50 and a 3-card split.
+     - Gate: the property test is clean over at least 100,000 schedules under UBSan.
+     - Gate: `server_load.py` level with the base on both machines.
+  3. **P = S on pipelined placements, and the 16-slot command ring.** This step brings the round, holds, deferred cancel and park, failure limited to one pass, `--passes` refused above 1 on placements that are not pipelined, and the health fields.
+     - Gate: tests 3 to 6.
+     - Gate: P = 1 byte-identical to step 2 and level with it in speed, and one user at P = S level with P = 1.
+     - Gate: the 16-slot ring keeps tg128 and pp512 level with main on one MI50 and on the Radeon VII.
+     - Gate: for the ring, the standing device merge gate, every cell against llama.cpp's pinned Vulkan build on the MI50 and on the Radeon VII.
+     - Gate: throughput above step 2 at every load from 2 users on 2 to 4 MI50s, with time to first token and inter-token p99 no worse, recorded against step 0's targets.
+     - Docs: the loop and cancellation in `docs/SERVER.md`, `--passes` and the health fields in USAGE.
+  4. **The sampling pool and in-place rows**, as in Design (Sampling), after `perf/sampler-select` has merged on its own gate: greedy unchanged, seeded CLI equal to the server, and the count of changed draws on a fixed set reported.
+     - Gate: outputs byte-identical, and TSan clean over the pool.
+     - Gate: step 7's first measurement, recorded.
+     - Target, recorded: at 32 to 64 users on 4 MI50s, default sampling within 15 percent of greedy.
+     - Docs: the threads and sampling in `docs/SERVER.md`.
+  5. **`perf/decode-columns`**, a branch of its own, started 2026-09-26 and built beside steps 1 to 4:
+     - Its first commit times a 16-column prototype of `matmul_vec_q8.comp` with `bench --seqs` on one MI50. That time replaces the wider build's upper bound in Targets.
+     - `matmul_vec_q8.comp`, and the K-quant row kernels the Q4_K_M rows need, gain builds that read each weight once for up to 16 and 32 columns. Builds for 2 and 4 columns load only the columns a pass has, so the pass at 2 to 8 rows loses as much of the 8-column build's fixed cost as it can.
+     - The sum-order rule (Decided) holds for every build that merges: every column bit-identical to today's. A faster build that needs another per-column order, fixed and independent of the batch, is built and timed only as a prototype that does not merge, and goes to the user with the count of changed greedy tokens on a fixed set, the HF results (the pinned fixtures and the 8B check, per token included) and the speed gain before any build's order changes. If the user approves, the order changes in every build at once, the one-column build that single-user decode and the CLI take included, so no row computes differently by pass width.
+     - Gate: in `backend-vulkan`, every column `memcmp`-equal to the one-column build at 1 to 64 columns, for each type the builds cover, plain, routed and grouped by expert (the grouped path is a pipeline of the same shader). It runs on RADV on the MI50 and on the Windows driver on the Radeon VII, for every build each device takes. The accumulation carries no `precise` qualifier, so each build's ISA is checked for the same multiply and add contraction as today's build.
+     - Gate: `generate`, `logits`, `perplexity`, `chat` and the server byte-identical to main on the Radeon VII and one MI50, and `llmx-split-check` bit-identical on 2, 3 and 4 MI50s. Both add a Q8_0 MoE model, Qwen3-30B-A3B Q8_0, which no one card holds: its outputs on two and three MI50s byte-identical to main's on the same splits.
+     - Gate: the standing device merge gate, every cell against llama.cpp's pinned Vulkan build on the MI50 and on the Radeon VII.
+     - Gate: `bench --seqs` on one MI50 faster than main at every row count from 2 to 64 and level at 1, and no slower than the reference's batched step time at 8 to 32 rows. At 64 rows the planned builds run two 32-column chunks, modeled at up to 175 ms against the reference's 149 to 189 ms server step. If its batched step is faster there, a 64-column build is measured.
+     - Targets, recorded whether met or not: the pass costs in Targets, down to 8 rows in 21.5 ms and 16 in 25.0 ms for 8B, which 32B on two cards needs.
+  6. **Stage shares that count the head**, a branch of its own after `refactor/loader` merges, taken if step 0 measures the last stage more than 15 percent heavier than the others:
+     - The fit gives the last stage fewer layers by the head's measured cost, and by the MTP block's when speculative decoding is on, and the CLI prints the new plan.
+     - Gate: every split stays bit-identical to one card on 2, 3 and 4 MI50s, and every changed split plan is listed.
+     - Gate: pp4096 on 2 to 4 MI50s level with main.
+     - Target, recorded: on 8B, the last stage within 5 percent of the mean stage time at S = 2, 3 and 4, and throughput at S = 4 at 32 and 64 users at least 10 percent above the step before.
+  7. **The thread decision, by the rule decided 2026-09-26.** It is measured after step 4 and again after step 5, since a faster pass shortens the round: 8B Q8_0 on 4 MI50s, 16 to 64 users, greedy and at the defaults, host load average under 12. The measurement records the thread's working time; its blocked time in `receive` (the source's ticket and the staging wait apart), in `open` and in the logits wait, each apart; each device's idle time, with what the thread was doing when it went idle; and step 0's pipeline bench driven by one thread and by a thread per stage.
+     - At 90 percent of the device-bound rate or more everywhere, nothing changes.
+     - Below 90 percent with devices idle while the thread is blocked: first the relay that does not block (sync-file waits or completion-order polling) and P = S + 1, with no contract change.
+     - Only if the thread is busy 80 percent of the round or more do per-device submitter threads go to the user, with the numbers. The scheduler keeps all policy, and TSan checks the threads. Command-buffer replay, the other answer to a thread busy recording, goes beside them with its cost.
+     - If submitter threads are approved, the step needs:
+       - an atomic ticket in the Vulkan backend, published only after `vkQueueSubmit` succeeds;
+       - per-device copies of the MoE run vectors;
+       - the block pool's bookkeeping on its device's thread, with the scheduler's sequence operations posted there;
+       - a failing worker's pass drained on every device before any storage is truncated;
+       - `wait` across threads written down as the one exception to `docs/MULTI-DEVICE.md`'s single owner per backend, since a device's thread waits on the previous device's ticket and the scheduler on the output device's;
+       - the admission ledger named as the one owner of who holds room;
+       - `docs/SERVER.md`'s "the scheduler is that thread" and `docs/ARCHITECTURE.md`'s "a server's scheduler is that thread" reworded;
+       - a TSan job.
+     - Gate for either change: tests 1 to 6, TSan clean where threads are added, and faster than today at every load (Plan). The share of the device-bound rate at S = 4 is recorded, and while it is below 90 percent the rule above is applied again.
+  8. **P from the kernel's column width:** P = max(S, ceil(D / W)) up to `--passes`, with decode rows per pass at most ceil(D / P). It is kept only if it measures better where P = S would put more than W rows into a pass.
+     - Gate: outputs unchanged.
+     - Gate: throughput and inter-token p99 at 17, 24, 33, 48 and 64 users against the step before it.
+  9. **Assembly by predicted stage time.** Under long prompts this is a throughput step as well as a latency step.
+     - Gate: outputs unchanged, and faster than today at every load (Plan).
+     - Target, recorded: on the rate sweep and the 1024/128 closed loop, time to first token p99 and inter-token p99 better than step 8, and throughput higher at 16 to 64 users with 1024-token prompts.
+  10. **The final gate and the docs** (Gate, below). Each doc changes in the commit that changes what it describes, as the steps above list; this step marks the phase 3 row of `docs/MULTI-DEVICE.md` done and closes this block. `docs/MULTI-DEVICE.md` already carries what the decisions change there: the slice-boundary rule, one context with P pass slots (the scheduler bullet, the fit and risk 3), one thread owning every backend, the measured decode curve in place of passes free up to about 35 rows, the thread rule and the final gate.
+- **Tests:**
+  1. `placement` CTest (CPU, every job, UBSan included):
+     - Passes are interleaved through the pass API over 2, 3 and 4 CPU stages at P = S, S + 1 and 2S, with five sequences including a forked prefix and prompts sliced at random. Every logits row must be `memcmp`-equal to the same sequence run alone through `prefill` and `step` on one CPU backend.
+     - `FailingCpu` fails one pass at a random stage, one of them a pass of several sequences. The failed pass's storages return to where they were, the other passes' rows still equal their runs alone, and a retry equals the run alone.
+     - `begin_pass` refuses a sequence already in flight and a pass beyond the reservation.
+  2. `server-passes` CTest, a property test of the policy core:
+     - A simulated executor drives it with random stage times, arrivals, growth, pauses, cancellations, failures and stops. It covers S from 1 to 4, P from 1 to 2S, and two pools of different block sizes. Cancellations include one that arrives while its request's pass is formed but not yet recorded.
+     - After every event, a sequence is in at most one pass and no pass is empty.
+     - Each device runs passes in formation order.
+     - A handoff buffer and a logits range belong to one pass until it ends.
+     - No pool is over-reserved, and nothing in flight is paused, parked, reset, forked from or cancelled.
+     - The oldest request is never refused room that younger requests or donors hold.
+     - A stall ends within one lap after the requests it waits for leave flight.
+     - Every decoder that is not stalled gets a token within one lap, and a cancellation ends within one lap.
+     - Admission is first-come, and no free slot idles while work is ready.
+     - After stop, the ledger and every pool are at zero.
+  3. `server-passes-cpu` CTest runs the real scheduler over the synthetic Q8_0 model on 1, 2 and 3 CPU stages at P = 1, S, S + 1 and 2S:
+     - The load mixes prompts, including ones longer than the ubatch, capped and uncapped requests with pauses, and greedy and seeded sampling with `top_logprobs` 5. It adds cancellations in flight, an injected stage failure and a stop mid-run.
+     - Every surviving request's ids and logprobs equal its run alone and its run at P = 1, and, without a forked prefix, the CLI's. Only the failed pass's requests end with "error".
+     - Exact-resume's `server-resume` cases rerun at P above 1, including a victim held while in flight.
+  4. Replay: the passes test 3 ran are replayed in their order through `forward`, and every logits row must be `memcmp`-equal.
+  5. `llmx-split-check` gains a passes phase:
+     - P passes go through the pass API with random host delays between stage recordings, so overlap and queue depth vary.
+     - Every logit must be `memcmp`-equal to the same passes run serialized and, on the MI50s, to one card. It runs on 2, 3 and 4 MI50s for 0.6B, 8B and 30B-A3B, and on the Radeon VII with the CPU.
+     - Qwen3-32B Q8_0, which no one card holds, must be byte-identical on 2, 3 and 4 MI50s and at P = 1 and the chosen P.
+     - CPU ops complete on the calling thread, so this is the one test that can see a hazard in device ordering.
+  6. `server_mix_check.py` phases (alone, together, skewed, uncapped, and against the CLI) run with logprobs at P = 1, S, S + 1 and 2S:
+     - Placements: 1 to 4 MI50s with 8B, 0.6B and 30B-A3B, and the Radeon VII with the CPU.
+     - Ids and top logprobs must be byte-equal to each request alone and to the CLI on the same placement, and across one card and 2 to 4 MI50s.
+- **Gate**, the layer split's final gate, shared with `perf/decode-columns`, with cards pinned, clocks held high, the host at a load average under 12 and every server run in the same minutes:
+  - Servers:
+    - llmx at P = 1 and at the chosen P;
+    - mx-llama.cpp's ROCm server with its layer split and with its tensor split, the tensor split's log showing RCCL initialized and its custom all-reduce active, since a build without them is 10 to 25 percent slower;
+    - llama.cpp's Vulkan server with its layer split;
+    - the gfx906 vLLM, as the newest build that runs and as the fastest, each with its version and weights in every table: in 8 bits (GPTQ-Int8 or W8A16, named) against llmx Q8_0 where it runs on gfx906, and in AWQ against llmx Q4_K_M, rerun on the identical checkpoint once llmx loads AWQ.
+    - Every table carries each runtime's NLL on the fixed excerpt beside its format, as `docs/MULTI-DEVICE.md` asks.
+    - Every reference server gets at least 1152 tokens a slot, since the 1024/128 load needs them and step 0's first reference runs had 1024.
+  - Placements:
+    - Qwen3-8B Q8_0 on 1, 2, 3 and 4 MI50s, and Q4_K_M beside vLLM's AWQ.
+    - Qwen3-32B Q8_0 on 2 MI50s, and Q4_K_M beside vLLM's AWQ.
+    - Qwen3-30B-A3B Q4_K_M and Q8_0 on 2 and 3 MI50s.
+    - On 3 MI50s, where vLLM's tensor parallelism cannot split Qwen3-8B's or 30B-A3B's 32 query heads, vLLM runs with pipeline parallelism 3, named as such, or is reported as not running.
+    - On Windows, the Radeon VII with the CPU against llama.cpp's Vulkan build on the Radeon VII with the same layers on the CPU, with the bar in Open.
+  - Loads, all through `server_load.py` with fixed lengths and the end of text ignored:
+    - a closed loop at 1, 2, 4, 8, 16, 32, 48 and 64 users with 128/128, 1024/128 and a mixed set;
+    - an open-loop rate sweep up to saturation;
+    - skewed runs with long prompts beside short ones, staggered arrivals and clients that leave.
+    - Every load runs greedy, and once more at the default sampling settings.
+  - Reported:
+    - output and request throughput;
+    - time to first token, inter-token latency and TPOT, at p50 and p99;
+    - end-to-end latency;
+    - each stage's idle share, the host time per round and the device-bound rate.
+  - Pass criteria:
+    - Every correctness check above holds.
+    - At 16, 32 and 64 users of every closed-loop set (128/128, 1024/128 and the mixed set), greedy and at the defaults, on every placement of two or more MI50s, llmx's output throughput is at least 2 times each layer-split server's and at least 1.5 times the ROCm tensor split's and the faster vLLM build's, with time to first token p99 and inter-token p99 no worse than each. 48 users is reported beside them, and the rate sweep and the skewed runs are reported against the same servers.
+    - "At least N times" means llmx's lower round is at least N times the reference's higher round, over two rounds each.
+    - On one MI50, where no split exists, P = 1 is level with main and reported beside the references.
+    - At 1 to 8 users, throughput is at least 0.95 times llmx on one card, or, for a model no one card holds, llmx at P = 1 on the same placement.
+    - A placement or load that misses its multiple is reported with its gap, and the layer split is not done until the gap is closed.
+    - The targets for every placement and load are modeled from step 0's numbers before the gate runs.
+- **Open, for the user:**
+  - At 1024/128 the gate needs prefill work that is in neither this phase nor `perf/decode-columns`. Modeled (Targets), 2 times the layer split on two cards at that load needs llmx's prefill about 1.7 times faster per card than today. The gate stands as decided for every load until the user limits it, so that load also waits for prefill work.
+  - "Faster than today at every load" (Decided) is read here as throughput above main's, with time to first token and inter-token p99 no worse, wherever a step overlaps passes. Steps 1 and 2 overlap no passes, since they run P = 1, and no step can overlap them for one user or on one card, so none can be faster than today there. Until the user says otherwise, this block holds those steps and loads level with main within two rounds' spread, with time to first token and inter-token p99 no worse. Confirm, or name the bar.
+  - The Radeon VII with the CPU: the gate's multiples name MI50 servers, and against llama.cpp's Vulkan build with the same layers on the CPU a two-stage pipeline gains at most (CPU + card) / max(CPU, card) over a serial run, so 2 times needs llmx's stages well ahead of the reference's. Until the user sets its bar, that placement is gated on correctness and on being faster than today at every load (level at P = 1, where the fit does not make the split pipelined), and reported beside the reference.
+- **Not doing, and why:**
+  - One `ExecContext` per pass: the arena would grow with P. On 8B that is 121.5 MiB per extra pass per device, and a 10-card split measured 2.8 GB against 445 MB.
+  - A thread per device by default: it changes the backend's one-thread contract and the block pool's single owner, and it brings new classes of race. Step 7's rule decides it on llmx's own measurements.
+  - A process per stage: a C++ host does not need one, and it adds a control protocol, memory shared across processes and failure detection across processes to everything submitter threads need.
+  - Buffers picked by start parity under a strict rotation: they are correct only while no pass queues between stages, and nothing checks that at run time. Buffers owned by a slot cost 9 MiB per slot.
+  - Command buffers recorded once and replayed: recording is modeled at 2 to 6 percent of a round per stage today, and replay needs every dispatch's parameters in buffers. After step 5 recording becomes the thread's largest share, so step 7 lists replay beside submitter threads. Any replay path must fail closed: mx-llama.cpp once replayed 4 of 108 subgraphs a token and looked several times faster while producing garbage.
+  - Sampling on the device: it must match the host sampler bit for bit, and the host pool does not need that. Greedy argmax is the one form considered (Levers).
+  - A long prompt's chunks in consecutive passes: that breaks the one-pass rule and is phase 4, after per-storage progress. mx-llama.cpp measured its largest mixed-load gain from exactly this, which is phase 4's case.
+  - Moving a running decoder between passes: forming passes at each return already balances them, and a move would need the sequence out of flight anyway.
+  - A tuner for P at load: P follows the decoder count by formula, and `docs/MULTI-DEVICE.md` says no tuner runs until measurements show one is needed.
+  - More than one pass in flight on a one-device placement: `pipelined_` needs more than one stage, and a pass's tokens come from the pass before it for the same requests.
+  - Rewriting `prefill`'s rotation onto the server's driver: the CLI's bytes and phase 2's measurements stay as they are, and phase 4 unifies the two.
+  - Tensor groups: phase 6, and not a lever for this gate (Found).
+- **Sequencing:**
+  - `feat/server-logprobs` merges first, since the tests read logprobs. It also carries the exact-resume block this block cites ("Exact resume of a paused request").
+  - `fix/server-cancel` and `fix/server-exact-resume` both edit `scheduler.hpp`. Whichever starts second rebases on the first, as the exact-resume block says.
+  - Phase 3's scheduler steps, 2 onward, start from main after exact-resume's steps 2 and 3 and its take-back step have merged. The take-back step, added for the Qwen 3.x plan, gives a resumed request whose own donor survives that donor back whole. The round, the holds and assembly are built on the row classes, the stalls, `make_room` and the take-back.
+  - The gate's check that a follow-up turn equals the CLI needs the branch after exact-resume, which stops first admissions forking across row classes. Until that branch merges, tests compare a forked prefix only with the same request run alone.
+  - Step 0 changes no model, backend or server code; its pipeline bench needs that `tools/` commit, and its one-card runs are in. Step 1 touches only the model and the fit's host count, so it is built beside exact-resume.
+  - `perf/sampler-select`, approved as its own branch, merges before step 4. Greedy is unchanged, seeded draws change once, and its gate reports how many draws differ on a fixed set.
+  - `perf/decode-columns` touches only the Vulkan backend's decode builds and their tests. It runs beside steps 1 to 4, merges on its own gate, and step 8's W follows what it merged.
+  - The loader (`refactor/loader`) rewrites `PlacementRequest` and the fit's budgets, which step 1's slot count and step 6's shares also touch. Step 6 comes after it, and whichever of the loader and step 1 merges second rebases.
+  - `feat/ignore-eos` merges before the gate runs, so every server's output lengths are fixed. Step 0's llmx runs so far ended no reply short.
+  - The prefill kernels merged at db0f8c3 and `perf/decode-columns` move the one-card numbers, so every gate table names the commit it ran on.
+  - The Qwen 3.x plan builds beside this one, with this phase and `perf/decode-columns` first on the cards. Its serve fit follows this phase's server work, and its checkpoints need this phase.
+  - Its speculative decoding verifies k drafts as one extent-1 entry of k + 1 rows of one sequence, so verify rows ride in passes as decode rows do. The one-pass rule holds, the rows count against W and in step 8's D, and the MTP block runs on the output device, which step 6's shares count when speculative decoding is on.
+  - This phase changes one line of the exact-resume plan. While a request is stalled, the room it needs may be held by capped requests, by requests admitted before it, or by requests held until their pass returns.
+
 ## Layer split phase 2: a prompt pipelined over the stages (2026-09-25, branch feat/split-pipeline, done)
 
 - **Goal:** phase 2's targets (`docs/MULTI-DEVICE.md`, Order of work): prefill on a layer split about one device's times the stage count, single-stream decode about one device's, and pipelined output exact against the same placement run serialized, so still exact against one device.

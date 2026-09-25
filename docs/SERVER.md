@@ -131,16 +131,10 @@ iteration while the prompt goes through in slices. That is the reason the
 prompt slice comes after the decode entries and is bounded by what is left
 of `ubatch`.
 
-Two execution contexts would be the overlap of host sampling with the
-device's next pass. Measured on the device with Qwen3-0.6B-Q8_0 (step 5),
-the host's time between a pass's logits and the next `forward` is about
-25 microseconds whatever the batch, against a pass of 5 to 30
-milliseconds, so there is nothing to hide and the server runs one context.
-What the host does spend per pass is the recording of the pass itself,
-0.7 milliseconds at one sequence and 1.7 at eight, which no second context
-hides because the next pass's tokens come from this one; only a recorded
-pass replayed with new inputs would, and that is a backend change noted in
-STATUS, not a scheduler one.
+Two execution contexts would be the overlap of host sampling with the device's next pass.
+On the device with Qwen3-0.6B-Q8_0 (step 5) a timing build recorded about 25 microseconds of host time between a pass's logits and the next `forward` whatever the batch, against a pass of 5 to 30 milliseconds, so the server runs one context.
+A later per-row timing of the sampler with the scheduler's row copy gave 0.25 ms a row greedy on the EPYC 7262 under load, which does not agree with it; layer split phase 3's step 0 (`docs/STATUS.md`) times both again on a quiet host.
+What the host does spend per pass is the recording of the pass itself, 0.7 milliseconds at one sequence and 1.7 at eight, which no second context hides because the next pass's tokens come from this one; only a recorded pass replayed with new inputs would, and that is a backend change noted in STATUS, not a scheduler one.
 
 ### Sampling
 
@@ -212,5 +206,5 @@ A stream whose pass fails has already sent its 200 head, so it ends with one `da
 | 3 | `/v1/chat` through the template renderer; `/v1/models` (**done**) | A chat turn through the server in the `server` component |
 | 3a | One dispatch per layer for `kv_write`, `attention` and `norm_rope_kv` over every view of a batch (**done**: a view table per dispatch, `shaders/views.glsl`) | The backend-vulkan checks over two views and the device HF gate; the throughput gate again: 118, 112, 109 and 125 percent of the reference's server at 1, 4, 8 and 16: above it at every concurrency, short of the wide margin the serving gate above asks for |
 | 4 | Prefix reuse: finished requests kept as donors, the longest shared run of full blocks forked on admission (**done**) | The `server` component: a prompt repeating a 247-token excerpt with a different ending reuses the first request's blocks and its greedy text equals the CLI's; a 1995-token prefix on Qwen3-0.6B-Q8_0 costs 1.53 s the first time and 0.16 s with a donor on the device (8B: 8.74 s to 0.72 s; CPU 0.6B: 6.95 s to 0.95 s) |
-| 5 | The second execution context, if measured to help (**measured, not added**) | The host gap between passes is about 25 microseconds at 1, 4, 8 and 16 sequences on the device, against passes of 5 to 31 milliseconds; see the scheduler loop above |
+| 5 | The second execution context, if measured to help (**measured, not added**) | The host gap between passes is about 25 microseconds at 1, 4, 8 and 16 sequences on the device, against passes of 5 to 31 milliseconds, which a later per-row timing of the sampler does not agree with; see the scheduler loop above |
 | 6 | The compatible routes: `/v1/chat/completions`, `/v1/completions`, `/v1/models` in the OpenAI clients' shape (**done**) | The `server` component: greedy equality with the CLI through `/v1/completions` whole and streamed, usage counts, the role in the first chat chunk and the finish reason in the last, text content parts, the refusals' shape; CPU and device |

@@ -147,10 +147,9 @@ HF gate measures the cost of it.
   per quant type returning the float at (block, index), which `embed` and
   the tile kernel use; the row kernel decodes words in place. Types are
   keyed by the same ids `quant::Registry` uses; the registry says which
-  types exist, the shader include says how the device decodes them. A type
-  with no shader is rejected at load with its name, not at the first op.
-  Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, every type the CPU
-  reads.
+  types exist, the shader include says how the device decodes them.
+  A type without a kernel is refused at the first matmul or embed over it, the matmul naming the type by its numeric id.
+  Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, every type the CPU reads.
 - **matmul, decode** (`nbatch` small): one subgroup per output row, each
   lane accumulating a stride of blocks, one `subgroupAdd` at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
@@ -620,10 +619,9 @@ HF gate measures the cost of it.
   workgroup per (row, head) over the q heads, the k heads and the v
   heads: q normed and rotated in place with norm_rope_rows' arithmetic,
   k normed and rotated straight into its KV block, v copied into its
-  block. The model asks for the three together (`Backend::norm_rope_kv`,
-  whose default is the three ops and is what the CPU runs); a batch over
-  several views takes that default. Three dispatches fewer per layer,
-  0.6B Q8_0 decode 202 to 221 tok/s under the matched protocol.
+  block.
+  The model asks for the three together (`Backend::norm_rope_kv`, whose default is the three ops and is what the CPU runs), and every view of a batch goes through the view table in that one dispatch.
+  Three dispatches fewer per layer, 0.6B Q8_0 decode 202 to 221 tok/s under the matched protocol.
 - **rms_norm_rows, silu_mul, add, gather_rows, embed**: elementwise or
   gather kernels, one invocation per output float, `embed` dequantizing
   its row on the way.

@@ -317,11 +317,20 @@ inline bool row_kernel_builds_one_column(KernelId id) {
 }
 
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
-const size_t kF32Pad = 32;   // floats after each row of a padded F32 matrix (padded_f32)
 const int kVariants = 3;   // a kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert
+
+const size_t kF32Pad = 32;   // floats after each row of a padded F32 matrix (padded_f32)
+// The matrix shapes that get a copy with kF32Pad floats after each row, one rule for padded_f32, which makes the copy, and resident_bytes, which counts it.
+// F32 rows a multiple of 256 floats wide would otherwise all read the same memory channel (docs/VULKAN.md).
+static bool pads_f32(uint32_t type, size_t nin) { return type == gguf::GGML_TYPE_F32 && nin && nin % 256 == 0; }
 
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
 const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
+
+// Layouts the shaders fix, which the host must match.
+const uint32_t kQ8LanesPerPair = 4;       // matmul_row.comp, wide Q8_0: `group = l / 4u` ("four lanes per pair")
+const uint32_t kKQuantLanes = 8;          // matmul_row.comp, Q4_K, Q5_K and Q6_K: `group = l / 8u` ("eight lanes per block")
+const size_t kAttentionTileRows = 32;     // attention_tile.comp: `TQ = 32u`, the query rows of one tile
 
 // A kernel's bindings; `counts` gives each one's array length, one for a plain buffer. A dispatch lists its buffers binding by binding, array elements consecutively.
 struct KernelSource {
@@ -752,7 +761,7 @@ public:
             throw VulkanUnavailable("vulkan: " + d.caps.device + " has an unsupported subgroup size or no subgroup arithmetic");
         if (d.props.apiVersion < VK_API_VERSION_1_2)
             throw VulkanUnavailable("vulkan: " + d.caps.device + " is older than Vulkan 1.2");
-        // A block of 32 activations is quantized across 32 consecutive lanes (shaders/xquant.glsl).
+        // A block of 32 activations is quantized across 32 consecutive lanes (shaders/xquant.glsl), and every narrower lane group the kernels fix fits such a subgroup, so the kernel choices do not check the width again.
         if (d.caps.subgroup_size < 32)
             throw VulkanUnavailable("vulkan: " + d.caps.device + " has subgroups narrower than 32 lanes");
 
@@ -1062,8 +1071,7 @@ public:
 
     // An adopted F32 matrix a product reads, whose rows are a multiple of 256 floats wide, keeps a padded copy beside it once a float tile has read it (padded_f32); routed stacks bind their data as it is.
     size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const override {
-        const bool padded = product && type == gguf::GGML_TYPE_F32 && nin && nin % 256 == 0;
-        return bytes + (padded ? rows * (nin + kF32Pad) * sizeof(float) : 0);
+        return bytes + (product && pads_f32(type, nin) ? rows * (nin + kF32Pad) * sizeof(float) : 0);
     }
 
     BufferPtr alloc(size_t bytes, Memory where) override {
@@ -1297,7 +1305,7 @@ public:
                  &pc, sizeof(pc), u32(rows * heads));
     }
 
-    // One kernel for q and k norm-rope and the KV write of one view; a batch over several views takes the three-dispatch default.
+    // One dispatch for q and k norm-rope and the KV write, every view of the batch going through the view table.
     void norm_rope_kv(Slice q, size_t q_stride, size_t n_head, CSlice q_w,
                       Slice k, CSlice v, size_t kv_stride, size_t n_head_kv, CSlice k_w,
                       const RopeArgs& rope, size_t rows, size_t layer,
@@ -1369,6 +1377,17 @@ public:
         matmul_runs(projections, X, nin, nbatch, false, runs);
     }
 
+    // Batch rows from which a call takes the tile rather than the row kernel, by the types of the projections that have rows.
+    // The row kernel costs a weight pass per eight columns and the tile a whole tile however little is filled, so the crossover depends on the row width and the types; measured per device (backends/device_profile.hpp).
+    size_t tile_from(const Projection* projections, size_t count, size_t nin) const {
+        bool eight_bit_or_float = true;
+        for (size_t i = 0; i < count; ++i) {
+            const Projection& pr = projections[i];
+            if (pr.rows && pr.type != gguf::GGML_TYPE_Q8_0 && pr.type != gguf::GGML_TYPE_F32) eight_bit_or_float = false;
+        }
+        return tile_from_for(dev_->profile, eight_bit_or_float, nin);
+    }
+
     // With row runs, a row's kernel follows its prompt's extent rather than the call's width, so a prompt computes the same however its rows are batched (docs/VULKAN.md, batch invariance).
     // Adjacent runs taking the same kernel are one call, and a call of mixed runs becomes one call per kernel over its rows.
     // A tile row's inner-dimension split is the one a pass over its whole prompt would take, up to a microbatch of 512 rows; runs whose splits differ are separate calls.
@@ -1380,16 +1399,13 @@ public:
             return;
         }
         if (runs.runs[runs.n - 1].end != nbatch) throw std::runtime_error("vulkan: row runs do not cover the batch");
-        bool eight_bit_or_float = true;
-        for (const Projection& pr : projections)
-            if (pr.type != gguf::GGML_TYPE_Q8_0 && pr.type != gguf::GGML_TYPE_F32) eight_bit_or_float = false;
-        const size_t tile_from = tile_from_for(dev_->profile, eight_bit_or_float, nin);
+        const size_t from = tile_from(projections.begin(), projections.size(), nin);
         size_t start = 0;
         for (size_t i = 0; i < runs.n;) {
-            const bool tile = runs.runs[i].extent >= tile_from;
+            const bool tile = runs.runs[i].extent >= from;
             const size_t split = tile ? split_tiles_of(runs.runs[i].extent) : 0;
             auto same = [&](const RowRun& r) {
-                return (r.extent >= tile_from) == tile && (!tile || split_tiles_of(r.extent) == split);
+                return (r.extent >= from) == tile && (!tile || split_tiles_of(r.extent) == split);
             };
             size_t j = i + 1;
             while (j < runs.n && same(runs.runs[j])) ++j;
@@ -1434,13 +1450,7 @@ public:
         }
         if (floats_from(X) < nbatch * nin) throw std::runtime_error("vulkan: matmul operand outside its allocation");
         if (live.empty()) return;
-        // The row kernel costs a weight pass per eight columns and the tile a whole tile however little is filled, so the crossover depends on the row width and the type; measured per device (backends/device_profile.hpp).
-        bool eight_bit_or_float = true;
-        for (const Projection* pr : live)
-            if (pr->type != gguf::GGML_TYPE_Q8_0 && pr->type != gguf::GGML_TYPE_F32)
-                eight_bit_or_float = false;
-        const size_t tile_from = tile_from_for(dev_->profile, eight_bit_or_float, nin);
-        if (kernel_choice == 1 || (kernel_choice < 0 && nbatch >= tile_from)) {
+        if (kernel_choice == 1 || (kernel_choice < 0 && nbatch >= tile_from(projections, count, nin))) {
             const size_t gy = (nbatch + 63) / 64;
             if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
                 throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
@@ -1463,7 +1473,7 @@ public:
                 const uint32_t height = starved ? kTileRowsSmall
                                                 : tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, pr->rows, gy, nin);
                 const bool tall = height == kTileRowsTall;
-                const VkDescriptorBufferInfo wf = pr->type == gguf::GGML_TYPE_F32 ? padded_f32(pr->data, pr->rows, nin) : bind(pr->data);
+                const VkDescriptorBufferInfo wf = padded_f32(pr->data, pr->type, pr->rows, nin);
                 const size_t wstride = wf.buffer == bind(pr->data).buffer ? nin : nin + kF32Pad;
                 const uint32_t pc[10] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate && parts == 1 ? 1u : 0u, 0, 0,
                                          u32(kper * 32), u32(gy), u32(wstride)};
@@ -1532,13 +1542,14 @@ public:
         }
         // One cluster size and one module serve a dispatch, so every projection in it has the same type.
         // A mixed group, such as the Q5_K q and k beside the Q6_K v of a Q5_K_M file, is partitioned by type and each partition is one dispatch: two for that group rather than three.
+        // The partitions keep the row kernel the whole group chose, since a partition's own types could move its crossover.
         for (size_t i = 1; i < live.size(); ++i)
             if (live[i]->type != live[0]->type) {
                 std::vector<Projection> same, rest;
                 for (const Projection* pr : live)
                     (pr->type == live[0]->type ? same : rest).push_back(*pr);
-                matmul_group_impl(same.data(), same.size(), X, nin, nbatch, accumulate, kernel_choice);
-                matmul_group_impl(rest.data(), rest.size(), X, nin, nbatch, accumulate, kernel_choice);
+                matmul_group_impl(same.data(), same.size(), X, nin, nbatch, accumulate, 0);
+                matmul_group_impl(rest.data(), rest.size(), X, nin, nbatch, accumulate, 0);
                 return;
             }
         const RowPlan plan = row_plan(live[0]->type, nin);
@@ -1559,14 +1570,12 @@ public:
         size_t units = nin;
         KernelId kernel = K_MATMUL_ROW;
         switch (type) {
-        case gguf::GGML_TYPE_Q8_0: {
-            const uint32_t per_pair = dev_->profile.q8_lanes_per_pair;
-            wide = nblocks % 2 == 0 && nblocks / 2 >= per_pair && dev_->caps.subgroup_size >= per_pair;
-            lanes = wide ? per_pair : 1;
+        case gguf::GGML_TYPE_Q8_0:
+            wide = nblocks % 2 == 0 && nblocks / 2 >= kQ8LanesPerPair;
+            lanes = wide ? kQ8LanesPerPair : 1;
             units = wide ? nblocks / 2 * lanes : nblocks;
             if (wide) kernel = K_MATMUL_ROW_Q8W;
             break;
-        }
         case gguf::GGML_TYPE_Q4_0:
             wide = nblocks % 2 == 0;
             lanes = wide ? 2 : 1;
@@ -1580,9 +1589,7 @@ public:
         case gguf::GGML_TYPE_Q4_K:
         case gguf::GGML_TYPE_Q5_K:
         case gguf::GGML_TYPE_Q6_K:
-            lanes = dev_->profile.kquant_lanes;
-            if (dev_->caps.subgroup_size < lanes)
-                throw std::runtime_error("vulkan: K-quant rows need a subgroup of " + std::to_string(lanes) + " lanes");
+            lanes = kKQuantLanes;
             units = nblocks * lanes;
             kernel = type == gguf::GGML_TYPE_Q6_K ? K_MATMUL_ROW_K : type == gguf::GGML_TYPE_Q5_K ? K_MATMUL_ROW_K5 : K_MATMUL_ROW_K4;
             break;
@@ -1599,7 +1606,7 @@ public:
         if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT)
             cluster = std::min(cluster, std::max(lanes, dev_->profile.k45_row_lanes));
         // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin (shaders/matmul_vec_q8.comp).
-        if (type == gguf::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot && dev_->caps.subgroup_size >= 8) {
+        if (type == gguf::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) {
             kernel = K_MATMUL_VEC_Q8;
             cluster = dev_->caps.subgroup_size / 2;
         }
@@ -1872,10 +1879,11 @@ public:
         return t;
     }
 
-    // Cache adopted F32 matrices with kF32Pad floats after each row whose width is a multiple of 256, reducing channel conflicts (docs/VULKAN.md).
-    VkDescriptorBufferInfo padded_f32(CSlice data, size_t rows, size_t nin) {
+    // The binding a float tile reads a matrix through: for an adopted matrix pads_f32 picks, its padded copy, made on first use and kept with the buffer.
+    VkDescriptorBufferInfo padded_f32(CSlice data, uint32_t type, size_t rows, size_t nin) {
+        if (!pads_f32(type, nin) || !rows) return bind(data);
         VulkanBuffer& src = const_cast<VulkanBuffer&>(as_vulkan(*data.buffer));
-        if (!src.adopted || nin % 256 != 0 || !rows) return bind(data);
+        if (!src.adopted) return bind(data);
         const size_t off = data.offset * sizeof(float);
         auto it = src.padded.find(off);
         if (it == src.padded.end() || it->second.rows != rows || it->second.nin != nin) {
@@ -1943,7 +1951,7 @@ public:
                                                  blocks_for(max_tokens, kVkBlockTokens), k_type, v_type);
     }
 
-    // One dispatch per view: its rows scatter into its blocks.
+    // One dispatch for every view of the batch through the view table, each view's rows scattering into its blocks.
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k,
                   CSlice v) override {
         std::vector<Placed> placed = place_views(views, n_views);
@@ -1960,7 +1968,7 @@ public:
                  pc, sizeof(pc), groups(t.rows * hd, 256));
     }
 
-    // One dispatch per view, one workgroup per (row, head).
+    // Every view of the batch through the view table: one tiled and one per-row dispatch at most, and a merge when the per-row one splits histories.
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out,
                    int n_head, int n_head_kv, int head_dim) override {
         if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 || head_dim <= 0 || head_dim > 256)
@@ -1974,7 +1982,7 @@ public:
         const size_t rows = placed.back().row0 + placed.back().view->nq;
         if (floats_from(Q) < rows * qstride || floats_from(out) < rows * qstride)
             throw std::runtime_error("vulkan: attention rows outside their allocation");
-        // Views of 128-wide heads whose prompt reaches 32 tokens take the tiled kernel, the rest the per-row kernel: at most two dispatches per layer.
+        // Views of 128-wide heads whose prompt reaches the profile's attention_tile_rows take the tiled kernel, the rest the per-row kernel: at most two dispatches per layer.
         // The choice is by the view's extent rather than its row count, so a prompt's rows take the same kernel however they were batched.
         std::vector<Placed> wide, narrow;
         for (const Placed& pv : placed) {
@@ -1986,8 +1994,7 @@ public:
             VulkanKVStorage& s = *t.storage;
             check_storage(s, layer, n_head_kv, head_dim);
             size_t tiles = 0;
-            const size_t atr = dev_->profile.attention_tile_rows;
-            for (const Placed& pv : wide) tiles += (pv.view->nq + atr - 1) / atr;
+            for (const Placed& pv : wide) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
             struct { uint32_t n_head, n_head_kv, bt; float scale; }
                 tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale};
             dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
@@ -2026,7 +2033,7 @@ public:
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
             const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));
             // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup (shaders/attention_vec.comp).
-            const bool vec = head_dim == 128 && dev_->caps.subgroup_size >= 16;
+            const bool vec = head_dim == 128;
             const KernelId kernel = vec ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
                                         : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
             dispatch(kernel,

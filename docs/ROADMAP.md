@@ -97,15 +97,10 @@ vendor backend, so each signature is implemented on a device once.
 Four vendor targets. Each is opt-in at build time because its SDK is heavy, and
 each is gated by its own `LLMX_HAS_BACKEND_*` in `config.hpp`.
 
-What they share is not kernels, which are written per API, but the numbers that
-shape a launch: how wide a subgroup is, how many compute units there are,
-whether the integer dot is there, and the measured choices those do not
-imply, such as how many lanes share a quantized block or from how many rows a
-tiled kernel beats a per-row one. Those live in `backends/device_profile.hpp`
-above any one vendor, filled by the Vulkan backend today from Vulkan properties
-and by a second backend from its own device properties, so bringing up hardware
-is filling one struct and re-measuring rather than finding literals through a
-backend. Branch on what a device reports, never on who made it.
+What they share is not kernels, which are written per API, but the numbers that shape a launch: how wide a subgroup is, how many compute units there are, whether the integer dot is there, and the measured choices those do not imply, such as how many lanes a row takes at most or from how many rows a tiled kernel beats a per-row one.
+Those live in `backends/device_profile.hpp` above any one vendor, filled by the Vulkan backend today from Vulkan properties and by a second backend from its own device properties, so bringing up hardware is filling one struct and re-measuring rather than finding literals through a backend.
+A number a kernel's layout fixes, such as how many lanes share a quantized block, stays with that kernel.
+Branch on what a device reports, never on who made it.
 - **ROCm (HIP)**: first-class target, matches the MI50 (gfx906) test machine, and
   **Linux only**. The Windows HIP SDK supports RDNA3, RDNA3.5 and RDNA4 only
   and states that it does not support gfx906; no Instinct card appears in its

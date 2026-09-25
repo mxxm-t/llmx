@@ -23,7 +23,7 @@ namespace {
 struct VulkanLifetimeTest {
     static std::shared_ptr<Device> device(VulkanBackend& b) { return b.dev_; }
     static VkDescriptorBufferInfo padded(VulkanBackend& b, CSlice data, size_t rows) {
-        return b.padded_f32(data, rows, 256);
+        return b.padded_f32(data, gguf::GGML_TYPE_F32, rows, 256);
     }
     static VkDescriptorBufferInfo args(VulkanBackend& b, const void* data, size_t bytes) {
         return b.args(data, bytes);

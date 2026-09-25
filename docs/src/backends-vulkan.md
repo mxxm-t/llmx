@@ -69,6 +69,7 @@ kernel notes and measurements are `docs/VULKAN.md`.
   8-bit dot build, whose rows take at most `k45_row_lanes`. There Q8_0 rows
   take `shaders/matmul_vec_q8.comp`, the four-wide dot over the 8-bit twin,
   and F32 rows the plain build.
+  The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
 - Wide batches take a tile kernel. Where the profile sets
   `prefer_integer_dot`, every quantized type goes through the 8-bit
   integer-dot tile (`shaders/matmul_tile_q.comp`, Q6_K in its own module
@@ -77,11 +78,10 @@ kernel notes and measurements are `docs/VULKAN.md`.
   dispatch, and a call too small to fill the device splits its inner
   dimension into parts that `shaders/matmul_reduce.comp` adds in order.
   F32, and every type on other devices, take the float tile
-  (`shaders/matmul_tile.comp`). The row count where the tile starts
-  winning is one of four measured thresholds in
-  `backends/device_profile.hpp` (8-bit or other types, narrower or at
-  least 4096 wide), and `tile_rows_for` picks a height of 128, 64 or 32
-  rows from the device's compute units and the projection's width.
+  (`shaders/matmul_tile.comp`).
+  The row count where the tile starts winning is one of four measured thresholds in `backends/device_profile.hpp` (8-bit or other types, narrower or at least 4096 wide), which `tile_from` takes once per call from the types of the projections that have rows.
+  A mixed-type group on the row kernel becomes a dispatch per type, each kept on the row kernel.
+  `tile_rows_for` picks a height of 128, 64 or 32 rows from the device's compute units and the projection's width.
 - Batch invariance: with row runs (`backend.hpp` `RowRuns`) a row's
   matmul kernel and split follow its prompt's extent rather than the
   call's width. Attention uses that extent for tiled versus row dispatch
@@ -105,17 +105,9 @@ kernel notes and measurements are `docs/VULKAN.md`.
   projection's slots land in scratch and `shaders/moe_combine.comp` adds
   their weighted sum to the residual; the grouping and the activation
   twin made for gate and up are reused by it.
-- The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16,
-  written and read through view tables. Attention can dispatch tiled and
-  row kernels plus a history-split merge in one layer. It gives views of 128-wide
-  heads whose prompt reaches 32 tokens to the tiled kernel
-  (`shaders/attention_tile.comp`) and the rest to the per-row kernel, which
-  splits a row's history into parts from the row's own length and merges
-  them (`shaders/attention_merge.comp`); once the longest row fills every
-  split, a workgroup takes up to four query heads of one KV head (the
-  `_g4` builds), loading the history once for them with each head's
-  arithmetic unchanged. Heads 128 wide take `shaders/attention_vec.comp`,
-  which reads a token's row in 16 lanes, one load a lane, and several
-  tokens a subgroup; other widths keep `attention.comp`.
+- The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16, written and read through view tables, so every view of a batch goes through one dispatch of each cache kernel.
+  Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
+  It gives views of 128-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
+  Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one load a lane, and several tokens a subgroup; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
-- `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`); routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory. `scratch_reserve(free)`: 256 MiB plus a twentieth of what is free, for tile split partials and attention merge state.
+- `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`), both reading the shape from one rule, `pads_f32`; routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory. `scratch_reserve(free)`: 256 MiB plus a twentieth of what is free, for tile split partials and attention merge state.

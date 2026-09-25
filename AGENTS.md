@@ -268,6 +268,7 @@ query/KV head ratios 1/2/4/8 and all four F32/F16 cache-side pairs, with nonzero
 inputs at long histories. Both rows of a mixed short/long pass must equal the
 same rows taken separately, bit for bit; CPU comparisons retain the bound
 `1e-4 * (1 + abs(reference))`.
+A group of a Q8_0 and a Q4_0 projection whose batch reaches the 8-bit tile crossover but not the other types' must equal each type alone forced onto the row kernel, bit for bit, on a device whose profile puts batches between the two.
 It exits 77, which CTest reports as skipped, when there is no loader, no
 device or a driverless loader.
 

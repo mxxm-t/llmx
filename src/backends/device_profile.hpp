@@ -1,9 +1,10 @@
 #pragma once
 // What a device backend needs to know about its device to shape its kernels, apart from any one vendor's API.
 // `DeviceCaps` holds what the hardware reports (subgroup width, compute units, names, the integer dot), filled by each backend from its own API.
-// `DeviceProfile` holds numbers found by measuring the kernels (lanes per block, tile crossovers, splits), shared across backends because the reasoning is the same.
+// `DeviceProfile` holds numbers found by measuring the kernels (lanes per row, tile crossovers, splits), shared across backends because the reasoning is the same.
+// A number a shader's layout fixes, such as the lanes that share a quant block, is a constant beside the kernels rather than a profile number, since another value would break the kernel rather than tune it.
 // A capability decides which kernel to launch; a profile number shapes the same kernel.
-// Bringing up a device: fill `DeviceCaps`, check whether a capability calls for a kernel that does not exist yet, measure, and give `profile_for` a row if the numbers differ.
+// Bringing up a device: fill `DeviceCaps`, check whether a capability calls for a kernel that does not exist yet, measure, and give `tuned_devices` a row that assigns the numbers measured there.
 // Branch on what a device reports, never on its vendor name.
 #include <cstddef>
 #include <cstdint>
@@ -32,14 +33,11 @@ struct DeviceCaps {
 // Numbers found by measuring the kernels on a device, which nothing in DeviceCaps implies.
 // Every device takes these defaults except where its row in tuned_devices below sets a number; the defaults of those numbers are a compromise between the devices measured (docs/VULKAN.md).
 struct DeviceProfile {
-    // Lanes sharing one Q8_0 block pair in the per-row matmul, and one K-quant block there (a 256-value block is eight groups of 32).
-    uint32_t q8_lanes_per_pair = 4;
-    uint32_t kquant_lanes = 8;
     // Lanes a Q6_K row takes at most on the 8-bit twin, so a subgroup takes several rows and one row's loads hide behind another's (docs/VULKAN.md).
     uint32_t q6k_row_lanes = 32;
     // Lanes a Q4_K or Q5_K row takes at most in the integer-dot row kernels; a short row spread over a whole subgroup leaves each lane a few bytes to read.
     uint32_t k45_row_lanes = 32;
-    // Query rows from which attention takes its tiled kernel.
+    // Prompt extent from which attention takes its tiled kernel; the query rows a tile holds are the kernel's own.
     size_t attention_tile_rows = 32;
     // Batch rows from which a matmul takes the tile kernel rather than the row kernel, for 8-bit and other types, narrow and wide rows; the crossover moves with the row width, and the values are measured (docs/VULKAN.md).
     size_t tile_from_8bit = 32, tile_from_8bit_narrow = 64, tile_from_other = 64;
@@ -65,47 +63,56 @@ struct DeviceProfile {
 struct TunedDevice {
     const char* device;              // a substring of what the device calls itself
     const char* driver;              // a substring of what its driver calls itself
-    // Where the tile matmul overtakes the per-row one: 8-bit projections at least 4096 wide and narrower, then the other types the same two ways.
-    size_t tile_from_8bit, tile_from_8bit_narrow, tile_from_other, tile_from_other_narrow;
-    bool prefer_integer_dot;         // whether the matmuls want the integer dot instructions
-    // Where a routed projection's tile overtakes its row kernel, by weight family as DeviceProfile orders them.
-    size_t moe_tile_from, moe_tile_from_q4, moe_tile_from_q4k, moe_tile_from_q5k;
-    uint32_t tile_tall_per_cu, tile_tall_per_cu_narrow;   // the tallest tile's fill, wide and narrow rows
+    void (*tune)(DeviceProfile&);    // assigns the numbers measured there, each by name
 };
 
 // The tuned devices: the tile crossover moves with the driver and with the tile kernel it runs, and a row measured against the integer-dot tile applies only where the device has the integer dot (docs/VULKAN.md).
 inline const TunedDevice* tuned_devices(size_t& count) {
     static const TunedDevice table[] = {
-        {"Radeon VII", "AMD proprietary", 32, 48, 64, 64, false, 32, 96, 64, 48, 1, 1},
-        {"MI60 / MI50", "radv", 16, 32, 24, 40, true, 32, 96, 64, 48, 4, 8},
+        {"Radeon VII", "AMD proprietary", [](DeviceProfile& p) {
+             p.tile_from_8bit = 32;
+             p.tile_from_8bit_narrow = 48;
+             p.tile_from_other = 64;
+             p.tile_from_other_narrow = 64;
+             p.prefer_integer_dot = false;
+             p.moe_tile_from = 32;
+             p.moe_tile_from_q4 = 96;
+             p.moe_tile_from_q4k = 64;
+             p.moe_tile_from_q5k = 48;
+             p.tile_tall_per_cu = 1;
+             p.tile_tall_per_cu_narrow = 1;
+         }},
+        {"MI60 / MI50", "radv", [](DeviceProfile& p) {
+             p.tile_from_8bit = 16;
+             p.tile_from_8bit_narrow = 32;
+             p.tile_from_other = 24;
+             p.tile_from_other_narrow = 40;
+             p.prefer_integer_dot = true;
+             p.moe_tile_from = 32;
+             p.moe_tile_from_q4 = 96;
+             p.moe_tile_from_q4k = 64;
+             p.moe_tile_from_q5k = 48;
+             p.tile_tall_per_cu = 4;
+             p.tile_tall_per_cu_narrow = 8;
+         }},
     };
     count = sizeof(table) / sizeof(table[0]);
     return table;
 }
 
-// The profile for a device: the tuned entry when its device and driver both match one, and the compromise defaults otherwise.
+// The profile for a device: the compromise defaults, tuned by the first row whose device and driver both match unless that row wants an integer dot the device lacks.
 inline DeviceProfile profile_for(const DeviceCaps& caps) {
-    DeviceProfile p;
+    const DeviceProfile defaults;
     size_t count = 0;
     const TunedDevice* table = tuned_devices(count);
     for (size_t i = 0; i < count; ++i) {
         if (caps.device.find(table[i].device) == std::string::npos) continue;
         if (caps.driver.find(table[i].driver) == std::string::npos) continue;
-        if (table[i].prefer_integer_dot && !caps.integer_dot) break;
-        p.tile_from_8bit = table[i].tile_from_8bit;
-        p.tile_from_8bit_narrow = table[i].tile_from_8bit_narrow;
-        p.tile_from_other = table[i].tile_from_other;
-        p.tile_from_other_narrow = table[i].tile_from_other_narrow;
-        p.prefer_integer_dot = table[i].prefer_integer_dot;
-        p.moe_tile_from = table[i].moe_tile_from;
-        p.moe_tile_from_q4 = table[i].moe_tile_from_q4;
-        p.moe_tile_from_q4k = table[i].moe_tile_from_q4k;
-        p.moe_tile_from_q5k = table[i].moe_tile_from_q5k;
-        p.tile_tall_per_cu = table[i].tile_tall_per_cu;
-        p.tile_tall_per_cu_narrow = table[i].tile_tall_per_cu_narrow;
-        break;
+        DeviceProfile p = defaults;
+        table[i].tune(p);
+        return p.prefer_integer_dot && !caps.integer_dot ? defaults : p;
     }
-    return p;
+    return defaults;
 }
 
 // Batch rows from which a matmul of this shape should take the tile kernel.

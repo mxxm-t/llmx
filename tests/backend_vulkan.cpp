@@ -904,6 +904,32 @@ size_t check_kernels(backend::Backend& vk) {
                 }
             }
         }
+        // A mixed group whose batch reaches the 8-bit crossover but not the other types' takes the row kernel for every partition, its Q8_0 one included, though that partition alone would take the tile (matmul_group_impl).
+        // So the group's Q8_0 and Q4_0 outputs equal, bit for bit, each type alone with a row run of extent 1, which forces the row kernel; the batches are the first and the last between the two crossovers, and a device whose crossovers meet at this width has none.
+        for (size_t nbatch : {tile_from_8bit, tile_from_other - 1}) {
+            if (nbatch < tile_from_8bit || nbatch >= tile_from_other) continue;
+            const auto x = uniform(nbatch * nin, 50 + (uint32_t)nbatch);
+            Pair::In xi = p.in(x);
+            const uint32_t types[2] = {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0};
+            Pair::Out grp[2] = {p.out(nbatch * nout), p.out(nbatch * nout)};
+            Pair::Out alone[2] = {p.out(nbatch * nout), p.out(nbatch * nout)};
+            p.vk.matmul_group({{types[0], wqi.vs(), grp[0].vs(), nout}, {types[1], w4i.vs(), grp[1].vs(), nout}},
+                              xi.vs(), nin, nbatch);
+            const backend::RowRun decode{nbatch, 1};
+            for (int i = 0; i < 2; ++i)
+                p.vk.matmul(types[i], (i == 0 ? wqi : w4i).vs(), xi.vs(), alone[i].vs(), nin, nout, nbatch, {&decode, 1});
+            for (int i = 0; i < 2; ++i) {
+                std::vector<float> a(alone[i].n), b(grp[i].n);
+                p.vk.read(*alone[i].v, 0, a.data(), a.size() * sizeof(float));
+                p.vk.read(*grp[i].v, 0, b.data(), b.size() * sizeof(float));
+                try {
+                    values += exact(a, b, "a mixed group's partition left the row kernel the group chose");
+                } catch (const std::runtime_error&) {
+                    std::fprintf(stderr, "  mixed group on the row kernel: type %u, nin %zu, %zu columns\n", types[i], nin, nbatch);
+                    throw;
+                }
+            }
+        }
     }
     // The KV cache: the same token-major rows written through each backend's own storage and block size, then attention over each backend's own view.
     // Histories straddle the device's 64-token blocks and the CPU's 128; two views in one call.

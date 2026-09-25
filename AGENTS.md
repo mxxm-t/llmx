@@ -412,7 +412,8 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
 - **Layer split** (`tools/split_check.cpp`, target `llmx-split-check`): a
   model on one device against the same model split in equal shares over a
   comma-separated list of devices of the same kind (default `0,1`; a device
-  is `cpu` or a Vulkan index), with optional decode steps and ubatch, as raw
+  is `cpu` or a Vulkan index), with optional decode steps, ubatch and cache
+  type (`f16`, the default, or `f32`, both sides of both models), as raw
   float logits compared with `memcmp`: every position of a scored text
   through the prompt path, the prefill in chunks of the ubatch, which a split
   pipelines over its stages, and greedy decode steps, then three passes of a

@@ -602,7 +602,10 @@ void model_transaction() {
     auto plain = std::make_shared<backend::CpuBackend>();
     cpu->set_threads(1);
     plain->set_threads(1);
-    infer::Model model(weights, cpu), control(weights, plain);
+    // The history's bytes are counted below as f32 sides.
+    infer::ModelOptions f32;
+    f32.kv_k = f32.kv_v = backend::KVType::f32;
+    infer::Model model(weights, cpu, f32), control(weights, plain, f32);
     model.set_ubatch(2);
     control.set_ubatch(2);
 
@@ -652,7 +655,7 @@ void model_transaction() {
     model.set_ubatch(3);
     control.set_ubatch(3);
     {
-        infer::Model fresh(weights, plain);
+        infer::Model fresh(weights, plain, f32);
         fresh.set_ubatch(3);
         // The arena for ubatch 3 on this fixture is 1216 bytes; nothing else allocated during prefill comes close, so this selects it alone.
         fail_min_bytes = 1024;

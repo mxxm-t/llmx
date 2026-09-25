@@ -32,8 +32,8 @@ struct GenParams {
     int threads = 0;        // 0 = auto; used for generation (decode)
     int threads_batch = 0;  // 0 = same as threads; used for prefill
     int ubatch = 0;         // physical batch for prefill (0 = default 512)
-    std::string cache_type_k = "f16";   // KV cache storage per side: f16 or f32
-    std::string cache_type_v = "f16";
+    std::string cache_type_k;   // KV cache storage per side as given, f16 or f32; empty keeps the model's default (ModelOptions)
+    std::string cache_type_v;
     int kv_tokens = 0;      // the KV pool's total token budget (0 = the model context)
     std::string device = "cpu"; // backend: cpu, or vulkan:N when built with it; several, comma separated, split the model by layers over them
     std::string layer_shares;   // with several devices, their proportions of the layers, comma separated; empty fits them to the devices' free memory

@@ -1,5 +1,5 @@
 // A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
-// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch]; a device is `cpu` or a Vulkan index.
+// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type]; a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default (f16) when left out.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -54,7 +54,7 @@ static size_t mixed(infer::Model& one, infer::Model& two, const std::vector<uint
 
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch]\n");
+        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32]\n");
         return 2;
     }
     try {
@@ -68,6 +68,7 @@ int main(int argc, char** argv) {
         if (ids.size() < 2) throw std::runtime_error("the text holds fewer than two tokens");
 
         infer::ModelOptions options;
+        if (argc > 7) options.kv_k = options.kv_v = backend::kv_type_of(argv[7]);
         options.kv_tokens = 4096;
         infer::Model one(m, backend::make_backend(name(single)), options);
         one.set_ubatch(ubatch);
@@ -80,7 +81,7 @@ int main(int argc, char** argv) {
         request.ubatch = ubatch;
         infer::PlacedModel placed = infer::place_model(m, backend::make_backends(request.names), request, options);
         infer::Model& two = *placed.model;
-        std::printf("%s: %zu tokens; single %s, split:\n%s", argv[1], ids.size(), name(single).c_str(), placed.plan.c_str());
+        std::printf("%s: %zu tokens, %s caches; single %s, split:\n%s", argv[1], ids.size(), backend::kv_type_name(options.kv_k), name(single).c_str(), placed.plan.c_str());
 
         const size_t vocab = one.n_vocab();
         std::vector<float> scored(ids.size() * vocab);

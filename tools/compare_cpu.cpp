@@ -57,7 +57,9 @@ int main(int argc, char ** argv) {
     std::vector<llama_token> ref_ids(ids.begin(), ids.end());
 #else
     auto weights = gguf::read_gguf(argv[1]);
-    infer::Model model(weights);
+    infer::ModelOptions options;
+    options.kv_k = options.kv_v = backend::KVType::f32;
+    infer::Model model(weights, backend::make_cpu_backend(), options);
     model.set_threads(threads);
     model.set_ubatch(128);
 #endif

@@ -55,16 +55,10 @@ bool show_progress(const infer::GenParams& gp) {
 #endif
 }
 
-// --cache-type-k / --cache-type-v: the same two names on every backend.
-backend::KVType kv_type_of(const std::string& name) {
-    if (name == "f32") return backend::KVType::f32;
-    if (name == "f16") return backend::KVType::f16;
-    throw std::runtime_error("unknown cache type '" + name + "' (f32 or f16)");
-}
 infer::ModelOptions model_options(const infer::GenParams& gp) {
     infer::ModelOptions o;
-    o.kv_k = kv_type_of(gp.cache_type_k);
-    o.kv_v = kv_type_of(gp.cache_type_v);
+    if (!gp.cache_type_k.empty()) o.kv_k = backend::kv_type_of(gp.cache_type_k);
+    if (!gp.cache_type_v.empty()) o.kv_v = backend::kv_type_of(gp.cache_type_v);
     o.kv_tokens = gp.kv_tokens > 0 ? (size_t)gp.kv_tokens : 0;
     return o;
 }
@@ -676,6 +670,7 @@ bool print_usage(const std::string& command = {}) {
         return true;
     }
     const infer::GenParams defaults;
+    const infer::ModelOptions caches;
     const auto model_options = [&](bool batch_threads) {
         std::cout << "\nExecution options:\n"
             << "  --device D              cpu (default), or vulkan:N when built with Vulkan;\n"
@@ -687,8 +682,8 @@ bool print_usage(const std::string& command = {}) {
             << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
         std::cout
             << "  --ubatch N              Prompt tokens per pass (default: 512)\n"
-            << "  --cache-type-k T, -ctk  Key cache: f16 (default) or f32\n"
-            << "  --cache-type-v T, -ctv  Value cache: f16 (default) or f32\n"
+            << "  --cache-type-k T, -ctk  Key cache: f16 or f32 (default: " << backend::kv_type_name(caches.kv_k) << ")\n"
+            << "  --cache-type-v T, -ctv  Value cache: f16 or f32 (default: " << backend::kv_type_name(caches.kv_v) << ")\n"
             << "  --n-cpu-moe N           First N routed layers' experts on CPU (default: 0)\n"
             << "  --cpu-moe               All routed layers' experts on CPU\n"
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"

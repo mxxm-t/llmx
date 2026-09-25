@@ -197,9 +197,10 @@ struct Placement {
 };
 
 // Choices made once at construction, before the caches are allocated: how each cache side is stored (backend.hpp KVType, the CLI's --cache-type-k and --cache-type-v), the same on every backend or refused.
+// The runtime's default cache type is set here and nowhere else: the CLI changes a side only when its flag is given.
 struct ModelOptions {
-    backend::KVType kv_k = backend::KVType::f32;
-    backend::KVType kv_v = backend::KVType::f32;
+    backend::KVType kv_k = backend::KVType::f16;
+    backend::KVType kv_v = backend::KVType::f16;
     // Tokens the KV pool holds in total, shared by every sequence; zero means one model context, which is what one conversation needs and what a server divides among its requests unless told otherwise.
     size_t kv_tokens = 0;
 };

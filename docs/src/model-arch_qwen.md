@@ -66,7 +66,9 @@ to a `backend::Backend`.
 - `ModelOptions`: what is fixed at construction, before the caches are
   allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
   `--cache-type-k` and `--cache-type-v`) and `kv_tokens`, the positions
-  every pool holds, zero for one model context.
+  every pool holds, zero for one model context. Both sides default to
+  `KVType::f16`, the runtime's one default: the CLI, the server, the
+  synthetic bench and the split check all start from it.
 - `Sequence`: one request's history over a model's cache, made by
   `Model::make_sequence`: a block table per storage and the committed
   length, and per device the ticket of the last pass that touched it, which

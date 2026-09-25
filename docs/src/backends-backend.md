@@ -61,7 +61,9 @@ placement contracts in `docs/EXECUTION.md`.
   the paged KV cache in `docs/KV-CACHE.md`. Each side is stored as
   `KVType::f32` or `KVType::f16` (the CLI's `--cache-type-k` and
   `--cache-type-v`), and a backend without a type throws rather than
-  substituting one. The backend chooses the block size and
+  substituting one. `kv_type_of(name)` and `kv_type_name(type)` hold the
+  two names, `f32` and `f16`, the same on every backend; an unknown name
+  throws. The backend chooses the block size and
   the layout inside a block; the model layer hands it `KVView`s (storage
   handle, block table, committed length, `nq` rows of this pass, and the
   rows' extent as in `RowRuns`) and never computes an offset. Rows are laid out in view order and view `v`'s rows go

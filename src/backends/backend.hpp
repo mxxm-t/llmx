@@ -7,6 +7,7 @@
 #include <initializer_list>
 #include <limits>
 #include <optional>
+#include <string>
 
 // Backends own storage and parallelize primitive ops; models use buffer handles and own multi-device placement.
 // The execution and ownership contracts are in docs/DEVICE-EXECUTION.md.
@@ -97,6 +98,13 @@ inline size_t blocks_for(size_t tokens, size_t block_tokens) {
 // How a cache side is stored; the CLI's --cache-type-k and --cache-type-v.
 enum class KVType { f32, f16 };
 inline size_t kv_elem_bytes(KVType t) { return t == KVType::f16 ? 2 : 4; }
+// The same two names on every backend.
+inline KVType kv_type_of(const std::string& name) {
+    if (name == "f32") return KVType::f32;
+    if (name == "f16") return KVType::f16;
+    throw std::runtime_error("unknown cache type '" + name + "' (f32 or f16)");
+}
+inline const char* kv_type_name(KVType t) { return t == KVType::f16 ? "f16" : "f32"; }
 
 class KVStorage {
 public:

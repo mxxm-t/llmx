@@ -8,7 +8,10 @@ sampler drives generate and chat. Perplexity reuses thread parameters only. Name
 - `GenParams`: `max_tokens`, `temp`, `top_k`, `top_p`, `threads`, `threads_batch`, `ubatch`,
   `cache_type_k`, `cache_type_v`, `kv_tokens`, `device`, `layer_shares`,
   `cpu_moe`, `moe_stream_from`, `penalty`, `seed`, `stop`,
-  `show_prompt_tokens`.
+  `show_prompt_tokens`. `cache_type_k` and `cache_type_v` hold a cache
+  type only as `--cache-type-k` and `--cache-type-v` give it and are empty
+  otherwise, which keeps the model's default (`ModelOptions`,
+  `model/arch_qwen.hpp`).
 - `sample(logits, temp, top_k, top_p, penalty, gen, rng) -> uint32_t`:
   temperature + top-k + top-p nucleus sampling with repetition penalty.
   Returns the chosen token id.

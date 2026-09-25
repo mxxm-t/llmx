@@ -36,8 +36,11 @@ BOUNDS = {
 }
 
 with io.open(FIXTURES, encoding="utf-8") as f:
-    BASELINE_MODELS = [dict(spec, **BOUNDS[spec["file"]]) for spec in json.load(f)]
-assert set(BOUNDS) == {spec["file"] for spec in BASELINE_MODELS}, "every pinned fixture model needs bounds, and only those"
+    PINNED = json.load(f)
+# Every pinned fixture model needs bounds, and only those, each pinned once.
+assert sorted(spec["file"] for spec in PINNED) == sorted(BOUNDS), (
+    "tests/data/fixtures.json pins %s, but tests/baseline.py bounds %s" % (sorted(spec["file"] for spec in PINNED), sorted(BOUNDS)))
+BASELINE_MODELS = [dict(spec, **BOUNDS[spec["file"]]) for spec in PINNED]
 
 # A correct next-token logit for these models sits around 15-25.
 # Gross corruption blows this up (the reintroduced f16 bug gave 582), so a magnitude bound catches whole classes of damage that a ranking check can miss.

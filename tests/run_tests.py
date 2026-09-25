@@ -76,12 +76,13 @@ def main():
                   ("chat", chat.run),
                   ("threads", threads.run),
                   ("baseline", baseline.run)]
-    if args.only:
+    # An empty name, from --only "" or a stray comma, is refused like any other name the suite does not have.
+    if args.only is not None:
         only = args.only.split(",")
         unknown = [name for name in only if name not in dict(components)]
         if unknown:
             parser.error("unknown component %s; the components are %s"
-                         % (", ".join(unknown), ", ".join(name for name, _ in components)))
+                         % (", ".join(repr(name) for name in unknown), ", ".join(name for name, _ in components)))
         components = [(name, fn) for name, fn in components if name in only]
     results = []
     for name, fn in components:

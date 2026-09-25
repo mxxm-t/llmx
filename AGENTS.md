@@ -425,7 +425,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   real model, so it SKIPS when none is on disk; point it at one with
   `LLMX_BASELINE_GGUF`.
   Otherwise each check, the tokenizer's included, reads its model from the HF cache at the revision `BASELINE_MODELS` pins, the path `tools/fetch_test_models.py` downloads to.
-  Its models are pinned in `tests/data/fixtures.json` (repo, revision, file and SHA-256), which `tools/fetch_test_models.py` downloads, and their bounds sit in `tests/baseline.py`.
+  Its models are pinned in `tests/data/fixtures.json` (repo, revision, file and SHA-256), which `tools/fetch_test_models.py` downloads, and their bounds sit in `tests/baseline.py`, which refuses to load unless each pinned file has bounds and each bounded file is pinned once.
   Every perplexity cell is scored twice, in batched
   passes (the default) and with `--per-token`, so the prompt and decode
   kernels both meet the reference.

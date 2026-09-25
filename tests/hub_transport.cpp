@@ -1,6 +1,7 @@
 #include "hub/transport.hpp"
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <cstdlib>
 #include <fstream>
 #include <future>
@@ -180,7 +181,7 @@ int main(int argc, char** argv) {
         require(reject("206") == 206, "unexpected206 accepted");
         require(reject("500") == 500, "HTTP error status missing");
         for (const auto& sample : std::vector<std::pair<std::string,unsigned>>{
-                 {"retry",7}, {"retry-large",61}, {"retry-date",0}, {"retry-negative",0}, {"retry-duplicate",0}, {"retry-503",7}}) {
+                 {"retry",7}, {"retry-large",UINT_MAX}, {"retry-date",0}, {"retry-negative",0}, {"retry-duplicate",0}, {"retry-503",7}}) {
             bool caught = false;
             try { get(sample.first); }
             catch (const hub::TransportError& e) {

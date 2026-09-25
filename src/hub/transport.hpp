@@ -361,8 +361,8 @@ inline Response download_with(const std::filesystem::path& executable,
         if (values && values->isArray() && values->arr.size() == 1 && values->arr[0].isString()) {
             const auto& text = values->arr[0].str;
             if (!text.empty() && text.find_first_not_of("0123456789") == std::string::npos)
-                // 61 is a refusal sentinel: never retry earlier than a longer server delay.
-                for (char c : text) retry = std::min(61u, retry * 10 + unsigned(c - '0'));
+                // Saturates only so a long value cannot wrap; pull owns the longest wait it accepts.
+                for (char c : text) retry = unsigned(std::min<uint64_t>(UINT_MAX, retry * uint64_t(10) + unsigned(c - '0')));
         }
     }
     if (result.code) throw TransportError("curl transfer failed (exit " + std::to_string(result.code) +

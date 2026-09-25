@@ -18,6 +18,7 @@ handles. POSIX marks owned descriptors close-on-exec and protects against SIGPIP
 Owned children are reaped on success or exception. Curl 8.4+ supplies TLS,
 credential stripping on cross-origin redirects and bounded transfers. Full
 requests require HTTP 200; ranges require 206, exact Content-Range and byte count.
+A numeric Retry-After is reported as sent, saturating instead of wrapping; `pull.hpp` decides which waits it accepts.
 The internal executable override exists for native fake-child tests, not as a
 runtime option. See [curl's documentation](https://curl.se/docs/manpage.html).
 

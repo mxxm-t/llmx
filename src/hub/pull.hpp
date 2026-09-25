@@ -22,6 +22,9 @@ using PullProgress = std::function<void(const std::string&)>;
 
 namespace pull_detail {
 
+constexpr unsigned max_retry_after_seconds = 60;
+constexpr uint64_t max_metadata_bytes = 16 * 1024 * 1024;
+
 inline std::filesystem::path default_cache() {
 #ifdef _WIN32
     const DWORD count = GetEnvironmentVariableW(L"USERPROFILE", nullptr, 0);
@@ -61,7 +64,8 @@ public:
 
 inline std::string read_metadata(const std::filesystem::path& path) {
     const auto size = std::filesystem::file_size(path);
-    if (size > 16 * 1024 * 1024) throw std::runtime_error("pull: Hub metadata exceeds 16 MiB");
+    if (size > max_metadata_bytes)
+        throw std::runtime_error("pull: Hub metadata exceeds " + std::to_string(max_metadata_bytes / (1024 * 1024)) + " MiB");
     std::ifstream input(path, std::ios::binary);
     input.exceptions(std::ios::badbit | std::ios::failbit);
     std::string text(size_t(size), '\0');
@@ -145,8 +149,9 @@ inline void request(Fetch& fetch, const std::string& url, const std::string& tok
         try { fetch(url, token, destination, limit, range); return; }
         catch (const TransportError& error) {
             if (attempt == 4 || !transient(error)) throw;
-            if (error.retry_after_seconds > 60)
-                throw TransportError("server requests a wait longer than 60 seconds; retry the pull later", error.status, error.curl_code);
+            if (error.retry_after_seconds > max_retry_after_seconds)
+                throw TransportError("server requests a wait longer than " + std::to_string(max_retry_after_seconds) +
+                                     " seconds; retry the pull later", error.status, error.curl_code);
             const unsigned seconds = std::max(1u << attempt, error.retry_after_seconds);
             std::this_thread::sleep_for(std::chrono::seconds(seconds));
         }
@@ -231,7 +236,7 @@ inline std::filesystem::path pull(PullOptions options, const PullProgress& progr
     const std::string url = "https://huggingface.co/api/models/" + options.repo + "/revision/" +
                             url_encode(options.revision) + "?blobs=true";
     const auto metadata = temporary.path / "metadata.json";
-    request(fetch, url, options.token, metadata, 16 * 1024 * 1024);
+    request(fetch, url, options.token, metadata, max_metadata_bytes);
     const Manifest manifest = select(read_metadata(metadata), options.quant, options.filename);
     if (hex_digest(options.revision, 40) && manifest.revision != options.revision)
         throw std::runtime_error("pull: Hub returned a different revision");

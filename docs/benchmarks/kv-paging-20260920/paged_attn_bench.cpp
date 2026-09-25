@@ -1,7 +1,7 @@
 // Measures what paging the KV cache costs CPU attention: a contiguous layout against a block table (docs/KV-CACHE.md).
 // The KV is cold, a pool of distinct KV sets rotated so no iteration reads from cache, and the block table is shuffled, since sequential blocks would look contiguous and flatter paging.
 // Usage: paged_attn_bench [n_past] [iters] [heads] [kv_heads] [repeats]; each repeat times both arms back to back and the median paired ratio is reported.
-// Build: cl /O2 /arch:AVX2 /EHsc tools/paged_attn_bench.cpp
+// Build: cl /O2 /arch:AVX2 /EHsc paged_attn_bench.cpp
 #include <algorithm>
 #include <chrono>
 #include <cmath>

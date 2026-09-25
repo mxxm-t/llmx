@@ -33,16 +33,17 @@ token.
 
 ## Measured before deciding
 
-`tools/paged_attn_bench.cpp` (build: `cl /O2 /arch:AVX2 /EHsc`) runs decode
+`paged_attn_bench.cpp` (build: `cl /O2 /arch:AVX2 /EHsc`) runs decode
 attention for one layer over a pool of KV sets larger than cache and with
 shuffled block tables, so it measures cold memory and real indirection rather
 than a sequentially allocated best case. Seven paired repeats per cell, one
 thread, 2026-09-20 on the Ryzen 7 5800X; each cell is the median paired
-ratio of paged over contiguous ms/step. Raw output, commands, source and
-binary hashes and the activity monitor are in
-`docs/benchmarks/kv-paging-20260920/`. System CPU during the run averaged
-12.7% of 16 logical CPUs (one busy thread is 6.25%), so other activity was
-present and every sample is kept.
+ratio of paged over contiguous ms/step. The source, the raw output and
+commands, the source and binary hashes and the activity monitor summary are
+in `docs/benchmarks/kv-paging-20260920/`; the kept source differs from the
+measured one, commit `0173ee6`, only in its comments. System CPU during the
+run averaged 12.7% of 16 logical CPUs (one busy thread is 6.25%), so other
+activity was present and every sample is kept.
 
 | Block tokens | 0.6B shape (16/8 heads) n_past 256 / 840 / 2048 | 8B shape (32/8 heads) 256 / 840 / 2048 |
 |---|---|---|

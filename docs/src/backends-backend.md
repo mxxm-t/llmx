@@ -56,9 +56,12 @@ placement contracts in `docs/EXECUTION.md`.
   are the logits a caller reads directly, so a backend may keep more
   precise activations for it; the Vulkan backend keeps the 16-bit twin for
   a Q4_0, Q4_1 or Q6_K head.
-- `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, max_tokens)`,
-  `kv_write(layer, views, n_views, k, v)`: the backend-owned half of the
-  paged KV cache in `docs/KV-CACHE.md`. The backend chooses the block size and
+- `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type,
+  v_type)`, `kv_write(layer, views, n_views, k, v)`: the backend-owned half of
+  the paged KV cache in `docs/KV-CACHE.md`. Each side is stored as
+  `KVType::f32` or `KVType::f16` (the CLI's `--cache-type-k` and
+  `--cache-type-v`), and a backend without a type throws rather than
+  substituting one. The backend chooses the block size and
   the layout inside a block; the model layer hands it `KVView`s (storage
   handle, block table, committed length, `nq` rows of this pass, and the
   rows' extent as in `RowRuns`) and never computes an offset. Rows are laid out in view order and view `v`'s rows go
@@ -119,7 +122,10 @@ placement contracts in `docs/EXECUTION.md`.
 - `matmul_experts_add(type, data, X, Y, nin, nout, nrows, routing, runs)`:
   the routed down projection joining the residual, row `r` of `Y` adding
   the weighted sum of its k slots, formed in slot order before the add.
-- `BackendPtr` / factory (`make_cpu_backend`).
+- `BackendPtr`: the shared handle a backend is held by. The factories live
+  with their backends, `make_cpu_backend` in `cpu/cpu_backend.hpp` and
+  `make_vulkan_backend` in `vulkan/vulkan_backend.hpp`, and `devices.hpp`
+  picks one by device spec.
 
 The batched forms exist so the model layer holds no elementwise loops and needs
 no host parallelism of its own: one call per layer rather than one per row, or
@@ -136,7 +142,9 @@ the call before body entry. Its default implementation invokes the body directly
 Backends may use this boundary to scope execution policy across all prompt
 microbatches without putting platform details in the model layer.
 
-`dot_q8_0` and `matvec_q8_0` are absent from the device-neutral `Backend`
-interface, which uses `matmul`. The concrete `CpuBackend` retains a public
-`matvec_q8_0` implementation helper. It is not a primitive another vendor
-backend must implement.
+`dot_q8_0` and `matvec_q8_0` left the device-neutral `Backend` interface
+for `matmul` (`docs/DEVICE-EXECUTION.md`, step 3). `CpuBackend` keeps a
+public `matvec_q8_0` as the float reference path of a Q8_0 decode row
+(`backends-cpu.md`), not a primitive another backend implements; the
+`q8::dot_q8_0` of `cpu/q8_dots.hpp` is a different function, the integer
+dot of a Q8_0 row against quantized activations.

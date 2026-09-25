@@ -67,13 +67,11 @@ for this work; CMake finds it through `VULKAN_SDK`.
   to start. `LLMX_HAS_BACKEND_VULKAN` still gates the code, because the
   headers and the shader compiler are the SDK.
 - **Shaders are GLSL source in the tree**, `src/backends/vulkan/shaders/`,
-  compiled to SPIR-V by `glslc` at build time and embedded in a generated
-  header as `uint32_t` arrays. The binary carries its kernels; there are
+  compiled to SPIR-V by `glslc` at build time, one generated `.inc` of
+  comma-separated `uint32_t` words per kernel, which `vulkan_backend.cpp`
+  includes as an array. The binary carries its kernels; there are
   no files to find at run time and no runtime compiler. `build.bat` stays
   CPU-only.
-- **Validation layers are a CMake option**, `LLMX_VULKAN_VALIDATION`, off
-  by default. Not an environment variable: it changes behaviour and must
-  be visible in how the binary was built.
 
 ## Structure
 

@@ -12,14 +12,21 @@ kernel notes and measurements are `docs/VULKAN.md`.
   subgroups of 32 lanes or more, 16-bit integers, timeline semaphores,
   push descriptors); anything missing throws `VulkanUnavailable`, which
   the test skips on and the CLI reports, as does a loader with no driver
-  behind it.
+  behind it. The device's `DeviceCaps` choose its `DeviceProfile`
+  (`backends/device_profile.hpp`), which `vulkan_device_profile` returns so
+  the test predicts the kernel the backend picks.
 - `vulkan_kernel_statistics` returns the driver's per-kernel registers,
   shared memory and scratch when the device serves them, which the test
   prints after its checks. With `diagnostics` the backend also captures
   the driver's disassembly of each kernel, which
   `vulkan_kernel_representations` returns and `backend-vulkan --isa DIR`
-  writes one file per kernel. Both are read-only reporting: nothing in
-  the runtime path depends on them.
+  writes one file per kernel, and on a queue that timestamps it times the
+  dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
+  since the last reading, waiting for the queue, and
+  `vulkan_timed_dispatches` how many dispatches that reading covered, the
+  query pool sampling a long interval's first ones (`bench --profile`). All
+  of these are read-only reporting: nothing in the runtime path depends on
+  them.
 - Buffers are `VulkanBuffer`, device-local or host-visible, sized in whole
   32-bit words; every op is
   recorded into a ring of command buffers and submitted in chunks of 64
@@ -53,11 +60,15 @@ kernel notes and measurements are `docs/VULKAN.md`.
   Q6_K rows of the output head (`matmul_logits`). Each row kernel is built
   for eight columns and for one (specialization constant 0), the
   one-column build taken when a chunk is one wide, except the wide Q8_0
-  kernel. The Q4, Q4_K, Q5_K and Q6_K families are built a second time with
-  `LLMX_DOT` for integer-dot devices, and the Q4 and Q6_K families a third
-  with `LLMX_X8` for the 8-bit twin, whose Q6_K rows take at most 32 lanes; there Q8_0 rows take
-  `shaders/matmul_vec_q8.comp`, the four-wide dot over the 8-bit twin, and
-  F32 rows the plain build.
+  kernel, and a third pipeline is the eight-column build grouped by expert
+  (specialization constant 8, Mixture of experts below). For integer-dot
+  devices the Q4 (Q4_0 and Q4_1) and Q6_K families are built again with
+  `LLMX_DOT` over the 16-bit twin, which only their output head takes, and
+  with `LLMX_DOT` and `LLMX_X8` over the 8-bit twin, whose rows take at
+  most `q6k_row_lanes` lanes; the Q4_K and Q5_K families have only the
+  8-bit dot build, whose rows take at most `k45_row_lanes`. There Q8_0 rows
+  take `shaders/matmul_vec_q8.comp`, the four-wide dot over the 8-bit twin,
+  and F32 rows the plain build.
 - Wide batches take a tile kernel. Where the profile sets
   `prefer_integer_dot`, every quantized type goes through the 8-bit
   integer-dot tile (`shaders/matmul_tile_q.comp`, Q6_K in its own module
@@ -85,7 +96,10 @@ kernel notes and measurements are `docs/VULKAN.md`.
   workgroup row with its expert's offset on the weight rows, and a tile
   runs one tile of up to 64 entries of one expert from the grouping
   `shaders/moe_group.comp` writes, a workgroup per expert in a stable
-  order. A row's entries take the tile when its prompt's extent reaches the
+  order. Generated tokens with at least twice as many entries as experts
+  take the row kernels' grouped pipeline over the same grouping, a run of
+  up to eight entries of one expert per workgroup row, so the expert's rows
+  are read once per run. A row's entries take the tile when its prompt's extent reaches the
   weight type's `moe_tile_from_for` (`device_profile.hpp`); a routed tile is never split, so an entry
   computes the same whatever else is routed beside it. The down
   projection's slots land in scratch and `shaders/moe_combine.comp` adds

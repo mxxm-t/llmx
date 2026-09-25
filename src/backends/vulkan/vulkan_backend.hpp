@@ -20,7 +20,7 @@ struct VulkanUnavailable : std::runtime_error {
 
 // The backend over physical device `device`, counted as the loader lists them.
 // Throws VulkanUnavailable when there is nothing usable to open.
-// With `diagnostics`, the driver's internal representations of the kernels are captured for `vulkan_kernel_representations`.
+// With `diagnostics`, the driver's internal representations of the kernels are captured for `vulkan_kernel_representations`, and on a queue that timestamps the dispatches are timed for `vulkan_kernel_times`.
 BackendPtr make_vulkan_backend(int device, bool diagnostics = false);
 
 // The device's name as the driver reports it, for the CLI and the tests.

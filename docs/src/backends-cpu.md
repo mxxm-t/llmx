@@ -20,11 +20,13 @@ the compiled binary portable to older CPUs.
 - `read`, `write` and `copy` accept valid zero-byte ranges, including empty
   buffers and an offset exactly at the end. Range checks still reject offsets
   past the end, and a nonempty write still requires a non-null source.
-- `matvec_q8_0`: fused dequant+FMA AVX2 row dot, kept for the single-column
-  (decode) case. It streams weight blocks; native sampled instruction locations
-  alone do not establish DRAM bandwidth saturation or memory-stall causes.
-- Q4_K, Q5_K and Q6_K decode also have fused row dots. F16C availability is cached and used
-  for half conversion where supported.
+- `matvec_q8_0` and the fused Q4_K, Q5_K and Q6_K row dots: the float
+  reference path of a decode row, fused dequant+FMA AVX2 dots taken only
+  when the quantized decode dots are off (`set_decode_activations8(false)`,
+  below); decode otherwise takes `q8_dots.hpp`. `matvec_q8_0` streams weight
+  blocks; native sampled instruction locations alone do not establish DRAM
+  bandwidth saturation or memory-stall causes. F16C availability is cached
+  and used for half conversion where supported.
 - `matmul`: type-generic batched matmul. Dequantizes `DOT_ROWS` weight rows
   through the registry, then walks the batch. `dot_f32_x4` loads each
   activation vector once and reuses it across those 4 rows, because the naive

@@ -282,7 +282,7 @@ benchmarkable against the floor.
 |---|---|---|
 | 1 | Pre-resolve tensors into `LayerWeights` (**done**) | Expected neutral; no admissible measurement |
 | 2 | Batched elementwise ops (`rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` (**done**) | Measured; `silu_mul` helps prefill, which reads and writes three `n_ff * B` streams |
-| 3 | `Buffer`, `alloc`/`adopt`/`read`/`copy`; weights become buffers; delete `dot_q8_0` / `matvec_q8_0` (**done**) | Measured neutral over 15 and 9 pairs |
+| 3 | `Buffer`, `alloc`/`adopt`/`read`/`copy`; weights become buffers; `dot_q8_0` / `matvec_q8_0` leave the interface, `CpuBackend` keeping `matvec_q8_0` as its float Q8_0 decode path (**done**) | Measured neutral over 15 and 9 pairs |
 | 4 | Activation arena; op signatures take buffer + offset (**done**) | Measured neutral over 15 and 9 pairs, twice |
 | 5 | KV blocks on buffers (the view contract is already in place) (**done**) | Measured neutral over three 15-pair runs and one of 9 |
 | 6 | `sync()` and the enqueue contract (**done**) | Neutral - no-op on CPU |

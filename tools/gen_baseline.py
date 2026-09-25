@@ -35,6 +35,8 @@ GGUF_FILE = "Qwen3-0.6B-Q8_0.gguf"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "tests", "data")
+# The synthetic fixtures' configurations, weights and texts come from the test modules that check them.
+sys.path.insert(0, os.path.join(ROOT, "tests"))
 REFERENCE_REVISION = "c1899de289a04d12100db370d81485cdf75e47ca"
 
 # Each case targets a class of pretokenizer behaviour.
@@ -200,45 +202,63 @@ def _write(path, doc):
         f.write("\n")
 
 
+def tiny_qwen3(tied):
+    """The tiny dense model of tests/f32.py as an HF Qwen3ForCausalLM with eager attention, holding the weights f32.tensors builds; returns the model and those weights."""
+    import torch
+    from transformers import Qwen3Config, Qwen3ForCausalLM
+    from f32 import CONFIG, VOCAB, tensors
+
+    config = Qwen3Config(vocab_size=VOCAB, hidden_size=CONFIG["embedding_length"],
+                         intermediate_size=CONFIG["feed_forward_length"], num_hidden_layers=CONFIG["block_count"],
+                         num_attention_heads=CONFIG["attention.head_count"],
+                         num_key_value_heads=CONFIG["attention.head_count_kv"], head_dim=CONFIG["attention.key_length"],
+                         max_position_embeddings=CONFIG["context_length"], rope_theta=10000.0,
+                         rms_norm_eps=1e-6, tie_word_embeddings=tied, attention_dropout=0.0)
+    config._attn_implementation = "eager"
+    model = Qwen3ForCausalLM(config).float().eval()
+    weights = tensors(tied)
+    state = {name: torch.tensor(values, dtype=torch.float32).reshape(list(reversed(shape)))
+             for _, name, shape, values in weights}
+    if tied:
+        state["lm_head.weight"] = state["model.embed_tokens.weight"]
+    model.load_state_dict(state, strict=True)
+    return model, weights
+
+
+def reference_outputs(model, torch):
+    """A tiny model's goldens over the texts of tests/f32.py: all logits at each text's last position, then the mean NLL of the longest text in windows of 4 and of 16 tokens."""
+    from f32 import TEXTS
+
+    cases, perplexity = [], []
+    with torch.inference_mode():
+        for text in TEXTS:
+            ids = torch.tensor([list(text.encode("ascii"))])
+            logits = model(ids, use_cache=False).logits[0, -1]
+            cases.append({"text": text, "logits": logits.tolist()})
+        ids = torch.tensor([list(TEXTS[-1].encode("ascii"))])
+        for context in (4, 16):
+            total, targets = 0.0, 0
+            for window in ids.split(context, dim=1):
+                if window.shape[1] < 2:
+                    continue
+                logits = model(window, use_cache=False).logits[0, :-1].double()
+                loss = torch.logsumexp(logits, -1) - logits.gather(1, window[0, 1:, None]).squeeze(1)
+                total += loss.sum().item()
+                targets += loss.numel()
+            perplexity.append({"context": context, "mean_nll": total / targets})
+    return cases, perplexity
+
+
 def gen_f32(output_dir=OUT_DIR):
     import torch
     import transformers
-    from transformers import Qwen3Config, Qwen3ForCausalLM
-    sys.path.insert(0, os.path.join(ROOT, "tests"))
-    from f32 import CONFIG, TEXTS, tensors, weight_hash
+    from f32 import CONFIG, weight_hash
 
     torch.set_num_threads(1)
     fixtures = []
     for tied in (False, True):
-        config = Qwen3Config(vocab_size=257, hidden_size=37, intermediate_size=19,
-                             num_hidden_layers=2, num_attention_heads=2, num_key_value_heads=1,
-                             head_dim=CONFIG["attention.key_length"], max_position_embeddings=16, rope_theta=10000.0,
-                             rms_norm_eps=1e-6, tie_word_embeddings=tied, attention_dropout=0.0)
-        config._attn_implementation = "eager"
-        model = Qwen3ForCausalLM(config).float().eval()
-        weights = tensors(tied)
-        state = {name: torch.tensor(values, dtype=torch.float32).reshape(list(reversed(shape)))
-                 for _, name, shape, values in weights}
-        if tied:
-            state["lm_head.weight"] = state["model.embed_tokens.weight"]
-        model.load_state_dict(state, strict=True)
-        cases, perplexity = [], []
-        with torch.inference_mode():
-            for text in TEXTS:
-                ids = torch.tensor([list(text.encode("ascii"))])
-                logits = model(ids, use_cache=False).logits[0, -1]
-                cases.append({"text": text, "logits": logits.tolist()})
-            ids = torch.tensor([list(TEXTS[-1].encode("ascii"))])
-            for context in (4, 16):
-                total, targets = 0.0, 0
-                for window in ids.split(context, dim=1):
-                    if window.shape[1] < 2:
-                        continue
-                    logits = model(window, use_cache=False).logits[0, :-1].double()
-                    loss = torch.logsumexp(logits, -1) - logits.gather(1, window[0, 1:, None]).squeeze(1)
-                    total += loss.sum().item()
-                    targets += loss.numel()
-                perplexity.append({"context": context, "mean_nll": total / targets})
+        model, weights = tiny_qwen3(tied)
+        cases, perplexity = reference_outputs(model, torch)
         fixtures.append({"tied": tied, "weights_sha256": weight_hash(weights),
                          "cases": cases, "perplexity": perplexity})
     path = os.path.join(output_dir, "baseline_f32.json")
@@ -253,8 +273,6 @@ def gen_moe(output_dir=OUT_DIR):
     import torch
     import transformers
     from transformers import Qwen3MoeConfig, Qwen3MoeForCausalLM
-    sys.path.insert(0, os.path.join(ROOT, "tests"))
-    from f32 import TEXTS
     from moe import CONFIG, DENSE_LAYERS, tensors, weight_hash
 
     torch.set_num_threads(1)
@@ -278,7 +296,7 @@ def gen_moe(output_dir=OUT_DIR):
         else:
             state[name] = torch.tensor(values, dtype=torch.float32).reshape(list(reversed(shape)))
     model.load_state_dict(state, strict=True)
-    # The smallest gap between a token's k-th and next expert probability over every forward below; a near tie could route differently under other rounding.
+    # The smallest gap between a token's k-th and next expert probability over every forward reference_outputs runs; a near tie could route differently under other rounding.
     k, gaps = CONFIG["expert_used_count"], []
     def watch(_, __, out):
         p = torch.softmax(out.double(), dim=-1).sort(dim=-1, descending=True).values
@@ -286,23 +304,7 @@ def gen_moe(output_dir=OUT_DIR):
     for layer in model.model.layers:
         if hasattr(layer.mlp, "gate"):
             layer.mlp.gate.register_forward_hook(watch)
-    cases, perplexity = [], []
-    with torch.inference_mode():
-        for text in TEXTS:
-            ids = torch.tensor([list(text.encode("ascii"))])
-            logits = model(ids, use_cache=False).logits[0, -1]
-            cases.append({"text": text, "logits": logits.tolist()})
-        ids = torch.tensor([list(TEXTS[-1].encode("ascii"))])
-        for context in (4, 16):
-            total, targets = 0.0, 0
-            for window in ids.split(context, dim=1):
-                if window.shape[1] < 2:
-                    continue
-                logits = model(window, use_cache=False).logits[0, :-1].double()
-                loss = torch.logsumexp(logits, -1) - logits.gather(1, window[0, 1:, None]).squeeze(1)
-                total += loss.sum().item()
-                targets += loss.numel()
-            perplexity.append({"context": context, "mean_nll": total / targets})
+    cases, perplexity = reference_outputs(model, torch)
     if min(gaps) < 1e-4:
         raise SystemExit("moe: a token's routing is within %.2e of a tie; change the weights" % min(gaps))
     path = os.path.join(output_dir, "baseline_moe.json")

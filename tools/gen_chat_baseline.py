@@ -13,26 +13,17 @@ import jinja2
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 import torch
 import transformers
-from transformers import Qwen3Config, Qwen3ForCausalLM
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 from chat import CASES
-from f32 import CONFIG, tensors, weight_hash
+from f32 import CONFIG, weight_hash
+from gen_baseline import tiny_qwen3
 
 
 def main():
     torch.set_num_threads(1)
-    config = Qwen3Config(vocab_size=257, hidden_size=37, intermediate_size=19,
-                        num_hidden_layers=2, num_attention_heads=2, num_key_value_heads=1,
-                        head_dim=CONFIG["attention.key_length"], max_position_embeddings=16,
-                        rope_theta=10000.0, rms_norm_eps=1e-6,
-                        tie_word_embeddings=False, attention_dropout=0.0)
-    config._attn_implementation = "eager"
-    model = Qwen3ForCausalLM(config).float().eval()
-    weights = tensors(False)
-    model.load_state_dict({name: torch.tensor(values).reshape(list(reversed(shape)))
-                           for _, name, shape, values in weights}, strict=True)
+    model, weights = tiny_qwen3(False)
     cases = []
     with torch.inference_mode():
         for spec in CASES:

@@ -15,12 +15,15 @@ CONFIG = {"block_count": 2, "embedding_length": 37, "feed_forward_length": 19,
           "attention.head_count": 2, "attention.head_count_kv": 1,
           "attention.key_length": 42, "context_length": 16}
 TEXTS = ["a", "ab", "abc", "abcdefg", "abcdefghijklm"]
+# One token per byte, then <|endoftext|>.
+VOCAB = 257
 
 
 def tensors(tied):
     state = 12345
     result = []
-    hd = CONFIG["attention.key_length"]
+    width, ff, hd = CONFIG["embedding_length"], CONFIG["feed_forward_length"], CONFIG["attention.key_length"]
+    q, kv = CONFIG["attention.head_count"] * hd, CONFIG["attention.head_count_kv"] * hd
 
     def add(name, hf_name, shape, norm=False):
         nonlocal state
@@ -31,31 +34,44 @@ def tensors(tied):
             values.append(1.0 + value if norm else value)
         result.append((name, hf_name, shape, values))
 
-    add("token_embd.weight", "model.embed_tokens.weight", [37, 257])
-    add("output_norm.weight", "model.norm.weight", [37], True)
-    for layer in range(2):
+    add("token_embd.weight", "model.embed_tokens.weight", [width, VOCAB])
+    add("output_norm.weight", "model.norm.weight", [width], True)
+    for layer in range(CONFIG["block_count"]):
         name, hf = "blk.%d." % layer, "model.layers.%d." % layer
-        for norm, mapped, width in (("attn_norm", "input_layernorm", 37),
-                                    ("ffn_norm", "post_attention_layernorm", 37),
-                                    ("attn_q_norm", "self_attn.q_norm", hd),
-                                    ("attn_k_norm", "self_attn.k_norm", hd)):
-            add(name + norm + ".weight", hf + mapped + ".weight", [width], True)
-        for tensor, mapped, shape in (("attn_q", "self_attn.q_proj", [37, 2 * hd]),
-                                      ("attn_k", "self_attn.k_proj", [37, hd]),
-                                      ("attn_v", "self_attn.v_proj", [37, hd]),
-                                      ("attn_output", "self_attn.o_proj", [2 * hd, 37]),
-                                      ("ffn_gate", "mlp.gate_proj", [37, 19]),
-                                      ("ffn_up", "mlp.up_proj", [37, 19]),
-                                      ("ffn_down", "mlp.down_proj", [19, 37])):
+        for norm, mapped, size in (("attn_norm", "input_layernorm", width),
+                                   ("ffn_norm", "post_attention_layernorm", width),
+                                   ("attn_q_norm", "self_attn.q_norm", hd),
+                                   ("attn_k_norm", "self_attn.k_norm", hd)):
+            add(name + norm + ".weight", hf + mapped + ".weight", [size], True)
+        for tensor, mapped, shape in (("attn_q", "self_attn.q_proj", [width, q]),
+                                      ("attn_k", "self_attn.k_proj", [width, kv]),
+                                      ("attn_v", "self_attn.v_proj", [width, kv]),
+                                      ("attn_output", "self_attn.o_proj", [q, width]),
+                                      ("ffn_gate", "mlp.gate_proj", [width, ff]),
+                                      ("ffn_up", "mlp.up_proj", [width, ff]),
+                                      ("ffn_down", "mlp.down_proj", [ff, width])):
             add(name + tensor + ".weight", hf + mapped + ".weight", shape)
     if not tied:
-        add("output.weight", "lm_head.weight", [37, 257])
+        add("output.weight", "lm_head.weight", [width, VOCAB])
     return result
 
 
 def weight_hash(weights):
     return hashlib.sha256(b"".join(struct.pack("<%df" % len(v), *v)
                                    for _, _, _, v in weights)).hexdigest()
+
+
+def golden(name):
+    """The golden `name` in tests/data for this model, checked against CONFIG and against the weights tensors() builds.
+    A golden of several fixtures holds each one's tied flag and weight hash, and one of a single model holds its hash at the top level, for the untied weights.
+    Each checked fixture, or the golden itself, gets those weights under "weights"."""
+    with open(os.path.join(os.path.dirname(__file__), "data", name), encoding="utf-8") as f:
+        doc = json.load(f)
+    assert doc["config"] == CONFIG, "%s: fixture config changed" % name
+    for fixture in doc.get("fixtures", [doc]):
+        fixture["weights"] = tensors(fixture.get("tied", False))
+        assert weight_hash(fixture["weights"]) == fixture["weights_sha256"], "%s: fixture weights changed" % name
+    return doc
 
 
 def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3"):
@@ -90,7 +106,7 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
                 f.write(struct.pack("<II", 4, eos_id))
             if index == 0:
                 w_str(f, "tokenizer.ggml.tokens")
-                f.write(struct.pack("<IIQ", 9, 8, 257))
+                f.write(struct.pack("<IIQ", 9, 8, VOCAB))
                 for token in build_byte_vocab() + ["<|endoftext|>"]:
                     w_str(f, token)
             offset = 0
@@ -166,16 +182,11 @@ def check_logits_input(directory, model, cases):
 def run():
     if common.f32_cache_skip("f32"):
         return True
-    with open(os.path.join(os.path.dirname(__file__), "data", "baseline_f32.json"), encoding="utf-8") as f:
-        golden = json.load(f)
-    assert golden["config"] == CONFIG, "F32 fixture config changed"
     worst = 0.0
     with tempfile.TemporaryDirectory(prefix="llmx_f32_") as directory:
-        for fixture in golden["fixtures"]:
-            weights = tensors(fixture["tied"])
-            assert weight_hash(weights) == fixture["weights_sha256"], "F32 fixture weights changed"
+        for fixture in golden("baseline_f32.json")["fixtures"]:
             model = os.path.join(directory, "tiny-f32.gguf")
-            write_model(model, weights)
+            write_model(model, fixture["weights"])
             error, _ = common.check_hf_fixture("F32", model, fixture["cases"], fixture["perplexity"], TEXTS[-1],
                                                (1, 2, 3, 5, 16))
             worst = max(worst, error, check_logits_input(directory, model, fixture["cases"]))

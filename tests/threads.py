@@ -1,4 +1,3 @@
-import json
 import math
 from pathlib import Path
 import re
@@ -6,6 +5,7 @@ import tempfile
 
 import common
 import f32
+from chat import BANNER, replies
 
 
 # Thread counts are the CPU backend's, and a device backend reports none, so every command here names the CPU instead of the configured device.
@@ -15,11 +15,10 @@ def invoke(args, data=None):
     return p.stdout, p.stderr
 
 
-def check_perplexity_threads(model, automatic, weights):
-    golden = json.loads((Path(__file__).parent / "data/baseline_f32.json").read_text())
-    fixture = next(case for case in golden["fixtures"] if not case["tied"])
-    assert golden["config"] == f32.CONFIG
-    assert fixture["weights_sha256"] == f32.weight_hash(weights)
+def check_perplexity_threads(model, automatic, weights_sha256):
+    fixture = next(case for case in f32.golden("baseline_f32.json")["fixtures"] if not case["tied"])
+    # The model under test holds the untied fixture's weights, whose NLL is the reference here.
+    assert fixture["weights_sha256"] == weights_sha256
     case = fixture["perplexity"][0]
     worst = 0.0
     checked = 0
@@ -64,18 +63,15 @@ def run():
             assert 1 <= automatic <= 64, automatic
         assert actual == (count or automatic), (count, actual, automatic)
 
-    fixture = json.loads((Path(__file__).parent / "data/baseline_chat.json").read_text())
+    fixture = f32.golden("baseline_chat.json")
     case = fixture["cases"][0]
     spec = case["spec"]
-    weights = f32.tensors(False)
-    assert fixture["weights_sha256"] == f32.weight_hash(weights)
-    assert fixture["config"] == f32.CONFIG
     assert spec["template"] == "{{ messages[-1]['content'] }}"
     assert spec["max_tokens"] == 1
     with tempfile.TemporaryDirectory(prefix="llmx_threads_") as directory:
         model = Path(directory) / "threads.gguf"
-        f32.write_model(model, weights, spec["template"])
-        check_perplexity_threads(model, automatic, weights)
+        f32.write_model(model, fixture["weights"], spec["template"])
+        check_perplexity_threads(model, automatic, fixture["weights_sha256"])
         for count in (None, 0, 1, 4):
             for batch in (None, 0, 1, 3):
                 flags = ["--temp", "0", "-n", "1", "--verbose", "--ubatch", "3"]
@@ -99,11 +95,10 @@ def run():
                     expected = [(b"prefill", str(prefill).encode()),
                                 (b"decode", str(decode).encode())] * turns
                     assert counts == expected, (command, count, batch, counts, expected)
-                    replies = b"".join(bytes(t["reply_ids"]) + b"\n" for t in case["turns"][:turns])
                     if command == "chat":
                         # Windows text-mode stdout writes each line feed as CR LF, generated ones included.
-                        assert out.replace(b"\r\n", b"\n") == b"Chat ready (type your message; Ctrl+C to quit)\n" + replies, out
+                        assert out.replace(b"\r\n", b"\n") == BANNER + replies(case, turns), out
                     else:
-                        assert common.generate_text(out) + b"\n" == replies, out
+                        assert common.generate_text(out) + b"\n" == replies(case, turns), out
     print("threads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]")
     return True

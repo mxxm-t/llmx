@@ -557,19 +557,29 @@ HF gate measures the cost of it.
   grouped. A shorter history keeps one head a workgroup, since grouping
   there leaves too few workgroups, and its build holds 32 registers where
   the first grouped kernel's single build held 61.
-  Heads whose width is eight lanes' worth of eight values, head_dim / 8 a
-  power of two from 4 to the subgroup size (128 in every Qwen3), take
-  `attention_vec.comp` instead: a token's key and value row is read by
-  head_dim / 8 lanes in one 16-byte load each for f16 (two for f32), so
-  a 64-lane subgroup reads four tokens at once, and each such group of
-  lanes keeps its own online softmax, the groups merging in a fixed
-  order. One head a lane group read a 256-byte row two bytes a lane and
-  crossed a 64-lane reduction and an exp between tokens, which kept few
-  bytes in flight: on an MI50 Qwen3-8B Q8_0 at a 16384-token history
-  decoded at 27.9 tok/s grouped and 29.4 with this kernel (0.6B 64.4 to
-  86.3, 30B-A3B 29.1 to 31.4), and level or better at every shorter
-  history. It sums in another order than the per-lane kernel, so its
-  logits are not bit-identical to it; against the CPU they are closer.
+  Heads 128 wide, every Qwen3's, take `attention_vec.comp` instead: a
+  token's key and value row is read by 16 lanes in one 16-byte load each
+  for f16 (two for f32), so a 64-lane subgroup reads four tokens at once,
+  and each such group of lanes keeps its own online softmax, the groups
+  merging in a fixed order. One head a lane group read a 256-byte row two
+  bytes a lane and crossed a 64-lane reduction and an exp between tokens,
+  which kept few bytes in flight: on an MI50 Qwen3-8B Q8_0 at a
+  16384-token history decoded at 27.9 tok/s grouped and 29.4 with this
+  kernel (0.6B 64.4 to 86.3, 30B-A3B 29.1 to 31.4), and level or better at
+  every shorter history. It sums in another order than the per-lane
+  kernel, so its logits are not bit-identical to it; against the CPU they
+  are closer.
+  Three changes that leave its arithmetic as it was then took it further.
+  The width is known when the kernel is compiled, so a score's four
+  exchanges across its 16 lanes compile to fixed cross-lane moves rather
+  than permutes through shared memory; that was most of the difference.
+  The four-head build keeps the queries in shared memory, read per token,
+  which took it from 116 to about 80 registers and three subgroups a SIMD
+  where it had two; and it takes a group's tokens two at a time, both
+  loads issued before either is used. On one MI50, tg at a 16384-token
+  history: Qwen3-8B Q8_0 30.0 to 42.8 tok/s (the reference 44.5), 0.6B
+  86.1 to 129.4, 30B-A3B 31.7 to 59.1; from an empty history level or
+  better (0.6B 352 to 363).
 - **attention_tile**, for a wide pass of 128-wide heads: a workgroup
   per 32 query rows and head, the head's K and V streamed through shared
   memory in 16-token tiles so a tile is read once per 32 rows rather

@@ -1,7 +1,7 @@
 #version 450
-// Causal GQA for rows that attend one at a time (decode and short prompts), as attention.comp computes it, for heads whose width is eight lanes' worth of eight values: head_dim / 8 a power of two from 4 to the subgroup size.
+// Causal GQA for rows that attend one at a time (decode and short prompts), as attention.comp computes it, for heads 128 wide.
 // One workgroup per (batch row, block of heads, split), a block being up to four query heads that read one KV head (LLMX_G4) or one head.
-// A token's key and value are read by head_dim / 8 lanes, eight values each in one load, so a subgroup reads several tokens at once; each such group of lanes keeps its own online softmax over the tokens it takes, and the groups merge in a fixed order at the end.
+// A token's key and value are read by 16 lanes, eight values each in one load, so a subgroup reads several tokens at once; each such group of lanes keeps its own online softmax over the tokens it takes, and the groups merge in a fixed order at the end.
 // The parts a row's history splits into follow from its length alone, as in attention.comp, so a row computes the same whatever else is in the dispatch.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
@@ -53,7 +53,7 @@ void v_load8(uint i, out float x[8]) {
 layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 5) writeonly buffer S { float scratch[]; };
 #include "views.glsl"
-// Streams are the groups of lanes that each take one token at a time: 256 / (head_dim / 8) of them, at most 64, and their accumulations fill 2048 floats whatever the width.
+// Streams are the groups of lanes that each take one token at a time, 16 of them; their accumulations fill 2048 floats.
 shared float qs[HG][256];
 shared float ms[HG][64];
 shared float ls[HG][64];
@@ -68,7 +68,8 @@ void main() {
     view_of_row(g, v, b);
     uint kvh = h0 / (p.n_head / p.n_head_kv);
     uint lid = gl_LocalInvocationID.x;
-    uint lanes = p.dim / 8u;                              // lanes per token
+    // Heads 128 wide, every Qwen3's, read by 16 lanes a token: a width known here lets the lanes' exchanges compile to fixed cross-lane moves.
+    const uint lanes = 16u;
     uint streams = 256u / lanes;
     uint stream = lid / lanes, d0 = (lid - stream * lanes) * 8u;
     uint qstride = p.n_head * p.dim;
@@ -81,33 +82,64 @@ void main() {
     uint start = min(split * chunk, len);
     uint end = min(len, start + chunk);
     uint bf = p.n_head_kv * p.bt * p.dim;
-    float qv[HG][8], acc[HG][8], m[HG], l[HG];
+    // Four heads' queries stay in shared memory, read per token, so the registers go to the accumulations and more subgroups fit a SIMD; one head's stay in registers, where they cost little.
+    float acc[HG][8], m[HG], l[HG];
+#ifndef LLMX_G4
+    float qv[HG][8];
+#endif
     [[unroll]] for (uint j = 0u; j < HG; ++j) {
         m[j] = -1.0 / 0.0;
         l[j] = 0.0;
         [[unroll]] for (uint e = 0u; e < 8u; ++e) {
-            qv[j][e] = qs[j][d0 + e];
             acc[j][e] = 0.0;
+#ifndef LLMX_G4
+            qv[j][e] = qs[j][d0 + e];
+#endif
         }
     }
-    for (uint t = start + stream; t < end; t += streams) {
-        uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t % p.bt) * p.dim + d0;
-        float kx[8], vx[8];
-        k_load8(base, kx);
-        v_load8(base, vx);
-        [[unroll]] for (uint j = 0u; j < HG; ++j) {
-            if (j >= p.hg) continue;
-            float part = 0.0;
-            [[unroll]] for (uint e = 0u; e < 8u; ++e) part += qv[j][e] * kx[e];
-            // The token's lanes are an aligned run of `lanes`, a power of two, so exchanging across bit o stays inside it.
-            for (uint o = lanes / 2u; o > 0u; o /= 2u) part += subgroupShuffleXor(part, o);
-            float s = part * p.scale;
-            float mn = max(m[j], s);
-            float corr = exp(m[j] - mn), w = exp(s - mn);
-            l[j] = l[j] * corr + w;
-            [[unroll]] for (uint e = 0u; e < 8u; ++e) acc[j][e] = acc[j][e] * corr + w * vx[e];
-            m[j] = mn;
-        }
+    // A token's scores and online softmax update for every head of the block, from its key and value values.
+#ifdef LLMX_G4
+#define QDOT(j, e) qs[j][d0 + e]
+#else
+#define QDOT(j, e) qv[j][e]
+#endif
+#define ABSORB(kx, vx)                                                                                  \
+    [[unroll]] for (uint j = 0u; j < HG; ++j) {                                                         \
+        if (j >= p.hg) continue;                                                                        \
+        float part = 0.0;                                                                               \
+        [[unroll]] for (uint e = 0u; e < 8u; ++e) part += QDOT(j, e) * kx[e];                           \
+        [[unroll]] for (uint o = lanes / 2u; o > 0u; o /= 2u) part += subgroupShuffleXor(part, o);      \
+        float s = part * p.scale;                                                                       \
+        float mn = max(m[j], s);                                                                        \
+        float corr = exp(m[j] - mn), w = exp(s - mn);                                                   \
+        l[j] = l[j] * corr + w;                                                                         \
+        [[unroll]] for (uint e = 0u; e < 8u; ++e) acc[j][e] = acc[j][e] * corr + w * vx[e];              \
+        m[j] = mn;                                                                                      \
+    }
+    // In the four-head build a group takes its tokens two at a time, both loads issued before either is used, so twice the bytes are in flight; the order a group sees its tokens is unchanged.
+    // The token's lanes are an aligned run of `lanes`, a power of two, so exchanging across bit o stays inside it.
+    uint t = start + stream;
+#ifdef LLMX_G4
+    for (; t + streams < end; t += 2u * streams) {
+        uint t1 = t + streams;
+        uint b0 = view_block(v, t / p.bt) * bf + (kvh * p.bt + t % p.bt) * p.dim + d0;
+        uint b1 = view_block(v, t1 / p.bt) * bf + (kvh * p.bt + t1 % p.bt) * p.dim + d0;
+        float k0[8], v0[8], k1[8], v1[8];
+        k_load8(b0, k0);
+        v_load8(b0, v0);
+        k_load8(b1, k1);
+        v_load8(b1, v1);
+        ABSORB(k0, v0)
+        ABSORB(k1, v1)
+    }
+#endif
+    // The one-head build takes one token at a time: its short histories gain nothing from the pair, and its registers stay those of a single token.
+    for (; t < end; t += streams) {
+        uint b0 = view_block(v, t / p.bt) * bf + (kvh * p.bt + t % p.bt) * p.dim + d0;
+        float k0[8], v0[8];
+        k_load8(b0, k0);
+        v_load8(b0, v0);
+        ABSORB(k0, v0)
     }
     bool lead = lid == stream * lanes;
     if (lead)

@@ -98,8 +98,8 @@ kernel notes and measurements are `docs/VULKAN.md`.
   them (`shaders/attention_merge.comp`); once the longest row fills every
   split, a workgroup takes up to four query heads of one KV head (the
   `_g4` builds), loading the history once for them with each head's
-  arithmetic unchanged. Heads 128 wide (any head_dim / 8 a power of two
-  from 4 to the subgroup size) take `shaders/attention_vec.comp`, which
-  reads a token's row in one load a lane and several tokens a subgroup.
+  arithmetic unchanged. Heads 128 wide take `shaders/attention_vec.comp`,
+  which reads a token's row in 16 lanes, one load a lane, and several
+  tokens a subgroup; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
 - `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`); routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory.

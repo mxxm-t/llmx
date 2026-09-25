@@ -362,8 +362,14 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   and `/v1/chat/completions` whole and streamed in the OpenAI clients'
   shape, a prompt repeating a finished request's tokens reuses its
   blocks with the CLI's greedy text, and the limits: a KV budget below the
-  context bounds a request and a full queue answers 503. Skips under
-  `--cache-type f16`.
+  context bounds a request and a full queue answers 503. With the Q8_0
+  fixture, uncapped requests share a pool too small for all of them: a
+  request is paused when it runs out, resumes from its history, and each
+  runs to its own end. On a single device other than the CPU, the
+  synthetic MoE model runs with its experts on the host and prompts from
+  three tokens streamed, and each prompt's ids alone must equal its ids
+  four at a time, where a pass holds streamed prompt rows beside host
+  decode rows. Skips under `--cache-type f16`.
   Throughput is measured separately with `tools/server_load.py`.
 - **Long context** (`tools/long_context_check.py`): one 16k-token
   summarization prompt from `tests/data/wiki.test.raw`, greedy, 512
@@ -386,8 +392,11 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   decoding sequence beside a fresh prompt, every row's logits. The split must be
   bit-identical, since each layer runs the same kernels on the same rows
   wherever it sits; a split over different backends is held to the HF
-  bounds instead. It takes the tiny fixtures `tests/f32.py` and
-  `tests/moe.py` write as well as real models, and is run by hand.
+  bounds instead. It takes real models, and the tiny models of
+  `tests/f32.py` and `tests/moe.py` once written to a file by the functions
+  those components use (`f32.write_model` over `f32.tensors` or
+  `moe.tensors`), which a script can call; the components themselves write
+  them to a temporary directory they remove. It is run by hand.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
   odd dimensions, batch tails and threads without downloading a model,
@@ -413,6 +422,16 @@ default. See `docs/CI.md` for workflow coverage and reproduction commands.
   rejection tests for changed 8B fixtures, damaged logits/PPL, wrong model
   identity and failed launches. It is included in the ordinary suite;
   it does not load or download the 8B model.
+- **Fixture downloader** (`tests/fetch_models.py`): fifteen offline tests
+  of `tools/fetch_test_models.py` against simulated responses: a verified
+  download and its cached reuse, a corrupt cached file replaced, bounded
+  retries with backoff on 429, transient server errors and network
+  failures (Retry-After as seconds or a date, HF reset headers, malformed
+  headers), no early retry when the server asks for too long a wait, no
+  retry on permanent HTTP or local write errors, interrupted and short
+  reads restarted from a clean temporary file, and a hash mismatch failing
+  with the existing file kept. It is not a `run_tests.py` component; CI
+  runs it as a step of its own (`docs/CI.md`).
 
 The optional real 8B check is separate from the ordinary suite and default CI:
 

@@ -60,8 +60,9 @@ rather than retrying early. Permanent HTTP failures, local file errors and
 SHA-256 mismatches fail immediately. Failed attempts remove temporary files;
 only a complete verified download replaces the destination.
 
-Every CI job also runs `python -X utf8 tests/fetch_models.py`: fifteen offline
-tests cover throttling, reset headers, retry exhaustion, interrupted reads,
+Every job except the Vulkan build also runs
+`python -X utf8 tests/fetch_models.py`: fifteen offline tests cover
+throttling, reset headers, retry exhaustion, interrupted reads,
 cache reuse/replacement, checksum rejection and permanent failures. These
 tests use tiny independent bytes and simulated network responses; they do
 not download models or replace the real HF reference checks. All fifteen pass
@@ -103,12 +104,13 @@ HF deltas. The Linux ordinary suite passes 11/11 with `--no-perf-floor`.
 These local results do not establish hosted 8B coverage; the optional consumer
 is not run by the workflow.
 
-Every job checks that `--version` and the usage banner agree with the release
-version, then runs the small F32 HF fixture without downloads. Its deterministic
-weights are generated locally; committed HF float32 logits/NLL cover tied and
-untied embeddings, matrix tails, multiple physical batches and thread counts.
-The UBSan job makes misaligned in-memory tensors a test failure. Every job also
-runs CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
+Every job except the Vulkan build checks that `--version` and the usage
+banner agree with the release version, then runs the small F32 HF fixture
+without downloads. Its deterministic weights are generated locally;
+committed HF float32 logits/NLL cover tied and untied embeddings, matrix
+tails, multiple physical batches and thread counts.
+The UBSan job makes misaligned in-memory tensors a test failure. These jobs also
+run CTest for JSON syntax/Unicode/numeric boundaries and string escaping,
 GGUF structure, custom alignment and loading failures, Qwen model configuration
 and required tensor/storage layouts,
 grouped kernels, worker
@@ -173,8 +175,8 @@ passed all four jobs, including fixture downloads and required HF checks.
 The independent build-identification release at `9511a4a` also passed its
 [four-job hosted run](https://github.com/mxxm-t/llmx/actions/runs/35511296680).
 These public releases are merged into the published runtime without removing
-its native, HF or UBSan checks. All five jobs run the offline downloader
-checks.
+its native, HF or UBSan checks. Every job except the Vulkan build runs the
+offline downloader checks.
 
 ## Exact reduction test compilation
 

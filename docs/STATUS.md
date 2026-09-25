@@ -33,6 +33,396 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Recording the next stage before its rows arrive (a held input the host fills before the submit): decode on 3 and 4 cards gained under 1.5 percent, 2 cards lost a little in decode and prefill; a stage's first 64 dispatches already start while the rest is recorded.
 - **Left, in later phases:** passes of different sequences in flight (phase 3) with the server gate against the reference's server; per-storage progress visible to the scheduler (phase 4); tensor groups for multi-card decode (phase 6); a thread per stage only if the host is measured to limit a pipeline; pipelined scoring for perplexity. The single-card prefill kernels come after the correctness-bug branches and the loader.
 
+## Test and CI coverage (planned 2026-09-25)
+
+- **Goal:** every feature a user can reach has a test the hosted workflow runs, or its STATUS block names the hand check that covers it and says why no hosted runner can. A bug fix lands its failing test first. The workflow runs everything that needs no GPU. What needs the cards is still run on them by hand, as it is today.
+- **Found** by three read-only audits: tests against features, the workflow as it runs, and software Vulkan on a hosted runner. Nothing was run, and every time below is an estimate, because the job durations could not be read here.
+  - The workflow already runs every registered CTest and every `run_tests.py` component. The three CPU jobs and the UBSan job run both. The HF job adds the three pinned 0.6B models. The Vulkan job builds and runs CTest, where `backend-vulkan` and `vulkan-lifetime` skip without a device.
+  - The sampler has no test at all, although `generate` and `chat` sample by default (temperature 0.8, top-k 40, top-p 0.95).
+  - The server's `stop`, `top_k`, `top_p` and penalty fields have no test.
+  - The layer split's pipelined prefill has one CI case, 2 chunks over 2 stages (`placement.cpp`, the `place_model` case). The reuse of pass slots and handoff buffers, three stages, a MoE split and the rollback of a failed pipelined prompt are reached only on the MI50s.
+  - Q4_K and Q4_1 are checked only against llmx's own `dequantize`, although Q4_K_M is the most common download.
+  - The known server bugs have no failing test. `check_uncapped` counts pauses but never compares a paused request's output with the same request run alone.
+  - `run_tests.py --cache-type` fails today, and AGENTS.md describes it as working. `common.device_args` adds cache flags to the synthetic bench, which refuses them, so `perf` and `threads` fail.
+  - The workflow runs on pushes to main and on pull requests, and only main is pushed, so it has never checked a branch before its merge. STATUS records no hosted run since `11f5859`, 57 commits back.
+  - Hosted runners cannot run the device paths. The software Vulkan driver their Linux image can install reports subgroups of 8 lanes, or 16 at most. The backend refuses fewer than 32 when it opens a device, and three kernel families really need 32: the activation quantization's shuffles, the general attention kernel's per-subgroup arrays, and MoE routing's partial results.
+- **Every gate:** these branches change tests, tools, the build and the workflow, not the runtime. The gate is CTest and the Python suites on the CPU on Windows and Linux, on the Radeon VII and on an MI50, plus a green hosted run. A new test that fails on main is a finding, fixed in its own branch before the test merges. Each merge records its hosted run and job times in STATUS.
+- **Missing tests, in order of value:**
+  1. `test/sampler` adds a CTest `sampler` (`tests/sampler.cpp`, CPU, every job) that calls `infer::sample` on hand-computed logits:
+     - Temperature 0 takes the largest score, and the lowest id on a tie.
+     - The penalty divides a seen token's positive logit and multiplies a negative one, so a repeated leader loses to the runner-up.
+     - `top_k` 1 is greedy at any temperature, and `top_k` k never returns a token outside the k best over 10,000 seeded draws.
+     - A `top_p` between the first probability and the sum of the first two keeps exactly two tokens.
+     - Draw frequencies at temperatures 1 and 0.5 fall within three standard deviations of the softmax at that temperature. This also catches a temperature applied twice.
+     - A seed repeats its sequence, and seed 0 keeps the default state.
+  2. The server's request fields are tested in `fix/server-http` (branch 2), which rewrites how they are read. The checks go in `tests/server.py` on the synthetic model, every CPU job:
+     - A seeded sampled request with `temperature`, `top_k`, `top_p` and `repetition_penalty` (native `penalty`) gives the ids of `generate` with the same flags and seed, as the batch-invariance rule requires.
+     - `stop`, as a string and as an array, ends the reply where `generate --stop` ends it, with `finish_reason` stop.
+     - Bad JSON, a body that is not an object, a non-text content part, and each number field outside the range the branch sets are refused with 400.
+     - The branch's own bugs get their failing tests first in the `http` CTest: after a failed `accept()` the listener still answers, and a streamed handler that fails after its first chunk ends the body without a second status line inside it.
+  3. `test/split-coverage` covers the pipelined prefill, after the layer split merges (CPU, every job, UBSan included):
+     - In `tests/placement.cpp`, a three-layer tiny model goes through `place_model` over two and three CPU backends at ubatch 3 with a 13-token prompt. That is 5 chunks, more than the stages, so pass slots and both handoff buffers are reused. Prefill, three decode steps, `score()` row by row, a two-sequence pass, and a second prompt continuing the first must all be exact against one backend, with `n_tokens` and `kv_used_bytes` equal.
+     - In the same file, a backend on the last stage fails after the first stage has committed chunks, once mid-prompt and once at the head on the last chunk, on top of an existing history. Every storage's length and `kv_used_bytes` must be back where they were before the call, and the same prompt run again must be exact. For this, `FailingCpu` moves from `kv_cache.cpp` into `tests/tiny_qwen.hpp`.
+     - `llmx-split-check` is built in every CMake configuration and links the Vulkan library only when that backend is on. It builds its devices with `make_backends`, which does not apply the CLI's listed-once rule, so `cpu,cpu` works.
+     - A new `split` component in `run_tests.py` writes the tiny F32 model (tied and untied) and the tiny MoE model. It runs the tool on `cpu` against `cpu,cpu`, and on the three-layer MoE against `cpu,cpu,cpu`, at ubatch 1, 3 and 16, with 3 decode steps over a 13-token text, inside the 16-token context.
+     - The component looks for the tool beside `--exe`. A new flag, `--require-tools`, turns a missing tool into a failure instead of a skip, and every CI job passes it.
+  4. `fix/server-pause-prefill` (branch 1) lands its failing test first, in `tests/server.py` on the real Q8_0 in the HF job. `check_uncapped` compares each paused request's ids with the same request run alone. It also adds prompts long enough that the pool runs out while one of them is still prefilling. `fix/server-cancel` keeps the tests it already plans.
+  5. `test/quant-decode` extends `tests/roundtrip.py` (CPU, every job) to Q4_1 and Q4_K:
+     - The test writes a one-tensor GGUF of raw Q4_1 blocks and one of Q4_K super-blocks, with bytes chosen to reach every scale, min and nibble bit.
+     - `llmx dequantize` must match, bit for bit, a decoder written from the format description, as the Q8_0 and Q4_0 check does now.
+     - `q8-dots` and `backend-group`, which compare against `dequantize`, then rest on an independent decode.
+     - Q5_K and Q6_K stay with the HF Q5_K_M fixture, which covers them end to end.
+  6. `fix/kv-cache-default` (branch 3) also takes on the following:
+     - `common.device_args` leaves the cache flags off the synthetic bench.
+     - The model layer's default becomes f16, so CTest and `llmx-split-check` run what users run, and the exact-f32 cases ask for f32 themselves.
+     - `kv-cache` checks f16 and both mixed pairs on the CPU storage against a double-precision reference computed over the f16-rounded K and V.
+     - `run_tests.py` gets `--only`, and the HF job gets a second pass with `--cache-type f32 --only baseline`, about 3 to 4 minutes.
+  7. `test/cli-surface` adds a `cli` component (`tests/cli.py`, CPU, every job) and extends `tests/f32.py`:
+     - `--device vulkan:0` exits non-zero with the no-Vulkan message in a CPU build, and with the device error in a Vulkan build that has no device.
+     - `info` on the synthetic model names its architecture, layer count and tensor count.
+     - `logits --file` matches the inline prompt, and the `--last N` and `--then-ids` rows fall within the fixture's HF bound at their positions.
+     - `bench --model --seqs 2` runs and reports finite speeds.
+     - Branch 5 (`cleanup/cli-arguments`) adds to this component the refusals from 010d7d9 (model flags on the synthetic bench, `generate --system`, `-n 0`), plus bad and negative numbers.
+     - Branch 10 (`cleanup/cli-help`) adds the help check: every flag a command's help lists is accepted by that command, a flag it does not list is refused, and help needs no model.
+  8. `fix/tokenizer-metadata` (8) and `fix/chat-template-defined` (9) each land their failing test first. For branch 8, a synthetic GGUF declaring another tokenizer is refused with a message (`tests/tokenizer.py`). For branch 9, a template testing `is defined` takes the else branch for a variable that is absent (`chat-template` CTest).
+  9. `tests/server.py` also runs its MoE server check on the CPU, as part of `ci/hosted-coverage`. The routed model's ids for each request alone must equal its ids four at a time, without the host-expert flags that need a device. This adds about 10 seconds per job.
+- **CI changes** go in `ci/hosted-coverage`, which comes after `test/split-coverage` and edits `.github/workflows/ci.yml`:
+  - Builds use `--parallel 4`, the hosted runners' core count. That saves about 10 to 20 runner-minutes per run.
+  - The Vulkan job installs Python and runs the suite with `--require-tools` on the CPU path of the Vulkan-enabled binary. That is the build Linux GPU users make, and no job runs its suite today. About 3 minutes.
+  - The HF job adds two runs on the 0.6B Q8_0:
+    - `llmx-split-check cpu cpu,cpu 8 64` over the perplexity excerpt, about 1 minute.
+    - `tools/server_mix_check.py` on the CPU with `--requests 8 --cli 2`, about 4 to 6 minutes, cut to 4 requests if the first run measures over 8 minutes. It would be the only hosted check of long prompts landing while others decode, and of clients leaving.
+  - The HF job drops its CTest step, which the Ubuntu job already runs on the same build. That saves about 1 minute.
+  - The HF cache key hashes a file holding only the pinned model specs (`tests/data/fixtures.json`, read by `baseline.py` and `tools/fetch_test_models.py`) instead of all of `baseline.py`, which changes far more often than its model list does. Restore and save become separate steps, with the save right after the verified fetch, so a red run keeps its 1.5 GB of downloads.
+  - `cancel-in-progress` applies to pull requests only, so every push to main keeps its run as the record of that merge.
+  - The Ubuntu job byte-compiles `tests/` and `tools/` and runs each Python tool's `--help`, so a tool broken by a CLI change fails there instead of on the cards. About 0.2 minutes.
+  - **Net:** about -5 to +10 runner-minutes on an estimated 60 to 85 per run. The HF job grows by about 7 to 10 minutes against its 30-minute limit, and the first run's measured times decide the limit. docs/CI.md records those times.
+- **Docs, fixed now in a docs-only commit:**
+  - AGENTS.md, working rules: add that a feature lands with a test the workflow runs, or its STATUS block names the hand check and says why no hosted runner can run it. Add that a bug fix lands its failing test first.
+  - AGENTS.md, test descriptions:
+    - `http` runs on Linux, Windows and macOS, not only Windows and Linux.
+    - `placement` also covers the fit, `place_model` and one pipelined prefill.
+    - Round-trip starts from an F32 model, quantizes to Q8_0 and Q4_0, and decodes both from the format description.
+    - The server's uncapped check confirms each request finishes and counts pauses. It does not yet compare output with the request run alone.
+    - The MoE component also runs streamed placements on a device.
+    - `vulkan-buffer` needs no loader, because a fake device supplies every call.
+    - `llmx-split-check` is built only with Vulkan today, and it accepts `cpu,cpu` because it builds its backends without the CLI's device-list check.
+    - `--cache-type` fails in `perf` and `threads` until branch 3 fixes it.
+  - docs/CI.md:
+    - `vulkan-buffer` needs no loader, in the table and in the prefill-scope section.
+    - The Vulkan-only CTests run in one job, where two of the three skip, and that job runs no Python.
+    - The HF row adds the real-model server checks (limits, pausing, prefix reuse) and the HF chat and thread replies.
+    - The only layer split a hosted job runs is the placement CTest's two CPU backends.
+    - "legacy filtering" goes, since the thinking filter was removed.
+    - The historical pass counts get their commit next to them.
+    - The workflow never checks a branch before its merge.
+  - The `run_tests.py --require-baseline` help text says "any of the three fixtures", not "either".
+  - Each test branch above updates these descriptions for what it adds.
+- **Stays hand-run on the cards, and why:**
+  - The Vulkan kernels and attention combinations (`backend-vulkan`), `vulkan-lifetime`, the suites with `--device vulkan:0`, HF bounds on a device, experts on the host and streamed, pools of different block sizes beside the CPU, splits over cards (`--device a,b` and `llmx-split-check` on 2 to 4 MI50s), and `ensure()` waiting on a device:
+    - Hosted runners have no GPU, and the software driver's narrow subgroups are refused.
+    - Kernels rewritten for narrow subgroups would run only in CI, in the code most sensitive to precision.
+    - Even then, `backend-vulkan` would take about 4 to 8 minutes against its 120-second limit, and the suite on 0.6B would take about 0.5 to 2 hours.
+  - Performance floors, A/B runs and every comparison with the reference need quiet, pinned cards.
+  - Serving speed (`tools/server_load.py`), the 16k check (`tools/long_context_check.py`, a device against the CPU), many users on a card split (`tools/server_mix_check.py`) and the 8B HF check (`tests/baseline_8b.py`) need the cards, or weights and time beyond a hosted runner.
+  - The merge gate on both platforms, the Linux MI50s and the Windows Radeon VII, stays by hand whatever the workflow runs.
+- **Decided (2026-09-25):**
+  - No self-hosted runner on the Linux MI50 machine: it runs other work, and the gates on the cards stay by hand on both platforms.
+  - Branches are not pushed to GitHub before their merge; each branch's local gate runs the same commands.
+  - A pinned Qwen3-0.6B Q4_K_M fixture joins the HF job with HF bounds, so K-quant decoding meets the reference in CI.
+  - `test/reference-8b-per-token` goes ahead: the 8B HF check scores batched and per-token with its bounds unchanged, and the 0.6B check takes the 8B check's stricter validators.
+- **Not doing:**
+  - A software Vulkan job: the kernel changes it needs would be tested only by that job.
+  - A test-only way past the subgroup check to run the storage and submission checks: `vulkan-buffer` already covers them with its fake device and no runtime hook.
+  - A CPU alias so the CLI can split on the CPU: the listed-once refusal exists because two stages would drive one backend and count its free memory twice. The placement CTest and `llmx-split-check` cover the split without it.
+  - `build.bat` on the hosted Windows runner: it hard-codes the workstation's Visual Studio path, and CMake is the hosted build.
+  - A nightly long-context run on the CPU against itself: it proves only determinism, which the server checks already require.
+  - The real-model server pass on Windows and macOS: the synthetic server pass already runs on every platform.
+  - `MappedFile::drop` with a payload larger than host memory, and the split lines of `--verbose`: they need memory or devices a hosted runner lacks.
+  - Tests that would repeat existing ones: `--stop` in the CLI, the tokenizer against HF, perplexity, device-list parsing, and Q5_K and Q6_K.
+- **Sequencing:**
+  - Everything starts after the layer split merges.
+  - `test/split-coverage` goes first, since it covers this branch's feature.
+  - `test/sampler`, `test/quant-decode`, `test/cli-surface` and `ci/hosted-coverage` run in parallel with the correctness branches, since they touch other files. The exceptions are `run_tests.py`, `CMakeLists.txt` and `ci.yml`, which these branches change in that order.
+  - Branch 3's `--only` flag and cache-type pass land after `ci/hosted-coverage`.
+  - Branches 5 and 10 add to `tests/cli.py` after `test/cli-surface`.
+  - The server field tests go with branch 2, and the pause test with branch 1.
+
+## Loader in one place, with a load mode (planned 2026-09-25, branch refactor/loader off main e039b62)
+
+- **Goal:**
+  - Loading a model has one owner, `infer::load_model` in a new `src/inference/load.hpp`. It reads the files, builds the tokenizer and the chat format, places the model, fills the weights and settles the host copy.
+  - The format layer parses, maps and reads files. The model checks roles and asks the loader for each weight's storage. Backends allocate and copy. The CLI and the tools turn flags into a request.
+  - The model takes a format-neutral input, `QwenWeights`: the config plus one view per tensor, with the fields the safetensors branch already uses. The loader streams from format-neutral file spans. A second format is then a reader that produces both, plus one branch in `load_model`.
+  - Weights reach a device through large reads in file order, overlapped with the uploads, instead of page faults inside the upload copy. `--load-mode auto|mapped|direct` chooses how files are read, direct I/O included, with the same meaning on every backend.
+  - Every step leaves logits, greedy text, stdout and the split plan byte-identical to main. No load is slower than main on either machine, cold or warm.
+  - Expected, estimated from measured rates but not yet measured:
+    - Qwen3-235B-A22B Q4_K_M on six MI50s goes from 370 s to about 60 to 70 s, with progress shown throughout.
+    - A cold Qwen3-8B Q8_0 on one MI50 goes from about 22 s at the measured fault rate to about 4 s.
+    - Warm loads stay level with main.
+- **Decided (2026-09-25):**
+  - Backends are created before the file is read, so bad flags fail fast.
+  - `format::ModelFormat` is removed.
+  - Direct-I/O loading, with reads overlapped with uploads, is selected by a load-mode flag.
+  - The loader is one tight, reusable design, never worse than today.
+- **Problems, at e039b62:**
+  1. **Loading is spread over three layers.**
+     - `format/gguf.hpp:read_gguf` touches every page (557-579) before any placement exists.
+     - `model/arch_qwen.hpp:Model::Model` drops the pages of copied tensors (549-551).
+     - `cli/main.cpp:open_model` releases the host copy (264).
+     - `tools/split_check.cpp:main` and `tools/compare_cpu.cpp:main` repeat parts of that sequence and never release.
+  2. **Two signals answer "does a host read this weight in place".** `Model::note_reader` (965) compares `host_ptr()` with `GGUFModel::holds`. `place_model`, `Model::resolve_tensors` and `model/layer_split.hpp:budgets_for` ask `Backend::reads_in_place`.
+  3. **The seam kept for a second format is not the one loading uses.** `format::ModelFormat`, `gguf::GGUFFormat` and `format::open` carry no tensor bytes, and only `tests/load_progress.cpp:38` and `tests/gguf_shards.cpp:162,179` call them. Meanwhile `Model`, `footprint`, `routed_layers`, `place_model`, the tokenizer, `chat::chat_format` and `server::Api` all take a `gguf::GGUFModel`.
+  4. **One load parses the config three times.** `load_config` runs in `Model::Model` (469), `footprint` (399) and `place_model` (1372). `footprint` also decides dense layers by a `.ffn_gate.weight` substring (424), where the resolver and `routed_layers` look for the router tensor.
+  5. **The tensor table is checked twice.** `read_gguf` refuses duplicate names only across shards (500-507). `Model::Model` then checks count, duplicates, rank and extent again (529-541).
+  6. **Commands that need only metadata read the whole payload.** `cmd_info`, `cmd_tokenize` and `cmd_detokenize` map and touch it through `read_gguf`.
+  7. **Lifetime rests on caller conventions.**
+     - `Model` keeps `const GGUFModel* m_` (837).
+     - The CLI's `Opened` is "built in place and never moved".
+     - `server::serve` and `Api` take the whole file only to call `chat_format` (`server/api.hpp:64`).
+  8. **The written `adopt` contract is the opposite of what the release relies on.**
+     - `backend.hpp:160`, `docs/src/backends-backend.md` and `docs/DEVICE-EXECUTION.md` say the source must outlive the buffer.
+     - Releasing the host copy relies on a copying backend having consumed the source when `adopt` returns (`VulkanBackend::upload`, 2405).
+     - `tests/model_validation.cpp:LoadingBackend` reports `reads_in_place()` false but aliases the source.
+  9. **Reads are page faults.** The touch reads one byte in every 4096, in 8 MiB steps. A diagnostic measured page-fault reads at about 400 MB/s, against 2.1 to 2.4 GB/s for 16 MiB reads from the same ZFS pool, buffered and direct alike (Multi-device phase 1, Done, loading).
+  10. **Large models fault silently in role order.**
+      - Above available host memory, `read_gguf` reports 100% at once (560-562).
+      - Every page is then faulted inside the memcpy of `vulkan_backend.cpp:VulkanBackend::upload` (2413), one tensor at a time. The order is `Model::resolve_tensors`' role order (869-951), not the file's, so reads jump around the file.
+      - The disk reads only inside that host copy, so it idles through every allocation, submit and wait.
+      - The 235B spends 370 s under "Preparing model..." with no progress.
+  11. **A tensor two devices take is read twice.** This covers a tied head on another device (`resolve_tensors`, 895) and a streamed layer's norm and router (922-923).
+  12. **Some failures come after a lot of uploading.** A missing tensor, or a cache that does not fit, is found only after every weight before it has been uploaded.
+  13. **ZFS caches a mapped file twice**, in the ARC and in the page cache. The Linux host has about 22 GB available beside other work.
+- **Plan.** Each step is one commit. Outputs are byte-identical to main in every step.
+  0. **Docs.** This block, plus agreeing `TensorView`, `AdoptWeight` and `format::FileSpan` with the safetensors branch before step 2.
+  1. **One loader owns the load sequence.**
+     - **New:** `inference/load.hpp` with:
+       - `struct LoadedModel { gguf::GGUFModel file; std::vector<core::HostPages> host; std::optional<bpe::Tokenizer> tok; chat::ChatFormat chat; std::unique_ptr<Model> model; std::string plan; }`. `model` is declared last, so it is destroyed first.
+       - `load_model(path, backends, request, options, progress)`, which runs today's `open_model` sequence.
+     - **Moved:** backends are now made before the file is read, so a bad `--device`, `--cache-type` or `--layer-shares` fails before "Reading model metadata...".
+     - **The CLI keeps:** device specs, `make_backends`, the request and options built from flags, the progress renderer (it prints "Preparing model..." when the bar completes), the plan print and `set_threads`.
+     - **Other callers:**
+       - `bench --profile` gets its backend through an out-parameter.
+       - `cmd_chat` uses `loaded->chat`.
+       - `server::serve` and `Api` take a `const chat::ChatFormat&`.
+       - `split_check` makes two `load_model` calls, and `compare_cpu` makes one.
+     - **Deleted:** `Opened`, the CLI's `load_model`, the release at `main.cpp:264`, and the tools' own open sequences.
+     - **Tests:** `load-progress` writes `tiny_qwen` with tokenizer metadata and loads it twice. On the CPU the payload is kept. On a CPU subclass that copies what it adopts and reports `reads_in_place()` false, `payload_size()` must be 0. In both cases the logits must be bit-identical to the model built in memory.
+     - **Docs:**
+       - new `docs/src/inference-load.md`;
+       - `docs/src/cli-main.md` and `docs/src/server.md`;
+       - the ARCHITECTURE table, layer diagram and error-handling paragraph;
+       - the AGENTS description of `load-progress`.
+  2. **The model is built from `QwenWeights`, and the loader decides each weight's storage.**
+     - **New in `arch_qwen.hpp`:**
+       - `TensorView {name, shape, type, data, bytes}`, where `data` is null when the bytes are not in memory.
+       - `QwenWeights {config, tensors}`, tensors in file order. Tensor `i` is the file's tensor `i`.
+       - `gguf_weights(const GGUFModel&)`. It runs `load_config` once and takes over the table checks from 529-541.
+       - `using AdoptWeight = std::function<backend::BufferPtr(size_t tensor, backend::Backend&)>`. The default is `b.adopt(view.data, view.bytes)`.
+     - **Changed signatures:**
+       - `Model(const QwenWeights&, backends, Placement, ModelOptions = {}, const AdoptWeight& = {})` and `place_model(const QwenWeights&, ..., const AdoptWeight& = {})`.
+       - The hook is called at the two adoption sites (888 in the check lambda, 959 in `experts`). RoPE (588-589) still adopts inline.
+       - The two GGUF constructors become one-line forwards through `gguf_weights`, for the fixtures and the synthetic bench.
+       - `footprint` and `routed_layers` take `QwenWeights`, and `footprint` takes dense layers from `routed_layers`.
+     - **The loader's hook** still adopts inline, as today. It records per tensor whether `b.reads_in_place()`. After construction it releases the payload when no host reads a weight, and otherwise drops the pages of every tensor no host reads.
+     - **Deleted:**
+       - from `Model`: `m_`, the `tindex_` and `out_name_` members (they become constructor locals), `host_reads_`, `copied_`, `holds_payload_`, `holds_payload()`, `note_reader`, and the drop loop at 549-551;
+       - `GGUFModel::holds`.
+     - **Tests:**
+       - `placement.cpp` wraps its fixtures in `gguf_weights`.
+       - `model_validation`, through a recording hook: nothing is read in place on `LoadingBackend`. With a device plus a streaming host, exactly `blk.0`'s `ffn_norm`, router and three expert stacks are read in place.
+       - `LoadingBackend` copies what it adopts.
+       - A one-off check shows `footprint` unchanged on every local model file.
+     - **Docs:**
+       - The real `adopt` contract in `backend.hpp:160`, `backends-backend.md` and `DEVICE-EXECUTION.md`: a backend that reads in place borrows the source for the buffer's life and does not read it inside `adopt`, and a copying backend has consumed it when `adopt` returns.
+       - `docs/src/model-arch_qwen.md` (the pointer rule, and 199-201).
+       - `docs/src/format-mapped_file.md`.
+       - `docs/EXECUTION.md:234`: "costs no RAM" is wrong, since the page cache is RAM.
+  3. **Reading a file maps and touches nothing, and `ModelFormat` goes.**
+     - **`read_gguf(path)`:**
+       - It parses, checks and lays out `Segment{path, file, start, base, size}`, with `file` null until mapped.
+       - It refuses duplicate tensor names in every file, not only across shards.
+       - It loses its progress parameter.
+     - **`map_payload(GGUFModel&)`** maps each segment. It refuses a file whose size changed since its header was read, taking over the extent checks at 544-550.
+     - **`GGUFModel::span(i)`** returns a `format::FileSpan{file, offset, bytes}`.
+     - **`format/format.hpp`** keeps `LoadProgress` and gains `FileSpan`. `ModelFormat`, `format::Tensor`, `ModelFormatPtr`, `format::open` and `GGUFFormat` are deleted.
+     - **`gguf::warm(m, tensors, progress)`** is today's loop at 564-579 over the given tensors, with the same 8 MiB steps. The host-memory rule moves into the loader.
+     - **`core::page_size()`** in `core/host_memory.hpp` replaces `MappedFile::page_size` and the literal 4096.
+     - **The loader** calls `map_payload` and then `warm` over every tensor right after `read_gguf`, the same point and progress as today.
+     - **Callers:** `dequantize` calls `map_payload`. `info`, `tokenize` and `detokenize` map nothing, so on Windows they no longer lock the file.
+     - **Tests:**
+       - Progress assertions call `read_gguf`, `map_payload` and `warm` in that order.
+       - The adapter checks become direct `GGUFModel` checks.
+       - `gguf-validation` gains a refusal of duplicate names in a single file.
+       - A file truncated between `read_gguf` and `map_payload` is refused.
+     - **Docs:**
+       - `format-format.md`, `format-gguf.md` and `core-host_memory.md`;
+       - ARCHITECTURE: the `format/` line, the table, "Progress and text delivery", and the loader paragraph in the present tense;
+       - the `format/` row in AGENTS;
+       - ROADMAP §3;
+       - the audit block's "`ModelFormat` stays" note;
+       - the USAGE progress paragraph.
+  4. **Plan, then fill: every weight is allocated before any is filled, and filled in file order.**
+     - **`Backend::alloc_weight(bytes)`**, which defaults to `alloc(bytes)`, gives storage the caller fills with `write` before any op reads it. The Vulkan override makes a device-local buffer with no fill and sets `adopted`, so `padded_f32` still applies. Vulkan's `adopt` becomes `alloc_weight` plus `upload`.
+     - **The loader's hook:**
+       - A backend that copies gets `alloc_weight`, and the loader records an upload (tensor, backend, buffer).
+       - A backend that reads in place adopts the mapped address, and the loader records a host read.
+       - When the constructor returns, every role has been checked and every weight, window, cache and RoPE table has been allocated, in today's order.
+     - **`detail::fill`** writes each upload in file order through `Backend::write`, in pieces of at most 16 MiB taken from the mapping. A tensor with two destinations is read once and written twice.
+     - **Warming** is today's: every tensor, before placement, under today's rule.
+     - **Effects:**
+       - A missing tensor or a cache that does not fit now fails before any upload, with the same message.
+       - Faults above host memory now happen in file order.
+     - **Tests:**
+       - `load-progress` loads the fixture from disk. Every device buffer is read back and compared with the file, and the logits must be identical to the in-memory model.
+       - The fill also runs with 4 KiB pieces, so tensors cross piece boundaries.
+       - `LoadingBackend` overrides `alloc_weight` and `write`, with a failure injected at write N, and must show `premature == 0`.
+       - `backend-vulkan`: `alloc_weight` plus piecewise writes equals `adopt`, and the padded path is still taken.
+     - **Docs:** `backend.hpp`, `backends-backend.md`, `DEVICE-EXECUTION.md`, `model-arch_qwen.md` and `inference-load.md`.
+  5. **`--load-mode auto|mapped`: buffered reads on a reader thread, overlapped with the uploads.**
+     - **New `format/file_reader.hpp:FileReader(path, direct)`**, buffered path:
+       - POSIX: `open`, `posix_fadvise(SEQUENTIAL)`, then `pread` in a loop, retrying on `EINTR`.
+       - Windows: `CreateFileW` with `FILE_SHARE_READ | FILE_FLAG_SEQUENTIAL_SCAN | FILE_FLAG_OVERLAPPED`, and `ReadFile` with an `OVERLAPPED` per call plus `GetOverlappedResult(TRUE)`. Synchronous completion and `ERROR_HANDLE_EOF` are both handled.
+       - A read is short only at end of file, and it is safe from several threads.
+       - `size()`; `granule()` is max(page, `st_blksize`), which is the recordsize on ZFS and the page on Windows.
+     - **New `core::HostPages(bytes)`:** page-aligned memory llmx owns (`VirtualAlloc`, or anonymous `mmap`), freed on destruction.
+     - **`enum class LoadMode { automatic, mapped, direct }`**, and `load_mode_of` beside `kv_type_of`.
+     - **`mapped`** is step 4's path.
+     - **`auto`:**
+       - Pieces are planned from the uploads' spans. Each starts on the granule, is at most 16 MiB, and is merged with the one before while the file is the same. A gap longer than a granule starts a new piece.
+       - One reader thread fills a ring of four 16 MiB `HostPages` slots in file order. The main thread writes each fragment to its destinations and then frees the slot.
+       - Files are mapped only when a host reads a weight in place. Host-read tensors are warmed after the stream, under the host-memory rule applied to their bytes alone.
+       - The payload is unmapped when no host reads a weight.
+     - **Progress:**
+       - `mapped` reports as today.
+       - `auto` reports 0 after construction, then per piece and per 8 MiB warm step. The total is the bytes of every tensor some backend takes, each counted once. It reaches 100% after the last upload.
+       - On the CPU alone, `auto` gives today's sequence whenever every tensor has a role.
+     - **Timing:** under `--verbose`, and always under `bench`, one line gives the mode, the read method per file, and the time spent constructing, reading, uploading and waiting for reads.
+     - **Measured in the same session, kept only if they win, recorded either way:**
+       - a second reader thread;
+       - 32 MiB pieces;
+       - `MADV_WILLNEED`, `MADV_POPULATE_READ` or `PrefetchVirtualMemory` before warming the tensors a host reads.
+     - **Tests:**
+       - A new CTest, `file-reader`: aligned ranges, short reads at end of file, tiny files, several threads.
+       - `load-progress` in `auto` and `mapped`, on the CPU and on the copying backend: buffers compared with the file, logits identical, and progress that starts at 0, only rises and ends at the total. Pieces of one granule are used, so tensors cross pieces and a piece holds several tensors.
+       - Three failures must each drain every backend, join the reader and free the ring: a throw at the Nth write, a progress callback that throws, and a file truncated after `read_gguf` ("`<path>` ended at N bytes, before its tensors").
+       - Shards, including a metadata-only shard.
+       - `run_tests.py --load-mode M` sets `LLMX_LOAD_MODE`, which `tests/common.py` passes to the binary as a flag.
+     - **Docs:**
+       - the flag in `print_usage` and USAGE;
+       - ARCHITECTURE "Progress and text delivery";
+       - new `docs/src/format-file_reader.md`;
+       - `core-host_memory.md` and `inference-load.md`.
+  6. **Direct reads, `--load-mode direct`, and `auto` reading direct when the host cannot cache the model.**
+     - **`FileReader`, direct path on Linux:**
+       - `open(O_DIRECT)`, then `statx(STATX_DIOALIGN)` by raw syscall, using the kernel's struct layout.
+       - It is refused when the mask lacks the bit or the memory alignment is zero. That covers kernels before 6.1, ZFS with `direct=disabled`, and file systems without direct I/O.
+       - It is also refused on `EINVAL` from `open`, or when the memory alignment is larger than a page.
+       - `align()` is max(page, `stx_dio_offset_align`), which is the recordsize on ZFS.
+     - **`FileReader`, direct path on Windows:**
+       - `FILE_FLAG_NO_BUFFERING | FILE_FLAG_OVERLAPPED`.
+       - `align()` is max(page, `LogicalBytesPerSector`, `PhysicalBytesPerSectorForPerformance`) from `FileStorageInfo`.
+       - One aligned probe read at open must succeed.
+     - **Misaligned requests:** a misaligned direct request is a `logic_error`, because ZFS 2.4 serves one through the ARC instead of refusing it. Buffers are always `HostPages`, and offsets and lengths are aligned by construction.
+     - **`direct`:**
+       - Device pieces are read direct into the ring.
+       - Each run of consecutive host-read tensors is read direct into one `HostPages`, from the aligned start below the run, in the same front-to-back pass. Each tensor keeps its in-page offset from the file, so CPU kernels see the same alignment the mapping gives them.
+       - The hook adopts those addresses. Nothing is mapped.
+     - **`auto`** reads a file's device pieces direct when the bytes the load reads exceed `core::host_memory_available()` and the file takes direct reads. Otherwise it reads them buffered.
+     - **Refusals**, before any byte is read:
+       - "--load-mode direct: `<path>` is on a file system that does not take direct reads", at open, before the model is built.
+       - "--load-mode direct: the host reads X GiB of weights in place and has Y GiB available; auto and mapped map them instead", after construction.
+     - **Measured in the same session:** a CPU decode A/B between `mapped` and `direct` on both machines, since anonymous pages behave differently from file pages, with `MADV_HUGEPAGE` on the host copy as a variant.
+     - **Tests:**
+       - The step 5 loader tests run in `direct` where the temporary file system takes direct reads, and check the documented refusal where it does not.
+       - `file-reader` covers the alignment and a rounded read past end of file.
+       - A ZFS dataset with `direct=disabled` is checked by hand on the Linux host.
+     - **Docs:** USAGE and `format-file_reader.md`.
+  7. **Measured, taken only if it wins, recorded either way: devices copy from the ring without the host copy into staging.**
+     - It is prototyped first.
+     - If it wins, it lands as one backend call that wraps caller memory as a host-visible buffer. The CPU aliases the memory; Vulkan imports it once per slot through `VK_EXT_external_memory_host`, which both cards take at 4096-byte alignment.
+     - The fill then copies each fragment with `copy`, and waits for a slot's last ticket before refilling it.
+- **The `--load-mode` flag, for docs/USAGE.md.** The execution options of chat, generate, serve, logits, perplexity and `bench --model` take it. Help line: `--load-mode M           How weights are read: auto (default), mapped or direct`.
+  - **`auto` (default):**
+    - Weights a device copies are read from the file in large sequential reads, overlapped with the uploads.
+    - The reads go through the operating system's file cache when the host has memory for the bytes the load reads, so a reload is served from the cache. When it does not, and the file system allows it, they go around the cache with direct I/O.
+    - Weights the CPU reads in place stay memory-mapped and are read in after the uploads.
+    - A model on the CPU alone loads as with `mapped`.
+  - **`mapped`:**
+    - Every file is memory-mapped, and its pages are read in before the model is placed when the host has room for the whole payload.
+    - Devices copy from the mapping.
+    - This is how models loaded before this option existed.
+  - **`direct`:**
+    - Every weight is read with direct I/O (`O_DIRECT`, or `FILE_FLAG_NO_BUFFERING`), bypassing the file cache. Nothing is mapped.
+    - Weights a device copies are streamed to it.
+    - Weights the CPU reads are read into memory llmx allocates, which the system cannot page back to the file.
+    - Refused before any weight is read when a model file's file system does not take direct reads, or when the weights the CPU reads exceed the host's available memory. Examples of the first case: ZFS with `direct=disabled`, and Linux before 6.1, where the alignment cannot be queried.
+  - **Errors and progress:**
+    - An unknown value is refused before anything is opened: "unknown load mode 'x' (auto, mapped or direct)".
+    - "Loading tensor data: N%" counts the bytes of the weights read. With a device in `auto` or `direct`, it reaches 100% after the last upload.
+    - `--verbose` adds one line with the mode, the read method per file, and the time spent reading and uploading.
+- **Not in this plan:**
+  - **Direct reads for every load in `auto`.**
+    - Direct reads fill no cache: ZFS skips the ARC on a miss, and ext4, xfs and NTFS skip the page cache. Every reload would then run at disk speed: about 4 s for the 8B on one MI50, against about 2 s warm today.
+    - `direct` is one flag away.
+    - Changing `auto`'s rule on Windows after its cold and warm A/B is a separate decision with its own gate.
+  - **io_uring, and more parallelism.**
+    - Container seccomp profiles block io_uring, `kernel.io_uring_disabled` can refuse it, and it adds nothing for a few large sequential reads.
+    - A reader per file or per device, and parallel uploads to several devices, are also out. One pool limits the Linux host, and the upload link limits the Radeon VII.
+  - **Direct reads into Vulkan staging.** Linux refuses to pin the driver's mapping, and Windows is unverified. Step 7 is the measured route.
+  - **Sub-allocating weights from large device blocks.** It changes the device memory layout and the fit, so it gets its own branch.
+  - **One submit for many small tensors.** The stage times decide this first.
+  - **Cache behaviour after loading.**
+    - Pruning the cache behind `auto` (`RWF_DONTCACHE`, `POSIX_FADV_DONTNEED`) is out, and so is an `auto` that checks the page cache with `mincore`.
+    - `mapped` keeps touching device tensors before upload, so it stays the earlier loading.
+  - **The fit.** The ring and `direct`'s host copy are not counted in it, and completing the fit is out: single-device and `--n-cpu-moe` loads, stream windows, padded F32 copies.
+  - **Small items:**
+    - cancelling a read in flight (a failed load waits for at most one 16 MiB read);
+    - halving pieces on `ERROR_NOT_ENOUGH_QUOTA`;
+    - `mlock`;
+    - `MADV_DONTFORK` (nothing forks while loading);
+    - tuning for disks that seek.
+  - **Converting bytes at load, and row-range adoption for tensor groups and expert tiers.** An upload entry (a file span mapped to a buffer offset) is where either would go.
+  - **Checking every tensor through a table of roles.** Plan, then fill already checks every role before any byte moves.
+  - **The other follow-ups:**
+    - type ids and sizes in `core/storage.hpp`, which the safetensors branch brings;
+    - the shard filename rule, written in both `format/gguf.hpp` and `hub/manifest.hpp:shard_name`;
+    - parsing the header from the mapping;
+    - `PlacementRequest` fields a path ignores silently;
+    - `set_ubatch` still public;
+    - `split_check`'s own device spelling;
+    - checking at load that a device supports every weight type.
+- **Gates:**
+  - **Suites, every step:** CTest and the Python suites on the Linux MI50s and on the Windows Radeon VII with the CPU. From step 5, in every load mode.
+  - **Outputs, every step:**
+    - Logits over the excerpt and 64 greedy tokens byte-identical to main, on Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M.
+    - Devices: the CPU, one MI50, two MI50s split 1:1, the Radeon VII, and the Radeon VII with `--n-cpu-moe 12`.
+    - `llmx-split-check` bit-identical.
+    - `info`, `tokenize` and `detokenize` stdout and the `--verbose` plan diffed against main.
+    - stderr without `--verbose` identical to main through step 4, and in `mapped` after it.
+    - The `tests/chat.py` progress assertions pass in every mode.
+  - **Host memory after load:** no more than main.
+    - A device-only model releases its copy.
+    - `--n-cpu-moe` keeps only the tensors a host reads.
+    - `direct` holds exactly the host-read weights plus their aligned edges.
+  - **Load time, from step 4 on:**
+    - Cold and warm, at least three interleaved rounds, on both machines, every mode against main.
+    - mx-llama.cpp's Vulkan build loads the same files on the same cards with `-lm dio` and `-lm mmap`, pinned to that card, and its load times go beside llmx's.
+    - Cases: 8B Q8_0 on one MI50; the 8B split 1:1 over two MI50s; 30B-A3B on one MI50; the 8B on the Radeon VII; 30B-A3B on the Radeon VII with `--n-cpu-moe 12`; the 8B on the CPU of each machine; the 235B on six MI50s once, cold, against main's 370 s.
+    - `auto` must be no slower than main in any case, and every result lists the stage times.
+    - The two A/B arms are built from different commits in separate build trees.
+  - **Getting a cold cache:**
+    - Linux: a scratch ZFS dataset with `primarycache=metadata`. Where that cannot be created, the round is recorded as uncontrolled.
+    - Windows: the standby list emptied with RAMMap before each cold round.
+  - **Before step 6:** confirm that the Linux host's kernel is 6.1 or later, or `direct` is refused there.
+  - **Step 6:** the CPU decode A/B between `mapped` and `direct` must be level, or better, on both machines.
+- **Decided with the plan (the design was delegated):**
+  1. `auto` reads through the cache when the host can hold the bytes the load reads, and direct otherwise, instead of direct wherever the file system allows. The reason is the "never worse than today" rule.
+  2. The value is `mapped`, not `mmap`, since Windows maps with `MapViewOfFile`.
+  3. With a device, in `auto` and `direct`, the bar counts bytes read and reaches 100% after the last upload. "Preparing model..." still follows it.
+  4. `direct` refuses when the weights the host reads exceed available memory, rather than counting them in the fit.
+  5. The reader refuses duplicate tensor names in a single file.
+
 ## Cleanup from the second code audit (planned 2026-09-25)
 
 - **Goal:** a second read-only audit of the commands, KV cache, server, inference, hub and tokenizer, backends, and tests and tools found 72 findings that survived adversarial verification (5 were refuted). They are fixed under the one-owner rule in 18 branches, each off main and merged on its own gate. Model loading and the layer split pipeline stay out of it.
@@ -45,7 +435,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - `fix/server-cancel`, after branch 2 since both edit `http.hpp` and `api.hpp`: a request is cancelled only when a write to its client fails, so a client that leaves during a streamed request's prefill, while its request is queued, or at any point of a whole reply is not noticed, and the request runs to its end (an uncapped one up to the token limit), holding a slot and its blocks. The connection thread waits for tokens with a timeout of about 100 ms and, whenever nothing arrives, probes the socket without blocking and cancels the request once the client has closed it. Tests: a whole reply, a streamed long prompt during prefill and a queued request, each client leaving, and the server with nothing active and its blocks back within seconds.
 - **Then the input and text bugs:** 5 `cleanup/cli-arguments` (numbers parsed four ways, garbage and negatives accepted, flags still ignored), 6 `cleanup/utf8` (UTF-8 written three times; the server can send invalid UTF-8 in JSON), 8 `fix/tokenizer-metadata` (a file with another tokenizer tokenizes silently wrong), 9 `fix/chat-template-defined` (`is defined` always true).
 - **Then refactors that change no behaviour:** 7 `cleanup/quant-owner` (registry set up in 13 places, UTF-8 paths for quantize), 10 `cleanup/cli-help` (defaults and output the help misstates), 11 `refactor/cli-exec-options` (execution flags in the sampler header, sampling defaults twice), 12 `cleanup/test-helpers`, 13 `cleanup/vulkan-constants` (shader-fixed numbers in the tunable profile), 14 `cleanup/backend-contract-helpers` (row bytes and the row-run walker written several times), 15 `cleanup/kv-storage` (the CPU and Vulkan KV storages duplicate their bookkeeping and have drifted), 16 `cleanup/cpu-kernels` (dead runtime AVX2 checks, a duplicated decode dot), 17 `cleanup/hub-limits`.
-- **Waiting for a decision:** 18 `test/reference-8b-per-token`. Since perplexity became batched by default, the 8B HF check scores only the batched path, so the 8B decode kernels have no reference check; adding the per-token mode revises a frozen gate.
+- **Approved (2026-09-25):** 18 `test/reference-8b-per-token`. Since perplexity became batched by default, the 8B HF check scores only the batched path, so the 8B decode kernels have no reference check; the per-token mode is added, bounds unchanged, and the 0.6B check takes the 8B check's stricter validators.
 - **Sequencing:** 3, 4, 5, 7 and 12 touch files the layer split branch still has open and start after it merges; branches sharing a file land in order (1, 2, 4 on `scheduler.hpp`; 5, 10, 11 on `main.cpp`; 7, 14 on the registry; 4, 15 on `kv_copy`; 14, 16 on `matmul_raw`).
 - **Not acting on, with reasons recorded in the audit:** the KV growth peak in the fit (the loader plan's), one generation state for the CLI and server (a design change: they already share `sample` and `is_eos` and give the same ids), a float-scratch dot for routed Q4_0 and Q4_1 decode on the CPU (changes outputs), and helpers that would only carry differences as parameters.
 

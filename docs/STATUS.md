@@ -33,9 +33,16 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     On the rebased tree both builds have 0 warnings, CTest passes 22/22 and 25/25 (the two Vulkan tests skipped), and the suite's 16 components other than `server` pass on the CPU build with `--require-tools --require-baseline` (load average 17 to 34); `server` is the hosted HF reference job's.
     Against main's binary, which has no `--ignore-eos`, the `cli` check now fails where it passed before, and with a workload that always asks to ignore the end of text the self-test now fails on every API where it passed before.
     The hosted jobs pass on this commit, the HF reference job running the whole suite, `server` included.
-- **Left:** before the merge, only a rebase if main moves past `dc31dd4`; the change is host code (the sampler, the routes, the CLI flag), which the merge rules gate on the CPU and the hosted jobs, and a device changes the logits the rule reads, not the rule.
-  Open after it: the CLI at the context, above, and the test servers' worker count inside a CPU quota, which puts the uncapped check past its timeout on a loaded machine on main too.
+- **Merged** at `7f5ecd3` (2026-09-26), rebased onto main `575a2ec` behind the Q4_0 fix below: on the stack's tip both builds have 0 warnings, CTest passes 22/22 and 25/25, the suite passes 18 of 18 on each build on the host CPU, `server` included, and the hosted jobs pass.
+  The change is host code (the sampler, the routes, the CLI flag), which the merge rules gate on the CPU and the hosted jobs, and a device changes the logits the rule reads, not the rule.
+  Open: the CLI at the context, above, and the test servers' worker count inside a CPU quota, which puts the uncapped check past its timeout on a loaded machine on main too.
   A model whose reply ends at more than one token needs each of them masked: the mask reads `Tokenizer::eos_id`, the one id `is_eos` ends a reply at today, so the work that gives `is_eos` a second end token (Qwen 3.x, DeepSeek 4.x) widens the mask with it.
+
+## Q4_0 decodes -0 at nibble 8 under a negative scale (2026-09-26, branch fix/q4_0-negative-zero, merged at `7f5ecd3`)
+
+- **Why:** the format decodes a Q4_0 value as `d*(nibble-8)`, which is -0 at nibble 8 when the scale is negative, and llmx gave +0 there, so `llmx dequantize` of the Qwen3-0.6B Q4_0 file differed from a decoder written from the format description in the sign of 26,631,920 zeros ([ASSETS](ASSETS.md)).
+- **Done:** the CPU decode and the Vulkan embed both give the format's value, the embed with the sign set as bits; `tests/roundtrip.py` decodes raw Q4_0 blocks under every scale of its set, negatives included, against the spec decoder, and `backend-vulkan` embeds raw Q4_0 rows under negative scales against the CPU.
+- **Gates** (on the stack's tip against main `575a2ec`, on the Linux machine's CPU): the round trip fails on the test commit alone, at 8 of 512 values, and passes with the fix; `llmx dequantize` equals the spec decoder bit for bit on every tensor of the 0.6B Q8_0, Q4_0, Q5_K_M and Q4_K_M files; `generate -n 64 --temp 0` and `logits --top 20` on two prompts on 0.6B Q8_0 and Q4_K_M, 16 of 16 the same as main; builds, CTest and the suite as in the `ignore_eos` block above; `backend-vulkan` passes on an MI50 and, after the merge, on the Radeon VII, built on Windows with no new warning; the hosted jobs pass.
 
 ## The qwen35 pretokenizer (2026-09-26, branch feat/tokenizer-qwen35)
 
@@ -642,7 +649,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - `perf/sampler-select`, approved as its own branch, merges before step 4. Greedy is unchanged, seeded draws change once, and its gate reports how many draws differ on a fixed set.
   - `perf/decode-columns` touches only the Vulkan backend's decode builds and their tests. It runs beside steps 1 to 4, merges on its own gate, and step 8's W follows what it merged.
   - The loader (`refactor/loader`) rewrites `PlacementRequest` and the fit's budgets, which step 1's slot count and step 6's shares also touch. Step 6 comes after it, and whichever of the loader and step 1 merges second rebases.
-  - `feat/ignore-eos` merges before the gate runs, so every server's output lengths are fixed. Step 0's llmx runs so far ended no reply short.
+  - `feat/ignore-eos` merged at `7f5ecd3`, before the gate runs, so every server's output lengths are fixed. Step 0's llmx runs so far ended no reply short.
   - The prefill kernels merged at db0f8c3 and `perf/decode-columns` move the one-card numbers, so every gate table names the commit it ran on.
   - The Qwen 3.x plan builds beside this one, with this phase and `perf/decode-columns` first on the cards. Its serve fit follows this phase's server work, and its checkpoints need this phase.
   - Its speculative decoding verifies k drafts as one extent-1 entry of k + 1 rows of one sequence, so verify rows ride in passes as decode rows do. The one-pass rule holds, the rows count against W and in step 8's D, and the MTP block runs on the output device, which step 6's shares count when speculative decoding is on.

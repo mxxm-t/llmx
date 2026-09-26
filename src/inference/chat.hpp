@@ -1658,6 +1658,38 @@ inline std::vector<Value> dict_items(const Value& v) {
     return out;
 }
 
+// The map filter with its positional arguments from `at` on: a filter name and that filter's arguments, or none beside the `attribute` keyword.
+// Each map is one level deeper in the render, and a map naming map reads the same arguments one further on, so a chain of such names fails at the render's depth limit rather than recursing on the host stack.
+inline Value map_filter(const Value& v, const std::vector<Value>& args, size_t at, const Kwargs& kw, Env& env) {
+    const Deeper d(*env.render);
+    const Args a{ args, kw, "map" };
+    std::vector<Value> out;
+    if (const Value* attribute = a.get(size_t(-1), "attribute")) {
+        if (at < args.size()) type_error("map takes a filter name or an attribute, not both");
+        const Value* fallback = a.get(size_t(-1), "default");
+        const std::vector<Value> path = attribute_path(*attribute);
+        for (const auto& item : iterate(v)) {
+            Value x = item;
+            for (const auto& part : path) {
+                x = get_item(x, part);
+                if (x.k == Value::UNDEF && fallback && fallback->k != Value::NONE) x = *fallback;
+            }
+            out.push_back(x);
+        }
+        return Value::list(std::move(out));
+    }
+    if (at >= args.size() || args[at].k != Value::STR) type_error("map requires a filter argument");
+    const std::string& filter = args[at].s;
+    if (!supported_filter(filter)) type_error("the filter " + str_repr(filter) + " is not supported");
+    if (filter == "map") {
+        for (const auto& item : iterate(v)) out.push_back(map_filter(item, args, at + 1, kw, env));
+        return Value::list(std::move(out));
+    }
+    const std::vector<Value> rest(args.begin() + at + 1, args.end());
+    for (const auto& item : iterate(v)) out.push_back(apply_filter(filter, item, rest, kw, env));
+    return Value::list(std::move(out));
+}
+
 inline Value apply_filter(const std::string& name, const Value& v, const std::vector<Value>& args, const Kwargs& kw, Env& env) {
     const Args a{ args, kw, name.c_str() };
     if (name == "default" || name == "d") {
@@ -1765,29 +1797,7 @@ inline Value apply_filter(const std::string& name, const Value& v, const std::ve
         for (size_t n : order) out.push_back(items[n]);
         return Value::list(std::move(out));
     }
-    if (name == "map") {
-        std::vector<Value> out;
-        if (const Value* attribute = a.get(size_t(-1), "attribute")) {
-            if (!args.empty()) type_error("map takes a filter name or an attribute, not both");
-            const Value* fallback = a.get(size_t(-1), "default");
-            const std::vector<Value> path = attribute_path(*attribute);
-            for (const auto& item : iterate(v)) {
-                Value x = item;
-                for (const auto& part : path) {
-                    x = get_item(x, part);
-                    if (x.k == Value::UNDEF && fallback && fallback->k != Value::NONE) x = *fallback;
-                }
-                out.push_back(x);
-            }
-            return Value::list(std::move(out));
-        }
-        if (args.empty() || args[0].k != Value::STR) type_error("map requires a filter argument");
-        const std::string filter = args[0].s;
-        if (!supported_filter(filter)) type_error("the filter " + str_repr(filter) + " is not supported");
-        const std::vector<Value> rest(args.begin() + 1, args.end());
-        for (const auto& item : iterate(v)) out.push_back(apply_filter(filter, item, rest, kw, env));
-        return Value::list(std::move(out));
-    }
+    if (name == "map") return map_filter(v, args, 0, kw, env);
     if (select_filter(name)) {
         // The items whose value, or attribute, passes the named test, or failing it for reject; with no test named, those that are true.
         const bool keep = name[0] == 's';

@@ -2367,6 +2367,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
        - The consumer, the `qwen35` component, holds llmx to the gate's bounds once llmx runs the architecture, and reports SKIP until then.
        - `reference-generator` holds the generator to its version, float32, eager attention, no replacement packages and its key checks, and maps the 4B's `dt_bias` onto its GGUF through the writer's tiled order bit for bit.
        - An independent float64 reading of the written files matched the goldens within 7.9e-7, and each of nine misreadings missed them by at least 0.10.
+         Put in the CLI's place, that reading passed the whole `qwen35` component, and failed it with either of two misreadings.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Gates:
        - The tiny fixtures, the 0.8B and the 4B within bounds on both cards.

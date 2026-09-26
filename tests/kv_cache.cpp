@@ -747,7 +747,7 @@ void replay_by_class() {
     };
     infer::Sequence ref = model.make_sequence();
     infer::BatchEntry first{&ref, ids.data(), prompt, true};
-    first.extent = first.fresh = prompt;
+    first.extent = prompt;
     model.forward(ctx, &first, 1);
     std::vector<float> want;
     for (size_t s = 0; s < steps; ++s) {
@@ -769,7 +769,6 @@ void replay_by_class() {
             const size_t n = generated ? std::min<size_t>(64, ids.size() - at) : std::min<size_t>(16, prompt - at);
             infer::BatchEntry e{&seq, ids.data() + at, n, at + n == ids.size()};
             e.extent = generated ? 1 : prompt;
-            e.fresh = generated ? 1 : prompt;
             pass.push_back(e);
             model.forward(ctx, pass.data(), pass.size());
             if (e.want_logits) got.assign(ctx.logits(ctx.n_logits - 1), ctx.logits(ctx.n_logits - 1) + V);
@@ -801,7 +800,7 @@ void replay_by_class() {
         if (reading.length() < other.size()) {
             const size_t at = reading.length(), n = std::min<size_t>(7, other.size() - at);
             infer::BatchEntry slice{&reading, other.data() + at, n, at + n == other.size()};
-            slice.extent = slice.fresh = other.size();
+            slice.extent = other.size();
             pass.push_back(slice);
         }
     }), "a history replayed by class beside other sequences differs from its decode");

@@ -79,7 +79,7 @@ struct ExecOptions {
     std::string cache_type_v;
     int kv_tokens = 0;            // the KV pool's total token budget, serve's --ctx-size; 0 is the model context
     int cpu_moe = 0;              // routed layers whose experts run on the CPU beside a device: the first N, -1 all
-    int moe_stream_from = 0;      // new prompt tokens from which those experts are copied to the device for a pass; 0 never
+    int moe_stream_from = 0;      // prompt length from which those experts are copied to the device for a pass; 0 never
     infer::LoadMode load_mode{};  // how weights are read; the default is the loader's first mode
     bool verbose = false;         // the prompt token count, the thread counts, a split's plan and progress
 };
@@ -877,7 +877,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --n-cpu-moe N           First N routed layers' experts on CPU (default: " << defaults.cpu_moe << ")\n"
             << "  --cpu-moe               All routed layers' experts on CPU\n"
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
-            << "                          at least N new tokens; 0 disables this (default: " << defaults.moe_stream_from << ").\n"
+            << "                          at least N tokens; 0 disables this (default: " << defaults.moe_stream_from << ").\n"
             << "                          Generated tokens and one-token prompts stay on CPU.\n"
             << "  --load-mode M           How weights are read: auto, mapped or direct (default: " << infer::load_mode_name(defaults.load_mode) << ")\n";
     };

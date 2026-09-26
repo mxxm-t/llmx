@@ -219,7 +219,6 @@ void channel() {
     infer::ExecContext ctx;
     infer::BatchEntry first{&seq, prompt.data(), prompt.size(), true};
     first.extent = prompt.size();
-    first.fresh = prompt.size();
     control.forward(ctx, &first, 1);
     for (size_t i = 0; i < with.size(); ++i) {
         const std::string at = "token " + std::to_string(i);

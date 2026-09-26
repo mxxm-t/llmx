@@ -32,10 +32,10 @@ struct SampleParams : infer::Sampling {
     size_t top_logprobs = 0;
 };
 
-// A stretch of a history computed one way: the rows before `end`, from the stretch before it on, took this extent and fresh count (infer::BatchEntry).
-// A request's prompt takes its extent and the tokens its first admission prefilled, a generated token extent 1, and a prefix forked at the first admission keeps the stretches its donor recorded.
+// A stretch of a history computed one way: the rows before `end`, from the stretch before it on, took this extent (infer::BatchEntry), which chooses a device's kernels and whether a streamed layer runs on the device, so streamed and host rows are always of different classes.
+// A request's prompt takes its whole length, a generated token extent 1, and a prefix forked at the first admission keeps the stretches its donor recorded.
 struct RowClass {
-    size_t end, extent, fresh;
+    size_t end, extent;
 };
 
 // A running request as make_room sees it: its first admission, whether it may be paused (an uncapped one), the blocks it has reserved, and those its history would keep as a donor once paused, per pool.
@@ -374,9 +374,8 @@ public:
                 // The entry that ends the history wants the logits the next token is sampled from.
                 const bool last = at + n == end;
                 entries.push_back(infer::BatchEntry{&r->seq_, token_ptr(*r, at), n, last});
-                // The stretch's extent and fresh count, so its rows take the kernels, and a streamed layer the path, that first computed them.
+                // The stretch's extent, so its rows take the kernels and the streamed path that first computed them.
                 entries.back().extent = c.extent;
-                entries.back().fresh = c.fresh;
                 if (last) wanting.push_back(r);
             }
             try {
@@ -462,7 +461,7 @@ private:
     static size_t alike(const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n) {
         size_t at = 0;
         for (size_t i = 0, j = 0; at < n && i < a.size() && j < b.size();) {
-            if (a[i].extent != b[j].extent || a[i].fresh != b[j].fresh) break;
+            if (a[i].extent != b[j].extent) break;
             at = std::min({a[i].end, b[j].end, n});
             if (a[i].end <= at) ++i;
             if (b[j].end <= at) ++j;
@@ -628,7 +627,7 @@ private:
 
     // A history for an admitted request: its own donor `d` taken back whole (`take`), which leaves the donors, or a fork of donor `d` holding the `shared` tokens best_donor found, or a fresh sequence when it found none.
     // The donor taken back holds exactly the rows the request computed before its pause, so it continues as if never paused.
-    // A first admission records its rows: a forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent with the tokens it prefills, then the generated tokens at extent 1.
+    // A first admission records its rows: a forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent, then the generated tokens at extent 1.
     // Under the lock.
     void admit(Request& r, size_t d, size_t shared, bool take = false) {
         {
@@ -654,8 +653,8 @@ private:
             r.classes_ = clip(donors_[d].classes, shared);
         }
         const size_t p = r.prompt_.size();
-        r.classes_.push_back(RowClass{p, p, p - shared});
-        r.classes_.push_back(RowClass{std::numeric_limits<size_t>::max(), 1, 1});
+        r.classes_.push_back(RowClass{p, p});
+        r.classes_.push_back(RowClass{std::numeric_limits<size_t>::max(), 1});
         r.reached_ = shared;
         r.rng_.seed(r.params_.seed);
     }

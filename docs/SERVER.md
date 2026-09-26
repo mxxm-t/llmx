@@ -54,8 +54,8 @@ is measured against the single-sequence path and the reference.
   Paused requests wait apart from the queue, in order of first admission: they do not count against `--max-queue`, a client that leaves ends its paused request at the next iteration, and they hold nothing but an evictable donor.
   While a request is stalled nothing resumes or is admitted; paused requests resume oldest first and stop at the first that does not fit, and new requests are admitted only once none is paused.
   `/v1/health` counts the requests paused now, the passes requests sat out, the tokens resumes recomputed and the resumes that took their donor back.
-- **An exact resume.** A request keeps its prompt and what it generated, never rewritten, and a record of how each stretch of its history was computed, its row classes: the extent and fresh count each stretch took (`BatchEntry`).
-  At its first admission that is the forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent with the tokens it prefills, and the generated tokens at extent 1; a donor keeps the classes of the history it holds.
+- **An exact resume.** A request keeps its prompt and what it generated, never rewritten, and a record of how each stretch of its history was computed, its row classes: the extent each stretch took (`BatchEntry`), which chooses a device's kernels and, with experts streamed, whether a routed layer runs on the device.
+  At its first admission that is the forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent, and the generated tokens at extent 1; a donor keeps the classes of the history it holds.
   A resumed request whose own donor, the one its pause left, is still there because nothing evicted it takes that donor back whole, its partial last block included, and recomputes nothing: the rows it continues from are the ones it computed itself. Its history goes to that donor even when it holds less than a full block, which only it can take.
   Otherwise it forks only rows computed the way its own were, from a donor sharing part of its history, an identical request's or one holding a prefix it forked at its first admission, and recomputes what its cache lacks in the classes that first computed it, its generated tokens as entries of extent 1, which take the decode kernels however many rows they carry.
   So a paused request gives the logits, bit for bit, that it gives when never paused, on the CPU, on a device and on a layer split, and a request that never pauses runs exactly as before.
@@ -133,11 +133,10 @@ loop:
   assemble: one entry per decoding request that did not stall, whose
            cache lacks only its last sampled id; then for every other
            request a slice of the next stretch its cache lacks, at that
-           stretch's extent and fresh count, in order of first
-           admission, until the pass holds ubatch tokens, generated
-           tokens at most 64 a pass and each counting ubatch / 64; the
-           entry that ends a request's history wants logits, the others
-           do not
+           stretch's extent, in order of first admission, until the
+           pass holds ubatch tokens, generated tokens at most 64 a pass
+           and each counting ubatch / 64; the entry that ends a
+           request's history wants logits, the others do not
   run:     Model::forward(ctx, entries, n); ctx.logits() waits
   sample:  per entry that wanted logits, the request's own sampler state;
            push the id to its channel, with its logits row when the

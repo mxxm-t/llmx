@@ -554,7 +554,7 @@ void replay_over_stages() {
             const bool generated = at >= prompt;
             const size_t n = generated ? std::min<size_t>(64, ids.size() - at) : std::min<size_t>(16, prompt - at);
             infer::BatchEntry e{&seq, ids.data() + at, n, at + n == ids.size()};
-            e.extent = e.fresh = generated ? 1 : prompt;
+            e.extent = generated ? 1 : prompt;
             m.forward(ctx, &e, 1);
             if (e.want_logits) got.assign(ctx.logits(0), ctx.logits(0) + V);
         }

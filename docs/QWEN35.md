@@ -324,7 +324,7 @@ These rules keep every result batch-invariant, and every reused state one the CL
 - **The prompt rows of an entry whose extent is above 1** run the chunked form on Vulkan, on a grid of absolute multiples of 64 from position 0, with no other extent threshold.
   This comes with its own step of the plan (step 6), and is kept only if it measures faster; until then these rows run the recurrence too.
 - So a row's class is its entry's extent, 1 or above 1.
-  The row classes of `fix/server-exact-resume` (`RowClass`: the end, extent and fresh count of each stretch of a history) record it.
+  The row classes of `fix/server-exact-resume` (`RowClass`: the end and extent of each stretch of a history) record it.
 
 Within a class, a row's output and the state after it depend only on the state before the row and the row's own inputs.
 So all of these give the same bits: slicing a prompt into passes, the server's budget slices, other sequences in the pass, a reused prefix, and the exact-resume replay of generated rows.

@@ -232,8 +232,8 @@ struct LayerWeights {
 struct Placement {
     std::vector<int> attn_device, ffn_device;
     int embed_device = 0, output_device = 0;
-    // A routed layer with its feed-forward block on a host and its attention on a device runs a prompt of at least this many new tokens on the device, its experts copied there for each pass: past some length a prompt's expert products on the host cost more than moving the experts.
-    // By the tokens the request prefills (BatchEntry::fresh), so a short reply in a long conversation stays on the host, and every slice of one prompt takes the same path however it is batched. Zero keeps every run on the host, and neither a generated token nor a prompt of one new token streams, so 1 streams what 2 does: one row cannot pay for moving a layer's experts.
+    // A routed layer with its feed-forward block on a host and its attention on a device runs a prompt of at least this many tokens on the device, its experts copied there for each pass: past some length a prompt's expert products on the host cost more than moving the experts.
+    // By the prompt's whole length (BatchEntry::extent), so a prompt takes one path however it is sliced or batched and whatever prefix its history already held. Zero keeps every run on the host, and neither a generated token nor a one-token prompt, both of extent 1, streams, so 1 streams what 2 does: one row cannot pay for moving a layer's experts.
     size_t stream_from = 0;
 };
 
@@ -270,13 +270,10 @@ struct BatchEntry {
     bool want_logits;
     // The logits after every token of the entry rather than only its last, for scoring a text through the same batched passes a prompt takes; with want_logits.
     bool every_logits = false;
-    // What a device chooses this entry's kernels by (backend::RowRun): for a prompt's rows the position one past the prompt's last token, for generated tokens 1 however many the entry carries, as a paused request's resume recomputes them.
+    // What a device chooses this entry's kernels by (backend::RowRun), and a streamed layer its path (Placement::stream_from): for a prompt's rows the position one past the prompt's last token, for generated tokens 1 however many the entry carries, as a paused request's resume recomputes them.
     // Zero takes the entry's own row count.
     // A prompt given its extent computes the same whether it arrives in one pass or in slices, alone or beside other sequences, with or without a reused prefix.
     size_t extent = 0;
-    // The tokens the request prefills, its reused prefix excluded, the same for every slice of it: what a streamed layer follows (Placement::stream_from).
-    // Zero takes the entry's own row count. A prompt computes the same in one pass or in slices, alone or beside other sequences; with a reused prefix its new tokens may take the host where one pass over the whole would take the device.
-    size_t fresh = 0;
 };
 
 // What a pass's stages read as they are recorded: its entries, its rows and their positions, the rows the head reads, and each storage's cache views once its stage has reserved them.
@@ -289,7 +286,6 @@ struct Pass {
     std::vector<uint32_t> ids, pos, pick;
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
     std::vector<backend::RowRun> runs, head_runs;      // the pass's rows and the head's, by entry
-    std::vector<size_t> fresh;                         // per entry, the tokens its request prefills
     size_t parity = 0;                                 // which of each device's two handoff buffers its crossings use
     size_t at = 0;                                     // the device its residual left the last stage from
     backend::Ticket sent = 0;                          // the submission that copied it out
@@ -739,7 +735,6 @@ public:
                 const size_t i = c * B, n = std::min(B, ids.size() - i);
                 BatchEntry entry{&seq_, ids.data() + i, n, i + n == ids.size()};
                 entry.extent = start + ids.size();
-                entry.fresh = ids.size();
                 return entry;
             };
             if (!pipelined_) {
@@ -787,7 +782,6 @@ public:
                 BatchEntry entry{&seq_, ids.data() + i, B, true};
                 entry.every_logits = true;
                 entry.extent = ids.size();
-                entry.fresh = ids.size();
                 forward(ctx_, &entry, 1);
                 for (size_t j = 0; j < B; ++j) each(i + j, ctx_.logits(j));
                 i += B;
@@ -1004,7 +998,6 @@ private:
         p.pos.resize(rows);
         p.pick.resize(want);
         p.runs.resize(n_entries);
-        p.fresh.resize(n_entries);
         p.head_runs.clear();
         p.views.resize(storages_.size());
         for (auto& v : p.views) v.resize(n_entries);
@@ -1019,7 +1012,6 @@ private:
             }
             const size_t extent = en.extent ? en.extent : en.n;
             p.runs[e] = backend::RowRun{r + en.n, extent};
-            p.fresh[e] = en.fresh ? en.fresh : en.n;
             // The head reads one row per entry as a generated token's, or every row of a scored text as its prompt's.
             if (en.want_logits && en.every_logits) {
                 for (size_t b = 0; b < en.n; ++b) p.pick[w++] = (uint32_t)(r + b);
@@ -1217,9 +1209,9 @@ private:
         receive(ctx, from, 0, devices_[from]->b->submit(), to, base, rows);
     }
 
-    // Whether entry e of a pass takes a streamed layer on the device (Placement::stream_from): a prompt of enough new tokens, two at the least, never a generated token.
+    // Whether entry e of a pass takes a streamed layer on the device (Placement::stream_from): a prompt long enough, two tokens at the least, never a generated token.
     bool streams(const Pass& p, size_t e) const {
-        return place_.stream_from && p.runs[e].extent > 1 && p.fresh[e] >= std::max<size_t>(place_.stream_from, 2);
+        return place_.stream_from && p.runs[e].extent >= std::max<size_t>(place_.stream_from, 2);
     }
 
     // A streamed layer in a pass with long runs: consecutive entries alike form a group, the long ones run where the residual is, with the experts copied into the window once, and the rest on the host through a crossing each way.

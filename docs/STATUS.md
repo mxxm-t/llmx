@@ -608,6 +608,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Whether logprobs go on the public routes: yes, in `feat/server-logprobs` below.
   - Whether a host tier for paused caches goes on top of the exact recompute: decided on step 3's numbers.
   - Whether a resumed request whose own donor survived takes it back whole: yes, as a step of its own after step 2, decided with the Qwen 3.5 plan, whose hybrid models need it.
+  - Whether `--moe-stream-from` may depend on what the cache holds (decided 2026-09-26): no. The streamed path follows the whole prompt's length, its extent, never the tokens left to read after a reused prefix, so streamed and host rows are different row classes and a resume or a reused prefix computes rows in the class that first computed them. `BatchEntry::fresh` is gone, and a short follow-up in a long chat pays the copy.
 - **Found**, read at 34bebc3, with measured results on main where stated:
   - Measured on one MI50 with Qwen3-8B Q8_0: 12 uncapped greedy requests with `--max-seqs 6 --ctx-size 4096` pause 24 times. 3 of the 12 replies differ from the same request run alone, first differing 1400 to 2900 characters in.
   - The same run gives 2 of 12 differing on a 3-card split and 1 of 12 with Qwen3-0.6B.
@@ -622,11 +623,11 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Paused requests go back into the queue, where they count against `--max-queue` (163-164, 337). Only the front of the queue is checked for cancellation (196).
   - Not caused by pauses, and not fixed here: a first admission forks a donor by tokens alone. A follow-up turn therefore takes the previous reply's rows, which decode computed, as prompt rows. A prompt forking a donor of another extent class takes rows the CLI would compute differently.
   - SERVER.md's correctness gate says a forked prefix continues exactly as a fresh sequence would. That holds only within one class. `check_conversation` passes only because the greedy text agrees on its fixture.
-- **Design:** a paused request keeps its history as tokens, plus a record of how each stretch of the history was computed: its extent and fresh count (its row classes). A resume recomputes whatever its cache lacks the same way it was first computed. This needs no model or backend change:
+- **Design:** a paused request keeps its history as tokens, plus a record of how each stretch of the history was computed: its extent (its row classes). A resume recomputes whatever its cache lacks the same way it was first computed. This needs no model or backend change:
   - An entry with extent 1 already takes the decode kernels however many rows it carries. `begin` gives the entry's extent to its run (`arch_qwen.hpp` 1011).
   - On the CPU, extent 1 goes to the 8-bit decode dots one column at a time (`cpu_backend.hpp` 336, 351).
   - On a device, extent 1 takes the row kernel below the tile threshold (1389), the per-row attention below 32 (1982) and the per-row expert path (1691). Such an entry never streams (`arch_qwen.hpp` 1211-1213).
-  - A prompt's rows given their prompt's extent and fresh count compute the same however they are sliced (`BatchEntry::extent`, 232-238).
+  - A prompt's rows given their prompt's extent compute the same however they are sliced (`BatchEntry::extent`, 232-238).
   - A sequence appears in a pass at most once (224). So each stretch is its own entry, and a stretch boundary costs at most one extra pass.
 - **Owners:**
   - How a row is computed: the request's row classes, read only by batch assembly.
@@ -653,7 +654,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
      - Removed: `resumed_`, `resumed_gen_`, the history splice, `prompt_done_`, `fresh_` and `ubatch_slice`. The cache's length is the one record of progress.
      - `rows_` holds the history's row classes as a short list of stretches `{end, extent, fresh}`. At the first admission it holds the forked prefix's stretches as their donor recorded them, then the rest of the prompt at the prompt's extent and the count it prefills, then the generated tokens at extent 1. A donor keeps the stretches of the history it holds.
      - Assembly gives each request what its cache lacks, one stretch per pass. A request whose only missing row is its last generated token takes a decode entry, exactly as today.
-     - Any other request takes a slice of its next stretch, with that stretch's extent and fresh count. Prompt rows come out of the pass's ubatch budget.
+     - Any other request takes a slice of its next stretch, with that stretch's extent. Prompt rows come out of the pass's ubatch budget.
      - Generated rows go at most `kReplayRows` to a pass, each counting `ubatch / kReplayRows` against the budget. A request gets at least one row when the budget is untouched, so `--ubatch 1` still progresses, and a pass never holds more than ubatch plus `max_seqs` rows.
      - The entry that ends at the end of the history wants logits. This is the only sampling rule.
      - A pause parks the history and its row classes as a donor, as today, and queues the request unchanged.
@@ -774,7 +775,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - That gate is the final gate of the layer split, owned jointly by this phase and `perf/decode-columns`, which started 2026-09-26. This phase's scheduler steps merge on their own correctness gates plus being faster than today at every load. The layer split is not done until the full gate passes.
   - Threads: one scheduler thread, a sampling pool, a 16-slot command ring and the fast sampler (`perf/sampler-select`, approved). The thread is measured after step 4 and after the kernel step, and step 7 applies the rule decided with it.
   - A decode kernel that needs a different per-column summation order, fixed and independent of the batch, changes decode output once. It needs the user's OK first, with the count of changed greedy tokens on a fixed set, the HF results and the speed gain. Until then every new build is bit-identical to today's per column.
-  - Slice boundaries may follow the cost model; an entry's extent and fresh count never do. `docs/MULTI-DEVICE.md` says so from this commit.
+  - Slice boundaries may follow the cost model; an entry's extent never does. `docs/MULTI-DEVICE.md` says so from this commit.
   - Batch invariance and exact reuse only: every request's output equals its run alone and the CLI's, and is identical across one card and 2 to 4 cards.
 - **Decided by the user (2026-09-27):**
   - Step 6 becomes a head split: the output projection's vocabulary rows are divided over the stages, and each card writes its slice of the logits to host memory.
@@ -787,7 +788,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     - Compute balancing is opt-in, behind flags named for best fit.
   - Step 5 (`perf/decode-columns`) is held until 32 rows meets the reference's 57.3 ms per 8B pass on one MI50, and the prototype branch `perf/decode-32` works on that cell.
 - **Rules it keeps:**
-  - A row's arithmetic follows its entry (token, position, extent, fresh count, its own cache), never what else is in flight.
+  - A row's arithmetic follows its entry (token, position, extent, its own cache), never what else is in flight.
   - The scheduler steps change no kernel, and `perf/decode-columns` keeps every column's bits until the user approves another order.
   - Exact reuse only: this branch reuses no rows of its own, and a donor is parked only after its last pass has returned.
   - P = 1, every single-device path and the CLI keep main's bytes and speed.
@@ -916,7 +917,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Wider decode builds (step 5): one weight read for up to 16 or 32 columns. A build keeps batch invariance only if each column keeps its lanes and its reduction (Found: one subgroup reduction in `matmul_vec_q8.comp`, a cluster's xor shuffles in the K-quant row kernels); the row count may change only how many columns share a weight fetch. Counterexamples: Marlin picks its tile by batch, llama.cpp switches kernels at 8 columns, and the gfx906 vLLM's AWQ kernel switches at 32 rows and adds with FP16 atomics.
   - A cheaper pass at 2 to 8 rows (step 5): builds that load only the columns a pass has.
   - The head split over the stages (step 6), an option off by default that counts toward no gate (Decided): a split by output rows computes every logit as one card does (Found).
-  - P from the kernel's column width (step 8) and assembly by predicted stage time (step 9): the cost model chooses which entries share a pass and where a slice ends, never an entry's extent or fresh count.
+  - P from the kernel's column width (step 8) and assembly by predicted stage time (step 9): the cost model chooses which entries share a pass and where a slice ends, never an entry's extent.
   - Host work off the critical path (steps 3 and 4): the 16-slot ring, the pool, rows read in place and the new sampler, which changes seeded draws once and leaves greedy unchanged.
   - Considered, not planned: greedy argmax on the device for rows that ask for neither logprobs nor a penalty. It is exact by construction (comparisons only, the lowest id on a tie, the host's handling of NaN kept), and it would take the row's pass over the vocabulary and part of the logits wait off the thread. If step 7's measurement shows the logits wait or greedy sampling limiting, it goes to the user beside step 7's numbers. It is not built before that.
   - Not in this phase: prefill speed, which the prompt loads rest on; tensor groups (phase 6); command buffers recorded once and replayed (Not doing).
@@ -962,7 +963,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - **Assembly:**
     - Step 3 keeps today's rule: decode entries first, then prompt slices by exact-resume's row classes, one stretch per pass, up to the ubatch.
     - Step 9 sizes passes by predicted stage time instead. Slices come in whole 64-row tiles, costed with each stage's measured coefficients and corrected by observed pass times. Replays of generated rows are costed as decode rows, which replaces `kReplayRows`. When nothing else is decoding, a prompt gets the whole ubatch, so time to first token does not regress at low load.
-    - The cost model chooses which entries share a pass and where a slice ends, never an entry's extent or fresh count.
+    - The cost model chooses which entries share a pass and where a slice ends, never an entry's extent.
   - **Sampling:** rows are sampled per wanting row in entry order, each request with its own random generator, so the result does not depend on the pass, on P or on order. From step 4, after `perf/sampler-select` has merged, a pass's rows are sampled on a small pool of threads private to the scheduler. They read the mapped row in place and copy it only when logprobs are asked. The scheduler thread makes the logits wait (`pass_logits`) and hands the pool the row pointers. Every pool read finishes before `end_pass` releases the pass's logits range. Only the scheduler thread touches channels, the ledger and backends.
   - **Failure:**
     - A throw in any pass call reaches `abort_pass`. Every device is drained and that pass's entries are truncated in every storage. Its requests end with "error" and are released, never parked.

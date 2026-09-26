@@ -28,6 +28,101 @@ const DefinedCase defined_cases[] = {
      "LLN"},
 };
 
+// A conversation ending in an assistant turn under the Qwen3 template of the official repositories (the tokenizer_config.json of Qwen/Qwen3-0.6B, 8B and 14B), which finds the last user turn through `messages[::-1]`.
+// The assistant turn after that user turn keeps its reasoning, as transformers 5.17.0 renders it.
+const char* const qwen3_repositories =
+    "{%- if tools %}\n"
+    "    {{- '<|im_start|>system\\n' }}\n"
+    "    {%- if messages[0].role == 'system' %}\n"
+    "        {{- messages[0].content + '\\n\\n' }}\n"
+    "    {%- endif %}\n"
+    "    {{- \"# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n"
+    "    {%- for tool in tools %}\n"
+    "        {{- \"\\n\" }}\n"
+    "        {{- tool | tojson }}\n"
+    "    {%- endfor %}\n"
+    "    {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n"
+    "{%- else %}\n"
+    "    {%- if messages[0].role == 'system' %}\n"
+    "        {{- '<|im_start|>system\\n' + messages[0].content + '<|im_end|>\\n' }}\n"
+    "    {%- endif %}\n"
+    "{%- endif %}\n"
+    "{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}\n"
+    "{%- for message in messages[::-1] %}\n"
+    "    {%- set index = (messages|length - 1) - loop.index0 %}\n"
+    "    {%- if ns.multi_step_tool and message.role == \"user\" and message.content is string and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}\n"
+    "        {%- set ns.multi_step_tool = false %}\n"
+    "        {%- set ns.last_query_index = index %}\n"
+    "    {%- endif %}\n"
+    "{%- endfor %}\n"
+    "{%- for message in messages %}\n"
+    "    {%- if message.content is string %}\n"
+    "        {%- set content = message.content %}\n"
+    "    {%- else %}\n"
+    "        {%- set content = '' %}\n"
+    "    {%- endif %}\n"
+    "    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) %}\n"
+    "        {{- '<|im_start|>' + message.role + '\\n' + content + '<|im_end|>' + '\\n' }}\n"
+    "    {%- elif message.role == \"assistant\" %}\n"
+    "        {%- set reasoning_content = '' %}\n"
+    "        {%- if message.reasoning_content is string %}\n"
+    "            {%- set reasoning_content = message.reasoning_content %}\n"
+    "        {%- else %}\n"
+    "            {%- if '</think>' in content %}\n"
+    "                {%- set reasoning_content = content.split('</think>')[0].rstrip('\\n').split('<think>')[-1].lstrip('\\n') %}\n"
+    "                {%- set content = content.split('</think>')[-1].lstrip('\\n') %}\n"
+    "            {%- endif %}\n"
+    "        {%- endif %}\n"
+    "        {%- if loop.index0 > ns.last_query_index %}\n"
+    "            {%- if loop.last or (not loop.last and reasoning_content) %}\n"
+    "                {{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content.strip('\\n') + '\\n</think>\\n\\n' + content.lstrip('\\n') }}\n"
+    "            {%- else %}\n"
+    "                {{- '<|im_start|>' + message.role + '\\n' + content }}\n"
+    "            {%- endif %}\n"
+    "        {%- else %}\n"
+    "            {{- '<|im_start|>' + message.role + '\\n' + content }}\n"
+    "        {%- endif %}\n"
+    "        {%- if message.tool_calls %}\n"
+    "            {%- for tool_call in message.tool_calls %}\n"
+    "                {%- if (loop.first and content) or (not loop.first) %}\n"
+    "                    {{- '\\n' }}\n"
+    "                {%- endif %}\n"
+    "                {%- if tool_call.function %}\n"
+    "                    {%- set tool_call = tool_call.function %}\n"
+    "                {%- endif %}\n"
+    "                {{- '<tool_call>\\n{\"name\": \"' }}\n"
+    "                {{- tool_call.name }}\n"
+    "                {{- '\", \"arguments\": ' }}\n"
+    "                {%- if tool_call.arguments is string %}\n"
+    "                    {{- tool_call.arguments }}\n"
+    "                {%- else %}\n"
+    "                    {{- tool_call.arguments | tojson }}\n"
+    "                {%- endif %}\n"
+    "                {{- '}\\n</tool_call>' }}\n"
+    "            {%- endfor %}\n"
+    "        {%- endif %}\n"
+    "        {{- '<|im_end|>\\n' }}\n"
+    "    {%- elif message.role == \"tool\" %}\n"
+    "        {%- if loop.first or (messages[loop.index0 - 1].role != \"tool\") %}\n"
+    "            {{- '<|im_start|>user' }}\n"
+    "        {%- endif %}\n"
+    "        {{- '\\n<tool_response>\\n' }}\n"
+    "        {{- content }}\n"
+    "        {{- '\\n</tool_response>' }}\n"
+    "        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n"
+    "            {{- '<|im_end|>\\n' }}\n"
+    "        {%- endif %}\n"
+    "    {%- endif %}\n"
+    "{%- endfor %}\n"
+    "{%- if add_generation_prompt %}\n"
+    "    {{- '<|im_start|>assistant\\n' }}\n"
+    "    {%- if enable_thinking is defined and enable_thinking is false %}\n"
+    "        {{- '<think>\\n\\n</think>\\n\\n' }}\n"
+    "    {%- endif %}\n"
+    "{%- endif %}";
+const char* const qwen3_repositories_expected =
+    "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\n<think>\nReason.\n</think>\n\nAnswer.<|im_end|>\n";
+
 int main(int argc, char** argv) {
     try {
         if (argc != 2) throw std::runtime_error("expected chat-template fixture path");
@@ -58,6 +153,12 @@ int main(int argc, char** argv) {
         }
         if (differ) throw std::runtime_error(std::to_string(differ) + " defined-test cases differ from Jinja2");
         std::cout << std::size(defined_cases) << " defined-test cases match Jinja2\n";
+        const std::vector<chat::Message> ending = {{"system", "You are helpful."}, {"user", "Remember violet."}, {"assistant", "<think>Reason.</think>\n\nAnswer."}};
+        const auto shipped = chat::render(qwen3_repositories, ending, false, "", "<|im_end|>");
+        if (shipped != qwen3_repositories_expected)
+            throw std::runtime_error("the Qwen3 template of the official repositories renders a conversation ending in an assistant turn as\n" + shipped +
+                                     "\nwhere transformers renders\n" + qwen3_repositories_expected);
+        std::cout << "the Qwen3 template of the official repositories renders a conversation ending in an assistant turn as transformers does\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

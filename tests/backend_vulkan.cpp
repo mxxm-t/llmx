@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <vector>
 #include "backends/cpu/cpu_backend.hpp"
+#include "core/host_memory.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "model/kv_cache.hpp"
 #include "quant/quant.hpp"
@@ -362,6 +363,35 @@ size_t check_kernels(backend::Backend& vk) {
         p.vk.read(*filled, 0, back.data(), bytes);
         require(std::memcmp(back.data(), w.data(), bytes) == 0, "a weight written in pieces into alloc_weight storage differs from its source");
         values += exact(a, b, "a weight written in pieces into alloc_weight storage gave other products than the same weight adopted");
+    }
+    // Host pages the device imports, as a streamed load's read ring: a weight in them copied in pieces that end inside a row into alloc_weight storage holds the bytes and gives the products of the same weight adopted, and memory off the page or of a part of a page is not imported.
+    {
+        const size_t nin = 256, nout = 67, cols = 64;
+        const auto w = uniform(nin * nout, 26), xx = uniform(nin * cols, 27);
+        const size_t bytes = w.size() * sizeof(float), piece = 4100;
+        core::HostPages pages(bytes);
+        std::memcpy(pages.data(), w.data(), bytes);
+        require(!p.vk.wrap_host(pages.data() + 64, core::page_size()) && !p.vk.wrap_host(pages.data(), 100),
+                "host memory off the page, or a part of a page, was imported");
+        auto view = p.vk.wrap_host(pages.data(), pages.size());
+        if (view) {
+            auto adopted = p.vk.adopt(w.data(), bytes);
+            auto filled = p.vk.alloc_weight(bytes);
+            for (size_t off = 0; off < bytes; off += piece) p.vk.copy(*filled, off, *view, off, std::min(piece, bytes - off));
+            auto xb = p.vk.adopt(xx.data(), xx.size() * sizeof(float));
+            auto y1 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
+            auto y2 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
+            p.vk.matmul(gguf::GGML_TYPE_F32, {adopted.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
+            p.vk.matmul(gguf::GGML_TYPE_F32, {filled.get(), 0}, {xb.get(), 0}, {y2.get(), 0}, nin, nout, cols);
+            std::vector<float> a(nout * cols), b(nout * cols), back(w.size());
+            p.vk.read(*y1, 0, a.data(), a.size() * sizeof(float));
+            p.vk.read(*y2, 0, b.data(), b.size() * sizeof(float));
+            p.vk.read(*filled, 0, back.data(), bytes);
+            require(std::memcmp(back.data(), w.data(), bytes) == 0, "a weight copied in pieces out of imported host pages differs from its source");
+            values += exact(a, b, "a weight copied in pieces out of imported host pages gave other products than the same weight adopted");
+        } else {
+            std::cout << "backend-vulkan: this device does not import host memory, so a streamed load writes through staging\n";
+        }
     }
     // matmul: F32 and Q8_0 over odd sizes and batch widths that fall inside, on and past the eight-column chunk.
     // The reduction order differs from the CPU's, so a tolerance.

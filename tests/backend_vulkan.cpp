@@ -257,6 +257,23 @@ size_t check_kernels(backend::Backend& vk) {
         p.vk.embed(d4.vs(), gguf::GGML_TYPE_Q4_0, t4.vs(), nin, nrows, ids, 3);
         auto r4 = p.results(d4);
         values += exact(r4.first, r4.second, "embed Q4_0 differs");
+        // Raw Q4_0 rows, every second block under a negative scale, which the quantizer never writes: nibble 8 then decodes as -0 on both backends.
+        std::vector<uint8_t> raw4(q4.size());
+        for (size_t b = 0; b < raw4.size() / gguf::Q4_0_TYPESIZE; ++b) {
+            uint8_t* blk = raw4.data() + b * gguf::Q4_0_TYPESIZE;
+            blk[0] = 0x00;
+            blk[1] = b % 2 ? 0xB8 : 0x38;   // -0.5 or 0.5
+            for (size_t j = 0; j < 16; ++j) blk[2 + j] = uint8_t(((j + b) & 15) | (((5 * j + 3 + b) & 15) << 4));
+        }
+        Pair::In traw4 = p.in(raw4.data(), raw4.size());
+        Pair::Out draw4 = p.out(nin * 3);
+        p.cpu.embed(draw4.cs(), gguf::GGML_TYPE_Q4_0, traw4.cs(), nin, nrows, ids, 3);
+        p.vk.embed(draw4.vs(), gguf::GGML_TYPE_Q4_0, traw4.vs(), nin, nrows, ids, 3);
+        auto rraw4 = p.results(draw4);
+        size_t negative_zeros = 0;
+        for (float v : rraw4.first) if (v == 0.0f && std::signbit(v)) ++negative_zeros;
+        require(negative_zeros == 10, "raw Q4_0 rows do not decode ten -0 values on the CPU");
+        values += exact(rraw4.first, rraw4.second, "embed Q4_0 under a negative scale differs");
 
         // Q6_K rows of 256 from fixed bytes, decoded by both.
         {

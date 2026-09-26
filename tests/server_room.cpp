@@ -200,17 +200,17 @@ struct Sim {
         }
     }
 
-    // One iteration of the loop: admission, growth, the pass.
+    // One iteration of the loop: growth, then admission, then the pass.
     void iterate() {
+        at = "growth";
+        grow_all();
+        check(true);
         const bool stalled = std::any_of(active.begin(), active.end(), [](const Req& r) { return r.stalled; });
         at = "admission";
         while (!stalled && !paused.empty() && active.size() < max_seqs && enter(paused.front())) paused.erase(paused.begin());
         while (!stalled && paused.empty() && !queue.empty() && active.size() < max_seqs && enter(queue.front())) queue.erase(queue.begin());
-        check();
-        if (active.empty()) return;
-        at = "growth";
-        grow_all();
         check(true);
+        if (active.empty()) return;
         at = "the pass";
         size_t budget = ubatch, rows = 0;
         for (Req& r : active) {
@@ -236,7 +236,13 @@ struct Sim {
         size_t k = rng() % n;
         at = "a cancellation";
         if (k < active.size()) { park(k, largest_block()); ++ended; }
-        else if ((k -= active.size()) < paused.size()) { paused.erase(paused.begin() + (std::ptrdiff_t)k); ++ended; }
+        else if ((k -= active.size()) < paused.size()) {
+            // A paused request's own donor goes with it when it holds less than a block, which no fork can share.
+            for (size_t d = 0; paused[k].donor && d < donors.size(); ++d)
+                if (donors[d].id == paused[k].donor && donors[d].len < largest_block()) { drop(d); break; }
+            paused.erase(paused.begin() + (std::ptrdiff_t)k);
+            ++ended;
+        }
         else { queue.erase(queue.begin() + (std::ptrdiff_t)(k - paused.size())); ++ended; }
         check();
     }
@@ -291,11 +297,33 @@ void by_hand() {
     require(!t.enough && t.paused.empty(), "a request paused one admitted before it or a capped one");
 }
 
+// An uncapped request whose growth step falls due and a queued capped request that fits only in the room that step needs, in one iteration: the step takes the room and the newer request waits.
+void due_step_first() {
+    Sim sim(1, 3, 512);
+    sim.pool = {18, 9};
+    Sim::Req a;
+    a.id = 1, a.admission = 1, a.uncapped = true, a.prompt = 40, a.gen = 345, a.len = 384;
+    a.max_tokens = sim.limit() - a.prompt;
+    a.need = sim.blocks_for(384);
+    sim.active.push_back(a);
+    sim.reserved = a.need;
+    Sim::Req d;
+    d.id = 2, d.prompt = 138, d.max_tokens = 600;
+    sim.queue.push_back(d);
+    sim.next_id = 3, sim.admissions = 1;
+    require(sim.blocks_for(d.prompt + d.max_tokens) == std::vector<size_t>({12, 6}), "the case's queued request needs the room its step leaves free");
+    sim.iterate();
+    require(sim.stalls == 0 && !sim.active[0].stalled && sim.queue.size() == 1,
+            "a growth step due beside a newer request's admission: " + std::to_string(sim.stalls) + " stalls and " + std::to_string(sim.queue.size()) +
+            " queued, against 0 and 1");
+}
+
 } // namespace
 
 int main() {
     try {
         by_hand();
+        due_step_first();
         random_runs();
         std::cout << "server-room: " << checks << " checks pass\n";
         return 0;

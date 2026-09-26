@@ -390,6 +390,67 @@ void resumed_short_of_room(const Make& make, const bpe::Tokenizer& tok, uint32_t
             " taken back, " + std::to_string(s.recomputed) + " rows recomputed, against 1, 1 and 0");
 }
 
+// An older request's growth step that falls due in the iteration a newer request could first be admitted takes the room first.
+// On 10 blocks uncapped A and capped E (128 tokens and 345) start together and capped D (138 and 600) waits; E ends in the pass before A's step at 384 tokens falls due, and D fits only in the room that step needs, so D waits for A's stop rather than A sitting out D's reply.
+void growth_before_admission(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const size_t pool = 10 * kBlock;
+    const Req a = stopping(make, tok, pool, {}, Req{prompt_of(1, 40, vocab)}, 500);
+    const Req e{prompt_of(3, 128, vocab), 345}, d{prompt_of(4, 138, vocab), 600};
+    const std::vector<Req> reqs = {a, e, d};
+    std::vector<Reply> alone;
+    for (const Req& r : reqs) {
+        auto model = make(pool, 0);
+        alone.push_back(serve(*model, tok, 3, {{r}})[0]);
+    }
+    auto model = make(pool, 0);
+    server::Scheduler::Stats s;
+    const std::vector<Reply> together = started_together(*model, tok, 3, reqs, s);
+    for (size_t i = 0; i < reqs.size(); ++i) same(alone[i], together[i], "beside a growth step due at an admission, request " + std::to_string(i));
+    require(s.stalls == 0, "a growth step due in the iteration a newer request could be admitted: the older request sat out " + std::to_string(s.stalls) +
+            " passes, against 0");
+}
+
+// A paused request cancelled while its donor holds less than a block leaves no donor behind, since no fork can share one.
+// On 8 blocks uncapped A and capped E (20 tokens and 300) start together and uncapped B (10) waits for E's end; A's step at 384 tokens pauses B at 54 tokens with its donor kept, and B is cancelled while it waits, so once A ends at its stop string A's history is the one donor.
+void cancelled_short_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const size_t pool = 8 * kBlock;
+    const Req a = stopping(make, tok, pool, {}, Req{prompt_of(1, 40, vocab)}, 650);
+    const Req e{prompt_of(3, 20, vocab), 300}, b{prompt_of(2, 10, vocab)};
+    std::vector<Reply> alone;
+    for (const Req& r : {a, e}) {
+        auto model = make(pool, 0);
+        alone.push_back(serve(*model, tok, 3, {{r}})[0]);
+    }
+    auto model = make(pool, 0);
+    server::Scheduler sched(*model, tok, 3, 64);
+    std::vector<std::shared_ptr<server::Request>> h;
+    for (const Req& r : {a, e, b}) h.push_back(sched.submit(r.prompt, params_of(r)));
+    std::thread runner([&] { sched.run(); });
+    try {
+        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        while (sched.stats().pauses == 0) {
+            require(std::chrono::steady_clock::now() < until, "a paused request with a short donor: nothing paused in 60 seconds");
+            std::this_thread::yield();
+        }
+        h[2]->cancel();
+        same(alone[0], drain(*h[0]), "beside a paused request with a short donor cancelled, the uncapped request");
+        same(alone[1], drain(*h[1]), "beside a paused request with a short donor cancelled, the capped request");
+        server::Request::Token t;
+        while (h[2]->next(t, server::Request::Clock::now() + std::chrono::seconds(60)) == server::Request::Next::id) {}
+        require(h[2]->finish() == "cancel", "a paused request with a short donor cancelled ended with " + h[2]->finish());
+        const auto s = sched.stats();
+        require(s.pauses == 1 && s.taken_back == 0 && s.paused == 0 && s.donors == 1,
+                "a paused request with a short donor cancelled: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) + " taken back, " +
+                std::to_string(s.paused) + " paused and " + std::to_string(s.donors) + " donors, against 1, 0, 0 and 1");
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+}
+
 // A request refused room evicts no donor for it.
 // On 8 blocks the setup leaves a donor of 2 blocks, and N finds no room beside capped K even with that donor gone; K ends at its stop string holding less than a block, so N then starts beside the donor, which a prompt repeating the setup's still forks.
 void refused_evicts_nothing(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -499,6 +560,8 @@ int main(int argc, char** argv) {
             resumed_short_of_room(one, tok, vocab);
             refused_evicts_nothing(one, tok, vocab);
             paused_outside_queue(one, tok, vocab);
+            growth_before_admission(one, tok, vocab);
+            cancelled_short_donor(one, tok, vocab);
             std::printf("server-resume: CPU cases pass\n");
         }
         if (only != "cpu") {

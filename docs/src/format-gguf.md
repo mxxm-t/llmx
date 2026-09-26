@@ -15,7 +15,9 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   is read with no change here and any other type is refused. Quantized rows
   must contain a whole number of blocks, even when the total element count
   would be divisible; a tensor with a zero dimension holds no bytes, however
-  wide its rows.
+  wide its rows. The type and the row are checked before the element count,
+  so a tensor refused for either is refused for it even when its dimensions
+  also overflow.
 - `GGUFModel`: metadata KVs, tensor infos, and all tensor data addressed by
   per-tensor `offsets`: an in-memory model's in one `blob`, a file's data
   section in that file, one `Segment {path, file, start, base, size, first}` per

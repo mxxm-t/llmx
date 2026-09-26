@@ -84,9 +84,11 @@ struct TensorInfo {
     }
     // The tensor's bytes: rows of ne[0] values, or one value for rank zero, sized by the quant layer.
     // A tensor of no values holds no bytes however wide its rows, but its type must still be one llmx reads and its rows whole blocks.
+    // The type and the row are checked, as zero rows, before the elements are counted, so a file refused for either is refused for it even when its dimensions also overflow.
     uint64_t data_size() const {
-        const uint64_t n = n_elements();
         const uint64_t width = ne.empty() ? 1 : ne[0];
+        quant::row_bytes(type, width, 0);
+        const uint64_t n = n_elements();
         return quant::row_bytes(type, width, n ? n / width : 0);
     }
 };

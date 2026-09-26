@@ -101,18 +101,24 @@ staging copy to VRAM.
 
 The contract has two halves, told apart by `reads_in_place()`. **A backend
 that reads in place borrows `src` for the lifetime of the returned `Buffer`
-and does not read it inside `adopt`**; the file's mapping outlives the model,
-so this is free on CPU. **A backend that copies has consumed `src` when
-`adopt` returns.**
+and does not read it inside `adopt`**; the file's mapping, or a direct load's
+copy of the file, outlives the model, so this is free on CPU. Because nothing
+reads `src` inside `adopt`, a direct load can hand the CPU addresses in a copy
+it has only reserved and fill them after the model is built, before any op
+reads them. **A backend that copies has consumed `src` when `adopt`
+returns.**
 
-The loader's default, streamed load does not adopt through a copying backend:
-it asks it for `alloc_weight(bytes)`, storage kept as an adopted weight's is
-but not filled, while the model is built, and then streams every such weight
-from the file in file order with `write`. So every weight has storage, and a
-model that cannot be placed has failed, before any weight is uploaded, and a
-model whose every weight a copying backend took releases the host's copy of
-the file once the writes are made (`inference/load.hpp`). Its mapped load
-adopts each weight as the model resolves it, as it always did.
+The loader's streamed loads, `auto` (the default) and `direct`, do not adopt
+through a copying backend: they ask it for `alloc_weight(bytes)`, storage kept
+as an adopted weight's is but not filled, while the model is built, and then
+stream every such weight from the file in file order with `write`. So every
+weight has storage, and a model that cannot be placed has failed, before any
+weight is read, and a model whose every weight a copying backend took releases
+the host's copy of the file once the writes are made (`inference/load.hpp`).
+`direct` maps nothing: it reads around the file cache, and the weights a host
+reads in place go into its own copy of each file (`LoadedModel::host`), from
+which a device that also takes one is written. The mapped load adopts each
+weight as the model resolves it.
 
 `copy` exists for the KV cache, whose writes are device-to-device once
 activations are resident. A host-to-device `write` was part of this design,

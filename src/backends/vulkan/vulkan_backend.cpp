@@ -1077,7 +1077,7 @@ public:
         return b;
     }
 
-    // Device-local and not filled, since the caller writes every byte before an op reads it; adopted, so a float tile keeps a padded copy of it as of any adopted weight.
+    // Device-local and not filled, since the caller writes every byte before an op reads it; adopted, so a float tile keeps a padded copy of it as it does of any adopted weight.
     BufferPtr alloc_weight(size_t bytes) override {
         drop_tags();
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, false);

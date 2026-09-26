@@ -26,10 +26,10 @@
 
 namespace infer {
 
-// How a load reads the weights a copying backend takes, the CLI's --load-mode, the same on every backend.
-// `automatic` streams them from the files in large reads on two reader threads, overlapped with the uploads, and maps the files only for the weights a host reads in place.
-// `mapped` maps the files, reads every page in before the model is placed, and copies the weights out of the mapping.
-// `direct` streams every weight around the file cache, the host's own into memory laid out as the file, and maps nothing.
+// How a load reads the weights, the CLI's --load-mode, the same on every backend; the first is the default.
+// `automatic` streams the weights a copying backend takes in large reads on two reader threads, overlapped with the uploads, around the file cache when they are more than the host can cache, and maps the files only for the weights a host reads in place.
+// `mapped` maps the files, reads every page in before the model is placed, and copies the weights out of the mapping as the model is built.
+// `direct` streams every weight around the file cache, a host's own into memory laid out as the file, and maps nothing.
 enum class LoadMode { automatic, mapped, direct };
 
 inline LoadMode load_mode_of(const std::string& name) {
@@ -42,7 +42,7 @@ inline const char* load_mode_name(LoadMode m) { return m == LoadMode::mapped ? "
 
 // Where a load's time went, in seconds, for the CLI's timing line: building the model, and for a streamed load the busiest reader thread's reads, the uploads, and the uploads' waits for a read.
 struct LoadTimes {
-    LoadMode mode = LoadMode::automatic;
+    LoadMode mode{};
     size_t files = 0;           // files the weights were streamed from through the file cache
     size_t direct_files = 0;    // files they were streamed from around it
     size_t streamed = 0;        // bytes read for them, gaps and granule rounding included
@@ -50,7 +50,7 @@ struct LoadTimes {
 };
 
 // A model file loaded for use: the file, its tokenizer and chat format, and the model placed over the caller's backends.
-// A host backend's buffers read the file's payload in place while the model lives, so load_model builds this in place and it is never copied or moved; `model` is declared last, so it is destroyed first.
+// A host backend's buffers read the file's payload, or a direct load's copy of it, in place while the model lives, so load_model builds this in place and it is never copied or moved; `model` is declared last, so it is destroyed first.
 struct LoadedModel {
     gguf::GGUFModel file;
     std::optional<bpe::Tokenizer> tok;
@@ -122,6 +122,22 @@ inline void warm(const gguf::GGUFModel& file, const std::vector<size_t>& tensors
     }
 }
 
+// Whether a streamed load reads around the file cache when it may: when the bytes it streams are more than the host's available memory, which would evict them before they are uploaded.
+inline bool reads_around(size_t streamed, std::optional<size_t> available) {
+    return available && streamed > *available;
+}
+
+// A reader for the file at `path`, direct when `around` asks and the file system takes direct reads, and through the cache otherwise.
+inline std::unique_ptr<format::FileReader> open_reader(const std::string& path, bool around) {
+    if (around) {
+        try {
+            return std::make_unique<format::FileReader>(path, true);
+        } catch (const format::DirectUnavailable&) {
+        }
+    }
+    return std::make_unique<format::FileReader>(path);
+}
+
 // One read of the stream: `bytes` from `offset` in file `file`, both on the file's granule, and the parts of tensors it holds.
 // A piece with `into` is read straight there, into a direct load's copy of the file the host reads in place, and nothing is written from it.
 struct Piece {
@@ -167,19 +183,19 @@ inline std::vector<Piece> plan_pieces(const std::vector<size_t>& tensors, const 
     return pieces;
 }
 
-// Read `pieces` on `readers_count` reader threads into a ring of four slots, reader j taking pieces j, j + readers_count and so on, and on this thread write each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
+// Read `pieces` on two reader threads into a ring of four slots, reader j taking pieces j, j + 2 and so on, or straight to a piece's `into`, and on this thread write each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
 // A read that comes up short of a part means the file was cut after its header was read.
 // Whatever fails, the readers are stopped and joined and the ring freed before the error goes on; the uploads' storage stays with the model, which drains its backends before it frees any.
 inline void stream(const std::vector<Piece>& pieces, const std::vector<std::unique_ptr<format::FileReader>>& readers,
                    const std::vector<std::vector<const Upload*>>& destinations, const std::function<void(size_t)>& streamed,
-                   LoadTimes& times, size_t readers_count = 1) {
+                   LoadTimes& times) {
     if (pieces.empty()) return;
-    constexpr size_t kSlots = 4;
+    constexpr size_t kSlots = 4, kReaders = 2;
     size_t slot_bytes = 0;
     for (const Piece& p : pieces) slot_bytes = std::max(slot_bytes, p.bytes);
     std::vector<core::HostPages> ring;
     for (size_t i = 0; i < std::min(kSlots, pieces.size()); ++i) ring.emplace_back(slot_bytes);
-    const size_t slots = ring.size(), threads = std::max<size_t>(1, std::min(readers_count, slots));
+    const size_t slots = ring.size(), threads = std::min(kReaders, slots);
 
     std::mutex mu;
     std::condition_variable cv;
@@ -241,15 +257,14 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
                 n = got[k % slots];
             }
             const Piece& p = pieces[k];
-            const uint8_t* data = ring[k % slots].data();
+            const uint8_t* data = p.into ? p.into : ring[k % slots].data();
             const auto t0 = std::chrono::steady_clock::now();
             size_t bytes = 0;
             for (const Piece::Part& part : p.parts) {
                 if (part.piece_offset + part.bytes > n)
                     throw std::runtime_error(readers[p.file]->path() + " ended at " + std::to_string(p.offset + n) + " bytes, before its tensors");
-                if (!p.into)
-                    for (const Upload* u : destinations[part.tensor])
-                        u->backend->write(*u->buffer, part.tensor_offset, data + part.piece_offset, part.bytes);
+                for (const Upload* u : destinations[part.tensor])
+                    u->backend->write(*u->buffer, part.tensor_offset, data + part.piece_offset, part.bytes);
                 bytes += part.bytes;
             }
             times.upload += seconds_since(t0);
@@ -275,16 +290,14 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
 // The host's copy of the weights is then released when no host reads one in place, and otherwise the pages of every tensor no host reads leave its working set.
 inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vector<backend::BackendPtr> backends,
                                                const PlacementRequest& request, const ModelOptions& options = {},
-                                               const format::LoadProgress& progress = {}, LoadMode mode = LoadMode::automatic) {
+                                               const format::LoadProgress& progress = {}, LoadMode mode = LoadMode{}) {
     auto loaded = std::make_unique<LoadedModel>();
     gguf::GGUFModel& file = loaded->file;
     loaded->times.mode = mode;
     file = gguf::read_gguf(path);
     std::vector<size_t> every(file.tensors.size());
     for (size_t i = 0; i < every.size(); ++i) every[i] = i;
-    // A host reads weights in place when one of the backends does, or the CPU backend the placement adds for experts on the CPU.
-    const bool host = request.cpu_moe != 0 ||
-                      std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return b->reads_in_place(); });
+    const bool host = host_reads_in_place(backends, request);
     // The files, in the payload's order, and a reader for each once one is opened; a direct load opens them all first, so a file system that does not take direct reads is refused before anything is built.
     std::vector<std::string> paths;
     for (const auto& seg : file.segments)
@@ -295,9 +308,10 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
         for (size_t f = 0; f < paths.size(); ++f) {
             try {
                 readers[f] = std::make_unique<format::FileReader>(paths[f], true);
-            } catch (const format::DirectUnavailable&) {
-                throw std::runtime_error("--load-mode direct: " + paths[f] + " is on a file system that does not take direct reads");
+            } catch (const format::DirectUnavailable& e) {
+                throw std::runtime_error(std::string("--load-mode direct: ") + e.what());
             }
+            gguf::check_size(file, paths[f], readers[f]->size());
         }
     }
     // A mapped load reads every page in before the model is placed; auto maps the files only for a host, and direct never.
@@ -308,9 +322,11 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     QwenWeights weights = gguf_weights(file);
     // A direct load gives a host a copy of each file laid out as the file, so every weight keeps the offset within its page the mapping would give it: address space now, memory once the model says which weights the host reads.
     if (mode == LoadMode::direct && host) {
-        // Each copy covers its file rounded up to the reads' granule, since the last read ends on it.
-        for (size_t f = 0; f < paths.size(); ++f)
-            loaded->host.push_back(core::HostPages::reserved((readers[f]->size() + readers[f]->granule() - 1) / readers[f]->granule() * readers[f]->granule()));
+        // Each copy covers its file as its header gave it, rounded up to the reads' granule, since the last read ends on it.
+        for (size_t f = 0; f < paths.size(); ++f) {
+            const uint64_t g = readers[f]->granule();
+            loaded->host.push_back(core::HostPages::reserved(size_t((gguf::file_size(file, paths[f]) + g - 1) / g * g)));
+        }
         for (size_t i : every) {
             const format::FileSpan s = file.span(i);
             weights.tensors[i].data = loaded->host[file_index(s.file)].data() + s.offset;
@@ -319,7 +335,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     WeightPlan plan;
     const size_t devices = backends.size();
     const auto built = std::chrono::steady_clock::now();
-    // The mapped mode copies each weight as the model resolves its role, as reading from a mapping always did; the streamed ones plan every weight first and stream the copies after.
+    // The mapped mode copies each weight as the model resolves its role; the streamed ones give every copied weight storage first and stream the copies after.
     PlacedModel placed = place_model(weights, std::move(backends), request, options,
                                      planning_adopt(weights, devices, plan, mode != LoadMode::mapped));
     loaded->times.construct = detail::seconds_since(built);
@@ -327,7 +343,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     loaded->model = std::move(placed.model);
     if (mode != LoadMode::mapped) {
         // Every weight has storage now, so a model that cannot be placed has failed before any weight is uploaded.
-        // The payload the backends take, each tensor once: the copied weights streamed in file order, and those a host reads read into its copy (direct) or warmed from the mapping after (auto).
+        // The payload the backends take, each tensor read once: the copied weights streamed in file order, and those a host reads read into its copy (direct), from which a device that also takes one is written, or warmed from the mapping after (auto).
         std::vector<char> copied(file.tensors.size(), 0);
         for (const Upload& u : plan.uploads) copied[u.tensor] = 1;
         auto in_file_order = [&](std::vector<size_t>& v) {
@@ -335,9 +351,9 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
         };
         std::vector<size_t> streamed, hosted, warmed;
         for (size_t i : every) {
-            if (copied[i]) streamed.push_back(i);
             if (plan.host_reads[i] && mode == LoadMode::direct) hosted.push_back(i);
-            else if (plan.host_reads[i] && !copied[i]) warmed.push_back(i);
+            else if (copied[i]) streamed.push_back(i);
+            else if (plan.host_reads[i]) warmed.push_back(i);
         }
         in_file_order(streamed);
         in_file_order(hosted);
@@ -352,8 +368,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
         size_t done = 0;
         if (progress && total) progress(0, total);
         // auto reads around the file cache only when the load would not fit in it and the file system takes direct reads.
-        const auto available = core::host_memory_available();
-        const bool around = mode == LoadMode::automatic && available && gguf::bytes_of(file, streamed) > *available;
+        const bool around = mode == LoadMode::automatic && detail::reads_around(gguf::bytes_of(file, streamed), core::host_memory_available());
         std::vector<size_t> file_of(file.tensors.size(), 0);
         std::vector<format::FileSpan> spans(file.tensors.size());
         for (const auto* list : {&streamed, &hosted})
@@ -361,10 +376,8 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
                 spans[i] = file.span(i);
                 const size_t f = file_of[i] = file_index(spans[i].file);
                 if (readers[f]) continue;
-                if (around) {
-                    try { readers[f] = std::make_unique<format::FileReader>(paths[f], true); } catch (const format::DirectUnavailable&) {}
-                }
-                if (!readers[f]) readers[f] = std::make_unique<format::FileReader>(paths[f]);
+                readers[f] = detail::open_reader(paths[f], around);
+                gguf::check_size(file, paths[f], readers[f]->size());
             }
         std::vector<size_t> granules(paths.size(), core::page_size());
         for (size_t f = 0; f < paths.size(); ++f)
@@ -374,23 +387,41 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
             }
         std::vector<std::vector<const Upload*>> destinations(file.tensors.size());
         for (const Upload& u : plan.uploads) destinations[u.tensor].push_back(&u);
-        // Two readers and 16 MiB pieces measured fastest of one or two readers and 16 or 32 MiB (docs/STATUS.md, the loader's step 5).
+        // 16 MiB pieces (docs/STATUS.md, the loader's step 5).
         auto pieces = detail::plan_pieces(streamed, spans, file_of, granules, size_t(16) << 20);
         auto into_host = detail::plan_pieces(hosted, spans, file_of, granules, size_t(16) << 20);
         for (detail::Piece& p : into_host) {
-            loaded->host[p.file].commit(p.offset, p.bytes);
+            try {
+                loaded->host[p.file].commit(p.offset, p.bytes);
+            } catch (const std::runtime_error& e) {
+                throw std::runtime_error(std::string("--load-mode direct: ") + e.what() + " for the weights the host reads in place; auto and mapped map them instead");
+            }
             p.into = loaded->host[p.file].data() + p.offset;
         }
         // One pass front to back over each file, the host's reads among the devices'.
-        pieces.insert(pieces.end(), std::make_move_iterator(into_host.begin()), std::make_move_iterator(into_host.end()));
+        pieces.insert(pieces.end(), into_host.begin(), into_host.end());
         std::stable_sort(pieces.begin(), pieces.end(), [](const detail::Piece& a, const detail::Piece& b) {
             return a.file != b.file ? a.file < b.file : a.offset < b.offset;
         });
         detail::stream(pieces, readers, destinations, [&](size_t bytes) {
             done += bytes;
             if (progress) progress(done, total);
-        }, loaded->times, 2);
+        }, loaded->times);
         readers.clear();
+        // A direct read spans whole granules and the gaps between near tensors, so the pages of a host's copy that hold none of its weights go back, keeping a page after each weight as a mapping's neighbours are there to read.
+        std::vector<std::vector<std::pair<uint64_t, uint64_t>>> keep(paths.size());
+        for (size_t i : hosted) keep[file_of[i]].push_back({spans[i].offset, spans[i].offset + spans[i].bytes + core::page_size()});
+        for (const detail::Piece& p : into_host) {
+            uint64_t at = p.offset;
+            const uint64_t end = p.offset + p.bytes;
+            for (const auto& [lo, hi] : keep[p.file]) {
+                if (hi <= at) continue;
+                if (lo >= end) break;
+                if (lo > at) loaded->host[p.file].decommit(size_t(at), size_t(lo - at));
+                at = std::max(at, hi);
+            }
+            if (end > at) loaded->host[p.file].decommit(size_t(at), size_t(end - at));
+        }
         if (!warmed.empty()) {
             const size_t before = done;
             detail::warm(file, warmed, [&](size_t completed, size_t) {

@@ -41,7 +41,7 @@ quant/         QuantType registry; Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K kerne
    |
    v
 core/          fp16 <-> f32, minimal JSON parser, UTF-8, file hashes, available
-               host memory, comma-separated lists
+               host memory and owned pages, comma-separated lists
 ```
 
 The rule is: **each layer depends only on the layers below it.** Nothing below
@@ -81,14 +81,14 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | Directory       | Contents                                                              |
 |-----------------|-----------------------------------------------------------------------|
 | `src/` root     | `config.hpp` (build configuration: version and the `LLMX_HAS_BACKEND_*` switches) |
-| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory, the page size), `list.hpp` (comma-separated values) |
+| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory, the page size, `HostPages`: owned page-aligned memory, and address space reserved and committed by range), `list.hpp` (comma-separated values) |
 | `hub/`          | `manifest.hpp` (Hub metadata/quant selection), `transport.hpp` (curl HTTPS transport), `pull.hpp` (verified download cache) |
 | `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants), `convert.hpp` (raw F32 tensors to and from GGUF) |
-| `format/`       | `format.hpp` (`FileSpan`, where a tensor lies in its file, and `LoadProgress`), `file_reader.hpp` (a file read at given offsets by several threads, which the loader streams weights through), `gguf.hpp` (GGUF v3: `read_gguf` reads the headers, `map_payload` maps the payload, `warm` reads it in), `mapped_file.hpp` (read-only mapping) |
+| `format/`       | `format.hpp` (`FileSpan`, where a tensor lies in its file, and `LoadProgress`), `file_reader.hpp` (a file read at given offsets by several threads, through the file cache or around it, which the loader streams weights through), `gguf.hpp` (GGUF v3: `read_gguf` reads the headers, `map_payload` maps the payload, `warm` reads it in), `mapped_file.hpp` (read-only mapping) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + the format-neutral weights a model is built from, `QwenWeights` and `gguf_weights` + forward pass + its memory footprint, `Placement` of each tensor role, and `place_model`, which places a model over its backends), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
 | `backends/`     | `backend.hpp` (interface), `kv_storage.hpp` (the paged KV storage the backends derive theirs from: buffers, accounting, growth and view checks), `devices.hpp` (the backend a device spec names: `device_specs`, `make_backends`), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/q8_dots.hpp` (the CPU's dots against quantized activations), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
-| `inference/`    | `load.hpp` (`load_model`, the one load sequence: file read, mapped and read in when the host has room, tokenizer, chat format, weights, placed model with each weight's reader and each streamed copy's storage recorded, copies streamed in file order in the default mode, host copy released or unread pages dropped), `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
+| `inference/`    | `load.hpp` (`load_model`, the one load sequence, in the mode `--load-mode` names: file read; mapped and read in when the host has room (`mapped`), mapped only for a host that reads in place (`auto`), or never mapped, a host's weights read into its own copy laid out as the file (`direct`); tokenizer, chat format, weights, placed model with each weight's reader and each streamed copy's storage recorded; copies streamed in file order on two reader threads, around the file cache in `direct` and in `auto` when they would not fit in it; host copy released or unread pages dropped), `sampler.hpp`, `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
 | `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, sampling, prefix reuse), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
 
@@ -241,7 +241,8 @@ ranks and in-memory payload ranges (`read_gguf` has refused repeated names), and
 required tensor names/shapes and normalization types, all before model
 activation/KV/RoPE allocation. Explicit malformed values cannot select optional metadata defaults.
 The loader's callers make the backends before the file is read, so a device that cannot be opened fails first.
-Weights a host backend reads in place must stay unchanged for the model's lifetime. In the default, streamed load a backend that copies gets its weights' storage while the model is built (`Backend::alloc_weight`), so a model that cannot be placed fails before any weight is uploaded, and the loader (`infer::load_model`) then streams them from the file in file order; once they are written it releases the host payload (`GGUFModel::release_payload`) when no host reads a weight in place, as on device backends alone.
+Weights a host backend reads in place must stay unchanged for the model's lifetime once the load has returned. In a direct load they are the loader's own copy of each file (`LoadedModel::host`), which it fills after the model is built and before anything reads it, since a backend that reads in place does not read a weight as it adopts it.
+In the streamed loads, `auto` (the default) and `direct`, a backend that copies gets its weights' storage while the model is built (`Backend::alloc_weight`), so a model that cannot be placed fails before any weight is read, and the loader (`infer::load_model`) then streams them from the file in file order; once they are written it releases the host payload (`GGUFModel::release_payload`) when no host reads a weight in place, as on device backends alone.
 Metadata string encoding, numeric weight contents, arbitrary token IDs and dynamic request limits are not fully validated by construction.
 Valid large files or overlapping tensor ranges can still exceed available memory;
 there is no per-request memory budget. The JSON parser validates syntax and

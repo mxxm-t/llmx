@@ -1,4 +1,5 @@
-// format::FileReader and core::HostPages: reads at any offset and length give the file's bytes, a read past the end is short by exactly what the file lacks, empty and tiny files read, and several threads reading one reader at once each get their own range.
+// format::FileReader and core::HostPages: reads at any offset and length give the file's bytes, a read past the end is short by exactly what the file lacks, empty and tiny files read, several threads reading one reader at once each get their own range, direct reads where the file system takes them, and reserved pages committed and decommitted by range.
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -54,8 +55,42 @@ int main(int argc, char** argv) {
         core::HostPages taken(std::move(moved));
         require(taken.data() == held && !moved.data() && !moved.size(), "moving host pages did not hand them over");
 
-        // A file of several granules and an odd tail.
-        const auto big = pattern(3 * 1024 * 1024 + 4097);
+        // Reserved pages: address space rounded to pages, memory for a committed range only, which may start and end inside a page and be committed again, and back to the reservation on decommit.
+        {
+            const size_t page = core::page_size();
+            const core::HostPages none = core::HostPages::reserved(0);
+            require(!none.data() && !none.size(), "an empty reservation holds address space");
+            core::HostPages r = core::HostPages::reserved(5 * page + 1);
+            require(r.data() && r.size() == 6 * page && (uintptr_t)r.data() % page == 0, "a reservation is not whole aligned pages");
+            r.commit(page - 1, 2);
+            r.data()[page - 1] = 7;
+            r.data()[page] = 9;
+            r.commit(page - 1, page + 2);
+            r.data()[2 * page] = 11;
+            require(r.data()[page - 1] == 7 && r.data()[page] == 9 && r.data()[2 * page] == 11, "committing a range again lost what it held");
+            for (const auto& [off, len] : std::vector<std::pair<size_t, size_t>>{{r.size(), 1}, {0, r.size() + 1}}) {
+                bool outside = false;
+                try { r.commit(off, len); } catch (const std::logic_error&) { outside = true; }
+                require(outside, "a commit outside the reservation was taken");
+            }
+            r.decommit(page / 2, 2 * page);   // gives back the one whole page inside, keeping the two it covers in part
+            require(r.data()[page - 1] == 7 && r.data()[2 * page] == 11, "a decommit took a page it covers only in part");
+            r.commit(page, page);
+            r.data()[page] = 3;
+            require(r.data()[page] == 3, "a decommitted page could not be committed again");
+            core::HostPages moved_r(std::move(r));
+            require(moved_r.size() == 6 * page && !r.data(), "moving a reservation did not hand it over");
+        }
+
+        // A file of several granules, the file system's larger than 1 MiB included, and an odd tail.
+        size_t largest = 1024 * 1024;
+        {
+            const auto probe = dir / "file-reader-probe.bin";
+            save(probe, pattern(4096));
+            largest = std::max(largest, format::FileReader(probe.u8string()).granule());
+            try { largest = std::max(largest, format::FileReader(probe.u8string(), true).granule()); } catch (const format::DirectUnavailable&) {}
+        }
+        const auto big = pattern(3 * largest + 4097);
         const auto path = dir / "file-reader-big.bin";
         save(path, big);
         {

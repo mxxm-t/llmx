@@ -41,6 +41,25 @@ bool cache_types() {
            refused("--cache-type-k", "q8_0") && refused("--cache-type-v", "F16");
 }
 
+// A load mode is read by its name, and an empty or unknown one is a usage error as the flag is read, before any model file is.
+bool load_modes() {
+    auto read = [](std::string value, ExecOptions& exec) {
+        std::string flag = "--load-mode";
+        char* argv[] = {flag.data(), value.data()};
+        int i = 0;
+        return exec_flag(2, argv, i, exec, false) && i == 1;
+    };
+    auto refused = [&](const std::string& value) {
+        ExecOptions exec;
+        try { read(value, exec); } catch (const UsageError&) { return exec.load_mode == infer::LoadMode{}; }
+        return false;
+    };
+    ExecOptions exec;
+    return exec.load_mode == infer::LoadMode::automatic && read("mapped", exec) && exec.load_mode == infer::LoadMode::mapped &&
+           read("direct", exec) && exec.load_mode == infer::LoadMode::direct && read("auto", exec) && exec.load_mode == infer::LoadMode::automatic &&
+           refused("") && refused("mmap") && refused("Auto");
+}
+
 // --threads-batch and -tb are execution flags only where the command asks for them, as generate, chat and perplexity do; elsewhere they are not read, so the command refuses them as unknown.
 bool batch_threads() {
     auto read = [](std::string flag, bool batch_threads, ExecOptions& exec) {
@@ -137,6 +156,10 @@ int main() {
         std::cerr << "CLI cache types not read as given or not refused as the flag is read\n";
         return 1;
     }
+    if (!load_modes()) {
+        std::cerr << "CLI load modes not read by name or not refused as the flag is read\n";
+        return 1;
+    }
     if (!batch_threads()) {
         std::cerr << "CLI --threads-batch read where the command does not ask for it, or not read where it does\n";
         return 1;
@@ -149,6 +172,6 @@ int main() {
         std::cerr << "CLI token id lists not read as comma or whitespace separated ids within the vocabulary\n";
         return 1;
     }
-    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types refused as read; -tb read only where asked; numbers and token ids read strictly\n";
+    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types and load modes refused as read; -tb read only where asked; numbers and token ids read strictly\n";
     return 0;
 }

@@ -72,11 +72,11 @@ public:
                 throw DirectUnavailable(path + " does not report its sector sizes");
             }
             granule_ = std::max({granule_, (size_t)info.LogicalBytesPerSector, (size_t)info.PhysicalBytesPerSectorForPerformance});
-            // One aligned read proves the file takes unbuffered reads before anything depends on it.
-            core::HostPages probe(granule_);
+            // One aligned read proves the file takes unbuffered reads before anything depends on it; any failure closes the handle.
             try {
+                core::HostPages probe(granule_);
                 read_some(0, probe.data(), granule_);
-            } catch (const std::runtime_error&) {
+            } catch (const std::exception&) {
                 close();
                 throw DirectUnavailable(path + " refused an unbuffered read");
             }
@@ -163,8 +163,9 @@ private:
         if (err != ERROR_SUCCESS) throw std::runtime_error("cannot read file: " + path_);
         return got;
 #else
+        // At most 1 GiB a call, which every direct granule divides: systems cap or refuse larger counts.
         for (;;) {
-            const ssize_t n = pread(fd_, dst, bytes, (off_t)offset);
+            const ssize_t n = pread(fd_, dst, std::min(bytes, size_t(1) << 30), (off_t)offset);
             if (n >= 0) return (size_t)n;
             if (errno != EINTR) throw std::runtime_error("cannot read file: " + path_);
         }

@@ -20,7 +20,7 @@
 #include <unistd.h>
 #endif
 
-// What the host can still give a process, as its operating system reports it now, and the page its memory comes in (docs/src/core-host_memory.md).
+// What the host can still give a process, as its operating system reports it now, the page its memory comes in, and pages the process owns (docs/src/core-host_memory.md).
 
 namespace core {
 
@@ -124,6 +124,19 @@ public:
         const bool ok = mprotect(data_ + lo, hi - lo, PROT_READ | PROT_WRITE) == 0;
 #endif
         if (!ok) throw std::runtime_error("cannot commit " + std::to_string(hi - lo) + " bytes of host pages");
+    }
+
+    // Take back the memory of the whole pages inside `bytes` from `offset`, keeping the address space reserved; a page the range covers only in part keeps its memory.
+    void decommit(size_t offset, size_t bytes) {
+        if (offset > size_ || bytes > size_ - offset) throw std::logic_error("host pages: decommit outside the range");
+        const size_t page = page_size(), lo = (offset + page - 1) / page * page, hi = (offset + bytes) / page * page;
+        if (hi <= lo) return;
+#if defined(_WIN32)
+        VirtualFree(data_ + lo, hi - lo, MEM_DECOMMIT);
+#else
+        madvise(data_ + lo, hi - lo, MADV_DONTNEED);
+        mprotect(data_ + lo, hi - lo, PROT_NONE);
+#endif
     }
 
 private:

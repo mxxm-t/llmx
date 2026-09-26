@@ -78,7 +78,7 @@ struct ExecOptions {
     int kv_tokens = 0;            // the KV pool's total token budget, serve's --ctx-size; 0 is the model context
     int cpu_moe = 0;              // routed layers whose experts run on the CPU beside a device: the first N, -1 all
     int moe_stream_from = 0;      // new prompt tokens from which those experts are copied to the device for a pass; 0 never
-    std::string load_mode = "auto";   // how weights are read (infer::LoadMode), as its flag gives it
+    infer::LoadMode load_mode{};  // how weights are read; the default is the loader's first mode
     bool verbose = false;         // the prompt token count, the thread counts, a split's plan and progress
 };
 
@@ -323,11 +323,11 @@ std::vector<int> layer_shares(const std::string& value) {
     return shares;
 }
 
-// The load mode after `flag` in its one spelling, checked as it is read, so an unknown name is refused before any model file is read.
-std::string load_mode_arg(int argc, char** argv, int& i, const std::string& flag) {
+// The load mode after `flag`, checked as it is read, so an unknown name is refused before any model file is read.
+infer::LoadMode load_mode_arg(int argc, char** argv, int& i, const std::string& flag) {
     const std::string name = flag_value(argc, argv, i, flag);
     try {
-        return infer::load_mode_name(infer::load_mode_of(name));
+        return infer::load_mode_of(name);
     } catch (const std::runtime_error& e) {
         throw UsageError(flag + ": " + e.what());
     }
@@ -395,7 +395,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         std::cerr << "Reading model metadata...\n";
         shown = progress_bar();
     }
-    auto loaded = infer::load_model(path, std::move(backends), request, options, shown, infer::load_mode_of(exec.load_mode));
+    auto loaded = infer::load_model(path, std::move(backends), request, options, shown, exec.load_mode);
     if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
     if (threads > 0) loaded->model->set_threads(threads);
     return loaded;
@@ -823,7 +823,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
             << "                          at least N new tokens; 0 disables this (default: " << defaults.moe_stream_from << ").\n"
             << "                          Generated tokens stay on CPU.\n"
-            << "  --load-mode M           How weights are read: auto (default), mapped or direct\n";
+            << "  --load-mode M           How weights are read: auto, mapped or direct (default: " << infer::load_mode_name(defaults.load_mode) << ")\n";
     };
     if (command == "chat" || command == "generate") {
         const bool chat = command == "chat";

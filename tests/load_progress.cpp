@@ -1,10 +1,13 @@
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <numeric>
+#include <thread>
 #include "format/gguf.hpp"
 #include "inference/load.hpp"
+#include "loading_backend.hpp"
 #include "tiny_qwen.hpp"
 
 void require(bool value, const char* message) {
@@ -29,7 +32,8 @@ gguf::GGUFModel load_file(const std::string& path, const format::LoadProgress& p
 // A CPU backend playing a device: it copies what it adopts, so no weight reads the file in place.
 // A streamed load gives it alloc_weight storage, poisoned here so a byte the load does not write shows, and writes into it; it keeps that storage and each write's destination and offset, and the Nth write can be made to fail.
 struct CopyingBackend : backend::CpuBackend {
-    int writes = 0, fail_write = 0;
+    int writes = 0, fail_write = 0, foreign = 0;
+    int slow = 0;   // writes still to take two milliseconds each, so the stream's readers run ahead and fill the ring
     std::vector<backend::BufferPtr> weights;
     std::vector<std::pair<const backend::Buffer*, size_t>> written;
     bool reads_in_place() const override { return false; }
@@ -47,6 +51,8 @@ struct CopyingBackend : backend::CpuBackend {
     }
     void write(backend::Buffer& dst, size_t off, const void* src, size_t bytes) override {
         if (++writes == fail_write) throw std::runtime_error("injected write failure");
+        if (slow > 0 && slow--) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        if (!weights.empty() && std::none_of(weights.begin(), weights.end(), [&](const backend::BufferPtr& w) { return w.get() == &dst; })) ++foreign;
         written.push_back({&dst, off});
         backend::CpuBackend::write(dst, off, src, bytes);
     }
@@ -62,7 +68,8 @@ std::vector<infer::LoadMode> load_modes(const std::string& path) {
         std::string error;
         try { infer::load_model(path, {backend::make_cpu_backend()}, request, {}, {}, infer::LoadMode::direct); }
         catch (const std::runtime_error& e) { error = e.what(); }
-        require(error == "--load-mode direct: " + path + " is on a file system that does not take direct reads", "a direct load was not refused where direct reads are not taken");
+        require(error.rfind("--load-mode direct: ", 0) == 0 && error.find(path) != std::string::npos,
+                "a direct load was not refused, naming its file, where direct reads are not taken");
         return {infer::LoadMode::automatic, infer::LoadMode::mapped};
     }
     return {infer::LoadMode::automatic, infer::LoadMode::mapped, infer::LoadMode::direct};
@@ -93,10 +100,8 @@ struct Rising {
     }
 };
 
-// A model file's weights have no bytes until its payload is mapped.
-// Loaded through infer::load_model it keeps its payload on the CPU and releases it on a backend that copies every weight, and both give the logits of the same model built in memory.
-void loader_checks(const std::string& path) {
-    gguf::GGUFModel source = tiny_qwen(2, 2 * 128, false);
+// `m` with the tokenizer metadata a load reads: sixteen one-letter tokens, the last the end of text.
+gguf::GGUFModel with_tokens(gguf::GGUFModel m) {
     gguf::MetaValue tokens;
     tokens.vtype = gguf::V_ARRAY;
     tokens.u = gguf::V_STRING;
@@ -109,8 +114,15 @@ void loader_checks(const std::string& path) {
     gguf::MetaValue eos;
     eos.vtype = gguf::V_UINT32;
     eos.u = 15;
-    source.kv.push_back({"tokenizer.ggml.tokens", tokens});
-    source.kv.push_back({"tokenizer.ggml.eos_token_id", eos});
+    m.kv.push_back({"tokenizer.ggml.tokens", tokens});
+    m.kv.push_back({"tokenizer.ggml.eos_token_id", eos});
+    return m;
+}
+
+// A model file's weights have no bytes until its payload is mapped.
+// Loaded through infer::load_model it keeps its payload on the CPU and releases it on a backend that copies every weight, and both give the logits of the same model built in memory.
+void loader_checks(const std::string& path) {
+    const gguf::GGUFModel source = with_tokens(tiny_qwen(2, 2 * 128, false));
     gguf::write_gguf(source, path);
     {
         gguf::GGUFModel file = gguf::read_gguf(path);
@@ -148,33 +160,33 @@ void loader_checks(const std::string& path) {
             require(loaded->times.mode == mode && loaded->times.files == (copying && mode == infer::LoadMode::automatic ? 1u : 0u) &&
                         loaded->times.direct_files == (direct ? 1u : 0u) && loaded->host.size() == (direct && !copying ? 1u : 0u),
                     "a load read where its mode and backends say it should not, or did not where they say it should");
+            // direct maps nothing, and the CPU's copy holds each weight where the file does.
+            if (direct && !copying)
+                for (size_t i = 0; i < source.tensors.size(); ++i)
+                    require(!loaded->file.tensor_data(i) &&
+                                std::memcmp(loaded->host[0].data() + loaded->file.span(i).offset, source.tensor_data(i), source.tensor_bytes(i)) == 0,
+                            "a direct load mapped the file, or its copy does not hold a weight where the file does");
             const std::vector<float> logits = loaded->model->prefill(ids);
             require(logits.size() == expected.size() &&
                         std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
                     "a loaded model's logits differ from the model built in memory");
         }
     }
-    // A write, or the progress, that fails part way through a streamed load stops it with its error.
-    for (int failure : {1, 3}) {
-        auto b = std::make_shared<CopyingBackend>();
+    // A write, or the progress, that fails part way through a streamed load stops it with its error, on a backend whose uploads stay outstanding until it drains, and no storage goes before the drain.
+    for (const int failure : {1, 3, 0}) {
+        auto b = std::make_shared<LoadingBackend>();
         b->fail_write = failure;
         infer::PlacementRequest request;
         request.names = {"cpu"};
         std::string error;
-        try { infer::load_model(path, {b}, request, {}, {}, infer::LoadMode::automatic); }
+        const format::LoadProgress progress = [&](size_t done, size_t) {
+            if (!failure && done) throw std::runtime_error("progress failure");
+        };
+        try { infer::load_model(path, {b}, request, {}, progress, infer::LoadMode::automatic); }
         catch (const std::runtime_error& e) { error = e.what(); }
-        require(error == "injected write failure", "a streamed load lost a write's failure");
-    }
-    {
-        infer::PlacementRequest request;
-        request.names = {"cpu"};
-        std::string error;
-        try {
-            infer::load_model(path, {std::make_shared<CopyingBackend>()}, request, {}, [](size_t done, size_t) {
-                if (done) throw std::runtime_error("progress failure");
-            }, infer::LoadMode::automatic);
-        } catch (const std::runtime_error& e) { error = e.what(); }
-        require(error == "progress failure", "a streamed load lost its progress callback's failure");
+        require(error == (failure ? "injected write failure" : "progress failure"), "a streamed load lost a write's or the progress's failure");
+        require(b->state->writes > 0 && b->state->premature == 0 && b->state->drains > 0 && b->state->releases > 0,
+                "a failed streamed load freed storage before its backend drained");
     }
     {
         infer::PlacementRequest request;
@@ -220,18 +232,7 @@ gguf::GGUFModel tiny_moe() {
         add(pre + "ffn_up_exps.weight", {8, 12, 2});
         add(pre + "ffn_down_exps.weight", {12, 8, 2});
     }
-    gguf::MetaValue tokens;
-    tokens.vtype = gguf::V_ARRAY;
-    tokens.u = gguf::V_STRING;
-    for (char c = 'a'; c < 'a' + 16; ++c) {
-        gguf::MetaValue token;
-        token.vtype = gguf::V_STRING;
-        token.s = std::string(1, c);
-        tokens.arr.push_back(token);
-    }
-    m.kv.push_back({"tokenizer.ggml.tokens", tokens});
-    meta("tokenizer.ggml.eos_token_id", gguf::V_UINT32, 15);
-    return m;
+    return with_tokens(std::move(m));
 }
 
 // Experts on the CPU beside a device: the placement adds a CPU backend that reads the experts in place, so each load mode maps the file for it even though the device copies, and the model gives the logits of the same model built in memory on the CPU.
@@ -250,6 +251,152 @@ void experts_checks(const std::string& path) {
         require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
                 "a model with its experts on the CPU gives other logits than the model built in memory");
     }
+}
+
+// A split over two copying devices with a tied head: the embedding reaches the first device and, as the head, the second, each write goes to storage its own device gave, and the logits are those of the model built in memory.
+// Then the CPU in place of the first device, so one weight is both read in place and copied.
+void split_checks(const std::string& path) {
+    const gguf::GGUFModel source = with_tokens(tiny_qwen(2, 2 * 128, true));
+    gguf::write_gguf(source, path);
+    const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
+    const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
+    size_t embedding = 0;
+    while (source.tensors[embedding].name != "token_embd.weight") ++embedding;
+    for (const infer::LoadMode mode : load_modes(path)) {
+        auto a = std::make_shared<CopyingBackend>(), b = std::make_shared<CopyingBackend>();
+        infer::PlacementRequest request;
+        request.names = {"cpu", "cpu"};
+        request.shares = {1, 1};
+        const auto loaded = infer::load_model(path, {a, b}, request, {}, {}, mode);
+        if (mode != infer::LoadMode::mapped) {
+            auto takes = [&](const CopyingBackend& d) {
+                return std::any_of(d.weights.begin(), d.weights.end(), [&](const backend::BufferPtr& w) {
+                    return w->size() == source.tensor_bytes(embedding) && std::memcmp(w->host_ptr(), source.tensor_data(embedding), w->size()) == 0;
+                });
+            };
+            require(holds_tensors(a->weights, source) && holds_tensors(b->weights, source) && takes(*a) && takes(*b),
+                    "a split's devices do not both hold the tied embedding, or hold other bytes than the file's");
+            require(a->foreign == 0 && b->foreign == 0, "a stream wrote into storage another device gave");
+        }
+        const std::vector<float> logits = loaded->model->prefill(ids);
+        require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
+                "a split load gives other logits than the model built in memory");
+    }
+    // The CPU reading its half in place beside a copying device: the tied embedding the CPU reads and the device's head copies is read and reported once, in direct from the CPU's copy, and reaches the device whole.
+    size_t payload = 0;
+    for (size_t i = 0; i < source.tensors.size(); ++i) payload += source.tensor_bytes(i);
+    for (const infer::LoadMode mode : load_modes(path)) {
+        auto device = std::make_shared<CopyingBackend>();
+        infer::PlacementRequest request;
+        request.names = {"cpu", "cpu"};
+        request.shares = {1, 1};
+        Rising progress;
+        const auto loaded = infer::load_model(path, {backend::make_cpu_backend(), device}, request, {}, progress.callback(), mode);
+        require(progress.whole(payload), "a split with the CPU reading in place reported a weight twice");
+        if (mode != infer::LoadMode::mapped)
+            require(holds_tensors(device->weights, source) &&
+                        std::any_of(device->weights.begin(), device->weights.end(), [&](const backend::BufferPtr& w) {
+                            return w->size() == source.tensor_bytes(embedding) && std::memcmp(w->host_ptr(), source.tensor_data(embedding), w->size()) == 0;
+                        }),
+                    "a device beside the CPU does not hold the tied embedding, or holds other bytes than the file's");
+        const std::vector<float> logits = loaded->model->prefill(ids);
+        require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
+                "a split with the CPU reading in place gives other logits than the model built in memory");
+    }
+}
+
+// A set of three shards, the first holding metadata alone: each load mode reads the two with tensors, and the model gives the logits of the one built in memory.
+void shard_checks(const std::filesystem::path& dir) {
+    const gguf::GGUFModel source = with_tokens(tiny_qwen(2, 2 * 128, false));
+    const size_t half = source.tensors.size() / 2;
+    auto split_keys = [](gguf::GGUFModel& m, uint64_t no, uint64_t tensors) {
+        auto key = [&](const std::string& name, uint32_t type, uint64_t value) {
+            gguf::MetaValue v;
+            v.vtype = type;
+            if (type == gguf::V_INT32) v.i = int64_t(value);   // signed values are kept in `i`
+            else v.u = value;
+            m.kv.push_back({name, v});
+        };
+        key("split.no", gguf::V_UINT16, no);
+        key("split.count", gguf::V_UINT16, 3);
+        key("split.tensors.count", gguf::V_INT32, tensors);
+    };
+    std::vector<std::string> paths;
+    for (uint64_t no = 0; no < 3; ++no) {
+        gguf::GGUFModel shard;
+        if (no == 0) shard.kv = source.kv;
+        split_keys(shard, no, source.tensors.size());
+        const size_t from = no == 0 ? 0 : no == 1 ? 0 : half, to = no == 0 ? 0 : no == 1 ? half : source.tensors.size();
+        for (size_t i = from; i < to; ++i) {
+            shard.tensors.push_back(source.tensors[i]);
+            const uint8_t* data = source.tensor_data(i);
+            shard.add_tensor_data(std::vector<uint8_t>(data, data + source.tensor_bytes(i)));
+        }
+        const std::string name = "load-shard-0000" + std::to_string(no + 1) + "-of-00003.gguf";
+        paths.push_back((dir / name).u8string());
+        gguf::write_gguf(shard, paths.back());
+    }
+    const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
+    const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
+    for (const infer::LoadMode mode : load_modes(paths[1])) {
+        for (const bool copying : {false, true}) {
+            const auto copier = std::make_shared<CopyingBackend>();
+            const backend::BackendPtr b = copying ? backend::BackendPtr(copier) : backend::make_cpu_backend();
+            infer::PlacementRequest request;
+            request.names = {"cpu"};
+            const auto loaded = infer::load_model(paths[0], {b}, request, {}, {}, mode);
+            const size_t files = loaded->times.files + loaded->times.direct_files;
+            require(mode == infer::LoadMode::mapped || (!copying && mode == infer::LoadMode::automatic) ? files == 0 : files == 2,
+                    "a sharded load streamed from other than its two shards with tensors");
+            if (copying && mode != infer::LoadMode::mapped) require(holds_tensors(copier->weights, source), "a sharded load's copies differ from the file's");
+            const std::vector<float> logits = loaded->model->prefill(ids);
+            require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
+                    "a sharded load gives other logits than the model built in memory");
+        }
+    }
+    for (const auto& p : paths) std::filesystem::remove(std::filesystem::u8path(p));
+}
+
+// The reads the stream plans, on spans that need no file: pieces start and end on the granule and hold at most the limit rounded down to it, a gap of one granule is read through and a longer one starts a new piece, a tensor longer than a piece crosses several, a new file starts a new piece, and every tensor's bytes lie in exactly one part each.
+void plan_checks() {
+    const size_t g = 7168, limit = size_t(16) << 20, cap = limit / g * g;
+    const std::vector<format::FileSpan> spans = {
+        {"a", 0, 1000},                  // 0
+        {"a", 1000 + 7168, 500},         // 1: a gap of exactly one granule, read through
+        {"a", 1000 + 7168 + 500 + 7169, 300},   // 2: one granule and a byte, a new piece
+        {"a", 40000, 3 * cap + 5},       // 3: crosses four pieces
+        {"b", 0, 0},                     // 4: nothing to read, at the next file's start
+        {"b", 0, 2000},                  // 5: a new file
+    };
+    const std::vector<size_t> tensors = {0, 1, 2, 3, 4, 5}, file_of = {0, 0, 0, 0, 1, 1};
+    const auto pieces = infer::detail::plan_pieces(tensors, spans, file_of, {g, g}, limit);
+    std::vector<size_t> covered(spans.size(), 0);
+    for (size_t k = 0; k < pieces.size(); ++k) {
+        const auto& p = pieces[k];
+        require(p.offset % g == 0 && p.bytes % g == 0 && p.bytes <= cap && !p.parts.empty(), "a planned read is not whole granules within the limit");
+        if (k && pieces[k - 1].file == p.file) require(pieces[k - 1].offset + pieces[k - 1].bytes <= p.offset, "two planned reads overlap");
+        for (const auto& part : p.parts) {
+            require(part.tensor_offset == covered[part.tensor] && p.offset + part.piece_offset == spans[part.tensor].offset + part.tensor_offset &&
+                        part.piece_offset + part.bytes <= p.bytes && file_of[part.tensor] == p.file,
+                    "a planned part is not where its tensor's bytes are");
+            covered[part.tensor] += part.bytes;
+        }
+    }
+    for (size_t t = 0; t < spans.size(); ++t) require(covered[t] == spans[t].bytes, "a planned read left out or repeated a tensor's bytes");
+    require(pieces.size() == 7 && pieces[0].parts.size() == 2 && pieces[1].parts.size() == 1 && pieces[6].file == 1,
+            "the reads are not the ones the gaps, the limit and the files call for");
+}
+
+// auto reads around the file cache only when the bytes it streams are more than the host has, and a file system that refuses direct reads gives a reader through the cache instead.
+void choice_checks(const std::string& path) {
+    require(!infer::detail::reads_around(5, std::nullopt) && !infer::detail::reads_around(5, 5) && infer::detail::reads_around(6, 5) &&
+                !infer::detail::reads_around(0, 0),
+            "auto reads around the cache at other bytes than more than the host has");
+    gguf::write_gguf(with_tokens(tiny_qwen(1, 64, false)), path);
+    bool direct = true;
+    try { format::FileReader probe(path, true); } catch (const format::DirectUnavailable&) { direct = false; }
+    require(infer::detail::open_reader(path, true)->direct() == direct && !infer::detail::open_reader(path, false)->direct(),
+            "a reader asked to read around the cache did not, where the file system takes it, or did where it does not");
 }
 
 // The stream itself, in reads of one granule: some tensors cross reads and some reads hold several tensors, a tensor two backends take reaches both, and every copy holds the file's bytes.
@@ -287,7 +434,7 @@ void stream_checks(const std::string& path) {
         for (const auto& u : uploads) destinations[u.tensor].push_back(&u);
         infer::LoadTimes times;
         size_t bytes = 0;
-        infer::detail::stream(pieces, readers, destinations, [&](size_t n) { bytes += n; }, times, 2);
+        infer::detail::stream(pieces, readers, destinations, [&](size_t n) { bytes += n; }, times);
         return bytes;
     };
     size_t payload = 0;
@@ -307,6 +454,46 @@ void stream_checks(const std::string& path) {
         last = at;
         if (u == 0) require(w + 1 < cpu->written.size() && cpu->written[w + 1] == std::make_pair((const backend::Buffer*)uploads[1].buffer.get(), off),
                             "a part of a tensor with two copies did not go to both before the next");
+    }
+    // Dozens of 64-byte reads through the four slots, the writes slow enough that both readers fill the ring and wait: every copy still holds the file's bytes, and a write failing late stops the stream while the readers wait on the ring.
+    {
+        std::vector<std::unique_ptr<format::FileReader>> readers;
+        readers.push_back(std::make_unique<format::FileReader>(path));
+        std::vector<size_t> order(file.tensors.size()), file_of(file.tensors.size(), 0);
+        std::vector<format::FileSpan> spans(file.tensors.size());
+        for (size_t i = 0; i < order.size(); ++i) {
+            order[i] = i;
+            spans[i] = file.span(i);
+        }
+        const auto pieces = infer::detail::plan_pieces(order, spans, file_of, {64}, 64);
+        require(pieces.size() > 40, "the fixture does not make dozens of 64-byte reads");
+        for (const int failure : {0, 30}) {
+            auto late = std::make_shared<CopyingBackend>();
+            late->slow = 40;
+            late->fail_write = failure;
+            std::vector<infer::Upload> copies;
+            for (size_t i = 0; i < file.tensors.size(); ++i) copies.push_back({i, late.get(), late->alloc_weight(file.tensor_bytes(i))});
+            std::vector<std::vector<const infer::Upload*>> destinations(file.tensors.size());
+            for (const auto& u : copies) destinations[u.tensor].push_back(&u);
+            infer::LoadTimes times;
+            std::string error;
+            try { infer::detail::stream(pieces, readers, destinations, {}, times); } catch (const std::runtime_error& e) { error = e.what(); }
+            require(failure ? error == "injected write failure" : error.empty() && holds_tensors(late->weights, source),
+                    "a stream of many reads through the ring lost bytes, or a late write's failure");
+        }
+        // A read that fails on a reader thread, a direct read off its granule where the file system takes direct reads, comes out of the stream with the readers joined.
+        try {
+            std::vector<std::unique_ptr<format::FileReader>> direct;
+            direct.push_back(std::make_unique<format::FileReader>(path, true));
+            auto skewed = infer::detail::plan_pieces(order, spans, file_of, {direct[0]->granule()}, direct[0]->granule());
+            skewed.back().bytes += 1;
+            std::vector<std::vector<const infer::Upload*>> none(file.tensors.size());
+            infer::LoadTimes times;
+            bool refused = false;
+            try { infer::detail::stream(skewed, direct, none, {}, times); } catch (const std::logic_error&) { refused = true; }
+            require(refused, "a reader thread's failing read did not come out of the stream");
+        } catch (const format::DirectUnavailable&) {
+        }
     }
     const auto length = std::filesystem::file_size(path);
     std::filesystem::resize_file(path, length - 4096);
@@ -392,18 +579,22 @@ int main(int argc, char** argv) {
         catch (const std::runtime_error&) { threw = true; }
         require(threw && seen.empty(), "truncated payload emitted progress before structural rejection");
         // Reading a file holds nothing, so its size can change before it is mapped, which refuses it before any progress; a file truncated under a live mapping is not visible.
+        // A streamed load's readers make the same check on the size they open, which is the one check.
         for (const auto size : {length - 33, length + 64}) {
             gguf::write_gguf(source, path);
             gguf::GGUFModel read = gguf::read_gguf(path);
+            gguf::check_size(read, path, length);
             std::filesystem::resize_file(path, size);
             seen.clear();
-            std::string error;
+            std::string error, checked;
             try {
                 gguf::map_payload(read);
                 gguf::warm(read, every(read), progress);
             } catch (const std::runtime_error& e) { error = e.what(); }
             require(error == "GGUF file changed size since its header was read: " + path && seen.empty(),
                     "a file whose size changed after it was read was mapped");
+            try { gguf::check_size(read, path, format::FileReader(path).size()); } catch (const std::runtime_error& e) { checked = e.what(); }
+            require(checked == error, "a reader's size check differs from the mapping's");
         }
         gguf::write_gguf(source, path);
         std::filesystem::resize_file(path, 8);
@@ -447,8 +638,12 @@ int main(int argc, char** argv) {
         loader_checks(path);
         stream_checks(path);
         experts_checks(path);
+        split_checks(path);
+        shard_checks(std::filesystem::u8path(path).parent_path());
+        plan_checks();
+        choice_checks(path);
         std::filesystem::remove(path);
-        std::cout << "load progress: payload bytes, chunks, spans, truncation before and after reading, consumer failures, the loader in each mode, experts on the CPU and the stream\n";
+        std::cout << "load progress: payload bytes, chunks, spans, truncation before and after reading, consumer failures, the loader in each mode, experts on the CPU, splits, shards, the planned reads, the read choice and the stream\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

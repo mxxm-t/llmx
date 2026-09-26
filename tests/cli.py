@@ -99,7 +99,7 @@ def check_usage_errors():
                ("-tb", ["-1"]), ("--ubatch", ["0", "-5"]), ("--topk", ["-1"]), ("--seed", ["-1", "0x10", "18446744073709551616"]),
                ("--temp", ["-0.5", "x", "nan", "inf", "1e39", "0x1p1", "1,5"]), ("--topp", ["1.5", "-0.1"]), ("--penalty", ["0.5"]),
                ("--n-cpu-moe", ["-2"]), ("--moe-stream-from", ["-1"]), ("--layer-shares", ["1,x", "-1", "1000000"]),
-               ("--cache-type-k", ["q8_0", "F16", ""]), ("-ctv", ["bf16"])]
+               ("--cache-type-k", ["q8_0", "F16", ""]), ("-ctv", ["bf16"]), ("--load-mode", ["x", "Auto", "mmap", ""])]
     for flag, values in numbers:
         for value in values:
             usage_error(["generate", model, "a", flag, value], "generate")
@@ -108,7 +108,8 @@ def check_usage_errors():
                        (["serve", model, "--max-seqs", "0"], "serve"), (["serve", model, "--max-queue", "0"], "serve"),
                        (["serve", model, "-c", "0"], "serve"), (["logits", model, "a", "--top", "0"], "logits"),
                        (["logits", model, "a", "--last", "0"], "logits"), (["perplexity", model, "a", "--chunks", "-1"], "perplexity"),
-                       (["bench", "--size", "48"], "bench"), (["bench", "--p", "0"], "bench"), (["bench", "--depth", "-1"], "bench")):
+                       (["bench", "--size", "48"], "bench"), (["bench", "--p", "0"], "bench"), (["bench", "--depth", "-1"], "bench"),
+                       (["bench", "--load-mode", "auto"], "bench")):
         usage_error(args, page)
 
 

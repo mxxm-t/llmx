@@ -66,7 +66,7 @@ Generalize to an architecture registry keyed by `general.architecture`:
 ## 3. More formats
 The model is built from `infer::QwenWeights`, which a second format's
 reader produces as `infer::gguf_weights` does for GGUF, and the loader reads
-the weights a device copies from `format::FileSpan`s, which
+the weights it streams from `format::FileSpan`s, which
 `gguf::GGUFModel::span` gives for GGUF. A second format is such a reader plus
 one branch in `infer::load_model`; the CLI, the tokenizer and the chat format still consume
 `gguf::GGUFModel` directly.

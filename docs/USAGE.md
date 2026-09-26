@@ -95,11 +95,14 @@ temporary directories. Completed shards remain reusable if a later shard fails.
 
 All GGUF commands accept the first `-00001-of-0000N.gguf` shard and discover
 the siblings beside it. Loading validates all shard metadata and tensor extents,
-then reads the weights as `--load-mode` says (below): a shard is mapped in place
-where the CPU reads its weights, so a sharded model larger than host memory
-loads, and one whose size changed in between is refused.
-A loaded model's files must not change while it runs: a file truncated or
-rewritten under the mapping is not detected and can end the process. The first shard may contain metadata
+then reads the weights as `--load-mode` says (below). With `auto` and `mapped`
+a shard is mapped in place where the CPU reads its weights, so a sharded model
+larger than host memory loads; with `direct` those weights are copied into
+memory of the process's own, and a model whose CPU weights are more than the
+host has available is refused. A shard whose size changed in between is
+refused in every mode.
+A loaded model's mapped files must not change while it runs: a file truncated
+or rewritten under the mapping is not detected and can end the process. The first shard may contain metadata
 only. Successful download does not establish that llmx implements the model's
 architecture, tokenizer or tensor types; current runtime coverage still applies.
 
@@ -374,7 +377,7 @@ sides to store the cache exactly.
 
 ## Reading the weights (`--load-mode`)
 
-Every command that runs a model takes `--load-mode`, which says how the weights a device copies are read from the file; it means the same on every backend.
+Every command that runs a model takes `--load-mode`, which says how the weights are read from the file; it means the same on every backend.
 
 - `auto` (the default) builds the model first, so every weight, cache and scratch buffer is allocated and a model that does not fit fails before any byte is uploaded, and then reads the weights a device copies from the file in large reads, in file order, on two reader threads, while the uploads of the reads before go on.
   The reads go through the operating system's file cache, so a model loaded again is served from it while the host has room; when the weights a device copies are more than the host's available memory, and the file system takes direct reads, they go around the cache.
@@ -383,7 +386,7 @@ Every command that runs a model takes `--load-mode`, which says how the weights 
   A model on the CPU alone loads as with `mapped`.
 - `mapped` maps the whole file, reads every page in before the model is placed when the host has room for it, and copies each weight a device takes out of the mapping.
 - `direct` reads every weight around the file cache and maps nothing: those a device copies as `auto` streams them, and those the CPU reads into memory of its own laid out as the file, in the same pass.
-  It is refused, before the model is built, where a file's file system does not take direct reads (on Linux that needs 6.1 or later and a file system that reports the alignment), and after the model is built, before a byte is read, when the weights the CPU reads are more than the host's available memory.
+  It is refused, before the model is built, where a file's file system does not take direct reads, with the reason: on Linux that needs 6.1 or later and a file system that reports the alignment, on Windows a volume that reports its sector sizes and takes an unbuffered read, and macOS and other systems have no direct reads. After the model is built, before a byte is read, it is refused when the weights the CPU reads are more than the host's available memory, or when the system will not commit the memory for them.
 
 All three give the same model, bit for bit. With `--verbose`, and always with `bench --model`, a line after the split's plan gives the mode and where the load's time went: building the model, and for a streamed load the files read through the cache and around it, the reads, the uploads and the uploads' waits for a read.
 

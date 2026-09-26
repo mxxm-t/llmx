@@ -1354,6 +1354,17 @@ struct PlacedModel {
     std::string plan;
 };
 
+// Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does beside one device that copies its weights.
+inline bool adds_host_for_experts(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
+    return request.cpu_moe && backends.size() == 1 && request.shares.empty() && !backends[0]->reads_in_place();
+}
+
+// Whether a backend of that placement reads weights in place: one of `backends`, or the CPU backend it adds for experts.
+inline bool host_reads_in_place(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
+    return adds_host_for_experts(backends, request) ||
+           std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return b && b->reads_in_place(); });
+}
+
 // The model over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, with the request's ubatch set.
 // The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; attention, the dense blocks, the embedding and the head stay on the device.
 inline PlacedModel place_model(const QwenWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
@@ -1386,7 +1397,7 @@ inline PlacedModel place_model(const QwenWeights& weights, std::vector<backend::
         const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
         const LayerSplit split = split_layers(footprint(weights, options), budgets, rows, request.shares, core::host_memory_available());
         placed = {std::make_unique<Model>(weights, std::move(backends), placement_for(split), options, adopt), split.describe(budgets)};
-    } else if (!request.cpu_moe || backends[0]->reads_in_place()) {
+    } else if (!adds_host_for_experts(backends, request)) {
         placed.model = std::make_unique<Model>(weights, std::move(backends), Placement{}, options, adopt);
     } else {
         const QwenConfig& cfg = weights.config;

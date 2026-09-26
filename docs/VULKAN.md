@@ -91,10 +91,12 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   buffer, so it is ordered like every other op, and that slot holds the new buffer until it retires, as each slot an adoption copies through does, so a buffer dropped at once leaves no command naming freed memory. A buffer's size is
   rounded up to whole 32-bit words, since a tensor with an odd block
   count can end two bytes into a word its 32-bit view reads.
-- **Adopt copies.** The contract lets it: `src` outlives the handle, and a
-  backend that copies never relies on that. Weights are uploaded through
-  two halves of staging at load. The source is consumed before return, while
-  device copies may remain queued ahead of later work on the same backend.
+- **Adopt copies.** The contract lets it: a backend that copies has consumed
+  `src` when `adopt` returns. Weights arrive through `adopt` in a mapped load
+  and through `alloc_weight` storage filled by `write` in a streamed one, and
+  both upload through two halves of staging, each upload carrying on from the
+  half the last one left. Device copies may remain queued ahead of later work
+  on the same backend.
   If an upload fails, adoption drains before releasing its local destination.
   This answers the alignment question left open
   in [DEVICE-EXECUTION](DEVICE-EXECUTION.md): the device accepts 4-byte

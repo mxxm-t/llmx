@@ -558,14 +558,25 @@ inline GGUFModel read_gguf(const std::string& path) {
     return m;
 }
 
+// The size read_gguf found the file at `path` to have, from its start to the end of its payload, which it must keep while the model is loaded.
+inline uint64_t file_size(const GGUFModel& m, const std::string& path) {
+    for (const auto& s : m.segments)
+        if (s.path == path) return uint64_t(s.start) + s.size;
+    throw std::logic_error("GGUF model has no file " + path);
+}
+
+// Refuse a file of `m` whose size is no longer the one its header was read at, since the extents read_gguf checked no longer describe it.
+inline void check_size(const GGUFModel& m, const std::string& path, uint64_t size) {
+    if (size != file_size(m, path)) throw std::runtime_error("GGUF file changed size since its header was read: " + path);
+}
+
 // Map every file read_gguf laid out that is not mapped yet, so tensor_data addresses its tensors in place.
 // A file whose size changed since its header was read is refused, since the extents read_gguf checked no longer describe it.
 inline void map_payload(GGUFModel& m) {
     for (auto& s : m.segments) {
         if (s.file) continue;
         auto file = std::make_shared<const format::MappedFile>(s.path);
-        if (file->size() != s.start + s.size)
-            throw std::runtime_error("GGUF file changed size since its header was read: " + s.path);
+        check_size(m, s.path, file->size());
         s.file = std::move(file);
     }
 }

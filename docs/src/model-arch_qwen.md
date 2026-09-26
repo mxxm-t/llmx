@@ -55,9 +55,11 @@ to a `backend::Backend`.
   for each backend that hosts a weight's role, and without one it calls
   `Backend::adopt(view.data, view.bytes)`. The loader's hook
   (`infer::planning_adopt`) adopts a weight on a backend that reads in place
-  and gives a copying backend unfilled storage (`Backend::alloc_weight`),
-  which the loader fills once the model is built ([load](inference-load.md)).
-  The model reads no weight's bytes while it is built.
+  and, in the streamed loads `auto` and `direct`, gives a copying backend
+  unfilled storage (`Backend::alloc_weight`), which the loader fills once the
+  model is built ([load](inference-load.md)); in a mapped load it adopts
+  through a copying backend too. The model reads no weight's bytes while it
+  is built.
 - `Weight` / `LayerWeights`: a tensor resolved once at load - type, a buffer
   handle from the backend that hosts it and the two dimensions - and a
   layer's weights grouped together: eleven for a dense layer, the router
@@ -70,7 +72,7 @@ to a `backend::Backend`.
   weight across calls. See `docs/DEVICE-EXECUTION.md` step 1.
 - `footprint(weights, options)`: what this architecture asks of memory, for a split fitted to devices (`model/layer_split.hpp`): each layer's matrices from its `blk.N.` tensors, those a product reads marked by their role (the attention and feed-forward projections and the router, whatever their rank), the embedding, the head's matrix and norm and whether it is tied, one layer's cache for the budgeted positions at the options' cache types, the RoPE tables, a row of the arena and a row of the residual stream handed between devices. The arena's feed-forward slots are as wide as a dense layer's when some layer is not routed (`routed_layers`), as the model resolves it. `placement_for(split)` turns a `LayerSplit` into a `Placement`. `synthetic_model(...)`: a model of this architecture with a given shape and random weights, Q8_0 matrices and F32 norms, which `bench` times without a file.
 - `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(cfg, options)` and `kv_bytes_per_position(cfg, options)`: the positions the caches are budgeted for, which the fit and the cache allocation take, and one position's key and value bytes at the options' cache types, which only the fit and `kv_used_bytes` take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`). `routed_layers(weights)`: the layers whose router tensor (`blk.N.ffn_gate_inp.weight`) is present.
-- `place_model(weights, backends, request, options, adopt = {})`: the one place a model is placed over the backends its caller made, returning the model with the request's ubatch set and, for a split, its plan (`LayerSplit::describe`). A request that names `histories` of `history_tokens` each, as `bench --model` does its sequences, has them counted in whole blocks of each backend, each up to the model's context, which no run passes: where the options' budget would leave any storage short, the budget becomes what they take in the largest blocks, which the fit and every storage then use, and otherwise it is unchanged. With several backends or layer shares it fits the split for `request.ubatch` (default `kDefaultUbatch`) plus `request.decode_rows` rows (`budgets_for`, `split_layers`, `placement_for`); with one backend and `PlacementRequest::cpu_moe`, the CPU becomes device 0 beside it and the first `cpu_moe` routed layers' feed-forward blocks (every one at -1) run there, with `stream_from` as the placement's; otherwise the model is on the one backend. Experts on the CPU with several devices are refused, and so is a nonzero `stream_from` without experts on the CPU, which would have nothing to stream. The CLI, `bench --model`, the server and `llmx-split-check` all build their model through it by way of `infer::load_model` ([load](inference-load.md)), as does `compare_cpu`. A routed layer's experts are streamed to the device only where attention runs on a backend that copies its weights and the experts on one that reads them in place (`Backend::reads_in_place`). A tied head on the embedding's device reads the buffer adopted for the embedding rather than a second copy.
+- `place_model(weights, backends, request, options, adopt = {})`: the one place a model is placed over the backends its caller made, returning the model with the request's ubatch set and, for a split, its plan (`LayerSplit::describe`). A request that names `histories` of `history_tokens` each, as `bench --model` does its sequences, has them counted in whole blocks of each backend, each up to the model's context, which no run passes: where the options' budget would leave any storage short, the budget becomes what they take in the largest blocks, which the fit and every storage then use, and otherwise it is unchanged. With several backends or layer shares it fits the split for `request.ubatch` (default `kDefaultUbatch`) plus `request.decode_rows` rows (`budgets_for`, `split_layers`, `placement_for`); with one backend and `PlacementRequest::cpu_moe`, the CPU becomes device 0 beside it and the first `cpu_moe` routed layers' feed-forward blocks (every one at -1) run there, with `stream_from` as the placement's; otherwise the model is on the one backend. Experts on the CPU with several devices are refused, and so is a nonzero `stream_from` without experts on the CPU, which would have nothing to stream. `adds_host_for_experts(backends, request)` is the rule for when it adds the CPU for experts, and `host_reads_in_place(backends, request)` says whether any backend of the placement reads weights in place, one of `backends` or that CPU, which the loader asks before it decides what to map. The CLI, `bench --model`, the server and `llmx-split-check` all build their model through it by way of `infer::load_model` ([load](inference-load.md)), as does `compare_cpu`. A routed layer's experts are streamed to the device only where attention runs on a backend that copies its weights and the experts on one that reads them in place (`Backend::reads_in_place`). A tied head on the embedding's device reads the buffer adopted for the embedding rather than a second copy.
 - `slot_widths(config, dense)`: the floats one row takes in each of the arena's twelve slots, which `ensure` allocates and `footprint` counts.
 - `Placement`: a device index per tensor role: each layer's attention and
   feed-forward block, the embedding table and the output head. Empty means
@@ -220,13 +222,15 @@ and F32 embeddings/matrices/norms. F32 embedding rows are copied directly;
 F32 matmul reads weight rows without staging. Missing
 `output.weight` selects tied token embeddings for the output projection.
 
-The model reads the views only while it is built. The bytes a backend that
-reads in place adopted must stay valid and unchanged while its buffer lives,
-which is the model's lifetime; a backend that copies has consumed its bytes
-when `adopt` or `write` returns (`backend.hpp`). The loader's streamed load
-reads the file again after construction to fill the storage a copying backend
-was given, so the payload of a model whose every weight a copying backend took
-is released once those writes are made (`GGUFModel::release_payload`). Construction
+The model reads the views only while it is built, and then only their
+addresses. The bytes a backend that reads in place adopted must stay valid
+while its buffer lives, which is the model's lifetime, and unchanged once the
+load returns; a direct load fills them after construction, before anything
+reads them. A backend that copies has consumed its bytes when `adopt` or
+`write` returns (`backend.hpp`). The loader's streamed loads read the file
+after construction to fill the storage a copying backend was given, so the
+payload of a model whose every weight a copying backend took is released once
+those writes are made (`GGUFModel::release_payload`). Construction
 does not scan numerical weight contents, validate every possible metadata
 extension, check arbitrary token IDs or establish recovery after an execution
 failure. Those require separate input/session checks; they are not guarantees

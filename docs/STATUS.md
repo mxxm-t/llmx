@@ -108,6 +108,209 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Merged** at `92de07d` on main `1f7aa85` after a green hosted run on `gate/merge-23`, rebased with no conflict from `02c0a37`, the base its gates ran on; the commits between touch no Vulkan file, backend test or `docs/VULKAN.md`.
 - **Left:** nothing for the fix. `perf/decode-columns`, rebased onto `4ad199a`, dropped its own copy of it (`3fc95b1`) for this branch's `5f4a68d`, and its decode-column check over every type the row kernels decode took the place of this branch's Q4_1 check, with this check's width of 9 columns added, as its block records under layer split phase 3, step 5.
   The one `server-resume` failure on the MI50 above did not come back in 15 runs of the whole test, 8 on the head and 7 on main; it is recorded here in case it does.
+## Architecture modules: one runtime, one module per architecture (planned 2026-09-27, branch refactor/arch-modules)
+
+- **Goal:** the model layer becomes a runtime that names no architecture and one module per architecture, chosen by one registry from `general.architecture`, as AGENTS.md's rule "A feature lives in one place" asks of a model architecture.
+  - A module declares a plan, which is data the runtime reads: its layers, their kinds, their tensor roles, arena slots, residual width, context length, KV geometry and position tables.
+  - It supplies its layer math as code, which the runtime calls once per layer part.
+  - The runtime indexes the file's tensors by name once, and the module's plan and the runtime's resolution both use that index, so the missing-tensor and duplicate-tensor rules keep one owner.
+  - Every commit leaves outputs byte-identical to the base and speed level with it.
+  - Qwen 3.x step 4 (`feat/qwen35-cpu`) then adds `src/model/arch/qwen35.hpp` beside the Qwen3 module instead of growing the Qwen3 file, and DeepSeek V4.x and the HF directory reader follow the same way.
+- **Base:** main 9e7b1e1, which carries layer split phase 3's step 1 (the pass API) and the three smaller branches that edited the model file, `refactor/raw-convert-to-format`, `fix/moe-flags-every-backend` and `fix/server-exact-resume`, so the refactor carries all of them from its first commit.
+  - The commits were first written on `feat/split-passes` at 5e05a9e, main 31532c0 plus the pass API, and rebased onto 9e7b1e1 before the branch-head gates. A gate recorded under Done before the rebase compares with 5e05a9e; the rebase's checks and the branch-head gates compare with 9e7b1e1. Each base is built the same way from its own sha in its own tree.
+  - Line numbers in this block are main 31532c0's unless a branch is named.
+- **Decided (2026-09-27; each may still be overridden by the user):**
+  1. The guide is its own page, `docs/ADDING-AN-ARCHITECTURE.md`, linked from ARCHITECTURE.md, AGENTS.md and ROADMAP #2.
+  2. `Placement::attn_device` becomes `mixer_device`, and `Device::attn_layers` becomes `mixer_layers`, in C6.
+  3. A file without `general.architecture` is read as qwen3, as a rule of the registry, until the fixture consolidation (`tests/arch-fixtures`) writes the name into every fixture.
+  4. The boundary check, `tests/arch_boundary.py`, goes in with C6.
+  5. The CPU speed bar for a commit that moves code is the spread of the base and two perturbed builds of the base; the devices are held to 1 percent.
+- **Found, at main 31532c0:**
+  - `src/model/arch_qwen.hpp` has 1,424 lines. About 480 are Qwen3 knowledge (the config, roles, slot table, footprint and layer math) and about 880 are runtime (sequences, passes, stages, pipelining, pools, the arena, crossings, streaming and placement).
+  - Qwen tensor names are written out in four functions: the resolver (880-949, the streamed-role copies at 936-941 included), `footprint` (448-463), `routed_layers` (352) and `synthetic_model` (419-434). Eight test fixtures write them too.
+  - There is no registry. The only architecture name check is `load_config`'s (98-104).
+  - No gate holds a model refusal to its text: `rejects` in `tests/model_validation.cpp` (21-25) only checks that something throws.
+- **Requirements:**
+  - Outputs stay byte-identical for Qwen3 and qwen3moe: tokens, logits, perplexity, chat, split plans, the loader's adoption records, and every refusal text for a file with one defect.
+  - Speed does not drop. No virtual dispatch is added per op in a hot loop; a call per layer part or per pass is allowed, and it is measured.
+  - The dependency direction of `docs/ARCHITECTURE.md` and the rules of AGENTS.md hold: one owner per rule, lean code, and a seam only because a second implementation is next on the roadmap (qwen35, then DeepSeek V4.x and the HF directory reader).
+  - A module owns its metadata keys and refusals, its tensor roles and the checks particular to it, its per-layer cache kinds and their footprint, its arena slot widths and residual width, its layer graph written as backend ops, which of its roles follow a routed block and which are copied or streamed, and its hooks for MTP.
+  - One registry, keyed on `general.architecture`, is the only place where architecture names are accepted.
+  - The runtime owns sequences, passes, stages, pipeline hops, pools, the arena, placement, the tensor index and the cache storages, and it knows no architecture.
+  - Weights stay format-neutral.
+- **The shape chosen: a declared plan plus per-part code.**
+  - The module declares a plan: its layers, each layer's opaque kind, its roles (tensor name, part, kind of role, expected shape, streaming behaviour, alias), arena slot widths, residual width, context length, KV geometry and the sizes of the position tables.
+    The runtime resolves, validates, adopts, fits, places and streams from that one list, so each role name is written once, in the module.
+  - The module supplies its math behind one small interface the runtime calls per part: `embed`, `mixer`, `ffn` and `head`. It switches on its per-layer kinds inside itself, so the runtime names none.
+  - Weighed against it:
+    - A module as a class that owns everything and is called once per layer would expose the tensor classification again for the fit and for placement, re-implement the streaming machinery in every MoE module, and cannot keep resolved weights in a shared object, since tests build two models from one set of weights. A layer can also be split at its middle (attention on a device, experts on the host), so the call has to be per part.
+    - A table of layer kinds with the runtime switching on them would make the runtime name every architecture's concepts, and the kinds do not carry what differs (slot tables, table forms, cache storages).
+    - The runtime as a template over the architecture would make the public type a template, which the loader, the server, the CLI and the tests would need a type-erased facade for, and every module would instantiate the runtime again in the one translation unit.
+  - The added cost is 2 indirect calls per layer per pass beside the 9 to 11 backend calls that exist: on Qwen3-0.6B decode, 28 layers x 2 calls x about 3 ns, under 0.2 us against a pass of 3 to 5 ms on one MI50. The larger risk is code layout on the CPU, which the timing A/B is built for (Plan). If a cell is not level, the fallback is the template shape for that one entry point.
+- **Design: files.**
+
+  ```
+  src/model/
+    architecture.hpp   the contract: Part, RoleKind, Stream, Role, LayerPlan, ModelPlan, Step, HeadStep, Architecture
+    weights.hpp        TensorView, TensorIndex, ModelWeights {arch, tensors}, AdoptWeight, Weight
+    runtime.hpp        Model and its data: ModelOptions, Placement, Sequence, BatchEntry, Pass, ExecContext, kDefaultUbatch, kv_tokens, plan_model
+    place.hpp          footprint (from the plan), placement_for, PlacementRequest, PlacedModel, adds_host_for_experts, host_reads_in_place, place_model
+    kv_cache.hpp       unchanged
+    layer_split.hpp    unchanged (Footprint gains a cache per layer with qwen35)
+    arch/
+      registry.hpp     the names; gguf_weights, the one step from a file's metadata to a module; the synthetic model bench times
+      metadata.hpp     typed metadata reads with the refusal texts every reader shares (today's lambdas, 55-97, as functions)
+      qwen3.hpp        qwen3 and qwen3moe
+      qwen35.hpp       later: qwen35 and qwen35moe (Qwen 3.x step 4)
+      blocks.hpp       later: graph pieces two modules share, added with the second user
+      deepseek4/       later: deepseek4 and deepseek41, with a graph header the DSpark drafter includes
+  ```
+
+  - The runtime and a module meet only in `architecture.hpp` and `weights.hpp`.
+  - A module includes the contract, `arch/metadata.hpp`, `arch/blocks.hpp`, the backend interface and the format headers its readers read. It may include another module's graph header when it runs that module's blocks, as the DSpark drafter runs DeepSeek blocks. It never includes the runtime or the registry.
+  - The runtime never includes a module.
+  - `arch/registry.hpp` includes every module. Only the loader (`inference/load.hpp`), the tests and tools that build a model without the loader, and the CLI (for `bench`'s synthetic model) include it. `generate.hpp`, `perplexity.hpp` and the server include `runtime.hpp` alone.
+  - A module is one header until it passes about 1,000 lines, then a directory `arch/<name>/`.
+- **Design: the contract** (`model/architecture.hpp`, `model/weights.hpp`), holding only what Qwen3 uses today:
+
+  ```cpp
+  class TensorIndex {                                                // weights.hpp, built once by plan_model
+  public:
+      explicit TensorIndex(const std::vector<TensorView>& tensors);  // "inference: duplicate tensor <name>"
+      std::optional<size_t> find(const std::string& name) const;      // absent: nullopt
+      size_t at(const std::string& name) const;                       // absent: "inference: missing tensor <name>"
+      const TensorView& view(size_t i) const;
+  };
+  enum class Part : uint8_t { embed, mixer, ffn, head };
+  enum class RoleKind : uint8_t { norm, matrix, gather, experts };  // F32 [in]; [in, out] read by a product; checked as a matrix, rows gathered; exactly [in, out, experts]
+  enum class Stream : uint8_t { none, copy, window };               // what a long prompt's streamed routed layer does with the role
+  struct Role { uint16_t id; Part part; RoleKind kind; std::string name, alias; uint64_t in = 0, out = 1, experts = 0; Stream stream = Stream::none; };
+  struct LayerPlan { uint8_t kind = 0; bool routed = false; std::vector<Role> roles; };
+  struct ModelPlan {
+      int n_layer = 0; size_t context_length = 0, residual = 0;
+      std::vector<size_t> slots;        // floats one row takes in each arena slot; slot 0 is the residual
+      size_t role_ids = 0, vocab = 0;
+      std::vector<Role> pass;           // the embedding's and the head's roles
+      std::vector<LayerPlan> layers;
+      size_t kv_heads = 0, head_dim = 0;
+      std::vector<size_t> tables;       // floats in each position table
+  };
+  struct Step {                         // one call of a part
+      backend::Backend& b; backend::Buffer* arena; const size_t* offsets; backend::Slice x; size_t rows;
+      backend::RowRuns runs; const Weight* w; uint8_t kind; const backend::KVView* views; size_t n_views, kv_layer;
+      const uint32_t* pos; const backend::BufferPtr* tables; std::vector<backend::RowRun>* scratch;
+      backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
+  };
+  struct HeadStep : Step { const uint32_t* pick; size_t want; backend::RowRuns head_runs; backend::Slice logits; };
+  class Architecture {
+  public:
+      virtual ~Architecture() = default;
+      virtual ModelPlan plan(const TensorIndex& tensors) const = 0;
+      virtual void fill_tables(std::vector<std::vector<float>>& tables) const = 0;
+      virtual void embed(const Step& s, const uint32_t* ids) const = 0;
+      virtual void mixer(const Step& s) const = 0;
+      virtual void ffn(const Step& s) const = 0;
+      virtual void head(const HeadStep& s) const = 0;
+  };
+  ```
+
+  - The architecture object is immutable and holds its configuration. Resolved weights, tables and storages belong to each `Model`, so two models built from one `ModelWeights` share the object and nothing else.
+  - There is no per-layer KV flag and no table bound apart from `context_length`, since Qwen3 uses neither; qwen35 adds `LayerPlan::caches`, and DeepSeek a table bound.
+- **Design: weights and the plan.**
+  - `ModelWeights { std::shared_ptr<const Architecture> arch; std::vector<TensorView> tensors; }` replaces `QwenWeights`. Tensor i is still the file's tensor i, so `planning_adopt` and the loader's plan-then-fill are unchanged apart from the type name. `TensorView`, `AdoptWeight` and `Weight` move as they are.
+  - `plan_model(const ModelWeights&)`, in the runtime, builds the `TensorIndex` and asks the module for the plan. `place_model` calls it once and passes the result to the `Model` it builds, so the fit, the experts placement and the model read one plan; a `Model` built directly calls it itself.
+  - `gguf_weights` moves to the registry, which reads `general.architecture` (an absent name means qwen3, a rule the registry owns), has the module read its configuration under the name's prefix, and builds the views with today's checks (182-194).
+  - The HF directory is a second function beside it, `hf_weights`, which looks up `model_type` in the same table; the module gains a `config.json` reader and an HF name table beside its GGUF reader.
+- **Design: the runtime** (`model/runtime.hpp`, `model/place.hpp`) is today's `Model` and its data with these changes and no others:
+  - **Resolution from the plan** replaces 865-968. `TensorIndex` replaces the name index, the duplicate refusal and the `find` lambda. The adoption hook stays. Roles are walked in plan order, the pass roles first and then each layer's; each is looked up by its name, or by its alias when the name is absent, validated by its kind with today's two lambdas and texts, adopted on the device of its part, and stored in `home_[layer][role.id]` or `pass_[id]`. A role whose tensor is already adopted on that device reuses the buffer, which is today's tied-head rule stated once and keeps the loader's rule of each tensor on each backend at most once. The module's `plan` checks the vocabulary through `TensorIndex::at`, so a missing embedding gives today's text.
+  - **Streaming from the plan** replaces 936-941, 950-967 and the `streamed` flag. A routed layer streams when `stream_from` is set, its FFN device reads in place and its mixer device copies. Its `copy` roles are adopted again on the mixer device right after the layer's roles, in role order; its `window` roles are sized into per-device windows in their order (gate, up, down for Qwen3). `stream_[layer]` is the layer's row with those roles pointing at the copies and windows, each window `Weight` keeping the home role's type, nin and nout. `ffn_split` writes each window role's bytes in role order from `home_` and calls the module's `ffn` with `stream_[layer]` or `home_[layer]`, and the module's FFN code loses its `streamed` parameter.
+  - **The fit from the plan** replaces `footprint` (439-482), `routed_layers` (349-361) and `kv_bytes_per_position` (344-347). Each layer role with a tensor in the file adds one `Matrix` built from the view as today (a product when its kind is `matrix`), each tensor counted once per layer and listed in the file's tensor order, so the `Footprint` is today's field for field; stream copies are not counted. The embed part's gather role is `embedding`; the head part's matrix role is `output`, and when its alias was taken `tied` is set and `output` is the embedding with `product` set; the head part's one norm role is `output_norm`. `cache_per_layer` is `kv_tokens x kv_heads x head_dim x` the sum of the two element sizes, `tables` the sum of the table sizes, `handoff_per_row` `residual x 4`, `activations_per_row` the sum of the slots, and the routed layers for `--n-cpu-moe` are those with `LayerPlan::routed` set.
+  - **Arena and handoff from the plan:** `ExecContext::kSlots` becomes the plan's slot count with the offsets in a vector sized once; `slot_widths` becomes the module's, computed once from its routed flags; the handoff and the crossings use `plan.residual` where they use `cfg.n_embd`; `context_length()`, the position bound in `begin`, `kv_tokens` and `place_model`'s history clamp read `plan.context_length`.
+  - **Tables:** the module fills them with the RoPE loop moved verbatim, `rope_theta` staying a `float` so `std::pow` keeps its float overload. The runtime keeps them and adopts them on every device that runs a mixer part.
+  - **Stages and storages** are formed by each layer's mixer device, as they are now by attention device.
+  - **The graph calls:** `run_stage` keeps its shape and calls `arch_->embed`, `arch_->mixer`, `arch_->ffn` and `arch_->head` where it calls the embed op, `attention_half`, `ffn_half` and the head today.
+  - **The public API** changes only here: `config()` goes, and its two users (`server/api.hpp`, `server/scheduler.hpp`), which read only the context length, take `context_length()`; `n_vocab()` reads the plan; the constructors take `ModelWeights`, the two that take a `GGUFModel` being replaced by `Model(const ModelWeights&, backend::BackendPtr = make_cpu_backend(), ModelOptions = {})` and the several-backend form, since the runtime may not call the registry, and about 35 call sites in the tests and the CLI's bench wrap their file in `gguf_weights`; `QwenConfig`, `load_config`, `slot_widths`, `routed_layers` and `kv_bytes_per_position` leave the public surface, tests reaching the config through `gguf_weights` and the widths through the plan; `footprint` and `place_model` take `ModelWeights`, and `footprint` also the plan; `attn_device` and `attn_layers` become `mixer_device` and `mixer_layers`.
+- **Design: the Qwen3 module** (`model/arch/qwen3.hpp`, about 380 lines, all moved from the model file):
+  - `Config` (today's `QwenConfig` without `arch`) and `read_config(file, prefix, routed)`, whose body is 103-158 verbatim with the metadata lambdas moved to `arch/metadata.hpp` as functions with the same texts. The checks every format shares become `check_config`, as `feat/hf-dir` does, which moves four checks to the end of the reader.
+  - `enum Role : uint16_t { token_embd, output, output_norm, attn_norm, attn_q_norm, attn_k_norm, attn_q, attn_k, attn_v, attn_output, ffn_norm, ffn_gate, ffn_up, ffn_down, ffn_gate_inp, ffn_gate_exps, ffn_up_exps, ffn_down_exps }` and `enum Kind : uint8_t { dense, routed }`.
+  - `plan`: the vocabulary check through `TensorIndex::at`; per layer the roles in today's adoption order (921-948); `routed` when the router is present, through `TensorIndex::find`, with the two refusals of 931 and 944; `ffn_norm` and `ffn_gate_inp` marked `Stream::copy` and the three expert stacks `Stream::window`; the slots from `slot_widths`, the residual `n_embd`, `context_length`, the KV geometry and two tables of `context_length x head_dim/2`.
+  - `fill_tables` is 603-612 verbatim. `embed`, `mixer`, `ffn` and `head` come from 1052-1054, 1260-1288, 1291-1324 without the streamed branch, and 1079-1086, reading `s.w[attn_q]` where the old code read `w.attn_q`. `synthetic_model` (373-437) moves verbatim.
+- **Design: the registry** (`model/arch/registry.hpp`): a table `kArchitectures[] = {{"qwen3", qwen3::open_dense}, {"qwen3moe", qwen3::open_routed}}` of names and readers.
+  - It is the only comparison of architecture names in `src/`. A module never compares names: the entry it is reached through says which variant it reads and under which prefix.
+  - An unknown or non-string name is refused with today's message, "inference: unsupported metadata general.architecture".
+  - `synthetic_model(const SyntheticShape&)` writes the model `llmx bench` times without a file through the entry the registry names for it (qwen3), so the CLI names no architecture, and its bench comments change with it.
+  - Later: `model_type` names for HF directories, and drafter-only entries (`dflash`) refused as a main model.
+- **One owner per rule:** the registry chooses the module and owns the default for a missing name; `arch/metadata.hpp` owns a metadata value's type and range checks and their texts; the module's reader owns which keys it reads, their defaults and its refusals, and its `check_config` the invariants of a configuration in any format; the module's `plan` owns tensor names, roles, shapes, layer kinds and which layers route; the runtime's `TensorIndex` owns the name index and a missing or repeated tensor; the runtime's resolution owns the check of a role by its kind and one buffer per tensor per device; the runtime's footprint over the plan and `layer_split.hpp` own the fit; the plan declares which roles follow a routed block, are copied or are streamed, and the runtime does it; the module owns slot widths, the residual width, the context length, each layer's cache geometry, table values and the layer math; the runtime owns the arena, handoff buffers, crossings, table adoption, the position bound and the cache budget; `kv_cache.hpp` and the backends own storages, pools, blocks, forks and rollback; the backends own kernels.
+- **What stays outside a module:** the pretokenizer (chosen by `tokenizer.ggml.pre`, below the model layer), the chat conventions (keyed on the file's template, `inference/chat.hpp`), the backend ops (named for their math), and the experts flags (placement, honoured for any module whose plan has routed layers; the CLI refuses a combination before the file is read and `place_model` refuses what depends on the model and the devices).
+- **What the contract gains later**, each in the branch of its first user and byte-identical for every module before it: extra blocks and a drafter switch (qwen35 steps 4 and 9); the plan's own per-kind checks (qwen35 step 4); an F32 table role kind for `ssm_conv1d` (qwen35 step 4); a rank-1 matrix as one output row (qwen35 steps 7 and 9); the op check at load, a device backend refusing a model whose parts issue an op it lacks (qwen35 step 4); a cache per layer, with `Footprint` counting it and stages formed by mixer device whatever they hold (qwen35 step 4, DeepSeek 4d); replica storages (DeepSeek 10); per-sequence state and `ModelOptions::state_slots` (qwen35 step 4); capability flags (qwen35 step 4); the prompt-cut grid (qwen35 steps 6 and 8c); a table bound below the context (DeepSeek 4b); per-row payload crossing with a wider residual (DeepSeek 4f, 8a to 8c); token ids in every part (DeepSeek 4f); host-lookup and index-only role kinds read through file spans (DeepSeek 4b, 8d); derived buffers (DeepSeek 4f, vLLM formats step 10); a pass hook and per-sequence host data (DeepSeek 8d, 12); a head reading more than one other weight (DeepSeek 4b); the architecture's cache type (DeepSeek 4d); the drafter hook (qwen35 step 9) and sidecar drafter entries (speculative step 5, DeepSeek 13); residual taps for drafters (speculative step 5); per-layer row subsets (DeepSeek 11); the HF readers (`feat/hf-dir`); weights with parts (vLLM formats step 3).
+- **Why each change keeps the bytes:**
+  - Ops, their arguments and their order are unchanged; the module's parts are today's `attention_half`, `ffn_half` and head bodies reading the same `Weight`s through an index.
+  - The arena slots keep their order, widths and 64-byte alignment, so every offset is today's.
+  - Adoption order is today's: the pass roles, then each layer's roles in 921-948's order, then that layer's stream copies, so the loader's uploads and host-read records are unchanged.
+  - The tables come from the same loop with the same float types.
+  - The `Footprint` is today's field for field, in file order, wherever a file holds only role tensors; C4 checks this on every fixture and gate file. A file with a tensor the model does not read gets a smaller, more accurate fit.
+  - Refusal texts are unchanged, and C2 holds every single-defect refusal to the base's text. The order changes only for a file with several defects: a plan refusal (a router with no experts, a dense layer with no FFN width, a missing embedding) may come before a malformed or missing tensor of an earlier layer; on a split, a file's defect may be refused before the split refuses the fit; and `check_config`'s four checks come after the reads that follow them in 117-157. No test file has two defects.
+- **Plan.** Every commit builds, passes CTest and leaves outputs byte-identical to the base. Each `docs/src/` page changes in the same commit as its file, and so does every other page that names a file or type the commit renames.
+  - **The identity set (I):**
+    - CPU, stdout and stderr byte-identical to the base: Qwen3-0.6B Q8_0, Q4_0 and Q5_K_M with `generate -n 64 --temp 0`, `logits --file <excerpt> --last 32 --top 151936`, `perplexity` batched and per token, `info`, and `chat` with a fixed seed; Qwen3-8B Q8_0, 64 greedy tokens and logits; Qwen3-30B-A3B Q4_K_M, 16 greedy tokens, logits and `info`.
+    - One MI50: 64 greedy tokens and logits byte-identical for 0.6B Q8_0, 8B Q8_0 and 30B-A3B Q4_K_M, and on the 30B-A3B also with `--n-cpu-moe 12`, with `--n-cpu-moe 12 --moe-stream-from 32` on a prompt above 32 tokens (the streamed path, one CLI entry forming one group), and split over the MI50 and the CPU with the split plans on stderr identical apart from the free memory they report.
+    - The server: `tests/server.py` and `tools/server_mix_check.py --requests 16 --cli 4` on 8B Q8_0 on one MI50, every reply equal to the base's. On the device `tests/server.py`'s synthetic MoE streams prompts from extent 3 beside host decode rows, the path where a streamed layer splits a pass into groups.
+    - `llmx-split-check` bit-identical to one card on 2 and 3 MI50s for the three files, with 64-token chunks so the prefill pipelines, on f16 and f32 caches.
+    - Host memory once a server serves within 2 MiB of the base's, for 8B Q8_0 on the MI50 and 30B-A3B with `--n-cpu-moe 12`.
+    - The SPIR-V modules byte-identical by hash.
+  - **The timing A/B (T):** the base and the candidate built the same way from their own shas in separate trees, on the same card with its clocks held high, five interleaved runs each, the load average recorded beside every run.
+    - Device cells: one MI50, `llmx bench --model` pp64, pp247, pp512, tg32 and tg128 on 0.6B Q8_0, 8B Q8_0 and 30B-A3B Q4_K_M, plus the 30B-A3B with `--n-cpu-moe 12`; the Radeon VII, the same cells on 0.6B Q8_0 and 8B Q8_0, plus 30B-A3B Q4_K_M with its experts on the CPU. Level means each cell's median is within 1 percent of the base's, or the cell is rerun and the difference explained.
+    - CPU cells: `tests/perf.py` and `bench --model` on 0.6B Q8_0, run apart from other CPU work, against the base built three ways (as it is, and with two unused functions of different sizes); level means inside the spread of those three builds (Decided 5).
+    - llama.cpp's Vulkan numbers on the same cards stand beside the results as context, not as this gate.
+
+  | # | Commit (subject) | What changes | Gates |
+  |---|---|---|---|
+  | C0 | `docs: STATUS plans the architecture modules` | this block, before any code | one review round |
+  | C1 | `model: arch_qwen.hpp becomes runtime.hpp` | `git mv`; the includes in `load.hpp`, `generate.hpp`, `perplexity.hpp`, `scheduler.hpp`, `cli/main.cpp` and three tests; the comment in `tests/backend_vulkan.cpp`; `docs/src/model-arch_qwen.md` becomes `model-runtime.md`, and every page naming the file follows. No code changes, so `git log --follow` and blame keep the runtime's history. | build with Vulkan on and off, CTest, hosted CI |
+  | C2 | `tests: model-validation holds every model refusal to its text` | `rejects` records each message and compares the list with one written from the base: the configuration tables, the tensor and plan refusals and the placement refusals. | CTest on this commit, and the test built against the base |
+  | C3 | `model: tensor roles resolve from one list the architecture builds, through one name index` | `TensorIndex`, the plan types and Qwen3's plan (still in `runtime.hpp`); resolution by role kind with one buffer per tensor and device; `home_`, `stream_` and generic windows; `attention_half` and `ffn_half` read weights by role id, and the `streamed` flag goes. | I on the CPU and one MI50; split-check; CTest (C2's list, the `load-progress` adoption records, `placement`); suites |
+  | C4 | `model: the fit counts the roles the plan names, in file order` | `footprint` from the plan with the head mapping rule; `routed_layers` and `kv_bytes_per_position` from the plan; `place_model` plans once through `plan_model` and hands the plan to `Model`. | a one-off comparison of the old and new `Footprint` on every C++ and Python fixture and on 0.6B Q8_0, Q4_0 and Q5_K_M, 8B Q8_0 and 30B-A3B Q4_K_M, recorded here; split plans on stderr identical on two MI50s and on the MI50 with the CPU; CTest `placement` |
+  | C5 | `model: the layer math runs behind the architecture interface` | `architecture.hpp` and `weights.hpp`, with the Qwen3 class (still in `runtime.hpp`) implementing `plan`, `fill_tables` and the four parts; `ModelWeights` replaces `QwenWeights`, in `planning_adopt` too; slots, residual, tables and `context_length` from the plan; `config()` removed and the server on `context_length()`; the `GGUFModel` constructors replaced and their call sites wrapping `gguf_weights`; `docs/src/format-format.md` and `inference-load.md`. The only commit that adds dispatch. | I on the CPU and one MI50; split-check; the 16k check on 8B Q8_0 on one MI50 (`tools/long_context_check.py`, greedy hash equal to the base's); CTest; suites; T on the CPU and one MI50 |
+  | C6 | `model: the Qwen3 module moves to model/arch/qwen3.hpp, and a registry is the one reader of general.architecture` | the Qwen3 class, reader (with `check_config`) and synthetic writer move to `arch/qwen3.hpp`; `arch/registry.hpp`, `arch/metadata.hpp` and `place.hpp` added, `gguf_weights` in the registry, `runtime.hpp` including no module; `attn_device` becomes `mixer_device`; the boundary check; the new `docs/src/` pages, ARCHITECTURE's diagram and "What lives where", and the CLI's bench comments. | build; CTest; suites; I on one MI50 for 0.6B Q8_0 and 30B-A3B with `--n-cpu-moe 12`; T on the CPU and one MI50; the boundary check |
+  | C7 | `docs: ADDING-AN-ARCHITECTURE, and the architecture, roadmap and agent guides describe the modules` | the guide; ARCHITECTURE (a subsection "Model architectures", build-time, error handling); AGENTS (the `model/` row, "Model architectures are planned", "Starting a feature"); ROADMAP #2 and #3; EXECUTION; `QWEN35.md`; this block and the Qwen 3.x block ("Design, the model", step 4's first bullet, Sequencing). | one review round |
+
+  - **At the branch head:** I on the Radeon VII (0.6B Q8_0, 8B Q8_0, and 30B-A3B Q4_K_M with `--cpu-moe` and with `--moe-stream-from 32`, plus a split over the Radeon VII and the CPU); T on the CPU, one MI50 and the Radeon VII; a green hosted run on `gate/refactor-arch-modules`.
+  - **The boundary check** (`tests/arch_boundary.py`, C6) runs in the Python suite and so in every hosted CPU job. It reads the registered names from `arch/registry.hpp` and fails if a registered name, a string literal beginning `blk.`, or a string literal ending in `.weight` or `.bias` appears in `src/model/{runtime,place,weights,architecture,layer_split,kv_cache}.hpp`, `src/inference/{load,generate,perplexity}.hpp`, `src/server/*.hpp` or `src/cli/main.cpp`.
+  - **Follow-up branch `tests/arch-fixtures`** (tests only, one review round): `tests/tiny_qwen.hpp` becomes the one C++ writer of the qwen3 fixture, used by `model_validation.cpp`, `generation_stream.cpp` and `load_progress.cpp`, and the Qwen3 configuration tables move to `tests/arch_qwen3.cpp` (CTest `arch-qwen3`); `tests/fixture_qwen3.py` holds the Python configuration, tensor writer, HF name map and MoE additions for `f32.py`, `moe.py`, `server.py`, `perplexity.py` and `tools/gen_baseline.py`. Its gate: every fixture file the suites write keeps its sha256, the goldens are untouched, and CTest, the suites and hosted CI pass.
+  - **Size, estimated:** C3 to C5 about +650/-500 lines of source plus about 35 test call sites and C2's list; C6 moves about 1,400 lines. This replaces DeepSeek step 4a (the rename, per-architecture slot tables and handoff rows).
+- **Plans and docs that change** (C7 unless named):
+  - Qwen 3.x ("Design, the model" in the block below): qwen35 and qwen35moe are one module, `src/model/arch/qwen35.hpp`, registered for both names, holding the configuration, the roles, the arena slots, each layer's caches, the rope tables, the layer math and the MTP block; nothing in `arch/qwen3.hpp` or the runtime names it; the graph pieces it shares with qwen3 move to `arch/blocks.hpp` in step 4, held level on the Qwen3 files. Its own slot table takes the widest use over both mixer kinds (a thirteenth slot for alpha, beta and g), while Qwen3's 12-slot table does not change. What the runtime gains with qwen35 as first user: a cache kind per layer, the state storage, stages by mixer device, the op check at load, capability flags, the prompt cut on the module's grid (step 6) and the drafter hook (step 9). Step 4's first bullet and "Sequencing" change to build on this branch instead of extending `QwenConfig`, `QwenWeights` and the resolver.
+  - ROADMAP #2: each architecture is a module under `model/arch/` on the shared runtime, selected by the registry from `general.architecture`, and "Generalize to an architecture registry" is marked done. ROADMAP #3: the model is built from `infer::ModelWeights`, whose views a second format's reader produces, with its `model_type` looked up in the registry.
+  - The DeepSeek V4.x plan draft (landing with its docs branch): the runtime owns stages, passes, placement, sequences and the arena for every architecture; its module is `src/model/arch/deepseek4/`, registered for deepseek4 and deepseek41, with its per-layer kinds as the module's own values; its step 4a is removed; `ModelPlan::residual = hc x d`.
+  - The vLLM formats plan draft (landing with its docs branch): each module has a `config.json` reader and an HF name table beside its GGUF reader, a neutral `model/hf_config.hpp` keeps the key-family allowlist and the JSON reads, `model/hf_weights.hpp` keeps the parts builder and the consumed-or-skipped check, derived values are functions in the module declared as derived buffers, and the registry gains `model_type` names.
+  - `docs/ARCHITECTURE.md`: the layer diagram's `model/` line, "What lives where", a subsection "Model architectures", "Build-time vs runtime" ("compiled in and selected from metadata by `model/arch/registry.hpp`; today qwen3 and qwen3moe") and error handling ("the module's plan names the tensors and shapes; the runtime validates each by its role's kind").
+  - AGENTS.md: the `model/` row, "Model architectures are planned" rewritten as current, and "Starting a feature" pointing a new architecture at the guide.
+  - `docs/EXECUTION.md` "Beyond dense Qwen": each addition lands as a field of the architecture contract (`docs/src/model-architecture.md`) with its first user. `docs/QWEN35.md`: "The resolver refuses" becomes "The module's plan refuses".
+  - `docs/src/`: `model-runtime.md` (C1), then `model-place.md`, `model-weights.md`, `model-architecture.md`, `model-arch-registry.md`, `model-arch-metadata.md` and `model-arch-qwen3.md` (C6); `format-format.md` and `inference-load.md` name `ModelWeights` (C5).
+- **Order against the branches in flight:**
+  - `refactor/raw-convert-to-format` (`TensorView::type`, the norm check and `synthetic_model` on `quant::` ids): in the base; `weights.hpp` takes the new ids.
+  - `fix/moe-flags-every-backend` (`adds_host_for_experts` asks `is_cpu()`; `place_model` refuses the experts flags on a model without routed layers through `routed_layers`): in the base; C4 moves the refusal onto `LayerPlan::routed`, and C6 moves both into `place.hpp`.
+  - `fix/server-exact-resume` (drops `BatchEntry::fresh` and `Pass::fresh`; `streams()` goes by extent): in the base.
+  - `feat/split-passes` (the pass API, `Pass::handoff`, `logits_base`, `ExecContext` slots, `ensure(buffers)`, `Device::sends` over `attn_device`): in the base. The refactor keeps all of it in `runtime.hpp`; C6's rename covers `Device::sends`; the head's `logits_base` becomes `HeadStep::logits`.
+  - `feat/hf-dir` (`check_config`; `model/hf_config.hpp` fills `QwenConfig`): if it lands first, C6 moves `check_config` and the Qwen3 part of `load_hf_config` into the module; otherwise it rebases onto the module.
+  - Independent: `perf/decode-columns`, `fix/cli-usage-refusals`, `perf/sampler-select`, `feat/chat-template-jinja`.
+  - After: `tests/arch-fixtures`; then `feat/qwen35-cpu`, `feat/deepseek-open` and the HF directory steps build on the modules.
+  - Layer split phase 3 keeps priority. When a phase 3 step that edits the model file is at its gates, the refactor waits for it and rebases onto it, never the other way round. Phase 3's steps 2 to 9 edit the scheduler, the server and `layer_split.hpp` rather than the model file, and step 6 reads `Footprint`, whose fields do not change.
+  - A branch written against `arch_qwen.hpp` rebases through Git's rename detection while `runtime.hpp` keeps more than half of the old file, about 60 percent after C6 by line count. Edits to lines that moved into `arch/qwen3.hpp` conflict whatever the order, so the refactor lands when no branch in flight edits the Qwen-specific parts of the model file.
+  - Qwen 3.x steps 2 and 3 (chat and tokenizer) do not touch the model.
+- **Risks:**
+  - A silent reorder of adoption, roles or slots changes no numbers but could change a test's records or a split plan; I, `load-progress`'s adoption records, C4's `Footprint` comparison in file order and the split plans on stderr catch it.
+  - A refusal text drifts when the metadata lambdas become functions or the plan takes a check; C2's list catches it.
+  - Code layout moves CPU speed by a few points on any relink ("Code layout moves this benchmark more than the rule allows", below); T on the CPU uses perturbed builds of the base as its band and runs after C5 and after C6, and a cell outside the band falls back to templating `run_stage` on the module for that one entry point, keeping the plan and the registry.
+  - The contract grows speculative fields; a field comes only with its first user, which is why there is no per-layer KV flag and no table bound.
+  - The refactor yields to phase 3 and lands when no branch in flight edits the Qwen-specific code.
+  - The fit changes for a file with unread tensors; none of the gate files has one, and C4 records the comparison.
+  - The Qwen 3.x plan says "one model path" until C7 lands, so `feat/qwen35-cpu` does not start before then.
+- **Done:** this block (C0).
+- **Left:** C1 to C7 with their gates; the branch-head gates; then `tests/arch-fixtures`.
+- **Gotchas:**
+  - Earlier blocks of this file and `docs/benchmarks/` name `src/model/arch_qwen.hpp` and `docs/src/model-arch_qwen.md` at their commits; from C1 on they are `src/model/runtime.hpp` and `docs/src/model-runtime.md`.
+  - Each gate's base arm is its base (Base) built from its own sha in its own tree, never the branch's parent built again in the candidate's tree, since the build identity alone moves 0.6B prefill (AGENTS.md, Principles).
 
 ## The automatic worker count honours the affinity and the cgroup CPU quota (2026-09-27, branch fix/threads-cpu-quota, merged at `535bada`)
 
@@ -6843,6 +7046,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | Planned (block above), built in the background |
 | More model architectures (Llama, ...)    | Planned  |
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | Planned (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, its model code waiting for the architecture refactor |
+| Architecture modules: one runtime, a module per architecture, one registry | In progress (block above), branch `refactor/arch-modules` |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |
 | GGUF reader size and tensor extent validation | Done |

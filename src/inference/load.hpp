@@ -5,7 +5,6 @@
 #include <cstdio>
 #include <exception>
 #include <functional>
-#include <iterator>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -46,6 +45,7 @@ struct LoadTimes {
     size_t files = 0;           // files the weights were streamed from through the file cache
     size_t direct_files = 0;    // files they were streamed from around it
     size_t streamed = 0;        // bytes read for them, gaps and granule rounding included
+    size_t copied = 0;          // bytes the devices copied straight out of the reads, each device's counted, where the rest go through their staging
     double construct = 0, read = 0, upload = 0, wait = 0;
 };
 
@@ -183,9 +183,10 @@ inline std::vector<Piece> plan_pieces(const std::vector<size_t>& tensors, const 
     return pieces;
 }
 
-// Read `pieces` on two reader threads into a ring of four slots, reader j taking pieces j, j + 2 and so on, or straight to a piece's `into`, and on this thread write each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
+// Read `pieces` on two reader threads into a ring of four slots, reader j taking pieces j, j + 2 and so on, or straight to a piece's `into`, and on this thread send each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
+// A backend that reads a slot in place (Backend::wrap_host) takes a part as one device copy out of the slot, and the slot goes back to the readers once the copies out of it retire; any other takes it as a write, which consumes it at once, as do the parts of an `into` piece.
 // A read that comes up short of a part means the file was cut after its header was read.
-// Whatever fails, the readers are stopped and joined and the ring freed before the error goes on; the uploads' storage stays with the model, which drains its backends before it frees any.
+// Whatever fails, the readers are stopped and joined, the copies out of the ring retired and the ring freed before the error goes on; the uploads' storage stays with the model, which drains its backends before it frees any.
 inline void stream(const std::vector<Piece>& pieces, const std::vector<std::unique_ptr<format::FileReader>>& readers,
                    const std::vector<std::vector<const Upload*>>& destinations, const std::function<void(size_t)>& streamed,
                    LoadTimes& times) {
@@ -197,9 +198,36 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
     for (size_t i = 0; i < std::min(kSlots, pieces.size()); ++i) ring.emplace_back(slot_bytes);
     const size_t slots = ring.size(), threads = std::min(kReaders, slots);
 
+    // The backends the parts go to, each with its view of every slot where it reads them in place, and per slot the ticket of its last copies out of it.
+    // The views are declared after the ring, so they go before it.
+    std::vector<backend::Backend*> targets;
+    for (const auto& list : destinations)
+        for (const Upload* u : list)
+            if (std::find(targets.begin(), targets.end(), u->backend) == targets.end()) targets.push_back(u->backend);
+    std::vector<std::vector<backend::BufferPtr>> views(targets.size());
+    for (size_t t = 0; t < targets.size(); ++t)
+        for (core::HostPages& slot : ring) {
+            backend::BufferPtr v = targets[t]->wrap_host(slot.data(), slot.size());
+            if (!v) {
+                views[t].clear();
+                break;
+            }
+            views[t].push_back(std::move(v));
+        }
+    std::vector<std::vector<backend::Ticket>> copying(slots, std::vector<backend::Ticket>(targets.size(), 0));
+    auto target_of = [&](const backend::Backend* b) { return size_t(std::find(targets.begin(), targets.end(), b) - targets.begin()); };
+    // Retire the copies out of `slot`, after which the readers may refill it.
+    auto retire = [&](size_t slot) {
+        for (size_t t = 0; t < targets.size(); ++t)
+            if (copying[slot][t]) {
+                targets[t]->wait(copying[slot][t]);
+                copying[slot][t] = 0;
+            }
+    };
+
     std::mutex mu;
     std::condition_variable cv;
-    size_t consumed = 0;                    // pieces this thread has written out
+    size_t consumed = 0;                    // pieces whose slots are free again
     std::vector<size_t> ready(slots, 0);    // per slot, 1 + the piece read into it, 0 while none is
     std::vector<size_t> got(slots, 0);
     std::vector<double> reading(threads, 0);
@@ -257,27 +285,45 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
                 n = got[k % slots];
             }
             const Piece& p = pieces[k];
-            const uint8_t* data = p.into ? p.into : ring[k % slots].data();
+            const size_t slot = k % slots;
+            const uint8_t* data = p.into ? p.into : ring[slot].data();
             const auto t0 = std::chrono::steady_clock::now();
             size_t bytes = 0;
             for (const Piece::Part& part : p.parts) {
                 if (part.piece_offset + part.bytes > n)
                     throw std::runtime_error(readers[p.file]->path() + " ended at " + std::to_string(p.offset + n) + " bytes, before its tensors");
-                for (const Upload* u : destinations[part.tensor])
-                    u->backend->write(*u->buffer, part.tensor_offset, data + part.piece_offset, part.bytes);
+                for (const Upload* u : destinations[part.tensor]) {
+                    const size_t t = target_of(u->backend);
+                    if (!p.into && !views[t].empty()) {
+                        u->backend->copy(*u->buffer, part.tensor_offset, *views[t][slot], part.piece_offset, part.bytes);
+                        copying[slot][t] = 1;
+                        times.copied += part.bytes;
+                    } else {
+                        u->backend->write(*u->buffer, part.tensor_offset, data + part.piece_offset, part.bytes);
+                    }
+                }
                 bytes += part.bytes;
             }
+            for (size_t t = 0; t < targets.size(); ++t)
+                if (copying[slot][t]) copying[slot][t] = targets[t]->submit();
+            // The device copies this piece while this thread queues the next, so the slot of the piece before is the one waited for here.
+            if (k) retire((k - 1) % slots);
+            const bool held = std::any_of(copying[slot].begin(), copying[slot].end(), [](backend::Ticket x) { return x != 0; });
             times.upload += seconds_since(t0);
             times.streamed += p.bytes;
             {
                 std::lock_guard<std::mutex> lock(mu);
-                consumed = k + 1;
+                consumed = held ? k : k + 1;
             }
             cv.notify_all();
             if (streamed) streamed(bytes);
         }
+        const auto t0 = std::chrono::steady_clock::now();
+        retire((pieces.size() - 1) % slots);
+        times.upload += seconds_since(t0);
     } catch (...) {
         halt();
+        for (backend::Backend* b : targets) b->sync();
         throw;
     }
     halt();

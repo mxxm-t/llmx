@@ -194,6 +194,14 @@ public:
     // Storage for a weight the caller fills with write before any op reads it; it need not be zeroed, and the backend keeps it as it keeps an adopted weight.
     virtual BufferPtr alloc_weight(size_t bytes) { return alloc(bytes); }
 
+    // A buffer over the caller's page-aligned memory that copy reads from in place, or null where this backend cannot read it so.
+    // The caller keeps the memory for the buffer's life and leaves it unchanged until the copies out of it retire.
+    virtual BufferPtr wrap_host(void* memory, size_t bytes) {
+        (void)memory;
+        (void)bytes;
+        return nullptr;
+    }
+
     // Ops enqueue on one stream; submit() flushes and returns a monotonic ticket, and wait(t) retires that submission and everything before it.
     // Results require wait(), sync() or read(); CPU ops complete eagerly (docs/DEVICE-EXECUTION.md).
     virtual Ticket submit() = 0;

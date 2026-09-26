@@ -55,6 +55,14 @@ struct LoadingBackend : backend::CpuBackend {
         backend::CpuBackend::write(wrapped ? *wrapped->storage : dst, off, src, bytes);
         state->pending = true;
     }
+    // A copy is outstanding as a write is, and one out of host memory it reads in place, which a streamed load makes in place of a write, counts as one.
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        auto* wrapped = dynamic_cast<LoadingBuffer*>(&dst);
+        const auto* from = dynamic_cast<const LoadingBuffer*>(&src);
+        if (!from && ++state->writes == fail_write) throw std::runtime_error("injected write failure");
+        backend::CpuBackend::copy(wrapped ? *wrapped->storage : dst, dst_off, from ? *from->storage : src, src_off, bytes);
+        state->pending = true;
+    }
     void sync() noexcept override { ++state->drains; state->pending = false; }
     void wait(backend::Ticket) noexcept override { sync(); }
     std::unique_ptr<backend::KVStorage> kv_alloc(size_t layers, size_t heads, size_t dim, size_t tokens,

@@ -531,6 +531,9 @@ struct Device {
     DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
     bool push_descriptor = false;
     bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)
+    // Host memory imported as device memory, which a copy reads in place (VK_EXT_external_memory_host), and the alignment of its address and size.
+    PFN_vkGetMemoryHostPointerPropertiesEXT host_pointer_props = nullptr;
+    size_t host_import_align = 0;
     // The driver's per-kernel statistics (registers, occupancy), when it reports them.
     bool exec_stats = false;
     PFN_vkGetPipelineExecutablePropertiesKHR get_exec_props = nullptr;
@@ -611,6 +614,39 @@ public:
                 mapped_ = mapped;
                 std::memset(mapped_, 0, bytes);
             }
+        } catch (...) {
+            release();
+            throw;
+        }
+    }
+    // A copy source over host memory the device reads in place: `memory` imported as device memory of a type among `types`, both it and `bytes` on the import alignment.
+    VulkanBuffer(std::shared_ptr<Device> dev, void* memory, size_t bytes, uint32_t types)
+        : dev_(std::move(dev)), size_(bytes) {
+        VkExternalMemoryBufferCreateInfo ei{};
+        ei.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
+        ei.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
+        VkBufferCreateInfo bi{};
+        bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.pNext = &ei;
+        bi.size = bytes;
+        bi.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        check(dev_->fn.vkCreateBuffer(dev_->device, &bi, nullptr, &buffer_), "vkCreateBuffer");
+        try {
+            VkMemoryRequirements req{};
+            dev_->fn.vkGetBufferMemoryRequirements(dev_->device, buffer_, &req);
+            if (req.size > bytes) throw std::runtime_error("vulkan: an imported buffer needs more than the memory it wraps");
+            VkImportMemoryHostPointerInfoEXT hi{};
+            hi.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT;
+            hi.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
+            hi.pHostPointer = memory;
+            VkMemoryAllocateInfo ai{};
+            ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            ai.pNext = &hi;
+            ai.allocationSize = bytes;
+            ai.memoryTypeIndex = dev_->memory_type(req.memoryTypeBits & types, 0, VK_MEMORY_PROPERTY_HOST_CACHED_BIT, 0);
+            check(dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory_), "vkAllocateMemory");
+            check(dev_->fn.vkBindBufferMemory(dev_->device, buffer_, memory_, 0), "vkBindBufferMemory");
         } catch (...) {
             release();
             throw;
@@ -817,6 +853,17 @@ public:
             } else if (std::strcmp(e.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
                 d.memory_budget = true;
+            } else if (std::strcmp(e.extensionName, VK_EXT_EXTERNAL_MEMORY_HOST_EXTENSION_NAME) == 0) {
+                VkPhysicalDeviceExternalMemoryHostPropertiesEXT hp{};
+                hp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT;
+                VkPhysicalDeviceProperties2 p{};
+                p.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+                p.pNext = &hp;
+                fn.vkGetPhysicalDeviceProperties2(d.physical, &p);
+                if (hp.minImportedHostPointerAlignment) {
+                    enabled.push_back(VK_EXT_EXTERNAL_MEMORY_HOST_EXTENSION_NAME);
+                    d.host_import_align = (size_t)hp.minImportedHostPointerAlignment;
+                }
             }
         VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR estat{};
         estat.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
@@ -869,6 +916,8 @@ public:
                 d.device, "vkGetPipelineExecutableInternalRepresentationsKHR");
             d.exec_ir = d.exec_stats && d.get_exec_ir && diagnostics;
         }
+        if (d.host_import_align)
+            d.host_pointer_props = (PFN_vkGetMemoryHostPointerPropertiesEXT)fn.vkGetDeviceProcAddr(d.device, "vkGetMemoryHostPointerPropertiesEXT");
         if (!d.push_descriptor)
             throw VulkanUnavailable("vulkan: " + d.caps.device + " has no VK_KHR_push_descriptor");
         fn.vkCmdPushDescriptorSetKHR =
@@ -1083,6 +1132,22 @@ public:
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, false);
         b->adopted = true;
         return b;
+    }
+
+    // Host memory the device imports and copies from in place, where the device imports host memory and `memory` and `bytes` are on its alignment; null otherwise, and where the import fails, so the caller writes through staging instead.
+    BufferPtr wrap_host(void* memory, size_t bytes) override {
+        const Device& d = *dev_;
+        const size_t align = d.host_import_align;
+        if (!d.host_pointer_props || !memory || !bytes || (uintptr_t)memory % align || bytes % align) return nullptr;
+        VkMemoryHostPointerPropertiesEXT hp{};
+        hp.sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT;
+        if (d.host_pointer_props(d.device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, memory, &hp) != VK_SUCCESS || !hp.memoryTypeBits)
+            return nullptr;
+        try {
+            return std::make_shared<VulkanBuffer>(dev_, memory, bytes, hp.memoryTypeBits);
+        } catch (const std::exception&) {
+            return nullptr;
+        }
     }
 
     // alloc_weight's storage filled in chunks through staging, for a weight the model adopts as it is built.

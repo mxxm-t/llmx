@@ -355,13 +355,15 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
 
 // A load's timing line, printed with a split's plan: the mode, where a streamed load read from, and where its time went.
 std::string load_timing(const infer::LoadTimes& t) {
-    char line[320];
+    char line[400];
     if (t.files || t.direct_files) {
         const std::string from = (t.files ? std::to_string(t.files) + (t.files == 1 ? " file" : " files") + " buffered" : std::string()) +
                                  (t.files && t.direct_files ? " and " : "") +
                                  (t.direct_files ? std::to_string(t.direct_files) + (t.direct_files == 1 ? " file" : " files") + " direct" : std::string());
-        std::snprintf(line, sizeof line, "load: %s, %.2f GiB read from %s; construct %.2f s, read %.2f s, upload %.2f s, waiting for reads %.2f s\n",
-                      infer::load_mode_name(t.mode), double(t.streamed) / double(size_t(1) << 30), from.c_str(), t.construct, t.read, t.upload, t.wait);
+        char copied[64] = "";
+        if (t.copied) std::snprintf(copied, sizeof copied, " (%.2f GiB copied from the reads)", double(t.copied) / double(size_t(1) << 30));
+        std::snprintf(line, sizeof line, "load: %s, %.2f GiB read from %s; construct %.2f s, read %.2f s, upload %.2f s%s, waiting for reads %.2f s\n",
+                      infer::load_mode_name(t.mode), double(t.streamed) / double(size_t(1) << 30), from.c_str(), t.construct, t.read, t.upload, copied, t.wait);
     } else {
         std::snprintf(line, sizeof line, "load: %s; construct %.2f s\n", infer::load_mode_name(t.mode), t.construct);
     }

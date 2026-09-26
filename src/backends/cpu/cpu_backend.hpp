@@ -238,6 +238,8 @@ public:
         return std::make_shared<CpuBuffer>(src, bytes);
     }
 
+    BufferPtr wrap_host(void* memory, size_t bytes) override { return memory ? std::make_shared<CpuBuffer>(memory, bytes) : nullptr; }
+
     // Eager: an op has completed by the time it returns, so there is never anything outstanding to wait for, and a ticket only counts.
     Ticket submit() override { return ++ticket_; }
     void wait(Ticket) noexcept override {}

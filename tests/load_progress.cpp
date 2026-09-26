@@ -30,10 +30,11 @@ gguf::GGUFModel load_file(const std::string& path, const format::LoadProgress& p
 }
 
 // A CPU backend playing a device: it copies what it adopts, so no weight reads the file in place.
-// A streamed load gives it alloc_weight storage, poisoned here so a byte the load does not write shows, and writes into it; it keeps that storage and each write's destination and offset, and the Nth write can be made to fail.
+// A streamed load gives it alloc_weight storage, poisoned here so a byte the load does not write shows, and fills it with a copy out of the ring it reads in place, or with a write where it is made not to (`wraps`); it keeps that storage and each fill's destination and offset, and the Nth fill can be made to fail.
 struct CopyingBackend : backend::CpuBackend {
-    int writes = 0, fail_write = 0, foreign = 0;
-    int slow = 0;   // writes still to take two milliseconds each, so the stream's readers run ahead and fill the ring
+    int writes = 0, fail_write = 0, foreign = 0, copies = 0;
+    int slow = 0;   // fills still to take two milliseconds each, so the stream's readers run ahead and fill the ring
+    bool wraps = true;
     std::vector<backend::BufferPtr> weights;
     std::vector<std::pair<const backend::Buffer*, size_t>> written;
     bool reads_in_place() const override { return false; }
@@ -49,13 +50,53 @@ struct CopyingBackend : backend::CpuBackend {
         weights.push_back(buffer);
         return buffer;
     }
+    backend::BufferPtr wrap_host(void* memory, size_t bytes) override { return wraps ? backend::CpuBackend::wrap_host(memory, bytes) : nullptr; }
     void write(backend::Buffer& dst, size_t off, const void* src, size_t bytes) override {
+        fill(dst, off);
+        backend::CpuBackend::write(dst, off, src, bytes);
+    }
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        fill(dst, dst_off);
+        ++copies;
+        backend::CpuBackend::copy(dst, dst_off, src, src_off, bytes);
+    }
+    void fill(const backend::Buffer& dst, size_t off) {
         if (++writes == fail_write) throw std::runtime_error("injected write failure");
         if (slow > 0 && slow--) std::this_thread::sleep_for(std::chrono::milliseconds(2));
         if (!weights.empty() && std::none_of(weights.begin(), weights.end(), [&](const backend::BufferPtr& w) { return w.get() == &dst; })) ++foreign;
         written.push_back({&dst, off});
-        backend::CpuBackend::write(dst, off, src, bytes);
     }
+};
+
+// A copying backend whose copies out of host memory run only when their submission is waited for, as a device's do, so a slot of the ring refilled before its copies retire leaves other bytes in the weights.
+struct DeferredBackend : CopyingBackend {
+    struct Queued {
+        const backend::Buffer* dst;
+        size_t off;
+        const uint8_t* src;
+        size_t bytes;
+    };
+    std::vector<Queued> open;
+    std::vector<std::pair<backend::Ticket, std::vector<Queued>>> submitted;
+    backend::Ticket last = 0;
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        fill(dst, dst_off);
+        ++copies;
+        open.push_back({&dst, dst_off, (const uint8_t*)src.host_ptr() + src_off, bytes});
+    }
+    backend::Ticket submit() override {
+        submitted.push_back({++last, std::move(open)});
+        open.clear();
+        return last;
+    }
+    void wait(backend::Ticket t) noexcept override {
+        for (auto& [ticket, copies_of] : submitted) {
+            if (ticket > t) break;
+            for (const Queued& q : copies_of) std::memcpy((uint8_t*)const_cast<void*>(q.dst->host_ptr()) + q.off, q.src, q.bytes);
+            copies_of.clear();
+        }
+    }
+    void sync() noexcept override { wait(submit()); }
 };
 
 // The load modes to run on the model at `path`: direct only where its file system takes direct reads, and where it does not, the refusal a direct load gives is checked instead, naming the first file with tensors, `named` (the path itself when empty).
@@ -140,8 +181,10 @@ void loader_checks(const std::string& path) {
     size_t payload = 0;
     for (size_t i = 0; i < source.tensors.size(); ++i) payload += source.tensor_bytes(i);
     for (const infer::LoadMode mode : load_modes(path)) {
-        for (const bool copying : {false, true}) {
+        for (const int arm : {0, 1, 2}) {
+            const bool copying = arm != 0;
             const auto copier = std::make_shared<CopyingBackend>();
+            copier->wraps = arm == 1;
             const backend::BackendPtr b = copying ? backend::BackendPtr(copier) : backend::make_cpu_backend();
             infer::PlacementRequest request;
             request.names = {"cpu"};
@@ -153,6 +196,10 @@ void loader_checks(const std::string& path) {
             if (copying)
                 require(streams ? copier->weights.size() == source.tensors.size() && holds_tensors(copier->weights, source) : copier->weights.empty(),
                         "a copying backend's weights do not hold the file's bytes, or a mapped load allocated weight storage");
+            // A backend that reads the ring in place takes every part as a copy out of it, and one that does not as a write.
+            if (copying && streams)
+                require(arm == 1 ? copier->copies > 0 && copier->copies == copier->writes : copier->copies == 0,
+                        "a streamed load wrote where the backend reads the ring in place, or copied where it does not");
             require(copying ? loaded->file.payload_size() == 0 && loaded->host.empty() : loaded->file.payload_size() != 0,
                     copying ? "a model no host reads kept the host copy" : "a model the CPU reads lost its payload");
             // auto streams a copying backend's weights through the cache; direct reads every file around it, into its own copy where the CPU reads in place.
@@ -339,8 +386,10 @@ void shard_checks(const std::filesystem::path& dir) {
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
     const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
     for (const infer::LoadMode mode : load_modes(paths[0], paths[1])) {
-        for (const bool copying : {false, true}) {
+        for (const int arm : {0, 1, 2}) {
+            const bool copying = arm != 0;
             const auto copier = std::make_shared<CopyingBackend>();
+            copier->wraps = arm == 1;
             const backend::BackendPtr b = copying ? backend::BackendPtr(copier) : backend::make_cpu_backend();
             infer::PlacementRequest request;
             request.names = {"cpu"};
@@ -467,10 +516,12 @@ void stream_checks(const std::string& path) {
         }
         const auto pieces = infer::detail::plan_pieces(order, spans, file_of, {64}, 64);
         require(pieces.size() > 40, "the fixture does not make dozens of 64-byte reads");
-        for (const int failure : {0, 30}) {
-            auto late = std::make_shared<CopyingBackend>();
+        for (const int failure : {0, 30, -1, -2}) {
+            // -1 fills by writes, and -2 by copies that run only when waited for.
+            auto late = failure == -2 ? std::make_shared<DeferredBackend>() : std::make_shared<CopyingBackend>();
             late->slow = 40;
-            late->fail_write = failure;
+            late->fail_write = std::max(failure, 0);
+            late->wraps = failure != -1;
             std::vector<infer::Upload> copies;
             for (size_t i = 0; i < file.tensors.size(); ++i) copies.push_back({i, late.get(), late->alloc_weight(file.tensor_bytes(i))});
             std::vector<std::vector<const infer::Upload*>> destinations(file.tensors.size());
@@ -478,8 +529,8 @@ void stream_checks(const std::string& path) {
             infer::LoadTimes times;
             std::string error;
             try { infer::detail::stream(pieces, readers, destinations, {}, times); } catch (const std::runtime_error& e) { error = e.what(); }
-            require(failure ? error == "injected write failure" : error.empty() && holds_tensors(late->weights, source),
-                    "a stream of many reads through the ring lost bytes, or a late write's failure");
+            require(failure > 0 ? error == "injected write failure" : error.empty() && holds_tensors(late->weights, source) && (late->copies == 0) == (failure == -1),
+                    "a stream of many reads through the ring lost bytes, a late fill's failure, or refilled a slot before the copies out of it ran");
         }
         // A read that fails on a reader thread, a direct read off its granule where the file system takes direct reads, comes out of the stream with the readers joined.
         try {

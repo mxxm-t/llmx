@@ -136,8 +136,8 @@ change, or it does not exist as far as a user is concerned.
 
 The round-trip component (`tests/roundtrip.py`, under Tests below) checks the format and quantization paths.
 It builds a random F32 model, quantizes it to Q8_0 and Q4_0 through the CLI, dequantizes it back and bounds the error, and decodes the written blocks with the spec decoders of `tests/spec_decode.py`, written from the format descriptions, rather than with llmx's own reader.
-Q4_1, Q4_K, Q5_K and Q6_K, which `quantize` does not write, and Q8_0 under negative scales, which its quantizer never writes, are decoded the same way from raw blocks the test writes, chosen so every scale, min, high bit and nibble reaches a decoded value, and `dequantize` must match bit for bit, the sign of zero included.
-Q4_0 has no raw blocks yet: under a negative scale llmx's decode writes +0 at nibble 8, where the format and the spec decoder give -0, and its raw blocks come with the fix that makes llmx decode d*(nibble - 8) (`docs/ASSETS.md`).
+Q4_1, Q4_K, Q5_K and Q6_K, which `quantize` does not write, and Q8_0 and Q4_0 under negative scales, which their quantizers never write, are decoded the same way from raw blocks the test writes, chosen so every scale, min, high bit and nibble reaches a decoded value, and `dequantize` must match bit for bit, the sign of zero included.
+Under a negative scale Q4_0's nibble 8 must decode as -0, as the format's d*(nibble - 8) gives it (`docs/ASSETS.md`).
 Run it alone against the root `llmx.exe` that `build.bat` writes, or as part of the suite for a CMake build:
 ```
 python tests/roundtrip.py
@@ -319,8 +319,8 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   Also checks quantize's JSON tensor schema/dimension and binary-length rejection,
   output preservation on validation failure, and valid one-to-four-dimensional
   conversion for both writable types.
-  `dequantize` must match, bit for bit, the spec decoders of `tests/spec_decode.py`: Q8_0 and Q4_0 on the blocks quantize writes, and Q4_1, Q4_K, Q5_K, Q6_K and Q8_0 on raw blocks that reach every scale, min, high bit and nibble, Q8_0's under negative scales, which its quantizer never writes, so the references of `q8-dots` and `backend-group`, which take them from llmx's decoders, rest on an independent decode for all six types.
-  Q4_0 under a negative scale is not compared yet: there llmx writes +0 at nibble 8 where the format and the spec decoder give -0, until the fix that makes llmx decode d*(nibble - 8) brings those raw blocks (`docs/ASSETS.md`).
+  `dequantize` must match, bit for bit, the spec decoders of `tests/spec_decode.py`: Q8_0 and Q4_0 on the blocks quantize writes, and Q4_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 on raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, which their quantizers never write, so the references of `q8-dots` and `backend-group`, which take them from llmx's decoders, rest on an independent decode for all six types.
+  Q4_0's raw blocks take each of the test's scales twice, negatives included, so every position takes every nibble, and under a negative scale nibble 8 must decode as -0, as the format's d*(nibble - 8) gives it (`docs/ASSETS.md`).
   Both types quantize and dequantize under a non-ASCII directory to the same bytes as under an ASCII one, and a type name quantize does not write is refused with exit status 2.
 - **Raw blocks** (`tests/raw_blocks.py`): the spec decoders of `tests/spec_decode.py`, one for each GGUF type the pinned fixtures hold (F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS and MXFP4), each in a pure form, the readable reference, and a numpy form for whole files.
   They are written from the GGUF type layouts and, for MXFP4, the OCP Microscaling Formats (MX) v1.0 specification; the module also reads and writes GGUF files.

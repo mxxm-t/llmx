@@ -413,9 +413,9 @@ On the real files:
 
 In those Q4_0 tensors, where the scale d is negative and the nibble is 8, llmx writes +0: it computes nibble·d − 8d, and the format's d·(nibble − 8) gives −0.
 That is 26,631,920 values, and no sum changes.
-`tests/roundtrip.py` does not see it: llmx's own Q4_0 quantizer never writes a negative d, and the round trip takes no Q4_0 raw blocks here.
+llmx's own Q4_0 quantizer never writes a negative d, so `tests/roundtrip.py` sees it only on raw Q4_0 blocks under every scale of its set, negatives included, which it compares with the spec decoder bit for bit, the sign of zero included.
 The spec decoder keeps the format's -0, and `tests/raw_blocks.py` holds both of its forms to it.
-llmx's decode is to compute d·(nibble − 8) instead, in a fix that brings the one test depending on it: raw Q4_0 blocks under every scale of the round trip's set, negatives included, which `tests/roundtrip.py` compares with the spec decoder bit for bit, the sign of zero included.
+llmx's decode is to compute d·(nibble − 8) instead.
 On the Linux host's CPU they fail on today's decode at 8 of their 512 values, each +0 where the spec decoder gives -0, and pass with the fix.
 
 #### MXFP4 writer

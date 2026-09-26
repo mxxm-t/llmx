@@ -213,6 +213,12 @@ def q8_0_blocks():
                     for k, d in enumerate(HALVES) for b in range(8))
 
 
+# Q4_0 blocks, each scale in HALVES twice, negatives included, so every position of the 16 blocks takes every nibble value.
+# The quantizer writes only a positive scale, so only raw blocks reach a negative one, where nibble 8 decodes as d*0, which is -0.
+def q4_0_blocks():
+    return b"".join(struct.pack("<H", d) + nibble_bytes(k, 16) for k, d in enumerate(HALVES * 2))
+
+
 # Q4_1 blocks pairing every scale with every min.
 def q4_1_blocks():
     return b"".join(struct.pack("<2H", d, m) + nibble_bytes(k, 16)
@@ -249,10 +255,9 @@ def q6_k_blocks():
                     for k, (scales, d) in enumerate(blocks))
 
 
-# The formats `quantize` does not write, and Q8_0 under negative scales, which its quantizer never writes, get their blocks from the test, written into a one-tensor GGUF with no metadata.
-# Q4_0 has no raw blocks here: under a negative scale llmx's decode writes +0 at nibble 8, where the format and the spec decoder give -0 (docs/ASSETS.md).
+# The formats `quantize` does not write, and Q8_0 and Q4_0 under negative scales, which their quantizers never write, get their blocks from the test, written into a one-tensor GGUF with no metadata.
 def check_raw_decode(d):
-    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_1", q4_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks())):
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks())):
         type_id = TYPES[qtype]
         _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block

@@ -836,6 +836,34 @@ def check_seeded(model):
         assert reply["text"] == want, (fields, reply["text"], want)
 
 
+def check_stream_reuse(directory):
+    """With the experts on the host and prompts of 100 tokens or more streamed, a 120-token prompt that forks a finished prompt's first block gives the ids and values it gives on a server of its own: its path follows the whole prompt, not the 56 tokens the fork leaves to read."""
+    model = os.path.join(directory, "tiny-moe-192.gguf")
+    f32.write_model(model, moe.tensors(), config=dict(moe.CONFIG, context_length=192), arch="qwen3moe")
+    flags = ("--cpu-moe", "--moe-stream-from", "100")
+    # 64 shared tokens, one block of the device's cache, then 56 of each prompt's own.
+    shared = "".join(chr(ord("a") + i % 26) for i in range(64))
+    tail = "".join(chr(ord("A") + i * 7 % 26) for i in range(56))
+    first, second = shared + tail[::-1], shared + tail
+    body = lambda p: {"prompt": p, "max_tokens": 8, "temperature": 0, "logprobs": True, "top_logprobs": TOP}
+    srv = Server(model, *flags)
+    try:
+        status, alone = srv.post("/v1/generate", body(second))
+        assert status == 200 and alone["reused_tokens"] == 0, alone
+    finally:
+        srv.close()
+    srv = Server(model, *flags)
+    try:
+        for p in (first, second):
+            status, reply = srv.post("/v1/generate", body(p))
+            assert status == 200, reply
+        assert reply["reused_tokens"] == 64, reply
+        for key in ("ids", "logprobs", "top_logprobs"):
+            assert reply[key] == alone[key], (key, reply[key], alone[key])
+    finally:
+        srv.close()
+
+
 def check_limits(model):
     """The serving limits: a KV budget below the context bounds a request, and a full queue refuses with 503 rather than waiting, while the tokenize routes, which pass no queue, still answer and count a text past the context."""
     srv = Server(model, "--max-seqs", "1", "--max-queue", "1", "--ctx-size", "512")
@@ -1144,6 +1172,9 @@ def run():
                             ("--cpu-moe", "--moe-stream-from", "3") if host else ())
             print("server: synthetic MoE model, %s, %d prompts alone and four at a time  [ok]"
                   % ("experts on the host and long prompts streamed" if host else "on the CPU", n))
+            if host:
+                check_stream_reuse(directory)
+                print("server: synthetic MoE model, experts on the host and long prompts streamed, a prompt forking a finished prompt's block giving its values alone  [ok]")
         k, n = check_ignore_eos_synthetic(directory)
         print("server: ignore_eos on the synthetic model, a greedy reply that ends at its end token after %d tokens running to %d through the CLI "
               "and the server, greedy and seeded, uncapped to the context, which the CLI given the room also fills, beside requests without it, and refused unless a boolean  [ok]" % (k, n))

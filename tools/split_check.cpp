@@ -52,8 +52,8 @@ static size_t mixed(infer::Model& one, infer::Model& two, const std::vector<uint
 }
 
 // The prompt and the decode's tokens recomputed as a paused request's resume recomputes them (docs/SERVER.md, pausing): the prompt at its extent in ubatch slices, the generated tokens as entries of extent 1 of up to 64 rows, logits only on the last; then a fork at the last whole block short of the end, replaying the rest.
-// Each must give the logits the decode gave after its last token, bit for bit; the count of those that differ.
-static size_t replay(infer::Model& m, const std::vector<uint32_t>& ids, size_t prompt, const std::vector<float>& want) {
+// Each must give the logits the decode gave after its last token, bit for bit; the count of those that differ, each fork counted in `forked`.
+static size_t replay(infer::Model& m, const std::vector<uint32_t>& ids, size_t prompt, const std::vector<float>& want, size_t& forked) {
     m.reset();
     infer::ExecContext ctx;
     const size_t vocab = m.n_vocab(), ubatch = m.prefill_batch();
@@ -74,10 +74,11 @@ static size_t replay(infer::Model& m, const std::vector<uint32_t>& ids, size_t p
     size_t differ = rest(whole);
     const size_t fork = (ids.size() - 1) / m.kv_block_tokens() * m.kv_block_tokens();
     if (fork) {
-        infer::Sequence forked = m.fork(whole, fork);
+        infer::Sequence from = m.fork(whole, fork);
         m.reset(whole);
-        differ += rest(forked);
-        m.reset(forked);
+        differ += rest(from);
+        m.reset(from);
+        ++forked;
     }
     m.reset(whole);
     return differ;
@@ -140,8 +141,9 @@ int main(int argc, char** argv) {
             steps_differ += std::memcmp(a.data(), b.data(), vocab * sizeof(float)) != 0;
         }
         std::printf("decode path: prefill and %d greedy steps, %zu differ\n", steps, steps_differ);
-        const size_t replay_differ = steps ? replay(one, history, ids.size(), a) + replay(two, history, ids.size(), b) : 0;
-        std::printf("replay by class: the prompt and %d steps on one device and the split, whole and from a fork where the history passes a block, %zu differ from the decode\n", steps, replay_differ);
+        size_t forked = 0;
+        const size_t replay_differ = steps ? replay(one, history, ids.size(), a, forked) + replay(two, history, ids.size(), b, forked) : 0;
+        std::printf("replay by class: the prompt and %d steps on one device and the split, whole and %zu from a fork at a block, %zu differ from the decode\n", steps, forked, replay_differ);
         const size_t mixed_differ = mixed(one, two, ids);
         const bool same = !differ && !steps_differ && !replay_differ && !mixed_differ;
         std::printf("%s\n", same ? "bit-identical" : "DIFFERENT");

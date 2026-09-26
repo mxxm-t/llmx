@@ -1,4 +1,6 @@
 import os
+import re
+import struct
 import subprocess
 import tempfile
 
@@ -7,7 +9,7 @@ import f32
 import moe
 
 
-# The layer split against one device through llmx-split-check (tools/split_check.cpp), on CPU backends: raw logits compared bit for bit over the prompt path, the prefill a split pipelines over its stages, greedy decode steps and a decoding sequence beside a fresh prompt.
+# The layer split against one device through llmx-split-check (tools/split_check.cpp), on CPU backends: raw logits compared bit for bit over the prompt path, the prefill a split pipelines over its stages, greedy decode steps, the recompute by class a resume runs and a decoding sequence beside a fresh prompt.
 # The tool names its own devices and cache type, so the configured device, shares and cache type do not reach it.
 # Each split runs with f16 caches, the default, and with f32 caches, since a split is exact at either.
 # Three decode steps after the 13-token text fill the tiny models' 16-token context.
@@ -15,9 +17,67 @@ UBATCHES = (1, 3, 16)
 CACHE_TYPES = ("f16", "f32")
 STEPS = 3
 
+# A Q8_0 model whose decode rows take the CPU's 8-bit dots and its prompt rows the float path, with a context past one 128-token CPU block, so the tool's recompute also runs from a fork at a block.
+# Its histories pass the block after a 100-token prompt and 40 steps, and inside a 150-token prompt with 8 steps.
+Q8_CONFIG = {"block_count": 2, "embedding_length": 64, "feed_forward_length": 128,
+             "attention.head_count": 2, "attention.head_count_kv": 1,
+             "attention.key_length": 32, "context_length": 256}
+Q8_RUNS = ((100, 40), (150, 8))
+
+
+def q8_0(values):
+    """Values as Q8_0 blocks: an f16 scale of the block's largest magnitude over 127, then each value over that scale rounded to a signed byte."""
+    out = bytearray()
+    for i in range(0, len(values), 32):
+        block = values[i:i + 32]
+        scale = struct.pack("<e", max(abs(v) for v in block) / 127)
+        d = struct.unpack("<e", scale)[0]
+        out += scale + struct.pack("<32b", *[max(-127, min(127, round(v / d))) if d else 0 for v in block])
+    return bytes(out)
+
+
+def write_q8_model(path):
+    """The tiny Qwen layout at Q8_CONFIG's sizes: norms and the embedding in F32, every matrix a product reads, the untied head included, in Q8_0."""
+    state = 424242
+    width, ff, hd = Q8_CONFIG["embedding_length"], Q8_CONFIG["feed_forward_length"], Q8_CONFIG["attention.key_length"]
+    q, kv = Q8_CONFIG["attention.head_count"] * hd, Q8_CONFIG["attention.head_count_kv"] * hd
+    plain, quantized = [], []
+
+    def values(count, norm=False):
+        nonlocal state
+        result = []
+        for _ in range(count):
+            state = (1664525 * state + 1013904223) & 0xffffffff
+            value = (((state >> 16) & 1023) - 512) / 8192
+            result.append(1.0 + value if norm else value)
+        return result
+
+    plain.append(("token_embd.weight", None, [width, f32.VOCAB], values(width * f32.VOCAB)))
+    plain.append(("output_norm.weight", None, [width], values(width, True)))
+    for layer in range(Q8_CONFIG["block_count"]):
+        name = "blk.%d." % layer
+        for norm, size in (("attn_norm", width), ("ffn_norm", width), ("attn_q_norm", hd), ("attn_k_norm", hd)):
+            plain.append((name + norm + ".weight", None, [size], values(size, True)))
+        for tensor, shape in (("attn_q", [width, q]), ("attn_k", [width, kv]), ("attn_v", [width, kv]),
+                              ("attn_output", [q, width]), ("ffn_gate", [width, ff]), ("ffn_up", [width, ff]),
+                              ("ffn_down", [ff, width])):
+            quantized.append((name + tensor + ".weight", shape, 8, q8_0(values(shape[0] * shape[1]))))
+    quantized.append(("output.weight", [width, f32.VOCAB], 8, q8_0(values(width * f32.VOCAB))))
+    return f32.write_model(path, plain, config=Q8_CONFIG, quantized=quantized)
+
 
 def tool_path():
     return os.path.join(os.path.dirname(common.exe_path()), "llmx-split-check" + (".exe" if os.name == "nt" else ""))
+
+
+def run_tool(tool, model, text, split, steps, ubatch, cache, tokens):
+    """One split against one device; the number of recomputes the tool ran from a fork."""
+    args = [tool, model, text, "cpu", split, str(steps), str(ubatch), cache]
+    p = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
+    forked = re.search(r"whole and (\d+) from a fork", p.stdout)
+    assert p.returncode == 0 and ": %d tokens, %s caches;" % (tokens, cache) in p.stdout and "bit-identical" in p.stdout and forked, \
+        "split differs from one device: %s\n%s%s" % (" ".join(args[1:]), p.stdout, p.stderr)
+    return int(forked.group(1))
 
 
 def run(require=False):
@@ -39,13 +99,21 @@ def run(require=False):
             for split in splits:
                 for ubatch in UBATCHES:
                     for cache in CACHE_TYPES:
-                        args = [tool, model, text, "cpu", split, str(STEPS), str(ubatch), cache]
-                        p = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace", timeout=60)
-                        assert p.returncode == 0 and ": 13 tokens, %s caches;" % cache in p.stdout and "bit-identical" in p.stdout, \
-                            "split differs from one device: %s\n%s%s" % (" ".join(args[1:]), p.stdout, p.stderr)
+                        run_tool(tool, model, text, split, STEPS, ubatch, cache, len(f32.TEXTS[-1]))
                         runs += 1
-    print("split: %d runs of the tiny F32 (tied, untied) and MoE models over 2 and 3 CPU backends at ubatch %s with %s caches, "
-          "bit-identical to one  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
+        q8 = write_q8_model(os.path.join(directory, "tiny-q8_0.gguf"))
+        for length, steps in Q8_RUNS:
+            long_text = os.path.join(directory, "text-%d.txt" % length)
+            with open(long_text, "w", encoding="utf-8", newline="") as f:
+                f.write(("The layer split recomputes a paused request by class. " * 4)[:length])
+            for ubatch in UBATCHES:
+                for cache in CACHE_TYPES:
+                    # One device and the split each recompute from a fork at the block, so every run has two.
+                    forked = run_tool(tool, q8, long_text, "cpu,cpu", steps, ubatch, cache, length)
+                    assert forked == 2, "split: %d recomputes from a fork on the Q8_0 model's %d-token history, against 2" % (forked, length + steps)
+                    runs += 1
+    print("split: %d runs of the tiny F32 (tied, untied), MoE and Q8_0 models over 2 and 3 CPU backends at ubatch %s with %s caches, "
+          "bit-identical to one, the Q8_0 model's recompute also from a fork at a block  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
     return True
 
 

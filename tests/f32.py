@@ -86,12 +86,13 @@ def golden(name):
     return doc
 
 
-def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3", tokens=None):
-    # `tokens` replaces the VOCAB token strings, one a byte and then <|endoftext|> by default.
+def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3", tokens=None, quantized=()):
+    # `tokens` replaces the VOCAB token strings, one a byte and then <|endoftext|> by default, and `quantized` adds tensors already encoded, as (name, shape, GGUF type, bytes).
     # A 34-byte Q8 tensor exposes unaligned F32 rows if the loader discards file padding without preserving float alignment in its in-memory blob.
     entries = [("unused.weight", [32], 8, b"\0" * 34)]
     entries += [(name, shape, 0, struct.pack("<%df" % len(v), *v))
                 for name, _, shape, v in weights]
+    entries += list(quantized)
     def write_part(filename, subset, index):
         with open(filename, "wb") as f:
             named = arch != "qwen3"

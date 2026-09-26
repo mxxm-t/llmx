@@ -1,11 +1,11 @@
-// Phase 0 of docs/MULTI-DEVICE.md through the runtime's own Vulkan backend: what several devices in one process cost each other, and what a split pays for moving data between them.
+// Multi-device measurements through the runtime's own Vulkan backend: phase 0 of docs/MULTI-DEVICE.md, what several devices in one process cost each other and what a split pays for moving data between them, and step 0 of the layer split's phase 3 in docs/STATUS.md, how a pipeline's drivers keep its devices fed and what each stage of a split model costs.
 // Every mode but `stages` uses the Backend interface as a split would (adopt, matmul, copy into host-visible memory, submit, wait, write), so the numbers include the backend's own submission and waiting.
 // `concurrent D...`: each device runs decode-shaped passes on its own thread, first alone, then all at once.
-// `pipeline D0 D1 [D...] [options]`: a stage per device with P passes in flight, driven by a thread per stage or by one thread; each pass leaves a stage through host memory into the next, and the host holds it for a sampling time before it re-enters stage 0.
+// `pipeline D0 D1 [D...] [options]`: a stage per device with P passes in flight, driven by a thread per stage or by one thread in completion order or in the round's order; each pass leaves a stage through host memory into the next, and the host holds it for a sampling time before it re-enters stage 0.
 // `stages MODEL D... [options]`: a model split by layers over the devices as the CLI places it, and each stage's device time a decode pass from GPU timestamps.
 // `groupsum D...`: every device's vector summed on the host in device order and written back to each, for a decode row and a 512-row chunk.
 // `exchange D... [-- tokens skew]`: a mixture-of-experts layer's dispatch and return between ranks, each rank's entries sent to the ranks holding their experts and the results sent back.
-// Shapes are those of a 5120-wide dense model (Qwen3-32B) and Qwen3-235B-A22B's experts (4096 wide, 128 experts of 1536, 8 per token).
+// The synthetic modes use the shapes of a 5120-wide dense model (Qwen3-32B) and Qwen3-235B-A22B's experts (4096 wide, 128 experts of 1536, 8 per token); `stages` reads its model file.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -24,6 +24,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "bench_weights.hpp"
@@ -37,8 +38,17 @@ using backend::BufferPtr;
 using backend::Memory;
 using Clock = std::chrono::steady_clock;
 
+double ms_between(Clock::time_point a, Clock::time_point b) {
+    return std::chrono::duration<double, std::milli>(b - a).count();
+}
+
 double ms_since(Clock::time_point t0) {
-    return std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
+    return ms_between(t0, Clock::now());
+}
+
+double median(std::vector<double> v) {
+    std::sort(v.begin(), v.end());
+    return v[v.size() / 2];
 }
 
 const size_t kEmbd = 5120, kFF = 25600, kMaxRows = 512;
@@ -57,6 +67,7 @@ size_t nearest_split(double want) {
 struct Stage {
     backend::BackendPtr b;
     BufferPtr up, down, x, h, y, out;
+    std::vector<BufferPtr> outs;   // the pipeline's host-visible output per pass, so a pass recorded behind another leaves the other's output for the host to read
     size_t layers = 1, split = 1;
 
     explicit Stage(int device) {
@@ -71,19 +82,30 @@ struct Stage {
         out = b->alloc(kMaxRows * kEmbd * 4, Memory::host_visible);
     }
 
-    // A pass over `rows` rows: `layers` times up and down, the residual copied into host-visible memory, submitted.
+    // A pass over `rows` rows: `layers` times up and down, the residual copied into `dst`, submitted.
     // Each slice writes a region of its own, so the calls of one projection never write the same memory.
-    backend::Ticket run(size_t rows) {
+    // With `calls_ms`, each call's time on the host is appended to it and `submit_ms` gets the final submission's.
+    backend::Ticket run(size_t rows, backend::Buffer& dst, std::vector<double>* calls_ms = nullptr, double* submit_ms = nullptr) {
+        auto call = [&](const auto& f) {
+            if (!calls_ms) return f();
+            const auto t0 = Clock::now();
+            f();
+            calls_ms->push_back(ms_since(t0));
+        };
         const size_t nu = kFF / split, nd = kEmbd / split;
         for (size_t l = 0; l < layers; ++l) {
             for (size_t i = 0; i < split; ++i)
-                b->matmul(kQ8, {up.get(), i * nu * row_bytes(kQ8, kEmbd) / 4}, {x.get(), 0}, {h.get(), i * nu * rows}, kEmbd, nu, rows);
+                call([&] { b->matmul(kQ8, {up.get(), i * nu * row_bytes(kQ8, kEmbd) / 4}, {x.get(), 0}, {h.get(), i * nu * rows}, kEmbd, nu, rows); });
             for (size_t i = 0; i < split; ++i)
-                b->matmul_add(kQ8, {down.get(), i * nd * row_bytes(kQ8, kFF) / 4}, {h.get(), 0}, {x.get(), i * nd * rows}, kFF, nd, rows);
+                call([&] { b->matmul_add(kQ8, {down.get(), i * nd * row_bytes(kQ8, kFF) / 4}, {h.get(), 0}, {x.get(), i * nd * rows}, kFF, nd, rows); });
         }
-        b->copy(*out, 0, *x, 0, rows * kEmbd * 4);
-        return b->submit();
+        call([&] { b->copy(dst, 0, *x, 0, rows * kEmbd * 4); });
+        const auto t0 = Clock::now();
+        const backend::Ticket t = b->submit();
+        if (submit_ms) *submit_ms = ms_since(t0);
+        return t;
     }
+    backend::Ticket run(size_t rows) { return run(rows, *out); }
 
     // Backend calls a pass records: the projections' slices and the copy out.
     size_t calls() const { return 2 * split * layers + 1; }
@@ -101,10 +123,16 @@ struct Stage {
         double per = pass_ms() / (double)layers;
         // A call takes per / (2 split), and splitting by the ratio of that to ms / calls would bring it there if its time fell as its slice does; small slices lose more, so the split is refined a few times.
         for (int k = 0; calls > 1 && k < 4; ++k) {
-            const size_t next = nearest_split(per / 2 / (ms / (double)calls));
-            if (next == split) break;
+            const size_t was = split, next = nearest_split(per / 2 / (ms / (double)calls));
+            if (next == was) break;
             split = next;
-            per = pass_ms() / (double)layers;
+            const double now = pass_ms() / (double)layers;
+            // A larger split whose calls take no less time each only adds dispatch overhead, so the refinement stops before it.
+            if (next > was && now / (double)next >= per / (double)was) {
+                split = was;
+                break;
+            }
+            per = now;
         }
         layers = std::max<size_t>(1, (size_t)(ms / per + 0.5));
         // One correction at the size chosen, since a short measurement on an idle device or a busy host can misjudge a layer.
@@ -112,56 +140,76 @@ struct Stage {
     }
 };
 
-// Submissions the backend keeps in flight before recording the next one blocks, as the running program finds it: submissions of several milliseconds each are queued without waiting, and the first whose recording takes over half a submission's time found every slot busy.
-// Returns -1 when none blocked within 64, 0 when one matmul alone takes more than one submission, and -2 when the host never recorded the probes fast enough to tell.
-int ring_depth(Stage& s, double& submission_ms) {
+// The command ring as the running program finds it: probes of several milliseconds each are queued without waiting, and the first whose recording takes over half a submission's time found every slot busy.
+struct Ring {
+    int depth = 0;             // submissions in flight before recording the next blocks, 0 when not found
+    int at_least = 0;          // without a depth, the most submissions that went in without blocking
+    bool whole = true;         // false when one matmul alone took more than one submission
+    double submission_ms = 0;  // one probe's time on the device
+};
+
+Ring ring_depth(Stage& s) {
+    Ring r;
     auto probe = [&](int m) {
         for (int i = 0; i < m; ++i) s.b->matmul(kQ8, {s.up.get(), 0}, {s.x.get(), 0}, {s.h.get(), 0}, kEmbd, kFF, kMaxRows);
         return s.b->submit();
     };
-    int m = 1;
-    for (;;) {
+    // One probe of m matmuls timed alone, or a negative time when it took more than one submission.
+    auto alone = [&](int m) {
+        s.b->sync();
         const backend::Ticket a = probe(m);
         s.b->wait(a);
         const auto t0 = Clock::now();
         const backend::Ticket b = probe(m);
         s.b->wait(b);
         const double t = ms_since(t0);
-        if (b - a != 1) {
-            if (m == 1) return 0;
-            m /= 2;
-            break;
-        }
-        submission_ms = t;
-        if (t >= 8 || m >= 16) break;
+        return b - a == 1 ? t : -1.0;
+    };
+    int m = 1;
+    r.submission_ms = alone(m);
+    if (r.submission_ms < 0) {
+        r.whole = false;
+        return r;
+    }
+    while (r.submission_ms < 8 && m < 16) {
+        const double t = alone(2 * m);
+        if (t < 0) break;
         m *= 2;
+        r.submission_ms = t;
     }
     // Once the ring is full every later submission blocks too, so a block counts only when the next one blocks as well.
-    // Until the first block, every submission must be recorded within a quarter of a submission's time of the first, or the device may have retired one and let one more in; an attempt that is slower is repeated.
+    // Until the first block, every submission must be recorded within a quarter of a submission's time of the first, or the device may have retired one and let one more in.
+    // An attempt that runs past that is repeated with probes twice as long, since a deep ring takes more probes than a slow host records in the quarter.
     for (int attempt = 0; attempt < 8; ++attempt) {
         s.b->sync();
         const auto start = Clock::now();
-        int blocked_at = -1;
+        int blocked_at = -1, queued = 0;
         bool late = false;
-        for (int i = 0; i < 64; ++i) {
-            late = blocked_at < 0 && ms_since(start) > submission_ms / 4;
+        for (; queued < 64; ++queued) {
+            late = blocked_at < 0 && ms_since(start) > r.submission_ms / 4;
             if (late) break;
             const auto t0 = Clock::now();
             probe(m);
-            const bool blocked = ms_since(t0) > submission_ms / 2;
+            const bool blocked = ms_since(t0) > r.submission_ms / 2;
             if (blocked && blocked_at >= 0) {
                 s.b->sync();
-                return blocked_at;
+                r.depth = blocked_at;
+                return r;
             }
-            blocked_at = blocked ? i : -1;
+            blocked_at = blocked ? queued : -1;
         }
-        if (!late) {
-            s.b->sync();
-            return -1;
+        r.at_least = std::max(r.at_least, queued);
+        if (!late) break;
+        if (r.submission_ms < 64) {
+            const double t = alone(2 * m);
+            if (t > 0) {
+                m *= 2;
+                r.submission_ms = t;
+            }
         }
     }
     s.b->sync();
-    return -2;
+    return r;
 }
 
 int concurrent(const std::vector<int>& devices) {
@@ -213,15 +261,6 @@ struct Channel {
         q.pop_front();
         return true;
     }
-    // Takes an item if one is waiting; `closed` reports a channel that will never have one.
-    bool try_get(T& v, bool& is_closed) {
-        std::lock_guard<std::mutex> l(m);
-        is_closed = closed && q.empty();
-        if (q.empty()) return false;
-        v = std::move(q.front());
-        q.pop_front();
-        return true;
-    }
     void close() {
         {
             std::lock_guard<std::mutex> l(m);
@@ -251,15 +290,63 @@ void spin(double ms) {
     while (ms_since(s) < ms) {}
 }
 
+// Passes on the devices, recorded and not yet seen complete by the host, as steps in time.
+// The host sees a completion only when it waits on one, so a driver that waits late counts a pass on its device for longer than the device holds it.
+struct Occupancy {
+    std::mutex m;
+    std::vector<std::pair<Clock::time_point, int>> steps;
+
+    void add(int change, Clock::time_point at = Clock::now()) {
+        std::lock_guard<std::mutex> l(m);
+        steps.emplace_back(at, change);
+    }
+
+    // The mean over [from, until] weighted by time, and the most at any moment in it.
+    std::pair<double, int> over(Clock::time_point from, Clock::time_point until) {
+        std::lock_guard<std::mutex> l(m);
+        std::sort(steps.begin(), steps.end());
+        int n = 0, most = 0;
+        double area = 0;
+        Clock::time_point at = from;
+        for (const auto& s : steps) {
+            if (s.first > until) break;
+            if (s.first > from) {
+                most = std::max(most, n);
+                area += n * ms_between(at, s.first);
+                at = s.first;
+            }
+            n += s.second;
+        }
+        most = std::max(most, n);
+        area += n * ms_between(at, until);
+        return {area / ms_between(from, until), most};
+    }
+};
+
+// Where one driving thread's time went over the measured passes, in milliseconds.
+struct ThreadTime {
+    double waiting = 0;                 // blocked on a ticket, or for a completion
+    double write = 0, write_free = 0;   // writing passes in, and what the same writes take when nothing blocks
+    double run = 0, run_free = 0;       // recording and submitting passes, and what the same recordings take when nothing blocks
+    double copy = 0, sample = 0;        // copying passes out of host-visible memory, and sampling
+};
+
 struct Result {
     double rate = 0, latency = 0;   // passes a second, and the median time from entering stage 0 to leaving the last
-    size_t in_flight = 0;           // distinct passes seen leaving the last stage
-    double busy = -1;               // the driving thread's working share, for the one-thread driver
+    size_t circulating = 0;         // distinct passes seen leaving the last stage
+    double on_mean = 0;             // passes on the devices (Occupancy), the mean and the most
+    int on_most = 0;
+    double window = 0;              // the measured passes' span, in milliseconds
+    bool one_thread = false;        // whether `thread` holds the driving thread's time
+    ThreadTime thread;
+    double hop = 0;                 // completion order: the mean delay from a waiter's wait returning to the idle driving thread taking the completion
+    size_t hops = 0;
 };
 
 // What the host sees of the passes leaving the last stage: from the 3P-th on, each one's time since it entered stage 0 and its id, until 3 seconds have passed and 20 are measured.
 struct Tally {
-    size_t P = 0, left = 0;
+    explicit Tally(size_t passes) : P(passes) {}
+    size_t P, left = 0;
     Clock::time_point begin = Clock::now(), from{}, until{};
     std::vector<double> latency;
     std::set<int> ids;
@@ -280,77 +367,147 @@ struct Tally {
         return true;
     }
 
-    // `blocked` is the driving thread's time waiting for a completion over the measured passes, negative where no one thread drives.
-    Result result(double blocked) {
+    Result result(Occupancy& occ) {
         Result r;
-        const double elapsed = std::chrono::duration<double, std::milli>(until - from).count();
-        r.rate = (double)latency.size() / (elapsed / 1000);
-        std::sort(latency.begin(), latency.end());
-        r.latency = latency[latency.size() / 2];
-        r.in_flight = ids.size();
-        if (blocked >= 0) r.busy = 1 - blocked / elapsed;
+        r.window = ms_between(from, until);
+        r.rate = (double)latency.size() / (r.window / 1000);
+        r.latency = median(latency);
+        r.circulating = ids.size();
+        const auto on = occ.over(from, until);
+        r.on_mean = on.first;
+        r.on_most = on.second;
         return r;
     }
 };
 
-// A thread per stage: each takes its next pass, writes it in, runs it, waits for it and hands it to the next stage; the calling thread samples what leaves the last stage.
-// With `warm_rows`, a stage waiting for its next pass keeps its device working on that many rows of its up projection at a time, so the device does not drop its clock between passes.
-Result per_stage(std::vector<std::unique_ptr<Stage>>& st, size_t rows, size_t P, double sample_ms, size_t warm_rows) {
-    const size_t S = st.size();
+// Adds the time `f` takes to `acc` while the tally measures.
+template <class F>
+void timed(const Tally& tally, double& acc, const F& f) {
+    const auto t0 = Clock::now();
+    f();
+    if (tally.measuring()) acc += ms_since(t0);
+}
+
+// What writing a pass in and recording it take on a stage when nothing blocks.
+struct FreeCost {
+    double write = 0, run = 0;
+};
+
+// Both averaged on an idle device: a write alone, and a recording as its calls at their mean and its submissions at the final one's.
+// On an idle device only a call that submits or opens a command buffer can wait, for a slot the same pass filled, so each recording's slowest calls, two for each submission, are left out of the mean.
+FreeCost free_cost(Stage& s, size_t rows) {
+    const int reps = 11;
+    std::vector<float> r(rows * kEmbd, 0.01f);
+    double write = 0, submit = 0, calls = 0;
+    size_t kept = 0;
+    backend::Ticket submissions = 0;
+    for (int k = 0; k < reps; ++k) {
+        s.b->sync();
+        const auto t0 = Clock::now();
+        s.b->write(*s.x, 0, r.data(), r.size() * 4);
+        write += ms_since(t0) / reps;
+        const backend::Ticket before = s.b->submit();
+        s.b->wait(before);
+        std::vector<double> each;
+        double last = 0;
+        const backend::Ticket t = s.run(rows, *s.outs[0], &each, &last);
+        submit += last / reps;
+        submissions = t - before;
+        s.b->wait(t);
+        std::sort(each.begin(), each.end());
+        const size_t keep = each.size() > 2 * submissions ? each.size() - 2 * (size_t)submissions : 1;
+        for (size_t i = 0; i < keep; ++i) calls += each[i];
+        kept += keep;
+    }
+    return {write, (double)s.calls() * calls / (double)kept + (double)submissions * submit};
+}
+
+// What every driver runs on: the stages, the rows a pass, the host's sampling time a pass and each stage's costs when nothing blocks.
+struct Setup {
+    std::vector<std::unique_ptr<Stage>>& st;
+    size_t rows;
+    double sample_ms;
+    std::vector<FreeCost> free_cost;
+};
+
+// Writes pass `p` into stage s and records it, the time each takes counted in `tt`; returns its ticket.
+backend::Ticket record_pass(const Setup& u, size_t s, const Pass& p, const Tally& tally, ThreadTime& tt) {
+    Stage& g = *u.st[s];
+    timed(tally, tt.write, [&] { g.b->write(*g.x, 0, p.residual.data(), p.residual.size() * 4); });
+    backend::Ticket t = 0;
+    timed(tally, tt.run, [&] { t = g.run(u.rows, *g.outs[p.id]); });
+    if (tally.measuring()) {
+        tt.write_free += u.free_cost[s].write;
+        tt.run_free += u.free_cost[s].run;
+    }
+    return t;
+}
+
+// Copies pass `p` out of stage s's output once the host has waited on it.
+void copy_out(const Setup& u, size_t s, Pass& p, const Tally& tally, ThreadTime& tt) {
+    timed(tally, tt.copy, [&] { std::memcpy(p.residual.data(), u.st[s]->outs[p.id]->host_ptr(), p.residual.size() * 4); });
+}
+
+// A thread per stage: each takes its next pass, writes it in, runs it, waits for it and hands it to the next stage, so a device gets a pass only once it has finished the last; the calling thread samples what leaves the last stage.
+Result per_stage(const Setup& u, size_t P) {
+    const size_t S = u.st.size();
     std::vector<Channel<Pass>> ch(S + 1);
+    Occupancy occ;
     auto stage = [&](Stage& s, Channel<Pass>& in, Channel<Pass>& out) {
         Pass p;
-        for (;;) {
-            if (warm_rows) {
-                bool closed = false;
-                if (!in.try_get(p, closed)) {
-                    if (closed) break;
-                    s.b->matmul(kQ8, {s.up.get(), 0}, {s.x.get(), 0}, {s.h.get(), 0}, kEmbd, warm_rows, 1);
-                    s.b->wait(s.b->submit());
-                    continue;
-                }
-            } else if (!in.get(p)) {
-                break;
-            }
+        while (in.get(p)) {
             s.b->write(*s.x, 0, p.residual.data(), p.residual.size() * 4);
-            s.b->wait(s.run(rows));
-            std::memcpy(p.residual.data(), s.out->host_ptr(), p.residual.size() * 4);
+            const backend::Ticket t = s.run(u.rows, *s.outs[p.id]);
+            occ.add(+1);
+            s.b->wait(t);
+            occ.add(-1);
+            std::memcpy(p.residual.data(), s.outs[p.id]->host_ptr(), p.residual.size() * 4);
             out.put(std::move(p));
         }
     };
     std::vector<std::thread> th;
-    for (size_t i = 0; i < S; ++i) th.emplace_back([&, i] { stage(*st[i], ch[i], ch[i + 1]); });
-    for (size_t i = 0; i < P; ++i) ch[0].put(fresh_pass(i, rows));
-    Tally tally;
-    tally.P = P;
+    for (size_t i = 0; i < S; ++i) th.emplace_back([&, i] { stage(*u.st[i], ch[i], ch[i + 1]); });
+    for (size_t i = 0; i < P; ++i) ch[0].put(fresh_pass(i, u.rows));
+    Tally tally(P);
     Pass p;
     while (ch[S].get(p)) {
         if (!tally.leave(p)) break;
-        spin(sample_ms);
+        spin(u.sample_ms);
         p.started = Clock::now();
         ch[0].put(std::move(p));
     }
     for (auto& c : ch) c.close();
     for (auto& t : th) t.join();
-    return tally.result(-1);
+    return tally.result(occ);
 }
 
-// One thread records, relays and samples for every stage, serving the stages in the order their passes complete.
-// A waiter per stage only blocks on that stage's tickets and reports each completion, as a sync-file or timeline poll would; it touches the backend only while the driving thread leaves it alone.
-// A stage has at most one pass on its device, as with a thread per stage, so the two drivers differ only in which threads do the host's work.
-Result one_thread(std::vector<std::unique_ptr<Stage>>& st, size_t rows, size_t P, double sample_ms) {
-    const size_t S = st.size();
+// One thread records, relays and samples for every stage, serving the stages in the order their passes complete; a device gets a pass only once it has finished the last, as with a thread per stage.
+// A waiter per stage only blocks on that stage's tickets and hands each completion over with the time its wait returned; it touches the backend only while the driving thread leaves it alone.
+// So each completion wakes two threads where a poll on the driving thread would wake one, and the result gives the second wake's mean delay.
+Result completion(const Setup& u, size_t P) {
+    const size_t S = u.st.size();
+    struct Done {
+        size_t stage = 0;
+        Clock::time_point at;
+    };
     std::vector<Channel<backend::Ticket>> tickets(S);
-    Channel<size_t> completed;
+    Channel<Done> completed;
+    Occupancy occ;
     std::vector<std::thread> waiters;
     for (size_t i = 0; i < S; ++i)
         waiters.emplace_back([&, i] {
             backend::Ticket t = 0;
             while (tickets[i].get(t)) {
-                st[i]->b->wait(t);
-                completed.put(i);
+                u.st[i]->b->wait(t);
+                const auto at = Clock::now();
+                occ.add(-1, at);
+                completed.put({i, at});
             }
         });
+    Tally tally(P);
+    ThreadTime tt;
+    double hop = 0;
+    size_t hops = 0;
     std::vector<std::deque<Pass>> waiting(S);
     std::vector<Pass> on(S);
     std::vector<bool> busy(S, false);
@@ -359,24 +516,29 @@ Result one_thread(std::vector<std::unique_ptr<Stage>>& st, size_t rows, size_t P
         if (busy[s] || waiting[s].empty()) return;
         on[s] = std::move(waiting[s].front());
         waiting[s].pop_front();
-        Stage& g = *st[s];
-        g.b->write(*g.x, 0, on[s].residual.data(), on[s].residual.size() * 4);
+        const backend::Ticket t = record_pass(u, s, on[s], tally, tt);
         busy[s] = true;
-        tickets[s].put(g.run(rows));
+        occ.add(+1);
+        tickets[s].put(t);
     };
-    for (size_t i = 0; i < P; ++i) waiting[0].push_back(fresh_pass(i, rows));
+    for (size_t i = 0; i < P; ++i) waiting[0].push_back(fresh_pass(i, u.rows));
     launch(0);
-    Tally tally;
-    tally.P = P;
-    double blocked = 0;
+    Done d;
     for (;;) {
-        size_t s = 0;
         const auto w = Clock::now();
-        completed.get(s);
-        if (tally.measuring()) blocked += ms_since(w);
+        completed.get(d);
+        const auto got = Clock::now();
+        if (tally.measuring()) {
+            tt.waiting += ms_between(w, got);
+            if (d.at > w) {
+                hop += ms_between(d.at, got);
+                ++hops;
+            }
+        }
+        const size_t s = d.stage;
         busy[s] = false;
         Pass p = std::move(on[s]);
-        std::memcpy(p.residual.data(), st[s]->out->host_ptr(), p.residual.size() * 4);
+        copy_out(u, s, p, tally, tt);
         // Every device that can take work gets it before the thread samples.
         if (s + 1 < S) {
             waiting[s + 1].push_back(std::move(p));
@@ -386,28 +548,98 @@ Result one_thread(std::vector<std::unique_ptr<Stage>>& st, size_t rows, size_t P
         }
         if (!tally.leave(p)) break;
         launch(s);
-        spin(sample_ms);
+        timed(tally, tt.sample, [&] { spin(u.sample_ms); });
         p.started = Clock::now();
         waiting[0].push_back(std::move(p));
         launch(0);
     }
-    for (size_t n = (size_t)std::count(busy.begin(), busy.end(), true); n; --n) {
-        size_t s = 0;
-        completed.get(s);
-    }
+    for (size_t n = (size_t)std::count(busy.begin(), busy.end(), true); n; --n) completed.get(d);
     for (auto& t : tickets) t.close();
     for (auto& t : waiters) t.join();
-    return tally.result(blocked);
+    Result r = tally.result(occ);
+    r.one_thread = true;
+    r.thread = tt;
+    r.hop = hops ? hop / (double)hops : 0;
+    r.hops = hops;
+    return r;
+}
+
+// One thread in the decided round (docs/STATUS.md, Layer split phase 3, The round).
+// From the last stage down to stage 1, each stage takes the oldest pass the stage before it recorded in an earlier round, waits on that pass's ticket there, copies it out and records it; then every pass whose last stage was recorded in an earlier round is waited on, sampled and formed again at stage 0.
+// With `ahead`, a pass is recorded onto its device whether or not the device is still busy, as the decided design does; without it, the thread first waits for the device to finish its last pass.
+Result in_rounds(const Setup& u, size_t P, bool ahead) {
+    const size_t S = u.st.size();
+    struct Flight {
+        Pass p;
+        backend::Ticket t = 0;
+    };
+    std::vector<std::deque<Flight>> recorded(S);          // each stage's passes, oldest first, that the next stage or retirement has not taken
+    std::vector<std::deque<backend::Ticket>> running(S);  // each stage's tickets the host has not yet seen complete
+    std::vector<backend::Ticket> latest(S, 0);
+    std::deque<Pass> ready;
+    for (size_t i = 0; i < P; ++i) ready.push_back(fresh_pass(i, u.rows));
+    Tally tally(P);
+    Occupancy occ;
+    ThreadTime tt;
+    // A wait on stage s, after which the host knows every pass recorded there up to ticket t complete.
+    auto wait = [&](size_t s, backend::Ticket t) {
+        timed(tally, tt.waiting, [&] { u.st[s]->b->wait(t); });
+        for (auto& q = running[s]; !q.empty() && q.front() <= t; q.pop_front()) occ.add(-1);
+    };
+    auto record = [&](size_t s, Pass p) {
+        if (!ahead) wait(s, latest[s]);
+        Flight f{std::move(p), 0};
+        f.t = record_pass(u, s, f.p, tally, tt);
+        latest[s] = f.t;
+        running[s].push_back(f.t);
+        occ.add(+1);
+        recorded[s].push_back(std::move(f));
+    };
+    auto take = [&](size_t s) {
+        Flight f = std::move(recorded[s].front());
+        recorded[s].pop_front();
+        wait(s, f.t);
+        copy_out(u, s, f.p, tally, tt);
+        return std::move(f.p);
+    };
+    for (bool going = true; going;) {
+        const size_t due = recorded[S - 1].size();
+        for (size_t s = S - 1; s >= 1; --s)
+            if (!recorded[s - 1].empty()) record(s, take(s - 1));
+        for (size_t k = 0; k < due && going; ++k) {
+            Pass p = take(S - 1);
+            going = tally.leave(p);
+            if (!going) break;
+            timed(tally, tt.sample, [&] { spin(u.sample_ms); });
+            p.started = Clock::now();
+            ready.push_back(std::move(p));
+        }
+        // P passes exist, so every one the host holds is formed again.
+        for (; going && !ready.empty(); ready.pop_front()) record(0, std::move(ready.front()));
+    }
+    for (auto& s : u.st) s->b->sync();
+    Result r = tally.result(occ);
+    r.one_thread = true;
+    r.thread = tt;
+    return r;
+}
+
+enum Driver { kPerStage, kCompletion, kRound, kRoundIdle, kDrivers };
+const char* const kDriverNames[kDrivers] = {"per-stage", "completion", "round", "round-idle"};
+
+Result drive(const Setup& u, Driver d, size_t P) {
+    if (d == kPerStage) return per_stage(u, P);
+    if (d == kCompletion) return completion(u, P);
+    return in_rounds(u, P, d == kRound);
 }
 
 struct PipelineOptions {
-    std::vector<double> ms{10.0};        // one pass's time on each stage, one value for every stage or one per stage
+    std::vector<std::vector<double>> ms{{10.0}};   // one list for every row count or one for each, each list one pass's time on every stage or on each
     std::vector<size_t> rows{1, 8};
-    std::vector<size_t> passes;          // P, by default 1, S, S + 1 and 2S
-    bool per_stage = true, one_thread = true;
+    std::vector<size_t> passes;                    // P, by default 1, S, S + 1 and 2S
+    std::vector<Driver> drivers{kPerStage, kCompletion, kRound, kRoundIdle};
     double sample_ms = 0.3;
-    size_t calls = 0;                    // backend calls a stage records a pass, 0 for one call a projection
-    size_t warm_rows = 0;
+    size_t calls = 0;                              // backend calls a stage records a pass, 0 for one call a projection
 };
 
 int pipeline(const std::vector<int>& devices, PipelineOptions o) {
@@ -418,18 +650,27 @@ int pipeline(const std::vector<int>& devices, PipelineOptions o) {
     std::printf("pipeline over %zu stages, devices", S);
     for (int d : devices) std::printf(" %d", d);
     std::printf("; the host spends %.2f ms sampling each pass that leaves the last stage\n", o.sample_ms);
-    double submission_ms = 0;
-    const int depth = ring_depth(*st[0], submission_ms);
-    if (depth > 0)
-        std::printf("command ring: %d submissions in flight before recording the next blocks (device %d, submissions of %.1f ms)\n", depth, devices[0], submission_ms);
-    else if (depth == -1)
-        std::printf("command ring: more than 64 submissions in flight without blocking (device %d)\n", devices[0]);
-    else if (depth == -2)
-        std::printf("command ring: not measured, the host was too slow to queue the probes in 8 attempts (device %d)\n", devices[0]);
-    else
+    const Ring ring = ring_depth(*st[0]);
+    if (ring.depth > 0)
+        std::printf("command ring: %d submissions in flight before recording the next blocks (device %d, submissions of %.1f ms)\n", ring.depth, devices[0], ring.submission_ms);
+    else if (!ring.whole)
         std::printf("command ring: not measured, one matmul took more than one submission (device %d)\n", devices[0]);
-    for (size_t rows : o.rows) {
-        for (size_t s = 0; s < S; ++s) st[s]->calibrate(o.ms.size() == 1 ? o.ms[0] : o.ms[s], rows, o.calls);
+    else if (ring.at_least > 0)
+        std::printf("command ring: no block found, at least %d submissions went in flight without one (device %d, submissions of %.1f ms)\n", ring.at_least, devices[0], ring.submission_ms);
+    else
+        std::printf("command ring: not measured, the host was too slow to queue the probes (device %d)\n", devices[0]);
+    const size_t widest = *std::max_element(o.rows.begin(), o.rows.end()), most = *std::max_element(o.passes.begin(), o.passes.end());
+    for (auto& s : st)
+        for (size_t i = 0; i < most; ++i) s->outs.push_back(s->b->alloc(widest * kEmbd * 4, Memory::host_visible));
+    std::printf("drivers: per-stage, a thread per stage; completion, one thread serving stages as their passes complete; round, one thread in the round's order; round-idle, the round waiting for each device to finish before recording onto it\n");
+    std::printf("onto: idle, a device gets a pass only once it has finished the last; busy, a pass is recorded as soon as its input is on the host\n");
+    std::printf("passes: distinct passes seen leaving the last stage; on devices: passes recorded and not yet seen complete by the host, the mean over time and the most\n");
+    std::printf("thread: where one driving thread's time went; held is what recording and writes took beyond their mean on an idle device: waits for a command slot or for staging, and any delay a busy host adds\n");
+    std::printf("each driver runs twice at each P, in the order listed and then reversed\n");
+    for (size_t ri = 0; ri < o.rows.size(); ++ri) {
+        const size_t rows = o.rows[ri];
+        const std::vector<double>& ms = o.ms[o.ms.size() == 1 ? 0 : ri];
+        for (size_t s = 0; s < S; ++s) st[s]->calibrate(ms[ms.size() == 1 ? 0 : s], rows, o.calls);
         // One pass through every stage alone, the time a single stream sees per token.
         double serial = 0;
         {
@@ -447,6 +688,7 @@ int pipeline(const std::vector<int>& devices, PipelineOptions o) {
         // Each stage's pass repeated back to back, so the device never idles: the rate a filled pipeline is bounded by.
         // The tickets count the submissions a pass takes.
         std::printf("\n%zu row%s a pass:\n", rows, rows == 1 ? "" : "s");
+        Setup u{st, rows, o.sample_ms, {}};
         double slowest = 0;
         for (size_t i = 0; i < S; ++i) {
             Stage& s = *st[i];
@@ -463,20 +705,34 @@ int pipeline(const std::vector<int>& devices, PipelineOptions o) {
             }
             const double busy = ms_since(t0) / 20;
             slowest = std::max(slowest, busy);
-            std::printf("  stage %zu, device %d: %zu layers, %zu call%s a projection, %zu calls in %.1f submissions a pass, %.2f ms a pass back to back\n", i, devices[i],
-                        s.layers, s.split, s.split == 1 ? "" : "s", s.calls(), double(last - first) / 19, busy);
+            u.free_cost.push_back(free_cost(s, rows));
+            char asked[48] = "";
+            if (o.calls && std::fabs((double)s.calls() - (double)o.calls) > 0.1 * (double)o.calls) std::snprintf(asked, sizeof asked, " of the %zu asked", o.calls);
+            std::printf("  stage %zu, device %d: %zu layers, %zu call%s a projection, %zu calls%s in %.1f submissions a pass, %.2f ms a pass back to back; written in %.3f ms and recorded in %.3f ms on an idle device\n",
+                        i, devices[i], s.layers, s.split, s.split == 1 ? "" : "s", s.calls(), asked, double(last - first) / 19, busy, u.free_cost[i].write, u.free_cost[i].run);
         }
         std::printf("  one pass through every stage alone: %.2f ms\n", serial);
-        std::printf("  %-10s %4s %10s %10s %11s %12s\n", "driver", "P", "passes/s", "ms a pass", "of slowest", "thread busy");
-        auto row = [&](const char* driver, const Result& r) {
-            std::printf("  %-10s %4zu %10.1f %10.2f %10.0f%%", driver, r.in_flight, r.rate, r.latency, 100 * r.rate * slowest / 1000);
-            if (r.busy >= 0) std::printf(" %11.0f%%\n", 100 * r.busy);
-            else std::printf(" %12s\n", "-");
+        std::printf("  %-11s %-5s %6s %12s %9s %10s %10s\n", "driver", "onto", "passes", "on devices", "passes/s", "ms a pass", "of slowest");
+        auto row = [&](Driver d, const Result& r) {
+            std::printf("  %-11s %-5s %6zu %7.2f / %-2d %9.1f %10.2f %9.0f%%\n", kDriverNames[d], d == kRound ? "busy" : "idle", r.circulating, r.on_mean, r.on_most, r.rate, r.latency,
+                        100 * r.rate * slowest / 1000);
+            if (!r.one_thread) return;
+            const ThreadTime& t = r.thread;
+            const double run_held = std::max(0.0, t.run - t.run_free), write_held = std::max(0.0, t.write - t.write_free);
+            const double other = std::max(0.0, r.window - t.waiting - t.write - t.run - t.copy - t.sample);
+            auto pc = [&](double v) { return 100 * v / r.window; };
+            std::printf("  %11s thread working %.0f%% (recording %.0f%%, relaying %.0f%%, sampling %.0f%%, other %.0f%%), blocked %.0f%% (waiting %.0f%%, recording held %.0f%%, writes held %.0f%%)", "",
+                        pc(t.run - run_held + t.write - write_held + t.copy + t.sample + other), pc(t.run - run_held), pc(t.write - write_held + t.copy), pc(t.sample), pc(other),
+                        pc(t.waiting + run_held + write_held), pc(t.waiting), pc(run_held), pc(write_held));
+            if (r.hops) std::printf("; a completion reached it %.3f ms after its wait returned", r.hop);
+            std::printf("\n");
         };
-        for (size_t P : o.passes) {
-            if (o.per_stage) row("per-stage", per_stage(st, rows, P, o.sample_ms, o.warm_rows));
-            if (o.one_thread) row("one", one_thread(st, rows, P, o.sample_ms));
-        }
+        for (size_t P : o.passes)
+            for (int reading = 0; reading < 2; ++reading)
+                for (size_t k = 0; k < o.drivers.size(); ++k) {
+                    const Driver d = o.drivers[reading ? o.drivers.size() - 1 - k : k];
+                    row(d, drive(u, d, P));
+                }
     }
     return 0;
 }
@@ -523,17 +779,16 @@ int stages(const std::string& path, const std::vector<int>& devices, const Stage
     infer::Model& model = *loaded->model;
     std::printf("%s, %zu tokens of context, %zu passes timed after %zu:\n%s", path.c_str(), o.context, o.steps, warm, loaded->plan.c_str());
     const std::vector<int> layers = plan_layers(loaded->plan, devices.size());
-    // Ids below 1000, or below a smaller vocabulary's size, as the CLI's bench takes them.
+    if (layers.empty()) std::printf("plan not read: the layer counts and the head's share are left out\n");
+    // Fixed pseudo-random ids below 1000, or below a smaller vocabulary's size, the same in every run.
     const uint32_t vocab = (uint32_t)std::min<size_t>(1000, model.n_vocab());
-    auto ids_from = [vocab](uint32_t seed, size_t n) {
-        std::vector<uint32_t> ids(n);
-        for (auto& t : ids) {
-            seed = seed * 1664525u + 1013904223u;
-            t = (seed >> 8) % vocab;
-        }
-        return ids;
+    std::mt19937 rng(12345);
+    auto ids = [&](size_t n) {
+        std::vector<uint32_t> v(n);
+        for (auto& t : v) t = (uint32_t)(rng() % vocab);
+        return v;
     };
-    const std::vector<uint32_t> prompt = ids_from(12345u, o.context), gen = ids_from(777u, warm + o.steps);
+    const std::vector<uint32_t> prompt = ids(o.context), gen = ids(warm + o.steps);
     const size_t n = devices.size(), ubatch = model.prefill_batch();
     infer::ExecContext ctx;
     for (size_t rows : o.rows) {
@@ -740,8 +995,10 @@ std::vector<int> parse_devices(int argc, char** argv, int from, int& next) {
 
 const char* const kUsage =
     "usage: llmx-multi-device-bench concurrent D...\n"
-    "       llmx-multi-device-bench pipeline D0 D1 [D...] [--ms MS[,MS...]] [--rows R[,R...]] [--passes P[,P...]]\n"
-    "                                        [--driver per-stage|one|both] [--sample MS] [--calls N] [--warm ROWS]\n"
+    "       llmx-multi-device-bench pipeline D0 D1 [D...] [--ms MS[,MS...][/MS[,MS...]...]] [--rows R[,R...]] [--passes P[,P...]]\n"
+    "                                        [--driver all|DRIVER[,DRIVER...]] [--sample MS] [--calls N]\n"
+    "         --ms: a stage's time for every stage or for each, in one list for every --rows value or a list for each, separated by /\n"
+    "         DRIVER: per-stage, completion, round or round-idle\n"
     "       llmx-multi-device-bench stages MODEL D... [--rows R[,R...]] [--context N] [--steps N]\n"
     "       llmx-multi-device-bench groupsum D...\n"
     "       llmx-multi-device-bench exchange D... [-- tokens skew]\n";
@@ -801,28 +1058,38 @@ std::vector<size_t> count_list(const Args& a, const std::string& k, std::vector<
 
 PipelineOptions pipeline_options(const Args& a) {
     PipelineOptions o;
-    if (a.has("--ms")) {
-        o.ms.clear();
-        for (const auto& item : items(a.at("--ms"), "--ms")) o.ms.push_back(number(item, "--ms"));
-    }
-    if (o.ms.size() != 1 && o.ms.size() != a.devices.size()) throw Usage("--ms: one time for every stage, or one for each");
-    for (double ms : o.ms)
-        if (ms <= 0) throw Usage("--ms: a stage takes some time");
     o.rows = count_list(a, "--rows", o.rows);
     for (size_t r : o.rows)
-        if (!r || r > kMaxRows) throw Usage("--rows: 1 to 512 rows a pass");
+        if (!r || r > kMaxRows) throw Usage("--rows: 1 to " + std::to_string(kMaxRows) + " rows a pass");
+    if (a.has("--ms")) {
+        o.ms.clear();
+        std::istringstream lists(a.at("--ms"));
+        for (std::string list; std::getline(lists, list, '/');) {
+            o.ms.emplace_back();
+            for (const auto& item : items(list, "--ms")) o.ms.back().push_back(number(item, "--ms"));
+        }
+    }
+    if (o.ms.size() != 1 && o.ms.size() != o.rows.size()) throw Usage("--ms: one list for every --rows value, or one for each");
+    for (const auto& list : o.ms) {
+        if (list.size() != 1 && list.size() != a.devices.size()) throw Usage("--ms: one time for every stage, or one for each");
+        for (double ms : list)
+            if (ms <= 0) throw Usage("--ms: a stage takes some time");
+    }
+    if (o.ms.size() == 1 && o.ms[0].size() > 1 && o.rows.size() > 1)
+        throw Usage("--ms: a time for each stage is measured at one row count, so give a list for each --rows value");
     o.passes = count_list(a, "--passes", o.passes);
     for (size_t p : o.passes)
         if (!p) throw Usage("--passes: at least one pass in flight");
-    const std::string driver = a.has("--driver") ? a.at("--driver") : "both";
-    if (driver != "per-stage" && driver != "one" && driver != "both") throw Usage("--driver: per-stage, one or both");
-    o.per_stage = driver != "one";
-    o.one_thread = driver != "per-stage";
+    if (a.has("--driver") && a.at("--driver") != "all") {
+        o.drivers.clear();
+        for (const auto& name : items(a.at("--driver"), "--driver")) {
+            const auto at = std::find(std::begin(kDriverNames), std::end(kDriverNames), name);
+            if (at == std::end(kDriverNames)) throw Usage("--driver: " + name + " is not one of per-stage, completion, round and round-idle");
+            o.drivers.push_back((Driver)(at - std::begin(kDriverNames)));
+        }
+    }
     if (a.has("--sample")) o.sample_ms = number(a.at("--sample"), "--sample");
     if (a.has("--calls")) o.calls = count(a.at("--calls"), "--calls");
-    if (a.has("--warm")) o.warm_rows = count(a.at("--warm"), "--warm");
-    if (o.warm_rows > kFF) throw Usage("--warm: at most the up projection's 25600 rows");
-    if (o.warm_rows && o.one_thread) throw Usage("--warm: a waiting stage keeps its device busy from its own thread, so it takes --driver per-stage");
     return o;
 }
 
@@ -847,7 +1114,7 @@ int main(int argc, char** argv) {
         int next = 0;
         if (mode == "concurrent") return concurrent(parse_devices(argc, argv, 2, next));
         if (mode == "pipeline") {
-            const Args a = parse_args(argc, argv, 2, {"--ms", "--rows", "--passes", "--driver", "--sample", "--calls", "--warm"});
+            const Args a = parse_args(argc, argv, 2, {"--ms", "--rows", "--passes", "--driver", "--sample", "--calls"});
             if (a.devices.size() < 2) throw Usage("pipeline: two devices or more, a stage on each");
             return pipeline(a.devices, pipeline_options(a));
         }

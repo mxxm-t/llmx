@@ -316,6 +316,8 @@ int main(int argc, char** argv) {
         check_limit("a sum of 200000 terms", "{{ 1" + repeated(" + 1", 199999) + " }}", false, "nested too deeply", tally);
         check_limit("200000 attributes", "{{ x" + repeated(".y", 200000) + " }}", false, "nested too deeply", tally);
         check_limit("200000 filters", "{{ x" + repeated("|trim", 200000) + " }}", false, "nested too deeply", tally);
+        check_limit("a map naming map 5000 times", "{{ 'a'|map(" + repeated("'map', ", 5000) + "'upper') }}", false,
+                    "maximum recursion depth exceeded", tally);
         check_limit("a macro recursing 99 deep through ten statements a level",
                     "{% macro f(n) %}" + repeated("{% for i in [1] %}{% if true %}", 5) + "{% if n > 0 %}{{ f(n - 1) }}{% endif %}" +
                     repeated("{% endif %}{% endfor %}", 5) + "{% endmacro %}{{ f(99) }}", false, "maximum recursion depth exceeded", tally);
